@@ -32,7 +32,7 @@ const PRESET_COLORS = [
 
 export function TagManager() {
   const supabase = createClient();
-  const { user, loading: authLoading } = useAuth();
+  const { user, accountId, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -46,22 +46,22 @@ export function TagManager() {
 
   useEffect(() => {
     if (authLoading) return;
-    if (!user) {
+    if (!user || !accountId) {
       setLoading(false);
       return;
     }
-    fetchTags(user.id);
+    fetchTags(accountId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, accountId]);
 
-  async function fetchTags(userId: string) {
+  async function fetchTags(accountId: string) {
     try {
       setLoading(true);
 
       const { data, error } = await supabase
         .from('tags')
         .select('*')
-        .eq('user_id', userId)
+        .eq('account_id', accountId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -82,8 +82,8 @@ export function TagManager() {
 
     try {
       setSaving(true);
-      if (!user) {
-        toast.error('Not authenticated');
+      if (!user || !accountId) {
+        toast.error('Not authenticated or account not loaded');
         return;
       }
 
@@ -91,6 +91,7 @@ export function TagManager() {
         .from('tags')
         .insert({
           user_id: user.id,
+          account_id: accountId,
           name: newTagName.trim(),
           color: selectedColor,
         });
@@ -101,7 +102,7 @@ export function TagManager() {
       setDialogOpen(false);
       setNewTagName('');
       setSelectedColor(PRESET_COLORS[3].value);
-      if (user) await fetchTags(user.id);
+      await fetchTags(accountId);
     } catch (err) {
       console.error('Create error:', err);
       toast.error('Failed to create tag');

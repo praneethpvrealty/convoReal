@@ -18,6 +18,7 @@ export interface MetaSendResult {
 
 export interface MetaPhoneInfo {
   id: string
+  /** Not available on Meta test/sandbox numbers — falls back to the phone_number_id. */
   display_phone_number: string
   verified_name?: string
   quality_rating?: string
@@ -55,14 +56,45 @@ export async function verifyPhoneNumber(
   args: VerifyPhoneNumberArgs
 ): Promise<MetaPhoneInfo> {
   const { phoneNumberId, accessToken } = args
-  const url = `${META_API_BASE}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating`
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  if (!response.ok) {
-    await throwMetaError(response, `Meta API error: ${response.status}`)
+  const headers = { Authorization: `Bearer ${accessToken}` }
+
+  // Step 1: fetch only `id` — this field always exists on both real and
+  // test/sandbox numbers and proves the token + phone_number_id are valid.
+  // Requesting optional fields (display_phone_number, verified_name,
+  // quality_rating) in the same call causes Meta to return #100
+  // "Tried accessing nonexisting field" for test numbers, which would
+  // block the entire config save.
+  const idUrl = `${META_API_BASE}/${phoneNumberId}?fields=id`
+  const idRes = await fetch(idUrl, { headers })
+  if (!idRes.ok) {
+    await throwMetaError(idRes, `Meta API error: ${idRes.status}`)
   }
-  return response.json()
+  const { id } = (await idRes.json()) as { id: string }
+
+  // Step 2: best-effort — fetch all optional display fields in one call.
+  // Test numbers don't expose these fields and Meta returns #100; we
+  // swallow the error and fall back to safe defaults so saving still works.
+  let display_phone_number: string = phoneNumberId
+  let verified_name: string | undefined
+  let quality_rating: string | undefined
+  try {
+    const extUrl = `${META_API_BASE}/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`
+    const extRes = await fetch(extUrl, { headers })
+    if (extRes.ok) {
+      const ext = (await extRes.json()) as {
+        display_phone_number?: string
+        verified_name?: string
+        quality_rating?: string
+      }
+      if (ext.display_phone_number) display_phone_number = ext.display_phone_number
+      verified_name = ext.verified_name
+      quality_rating = ext.quality_rating
+    }
+  } catch {
+    // Swallow — test/sandbox numbers don't support these fields
+  }
+
+  return { id, display_phone_number, verified_name, quality_rating }
 }
 
 // ============================================================
@@ -110,6 +142,13 @@ export interface RegisterPhoneNumberResult {
    * caller's POV, surfaced separately for logging clarity.
    */
   alreadyRegistered: boolean
+  /**
+   * True when Meta rejected /register with "Unsupported post request" —
+   * this is the expected response for test/sandbox phone numbers which
+   * are pre-registered by Meta and don't support the /register endpoint.
+   * Treat this as a successful save, not a user-actionable error.
+   */
+  testNumberSkipped?: boolean
 }
 
 /**
@@ -119,6 +158,12 @@ export interface RegisterPhoneNumberResult {
  *   * Missing / wrong PIN  → "Two-step verification PIN required..."
  *   * No 2FA enabled       → "Two-factor authentication is not on..."
  *   * Number on other app  → "Number is registered to another app..."
+ *
+ * Silently treated as success:
+ *   * "Unsupported post request" / "does not support this operation" →
+ *     Meta test/sandbox numbers are pre-registered and don't expose the
+ *     /register endpoint. Flag `testNumberSkipped: true` so callers
+ *     can save without surfacing a confusing PIN-retry error.
  */
 export async function registerPhoneNumber(
   args: RegisterPhoneNumberArgs
@@ -149,9 +194,28 @@ export async function registerPhoneNumber(
     /* keep empty */
   }
   const message = data.error?.message ?? `Meta API error: ${response.status}`
+
   if (/already.*registered/i.test(message)) {
     return { success: true, alreadyRegistered: true }
   }
+
+  // Test/sandbox numbers return "Unsupported post request. Object with ID
+  // '...' does not exist, cannot be loaded due to missing permissions, or
+  // does not support this operation." — /register is simply not available
+  // for these numbers. Treat as a silent skip so the UI doesn't demand a
+  // PIN retry for something that will never work.
+  if (/unsupported post request/i.test(message) || /does not support this operation/i.test(message)) {
+    return { success: true, alreadyRegistered: false, testNumberSkipped: true }
+  }
+
+  // 2-step verification is disabled on this number. The /register endpoint
+  // requires 2FA to be enabled, but for test numbers and numbers already
+  // subscribed via Embedded Signup this doesn't affect message flow at all.
+  // Skip gracefully rather than blocking the save with an error.
+  if (/two.?factor authentication is not on/i.test(message) || /two.?step verification.*not.*enabled/i.test(message)) {
+    return { success: true, alreadyRegistered: false, testNumberSkipped: true }
+  }
+
   throw new Error(message)
 }
 

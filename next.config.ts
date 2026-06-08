@@ -55,6 +55,14 @@ const SECURITY_HEADERS = [
 
 const nextConfig: NextConfig = {
   /**
+   * Allow HMR and dev resources from the local network IP so you can
+   * access the dev server from other devices on the same network
+   * (e.g. http://192.168.29.147:3000). Next.js 16 blocks cross-origin
+   * dev access by default; this allowlist re-enables it safely.
+   */
+  allowedDevOrigins: ['192.168.29.147'],
+
+  /**
    * Cache-Control policy.
    *
    * Why this exists:

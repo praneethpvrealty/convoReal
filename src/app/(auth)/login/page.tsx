@@ -48,21 +48,37 @@ function LoginPageInner() {
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    console.log('[LOGIN] Attempting signInWithPassword for:', email);
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
+    console.log('[LOGIN] Result → error:', error, '| session:', data?.session?.access_token ? 'present' : 'null');
+
     if (error) {
+      console.error('[LOGIN] Auth error:', error.message, error.status);
       setError(error.message);
       setLoading(false);
       return;
     }
 
+    if (!data.session) {
+      console.error('[LOGIN] No session returned despite no error — email may not be confirmed');
+      setError('Login failed: no session returned. Your email may not be confirmed — check your inbox.');
+      setLoading(false);
+      return;
+    }
+
+    console.log('[LOGIN] Session OK, navigating via window.location...');
+    // Use window.location.href (hard navigation) to avoid Next.js middleware
+    // cookie timing race — the browser will send all fresh cookies on a real
+    // HTTP request rather than a client-side push which can race with
+    // the cookie being committed.
     if (inviteToken) {
-      router.push(`/join/${encodeURIComponent(inviteToken)}`);
+      window.location.href = `/join/${encodeURIComponent(inviteToken)}`;
     } else {
-      router.push("/dashboard");
+      window.location.href = '/dashboard';
     }
   };
 

@@ -72,6 +72,20 @@ export async function POST(request: Request) {
 
   const admin = supabaseAdmin()
 
+  // Fetch user's profile to resolve account_id
+  const { data: profile, error: profileErr } = await admin
+    .from('profiles')
+    .select('account_id')
+    .eq('user_id', userId)
+    .single()
+
+  if (profileErr || !profile) {
+    return NextResponse.json(
+      { error: `Failed to resolve account: ${profileErr?.message ?? 'profile not found'}` },
+      { status: 400 },
+    )
+  }
+
   // -------- Template clone path --------
   if (body.template_slug) {
     const template = getFlowTemplate(body.template_slug)
@@ -85,6 +99,7 @@ export async function POST(request: Request) {
       .from('flows')
       .insert({
         user_id: userId,
+        account_id: profile.account_id,
         name: body.name?.trim() || template.name,
         description: template.description,
         status: 'draft',
@@ -133,6 +148,7 @@ export async function POST(request: Request) {
     .from('flows')
     .insert({
       user_id: userId,
+      account_id: profile.account_id,
       name: body.name.trim(),
       description: body.description ?? null,
       status: 'draft',

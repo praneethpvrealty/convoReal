@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import {
@@ -34,6 +35,7 @@ export function ContactForm({
   onSaved,
 }: ContactFormProps) {
   const supabase = createClient();
+  const { user, accountId } = useAuth();
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
@@ -86,11 +88,7 @@ export function ContactForm({
     setSaving(true);
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) throw new Error('Not authenticated');
+      if (!user || !accountId) throw new Error('Not authenticated or account not loaded');
 
       let contactId = contact?.id;
 
@@ -111,6 +109,7 @@ export function ContactForm({
           .from('contacts')
           .insert({
             user_id: user.id,
+            account_id: accountId,
             name: name.trim() || null,
             phone: phone.trim(),
             email: email.trim() || null,

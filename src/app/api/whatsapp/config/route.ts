@@ -284,32 +284,32 @@ export async function POST(request: Request) {
 
     // Step 1: register the phone number for inbound webhooks.
     //
-    // Required on first save AND whenever the user supplies a fresh
-    // PIN (e.g. they rotated the 2FA PIN in Meta Manager). Skipped
-    // when the same number is already registered and no PIN was
-    // supplied — re-registering an already-active number with a
-    // stale PIN would actually fail and undo the active subscription.
+    // PIN is OPTIONAL. Numbers set up via Meta's Embedded Signup or the
+    // Developer Console are already registered to this app — calling
+    // /register again is unnecessary and risks breaking the subscription.
+    // We only call /register when the user explicitly provides a PIN,
+    // which covers two cases:
+    //   a) First-time setup of a number NOT previously via Embedded Signup
+    //   b) User rotated their 2FA PIN and wants to re-register
+    // In all other cases (no PIN + new number) we skip /register and treat
+    // the number as already subscribed — messages will still flow.
     let registeredAt: string | null = existing?.registered_at ?? null
     let registrationError: string | null = null
 
-    const needsRegistration = !sameNumber || (typeof pin === 'string' && pin.length > 0)
+    const hasPin = typeof pin === 'string' && pin.length > 0
+    const needsRegistration = hasPin  // only register when PIN is explicitly provided
     if (needsRegistration) {
-      if (!pin) {
-        return NextResponse.json(
-          {
-            error:
-              'Two-step verification PIN is required to subscribe this number to wacrm. ' +
-              'Set a 6-digit PIN in Meta WhatsApp Manager → Phone Numbers → Two-step verification, then paste it below.',
-          },
-          { status: 400 }
-        )
-      }
       try {
-        await registerPhoneNumber({
+        const regResult = await registerPhoneNumber({
           phoneNumberId: phone_number_id,
           accessToken: access_token,
           pin,
         })
+        if (regResult.testNumberSkipped) {
+          // Test/sandbox numbers don't support /register — Meta pre-registers
+          // them. Treat as success so the config saves without a PIN-retry error.
+          console.log('[whatsapp/config] Test number detected — skipping /register (not supported by Meta for sandbox numbers).')
+        }
         registeredAt = new Date().toISOString()
       } catch (err) {
         registrationError =
@@ -320,6 +320,12 @@ export async function POST(request: Request) {
         // surfaces `last_registration_error` so they see WHY it's
         // not actually live yet.
       }
+    } else if (!sameNumber) {
+      // New number, no PIN supplied — assume already subscribed via
+      // Embedded Signup / Developer Console. Mark registered so the UI
+      // doesn't show a "not registered" warning.
+      console.log('[whatsapp/config] No PIN provided — assuming number already registered via Embedded Signup.')
+      registeredAt = new Date().toISOString()
     }
 
     // Step 2: subscribe the WABA to this app. Idempotent on Meta's

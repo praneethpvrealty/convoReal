@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import type {
   Contact,
   Conversation,
@@ -51,6 +52,7 @@ export function DealForm({
   onSaved,
 }: DealFormProps) {
   const supabase = createClient();
+  const { user, accountId } = useAuth();
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
@@ -176,18 +178,14 @@ export function DealForm({
         return;
       }
     } else {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) {
-        toast.error("Not signed in");
+      if (!user || !accountId) {
+        toast.error("Not signed in or account not loaded");
         setSaving(false);
         return;
       }
       const { error } = await supabase
         .from("deals")
-        .insert({ ...payload, user_id: user.id, status: "open" });
+        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
       if (error) {
         toast.error("Failed to create deal");
         setSaving(false);

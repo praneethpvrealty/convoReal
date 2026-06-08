@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal } from '@/types';
 import {
@@ -47,6 +48,7 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const supabase = createClient();
+  const { user, accountId } = useAuth();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
@@ -240,12 +242,8 @@ export function ContactDetailView({
     if (!contactId || !newNote.trim()) return;
     setSavingNote(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
-    if (!user) {
-      toast.error('Not authenticated');
+    if (!user || !accountId) {
+      toast.error('Not authenticated or account not loaded');
       setSavingNote(false);
       return;
     }
@@ -253,6 +251,7 @@ export function ContactDetailView({
     const { error } = await supabase.from('contact_notes').insert({
       contact_id: contactId,
       user_id: user.id,
+      account_id: accountId,
       note_text: newNote.trim(),
     });
 

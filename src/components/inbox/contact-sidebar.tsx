@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import type { Contact, Deal, ContactNote, Tag } from "@/types";
 import {
@@ -24,6 +25,7 @@ interface ContactSidebarProps {
 }
 
 export function ContactSidebar({ contact }: ContactSidebarProps) {
+  const { user, accountId } = useAuth();
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -89,16 +91,18 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     setAddingNote(true);
 
     const supabase = createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    const user = session?.user;
+
+    if (!user || !accountId) {
+      setAddingNote(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from("contact_notes")
       .insert({
         contact_id: contact.id,
-        user_id: user?.id,
+        user_id: user.id,
+        account_id: accountId,
         note_text: newNote.trim(),
       })
       .select()
@@ -109,7 +113,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
       setNewNote("");
     }
     setAddingNote(false);
-  }, [contact, newNote]);
+  }, [contact, newNote, user, accountId]);
 
   if (!contact) {
     return (

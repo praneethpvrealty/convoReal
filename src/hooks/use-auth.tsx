@@ -134,6 +134,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (error) {
+        // Backward-compatible fallback for forks that haven't applied the
+        // account migrations yet (no profiles.account_id -> accounts FK).
+        if (
+          error.code === "PGRST200" &&
+          error.message.includes("relationship between 'profiles' and 'accounts'")
+        ) {
+          const { data: legacyData, error: legacyError } = await supabase
+            .from("profiles")
+            .select("id, full_name, email, avatar_url, role, beta_features")
+            .eq("user_id", userId)
+            .maybeSingle();
+
+          if (legacyError) {
+            console.error("[AuthProvider] legacy fetchProfile error:", {
+              message: legacyError.message,
+              details: legacyError.details,
+              hint: legacyError.hint,
+              code: legacyError.code,
+            });
+            return;
+          }
+
+          if (legacyData) {
+            setProfile({
+              id: legacyData.id,
+              full_name: legacyData.full_name,
+              email: legacyData.email,
+              avatar_url: legacyData.avatar_url,
+              role: legacyData.role,
+              beta_features: legacyData.beta_features ?? [],
+              account_id: null,
+              account_role: null,
+            });
+            setAccount(null);
+          }
+          return;
+        }
+
         console.error("[AuthProvider] fetchProfile error:", {
           message: error.message,
           details: error.details,
