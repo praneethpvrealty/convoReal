@@ -130,7 +130,7 @@ export default function PipelinesPage() {
     await supabase.from("pipeline_stages").insert(stagesPayload);
 
     return pipeline as Pipeline;
-  }, [supabase]);
+  }, [supabase, user, accountId]);
 
   // Initial load + seed-if-empty
   useEffect(() => {
