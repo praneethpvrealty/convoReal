@@ -354,9 +354,33 @@ async function handleStatusUpdate(status: {
 
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatePayload: Record<string, any> = { status: status.status }
+
+  if (status.status === 'failed' && status.errors && status.errors.length > 0) {
+    const errorDetails = status.errors
+      .map((e) => `[Error ${e.code}] ${e.message}${e.error_data?.details ? `: ${e.error_data.details}` : ''}`)
+      .join('\n')
+    
+    try {
+      const { data: existingMsg } = await supabaseAdmin()
+        .from('messages')
+        .select('content_text')
+        .eq('message_id', status.id)
+        .maybeSingle()
+
+      if (existingMsg) {
+        const originalText = existingMsg.content_text || ''
+        updatePayload.content_text = `${originalText}\n\n❌ Delivery Failed:\n${errorDetails}`.trim()
+      }
+    } catch (err) {
+      console.error('Failed to append error message to content_text:', err)
+    }
+  }
+
   const { data: updatedMsg, error: msgErr } = await supabaseAdmin()
     .from('messages')
-    .update({ status: status.status })
+    .update(updatePayload)
     .eq('message_id', status.id)
     .select('id')
 
