@@ -344,9 +344,20 @@ export function PropertyForm({
           params.push(val);
         });
 
+        // If the template has an image header, dynamically supply the first property image URL if available
+        const propertyImage = images.map((img) => img.trim()).find((img) => img.length > 0);
+        const hasImageHeader = selectedTemplate.header_type === 'image';
+
         return {
           phone: contact.phone,
           params,
+          ...(hasImageHeader && propertyImage
+            ? {
+                messageParams: {
+                  headerMediaUrl: propertyImage,
+                },
+              }
+            : {}),
         };
       });
 

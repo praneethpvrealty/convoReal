@@ -1433,8 +1433,88 @@ ALTER TABLE contacts
 
 
 -- ============================================================
+-- Update message_templates table for Meta Integration
+-- (Adds missing columns like header_media_url, sample_values, etc. 
+-- and upgrades status check constraints to uppercase)
+-- ============================================================
+ALTER TABLE message_templates
+  ADD COLUMN IF NOT EXISTS sample_values JSONB,
+  ADD COLUMN IF NOT EXISTS meta_template_id TEXT,
+  ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+  ADD COLUMN IF NOT EXISTS quality_score TEXT,
+  ADD COLUMN IF NOT EXISTS header_handle TEXT,
+  ADD COLUMN IF NOT EXISTS header_media_url TEXT,
+  ADD COLUMN IF NOT EXISTS submission_error TEXT,
+  ADD COLUMN IF NOT EXISTS last_submitted_at TIMESTAMPTZ;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'message_templates_quality_score_check'
+      AND conrelid = 'message_templates'::regclass
+  ) THEN
+    ALTER TABLE message_templates
+      ADD CONSTRAINT message_templates_quality_score_check
+      CHECK (quality_score IS NULL OR quality_score IN ('GREEN', 'YELLOW', 'RED'));
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    WHERE c.conrelid = 'message_templates'::regclass
+      AND c.contype = 'c'
+      AND pg_get_constraintdef(c.oid) ILIKE '%status%Draft%Pending%Approved%Rejected%'
+  ) THEN
+    EXECUTE (
+      SELECT 'ALTER TABLE message_templates DROP CONSTRAINT ' || quote_ident(conname)
+      FROM pg_constraint c
+      WHERE c.conrelid = 'message_templates'::regclass
+        AND c.contype = 'c'
+        AND pg_get_constraintdef(c.oid) ILIKE '%status%Draft%Pending%Approved%Rejected%'
+      LIMIT 1
+    );
+  END IF;
+END $$;
+
+UPDATE message_templates SET status = 'DRAFT'    WHERE status = 'Draft';
+UPDATE message_templates SET status = 'PENDING'  WHERE status = 'Pending';
+UPDATE message_templates SET status = 'APPROVED' WHERE status = 'Approved';
+UPDATE message_templates SET status = 'REJECTED' WHERE status = 'Rejected';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'message_templates_status_meta_check'
+      AND conrelid = 'message_templates'::regclass
+  ) THEN
+    ALTER TABLE message_templates
+      ADD CONSTRAINT message_templates_status_meta_check
+      CHECK (status IN (
+        'DRAFT',
+        'PENDING',
+        'APPROVED',
+        'REJECTED',
+        'PAUSED',
+        'DISABLED',
+        'IN_APPEAL',
+        'PENDING_DELETION'
+      ));
+  END IF;
+END $$;
+
+ALTER TABLE message_templates ALTER COLUMN status SET DEFAULT 'DRAFT';
+
+
+-- ============================================================
 -- Message Template Seed
--- Seed a standard template to share property details via WhatsApp.
+-- Seed standard templates to share property details via WhatsApp.
 -- Run this in the Supabase SQL editor to create the template.
 -- ============================================================
 DO $$
@@ -1474,7 +1554,40 @@ BEGIN
       'en_US',
       'text',
       'New Property: {{1}}',
-      'Hi {{1}},\n\nHere are the details for the property you showed interest in:\n\n🏡 *{{2}}*\n📍 Location: {{3}}\n💰 Price: {{4}}\n📐 Area: {{5}}\n\nHighlights:\n{{6}}\n\nPlease let me know if you would like to arrange a site visit or need more details.\n\nRegards,\n{{7}}',
+      'Hello! Hi {{1}},\n\nHere are the details for the property you showed interest in:\n\n🏡 *{{2}}*\n📍 Location: {{3}}\n💰 Price: {{4}}\n📐 Area: {{5}}\n\nHighlights:\n{{6}}\n\nPlease let me know if you would like to arrange a site visit or need more details.\n\nRegards,\n{{7}}\nPV Realty',
+      'APPROVED'
+    );
+
+    -- Also seed an image-header version of the template for sharing property details
+    DELETE FROM message_templates 
+    WHERE name = 'share_property_details_with_image' 
+      AND user_id = v_user_id;
+
+    INSERT INTO message_templates (
+      user_id,
+      account_id,
+      name,
+      category,
+      language,
+      header_type,
+      header_media_url,
+      body_text,
+      buttons,
+      status
+    )
+    VALUES (
+      v_user_id,
+      v_account_id,
+      'share_property_details_with_image',
+      'Marketing',
+      'en_US',
+      'image',
+      'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80',
+      'Hello! Hi {{1}},\n\nHere are the details for the property you showed interest in:\n\n🏡 *{{2}}*\n📍 Location: {{3}}\n💰 Price: {{4}}\n📐 Area: {{5}}\n\nHighlights:\n{{6}}\n\nPlease let me know if you would like to arrange a site visit or need more details.\n\nRegards,\n{{7}}\nPV Realty',
+      '[
+        {"type": "URL", "text": "View Photo Gallery", "url": "https://pvrealty.in/properties"},
+        {"type": "PHONE_NUMBER", "text": "Contact Agent", "phone_number": "+919999999999"}
+      ]'::jsonb,
       'APPROVED'
     );
   END IF;
