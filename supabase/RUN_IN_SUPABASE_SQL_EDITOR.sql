@@ -1464,7 +1464,6 @@ BEGIN
       header_type,
       header_content,
       body_text,
-      sample_values,
       status
     )
     VALUES (
@@ -1476,7 +1475,6 @@ BEGIN
       'text',
       'New Property: {{1}}',
       'Hi {{1}},\n\nHere are the details for the property you showed interest in:\n\n🏡 *{{2}}*\n📍 Location: {{3}}\n💰 Price: {{4}}\n📐 Area: {{5}}\n\nHighlights:\n{{6}}\n\nPlease let me know if you would like to arrange a site visit or need more details.\n\nRegards,\n{{7}}',
-      '{"header":["Prestige Shantiniketan"],"body":["John Doe","Prestige Shantiniketan 3BHK","Whitefield","₹1.5 Cr","1800 Sq.Ft.","Vibrant community, close to IT parks","Alex"]}'::jsonb,
       'APPROVED'
     );
   END IF;
