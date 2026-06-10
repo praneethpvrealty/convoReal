@@ -200,6 +200,8 @@ export async function POST(request: Request) {
 
       for (const variant of variants) {
         try {
+          console.log(`[Broadcast] Dispatching to ${variant}. Template: ${template_name}, Lang: ${template_language || 'en_US'}`)
+          console.log(`[Broadcast] Params: ${JSON.stringify(recipient.params)}, MessageParams: ${JSON.stringify(recipient.messageParams)}`)
           const result = await sendTemplateMessage({
             phoneNumberId: config.phone_number_id,
             accessToken,
@@ -216,6 +218,7 @@ export async function POST(request: Request) {
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : 'Unknown error'
+          console.error(`[Broadcast] Failed sending to ${variant}:`, errorMessage)
           if (!isRecipientNotAllowedError(errorMessage)) {
             lastError = errorMessage
             break
