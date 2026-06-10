@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal } from '@/types';
+import { POPULAR_SUBLOCALITIES } from '@/lib/data/real-estate-data';
 import {
   Sheet,
   SheetContent,
@@ -18,7 +19,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Phone,
@@ -30,9 +30,34 @@ import {
   Plus,
   Trash2,
   Save,
-  X,
   DollarSign,
 } from 'lucide-react';
+
+const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
+
+const PROPERTY_INTEREST_OPTIONS = [
+  'Vacant plot',
+  'Vacant building',
+  'Rental building with some ROI',
+  'Old building selling at site rate',
+];
+
+function formatPriceLabel(amountStr: string) {
+  const amount = Number(amountStr);
+  if (isNaN(amount) || amount <= 0) return '';
+  if (amount >= 10000000) {
+    const cr = amount / 10000000;
+    return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+  } else if (amount >= 100000) {
+    const lakhs = amount / 100000;
+    return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+  }
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -60,6 +85,24 @@ export function ContactDetailView({
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
+
+  // Real estate preferences
+  const [editMinBudget, setEditMinBudget] = useState('');
+  const [editMaxBudget, setEditMaxBudget] = useState('');
+  const [editNoBudget, setEditNoBudget] = useState(false);
+  const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
+  const [editAreasText, setEditAreasText] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+  const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
+  const [localitiesDb, setLocalitiesDb] = useState<{ major: string[] } | null>(null);
+
+  async function ensureLocalitiesLoaded() {
+    if (!localitiesDb) {
+      const db = await import('@/lib/data/bengaluru-localities');
+      setLocalitiesDb({ major: db.getMajorAreas() });
+    }
+  }
+  const [savingPreferences, setSavingPreferences] = useState(false);
 
   // Tags tab
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -98,6 +141,13 @@ export function ContactDetailView({
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      setEditMinBudget(data.min_budget ? String(data.min_budget) : '');
+      setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
+      setEditNoBudget(!!data.no_budget);
+      const initialAreas = data.areas_of_interest ?? [];
+      setEditAreasOfInterest(initialAreas);
+      setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
+      setEditPropertyInterests(data.property_interests ?? []);
     }
     setLoading(false);
   }, [contactId, supabase]);
@@ -208,6 +258,75 @@ export function ContactDetailView({
       onUpdated();
     }
     setSavingDetails(false);
+  }
+
+  const activeQuery = useMemo(() => {
+    const segments = editAreasText.split(',');
+    return segments.length > 0 ? segments[segments.length - 1].trim() : '';
+  }, [editAreasText]);
+
+  const matchingSublocalities = useMemo(() => {
+    if (!activeQuery) return [];
+    const dataset = localitiesDb?.major || POPULAR_SUBLOCALITIES;
+    return dataset.filter(area =>
+      area.toLowerCase().includes(activeQuery.toLowerCase())
+    ).slice(0, 10);
+  }, [activeQuery, localitiesDb]);
+
+  function handleAreasTextChange(val: string) {
+    setEditAreasText(val);
+    const parsed = val.split(',')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    const unique = Array.from(new Set(parsed));
+    setEditAreasOfInterest(unique);
+  }
+
+  function handleToggleArea(area: string) {
+    const isChecked = editAreasOfInterest.includes(area);
+    let updated: string[];
+    if (isChecked) {
+      updated = editAreasOfInterest.filter(a => a !== area);
+    } else {
+      const cleanList = editAreasOfInterest.filter(a => a.toLowerCase() !== activeQuery.toLowerCase());
+      updated = [...cleanList, area];
+    }
+    setEditAreasOfInterest(updated);
+    setEditAreasText(updated.join(', ') + (updated.length > 0 ? ', ' : ''));
+  }
+
+  function handleAddSuggestion(area: string) {
+    if (!editAreasOfInterest.includes(area)) {
+      const updated = [...editAreasOfInterest, area];
+      setEditAreasOfInterest(updated);
+      setEditAreasText(updated.join(', ') + (updated.length > 0 ? ', ' : ''));
+    }
+  }
+
+  async function savePreferences() {
+    if (!contactId) return;
+    setSavingPreferences(true);
+
+    const { error } = await supabase
+      .from('contacts')
+      .update({
+        min_budget: editMinBudget ? Number(editMinBudget) : null,
+        max_budget: editMaxBudget ? Number(editMaxBudget) : null,
+        no_budget: editNoBudget,
+        areas_of_interest: editAreasOfInterest,
+        property_interests: editPropertyInterests,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', contactId);
+
+    if (error) {
+      toast.error('Failed to update preferences');
+    } else {
+      toast.success('Real estate preferences updated');
+      fetchContact();
+      onUpdated();
+    }
+    setSavingPreferences(false);
   }
 
   async function toggleTag(tagId: string) {
@@ -381,12 +500,18 @@ export function ContactDetailView({
 
             {/* Tabs */}
             <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="bg-slate-800/50 border-b border-slate-700 mx-4 mt-3">
+              <TabsList className="bg-slate-800/50 border-b border-slate-700 mx-4 mt-3 overflow-x-auto flex-nowrap scrollbar-none justify-start">
                 <TabsTrigger
                   value="details"
                   className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
                 >
                   Details
+                </TabsTrigger>
+                <TabsTrigger
+                  value="preferences"
+                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                >
+                  Preferences
                 </TabsTrigger>
                 <TabsTrigger
                   value="tags"
@@ -463,6 +588,179 @@ export function ContactDetailView({
                       <Save className="size-3.5" />
                     )}
                     Save Changes
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* Preferences Tab */}
+              <TabsContent value="preferences" className="flex-1 overflow-y-auto px-4 py-3">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-slate-400 text-xs font-semibold">Budget Range (INR)</Label>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={editNoBudget}
+                          onChange={(e) => {
+                            setEditNoBudget(e.target.checked);
+                            if (e.target.checked) {
+                              setEditMinBudget('');
+                              setEditMaxBudget('');
+                            }
+                          }}
+                          className="rounded border-slate-750 bg-slate-800 text-primary focus:ring-primary/40 h-3.5 w-3.5"
+                        />
+                        No Budget Limit
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500">Min Budget</Label>
+                        <Input
+                          type="number"
+                          disabled={editNoBudget}
+                          value={editMinBudget}
+                          onChange={(e) => setEditMinBudget(e.target.value)}
+                          placeholder="Min Budget"
+                          className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
+                        />
+                        {editMinBudget && (
+                          <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMinBudget)}</span>
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] text-slate-500">Max Budget</Label>
+                        <Input
+                          type="number"
+                          disabled={editNoBudget}
+                          value={editMaxBudget}
+                          onChange={(e) => setEditMaxBudget(e.target.value)}
+                          placeholder="Max Budget"
+                          className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
+                        />
+                        {editMaxBudget && (
+                          <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMaxBudget)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Areas of Interest */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-400 text-xs font-semibold">Areas of Interest</Label>
+                    
+                    <div className="relative">
+                      <Input
+                        value={editAreasText}
+                        onChange={(e) => {
+                          ensureLocalitiesLoaded();
+                          handleAreasTextChange(e.target.value);
+                        }}
+                        onFocus={() => {
+                          ensureLocalitiesLoaded();
+                          setIsFocused(true);
+                        }}
+                        onBlur={() => {
+                          // Slight delay to allow clicking on dropdown items
+                          setTimeout(() => setIsFocused(false), 200);
+                        }}
+                        placeholder="Type area (e.g. Whitefield, Koramangala)..."
+                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+                      />
+
+                      {isFocused && matchingSublocalities.length > 0 && (
+                        <div 
+                          className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
+                          onMouseDown={(e) => {
+                            // Prevent input blur so checks can be toggled without losing focus
+                            e.preventDefault();
+                          }}
+                        >
+                          <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-850 mb-1">
+                            Matching Sublocalities:
+                          </div>
+                          {matchingSublocalities.map((area) => {
+                            const isChecked = editAreasOfInterest.includes(area);
+                            return (
+                              <label
+                                key={area}
+                                className="flex items-center gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer select-none"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => handleToggleArea(area)}
+                                  className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
+                                />
+                                <span>{area}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Suggestions Bank */}
+                    <div className="flex flex-wrap gap-1 pt-1.5">
+                      <span className="text-[10px] text-slate-500 font-semibold w-full">Quick Add Suggestions:</span>
+                      {SUGGESTED_AREAS.map(area => {
+                        const exists = editAreasOfInterest.includes(area);
+                        return (
+                          <button
+                            key={area}
+                            type="button"
+                            disabled={exists}
+                            onClick={() => handleAddSuggestion(area)}
+                            className="text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-400"
+                          >
+                            +{area}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Property Category Interests */}
+                  <div className="space-y-2">
+                    <Label className="text-slate-400 text-xs font-semibold">Property Category Interests</Label>
+                    <div className="grid grid-cols-1 gap-2 bg-slate-950/20 border border-slate-800/80 rounded-lg p-3">
+                      {PROPERTY_INTEREST_OPTIONS.map(option => {
+                        const checked = editPropertyInterests.includes(option);
+                        return (
+                          <label key={option} className="flex items-start gap-2.5 text-xs text-slate-350 cursor-pointer select-none hover:text-white">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditPropertyInterests(prev => [...prev, option]);
+                                } else {
+                                  setEditPropertyInterests(prev => prev.filter(o => o !== option));
+                                }
+                              }}
+                              className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
+                            />
+                            <span>{option}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={savePreferences}
+                    disabled={savingPreferences}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground w-full mt-2"
+                    size="sm"
+                  >
+                    {savingPreferences ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Save className="size-3.5" />
+                    )}
+                    Save Preferences
                   </Button>
                 </div>
               </TabsContent>

@@ -1279,3 +1279,155 @@ CREATE POLICY "Members can delete flow media"
 
 -- Public read policy from 016 stays as-is; reads cross both path
 -- conventions without modification.
+
+-- ============================================================
+-- 021_real_estate_inventory.sql — Real Estate Inventory module
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS properties (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC NOT NULL,
+  location TEXT NOT NULL,
+  type TEXT NOT NULL, -- e.g. Apartment, House, Villa, Land, Commercial
+  status TEXT NOT NULL DEFAULT 'Available', -- e.g. Available, Under Contract, Sold, Off Market
+  bedrooms INTEGER,
+  bathrooms INTEGER,
+  area_sqft NUMERIC,
+  is_published BOOLEAN DEFAULT false,
+  features TEXT[] DEFAULT '{}',
+  images TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Index for tenancy scoping
+CREATE INDEX IF NOT EXISTS idx_properties_account ON properties(account_id);
+
+-- Enable RLS
+ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
+
+-- Select policy: any member of the account can read
+DROP POLICY IF EXISTS properties_select ON properties;
+CREATE POLICY properties_select ON properties FOR SELECT USING (
+  is_account_member(account_id)
+);
+
+-- Modify policy: agent or higher can insert/update/delete
+DROP POLICY IF EXISTS properties_modify ON properties;
+CREATE POLICY properties_modify ON properties FOR ALL USING (
+  is_account_member(account_id, 'agent')
+) WITH CHECK (
+  is_account_member(account_id, 'agent')
+);
+
+-- Add update trigger for updated_at column
+DROP TRIGGER IF EXISTS set_properties_updated_at ON properties;
+CREATE TRIGGER set_properties_updated_at BEFORE UPDATE ON properties
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- 022_property_improvements.sql
+-- Adds new specifications and storage bucket for properties
+-- ============================================================
+
+-- 1. Add new columns to properties table
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS land_area NUMERIC,
+  ADD COLUMN IF NOT EXISTS super_built_area NUMERIC,
+  ADD COLUMN IF NOT EXISTS sublocality TEXT,
+  ADD COLUMN IF NOT EXISTS city TEXT,
+  ADD COLUMN IF NOT EXISTS state TEXT;
+
+-- 2. Create the property-images Supabase Storage bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'property-images',
+  'property-images',
+  TRUE,
+  5242880, -- 5 MB
+  ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- 3. Storage policies for property-images bucket
+DROP POLICY IF EXISTS "Property images are publicly readable" ON storage.objects;
+CREATE POLICY "Property images are publicly readable"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'property-images');
+
+DROP POLICY IF EXISTS "Agents can upload property images" ON storage.objects;
+CREATE POLICY "Agents can upload property images"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'property-images'
+    -- Checks if folder name (account_id) belongs to user and user is agent+
+    AND is_account_member(((storage.foldername(name))[1])::uuid, 'agent')
+  );
+
+DROP POLICY IF EXISTS "Agents can update property images" ON storage.objects;
+CREATE POLICY "Agents can update property images"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'property-images'
+    AND is_account_member(((storage.foldername(name))[1])::uuid, 'agent')
+  );
+
+DROP POLICY IF EXISTS "Agents can delete property images" ON storage.objects;
+CREATE POLICY "Agents can delete property images"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'property-images'
+    AND is_account_member(((storage.foldername(name))[1])::uuid, 'agent')
+  );
+
+-- ============================================================
+-- 023_add_project_column.sql
+-- Adds project name column to properties table
+-- ============================================================
+
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS project TEXT;
+
+-- ============================================================
+-- 024_add_commercial_fields.sql
+-- Adds land_zone and ideal_for columns to properties table
+-- ============================================================
+
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS land_zone TEXT,
+  ADD COLUMN IF NOT EXISTS ideal_for TEXT;
+
+-- ============================================================
+-- 025_add_advanced_real_estate_fields.sql
+-- Adds advanced spec fields: area units, dimensions, road details, and nearby highlights.
+-- ============================================================
+
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS area_unit TEXT DEFAULT 'Sq.Ft.',
+  ADD COLUMN IF NOT EXISTS land_area_unit TEXT DEFAULT 'Sq.Ft.',
+  ADD COLUMN IF NOT EXISTS dimensions TEXT,
+  ADD COLUMN IF NOT EXISTS road_width NUMERIC,
+  ADD COLUMN IF NOT EXISTS road_width_unit TEXT DEFAULT 'Feet',
+  ADD COLUMN IF NOT EXISTS facing_direction TEXT,
+  ADD COLUMN IF NOT EXISTS nearby_highlights TEXT[] DEFAULT '{}';
+
+-- ============================================================
+-- 026_add_contact_real_estate_preferences.sql
+-- Adds real estate preferences to contacts: budget, areas, and interests.
+-- ============================================================
+
+ALTER TABLE contacts
+  ADD COLUMN IF NOT EXISTS min_budget NUMERIC,
+  ADD COLUMN IF NOT EXISTS max_budget NUMERIC,
+  ADD COLUMN IF NOT EXISTS no_budget BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS areas_of_interest TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS property_interests TEXT[] DEFAULT '{}';
+
