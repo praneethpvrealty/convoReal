@@ -1431,3 +1431,55 @@ ALTER TABLE contacts
   ADD COLUMN IF NOT EXISTS areas_of_interest TEXT[] DEFAULT '{}',
   ADD COLUMN IF NOT EXISTS property_interests TEXT[] DEFAULT '{}';
 
+
+-- ============================================================
+-- Message Template Seed
+-- Seed a standard template to share property details via WhatsApp.
+-- Run this in the Supabase SQL editor to create the template.
+-- ============================================================
+DO $$
+DECLARE
+  v_user_id UUID;
+  v_account_id UUID;
+BEGIN
+  -- Resolve the first owner/admin user to link the template to
+  SELECT user_id, account_id 
+  INTO v_user_id, v_account_id
+  FROM profiles
+  WHERE account_role IN ('owner', 'admin')
+  LIMIT 1;
+
+  IF v_user_id IS NOT NULL AND v_account_id IS NOT NULL THEN
+    -- Delete existing if any to avoid uniqueness clashes
+    DELETE FROM message_templates 
+    WHERE name = 'share_property_details' 
+      AND user_id = v_user_id;
+
+    INSERT INTO message_templates (
+      user_id,
+      account_id,
+      name,
+      category,
+      language,
+      header_type,
+      header_content,
+      body_text,
+      sample_values,
+      status
+    )
+    VALUES (
+      v_user_id,
+      v_account_id,
+      'share_property_details',
+      'Marketing',
+      'en_US',
+      'text',
+      'New Property: {{1}}',
+      'Hi {{1}},\n\nHere are the details for the property you showed interest in:\n\n🏡 *{{2}}*\n📍 Location: {{3}}\n💰 Price: {{4}}\n📐 Area: {{5}}\n\nHighlights:\n{{6}}\n\nPlease let me know if you would like to arrange a site visit or need more details.\n\nRegards,\n{{7}}',
+      '{"header":["Prestige Shantiniketan"],"body":["John Doe","Prestige Shantiniketan 3BHK","Whitefield","₹1.5 Cr","1800 Sq.Ft.","Vibrant community, close to IT parks","Alex"]}'::jsonb,
+      'APPROVED'
+    );
+  END IF;
+END $$;
+
+

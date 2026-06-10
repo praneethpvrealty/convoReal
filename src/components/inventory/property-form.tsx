@@ -1854,7 +1854,7 @@ export function PropertyForm({
                           className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold flex items-center gap-1.5"
                         >
                           <Send className="size-3.5" />
-                          Broadcast Alert to Selected ({selectedContactIds.length})
+                          Share the Property Details ({selectedContactIds.length})
                         </Button>
                       </div>
                     </div>
@@ -2026,7 +2026,7 @@ export function PropertyForm({
                           ) : (
                             <>
                               <Send className="size-3.5" />
-                              Send Broadcast Alert ({selectedContactIds.length})
+                              Share the Property Details ({selectedContactIds.length})
                             </>
                           )}
                         </Button>
