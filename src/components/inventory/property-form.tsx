@@ -427,6 +427,9 @@ export function PropertyForm({
               }
             }
           }
+          if (!val || !val.trim()) {
+            val = '-';
+          }
           params.push(val);
         });
 
