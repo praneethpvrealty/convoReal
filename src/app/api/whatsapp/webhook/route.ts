@@ -71,6 +71,14 @@ interface WhatsAppWebhookEntry {
         status: string
         timestamp: string
         recipient_id: string
+        errors?: Array<{
+          code: number
+          title: string
+          message: string
+          error_data?: {
+            details?: string
+          }
+        }>
       }>
     }
     field: string
@@ -330,16 +338,34 @@ async function handleStatusUpdate(status: {
   status: string
   timestamp: string
   recipient_id: string
+  errors?: Array<{
+    code: number
+    title: string
+    message: string
+    error_data?: {
+      details?: string
+    }
+  }>
 }) {
+  console.log(`[webhook] Received status update: ${status.id} -> ${status.status}`)
+  if (status.status === 'failed' || status.errors) {
+    console.error(`[webhook] Status FAILED for message ${status.id} to recipient ${status.recipient_id}. Errors:`, JSON.stringify(status.errors, null, 2))
+  }
+
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
-  const { error: msgErr } = await supabaseAdmin()
+  const { data: updatedMsg, error: msgErr } = await supabaseAdmin()
     .from('messages')
     .update({ status: status.status })
     .eq('message_id', status.id)
+    .select('id')
 
   if (msgErr) {
     console.error('Error updating message status:', msgErr)
+  } else if (!updatedMsg || updatedMsg.length === 0) {
+    console.warn(`[webhook] Message with message_id ${status.id} not found in DB messages table.`)
+  } else {
+    console.log(`[webhook] Updated message status in DB for message_id ${status.id} to ${status.status}`)
   }
 
   // 2) Mirror onto broadcast_recipients via whatsapp_message_id

@@ -9,6 +9,7 @@ import {
   isValidE164,
   phoneVariants,
   isRecipientNotAllowedError,
+  phonesMatch,
 } from '@/lib/whatsapp/phone-utils'
 import {
   checkRateLimit,
@@ -56,6 +57,87 @@ interface NewRecipient {
    * sendTemplateMessage for the merge rules.
    */
   messageParams?: SendTimeParams
+}
+
+function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
+  return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
+    const idx = parseInt(numberStr) - 1
+    return idx >= 0 && idx < params.length ? params[idx] : match
+  })
+}
+
+async function findOrCreateContactForBroadcast(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  accountId: string,
+  userId: string,
+  phone: string
+) {
+  const normalized = phone.replace(/\D/g, '')
+  const phoneSuffix = normalized.length >= 8 ? normalized.slice(-8) : normalized
+
+  const { data: contacts, error } = await supabase
+    .from('contacts')
+    .select('*')
+    .eq('account_id', accountId)
+    .like('phone', `%${phoneSuffix}`)
+
+  if (error) {
+    console.error('[Broadcast] findOrCreateContactForBroadcast error:', error)
+  }
+
+  const existing = contacts?.find((c: any) => phonesMatch(c.phone, phone))
+  if (existing) return existing
+
+  const { data: newContact, error: createError } = await supabase
+    .from('contacts')
+    .insert({
+      account_id: accountId,
+      user_id: userId,
+      phone: phone,
+      name: phone,
+    })
+    .select()
+    .single()
+
+  if (createError) {
+    console.error('[Broadcast] Failed to create contact for broadcast:', createError)
+    return null
+  }
+  return newContact
+}
+
+async function findOrCreateConversationForBroadcast(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  accountId: string,
+  userId: string,
+  contactId: string
+) {
+  const { data: existing, error } = await supabase
+    .from('conversations')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .single()
+
+  if (!error && existing) return existing
+
+  const { data: newConv, error: createError } = await supabase
+    .from('conversations')
+    .insert({
+      account_id: accountId,
+      user_id: userId,
+      contact_id: contactId,
+    })
+    .select()
+    .single()
+
+  if (createError) {
+    console.error('[Broadcast] Failed to create conversation for broadcast:', createError)
+    return null
+  }
+  return newConv
 }
 
 export async function POST(request: Request) {
@@ -229,6 +311,52 @@ export async function POST(request: Request) {
       }
 
       if (sentMessageId) {
+        // Record successful send to database
+        try {
+          const contact = await findOrCreateContactForBroadcast(
+            supabase,
+            accountId,
+            user.id,
+            recipient.phone
+          )
+          if (contact) {
+            const conversation = await findOrCreateConversationForBroadcast(
+              supabase,
+              accountId,
+              user.id,
+              contact.id
+            )
+            if (conversation) {
+              const bodyParams = recipient.messageParams?.body || recipient.params || []
+              const resolvedText = templateRow?.body_text
+                ? resolveTemplateBodyText(templateRow.body_text, bodyParams)
+                : `[Template: ${template_name}]`
+
+              await supabase.from('messages').insert({
+                conversation_id: conversation.id,
+                sender_type: 'agent',
+                content_type: 'template',
+                content_text: resolvedText,
+                template_name: template_name,
+                message_id: sentMessageId,
+                status: 'sent',
+              })
+
+              // Update conversation
+              await supabase
+                .from('conversations')
+                .update({
+                  last_message_text: resolvedText,
+                  last_message_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', conversation.id)
+            }
+          }
+        } catch (dbErr) {
+          console.error('[Broadcast] Failed to record message/conversation to DB:', dbErr)
+        }
+
         results.push({
           phone: recipient.phone,
           status: 'sent',
