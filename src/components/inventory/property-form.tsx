@@ -288,7 +288,7 @@ export function PropertyForm({
     if (selectedTemplate && placeholders.length > 0) {
       const mappings: Record<string, { type: 'field' | 'static'; value: string }> = {};
       const customVals: Record<string, string> = {};
-      const lines = selectedTemplate.body_text.split('\n');
+      const lines = selectedTemplate.body_text.split(/\\n|\r?\n/);
 
       placeholders.forEach((placeholder, idx) => {
         const key = placeholder.replace(/^\{\{|\}\}$/g, '');
@@ -2074,7 +2074,7 @@ export function PropertyForm({
                             <div className="flex-1 bg-slate-950 border border-slate-850 p-4 rounded-xl text-xs flex flex-col font-sans relative min-h-[160px] justify-between">
                               <div className="whitespace-pre-wrap text-slate-300 leading-relaxed">
                                 {(() => {
-                                  let body = selectedTemplate.body_text;
+                                  let body = selectedTemplate.body_text.replace(/\\n/g, '\n');
                                   placeholders.forEach((placeholder) => {
                                     const key = placeholder.replace(/^\{\{|\}\}$/g, '');
                                     const mapping = variableMappings[key];

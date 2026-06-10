@@ -1551,7 +1551,23 @@ BEGIN
       'en_US',
       'text',
       'New Property: {{1}}',
-      'Hello! Hi {{1}},\n\nHere are the details for the property you showed interest in:\n\n🏡 *{{2}}*\n📍 Location: {{3}}\n💰 Price: {{4}}\n📐 Area: {{5}}\n\nHighlights:\n{{6}}\n\nPlease let me know if you would like to arrange a site visit or need more details.\n\nRegards,\n{{7}}\nPV Realty',
+      'Hello! Hi {{1}},
+
+Here are the details for the property you showed interest in:
+
+🏡 *{{2}}*
+📍 Location: {{3}}
+💰 Price: {{4}}
+📐 Area: {{5}}
+
+Highlights:
+{{6}}
+
+Please let me know if you would like to arrange a site visit or need more details.
+
+Regards,
+{{7}}
+PV Realty',
       'APPROVED'
     );
 
@@ -1580,7 +1596,23 @@ BEGIN
       'en_US',
       'image',
       'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80',
-      'Hello! Hi {{1}},\n\nHere are the details for the property you showed interest in:\n\n🏡 *{{2}}*\n📍 Location: {{3}}\n💰 Price: {{4}}\n📐 Area: {{5}}\n\nHighlights:\n{{6}}\n\nPlease let me know if you would like to arrange a site visit or need more details.\n\nRegards,\n{{7}}\nPV Realty',
+      'Hello! Hi {{1}},
+
+Here are the details for the property you showed interest in:
+
+🏡 *{{2}}*
+📍 Location: {{3}}
+💰 Price: {{4}}
+📐 Area: {{5}}
+
+Highlights:
+{{6}}
+
+Please let me know if you would like to arrange a site visit or need more details.
+
+Regards,
+{{7}}
+PV Realty',
       '[
         {"type": "URL", "text": "View Photo Gallery", "url": "https://pvrealty.in/properties"},
         {"type": "PHONE_NUMBER", "text": "Contact Agent", "phone_number": "+919999999999"}
