@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
@@ -25,6 +26,8 @@ import { toast } from "sonner";
 
 interface Appointment {
   id: string;
+  account_id: string;
+  user_id: string;
   title: string;
   description: string | null;
   start_time: string;
@@ -53,6 +56,19 @@ interface Todo {
   due_date: string | null;
   priority: "low" | "medium" | "high";
   completed: boolean;
+  contact_id?: string | null;
+  property_id?: string | null;
+  contact?: {
+    id: string;
+    name: string;
+    phone: string;
+  } | null;
+  property?: {
+    id: string;
+    title: string;
+    location: string | null;
+    sublocality: string | null;
+  } | null;
 }
 
 export default function CalendarPage() {
@@ -86,6 +102,10 @@ export default function CalendarPage() {
   const [todoDueDate, setTodoDueDate] = useState("");
   const [todoPriority, setTodoPriority] = useState<"low" | "medium" | "high">("medium");
 
+  // Mentions Form state
+  const [mentionType, setMentionType] = useState<"contact" | "property" | null>(null);
+  const [mentionSearch, setMentionSearch] = useState("");
+
   // Fetch appointments and todos
   const loadData = async () => {
     try {
@@ -104,7 +124,7 @@ export default function CalendarPage() {
       // Fetch todos
       const { data: todoList, error: todoError } = await supabase
         .from("todos")
-        .select("*")
+        .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("created_at", { ascending: true });
 
@@ -323,6 +343,121 @@ export default function CalendarPage() {
     }
   };
 
+  // Mentions suggestions filtering
+  const filteredContacts = useMemo(() => {
+    if (mentionType !== "contact") return [];
+    const searchVal = mentionSearch.toLowerCase();
+    return contacts
+      .filter((c) => c.name.toLowerCase().includes(searchVal))
+      .slice(0, 5);
+  }, [contacts, mentionType, mentionSearch]);
+
+  const filteredProperties = useMemo(() => {
+    if (mentionType !== "property") return [];
+    const searchVal = mentionSearch.toLowerCase();
+    return properties
+      .filter((p) => p.title.toLowerCase().includes(searchVal))
+      .slice(0, 5);
+  }, [properties, mentionType, mentionSearch]);
+
+  const handleTodoTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setTodoTitle(val);
+
+    const words = val.split(/\s+/);
+    const lastWord = words[words.length - 1] || "";
+
+    if (lastWord.startsWith("@")) {
+      setMentionType("contact");
+      setMentionSearch(lastWord.substring(1));
+    } else if (lastWord.startsWith("#")) {
+      setMentionType("property");
+      setMentionSearch(lastWord.substring(1));
+    } else {
+      setMentionType(null);
+      setMentionSearch("");
+    }
+  };
+
+  const selectMention = (nameOrTitle: string, id: string, type: "contact" | "property") => {
+    const words = todoTitle.split(/\s+/);
+    words.pop();
+    const trigger = type === "contact" ? "@" : "#";
+    const replacement = `${trigger}${nameOrTitle} `;
+    words.push(replacement);
+
+    setTodoTitle(words.join(" "));
+    setMentionType(null);
+    setMentionSearch("");
+  };
+
+  const renderTodoTitle = (todo: Todo) => {
+    const title = todo.title;
+    const contactName = todo.contact?.name;
+    const propertyTitle = todo.property?.title;
+
+    let elements: React.ReactNode[] = [];
+    const matches: { start: number; end: number; type: "contact" | "property"; label: string; url: string }[] = [];
+
+    if (contactName && title.includes(`@${contactName}`)) {
+      const start = title.indexOf(`@${contactName}`);
+      matches.push({
+        start,
+        end: start + `@${contactName}`.length,
+        type: "contact",
+        label: `@${contactName}`,
+        url: `/contacts?search=${encodeURIComponent(contactName)}`,
+      });
+    }
+
+    if (propertyTitle && title.includes(`#${propertyTitle}`)) {
+      const start = title.indexOf(`#${propertyTitle}`);
+      matches.push({
+        start,
+        end: start + `#${propertyTitle}`.length,
+        type: "property",
+        label: `#${propertyTitle}`,
+        url: `/inventory?search=${encodeURIComponent(propertyTitle)}`,
+      });
+    }
+
+    matches.sort((a, b) => a.start - b.start);
+
+    let lastIndex = 0;
+    for (const match of matches) {
+      if (match.start > lastIndex) {
+        elements.push(title.substring(lastIndex, match.start));
+      }
+      elements.push(
+        <Link
+          key={match.start}
+          href={match.url}
+          className={cn(
+            "inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold transition-all mx-0.5 whitespace-nowrap",
+            match.type === "contact"
+              ? cn(
+                  "bg-violet-500/10 text-violet-400 border border-violet-500/20",
+                  todo.completed ? "opacity-50 line-through" : "hover:bg-violet-500/25"
+                )
+              : cn(
+                  "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+                  todo.completed ? "opacity-50 line-through" : "hover:bg-emerald-500/25"
+                )
+          )}
+        >
+          {match.label}
+        </Link>
+      );
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < title.length) {
+      elements.push(title.substring(lastIndex));
+    }
+
+    return elements.length > 0 ? elements : title;
+  };
+
   // Todo CRUD handlers
   const saveTodo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,6 +467,24 @@ export default function CalendarPage() {
     }
 
     try {
+      let finalContactId = null;
+      const sortedContacts = [...contacts].sort((a, b) => b.name.length - a.name.length);
+      for (const c of sortedContacts) {
+        if (todoTitle.includes(`@${c.name}`)) {
+          finalContactId = c.id;
+          break;
+        }
+      }
+
+      let finalPropertyId = null;
+      const sortedProps = [...properties].sort((a, b) => b.title.length - a.title.length);
+      for (const p of sortedProps) {
+        if (todoTitle.includes(`#${p.title}`)) {
+          finalPropertyId = p.id;
+          break;
+        }
+      }
+
       const { error } = await supabase.from("todos").insert({
         title: todoTitle,
         description: todoDesc || null,
@@ -340,6 +493,8 @@ export default function CalendarPage() {
         completed: false,
         account_id: accountId,
         user_id: (await supabase.auth.getUser()).data.user?.id,
+        contact_id: finalContactId,
+        property_id: finalPropertyId,
       });
 
       if (error) throw error;
@@ -348,6 +503,8 @@ export default function CalendarPage() {
       setTodoDesc("");
       setTodoDueDate("");
       setTodoPriority("medium");
+      setMentionType(null);
+      setMentionSearch("");
       loadData();
     } catch (err: any) {
       toast.error(err.message || "Failed to add task");
@@ -512,14 +669,53 @@ export default function CalendarPage() {
           </div>
 
           {/* Quick task add form */}
-          <form onSubmit={saveTodo} className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4">
-            <input
-              type="text"
-              placeholder="Add new task..."
-              value={todoTitle}
-              onChange={(e) => setTodoTitle(e.target.value)}
-              className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-            />
+          <form onSubmit={saveTodo} className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4 relative">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Add new task..."
+                value={todoTitle}
+                onChange={handleTodoTitleChange}
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+              />
+
+              {/* Autocomplete dropdown overlay */}
+              {mentionType && (
+                <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-1 shadow-xl">
+                  {mentionType === "contact" ? (
+                    filteredContacts.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-slate-500">No matching contacts</div>
+                    ) : (
+                      filteredContacts.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => selectMention(c.name, c.id, "contact")}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
+                        >
+                          {c.name} ({c.phone})
+                        </button>
+                      ))
+                    )
+                  ) : (
+                    filteredProperties.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-slate-500">No matching properties</div>
+                    ) : (
+                      filteredProperties.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => selectMention(p.title, p.id, "property")}
+                          className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
+                        >
+                          {p.title}
+                        </button>
+                      ))
+                    )
+                  )}
+                </div>
+              )}
+            </div>
             <div className="flex gap-2">
               <select
                 value={todoPriority}
@@ -568,11 +764,11 @@ export default function CalendarPage() {
                   <div className="flex-1 min-w-0">
                     <p
                       className={cn(
-                        "text-xs font-semibold text-white leading-normal truncate",
+                        "text-xs font-semibold text-white leading-normal break-words",
                         todo.completed && "line-through text-slate-500 font-normal"
                       )}
                     >
-                      {todo.title}
+                      {renderTodoTitle(todo)}
                     </p>
                     {todo.priority && !todo.completed && (
                       <span

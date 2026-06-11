@@ -26,10 +26,10 @@ export async function GET() {
       )
     }
 
-    // Fetch all todos for this account
+    // Fetch all todos for this account, joining contact and property info
     const { data: todos, error } = await supabase
       .from('todos')
-      .select('*')
+      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
       .eq('account_id', accountId)
       .order('created_at', { ascending: true })
 
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { title, description, due_date, priority } = body
+    const { title, description, due_date, priority, contact_id, property_id } = body
 
     if (!title) {
       return NextResponse.json({ error: 'title is required' }, { status: 400 })
@@ -86,8 +86,10 @@ export async function POST(request: Request) {
         due_date: due_date || null,
         priority: priority || 'medium',
         completed: false,
+        contact_id: contact_id || null,
+        property_id: property_id || null,
       })
-      .select()
+      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
       .single()
 
     if (error) {

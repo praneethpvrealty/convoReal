@@ -31,7 +31,7 @@ export async function PUT(
     }
 
     const body = await request.json()
-    const { title, description, due_date, priority, completed } = body
+    const { title, description, due_date, priority, completed, contact_id, property_id } = body
 
     const { data: todo, error } = await supabase
       .from('todos')
@@ -41,11 +41,13 @@ export async function PUT(
         due_date: due_date !== undefined ? due_date : undefined,
         priority: priority !== undefined ? priority : undefined,
         completed: completed !== undefined ? completed : undefined,
+        contact_id: contact_id !== undefined ? contact_id : undefined,
+        property_id: property_id !== undefined ? property_id : undefined,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
       .eq('account_id', accountId)
-      .select()
+      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
       .single()
 
     if (error) {

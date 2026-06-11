@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useCan } from '@/hooks/use-can';
 import { toast } from 'sonner';
 import type { Property } from '@/types';
@@ -29,10 +30,12 @@ import { PropertyList } from '@/components/inventory/property-list';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams?.get('search') || '';
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
   
   // Filters
   const [typeFilter, setTypeFilter] = useState('All');
