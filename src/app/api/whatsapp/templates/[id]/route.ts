@@ -287,7 +287,21 @@ export async function DELETE(
         })
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Meta delete failed.'
-        return NextResponse.json({ error: message }, { status: 502 })
+        
+        // If the template does not exist on Meta or the parameter is invalid (e.g. template ID belongs to a different WABA),
+        // we log the warning but proceed with local deletion so the user isn't stuck with stale templates.
+        const isNotFoundError =
+          message.includes('Invalid parameter') ||
+          message.includes('does not exist') ||
+          message.includes('not found') ||
+          message.includes('100') ||
+          message.includes('404') ||
+          message.includes('400');
+          
+        if (!isNotFoundError) {
+          return NextResponse.json({ error: message }, { status: 502 })
+        }
+        console.warn(`Template delete failed on Meta with: "${message}". Proceeding with local database deletion.`)
       }
     }
 

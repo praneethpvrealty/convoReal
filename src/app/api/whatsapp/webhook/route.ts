@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
-import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
+import { getMediaUrl, downloadMedia, sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch } from '@/lib/whatsapp/phone-utils'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
@@ -71,6 +71,14 @@ interface WhatsAppWebhookEntry {
         status: string
         timestamp: string
         recipient_id: string
+        errors?: Array<{
+          code: number
+          title: string
+          message: string
+          error_data?: {
+            details?: string
+          }
+        }>
       }>
     }
     field: string
@@ -276,7 +284,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           // inserts that need it for NOT NULL FK compliance. Always
           // the admin who saved the WhatsApp config.
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          config.phone_number_id
         )
       }
     }
@@ -330,16 +339,58 @@ async function handleStatusUpdate(status: {
   status: string
   timestamp: string
   recipient_id: string
+  errors?: Array<{
+    code: number
+    title: string
+    message: string
+    error_data?: {
+      details?: string
+    }
+  }>
 }) {
+  console.log(`[webhook] Received status update: ${status.id} -> ${status.status}`)
+  if (status.status === 'failed' || status.errors) {
+    console.error(`[webhook] Status FAILED for message ${status.id} to recipient ${status.recipient_id}. Errors:`, JSON.stringify(status.errors, null, 2))
+  }
+
   // 1) Mirror onto messages (legacy behavior) — Meta's status values
   //    already match the CHECK constraint on messages.status.
-  const { error: msgErr } = await supabaseAdmin()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updatePayload: Record<string, any> = { status: status.status }
+
+  if (status.status === 'failed' && status.errors && status.errors.length > 0) {
+    const errorDetails = status.errors
+      .map((e) => `[Error ${e.code}] ${e.message}${e.error_data?.details ? `: ${e.error_data.details}` : ''}`)
+      .join('\n')
+    
+    try {
+      const { data: existingMsg } = await supabaseAdmin()
+        .from('messages')
+        .select('content_text')
+        .eq('message_id', status.id)
+        .maybeSingle()
+
+      if (existingMsg) {
+        const originalText = existingMsg.content_text || ''
+        updatePayload.content_text = `${originalText}\n\n❌ Delivery Failed:\n${errorDetails}`.trim()
+      }
+    } catch (err) {
+      console.error('Failed to append error message to content_text:', err)
+    }
+  }
+
+  const { data: updatedMsg, error: msgErr } = await supabaseAdmin()
     .from('messages')
-    .update({ status: status.status })
+    .update(updatePayload)
     .eq('message_id', status.id)
+    .select('id')
 
   if (msgErr) {
     console.error('Error updating message status:', msgErr)
+  } else if (!updatedMsg || updatedMsg.length === 0) {
+    console.warn(`[webhook] Message with message_id ${status.id} not found in DB messages table.`)
+  } else {
+    console.log(`[webhook] Updated message status in DB for message_id ${status.id} to ${status.status}`)
   }
 
   // 2) Mirror onto broadcast_recipients via whatsapp_message_id
@@ -510,7 +561,8 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  phoneNumberId: string
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -636,6 +688,88 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // ============================================================
+  // Automated Calendar Appointment check.
+  // Intercept messages matching "visits", "schedule", "appointment"
+  // and reply automatically with a list of upcoming property visits.
+  // ============================================================
+  const cleanedText = contentText?.trim()?.toLowerCase() || ''
+  const isCalendarQuery = /\b(schedule|visit|appointment|appointments|booking|bookings|my visits|my appointments)\b/i.test(cleanedText)
+  
+  if (isCalendarQuery) {
+    console.log(`[webhook] Calendar schedule query detected from contact: ${contactRecord.id} (${senderPhone})`)
+    
+    // Fetch upcoming scheduled appointments (start_time >= now)
+    const nowIso = new Date().toISOString()
+    const { data: appointments, error: apptError } = await supabaseAdmin()
+      .from('appointments')
+      .select('*, property:properties(title, location, sublocality)')
+      .eq('contact_id', contactRecord.id)
+      .eq('status', 'scheduled')
+      .gte('start_time', nowIso)
+      .order('start_time', { ascending: true })
+
+    let replyText = ''
+    if (apptError) {
+      console.error('[webhook] Error fetching appointments for auto-reply:', apptError)
+      replyText = `Sorry, I encountered an error checking your schedule. Please try again later or contact your agent.`
+    } else if (!appointments || appointments.length === 0) {
+      replyText = `Hi ${contactRecord.name || 'there'},\n\nYou have no upcoming property visits or appointments scheduled at the moment.`
+    } else {
+      replyText = `Hi ${contactRecord.name || 'there'},\n\nHere are your upcoming scheduled visits:\n\n`
+      
+      appointments.forEach((appt: any, idx: number) => {
+        const dateStr = new Date(appt.start_time).toLocaleString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })
+        const propTitle = appt.property?.title ? `🏡 *${appt.property.title}*` : '🏡 *Property Details*'
+        const locationStr = appt.location || appt.property?.location || appt.property?.sublocality || 'Not specified'
+        
+        replyText += `${idx + 1}. 📅 *${appt.title}*\n${propTitle}\n📍 Location: ${locationStr}\n⏰ Time: ${dateStr}\n\n`
+      })
+      
+      replyText += `Please contact us if you need to reschedule any of these visits!`
+    }
+
+    try {
+      // Send the reply via Meta API
+      await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: senderPhone,
+        text: replyText,
+      })
+
+      // Insert message into DB as bot reply
+      await supabaseAdmin().from('messages').insert({
+        conversation_id: conversation.id,
+        sender_type: 'bot',
+        content_type: 'text',
+        content_text: replyText,
+        status: 'sent',
+      })
+
+      // Update conversation
+      await supabaseAdmin()
+        .from('conversations')
+        .update({
+          last_message_text: replyText,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conversation.id)
+
+      console.log(`[webhook] Automated calendar reply successfully sent to ${senderPhone}`)
+    } catch (sendErr) {
+      console.error('[webhook] Failed to send automated calendar reply:', sendErr)
+    }
+
+    // Short-circuit to avoid triggering standard automations/flows
+    return
+  }
 
   // ============================================================
   // Flow runner dispatch.

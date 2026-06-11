@@ -1279,3 +1279,422 @@ CREATE POLICY "Members can delete flow media"
 
 -- Public read policy from 016 stays as-is; reads cross both path
 -- conventions without modification.
+
+-- ============================================================
+-- 021_real_estate_inventory.sql — Real Estate Inventory module
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS properties (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC NOT NULL,
+  location TEXT NOT NULL,
+  type TEXT NOT NULL, -- e.g. Apartment, House, Villa, Land, Commercial
+  status TEXT NOT NULL DEFAULT 'Available', -- e.g. Available, Under Contract, Sold, Off Market
+  bedrooms INTEGER,
+  bathrooms INTEGER,
+  area_sqft NUMERIC,
+  is_published BOOLEAN DEFAULT false,
+  features TEXT[] DEFAULT '{}',
+  images TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Index for tenancy scoping
+CREATE INDEX IF NOT EXISTS idx_properties_account ON properties(account_id);
+
+-- Enable RLS
+ALTER TABLE properties ENABLE ROW LEVEL SECURITY;
+
+-- Select policy: any member of the account can read
+DROP POLICY IF EXISTS properties_select ON properties;
+CREATE POLICY properties_select ON properties FOR SELECT USING (
+  is_account_member(account_id)
+);
+
+-- Modify policy: agent or higher can insert/update/delete
+DROP POLICY IF EXISTS properties_modify ON properties;
+CREATE POLICY properties_modify ON properties FOR ALL USING (
+  is_account_member(account_id, 'agent')
+) WITH CHECK (
+  is_account_member(account_id, 'agent')
+);
+
+-- Add update trigger for updated_at column
+DROP TRIGGER IF EXISTS set_properties_updated_at ON properties;
+CREATE TRIGGER set_properties_updated_at BEFORE UPDATE ON properties
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================
+-- 022_property_improvements.sql
+-- Adds new specifications and storage bucket for properties
+-- ============================================================
+
+-- 1. Add new columns to properties table
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS land_area NUMERIC,
+  ADD COLUMN IF NOT EXISTS super_built_area NUMERIC,
+  ADD COLUMN IF NOT EXISTS sublocality TEXT,
+  ADD COLUMN IF NOT EXISTS city TEXT,
+  ADD COLUMN IF NOT EXISTS state TEXT;
+
+-- 2. Create the property-images Supabase Storage bucket
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'property-images',
+  'property-images',
+  TRUE,
+  5242880, -- 5 MB
+  ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/gif']
+)
+ON CONFLICT (id) DO UPDATE
+SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- 3. Storage policies for property-images bucket
+DROP POLICY IF EXISTS "Property images are publicly readable" ON storage.objects;
+CREATE POLICY "Property images are publicly readable"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'property-images');
+
+DROP POLICY IF EXISTS "Agents can upload property images" ON storage.objects;
+CREATE POLICY "Agents can upload property images"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'property-images'
+    -- Checks if folder name (account_id) belongs to user and user is agent+
+    AND is_account_member(((storage.foldername(name))[1])::uuid, 'agent')
+  );
+
+DROP POLICY IF EXISTS "Agents can update property images" ON storage.objects;
+CREATE POLICY "Agents can update property images"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'property-images'
+    AND is_account_member(((storage.foldername(name))[1])::uuid, 'agent')
+  );
+
+DROP POLICY IF EXISTS "Agents can delete property images" ON storage.objects;
+CREATE POLICY "Agents can delete property images"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'property-images'
+    AND is_account_member(((storage.foldername(name))[1])::uuid, 'agent')
+  );
+
+-- ============================================================
+-- 023_add_project_column.sql
+-- Adds project name column to properties table
+-- ============================================================
+
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS project TEXT;
+
+-- ============================================================
+-- 024_add_commercial_fields.sql
+-- Adds land_zone and ideal_for columns to properties table
+-- ============================================================
+
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS land_zone TEXT,
+  ADD COLUMN IF NOT EXISTS ideal_for TEXT;
+
+-- ============================================================
+-- 025_add_advanced_real_estate_fields.sql
+-- Adds advanced spec fields: area units, dimensions, road details, and nearby highlights.
+-- ============================================================
+
+ALTER TABLE properties 
+  ADD COLUMN IF NOT EXISTS area_unit TEXT DEFAULT 'Sq.Ft.',
+  ADD COLUMN IF NOT EXISTS land_area_unit TEXT DEFAULT 'Sq.Ft.',
+  ADD COLUMN IF NOT EXISTS dimensions TEXT,
+  ADD COLUMN IF NOT EXISTS road_width NUMERIC,
+  ADD COLUMN IF NOT EXISTS road_width_unit TEXT DEFAULT 'Feet',
+  ADD COLUMN IF NOT EXISTS facing_direction TEXT,
+  ADD COLUMN IF NOT EXISTS nearby_highlights TEXT[] DEFAULT '{}';
+
+-- ============================================================
+-- 026_add_contact_real_estate_preferences.sql
+-- Adds real estate preferences to contacts: budget, areas, and interests.
+-- ============================================================
+
+ALTER TABLE contacts
+  ADD COLUMN IF NOT EXISTS min_budget NUMERIC,
+  ADD COLUMN IF NOT EXISTS max_budget NUMERIC,
+  ADD COLUMN IF NOT EXISTS no_budget BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS areas_of_interest TEXT[] DEFAULT '{}',
+  ADD COLUMN IF NOT EXISTS property_interests TEXT[] DEFAULT '{}';
+
+
+-- ============================================================
+-- Update message_templates table for Meta Integration
+-- (Adds missing columns like header_media_url, sample_values, etc. 
+-- and upgrades status check constraints to uppercase)
+-- ============================================================
+ALTER TABLE message_templates
+  ADD COLUMN IF NOT EXISTS sample_values JSONB,
+  ADD COLUMN IF NOT EXISTS meta_template_id TEXT,
+  ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+  ADD COLUMN IF NOT EXISTS quality_score TEXT,
+  ADD COLUMN IF NOT EXISTS header_handle TEXT,
+  ADD COLUMN IF NOT EXISTS header_media_url TEXT,
+  ADD COLUMN IF NOT EXISTS submission_error TEXT,
+  ADD COLUMN IF NOT EXISTS last_submitted_at TIMESTAMPTZ;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'message_templates_quality_score_check'
+      AND conrelid = 'message_templates'::regclass
+  ) THEN
+    ALTER TABLE message_templates
+      ADD CONSTRAINT message_templates_quality_score_check
+      CHECK (quality_score IS NULL OR quality_score IN ('GREEN', 'YELLOW', 'RED'));
+  END IF;
+END $$;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_constraint c
+    WHERE c.conrelid = 'message_templates'::regclass
+      AND c.contype = 'c'
+      AND pg_get_constraintdef(c.oid) ILIKE '%status%Draft%Pending%Approved%Rejected%'
+  ) THEN
+    EXECUTE (
+      SELECT 'ALTER TABLE message_templates DROP CONSTRAINT ' || quote_ident(conname)
+      FROM pg_constraint c
+      WHERE c.conrelid = 'message_templates'::regclass
+        AND c.contype = 'c'
+        AND pg_get_constraintdef(c.oid) ILIKE '%status%Draft%Pending%Approved%Rejected%'
+      LIMIT 1
+    );
+  END IF;
+END $$;
+
+UPDATE message_templates SET status = 'DRAFT'    WHERE status = 'Draft';
+UPDATE message_templates SET status = 'PENDING'  WHERE status = 'Pending';
+UPDATE message_templates SET status = 'APPROVED' WHERE status = 'Approved';
+UPDATE message_templates SET status = 'REJECTED' WHERE status = 'Rejected';
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'message_templates_status_meta_check'
+      AND conrelid = 'message_templates'::regclass
+  ) THEN
+    ALTER TABLE message_templates
+      ADD CONSTRAINT message_templates_status_meta_check
+      CHECK (status IN (
+        'DRAFT',
+        'PENDING',
+        'APPROVED',
+        'REJECTED',
+        'PAUSED',
+        'DISABLED',
+        'IN_APPEAL',
+        'PENDING_DELETION'
+      ));
+  END IF;
+END $$;
+
+ALTER TABLE message_templates ALTER COLUMN status SET DEFAULT 'DRAFT';
+
+
+-- ============================================================
+-- Message Template Seed
+-- Seed standard templates to share property details via WhatsApp.
+-- Run this in the Supabase SQL editor to create the template.
+-- ============================================================
+DO $$
+DECLARE
+  r RECORD;
+BEGIN
+  -- Iterate through every distinct account/user in profiles to seed templates for everyone
+  FOR r IN (
+    SELECT DISTINCT ON (account_id) user_id, account_id 
+    FROM profiles 
+    WHERE account_id IS NOT NULL
+  ) LOOP
+    -- Delete existing if any to avoid uniqueness clashes
+    DELETE FROM message_templates 
+    WHERE name = 'share_property_details' 
+      AND account_id = r.account_id;
+
+    INSERT INTO message_templates (
+      user_id,
+      account_id,
+      name,
+      category,
+      language,
+      header_type,
+      header_content,
+      body_text,
+      status
+    )
+    VALUES (
+      r.user_id,
+      r.account_id,
+      'share_property_details',
+      'Marketing',
+      'en_US',
+      'text',
+      'New Property: {{1}}',
+      'Hello! Hi {{1}},
+
+Here are the details for the property you showed interest in:
+
+🏡 *{{2}}*
+📍 Location: {{3}}
+💰 Price: {{4}}
+📐 Area: {{5}}
+
+Highlights:
+{{6}}
+
+Please let me know if you would like to arrange a site visit or need more details.
+
+Regards,
+{{7}}
+PV Realty',
+      'APPROVED'
+    );
+
+    -- Also seed an image-header version of the template for sharing property details
+    DELETE FROM message_templates 
+    WHERE name = 'share_property_details_with_image' 
+      AND account_id = r.account_id;
+
+    INSERT INTO message_templates (
+      user_id,
+      account_id,
+      name,
+      category,
+      language,
+      header_type,
+      header_media_url,
+      body_text,
+      buttons,
+      status
+    )
+    VALUES (
+      r.user_id,
+      r.account_id,
+      'share_property_details_with_image',
+      'Marketing',
+      'en_US',
+      'image',
+      'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=1200&q=80',
+      'Hello! Hi {{1}},
+
+Here are the details for the property you showed interest in:
+
+🏡 *{{2}}*
+📍 Location: {{3}}
+💰 Price: {{4}}
+📐 Area: {{5}}
+
+Highlights:
+{{6}}
+
+Please let me know if you would like to arrange a site visit or need more details.
+
+Regards,
+{{7}}
+PV Realty',
+      '[
+        {"type": "URL", "text": "View Photo Gallery", "url": "https://pvrealty.in/properties"},
+        {"type": "PHONE_NUMBER", "text": "Contact Agent", "phone_number": "+919999999999"}
+      ]'::jsonb,
+      'APPROVED'
+    );
+  END LOOP;
+END $$;
+
+-- Create appointments table
+CREATE TABLE IF NOT EXISTS appointments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+  property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  location TEXT,
+  status TEXT NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create todos table
+CREATE TABLE IF NOT EXISTS todos (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  due_date TIMESTAMPTZ,
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  completed BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE appointments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
+
+-- Add RLS Policies
+DROP POLICY IF EXISTS "Users can manage own account appointments" ON appointments;
+CREATE POLICY "Users can manage own account appointments" ON appointments
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.user_id = auth.uid()
+        AND profiles.account_id = appointments.account_id
+    )
+  );
+
+DROP POLICY IF EXISTS "Users can manage own account todos" ON todos;
+CREATE POLICY "Users can manage own account todos" ON todos
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE profiles.user_id = auth.uid()
+        AND profiles.account_id = todos.account_id
+    )
+  );
+
+-- Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_appointments_account ON appointments(account_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_contact ON appointments(contact_id);
+CREATE INDEX IF NOT EXISTS idx_appointments_property ON appointments(property_id);
+CREATE INDEX IF NOT EXISTS idx_todos_account ON todos(account_id);
+CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id);
+
+-- ============================================================
+-- 028_add_todos_relations.sql — Add contact and property mentions in To-Dos
+-- ============================================================
+
+-- 1. Add contact_id and property_id to todos table
+ALTER TABLE todos 
+  ADD COLUMN IF NOT EXISTS contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS property_id UUID REFERENCES properties(id) ON DELETE SET NULL;
+
+-- 2. Indexes for performance
+CREATE INDEX IF NOT EXISTS idx_todos_contact ON todos(contact_id);
+CREATE INDEX IF NOT EXISTS idx_todos_property ON todos(property_id);
+

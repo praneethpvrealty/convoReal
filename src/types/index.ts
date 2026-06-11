@@ -94,6 +94,11 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  min_budget?: number;
+  max_budget?: number;
+  no_budget?: boolean;
+  areas_of_interest?: string[];
+  property_interests?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -527,4 +532,43 @@ export interface AutomationLog {
   error_message?: string | null;
   created_at: string;
   contact?: Contact;
+}
+
+// ============================================================
+// Real Estate Inventory (021_real_estate_inventory.sql)
+// ============================================================
+
+export interface Property {
+  id: string;
+  account_id: string;
+  user_id: string | null;
+  title: string;
+  description?: string;
+  price: number;
+  location: string;
+  type: string;
+  status: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  area_sqft?: number;
+  area_unit?: string;
+  land_area?: number;
+  land_area_unit?: string;
+  super_built_area?: number;
+  sublocality?: string;
+  city?: string;
+  state?: string;
+  project?: string;
+  land_zone?: string;
+  ideal_for?: string;
+  dimensions?: string;
+  road_width?: number;
+  road_width_unit?: string;
+  facing_direction?: string;
+  nearby_highlights?: string[];
+  is_published: boolean;
+  features: string[];
+  images: string[];
+  created_at: string;
+  updated_at: string;
 }
