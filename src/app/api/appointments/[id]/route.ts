@@ -57,7 +57,7 @@ export async function PUT(
       })
       .eq('id', id)
       .eq('account_id', accountId)
-      .select('*, contact:contacts(id, name, phone), property:properties(id, title, address, sublocality)')
+      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
       .single()
 
     if (error) {

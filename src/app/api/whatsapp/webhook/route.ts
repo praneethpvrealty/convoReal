@@ -704,7 +704,7 @@ async function processMessage(
     const nowIso = new Date().toISOString()
     const { data: appointments, error: apptError } = await supabaseAdmin()
       .from('appointments')
-      .select('*, property:properties(title, address, sublocality)')
+      .select('*, property:properties(title, location, sublocality)')
       .eq('contact_id', contactRecord.id)
       .eq('status', 'scheduled')
       .gte('start_time', nowIso)
@@ -726,7 +726,7 @@ async function processMessage(
           timeStyle: 'short',
         })
         const propTitle = appt.property?.title ? `🏡 *${appt.property.title}*` : '🏡 *Property Details*'
-        const locationStr = appt.location || appt.property?.address || appt.property?.sublocality || 'Not specified'
+        const locationStr = appt.location || appt.property?.location || appt.property?.sublocality || 'Not specified'
         
         replyText += `${idx + 1}. 📅 *${appt.title}*\n${propTitle}\n📍 Location: ${locationStr}\n⏰ Time: ${dateStr}\n\n`
       })

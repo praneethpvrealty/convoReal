@@ -29,7 +29,7 @@ export async function GET() {
     // Fetch all appointments for this account, joining contact and property info
     const { data: appointments, error } = await supabase
       .from('appointments')
-      .select('*, contact:contacts(id, name, phone), property:properties(id, title, address, sublocality)')
+      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
       .eq('account_id', accountId)
       .order('start_time', { ascending: true })
 
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
         location: location || null,
         status: status || 'scheduled',
       })
-      .select('*, contact:contacts(id, name, phone), property:properties(id, title, address, sublocality)')
+      .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
       .single()
 
     if (error) {

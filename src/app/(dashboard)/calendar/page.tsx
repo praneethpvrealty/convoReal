@@ -41,7 +41,7 @@ interface Appointment {
   property?: {
     id: string;
     title: string;
-    address: string | null;
+    location: string | null;
     sublocality: string | null;
   } | null;
 }
@@ -94,7 +94,7 @@ export default function CalendarPage() {
       // Fetch appointments
       const { data: appts, error: apptError } = await supabase
         .from("appointments")
-        .select("*, contact:contacts(id, name, phone), property:properties(id, title, address, sublocality)")
+        .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("start_time", { ascending: true });
 
@@ -122,7 +122,7 @@ export default function CalendarPage() {
       // Fetch properties
       const { data: propsList } = await supabase
         .from("properties")
-        .select("id, title, address, sublocality")
+        .select("id, title, location, sublocality")
         .eq("account_id", accountId)
         .order("title");
       setProperties(propsList || []);
