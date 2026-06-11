@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  MessageSquare,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
@@ -56,9 +58,88 @@ interface ContactWithTags extends Contact {
 
 export default function ContactsPage() {
   const supabase = createClient();
+  const router = useRouter();
+  const { user, accountId } = useAuth();
   const canEdit = useCan('send-messages');
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
+
+  const renderClassificationBadge = (classification?: string) => {
+    if (!classification) return null;
+    
+    let styles = '';
+    switch (classification) {
+      case 'Owner':
+        styles = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        break;
+      case 'Seller':
+        styles = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+        break;
+      case 'Buyer':
+        styles = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        break;
+      case 'Agent':
+        styles = 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+        break;
+      case 'Others':
+      default:
+        styles = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+        break;
+    }
+    
+    return (
+      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${styles}`}>
+        {classification}
+      </span>
+    );
+  };
+
+  const handleWhatsAppClick = async (e: React.MouseEvent, contact: Contact) => {
+    e.stopPropagation();
+    if (!accountId) {
+      toast.error('Account not loaded');
+      return;
+    }
+    
+    try {
+      const { data: existing, error } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contact.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error finding conversation:', error);
+      }
+
+      if (existing) {
+        router.push(`/inbox?c=${existing.id}`);
+        return;
+      }
+
+      const { data: newConv, error: createError } = await supabase
+        .from('conversations')
+        .insert({
+          account_id: accountId,
+          user_id: user?.id,
+          contact_id: contact.id,
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        toast.error('Failed to start chat thread');
+        console.error('Create conversation error:', createError);
+        return;
+      }
+
+      router.push(`/inbox?c=${newConv.id}`);
+    } catch (err) {
+      console.error('WhatsApp redirect error:', err);
+      toast.error('Something went wrong');
+    }
+  };
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,6 +347,7 @@ export default function ContactsPage() {
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
               <TableHead className="text-slate-400">Name</TableHead>
+              <TableHead className="text-slate-400">Classification</TableHead>
               <TableHead className="text-slate-400">Phone</TableHead>
               <TableHead className="text-slate-400 hidden md:table-cell">Email</TableHead>
               <TableHead className="text-slate-400 hidden lg:table-cell">Company</TableHead>
@@ -277,7 +359,7 @@ export default function ContactsPage() {
           <TableBody>
             {loading ? (
               <TableRow className="border-slate-800">
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="size-6 animate-spin text-primary" />
                     <p className="text-sm text-slate-500">Loading contacts...</p>
@@ -286,7 +368,7 @@ export default function ContactsPage() {
               </TableRow>
             ) : contacts.length === 0 ? (
               <TableRow className="border-slate-800">
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={8} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-slate-600" />
                     <p className="text-sm text-slate-500">
@@ -316,8 +398,26 @@ export default function ContactsPage() {
                   <TableCell className="text-white font-medium">
                     {contact.name || <span className="text-slate-500 italic">Unnamed</span>}
                   </TableCell>
-                  <TableCell className="text-slate-300 font-mono text-xs">
-                    {contact.phone}
+                  <TableCell>
+                    {renderClassificationBadge(contact.classification)}
+                  </TableCell>
+                  <TableCell className="text-slate-300 font-mono text-xs" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`tel:${contact.phone}`}
+                        className="hover:text-primary hover:underline"
+                        title="Call number"
+                      >
+                        {contact.phone}
+                      </a>
+                      <button
+                        onClick={(e) => handleWhatsAppClick(e, contact)}
+                        className="inline-flex items-center justify-center rounded-md size-6 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-all cursor-pointer"
+                        title="Chat on WhatsApp"
+                      >
+                        <MessageSquare className="size-3.5 fill-current" />
+                      </button>
+                    </div>
                   </TableCell>
                   <TableCell className="text-slate-400 hidden md:table-cell text-sm">
                     {contact.email || <span className="text-slate-600">-</span>}

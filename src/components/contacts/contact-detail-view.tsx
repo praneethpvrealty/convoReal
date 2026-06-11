@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ import {
   Trash2,
   Save,
   DollarSign,
+  MessageSquare,
 } from 'lucide-react';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
@@ -74,6 +76,7 @@ export function ContactDetailView({
 }: ContactDetailViewProps) {
   const supabase = createClient();
   const { user, accountId } = useAuth();
+  const router = useRouter();
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
@@ -84,6 +87,7 @@ export function ContactDetailView({
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
+  const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Others'>('Others');
   const [savingDetails, setSavingDetails] = useState(false);
 
   // Real estate preferences
@@ -141,6 +145,7 @@ export function ContactDetailView({
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      setEditClassification((data as any).classification ?? 'Others');
       setEditMinBudget(data.min_budget ? String(data.min_budget) : '');
       setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
       setEditNoBudget(!!data.no_budget);
@@ -232,6 +237,52 @@ export function ContactDetailView({
     setTimeout(() => setCopiedPhone(false), 2000);
   }
 
+  async function handleWhatsAppClick() {
+    if (!contact || !accountId) {
+      toast.error('Account not loaded or contact not loaded');
+      return;
+    }
+
+    try {
+      const { data: existing, error } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contact.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error finding conversation:', error);
+      }
+
+      if (existing) {
+        router.push(`/inbox?c=${existing.id}`);
+        return;
+      }
+
+      const { data: newConv, error: createError } = await supabase
+        .from('conversations')
+        .insert({
+          account_id: accountId,
+          user_id: user?.id,
+          contact_id: contact.id,
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        toast.error('Failed to start chat thread');
+        console.error('Create conversation error:', createError);
+        return;
+      }
+
+      router.push(`/inbox?c=${newConv.id}`);
+    } catch (err) {
+      console.error('WhatsApp redirect error:', err);
+      toast.error('Something went wrong');
+    }
+  }
+
   async function saveDetails() {
     if (!contactId || !editPhone.trim()) {
       toast.error('Phone number is required');
@@ -246,6 +297,7 @@ export function ContactDetailView({
         phone: editPhone.trim(),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
+        classification: editClassification,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -469,17 +521,30 @@ export function ContactDetailView({
                     Contact details
                   </SheetDescription>
                   <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-slate-400">
-                    <button
-                      onClick={copyPhone}
-                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                    <a
+                      href={`tel:${contact.phone}`}
+                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer text-slate-300"
                     >
                       <Phone className="size-3" />
                       {contact.phone}
+                    </a>
+                    <button
+                      onClick={copyPhone}
+                      className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                      title="Copy phone number"
+                    >
                       {copiedPhone ? (
                         <Check className="size-3 text-primary" />
                       ) : (
                         <Copy className="size-3" />
                       )}
+                    </button>
+                    <button
+                      onClick={handleWhatsAppClick}
+                      className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                    >
+                      <MessageSquare className="size-3 text-emerald-400 fill-current" />
+                      WhatsApp Chat
                     </button>
                     {contact.email && (
                       <span className="flex items-center gap-1">
@@ -575,6 +640,20 @@ export function ContactDetailView({
                       onChange={(e) => setEditCompany(e.target.value)}
                       className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-400 text-xs">Classification</Label>
+                    <select
+                      value={editClassification}
+                      onChange={(e) => setEditClassification(e.target.value as any)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="Others">Others</option>
+                      <option value="Owner">Owner</option>
+                      <option value="Seller">Seller</option>
+                      <option value="Buyer">Buyer</option>
+                      <option value="Agent">Agent</option>
+                    </select>
                   </div>
                   <Button
                     onClick={saveDetails}

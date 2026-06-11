@@ -68,6 +68,7 @@ export function ContactForm({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
+  const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Others'>('Others');
   const [saving, setSaving] = useState(false);
 
   // Real estate preferences
@@ -97,6 +98,7 @@ export function ContactForm({
       setPhone(contact?.phone ?? '');
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
+      setClassification((contact as any)?.classification ?? 'Others');
       setMinBudget(contact?.min_budget ? String(contact.min_budget) : '');
       setMaxBudget(contact?.max_budget ? String(contact.max_budget) : '');
       setNoBudget(!!contact?.no_budget);
@@ -190,6 +192,7 @@ export function ContactForm({
         phone: phone.trim(),
         email: email.trim() || null,
         company: company.trim() || null,
+        classification,
         min_budget: minBudget ? Number(minBudget) : null,
         max_budget: maxBudget ? Number(maxBudget) : null,
         no_budget: noBudget,
@@ -318,6 +321,24 @@ export function ContactForm({
               placeholder="Acme Inc."
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-classification" className="text-slate-300">
+              Classification
+            </Label>
+            <select
+              id="cf-classification"
+              value={classification}
+              onChange={(e) => setClassification(e.target.value as any)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+            >
+              <option value="Others">Others</option>
+              <option value="Owner">Owner</option>
+              <option value="Seller">Seller</option>
+              <option value="Buyer">Buyer</option>
+              <option value="Agent">Agent</option>
+            </select>
           </div>
 
           {/* Real Estate Preferences */}

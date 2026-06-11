@@ -93,6 +93,7 @@ export interface Contact {
   name?: string;
   email?: string;
   company?: string;
+  classification?: 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Others';
   avatar_url?: string;
   min_budget?: number;
   max_budget?: number;

@@ -1698,3 +1698,13 @@ ALTER TABLE todos
 CREATE INDEX IF NOT EXISTS idx_todos_contact ON todos(contact_id);
 CREATE INDEX IF NOT EXISTS idx_todos_property ON todos(property_id);
 
+-- ============================================================
+-- 029_add_contacts_classification.sql — Add classification to contacts
+-- ============================================================
+
+-- 1. Add classification column to contacts table with constraints
+ALTER TABLE contacts 
+  ADD COLUMN IF NOT EXISTS classification TEXT NOT NULL DEFAULT 'Others' 
+  CHECK (classification IN ('Owner', 'Seller', 'Buyer', 'Agent', 'Others'));
+
+
