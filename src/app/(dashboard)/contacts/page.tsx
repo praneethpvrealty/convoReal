@@ -43,12 +43,15 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
+  Smartphone,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
+import { normalizePhone } from '@/lib/whatsapp/phone-utils';
+import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
 
 const PAGE_SIZE = 25;
 
@@ -146,6 +149,9 @@ export default function ContactsPage() {
   const [search, setSearch] = useState(initialSearch);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<'active' | 'pending_review'>('active');
+  const [activeCount, setActiveCount] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -157,6 +163,10 @@ export default function ContactsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Bulk Device Import state
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImportContacts, setBulkImportContacts] = useState<BulkImportContact[]>([]);
 
   // All tags for display
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
@@ -172,6 +182,7 @@ export default function ContactsPage() {
   }, []);
 
   const fetchContacts = useCallback(async () => {
+    if (!accountId) return;
     setLoading(true);
     const supabaseClient = createClient();
 
@@ -181,6 +192,8 @@ export default function ContactsPage() {
     let query = supabaseClient
       .from('contacts')
       .select('*', { count: 'exact' })
+      .eq('account_id', accountId)
+      .eq('status', activeTab)
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -198,6 +211,23 @@ export default function ContactsPage() {
     }
 
     setTotalCount(count ?? 0);
+
+    // Fetch tab totals in the background
+    const [actCountRes, revCountRes] = await Promise.all([
+      supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'active'),
+      supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'pending_review'),
+    ]);
+
+    setActiveCount(actCountRes.count ?? 0);
+    setReviewCount(revCountRes.count ?? 0);
 
     if (!data || data.length === 0) {
       setContacts([]);
@@ -227,19 +257,17 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [page, search, tagsMap]);
+  }, [page, search, tagsMap, activeTab, accountId]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
   // synchronously in the effect body, so the cascade the lint rule
   // warns about doesn't apply here.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTags();
   }, [fetchTags]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchContacts();
   }, [fetchContacts]);
 
@@ -248,6 +276,104 @@ export default function ContactsPage() {
     setEditContactTags([]);
     setFormOpen(true);
   }
+
+  interface ContactsManager {
+    getProperties(): Promise<string[]>;
+    select(
+      properties: string[],
+      options?: { multiple?: boolean }
+    ): Promise<Array<{
+      name?: string[];
+      tel?: string[];
+      email?: string[];
+    }>>;
+  }
+
+  const handleDeviceImport = async () => {
+    if (typeof navigator === 'undefined' || !('contacts' in navigator)) {
+      toast.error('Device contacts picker is not supported on this browser/device.');
+      return;
+    }
+
+    try {
+      const manager = (navigator as unknown as { contacts: ContactsManager }).contacts;
+      const supportedProps = await manager.getProperties();
+      const fields = ['name', 'tel', 'email'].filter((f) => supportedProps.includes(f));
+      
+      const picked = await manager.select(fields, { multiple: true });
+      if (!picked || picked.length === 0) return;
+
+      if (picked.length === 1) {
+        const c = picked[0];
+        const name = c.name?.[0] || '';
+        const phone = c.tel?.[0] || '';
+        const email = c.email?.[0] || '';
+        
+        setEditContact({
+          id: '',
+          user_id: user?.id || '',
+          phone: normalizePhone(phone) || phone,
+          name,
+          email,
+          company: '',
+          classification: 'Others',
+          status: 'active',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Contact);
+        setEditContactTags([]);
+        setFormOpen(true);
+      } else {
+        setBulkImportContacts(
+          picked.map((c) => ({
+            name: c.name?.[0] || '',
+            phone: c.tel?.[0] ? (normalizePhone(c.tel[0]) || c.tel[0]) : '',
+            email: c.email?.[0] || '',
+            classification: 'Others' as const,
+            selected: true,
+          }))
+        );
+        setBulkImportOpen(true);
+      }
+    } catch (err) {
+      const error = err as Error;
+      console.error('Device contact select failed:', error);
+      if (error.name !== 'AbortError') {
+        toast.error(error.message || 'Failed to select contacts from device');
+      }
+    }
+  };
+
+  const handleBulkImportSave = async (toImport: BulkImportContact[]) => {
+    if (!accountId) {
+      toast.error('Account not loaded');
+      return;
+    }
+
+    try {
+      const records = toImport.map((c) => ({
+        account_id: accountId,
+        user_id: user?.id || null,
+        name: c.name,
+        phone: normalizePhone(c.phone) || c.phone,
+        email: c.email || null,
+        classification: c.classification,
+        company: '',
+      }));
+
+      const { error } = await supabase.from('contacts').insert(records);
+
+      if (error) throw error;
+
+      toast.success(`Successfully imported ${records.length} contacts`);
+      fetchContacts();
+    } catch (err) {
+      const error = err as Error;
+      console.error('Bulk insert failed:', error);
+      toast.error(error.message || 'Failed to save contacts');
+      throw error;
+    }
+  };
 
   async function openEditForm(contact: Contact) {
     const { data } = await supabase
@@ -305,6 +431,18 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {typeof navigator !== 'undefined' && 'contacts' in navigator && (
+            <GatedButton
+              variant="outline"
+              canAct={canEdit}
+              gateReason="add or import contacts"
+              onClick={handleDeviceImport}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Smartphone className="size-4" />
+              Import from Phone
+            </GatedButton>
+          )}
           <GatedButton
             variant="outline"
             canAct={canEdit}
@@ -327,20 +465,55 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
-        <Input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            // Reset pagination when the query changes — the result
-            // set shrinks/grows, page N may no longer be valid.
-            setPage(0);
-          }}
-          placeholder="Search by name, phone, or email..."
-          className="pl-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
-        />
+      {/* Search and Tabs Row */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative max-w-sm w-full">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Search by name, phone, or email..."
+            className="pl-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+          />
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex bg-slate-900/60 p-1 border border-slate-800 rounded-lg self-start md:self-auto">
+          <button
+            onClick={() => {
+              setActiveTab('active');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+              activeTab === 'active'
+                ? 'bg-slate-800 text-primary shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            All Contacts ({activeCount})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('pending_review');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+              activeTab === 'pending_review'
+                ? 'bg-slate-800 text-amber-400 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Needs Review ({reviewCount})
+            {reviewCount > 0 && (
+              <span className="inline-flex items-center justify-center bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] min-w-[16px] h-4 leading-none animate-pulse">
+                {reviewCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -374,9 +547,13 @@ export default function ContactsPage() {
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-slate-600" />
                     <p className="text-sm text-slate-500">
-                      {search ? 'No contacts match your search.' : 'No contacts yet.'}
+                      {search
+                        ? 'No contacts match your search.'
+                        : activeTab === 'pending_review'
+                        ? 'No contacts pending review.'
+                        : 'No contacts yet.'}
                     </p>
-                    {!search && (
+                    {!search && activeTab === 'active' && (
                       <Button
                         variant="outline"
                         size="sm"
@@ -566,6 +743,14 @@ export default function ContactsPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         onImported={fetchContacts}
+      />
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        open={bulkImportOpen}
+        onOpenChange={setBulkImportOpen}
+        contacts={bulkImportContacts}
+        onImport={handleBulkImportSave}
       />
 
       {/* Delete Confirmation */}
