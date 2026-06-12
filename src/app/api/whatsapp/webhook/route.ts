@@ -37,6 +37,12 @@ interface WhatsAppMessage {
   sticker?: { id: string; mime_type: string }
   location?: { latitude: number; longitude: number; name?: string; address?: string }
   reaction?: { message_id: string; emoji: string }
+  contacts?: Array<{
+    name: { formatted_name: string; first_name?: string; last_name?: string }
+    phones?: Array<{ phone: string; type?: string; wa_id?: string }>
+    emails?: Array<{ email: string; type?: string }>
+    vcard: string
+  }>
   /**
    * Set when the customer taps a button or list row on an interactive
    * message we sent. `button_reply.id` / `list_reply.id` is whatever id
@@ -690,6 +696,122 @@ async function processMessage(
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
 
   // ============================================================
+  // Automated WhatsApp Contact Share Parser
+  // If type is 'contacts', parse vCard(s) and insert as contacts.
+  // ============================================================
+  if (message.type === 'contacts' && message.contacts && message.contacts.length > 0) {
+    console.log(`[webhook] Shared contacts message detected from: ${senderPhone}`)
+    
+    // Resolve dynamic BASE_URL for deep link
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const importedNames: string[] = []
+
+    for (const c of message.contacts) {
+      let name = c.name?.formatted_name || '';
+      let phone = '';
+      let email = '';
+
+      if (c.vcard) {
+        // Parse vCard FN
+        const fnMatch = c.vcard.match(/FN:(.+)/i);
+        if (fnMatch) name = fnMatch[1].trim();
+
+        // Parse vCard TEL
+        const telMatch = c.vcard.match(/TEL(?:;[^:]*)?:(.+)/i);
+        if (telMatch) phone = telMatch[1].trim();
+
+        // Parse vCard EMAIL
+        const emailMatch = c.vcard.match(/EMAIL(?:;[^:]*)?:(.+)/i);
+        if (emailMatch) email = emailMatch[1].trim();
+      }
+
+      // Fallback from structured fields if regex missed it
+      if (!phone && c.phones && c.phones.length > 0) {
+        phone = c.phones[0].phone;
+      }
+      if (!email && c.emails && c.emails.length > 0) {
+        email = c.emails[0].email;
+      }
+
+      if (!phone) continue;
+
+      const normalizedImportPhone = normalizePhone(phone);
+      if (!normalizedImportPhone) continue;
+
+      // Check if contact already exists in account
+      const { data: existingContact } = await supabaseAdmin()
+        .from('contacts')
+        .select('id, name')
+        .eq('account_id', accountId)
+        .eq('phone', normalizedImportPhone)
+        .maybeSingle();
+
+      if (!existingContact) {
+        // Insert new contact
+        const { error: insertErr } = await supabaseAdmin()
+          .from('contacts')
+          .insert({
+            account_id: accountId,
+            user_id: configOwnerUserId || null,
+            name: name || `Contact ${normalizedImportPhone}`,
+            phone: normalizedImportPhone,
+            email: email || null,
+            classification: 'Others',
+            company: '',
+          });
+        
+        if (insertErr) {
+          console.error('[webhook] Failed to auto-insert shared contact:', insertErr);
+        } else {
+          importedNames.push(name || normalizedImportPhone);
+        }
+      } else {
+        importedNames.push(`${existingContact.name} (already in CRM)`);
+      }
+    }
+
+    if (importedNames.length > 0) {
+      // Build auto-reply confirmation message
+      let replyText = `📥 *Contact Import Status:*\n\n`
+      importedNames.forEach((n, idx) => {
+        replyText += `✅ ${idx + 1}. *${n}*\n`
+      })
+      
+      replyText += `\nClick here to complete classification and details:\n${baseUrl}/contacts`
+
+      try {
+        await sendTextMessage({
+          phoneNumberId,
+          accessToken,
+          to: senderPhone,
+          text: replyText,
+        });
+
+        // Save bot message to history
+        const { data: botMsg } = await supabaseAdmin().from('messages').insert({
+          conversation_id: conversation.id,
+          sender_type: 'bot',
+          content_type: 'text',
+          content_text: replyText,
+          message_id: `bot-${Date.now()}`,
+          status: 'sent',
+          created_at: new Date().toISOString(),
+        }).select('id').single();
+
+        if (botMsg) {
+          await supabaseAdmin().from('conversations').update({
+            last_message_text: replyText,
+            last_message_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }).eq('id', conversation.id);
+        }
+      } catch (err) {
+        console.error('[webhook] Failed to send contact import confirmation auto-reply:', err);
+      }
+    }
+  }
+
+  // ============================================================
   // Automated Calendar Appointment check.
   // Intercept messages matching "visits", "schedule", "appointment"
   // and reply automatically with a list of upcoming property visits.
@@ -998,6 +1120,21 @@ async function parseMessageContent(
         }
       }
       return { ...empty, contentText: '[Interactive reply]' }
+    }
+
+    case 'contacts': {
+      if (message.contacts && message.contacts.length > 0) {
+        const summaries = message.contacts.map((c) => {
+          const name = c.name?.formatted_name || 'Shared Contact';
+          const phones = c.phones?.map((p) => p.phone).join(', ') || '';
+          return `${name} (${phones})`;
+        });
+        return {
+          ...empty,
+          contentText: `📥 Shared Contact Cards:\n${summaries.join('\n')}`,
+        };
+      }
+      return { ...empty, contentText: '📥 Shared Contact Card' };
     }
 
     default:

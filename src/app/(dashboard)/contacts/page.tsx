@@ -43,12 +43,15 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
+  Smartphone,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
+import { normalizePhone } from '@/lib/whatsapp/phone-utils';
+import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
 
 const PAGE_SIZE = 25;
 
@@ -158,6 +161,10 @@ export default function ContactsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Bulk Device Import state
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
+  const [bulkImportContacts, setBulkImportContacts] = useState<BulkImportContact[]>([]);
+
   // All tags for display
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
 
@@ -249,6 +256,87 @@ export default function ContactsPage() {
     setFormOpen(true);
   }
 
+  const handleDeviceImport = async () => {
+    if (typeof navigator === 'undefined' || !('contacts' in navigator)) {
+      toast.error('Device contacts picker is not supported on this browser/device.');
+      return;
+    }
+
+    try {
+      const supportedProps = await (navigator.contacts as any).getProperties();
+      const fields = ['name', 'tel', 'email'].filter((f) => supportedProps.includes(f));
+      
+      const picked = await (navigator.contacts as any).select(fields, { multiple: true });
+      if (!picked || picked.length === 0) return;
+
+      if (picked.length === 1) {
+        const c = picked[0];
+        const name = c.name?.[0] || '';
+        const phone = c.tel?.[0] || '';
+        const email = c.email?.[0] || '';
+        
+        setEditContact({
+          id: '',
+          name,
+          phone: normalizePhone(phone) || phone,
+          email,
+          company: '',
+          classification: 'Others',
+          account_id: accountId || '',
+          user_id: user?.id || '',
+        } as any);
+        setEditContactTags([]);
+        setFormOpen(true);
+      } else {
+        setBulkImportContacts(
+          picked.map((c: any) => ({
+            name: c.name?.[0] || '',
+            phone: normalizePhone(c.tel?.[0]) || c.tel?.[0] || '',
+            email: c.email?.[0] || '',
+            classification: 'Others' as const,
+            selected: true,
+          }))
+        );
+        setBulkImportOpen(true);
+      }
+    } catch (err: any) {
+      console.error('Device contact select failed:', err);
+      if (err.name !== 'AbortError') {
+        toast.error(err.message || 'Failed to select contacts from device');
+      }
+    }
+  };
+
+  const handleBulkImportSave = async (toImport: BulkImportContact[]) => {
+    if (!accountId) {
+      toast.error('Account not loaded');
+      return;
+    }
+
+    try {
+      const records = toImport.map((c) => ({
+        account_id: accountId,
+        user_id: user?.id || null,
+        name: c.name,
+        phone: normalizePhone(c.phone) || c.phone,
+        email: c.email || null,
+        classification: c.classification,
+        company: '',
+      }));
+
+      const { error } = await supabase.from('contacts').insert(records);
+
+      if (error) throw error;
+
+      toast.success(`Successfully imported ${records.length} contacts`);
+      fetchContacts();
+    } catch (err: any) {
+      console.error('Bulk insert failed:', err);
+      toast.error(err.message || 'Failed to save contacts');
+      throw err;
+    }
+  };
+
   async function openEditForm(contact: Contact) {
     const { data } = await supabase
       .from('contact_tags')
@@ -305,6 +393,18 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {typeof navigator !== 'undefined' && 'contacts' in navigator && (
+            <GatedButton
+              variant="outline"
+              canAct={canEdit}
+              gateReason="add or import contacts"
+              onClick={handleDeviceImport}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              <Smartphone className="size-4" />
+              Import from Phone
+            </GatedButton>
+          )}
           <GatedButton
             variant="outline"
             canAct={canEdit}
@@ -566,6 +666,14 @@ export default function ContactsPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         onImported={fetchContacts}
+      />
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        open={bulkImportOpen}
+        onOpenChange={setBulkImportOpen}
+        contacts={bulkImportContacts}
+        onImport={handleBulkImportSave}
       />
 
       {/* Delete Confirmation */}
