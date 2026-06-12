@@ -736,7 +736,7 @@ export function ContactDetailView({
                     Preferences
                   </TabsTrigger>
                 )}
-                {['Owner', 'Seller', 'Agent'].includes(editClassification) && (
+                {['Owner', 'Seller', 'Agent', 'Buyer'].includes(editClassification) && (
                   <TabsTrigger
                     value="properties"
                     className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
@@ -1075,8 +1075,8 @@ export function ContactDetailView({
                 </TabsContent>
               )}
 
-              {/* Properties Tab (Owner / Seller / Agent) */}
-              {['Owner', 'Seller', 'Agent'].includes(editClassification) && (
+              {/* Properties Tab (Owner / Seller / Agent / Buyer) */}
+              {['Owner', 'Seller', 'Agent', 'Buyer'].includes(editClassification) && (
                 <TabsContent value="properties" className="flex-1 overflow-y-auto px-4 py-3 flex flex-col min-h-0">
                   <div className="flex items-center justify-between mb-3 shrink-0">
                     <h4 className="text-xs font-semibold text-slate-300">Managed Properties</h4>

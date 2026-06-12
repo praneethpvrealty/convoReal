@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, Property } from '@/types';
 import { POPULAR_SUBLOCALITIES } from '@/lib/data/real-estate-data';
 import {
   Dialog,
@@ -17,7 +17,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Search } from 'lucide-react';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
 
@@ -75,6 +76,16 @@ export function ContactForm({
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Notes state
+  const [notesText, setNotesText] = useState('');
+  const [recentNoteId, setRecentNoteId] = useState<string | null>(null);
+
+  // Associated Properties state
+  const [propertiesList, setPropertiesList] = useState<Property[]>([]);
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<string[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [propertySearch, setPropertySearch] = useState('');
+
   // Real estate preferences
   const [minBudget, setMinBudget] = useState('');
   const [maxBudget, setMaxBudget] = useState('');
@@ -114,6 +125,46 @@ export function ContactForm({
     if (data) setContacts(data);
   }, [supabase]);
 
+  const fetchProperties = useCallback(async () => {
+    setLoadingProperties(true);
+    const { data } = await supabase
+      .from('properties')
+      .select('*')
+      .order('title');
+    if (data) setPropertiesList(data);
+    setLoadingProperties(false);
+  }, [supabase]);
+
+  const fetchRecentNote = useCallback(async (contactId: string) => {
+    const { data } = await supabase
+      .from('contact_notes')
+      .select('*')
+      .eq('contact_id', contactId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      setNotesText(data.note_text ?? '');
+      setRecentNoteId(data.id);
+    } else {
+      setNotesText('');
+      setRecentNoteId(null);
+    }
+  }, [supabase]);
+
+  const fetchAssociatedProperties = useCallback(async (contactId: string) => {
+    const { data } = await supabase
+      .from('properties')
+      .select('id')
+      .eq('owner_contact_id', contactId);
+    if (data) {
+      setSelectedPropertyIds(data.map((p) => p.id));
+    } else {
+      setSelectedPropertyIds([]);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     if (open) {
       setName(contact?.name ?? '');
@@ -133,8 +184,28 @@ export function ContactForm({
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       fetchTags();
       fetchContacts();
+      fetchProperties();
+
+      if (contact?.id) {
+        fetchRecentNote(contact.id);
+        fetchAssociatedProperties(contact.id);
+      } else {
+        setNotesText('');
+        setRecentNoteId(null);
+        setSelectedPropertyIds([]);
+      }
     }
-  }, [open, contact, contactTags, fetchTags, fetchContacts]);
+  }, [open, contact, contactTags, fetchTags, fetchContacts, fetchProperties, fetchRecentNote, fetchAssociatedProperties]);
+
+  const filteredProperties = useMemo(() => {
+    if (!propertySearch.trim()) return propertiesList;
+    const q = propertySearch.toLowerCase();
+    return propertiesList.filter(
+      (p) =>
+        p.title.toLowerCase().includes(q) ||
+        (p.location && p.location.toLowerCase().includes(q))
+    );
+  }, [propertiesList, propertySearch]);
 
   const filteredReferrerContacts = useMemo(() => {
     if (!referrer.trim()) return [];
@@ -270,6 +341,50 @@ export function ContactForm({
         }
       }
 
+      // Save Notes
+      if (contactId) {
+        if (recentNoteId) {
+          if (notesText.trim()) {
+            const { error: noteErr } = await supabase
+              .from('contact_notes')
+              .update({ note_text: notesText.trim() })
+              .eq('id', recentNoteId);
+            if (noteErr) throw noteErr;
+          } else {
+            await supabase
+              .from('contact_notes')
+              .delete()
+              .eq('id', recentNoteId);
+          }
+        } else if (notesText.trim()) {
+          const { error: noteErr } = await supabase
+            .from('contact_notes')
+            .insert({
+              contact_id: contactId,
+              user_id: user.id,
+              account_id: accountId,
+              note_text: notesText.trim(),
+            });
+          if (noteErr) throw noteErr;
+        }
+      }
+
+      // Sync properties (only if classification is Buyer/Seller/Agent/Owner)
+      if (contactId && ['Buyer', 'Seller', 'Agent', 'Owner'].includes(classification)) {
+        await supabase
+          .from('properties')
+          .update({ owner_contact_id: null })
+          .eq('owner_contact_id', contactId);
+
+        if (selectedPropertyIds.length > 0) {
+          const { error: propErr } = await supabase
+            .from('properties')
+            .update({ owner_contact_id: contactId })
+            .in('id', selectedPropertyIds);
+          if (propErr) throw propErr;
+        }
+      }
+ 
       toast.success(isEdit ? 'Contact updated' : 'Contact created');
       onOpenChange(false);
       onSaved();
@@ -625,6 +740,79 @@ export function ContactForm({
             )}
           </div>
 
+          {/* Notes Field */}
+          <div className="space-y-2 border-t border-slate-800 pt-4">
+            <Label htmlFor="cf-notes" className="text-slate-300">
+              Notes
+            </Label>
+            <Textarea
+              id="cf-notes"
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+              placeholder="Add any notes or description about the contact..."
+              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[80px] text-xs resize-y"
+            />
+          </div>
+
+          {/* Properties Association checklist */}
+          {['Buyer', 'Seller', 'Agent', 'Owner'].includes(classification) && (
+            <div className="space-y-2 border-t border-slate-800 pt-4">
+              <Label className="text-slate-350">Associated Properties</Label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3 text-slate-500" />
+                <Input
+                  value={propertySearch}
+                  onChange={(e) => setPropertySearch(e.target.value)}
+                  placeholder="Search properties to link..."
+                  className="pl-8 bg-slate-800 border-slate-700 text-xs h-8 text-white placeholder:text-slate-500 focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+                />
+              </div>
+              <div className="max-h-40 overflow-y-auto border border-slate-800 bg-slate-950/20 rounded-lg p-2.5 space-y-1.5 mt-2">
+                {loadingProperties ? (
+                  <div className="flex items-center justify-center py-4 text-xs text-slate-500 gap-1.5">
+                    <Loader2 className="size-3 animate-spin text-primary" />
+                    Loading properties...
+                  </div>
+                ) : filteredProperties.length === 0 ? (
+                  <p className="text-[11px] text-slate-500 text-center py-4">No matching properties found.</p>
+                ) : (
+                  filteredProperties.map((prop) => {
+                    const checked = selectedPropertyIds.includes(prop.id);
+                    return (
+                      <label
+                        key={prop.id}
+                        className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white hover:bg-slate-850/40 p-1.5 rounded"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPropertyIds((prev) => [...prev, prop.id]);
+                            } else {
+                              setSelectedPropertyIds((prev) => prev.filter((id) => id !== prop.id));
+                            }
+                          }}
+                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <span className="font-semibold text-slate-200 block truncate">{prop.title}</span>
+                          <span className="text-[10px] text-slate-500 block truncate text-left">
+                            {prop.location} • {prop.price >= 10000000 
+                              ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                              : prop.price >= 100000 
+                                ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
+                                : `₹${prop.price.toLocaleString('en-IN')}`}
+                          </span>
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+ 
           <DialogFooter className="bg-slate-900 border-slate-700">
             <Button
               type="button"
