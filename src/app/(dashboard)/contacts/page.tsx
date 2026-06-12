@@ -50,7 +50,7 @@ import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
-import { normalizePhone } from '@/lib/whatsapp/phone-utils';
+import { normalizePhone, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
 
 const PAGE_SIZE = 25;
@@ -312,7 +312,7 @@ export default function ContactsPage() {
         setEditContact({
           id: '',
           user_id: user?.id || '',
-          phone: normalizePhone(phone) || phone,
+          phone: normalizePhoneWithCountryCode(phone) || phone,
           name,
           email,
           company: '',
@@ -327,7 +327,7 @@ export default function ContactsPage() {
         setBulkImportContacts(
           picked.map((c) => ({
             name: c.name?.[0] || '',
-            phone: c.tel?.[0] ? (normalizePhone(c.tel[0]) || c.tel[0]) : '',
+            phone: c.tel?.[0] ? (normalizePhoneWithCountryCode(c.tel[0]) || c.tel[0]) : '',
             email: c.email?.[0] || '',
             classification: 'Others' as const,
             selected: true,

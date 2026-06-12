@@ -18,6 +18,36 @@ export function normalizePhone(phone: string): string {
 }
 
 /**
+ * Normalize phone number by removing non-digits and ensuring it has a country code.
+ * If the number is a local number (e.g. 10 digits in India), it prefixes it with the default country code.
+ * Strips leading zeros (e.g. domestic trunk prefixes like '0') before prefixing.
+ */
+export function normalizePhoneWithCountryCode(phone: string, defaultCountryCode: string = '91'): string {
+  if (!phone) return ''
+  
+  // 1. Remove all non-digits
+  let digits = phone.replace(/\D/g, '')
+  
+  // 2. Strip leading international double zero prefix (e.g. 0091... -> 91...)
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2)
+  }
+  
+  // 3. Strip leading single zero domestic trunk prefix (e.g. 09876543210 -> 9876543210)
+  // only if the remaining length is 10 digits
+  if (digits.startsWith('0') && digits.length === 11) {
+    digits = digits.slice(1)
+  }
+  
+  // 4. If the digits length matches a local 10-digit number, prefix with the default country code
+  if (digits.length === 10) {
+    digits = defaultCountryCode + digits
+  }
+  
+  return digits
+}
+
+/**
  * Compare two phone numbers accounting for trunk prefix differences.
  * e.g. "370063949836" (with trunk 0) matches "37063949836" (without trunk 0)
  * by comparing the last 8 digits.
