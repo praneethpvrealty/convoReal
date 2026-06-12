@@ -50,7 +50,7 @@ import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
-import { normalizePhone, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
 
 const PAGE_SIZE = 25;
@@ -375,7 +375,7 @@ export default function ContactsPage() {
         account_id: accountId,
         user_id: user?.id || null,
         name: c.name,
-        phone: normalizePhone(c.phone) || c.phone,
+        phone: normalizePhoneWithCountryCode(c.phone) || c.phone,
         email: c.email || null,
         classification: c.classification,
         company: '',
