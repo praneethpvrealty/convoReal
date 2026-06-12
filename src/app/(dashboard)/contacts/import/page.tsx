@@ -6,7 +6,7 @@ import { ContactForm } from '@/components/contacts/contact-form';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { Loader2, Smartphone, AlertCircle } from 'lucide-react';
-import { normalizePhone } from '@/lib/whatsapp/phone-utils';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import type { Contact } from '@/types';
 
 // Helper parser for shared contact payloads
@@ -68,7 +68,7 @@ function parseSharedData(title: string, text: string, url: string) {
 
   return {
     name: name.slice(0, 100),
-    phone: normalizePhone(phone) || phone,
+    phone: normalizePhoneWithCountryCode(phone) || phone,
     email: email.slice(0, 100),
   };
 }

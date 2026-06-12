@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { normalizePhone } from '@/lib/whatsapp/phone-utils';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 
 // Lazy-initialized admin client
 let _adminClient: SupabaseClient | null = null;
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to extract phone number from lead' }, { status: 422 });
     }
 
-    const normalizedPhoneNum = normalizePhone(parsed.phone);
+    const normalizedPhoneNum = normalizePhoneWithCountryCode(parsed.phone);
     if (!normalizedPhoneNum) {
       return NextResponse.json({ error: 'Extracted phone number is invalid' }, { status: 422 });
     }

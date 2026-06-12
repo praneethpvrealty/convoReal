@@ -3,6 +3,7 @@ import {
   isRecipientNotAllowedError,
   isValidE164,
   normalizePhone,
+  normalizePhoneWithCountryCode,
   phoneVariants,
   phonesMatch,
   sanitizePhoneForMeta,
@@ -160,5 +161,32 @@ describe("isRecipientNotAllowedError", () => {
       false,
     );
     expect(isRecipientNotAllowedError("")).toBe(false);
+  });
+});
+
+describe("normalizePhoneWithCountryCode", () => {
+  it("leaves already normalized international numbers intact", () => {
+    expect(normalizePhoneWithCountryCode("919876543210")).toBe("919876543210");
+    expect(normalizePhoneWithCountryCode("+91 98765 43210")).toBe("919876543210");
+    expect(normalizePhoneWithCountryCode("14155551212")).toBe("14155551212");
+  });
+
+  it("prefixes 10-digit numbers with default country code", () => {
+    expect(normalizePhoneWithCountryCode("9876543210")).toBe("919876543210");
+    expect(normalizePhoneWithCountryCode("98765-43210")).toBe("919876543210");
+    expect(normalizePhoneWithCountryCode("9876543210", "44")).toBe("449876543210");
+  });
+
+  it("strips single leading zero domestic trunk prefix and adds country code", () => {
+    expect(normalizePhoneWithCountryCode("09876543210")).toBe("919876543210");
+    expect(normalizePhoneWithCountryCode("098765-43210")).toBe("919876543210");
+  });
+
+  it("strips double leading zeros international prefix", () => {
+    expect(normalizePhoneWithCountryCode("00919876543210")).toBe("919876543210");
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(normalizePhoneWithCountryCode("")).toBe("");
   });
 });
