@@ -92,6 +92,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/contacts", label: "Contacts", icon: Users },
+  { href: "/agents", label: "Agents", icon: UsersRound },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/inventory", label: "Inventory", icon: Home },

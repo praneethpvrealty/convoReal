@@ -1735,5 +1735,14 @@ ALTER TABLE properties
 
 CREATE INDEX IF NOT EXISTS idx_properties_owner_contact ON properties(owner_contact_id);
 
+-- ============================================================
+-- 032_add_contacts_requirements.sql — Add requirements to contacts
+-- ============================================================
+
+-- Add requirements column to contacts
+ALTER TABLE contacts 
+  ADD COLUMN IF NOT EXISTS requirements TEXT;
+
+
 
 

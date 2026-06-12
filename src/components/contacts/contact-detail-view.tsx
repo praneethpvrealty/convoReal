@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactNote, CustomField, Deal } from '@/types';
+import type { Contact, Tag, ContactNote, CustomField, Deal, Property } from '@/types';
 import { POPULAR_SUBLOCALITIES } from '@/lib/data/real-estate-data';
+import { PropertyForm } from '@/components/inventory/property-form';
 import {
   Sheet,
   SheetContent,
@@ -33,6 +34,9 @@ import {
   DollarSign,
   MessageSquare,
   Users,
+  Building,
+  Unlink,
+  Edit,
 } from 'lucide-react';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
@@ -95,6 +99,15 @@ export function ContactDetailView({
   const [savingDetails, setSavingDetails] = useState(false);
   const [approving, setApproving] = useState(false);
 
+  // Requirements for Agent/Owner/Seller/etc
+  const [editRequirements, setEditRequirements] = useState('');
+
+  // Associated Properties for Owner/Seller/Agent
+  const [associatedProperties, setAssociatedProperties] = useState<Property[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [propertyFormOpen, setPropertyFormOpen] = useState(false);
+  const [selectedPropertyForEdit, setSelectedPropertyForEdit] = useState<Property | null>(null);
+
   // Real estate preferences
   const [editMinBudget, setEditMinBudget] = useState('');
   const [editMaxBudget, setEditMaxBudget] = useState('');
@@ -153,6 +166,7 @@ export function ContactDetailView({
       setEditClassification((data as Contact).classification ?? 'Others');
       setEditReferrer(data.referrer ?? '');
       setEditReferrerContactId(data.referrer_contact_id ?? null);
+      setEditRequirements(data.requirements ?? '');
       setEditMinBudget(data.min_budget ? String(data.min_budget) : '');
       setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
       setEditNoBudget(!!data.no_budget);
@@ -163,6 +177,40 @@ export function ContactDetailView({
     }
     setLoading(false);
   }, [contactId, supabase]);
+
+  const fetchAssociatedProperties = useCallback(async () => {
+    if (!contactId) return;
+    setLoadingProperties(true);
+    const { data, error } = await supabase
+      .from('properties')
+      .select('*')
+      .eq('owner_contact_id', contactId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching associated properties:', error);
+    } else {
+      setAssociatedProperties(data || []);
+    }
+    setLoadingProperties(false);
+  }, [contactId, supabase]);
+
+  async function handleUnlinkProperty(propertyId: string) {
+    try {
+      const { error } = await supabase
+        .from('properties')
+        .update({ owner_contact_id: null })
+        .eq('id', propertyId);
+
+      if (error) throw error;
+      toast.success('Property unlinked successfully');
+      fetchAssociatedProperties();
+      onUpdated();
+    } catch (err) {
+      console.error('Failed to unlink property:', err);
+      toast.error('Failed to unlink property');
+    }
+  }
 
   useEffect(() => {
     async function loadContacts() {
@@ -257,8 +305,9 @@ export function ContactDetailView({
       fetchNotes();
       fetchCustomFields();
       fetchDeals();
+      fetchAssociatedProperties();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals]);
+  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchAssociatedProperties]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -350,6 +399,7 @@ export function ContactDetailView({
         classification: editClassification,
         referrer: editReferrer.trim() || null,
         referrer_contact_id: editReferrerContactId,
+        requirements: editRequirements.trim() || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -678,12 +728,22 @@ export function ContactDetailView({
                 >
                   Details
                 </TabsTrigger>
-                <TabsTrigger
-                  value="preferences"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-                >
-                  Preferences
-                </TabsTrigger>
+                {editClassification === 'Buyer' && (
+                  <TabsTrigger
+                    value="preferences"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  >
+                    Preferences
+                  </TabsTrigger>
+                )}
+                {['Owner', 'Seller', 'Agent'].includes(editClassification) && (
+                  <TabsTrigger
+                    value="properties"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  >
+                    Properties
+                  </TabsTrigger>
+                )}
                 <TabsTrigger
                   value="tags"
                   className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
@@ -813,6 +873,17 @@ export function ContactDetailView({
                       <option value="Agent">Agent</option>
                     </select>
                   </div>
+                  {editClassification === 'Agent' && (
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-400 text-xs">Agent Requirements</Label>
+                      <Textarea
+                        value={editRequirements}
+                        onChange={(e) => setEditRequirements(e.target.value)}
+                        placeholder="Enter agent requirements, focus areas, or client requests..."
+                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[100px] text-sm resize-y"
+                      />
+                    </div>
+                  )}
                   <Button
                     onClick={saveDetails}
                     disabled={savingDetails}
@@ -830,177 +901,262 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Preferences Tab */}
-              <TabsContent value="preferences" className="flex-1 overflow-y-auto px-4 py-3">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-slate-400 text-xs font-semibold">Budget Range (INR)</Label>
-                      <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={editNoBudget}
-                          onChange={(e) => {
-                            setEditNoBudget(e.target.checked);
-                            if (e.target.checked) {
-                              setEditMinBudget('');
-                              setEditMaxBudget('');
-                            }
-                          }}
-                          className="rounded border-slate-750 bg-slate-800 text-primary focus:ring-primary/40 h-3.5 w-3.5"
-                        />
-                        No Budget Limit
-                      </label>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-slate-500">Min Budget</Label>
-                        <Input
-                          type="number"
-                          disabled={editNoBudget}
-                          value={editMinBudget}
-                          onChange={(e) => setEditMinBudget(e.target.value)}
-                          placeholder="Min Budget"
-                          className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
-                        />
-                        {editMinBudget && (
-                          <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMinBudget)}</span>
-                        )}
+              {editClassification === 'Buyer' && (
+                <TabsContent value="preferences" className="flex-1 overflow-y-auto px-4 py-3">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-slate-400 text-xs font-semibold">Budget Range (INR)</Label>
+                        <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={editNoBudget}
+                            onChange={(e) => {
+                              setEditNoBudget(e.target.checked);
+                              if (e.target.checked) {
+                                setEditMinBudget('');
+                                setEditMaxBudget('');
+                              }
+                            }}
+                            className="rounded border-slate-750 bg-slate-800 text-primary focus:ring-primary/40 h-3.5 w-3.5"
+                          />
+                          No Budget Limit
+                        </label>
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] text-slate-500">Max Budget</Label>
-                        <Input
-                          type="number"
-                          disabled={editNoBudget}
-                          value={editMaxBudget}
-                          onChange={(e) => setEditMaxBudget(e.target.value)}
-                          placeholder="Max Budget"
-                          className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
-                        />
-                        {editMaxBudget && (
-                          <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMaxBudget)}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Areas of Interest */}
-                  <div className="space-y-2">
-                    <Label className="text-slate-400 text-xs font-semibold">Areas of Interest</Label>
-                    
-                    <div className="relative">
-                      <Input
-                        value={editAreasText}
-                        onChange={(e) => {
-                          ensureLocalitiesLoaded();
-                          handleAreasTextChange(e.target.value);
-                        }}
-                        onFocus={() => {
-                          ensureLocalitiesLoaded();
-                          setIsFocused(true);
-                        }}
-                        onBlur={() => {
-                          // Slight delay to allow clicking on dropdown items
-                          setTimeout(() => setIsFocused(false), 200);
-                        }}
-                        placeholder="Type area (e.g. Whitefield, Koramangala)..."
-                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
-                      />
-
-                      {isFocused && matchingSublocalities.length > 0 && (
-                        <div 
-                          className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
-                          onMouseDown={(e) => {
-                            // Prevent input blur so checks can be toggled without losing focus
-                            e.preventDefault();
-                          }}
-                        >
-                          <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-850 mb-1">
-                            Matching Sublocalities:
-                          </div>
-                          {matchingSublocalities.map((area) => {
-                            const isChecked = editAreasOfInterest.includes(area);
-                            return (
-                              <label
-                                key={area}
-                                className="flex items-center gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer select-none"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => handleToggleArea(area)}
-                                  className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
-                                />
-                                <span>{area}</span>
-                              </label>
-                            );
-                          })}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-500">Min Budget</Label>
+                          <Input
+                            type="number"
+                            disabled={editNoBudget}
+                            value={editMinBudget}
+                            onChange={(e) => setEditMinBudget(e.target.value)}
+                            placeholder="Min Budget"
+                            className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
+                          />
+                          {editMinBudget && (
+                            <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMinBudget)}</span>
+                          )}
                         </div>
-                      )}
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-slate-500">Max Budget</Label>
+                          <Input
+                            type="number"
+                            disabled={editNoBudget}
+                            value={editMaxBudget}
+                            onChange={(e) => setEditMaxBudget(e.target.value)}
+                            placeholder="Max Budget"
+                            className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
+                          />
+                          {editMaxBudget && (
+                            <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMaxBudget)}</span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Suggestions Bank */}
-                    <div className="flex flex-wrap gap-1 pt-1.5">
-                      <span className="text-[10px] text-slate-500 font-semibold w-full">Quick Add Suggestions:</span>
-                      {SUGGESTED_AREAS.map(area => {
-                        const exists = editAreasOfInterest.includes(area);
-                        return (
-                          <button
-                            key={area}
-                            type="button"
-                            disabled={exists}
-                            onClick={() => handleAddSuggestion(area)}
-                            className="text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-400"
+                    {/* Areas of Interest */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-400 text-xs font-semibold">Areas of Interest</Label>
+                      
+                      <div className="relative">
+                        <Input
+                          value={editAreasText}
+                          onChange={(e) => {
+                            ensureLocalitiesLoaded();
+                            handleAreasTextChange(e.target.value);
+                          }}
+                          onFocus={() => {
+                            ensureLocalitiesLoaded();
+                            setIsFocused(true);
+                          }}
+                          onBlur={() => {
+                            // Slight delay to allow clicking on dropdown items
+                            setTimeout(() => setIsFocused(false), 200);
+                          }}
+                          placeholder="Type area (e.g. Whitefield, Koramangala)..."
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+                        />
+
+                        {isFocused && matchingSublocalities.length > 0 && (
+                          <div 
+                            className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
+                            onMouseDown={(e) => {
+                              // Prevent input blur so checks can be toggled without losing focus
+                              e.preventDefault();
+                            }}
                           >
-                            +{area}
-                          </button>
-                        );
-                      })}
+                            <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-850 mb-1">
+                              Matching Sublocalities:
+                            </div>
+                            {matchingSublocalities.map((area) => {
+                              const isChecked = editAreasOfInterest.includes(area);
+                              return (
+                                <label
+                                  key={area}
+                                  className="flex items-center gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer select-none"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleArea(area)}
+                                    className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
+                                  />
+                                  <span>{area}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Suggestions Bank */}
+                      <div className="flex flex-wrap gap-1 pt-1.5">
+                        <span className="text-[10px] text-slate-500 font-semibold w-full">Quick Add Suggestions:</span>
+                        {SUGGESTED_AREAS.map(area => {
+                          const exists = editAreasOfInterest.includes(area);
+                          return (
+                            <button
+                              key={area}
+                              type="button"
+                              disabled={exists}
+                              onClick={() => handleAddSuggestion(area)}
+                              className="text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-400"
+                            >
+                              +{area}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
+
+                    {/* Property Category Interests */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-400 text-xs font-semibold">Property Category Interests</Label>
+                      <div className="grid grid-cols-1 gap-2 bg-slate-950/20 border border-slate-800/80 rounded-lg p-3">
+                        {PROPERTY_INTEREST_OPTIONS.map(option => {
+                          const checked = editPropertyInterests.includes(option);
+                          return (
+                            <label key={option} className="flex items-start gap-2.5 text-xs text-slate-350 cursor-pointer select-none hover:text-white">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditPropertyInterests(prev => [...prev, option]);
+                                  } else {
+                                    setEditPropertyInterests(prev => prev.filter(o => o !== option));
+                                  }
+                                }}
+                                className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
+                              />
+                              <span>{option}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={savePreferences}
+                      disabled={savingPreferences}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full mt-2"
+                      size="sm"
+                    >
+                      {savingPreferences ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Save className="size-3.5" />
+                      )}
+                      Save Preferences
+                    </Button>
+                  </div>
+                </TabsContent>
+              )}
+
+              {/* Properties Tab (Owner / Seller / Agent) */}
+              {['Owner', 'Seller', 'Agent'].includes(editClassification) && (
+                <TabsContent value="properties" className="flex-1 overflow-y-auto px-4 py-3 flex flex-col min-h-0">
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <h4 className="text-xs font-semibold text-slate-300">Managed Properties</h4>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setSelectedPropertyForEdit(null);
+                        setPropertyFormOpen(true);
+                      }}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="size-3" />
+                      Add Property
+                    </Button>
                   </div>
 
-                  {/* Property Category Interests */}
-                  <div className="space-y-2">
-                    <Label className="text-slate-400 text-xs font-semibold">Property Category Interests</Label>
-                    <div className="grid grid-cols-1 gap-2 bg-slate-950/20 border border-slate-800/80 rounded-lg p-3">
-                      {PROPERTY_INTEREST_OPTIONS.map(option => {
-                        const checked = editPropertyInterests.includes(option);
-                        return (
-                          <label key={option} className="flex items-start gap-2.5 text-xs text-slate-350 cursor-pointer select-none hover:text-white">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setEditPropertyInterests(prev => [...prev, option]);
-                                } else {
-                                  setEditPropertyInterests(prev => prev.filter(o => o !== option));
-                                }
-                              }}
-                              className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
-                            />
-                            <span>{option}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <Button
-                    onClick={savePreferences}
-                    disabled={savingPreferences}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground w-full mt-2"
-                    size="sm"
-                  >
-                    {savingPreferences ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                    {loadingProperties ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="size-5 animate-spin text-slate-500" />
+                      </div>
+                    ) : associatedProperties.length === 0 ? (
+                      <div className="text-center py-8 border border-dashed border-slate-800 rounded-lg bg-slate-900/40">
+                        <Building className="size-8 mx-auto text-slate-600 mb-2 opacity-55" />
+                        <p className="text-xs text-slate-400 max-w-[240px] mx-auto">
+                          No properties associated with this contact. Add one to display it here.
+                        </p>
+                      </div>
                     ) : (
-                      <Save className="size-3.5" />
+                      associatedProperties.map((prop) => (
+                        <div
+                          key={prop.id}
+                          className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h5 className="text-xs font-semibold text-white truncate">{prop.title}</h5>
+                              <p className="text-[10px] text-slate-400 mt-0.5 truncate">{prop.location}</p>
+                              <div className="flex items-center gap-2 mt-1.5">
+                                <span className="text-[10px] text-primary font-bold">
+                                  {prop.price >= 10000000 
+                                    ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                                    : prop.price >= 100000 
+                                      ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
+                                      : `₹${prop.price.toLocaleString('en-IN')}`}
+                                </span>
+                                <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase font-semibold">
+                                  {prop.status}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setSelectedPropertyForEdit(prop);
+                                  setPropertyFormOpen(true);
+                                }}
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                              >
+                                <Edit className="size-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleUnlinkProperty(prop.id)}
+                                className="h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-slate-800"
+                                title="Unlink from contact"
+                              >
+                                <Unlink className="size-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
                     )}
-                    Save Preferences
-                  </Button>
-                </div>
-              </TabsContent>
+                  </div>
+                </TabsContent>
+              )}
 
               {/* Tags Tab */}
               <TabsContent value="tags" className="flex-1 overflow-y-auto px-4 py-3">
@@ -1211,6 +1367,18 @@ export function ContactDetailView({
                 )}
               </TabsContent>
             </Tabs>
+
+            {/* Property Form Modal */}
+            <PropertyForm
+              open={propertyFormOpen}
+              onOpenChange={setPropertyFormOpen}
+              property={selectedPropertyForEdit}
+              defaultOwnerId={contactId}
+              onSaved={() => {
+                fetchAssociatedProperties();
+                onUpdated();
+              }}
+            />
           </div>
         )}
       </SheetContent>

@@ -115,6 +115,7 @@ interface PropertyFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   property?: Property | null;
+  defaultOwnerId?: string | null;
   onSaved: () => void;
 }
 
@@ -122,6 +123,7 @@ export function PropertyForm({
   open,
   onOpenChange,
   property,
+  defaultOwnerId = null,
   onSaved,
 }: PropertyFormProps) {
   const supabase = createClient();
@@ -678,10 +680,10 @@ export function PropertyForm({
         setNearbyHighlights([]);
         setImages(['']);
         setSearchQuery('');
-        setOwnerContactId(null);
+        setOwnerContactId(defaultOwnerId ?? null);
       }
     }
-  }, [open, property]);
+  }, [open, property, defaultOwnerId]);
 
   const isProjectMatched = !!project && POPULAR_PROJECTS.some(
     (p) => p.name.toLowerCase() === project.trim().toLowerCase()

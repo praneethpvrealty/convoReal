@@ -427,162 +427,164 @@ export function ContactForm({
           </div>
 
           {/* Real Estate Preferences */}
-          <div className="border-t border-slate-800 pt-4 mt-2 space-y-4">
-            <h4 className="text-sm font-bold text-white tracking-wide uppercase">Real Estate Preferences</h4>
+          {classification === 'Buyer' && (
+            <div className="border-t border-slate-800 pt-4 mt-2 space-y-4">
+              <h4 className="text-sm font-bold text-white tracking-wide uppercase">Real Estate Preferences</h4>
 
-            {/* Budget Fields */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-slate-300">Budget Range (INR)</Label>
-                <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={noBudget}
-                    onChange={(e) => {
-                      setNoBudget(e.target.checked);
-                      if (e.target.checked) {
-                        setMinBudget('');
-                        setMaxBudget('');
-                      }
-                    }}
-                    className="rounded border-slate-750 bg-slate-800 text-primary focus:ring-primary/40 h-3.5 w-3.5"
-                  />
-                  No Budget Limit
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Input
-                    type="number"
-                    disabled={noBudget}
-                    value={minBudget}
-                    onChange={(e) => setMinBudget(e.target.value)}
-                    placeholder="Min Budget"
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
-                  />
-                  {minBudget && (
-                    <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(minBudget)}</span>
-                  )}
+              {/* Budget Fields */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-slate-300">Budget Range (INR)</Label>
+                  <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={noBudget}
+                      onChange={(e) => {
+                        setNoBudget(e.target.checked);
+                        if (e.target.checked) {
+                          setMinBudget('');
+                          setMaxBudget('');
+                        }
+                      }}
+                      className="rounded border-slate-750 bg-slate-800 text-primary focus:ring-primary/40 h-3.5 w-3.5"
+                    />
+                    No Budget Limit
+                  </label>
                 </div>
-                <div className="space-y-1">
-                  <Input
-                    type="number"
-                    disabled={noBudget}
-                    value={maxBudget}
-                    onChange={(e) => setMaxBudget(e.target.value)}
-                    placeholder="Max Budget"
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
-                  />
-                  {maxBudget && (
-                    <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(maxBudget)}</span>
-                  )}
-                </div>
-              </div>
-            </div>
 
-            {/* Areas of Interest */}
-            <div className="space-y-2">
-              <Label className="text-slate-300">Areas of Interest</Label>
-              
-              <div className="relative">
-                <Input
-                  value={areasText}
-                  onChange={(e) => {
-                    ensureLocalitiesLoaded();
-                    handleAreasTextChange(e.target.value);
-                  }}
-                  onFocus={() => {
-                    ensureLocalitiesLoaded();
-                    setIsFocused(true);
-                  }}
-                  onBlur={() => {
-                    // Slight delay to allow clicking on dropdown items
-                    setTimeout(() => setIsFocused(false), 200);
-                  }}
-                  placeholder="Type area (e.g. Whitefield, Koramangala)..."
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
-                />
-
-                {isFocused && matchingSublocalities.length > 0 && (
-                  <div 
-                    className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
-                    onMouseDown={(e) => {
-                      // Prevent input blur so checks can be toggled without losing focus
-                      e.preventDefault();
-                    }}
-                  >
-                    <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-850 mb-1">
-                      Matching Sublocalities:
-                    </div>
-                    {matchingSublocalities.map((area) => {
-                      const isChecked = areasOfInterest.includes(area);
-                      return (
-                        <label
-                          key={area}
-                          className="flex items-center gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer select-none"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleToggleArea(area)}
-                            className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
-                          />
-                          <span>{area}</span>
-                        </label>
-                      );
-                    })}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Input
+                      type="number"
+                      disabled={noBudget}
+                      value={minBudget}
+                      onChange={(e) => setMinBudget(e.target.value)}
+                      placeholder="Min Budget"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
+                    />
+                    {minBudget && (
+                      <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(minBudget)}</span>
+                    )}
                   </div>
-                )}
+                  <div className="space-y-1">
+                    <Input
+                      type="number"
+                      disabled={noBudget}
+                      value={maxBudget}
+                      onChange={(e) => setMaxBudget(e.target.value)}
+                      placeholder="Max Budget"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
+                    />
+                    {maxBudget && (
+                      <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(maxBudget)}</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Suggestions Bank */}
-              <div className="flex flex-wrap gap-1 pt-1.5">
-                <span className="text-[10px] text-slate-500 font-semibold w-full">Quick Add Suggestions:</span>
-                {SUGGESTED_AREAS.map(area => {
-                  const exists = areasOfInterest.includes(area);
-                  return (
-                    <button
-                      key={area}
-                      type="button"
-                      disabled={exists}
-                      onClick={() => handleAddSuggestion(area)}
-                      className="text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-400"
+              {/* Areas of Interest */}
+              <div className="space-y-2">
+                <Label className="text-slate-300">Areas of Interest</Label>
+                
+                <div className="relative">
+                  <Input
+                    value={areasText}
+                    onChange={(e) => {
+                      ensureLocalitiesLoaded();
+                      handleAreasTextChange(e.target.value);
+                    }}
+                    onFocus={() => {
+                      ensureLocalitiesLoaded();
+                      setIsFocused(true);
+                    }}
+                    onBlur={() => {
+                      // Slight delay to allow clicking on dropdown items
+                      setTimeout(() => setIsFocused(false), 200);
+                    }}
+                    placeholder="Type area (e.g. Whitefield, Koramangala)..."
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+                  />
+
+                  {isFocused && matchingSublocalities.length > 0 && (
+                    <div 
+                      className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
+                      onMouseDown={(e) => {
+                        // Prevent input blur so checks can be toggled without losing focus
+                        e.preventDefault();
+                      }}
                     >
-                      +{area}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                      <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-850 mb-1">
+                        Matching Sublocalities:
+                      </div>
+                      {matchingSublocalities.map((area) => {
+                        const isChecked = areasOfInterest.includes(area);
+                        return (
+                          <label
+                            key={area}
+                            className="flex items-center gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer select-none"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleArea(area)}
+                              className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
+                            />
+                            <span>{area}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
-            {/* Property Interests Checklist */}
-            <div className="space-y-2">
-              <Label className="text-slate-300">Property Category Interests</Label>
-              <div className="grid grid-cols-1 gap-2 bg-slate-950/20 border border-slate-800/80 rounded-lg p-3">
-                {PROPERTY_INTEREST_OPTIONS.map(option => {
-                  const checked = propertyInterests.includes(option);
-                  return (
-                    <label key={option} className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setPropertyInterests(prev => [...prev, option]);
-                          } else {
-                            setPropertyInterests(prev => prev.filter(o => o !== option));
-                          }
-                        }}
-                        className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
-                      />
-                      <span>{option}</span>
-                    </label>
-                  );
-                })}
+                {/* Suggestions Bank */}
+                <div className="flex flex-wrap gap-1 pt-1.5">
+                  <span className="text-[10px] text-slate-500 font-semibold w-full">Quick Add Suggestions:</span>
+                  {SUGGESTED_AREAS.map(area => {
+                    const exists = areasOfInterest.includes(area);
+                    return (
+                      <button
+                        key={area}
+                        type="button"
+                        disabled={exists}
+                        onClick={() => handleAddSuggestion(area)}
+                        className="text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-400"
+                      >
+                        +{area}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Property Interests Checklist */}
+              <div className="space-y-2">
+                <Label className="text-slate-300">Property Category Interests</Label>
+                <div className="grid grid-cols-1 gap-2 bg-slate-950/20 border border-slate-800/80 rounded-lg p-3">
+                  {PROPERTY_INTEREST_OPTIONS.map(option => {
+                    const checked = propertyInterests.includes(option);
+                    return (
+                      <label key={option} className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer select-none hover:text-white">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setPropertyInterests(prev => [...prev, option]);
+                            } else {
+                              setPropertyInterests(prev => prev.filter(o => o !== option));
+                            }
+                          }}
+                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5 cursor-pointer"
+                        />
+                        <span>{option}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="space-y-2 border-t border-slate-800 pt-4">
             <Label className="text-slate-300">Tags</Label>

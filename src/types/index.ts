@@ -103,6 +103,7 @@ export interface Contact {
   status?: 'active' | 'pending_review';
   referrer?: string;
   referrer_contact_id?: string | null;
+  requirements?: string | null;
   created_at: string;
   updated_at: string;
 }
