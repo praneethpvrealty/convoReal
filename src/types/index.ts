@@ -100,6 +100,7 @@ export interface Contact {
   no_budget?: boolean;
   areas_of_interest?: string[];
   property_interests?: string[];
+  status?: 'active' | 'pending_review';
   created_at: string;
   updated_at: string;
 }

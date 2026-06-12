@@ -149,6 +149,9 @@ export default function ContactsPage() {
   const [search, setSearch] = useState(initialSearch);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [activeTab, setActiveTab] = useState<'active' | 'pending_review'>('active');
+  const [activeCount, setActiveCount] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
 
   // Modals
   const [formOpen, setFormOpen] = useState(false);
@@ -179,6 +182,7 @@ export default function ContactsPage() {
   }, []);
 
   const fetchContacts = useCallback(async () => {
+    if (!accountId) return;
     setLoading(true);
     const supabaseClient = createClient();
 
@@ -188,6 +192,8 @@ export default function ContactsPage() {
     let query = supabaseClient
       .from('contacts')
       .select('*', { count: 'exact' })
+      .eq('account_id', accountId)
+      .eq('status', activeTab)
       .order('created_at', { ascending: false })
       .range(from, to);
 
@@ -205,6 +211,23 @@ export default function ContactsPage() {
     }
 
     setTotalCount(count ?? 0);
+
+    // Fetch tab totals in the background
+    const [actCountRes, revCountRes] = await Promise.all([
+      supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'active'),
+      supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'pending_review'),
+    ]);
+
+    setActiveCount(actCountRes.count ?? 0);
+    setReviewCount(revCountRes.count ?? 0);
 
     if (!data || data.length === 0) {
       setContacts([]);
@@ -234,7 +257,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [page, search, tagsMap]);
+  }, [page, search, tagsMap, activeTab, accountId]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -427,20 +450,55 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
-        <Input
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            // Reset pagination when the query changes — the result
-            // set shrinks/grows, page N may no longer be valid.
-            setPage(0);
-          }}
-          placeholder="Search by name, phone, or email..."
-          className="pl-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
-        />
+      {/* Search and Tabs Row */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="relative max-w-sm w-full">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+          <Input
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            placeholder="Search by name, phone, or email..."
+            className="pl-8 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
+          />
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex bg-slate-900/60 p-1 border border-slate-800 rounded-lg self-start md:self-auto">
+          <button
+            onClick={() => {
+              setActiveTab('active');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+              activeTab === 'active'
+                ? 'bg-slate-800 text-primary shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            All Contacts ({activeCount})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('pending_review');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+              activeTab === 'pending_review'
+                ? 'bg-slate-800 text-amber-400 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Needs Review ({reviewCount})
+            {reviewCount > 0 && (
+              <span className="inline-flex items-center justify-center bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] min-w-[16px] h-4 leading-none animate-pulse">
+                {reviewCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -474,9 +532,13 @@ export default function ContactsPage() {
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-slate-600" />
                     <p className="text-sm text-slate-500">
-                      {search ? 'No contacts match your search.' : 'No contacts yet.'}
+                      {search
+                        ? 'No contacts match your search.'
+                        : activeTab === 'pending_review'
+                        ? 'No contacts pending review.'
+                        : 'No contacts yet.'}
                     </p>
-                    {!search && (
+                    {!search && activeTab === 'active' && (
                       <Button
                         variant="outline"
                         size="sm"

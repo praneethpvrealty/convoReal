@@ -758,6 +758,7 @@ async function processMessage(
             email: email || null,
             classification: 'Others',
             company: '',
+            status: 'pending_review',
           });
         
         if (insertErr) {

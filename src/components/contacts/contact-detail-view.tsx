@@ -88,6 +88,7 @@ export function ContactDetailView({
   const [editCompany, setEditCompany] = useState('');
   const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Others'>('Others');
   const [savingDetails, setSavingDetails] = useState(false);
+  const [approving, setApproving] = useState(false);
 
   // Real estate preferences
   const [editMinBudget, setEditMinBudget] = useState('');
@@ -309,6 +310,31 @@ export function ContactDetailView({
       onUpdated();
     }
     setSavingDetails(false);
+  }
+
+  async function approveContact() {
+    if (!contactId) return;
+    setApproving(true);
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({
+          status: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', contactId);
+
+      if (error) throw error;
+
+      toast.success('Contact approved and added to CRM!');
+      fetchContact();
+      onUpdated();
+    } catch (err) {
+      console.error('Failed to approve contact:', err);
+      toast.error('Failed to approve contact');
+    } finally {
+      setApproving(false);
+    }
   }
 
   const activeQuery = useMemo(() => {
@@ -561,6 +587,29 @@ export function ContactDetailView({
                 </div>
               </div>
             </SheetHeader>
+
+            {/* Review Status Banner */}
+            {contact.status === 'pending_review' && (
+              <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse">
+                    Needs Review
+                  </span>
+                  <span className="text-xs text-amber-300">
+                    Added from {contact.company || 'External Source'}. Please verify details.
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={approveContact}
+                  disabled={approving}
+                  className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs py-1 h-7 rounded px-3 cursor-pointer flex items-center gap-1"
+                >
+                  {approving && <Loader2 className="size-3 animate-spin" />}
+                  Approve
+                </Button>
+              </div>
+            )}
 
             {/* Tabs */}
             <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">

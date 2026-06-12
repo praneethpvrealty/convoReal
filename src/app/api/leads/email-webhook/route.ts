@@ -258,6 +258,7 @@ export async function POST(request: Request) {
         max_budget: maxBudget,
         areas_of_interest: areasOfInterest.length > 0 ? areasOfInterest : null,
         property_interests: propertyInterests.length > 0 ? propertyInterests : null,
+        status: 'pending_review',
       })
       .select('id, name')
       .single();
