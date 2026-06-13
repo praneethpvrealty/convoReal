@@ -160,6 +160,7 @@ export function PropertyForm({
   const [features, setFeatures] = useState<string[]>([]);
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>(['']);
+  const [googleMapLink, setGoogleMapLink] = useState('');
   const [localitiesDb, setLocalitiesDb] = useState<{ detailed: string[] } | null>(null);
   
   const [saving, setSaving] = useState(false);
@@ -624,6 +625,7 @@ export function PropertyForm({
         setNearbyHighlights(property.nearby_highlights || []);
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
         setOwnerContactId(property.owner_contact_id ?? null);
+        setGoogleMapLink(property.google_map_link ?? '');
 
         // Set unified query string on open
         if (property.project) {
@@ -680,6 +682,7 @@ export function PropertyForm({
         setNearbyHighlights([]);
         setImages(['']);
         setSearchQuery('');
+        setGoogleMapLink('');
         setOwnerContactId(defaultOwnerId ?? null);
       }
     }
@@ -1032,6 +1035,7 @@ export function PropertyForm({
         features: parsedFeatures,
         images: parsedImages,
         owner_contact_id: ownerContactId,
+        google_map_link: googleMapLink.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -1420,6 +1424,19 @@ export function PropertyForm({
                         placeholder="e.g. Near Metro Station"
                         className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 disabled:opacity-50 disabled:cursor-not-allowed"
                         disabled={isProjectMatched}
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 col-span-2">
+                      <Label htmlFor="prop-google-map-link" className="text-slate-300">
+                        Google Map Link (Shared on inquiry approval only)
+                      </Label>
+                      <Input
+                        id="prop-google-map-link"
+                        value={googleMapLink}
+                        onChange={(e) => setGoogleMapLink(e.target.value)}
+                        placeholder="e.g. https://maps.google.com/?q=..."
+                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                       />
                     </div>
 

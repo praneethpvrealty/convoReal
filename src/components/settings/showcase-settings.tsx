@@ -14,11 +14,11 @@ import type { ShowcaseSettings } from '@/types';
 
 export function ShowcaseSettingsPanel() {
   const supabase = createClient();
-  const { accountId, loading: authLoading } = useAuth();
+  const { accountId, user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedUrlType, setCopiedUrlType] = useState<'company' | 'personal' | null>(null);
   const [settings, setSettings] = useState<ShowcaseSettings | null>(null);
 
   const [websiteName, setWebsiteName] = useState('Aryavarta Ventures');
@@ -121,12 +121,17 @@ export function ShowcaseSettingsPanel() {
     ? `${window.location.origin}/?account_id=${accountId}`
     : '';
 
-  const handleCopyLink = () => {
-    if (!shareableUrl) return;
-    navigator.clipboard.writeText(shareableUrl);
-    setCopied(true);
-    toast.success('Shareable listings link copied to clipboard!');
-    setTimeout(() => setCopied(false), 2000);
+  const personalShareableUrl = typeof window !== 'undefined' && user?.id
+    ? `${window.location.origin}/?ref=${user.id}`
+    : '';
+
+
+  const handleCopyLink = (url: string, type: 'company' | 'personal') => {
+    if (!url) return;
+    navigator.clipboard.writeText(url);
+    setCopiedUrlType(type);
+    toast.success(`${type === 'company' ? 'Company' : 'Personal Agent'} showcase link copied!`);
+    setTimeout(() => setCopiedUrlType(null), 2000);
   };
 
   return (
@@ -142,26 +147,82 @@ export function ShowcaseSettingsPanel() {
       </CardHeader>
       <CardContent>
         {accountId && (
-          <div className="mb-6 p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade-in">
-            <div className="space-y-1 flex-1">
-              <span className="text-[10px] text-primary font-bold uppercase tracking-wider block">CRM-Hosted Shareable Listings Link</span>
-              <code className="text-xs text-slate-350 break-all select-all font-mono bg-slate-950 px-2 py-1 rounded border border-slate-900 block mt-1">
-                {shareableUrl}
-              </code>
-              <p className="text-[10px] text-slate-400 mt-1">
-                Copy and share this direct link with your customers to showcase your published properties. No custom domain required!
-              </p>
+          <div className="mb-8 grid grid-cols-1 lg:grid-cols-2 gap-4 animate-fade-in">
+            {/* Company Link */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/20 flex flex-col justify-between gap-3 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+              <div className="space-y-1">
+                <span className="text-[10px] text-primary font-extrabold uppercase tracking-wider block">Company Showcase Link</span>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Showcases all published properties listed across the entire account inventory.
+                </p>
+                <code className="text-[11px] text-slate-350 break-all select-all font-mono bg-slate-950 px-2.5 py-1.5 rounded border border-slate-900 block mt-2">
+                  {shareableUrl}
+                </code>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleCopyLink(shareableUrl, 'company')}
+                  className="border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-200 text-[11px] h-8 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {copiedUrlType === 'company' ? (
+                    <CheckCircle2 className="size-3.5 text-green-400" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                  {copiedUrlType === 'company' ? 'Copied!' : 'Copy Link'}
+                </Button>
+                <a
+                  href={shareableUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center rounded-md border border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-250 text-[11px] h-8 px-3 gap-1 hover:text-white"
+                >
+                  <Globe className="size-3.5" />
+                  Visit Showcase
+                </a>
+              </div>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={handleCopyLink}
-              className="border-slate-800 bg-slate-950 text-slate-200 text-xs shrink-0 flex items-center gap-1.5 cursor-pointer hover:bg-slate-900"
-            >
-              {copied ? <CheckCircle2 className="size-4 text-green-400" /> : <Copy className="size-4" />}
-              {copied ? 'Copied!' : 'Copy Link'}
-            </Button>
+
+            {/* Personal Agent Link */}
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/20 flex flex-col justify-between gap-3 relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
+              <div className="space-y-1">
+                <span className="text-[10px] text-indigo-400 font-extrabold uppercase tracking-wider block">My Personal Agent Showcase Link</span>
+                <p className="text-[10px] text-slate-400 leading-tight">
+                  Showcases exclusively properties created or posted by you.
+                </p>
+                <code className="text-[11px] text-slate-350 break-all select-all font-mono bg-slate-950 px-2.5 py-1.5 rounded border border-slate-900 block mt-2">
+                  {personalShareableUrl}
+                </code>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleCopyLink(personalShareableUrl, 'personal')}
+                  className="border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-200 text-[11px] h-8 flex items-center gap-1.5 cursor-pointer"
+                >
+                  {copiedUrlType === 'personal' ? (
+                    <CheckCircle2 className="size-3.5 text-green-400" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                  {copiedUrlType === 'personal' ? 'Copied!' : 'Copy Link'}
+                </Button>
+                <a
+                  href={personalShareableUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center rounded-md border border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-250 text-[11px] h-8 px-3 gap-1 hover:text-white"
+                >
+                  <Globe className="size-3.5" />
+                  Visit Showcase
+                </a>
+              </div>
+            </div>
           </div>
         )}
 

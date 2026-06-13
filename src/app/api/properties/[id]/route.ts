@@ -63,6 +63,7 @@ export async function PUT(
       facing_direction,
       nearby_highlights,
       owner_contact_id,
+      google_map_link,
     } = body;
 
     // Validate only if passed
@@ -208,6 +209,10 @@ export async function PUT(
 
     if (owner_contact_id !== undefined) {
       updateData.owner_contact_id = typeof owner_contact_id === "string" && owner_contact_id.trim().length > 0 ? owner_contact_id.trim() : null;
+    }
+
+    if (google_map_link !== undefined) {
+      updateData.google_map_link = typeof google_map_link === "string" ? google_map_link.trim() : null;
     }
 
     // Verify it exists in this account before updating (defensive check)

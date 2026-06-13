@@ -77,6 +77,7 @@ export async function POST(request: Request) {
       facing_direction,
       nearby_highlights,
       owner_contact_id,
+      google_map_link,
     } = body;
 
     // Validation
@@ -141,6 +142,7 @@ export async function POST(request: Request) {
       is_published: typeof is_published === "boolean" ? is_published : false,
       features: Array.isArray(features) ? features.filter(f => typeof f === "string") : [],
       images: Array.isArray(images) ? images.filter(img => typeof img === "string") : [],
+      google_map_link: typeof google_map_link === "string" ? google_map_link.trim() : null,
     };
 
     const { data, error } = await ctx.supabase

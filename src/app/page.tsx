@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 interface PageProps {
-  searchParams: Promise<{ account_id?: string }>;
+  searchParams: Promise<{ account_id?: string; ref?: string; agent_id?: string }>;
 }
 
 // Server Component: fetches public listings & configuration details
@@ -21,10 +21,51 @@ export default async function RootPage({ searchParams }: PageProps) {
   const resolvedParams = await searchParams;
   const admin = supabaseAdmin();
 
-  // 1. Resolve Account ID
-  let accountId = resolvedParams.account_id || process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID;
+  let accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID;
+  let filterContactId: string | null = null;
+  let filterUserId: string | null = null;
+
+  const ref = resolvedParams.ref || resolvedParams.account_id || resolvedParams.agent_id;
+
+  if (ref) {
+    // 1. Check if ref matches an account
+    const { data: accountByRef } = await admin
+      .from('accounts')
+      .select('id')
+      .eq('id', ref)
+      .maybeSingle();
+
+    if (accountByRef) {
+      accountId = accountByRef.id;
+    } else {
+      // 2. Check if ref matches a contact (agent / seller / owner)
+      const { data: contactByRef } = await admin
+        .from('contacts')
+        .select('account_id, id')
+        .eq('id', ref)
+        .maybeSingle();
+
+      if (contactByRef) {
+        accountId = contactByRef.account_id;
+        filterContactId = contactByRef.id;
+      } else {
+        // 3. Check if ref matches a profile (agent user)
+        const { data: profileByRef } = await admin
+          .from('profiles')
+          .select('account_id, user_id')
+          .eq('user_id', ref)
+          .maybeSingle();
+
+        if (profileByRef) {
+          accountId = profileByRef.account_id;
+          filterUserId = profileByRef.user_id;
+        }
+      }
+    }
+  }
+
+  // Fallback to default account if not resolved yet
   if (!accountId) {
-    // If not set in environment, fall back to the first account in the CRM
     const { data: firstAccount, error: acctError } = await admin
       .from('accounts')
       .select('id')
@@ -64,13 +105,20 @@ export default async function RootPage({ searchParams }: PageProps) {
     .maybeSingle();
 
   // 3. Fetch Published & Available Properties
-  const { data: properties } = await admin
+  let query = admin
     .from('properties')
     .select('*')
     .eq('account_id', accountId)
     .eq('is_published', true)
-    .eq('status', 'Available')
-    .order('created_at', { ascending: false });
+    .eq('status', 'Available');
+
+  if (filterContactId) {
+    query = query.eq('owner_contact_id', filterContactId);
+  } else if (filterUserId) {
+    query = query.eq('user_id', filterUserId);
+  }
+
+  const { data: properties } = await query.order('created_at', { ascending: false });
 
   // 4. Render
   return (
@@ -78,6 +126,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       properties={properties || []}
       settings={settings}
       accountId={accountId}
+      referrerContactId={filterContactId || undefined}
     />
   );
 }

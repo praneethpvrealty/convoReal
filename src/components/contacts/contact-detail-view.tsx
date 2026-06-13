@@ -98,6 +98,8 @@ export function ContactDetailView({
   const [contactsList, setContactsList] = useState<Contact[]>([]);
   const [savingDetails, setSavingDetails] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [inquiredProperty, setInquiredProperty] = useState<Property | null>(null);
+  const [sendDetailsOnApprove, setSendDetailsOnApprove] = useState(true);
 
   // Requirements for Agent/Owner/Seller/etc
   const [editRequirements, setEditRequirements] = useState('');
@@ -174,6 +176,18 @@ export function ContactDetailView({
       setEditAreasOfInterest(initialAreas);
       setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
       setEditPropertyInterests(data.property_interests ?? []);
+
+      // Fetch last inquired property details
+      if (data.last_inquired_property_id) {
+        const { data: propData } = await supabase
+          .from('properties')
+          .select('*')
+          .eq('id', data.last_inquired_property_id)
+          .maybeSingle();
+        setInquiredProperty(propData || null);
+      } else {
+        setInquiredProperty(null);
+      }
     }
     setLoading(false);
   }, [contactId, supabase]);
@@ -414,6 +428,69 @@ export function ContactDetailView({
     setSavingDetails(false);
   }
 
+  async function sendPropertyDetailsHelper() {
+    if (!contactId || !inquiredProperty) return;
+
+    // Find or create conversation
+    let convId: string | null = null;
+    const { data: existingConv } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', contactId)
+      .maybeSingle();
+
+    if (existingConv) {
+      convId = existingConv.id;
+    } else {
+      const { data: newConv, error: createConvErr } = await supabase
+        .from('conversations')
+        .insert({
+          account_id: accountId,
+          user_id: user?.id,
+          contact_id: contactId,
+          status: 'open'
+        })
+        .select('id')
+        .single();
+
+      if (createConvErr) {
+        console.error('Failed to create conversation:', createConvErr);
+        throw createConvErr;
+      }
+      convId = newConv.id;
+    }
+
+    const messageText = `Here are the complete details for the property "${inquiredProperty.title}" you inquired about:\n\n📍 *Exact Address:* ${inquiredProperty.location}\n🗺️ *Google Maps Link:* ${inquiredProperty.google_map_link || 'Not available'}`;
+
+    const res = await fetch('/api/whatsapp/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        conversation_id: convId,
+        message_type: 'text',
+        content_text: messageText,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to send WhatsApp message');
+    }
+  }
+
+  async function handleSendPropertyDetails() {
+    setApproving(true);
+    try {
+      await sendPropertyDetailsHelper();
+      toast.success('Property details sent successfully via WhatsApp!');
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to send property details');
+    } finally {
+      setApproving(false);
+    }
+  }
+
   async function approveContact() {
     if (!contactId) return;
     setApproving(true);
@@ -428,7 +505,18 @@ export function ContactDetailView({
 
       if (error) throw error;
 
-      toast.success('Contact approved and added to CRM!');
+      if (sendDetailsOnApprove && inquiredProperty) {
+        try {
+          await sendPropertyDetailsHelper();
+          toast.success('Approved & property details sent via WhatsApp!');
+        } catch (waErr) {
+          console.error('Failed to auto-send WhatsApp details:', waErr);
+          toast.warning('Contact approved, but failed to send WhatsApp details (check WhatsApp configuration).');
+        }
+      } else {
+        toast.success('Contact approved and added to CRM!');
+      }
+
       fetchContact();
       onUpdated();
     } catch (err) {
@@ -698,24 +786,75 @@ export function ContactDetailView({
 
             {/* Review Status Banner */}
             {contact.status === 'pending_review' && (
-              <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse">
-                    Needs Review
-                  </span>
-                  <span className="text-xs text-amber-300">
-                    Added from {contact.company || 'External Source'}. Please verify details.
-                  </span>
+              <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-3 flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse">
+                      Needs Review
+                    </span>
+                    <span className="text-xs text-amber-300">
+                      Inquiry request from {contact.referrer || 'External Source'}. Please verify details.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    {inquiredProperty && (
+                      <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={sendDetailsOnApprove}
+                          onChange={(e) => setSendDetailsOnApprove(e.target.checked)}
+                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0"
+                        />
+                        Send details via WhatsApp
+                      </label>
+                    )}
+                    <Button
+                      size="sm"
+                      onClick={approveContact}
+                      disabled={approving}
+                      className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs py-1 h-7 rounded px-3 cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      {approving && <Loader2 className="size-3 animate-spin" />}
+                      Approve
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={approveContact}
-                  disabled={approving}
-                  className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs py-1 h-7 rounded px-3 cursor-pointer flex items-center gap-1"
-                >
-                  {approving && <Loader2 className="size-3 animate-spin" />}
-                  Approve
-                </Button>
+                {inquiredProperty && (
+                  <div className="bg-slate-950/40 border border-slate-800/80 rounded-lg p-3 space-y-2.5 text-xs">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Inquired Property</span>
+                        <span className="text-xs font-bold text-white">{inquiredProperty.title}</span>
+                      </div>
+                      <Button
+                        size="xs"
+                        variant="outline"
+                        onClick={handleSendPropertyDetails}
+                        disabled={approving}
+                        className="bg-slate-900 border-slate-800 text-slate-300 text-[10px] h-6 py-0 px-2.5 flex items-center gap-1 cursor-pointer"
+                      >
+                        <MessageSquare className="size-3 text-green-500 fill-green-500" />
+                        Send Complete Info via WhatsApp
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border-t border-slate-800/50 pt-2 text-[11px] text-slate-400">
+                      <div>
+                        <span className="text-slate-500 font-medium">Exact Location: </span>
+                        <span className="text-slate-300 font-semibold">{inquiredProperty.location}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 font-medium">Google Map Link: </span>
+                        {inquiredProperty.google_map_link ? (
+                          <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold block truncate max-w-xs">
+                            {inquiredProperty.google_map_link}
+                          </a>
+                        ) : (
+                          <span className="text-slate-500 italic">No link configured</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -884,6 +1023,43 @@ export function ContactDetailView({
                       />
                     </div>
                   )}
+                  {inquiredProperty && contact?.status !== 'pending_review' && (
+                    <div className="bg-slate-950/20 border border-slate-850/60 rounded-lg p-3 space-y-2 text-xs mb-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider block">Inquired Property</span>
+                          <span className="text-xs font-bold text-white">{inquiredProperty.title}</span>
+                        </div>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={handleSendPropertyDetails}
+                          disabled={approving}
+                          className="bg-slate-900 border-slate-800 text-slate-350 text-[10px] h-6 py-0 px-2 flex items-center gap-1 cursor-pointer"
+                        >
+                          <MessageSquare className="size-3 text-green-500 fill-green-500" />
+                          Send Details via WhatsApp
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-1.5 text-[10px] text-slate-400 border-t border-slate-800/40 pt-1.5">
+                        <div>
+                          <span className="text-slate-500">Exact Location: </span>
+                          <span className="text-slate-300">{inquiredProperty.location}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Google Map Link: </span>
+                          {inquiredProperty.google_map_link ? (
+                            <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline block truncate max-w-xs">
+                              {inquiredProperty.google_map_link}
+                            </a>
+                          ) : (
+                            <span className="text-slate-500 italic">No link configured</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <Button
                     onClick={saveDetails}
                     disabled={savingDetails}

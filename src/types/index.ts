@@ -104,6 +104,7 @@ export interface Contact {
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;
+  last_inquired_property_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -574,6 +575,7 @@ export interface Property {
   is_published: boolean;
   features: string[];
   images: string[];
+  google_map_link?: string | null;
   owner_contact_id?: string | null;
   owner?: Contact | null;
   created_at: string;

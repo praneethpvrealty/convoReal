@@ -30,9 +30,10 @@ interface ShowcaseViewProps {
   properties: Property[];
   settings: ShowcaseSettings | null;
   accountId: string;
+  referrerContactId?: string;
 }
 
-export function ShowcaseView({ properties, settings, accountId }: ShowcaseViewProps) {
+export function ShowcaseView({ properties, settings, accountId, referrerContactId }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [minBeds, setMinBeds] = useState('All');
@@ -147,6 +148,7 @@ export function ShowcaseView({ properties, settings, accountId }: ShowcaseViewPr
           propertyId: selectedProperty.id,
           propertyTitle: selectedProperty.title,
           accountId,
+          referrerContactId,
         }),
       });
 
@@ -370,8 +372,12 @@ export function ShowcaseView({ properties, settings, accountId }: ShowcaseViewPr
                         {property.title}
                       </h3>
                       <div className="flex items-center text-xs text-slate-400 gap-1 mt-1 mb-3">
-                        <MapPin className="size-3.5 shrink-0 text-slate-600" />
-                        <span className="truncate">{property.location}</span>
+                        <MapPin className="size-3.5 shrink-0 text-slate-650" />
+                        <span className="truncate">
+                          {property.sublocality && property.city
+                            ? `${property.sublocality}, ${property.city}`
+                            : property.city || property.sublocality || "Location shared on inquiry"}
+                        </span>
                       </div>
 
                       {/* Specs Grid */}
@@ -552,7 +558,11 @@ export function ShowcaseView({ properties, settings, accountId }: ShowcaseViewPr
                   </h2>
                   <div className="flex items-center text-xs text-slate-400 gap-1 mt-1">
                     <MapPin className="size-3.5 text-slate-500" />
-                    <span>{selectedProperty.location}</span>
+                    <span>
+                      {selectedProperty.sublocality && selectedProperty.city
+                        ? `${selectedProperty.sublocality}, ${selectedProperty.city}`
+                        : selectedProperty.city || selectedProperty.sublocality || "Location shared on inquiry"}
+                    </span>
                   </div>
                 </div>
 
@@ -576,6 +586,25 @@ export function ShowcaseView({ properties, settings, accountId }: ShowcaseViewPr
                       WhatsApp Chat
                     </a>
                   )}
+                </div>
+
+                {/* Masked Exact Location Block */}
+                <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-1.5 backdrop-blur-sm relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent pointer-events-none" />
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-7 w-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+                      <MapPin className="size-4 text-amber-500" />
+                    </div>
+                    <div>
+                      <h5 className="text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">Exact Address Masked</h5>
+                      <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
+                        Street address & Google Maps pin link are hidden for privacy. They will be sent directly to your WhatsApp number upon inquiry approval.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="filter blur-[2px] opacity-25 select-none text-[10px] pl-9 text-slate-400 font-mono">
+                    Exact coordinates: 12.9348° N, 77.6189° E. Map pin: https://maps.google.com/?q=...
+                  </div>
                 </div>
 
                 {/* Grid Technical Specifications */}

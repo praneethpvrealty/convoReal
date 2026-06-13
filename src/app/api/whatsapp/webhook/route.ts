@@ -603,6 +603,37 @@ async function processMessage(
   const { contentText, mediaUrl, mediaType, interactiveReplyId } =
     await parseMessageContent(message, accessToken)
 
+  // If incoming text matches a property title, link the contact to it and mark as pending review
+  if (contentText) {
+    try {
+      const { data: properties } = await supabaseAdmin()
+        .from('properties')
+        .select('id, title')
+        .eq('account_id', accountId)
+        .eq('is_published', true);
+
+      if (properties) {
+        const matchedProperty = properties.find((p: { id: string; title: string }) => 
+          contentText.toLowerCase().includes(p.title.toLowerCase())
+        );
+        if (matchedProperty) {
+          await supabaseAdmin()
+            .from('contacts')
+            .update({
+              last_inquired_property_id: matchedProperty.id,
+              status: 'pending_review',
+              classification: contactRecord.classification === 'Others' ? 'Buyer' : contactRecord.classification,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', contactRecord.id);
+          console.log(`[webhook] Linked contact ${contactRecord.id} to property ${matchedProperty.id} and set to pending_review`);
+        }
+      }
+    } catch (err) {
+      console.error('[webhook] Failed to match property from text:', err);
+    }
+  }
+
   // Resolve swipe-reply context if present. A missing parent is fine —
   // we just store NULL and the UI renders the message without a quote.
   let replyToInternalId: string | null = null

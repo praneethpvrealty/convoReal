@@ -5,7 +5,7 @@ import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, phone, email, message, propertyId, propertyTitle, accountId } = body;
+    const { name, phone, email, message, propertyId, propertyTitle, accountId, referrerContactId } = body;
 
     if (!accountId) {
       return NextResponse.json(
@@ -70,16 +70,19 @@ export async function POST(request: Request) {
       contactId = existingContact.id;
       
       // Update contact if name or email was empty
-      const updates: Record<string, string> = {};
+      const updates: Record<string, unknown> = {
+        status: "pending_review",
+        last_inquired_property_id: propertyId || null,
+        updated_at: new Date().toISOString(),
+      };
       if (!existingContact.name && name) updates.name = name.trim();
       if (!existingContact.email && email) updates.email = email.trim().toLowerCase();
+      if (referrerContactId) updates.referrer_contact_id = referrerContactId;
 
-      if (Object.keys(updates).length > 0) {
-        await admin
-          .from("contacts")
-          .update(updates)
-          .eq("id", contactId);
-      }
+      await admin
+        .from("contacts")
+        .update(updates)
+        .eq("id", contactId);
     } else {
       // Create new contact
       const { data: newContact, error: createError } = await admin
@@ -94,6 +97,8 @@ export async function POST(request: Request) {
             classification: "Buyer",
             status: "pending_review",
             referrer: "Website Showcase",
+            referrer_contact_id: referrerContactId || null,
+            last_inquired_property_id: propertyId || null,
           },
         ])
         .select("id")
