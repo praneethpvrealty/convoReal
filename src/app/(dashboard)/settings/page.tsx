@@ -8,6 +8,7 @@ import {
   User,
   Palette,
   UsersRound,
+  Globe,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -18,6 +19,7 @@ import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { MembersTab } from '@/components/settings/members-tab';
+import { ShowcaseSettingsPanel } from '@/components/settings/showcase-settings';
 import { useAuth } from '@/hooks/use-auth';
 
 const BASE_TAB_VALUES = [
@@ -26,6 +28,7 @@ const BASE_TAB_VALUES = [
   'templates',
   'tags',
   'appearance',
+  'showcase',
 ] as const;
 const FLAGGED_TAB_VALUES = ['members'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
@@ -120,6 +123,13 @@ export default function SettingsPage() {
             <Palette className="size-4" />
             Appearance
           </TabsTrigger>
+          <TabsTrigger
+            value="showcase"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <Globe className="size-4" />
+            Public Showcase
+          </TabsTrigger>
           {/* Members tab is feature-flagged. We render the trigger
               only when the flag is enabled, so users without the
               flag see the original 5-tab layout. */}
@@ -154,6 +164,10 @@ export default function SettingsPage() {
 
         <TabsContent value="appearance">
           <AppearancePanel />
+        </TabsContent>
+
+        <TabsContent value="showcase">
+          <ShowcaseSettingsPanel />
         </TabsContent>
 
         {accountSharingEnabled && (

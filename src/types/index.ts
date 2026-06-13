@@ -579,3 +579,19 @@ export interface Property {
   created_at: string;
   updated_at: string;
 }
+
+// ============================================================
+// Showcase Website Settings (033_add_showcase_settings.sql)
+// ============================================================
+
+export interface ShowcaseSettings {
+  id: string;
+  account_id: string;
+  website_name: string;
+  website_url: string;
+  contact_phone: string;
+  whatsapp_message_template: string;
+  created_at: string;
+  updated_at: string;
+}
+
