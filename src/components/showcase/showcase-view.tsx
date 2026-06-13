@@ -21,7 +21,6 @@ import {
   Send,
   CheckCircle,
   Share2,
-  Copy,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -86,6 +85,30 @@ export function ShowcaseView({
 
     return `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
   };
+
+  // Check if selected property is land/plot type
+  const isSelectedPropertyLand = useMemo(() => {
+    if (!selectedProperty) return false;
+    return [
+      'Residential Land/ Plot',
+      'Commercial Land',
+      'Industrial Land',
+      'Agricultural Land'
+    ].includes(selectedProperty.type);
+  }, [selectedProperty]);
+
+  // Check if selected property has technical specifications to show
+  const hasSpecs = useMemo(() => {
+    if (!selectedProperty) return false;
+    return !!(
+      selectedProperty.project ||
+      (isSelectedPropertyLand ? selectedProperty.land_area : selectedProperty.area_sqft) ||
+      selectedProperty.facing_direction ||
+      selectedProperty.dimensions ||
+      selectedProperty.land_zone ||
+      selectedProperty.road_width
+    );
+  }, [selectedProperty, isSelectedPropertyLand]);
 
   // Get distinct property types
   const propertyTypes = useMemo(() => {
@@ -248,33 +271,29 @@ export function ShowcaseView({
     return url.toString();
   };
 
-  const handleCopyShareLink = (property: Property) => {
+
+  const handleShareListing = async (property: Property, e: React.MouseEvent) => {
+    e.stopPropagation();
     const url = getPropertyShareUrl(property);
     if (!url) return;
-    navigator.clipboard.writeText(url);
-    toast.success('Property link copied to clipboard!');
-  };
 
-  const getWhatsAppShareLink = (property: Property) => {
-    const url = getPropertyShareUrl(property);
-    const text = `Check out this property: "${property.title}"${property.property_code ? ` (ID: ${property.property_code})` : ''} on Aryavarta Ventures:\n\n${url}`;
-    return `https://wa.me/?text=${encodeURIComponent(text)}`;
-  };
-
-  const handleNativeShare = async (property: Property) => {
-    const url = getPropertyShareUrl(property);
-    if (!url) return;
-    try {
-      await navigator.share({
-        title: property.title,
-        text: `Check out this property: ${property.title}${property.property_code ? ` (ID: ${property.property_code})` : ''}`,
-        url: url,
-      });
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('Share failed:', err);
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: property.title,
+          text: `Check out this property: ${property.title}${property.property_code ? ` (ID: ${property.property_code})` : ''}`,
+          url: url,
+        });
+        return;
+      } catch (err) {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('Share failed:', err);
+        }
       }
     }
+
+    navigator.clipboard.writeText(url);
+    toast.success('Property link copied to clipboard!');
   };
 
   return (
@@ -532,12 +551,20 @@ export function ShowcaseView({
                               href={getWhatsAppLink(property)}
                               target="_blank"
                               rel="noreferrer"
-                              className="h-9 w-9 rounded-lg bg-green-600 hover:bg-green-500 text-white flex items-center justify-center hover:scale-105 transition-all shadow-md shadow-green-950/40"
+                              className="h-9 w-9 rounded-lg bg-green-600 hover:bg-green-500 text-white flex items-center justify-center hover:scale-105 transition-all shadow-md shadow-green-950/40 cursor-pointer"
                               title="Inquire via WhatsApp"
                             >
-                              <MessageCircle className="size-5 fill-white text-green-650" />
+                              <MessageCircle className="size-4.5 fill-white text-green-650" />
                             </a>
                           )}
+                          <Button
+                            size="icon"
+                            onClick={(e) => handleShareListing(property, e)}
+                            className="h-9 w-9 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-850 text-slate-300 hover:text-white flex items-center justify-center hover:scale-105 transition-all shadow-md cursor-pointer"
+                            title="Share Listing"
+                          >
+                            <Share2 className="size-4" />
+                          </Button>
                           <Button
                             size="sm"
                             onClick={() => openPropertyModal(property)}
@@ -676,56 +703,10 @@ export function ShowcaseView({
                 {/* Price Box */}
                 <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl flex items-center justify-between">
                   <div className="flex flex-col">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Price</span>
+                    <span className="text-[10px] text-slate-550 font-bold uppercase tracking-wider">Price</span>
                     <span className="text-2xl font-black text-white leading-tight">
                       {formatPrice(selectedProperty.price)}
                     </span>
-                  </div>
-                  
-                  {displayPhone && (
-                    <a
-                      href={getWhatsAppLink(selectedProperty)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="bg-green-600 hover:bg-green-500 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 shadow-md shadow-green-950/20"
-                    >
-                      <MessageCircle className="size-4 fill-white text-green-600" />
-                      WhatsApp Chat
-                    </a>
-                  )}
-                </div>
-
-                {/* Share Options */}
-                <div className="bg-slate-900/30 border border-slate-850/80 p-4 rounded-xl space-y-2.5">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Share Property</span>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => handleCopyShareLink(selectedProperty)}
-                      className="bg-slate-950/60 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                    >
-                      <Copy className="size-3.5 text-slate-400" />
-                      Copy Link
-                    </Button>
-                    <a
-                      href={getWhatsAppShareLink(selectedProperty)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="bg-slate-950/60 hover:bg-slate-900 border border-slate-800 text-slate-350 hover:text-white text-xs font-semibold py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all shadow-sm"
-                    >
-                      <MessageCircle className="size-3.5 text-green-500 fill-green-500/10" />
-                      WhatsApp
-                    </a>
-                    {typeof navigator !== 'undefined' && typeof navigator.share === 'function' && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleNativeShare(selectedProperty)}
-                        className="bg-slate-950/60 hover:bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold py-1.5 px-3 rounded-lg flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
-                      >
-                        <Share2 className="size-3.5 text-slate-400" />
-                        More
-                      </Button>
-                    )}
                   </div>
                 </div>
 
@@ -749,54 +730,69 @@ export function ShowcaseView({
                 </div>
 
                 {/* Grid Technical Specifications */}
-                <div>
-                  <h4 className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Specifications</h4>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Project Name</span>
-                      <span className="text-slate-200 font-semibold">{selectedProperty.project || 'N/A'}</span>
+                {hasSpecs && (
+                  <div>
+                    <h4 className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2">Specifications</h4>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      {selectedProperty.project && (
+                        <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Project Name</span>
+                          <span className="text-slate-200 font-semibold">{selectedProperty.project}</span>
+                        </div>
+                      )}
+
+                      {isSelectedPropertyLand ? (
+                        selectedProperty.land_area && (
+                          <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
+                            <span className="text-slate-500 block text-[9px] uppercase font-bold">Land Area</span>
+                            <span className="text-slate-200 font-semibold">
+                              {selectedProperty.land_area.toLocaleString('en-IN')} {selectedProperty.land_area_unit || 'Sq.Ft.'}
+                            </span>
+                          </div>
+                        )
+                      ) : (
+                        selectedProperty.area_sqft && (
+                          <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
+                            <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Area</span>
+                            <span className="text-slate-200 font-semibold">
+                              {selectedProperty.area_sqft.toLocaleString('en-IN')} {selectedProperty.area_unit || 'Sq.Ft.'}
+                            </span>
+                          </div>
+                        )
+                      )}
+
+                      {selectedProperty.facing_direction && (
+                        <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Facing Direction</span>
+                          <span className="text-slate-200 font-semibold">{selectedProperty.facing_direction}</span>
+                        </div>
+                      )}
+
+                      {selectedProperty.dimensions && (
+                        <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Dimensions</span>
+                          <span className="text-slate-200 font-semibold">{selectedProperty.dimensions}</span>
+                        </div>
+                      )}
+
+                      {selectedProperty.land_zone && (
+                        <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Land Zone / Zoning</span>
+                          <span className="text-slate-200 font-semibold">{selectedProperty.land_zone}</span>
+                        </div>
+                      )}
+
+                      {selectedProperty.road_width && (
+                        <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Road Width</span>
+                          <span className="text-slate-200 font-semibold">
+                            {selectedProperty.road_width} {selectedProperty.road_width_unit || 'Ft.'}
+                          </span>
+                        </div>
+                      )}
                     </div>
-
-                    <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Total Area</span>
-                      <span className="text-slate-200 font-semibold">
-                        {selectedProperty.area_sqft
-                          ? `${selectedProperty.area_sqft.toLocaleString('en-IN')} ${selectedProperty.area_unit || 'Sq.Ft.'}`
-                          : 'N/A'}
-                      </span>
-                    </div>
-
-                    {selectedProperty.facing_direction && (
-                      <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
-                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Facing Direction</span>
-                        <span className="text-slate-200 font-semibold">{selectedProperty.facing_direction}</span>
-                      </div>
-                    )}
-
-                    {selectedProperty.dimensions && (
-                      <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
-                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Dimensions</span>
-                        <span className="text-slate-200 font-semibold">{selectedProperty.dimensions}</span>
-                      </div>
-                    )}
-
-                    {selectedProperty.land_zone && (
-                      <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
-                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Land Zone / Zoning</span>
-                        <span className="text-slate-200 font-semibold">{selectedProperty.land_zone}</span>
-                      </div>
-                    )}
-
-                    {selectedProperty.road_width && (
-                      <div className="bg-slate-950/20 p-2.5 rounded border border-slate-850/40">
-                        <span className="text-slate-500 block text-[9px] uppercase font-bold">Road Width</span>
-                        <span className="text-slate-200 font-semibold">
-                          {selectedProperty.road_width} {selectedProperty.road_width_unit || 'Ft.'}
-                        </span>
-                      </div>
-                    )}
                   </div>
-                </div>
+                )}
 
                 {/* Description */}
                 {selectedProperty.description && (
