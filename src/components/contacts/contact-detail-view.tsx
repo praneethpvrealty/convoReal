@@ -92,6 +92,9 @@ export function ContactDetailView({
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
   const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Others'>('Others');
+  const [editLeadTemp, setEditLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
+  const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<string | null>(null);
+  const [allProperties, setAllProperties] = useState<Property[]>([]);
   const [editReferrer, setEditReferrer] = useState('');
   const [editReferrerContactId, setEditReferrerContactId] = useState<string | null>(null);
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
@@ -149,6 +152,15 @@ export function ContactDetailView({
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
 
+  const fetchAllProperties = useCallback(async () => {
+    const { data } = await supabase
+      .from('properties')
+      .select('*')
+      .order('title');
+    if (data) setAllProperties(data);
+  }, [supabase]);
+
+
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
     setLoading(true);
@@ -166,6 +178,8 @@ export function ContactDetailView({
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
       setEditClassification((data as Contact).classification ?? 'Others');
+      setEditLeadTemp((data as Contact).lead_temp ?? '');
+      setEditLastInquiredPropertyId(data.last_inquired_property_id ?? null);
       setEditReferrer(data.referrer ?? '');
       setEditReferrerContactId(data.referrer_contact_id ?? null);
       setEditRequirements(data.requirements ?? '');
@@ -225,6 +239,35 @@ export function ContactDetailView({
       toast.error('Failed to unlink property');
     }
   }
+
+  async function handleLinkInterestProperty(propertyId: string | null) {
+    try {
+      const { error } = await supabase
+        .from('contacts')
+        .update({ last_inquired_property_id: propertyId })
+        .eq('id', contactId);
+
+      if (error) throw error;
+      toast.success(propertyId ? 'Interest property linked successfully' : 'Interest property cleared');
+      setEditLastInquiredPropertyId(propertyId);
+      
+      if (propertyId) {
+        const { data: propData } = await supabase
+          .from('properties')
+          .select('*')
+          .eq('id', propertyId)
+          .maybeSingle();
+        setInquiredProperty(propData || null);
+      } else {
+        setInquiredProperty(null);
+      }
+      onUpdated();
+    } catch (err) {
+      console.error('Failed to update interest property:', err);
+      toast.error('Failed to update interest property');
+    }
+  }
+
 
   useEffect(() => {
     async function loadContacts() {
@@ -320,8 +363,9 @@ export function ContactDetailView({
       fetchCustomFields();
       fetchDeals();
       fetchAssociatedProperties();
+      fetchAllProperties();
     }
-  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchAssociatedProperties]);
+  }, [open, contactId, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchAssociatedProperties, fetchAllProperties]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -411,6 +455,8 @@ export function ContactDetailView({
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         classification: editClassification,
+        lead_temp: editLeadTemp || null,
+        last_inquired_property_id: editLastInquiredPropertyId,
         referrer: editReferrer.trim() || null,
         referrer_contact_id: editReferrerContactId,
         requirements: editRequirements.trim() || null,
@@ -1012,6 +1058,37 @@ export function ContactDetailView({
                       <option value="Agent">Agent</option>
                     </select>
                   </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-400 text-xs">Lead Temperature / Status</Label>
+                    <select
+                      value={editLeadTemp}
+                      onChange={(e) => setEditLeadTemp(e.target.value as 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | '')}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="">None</option>
+                      <option value="HOT">🔥 HOT</option>
+                      <option value="COLD">❄️ COLD</option>
+                      <option value="Not Responding">⏳ Not Responding</option>
+                      <option value="Dead">💀 Dead</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-400 text-xs">Shown Interest / Inquired Property</Label>
+                    <select
+                      value={editLastInquiredPropertyId || ''}
+                      onChange={(e) => setEditLastInquiredPropertyId(e.target.value || null)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="">None</option>
+                      {allProperties.map((prop) => (
+                        <option key={prop.id} value={prop.id}>
+                          {prop.property_code ? `[${prop.property_code}] ` : ''}{prop.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   {editClassification === 'Agent' && (
                     <div className="space-y-1.5">
                       <Label className="text-slate-400 text-xs">Agent Requirements</Label>
@@ -1254,85 +1331,166 @@ export function ContactDetailView({
               {/* Properties Tab (Owner / Seller / Agent / Buyer) */}
               {['Owner', 'Seller', 'Agent', 'Buyer'].includes(editClassification) && (
                 <TabsContent value="properties" className="flex-1 overflow-y-auto px-4 py-3 flex flex-col min-h-0">
-                  <div className="flex items-center justify-between mb-3 shrink-0">
-                    <h4 className="text-xs font-semibold text-slate-300">Managed Properties</h4>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setSelectedPropertyForEdit(null);
-                        setPropertyFormOpen(true);
-                      }}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="size-3" />
-                      Add Property
-                    </Button>
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-                    {loadingProperties ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="size-5 animate-spin text-slate-500" />
-                      </div>
-                    ) : associatedProperties.length === 0 ? (
-                      <div className="text-center py-8 border border-dashed border-slate-800 rounded-lg bg-slate-900/40">
-                        <Building className="size-8 mx-auto text-slate-600 mb-2 opacity-55" />
-                        <p className="text-xs text-slate-400 max-w-[240px] mx-auto">
-                          No properties associated with this contact. Add one to display it here.
+                  {['Buyer', 'Agent'].includes(editClassification) ? (
+                    // Shown Interest Properties Layout
+                    <div className="flex flex-col flex-1 min-h-0">
+                      <div className="flex flex-col gap-1.5 shrink-0 mb-4 bg-slate-900/40 border border-slate-800 rounded-lg p-3">
+                        <Label htmlFor="detail-interest-property" className="text-xs font-semibold text-slate-350">
+                          Assign Shown Interest / Inquired Property
+                        </Label>
+                        <select
+                          id="detail-interest-property"
+                          value={editLastInquiredPropertyId || ''}
+                          onChange={(e) => handleLinkInterestProperty(e.target.value || null)}
+                          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-primary focus:outline-none font-medium"
+                        >
+                          <option value="">No Property Selected</option>
+                          {allProperties.map((prop) => (
+                            <option key={prop.id} value={prop.id}>
+                              {prop.property_code ? `[${prop.property_code}] ` : ''}{prop.title}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Linking a property associates this contact as an Interested Lead for that listing.
                         </p>
                       </div>
-                    ) : (
-                      associatedProperties.map((prop) => (
-                        <div
-                          key={prop.id}
-                          className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h5 className="text-xs font-semibold text-white truncate">{prop.title}</h5>
-                              <p className="text-[10px] text-slate-400 mt-0.5 truncate">{prop.location}</p>
-                              <div className="flex items-center gap-2 mt-1.5">
-                                <span className="text-[10px] text-primary font-bold">
-                                  {prop.price >= 10000000 
-                                    ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
-                                    : prop.price >= 100000 
-                                      ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
-                                      : `₹${prop.price.toLocaleString('en-IN')}`}
+
+                      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                        <h4 className="text-xs font-semibold text-slate-400 mb-2">Currently Interested Listing</h4>
+                        {!inquiredProperty ? (
+                          <div className="text-center py-8 border border-dashed border-slate-800 rounded-lg bg-slate-900/20">
+                            <Building className="size-8 mx-auto text-slate-700 mb-2 opacity-50" />
+                            <p className="text-xs text-slate-500 max-w-[240px] mx-auto">
+                              No inquiry or interest property is currently assigned. Select a property above to assign interest.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded uppercase font-bold tracking-wider inline-block mb-1.5">
+                                  SHOWN INTEREST
                                 </span>
-                                <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase font-semibold">
-                                  {prop.status}
-                                </span>
+                                <h5 className="text-xs font-semibold text-white truncate">
+                                  {inquiredProperty.property_code ? `[${inquiredProperty.property_code}] ` : ''}
+                                  {inquiredProperty.title}
+                                </h5>
+                                <p className="text-[10px] text-slate-400 mt-0.5 truncate">{inquiredProperty.location}</p>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                  <span className="text-[10px] text-primary font-bold">
+                                    {inquiredProperty.price >= 10000000 
+                                      ? `₹${(inquiredProperty.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                                      : inquiredProperty.price >= 100000 
+                                        ? `₹${(inquiredProperty.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
+                                        : `₹${inquiredProperty.price.toLocaleString('en-IN')}`}
+                                  </span>
+                                  <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase font-semibold">
+                                    {inquiredProperty.status}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleLinkInterestProperty(null)}
+                                  className="h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-slate-800"
+                                  title="Remove interest link"
+                                >
+                                  <Unlink className="size-3" />
+                                </Button>
                               </div>
                             </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setSelectedPropertyForEdit(prop);
-                                  setPropertyFormOpen(true);
-                                }}
-                                className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
-                              >
-                                <Edit className="size-3" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleUnlinkProperty(prop.id)}
-                                className="h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-slate-800"
-                                title="Unlink from contact"
-                              >
-                                <Unlink className="size-3" />
-                              </Button>
-                            </div>
                           </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    // Managed Properties Layout (for Owner / Seller)
+                    <div className="flex flex-col flex-1 min-h-0">
+                      <div className="flex items-center justify-between mb-3 shrink-0">
+                        <h4 className="text-xs font-semibold text-slate-300">Managed Properties</h4>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedPropertyForEdit(null);
+                            setPropertyFormOpen(true);
+                          }}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="size-3" />
+                          Add Property
+                        </Button>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+                        {loadingProperties ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="size-5 animate-spin text-slate-500" />
+                          </div>
+                        ) : associatedProperties.length === 0 ? (
+                          <div className="text-center py-8 border border-dashed border-slate-800 rounded-lg bg-slate-900/40">
+                            <Building className="size-8 mx-auto text-slate-600 mb-2 opacity-55" />
+                            <p className="text-xs text-slate-400 max-w-[240px] mx-auto">
+                              No properties associated with this contact. Add one to display it here.
+                            </p>
+                          </div>
+                        ) : (
+                          associatedProperties.map((prop) => (
+                            <div
+                              key={prop.id}
+                              className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <h5 className="text-xs font-semibold text-white truncate">{prop.title}</h5>
+                                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">{prop.location}</p>
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="text-[10px] text-primary font-bold">
+                                      {prop.price >= 10000000 
+                                        ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                                        : prop.price >= 100000 
+                                          ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
+                                          : `₹${prop.price.toLocaleString('en-IN')}`}
+                                    </span>
+                                    <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase font-semibold">
+                                      {prop.status}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setSelectedPropertyForEdit(prop);
+                                      setPropertyFormOpen(true);
+                                    }}
+                                    className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-slate-800"
+                                  >
+                                    <Edit className="size-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleUnlinkProperty(prop.id)}
+                                    className="h-7 w-7 p-0 text-slate-400 hover:text-red-400 hover:bg-slate-800"
+                                    title="Unlink from contact"
+                                  >
+                                    <Unlink className="size-3" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
               )}
+
 
               {/* Tags Tab */}
               <TabsContent value="tags" className="flex-1 overflow-y-auto px-4 py-3">

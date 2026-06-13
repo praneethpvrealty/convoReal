@@ -10,7 +10,7 @@ export async function GET() {
 
     const { data, error } = await ctx.supabase
       .from("properties")
-      .select("*, owner:contacts(*)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
     const { data, error } = await ctx.supabase
       .from("properties")
       .insert(insertData)
-      .select("*, owner:contacts(*)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)")
       .single();
 
     if (error) {

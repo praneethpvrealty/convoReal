@@ -101,6 +101,8 @@ export interface Contact {
   areas_of_interest?: string[];
   property_interests?: string[];
   status?: 'active' | 'pending_review';
+  lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
+  last_contacted_at?: string | null;
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;
@@ -579,6 +581,7 @@ export interface Property {
   property_code?: string;
   owner_contact_id?: string | null;
   owner?: Contact | null;
+  interested_contacts?: Contact[];
   created_at: string;
   updated_at: string;
 }

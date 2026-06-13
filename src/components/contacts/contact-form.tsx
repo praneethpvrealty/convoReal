@@ -70,6 +70,8 @@ export function ContactForm({
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Others'>('Others');
+  const [leadTemp, setLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
+  const [lastInquiredPropertyId, setLastInquiredPropertyId] = useState<string | null>(null);
   const [referrer, setReferrer] = useState('');
   const [referrerContactId, setReferrerContactId] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -172,6 +174,8 @@ export function ContactForm({
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
       setClassification((contact as Contact)?.classification ?? 'Others');
+      setLeadTemp(contact?.lead_temp ?? '');
+      setLastInquiredPropertyId(contact?.last_inquired_property_id ?? null);
       setReferrer(contact?.referrer ?? '');
       setReferrerContactId(contact?.referrer_contact_id ?? null);
       setMinBudget(contact?.min_budget ? String(contact.min_budget) : '');
@@ -291,6 +295,8 @@ export function ContactForm({
         email: email.trim() || null,
         company: company.trim() || null,
         classification,
+        lead_temp: leadTemp || null,
+        last_inquired_property_id: lastInquiredPropertyId,
         referrer: referrer.trim() || null,
         referrer_contact_id: referrerContactId,
         min_budget: minBudget ? Number(minBudget) : null,
@@ -538,6 +544,43 @@ export function ContactForm({
               <option value="Seller">Seller</option>
               <option value="Buyer">Buyer</option>
               <option value="Agent">Agent</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-lead-temp" className="text-slate-300">
+              Lead Temperature / Status
+            </Label>
+            <select
+              id="cf-lead-temp"
+              value={leadTemp}
+              onChange={(e) => setLeadTemp(e.target.value as 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | '')}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+            >
+              <option value="">None</option>
+              <option value="HOT">🔥 HOT</option>
+              <option value="COLD">❄️ COLD</option>
+              <option value="Not Responding">⏳ Not Responding</option>
+              <option value="Dead">💀 Dead</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-inquired-property" className="text-slate-300">
+              Shown Interest / Inquired Property
+            </Label>
+            <select
+              id="cf-inquired-property"
+              value={lastInquiredPropertyId || ''}
+              onChange={(e) => setLastInquiredPropertyId(e.target.value || null)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+            >
+              <option value="">None</option>
+              {propertiesList.map((prop) => (
+                <option key={prop.id} value={prop.id}>
+                  {prop.property_code ? `[${prop.property_code}] ` : ''}{prop.title}
+                </option>
+              ))}
             </select>
           </div>
 

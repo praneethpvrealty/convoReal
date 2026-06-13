@@ -165,6 +165,7 @@ export function PropertyForm({
   
   const [saving, setSaving] = useState(false);
   const [ownerContactId, setOwnerContactId] = useState<string | null>(null);
+  const [interestedContactIds, setInterestedContactIds] = useState<string[]>([]);
 
   async function ensureLocalitiesLoaded() {
     if (!localitiesDb) {
@@ -238,8 +239,20 @@ export function PropertyForm({
       setCustomVariableValues({});
       setBroadcastResults([]);
       setActiveTab('details');
+      if (!property) {
+        setInterestedContactIds([]);
+      }
     }
-  }, [open, fetchContacts, fetchTemplates]);
+  }, [open, fetchContacts, fetchTemplates, property]);
+
+  useEffect(() => {
+    if (open && property && contacts && contacts.length > 0) {
+      const interested = contacts
+        .filter((c) => c.last_inquired_property_id === property.id)
+        .map((c) => c.id);
+      setInterestedContactIds(interested);
+    }
+  }, [open, property, contacts]);
 
   const formattedPrice = useMemo(() => {
     const amount = Number(price);
@@ -626,6 +639,17 @@ export function PropertyForm({
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
         setOwnerContactId(property.owner_contact_id ?? null);
         setGoogleMapLink(property.google_map_link ?? '');
+        
+        if (contacts && contacts.length > 0) {
+          const interested = contacts
+            .filter((c) => c.last_inquired_property_id === property.id)
+            .map((c) => c.id);
+          setInterestedContactIds(interested);
+        } else if (property.interested_contacts) {
+          setInterestedContactIds(property.interested_contacts.map((c) => c.id));
+        } else {
+          setInterestedContactIds([]);
+        }
 
         // Set unified query string on open
         if (property.project) {
@@ -686,7 +710,7 @@ export function PropertyForm({
         setOwnerContactId(defaultOwnerId ?? null);
       }
     }
-  }, [open, property, defaultOwnerId]);
+  }, [open, property, defaultOwnerId, contacts]);
 
   const isProjectMatched = !!project && POPULAR_PROJECTS.some(
     (p) => p.name.toLowerCase() === project.trim().toLowerCase()
@@ -1039,6 +1063,8 @@ export function PropertyForm({
         updated_at: new Date().toISOString(),
       };
 
+      let savedPropertyId = property?.id;
+
       if (isEdit && property) {
         const response = await fetch(`/api/properties/${property.id}`, {
           method: 'PUT',
@@ -1068,6 +1094,37 @@ export function PropertyForm({
         if (!response.ok) {
           const errData = await response.json();
           throw new Error(errData.error || 'Failed to create property');
+        }
+
+        const resData = await response.json();
+        savedPropertyId = resData.id;
+      }
+
+      if (savedPropertyId) {
+        // Clear contacts that were pointing to this property but are not in the new checked list
+        const { data: previouslyLinked } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('last_inquired_property_id', savedPropertyId);
+          
+        if (previouslyLinked) {
+          const previouslyLinkedIds = previouslyLinked.map((c) => c.id);
+          const toRemove = previouslyLinkedIds.filter((id) => !interestedContactIds.includes(id));
+          
+          if (toRemove.length > 0) {
+            await supabase
+              .from('contacts')
+              .update({ last_inquired_property_id: null })
+              .in('id', toRemove);
+          }
+        }
+        
+        // Link the new ones
+        if (interestedContactIds.length > 0) {
+          await supabase
+            .from('contacts')
+            .update({ last_inquired_property_id: savedPropertyId })
+            .in('id', interestedContactIds);
         }
       }
 
@@ -1255,6 +1312,49 @@ export function PropertyForm({
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="space-y-1.5 col-span-2">
+                    <Label className="text-slate-300">
+                      Contacts with Shown Interest (Buyers & Agents)
+                    </Label>
+                    <div className="max-h-40 overflow-y-auto border border-slate-700 bg-slate-800 rounded-md p-2.5 space-y-1.5">
+                      {contacts
+                        .filter((c) => c.classification === 'Buyer' || c.classification === 'Agent')
+                        .map((c) => {
+                          const checked = interestedContactIds.includes(c.id);
+                          return (
+                            <label
+                              key={c.id}
+                              className="flex items-start gap-2.5 text-xs text-slate-350 cursor-pointer select-none hover:text-white"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setInterestedContactIds((prev) => [...prev, c.id]);
+                                  } else {
+                                    setInterestedContactIds((prev) => prev.filter((id) => id !== c.id));
+                                  }
+                                }}
+                                className="rounded border-slate-700 bg-slate-905 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <span className="font-semibold block text-slate-200">
+                                  {c.name || 'Unnamed'} ({c.phone})
+                                </span>
+                                <span className="text-[10px] text-slate-500 block">
+                                  Classification: {c.classification} {c.lead_temp ? `• Status: ${c.lead_temp}` : ''}
+                                </span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                      {contacts.filter((c) => c.classification === 'Buyer' || c.classification === 'Agent').length === 0 && (
+                        <p className="text-xs text-slate-500 py-2 text-center">No Buyers or Agents available in your contacts.</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 

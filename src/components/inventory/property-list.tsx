@@ -383,6 +383,33 @@ export function PropertyList({
                     )}
                   </div>
                 )}
+
+                {/* Interested Contacts / Leads */}
+                {property.interested_contacts && property.interested_contacts.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-slate-800/40">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
+                      Interested Leads ({property.interested_contacts.length})
+                    </span>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {property.interested_contacts.map((contact) => (
+                        <div
+                          key={contact.id}
+                          className="flex items-center justify-between text-xs bg-slate-950/20 px-2.5 py-1 rounded border border-slate-800/40 hover:border-slate-800 transition-all"
+                        >
+                          <span className="font-semibold text-slate-200 truncate max-w-[120px]" title={contact.name}>
+                            👤 {contact.name || 'Unnamed'}
+                          </span>
+                          <div className="flex items-center gap-1.5 font-semibold">
+                            <span className="text-slate-450 font-mono text-[10px]">{contact.phone}</span>
+                            <span className="text-[9px] bg-slate-950/50 text-slate-400 border border-slate-800/40 px-1 rounded">
+                              {contact.classification}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Action Buttons */}

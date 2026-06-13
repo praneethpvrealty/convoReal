@@ -243,7 +243,7 @@ export async function PUT(
       .update(updateData)
       .eq("id", id)
       .eq("account_id", ctx.accountId)
-      .select("*, owner:contacts(*)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)")
       .single();
 
     if (error) {

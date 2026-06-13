@@ -97,6 +97,49 @@ export default function ContactsPage() {
     );
   };
 
+  const renderLeadTempBadge = (leadTemp?: string | null) => {
+    if (!leadTemp) return null;
+    let styles = '';
+    switch (leadTemp) {
+      case 'HOT':
+        styles = 'bg-rose-500/10 text-rose-400 border-rose-500/20';
+        break;
+      case 'COLD':
+        styles = 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+        break;
+      case 'Not Responding':
+        styles = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+        break;
+      case 'Dead':
+        styles = 'bg-slate-600/10 text-slate-400 border-slate-500/20';
+        break;
+      default:
+        return null;
+    }
+    return (
+      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-medium ${styles}`}>
+        {leadTemp === 'HOT' && '🔥 '}
+        {leadTemp === 'COLD' && '❄️ '}
+        {leadTemp === 'Not Responding' && '⏳ '}
+        {leadTemp === 'Dead' && '💀 '}
+        {leadTemp}
+      </span>
+    );
+  };
+
+  const formatBudget = (contact: Contact) => {
+    if (contact.no_budget) return 'No Limit';
+    if (!contact.max_budget) return '-';
+    const amount = Number(contact.max_budget);
+    if (amount >= 10000000) {
+      return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+    } else if (amount >= 100000) {
+      return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`;
+    }
+    return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
+
   const handleWhatsAppClick = async (e: React.MouseEvent, contact: Contact) => {
     e.stopPropagation();
     if (!accountId) {
@@ -541,20 +584,21 @@ export default function ContactsPage() {
         <Table>
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead className="text-slate-400">Name</TableHead>
-              <TableHead className="text-slate-400">Classification</TableHead>
-              <TableHead className="text-slate-400">Phone</TableHead>
-              <TableHead className="text-slate-400 hidden md:table-cell">Email</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Company</TableHead>
-              <TableHead className="text-slate-400 hidden md:table-cell">Tags</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Created</TableHead>
+              <TableHead className="text-slate-400 text-xs">Name</TableHead>
+              <TableHead className="text-slate-400 text-xs">Classification</TableHead>
+              <TableHead className="text-slate-400 text-xs">Phone</TableHead>
+              <TableHead className="text-slate-400 text-xs">Tags</TableHead>
+              <TableHead className="text-slate-400 text-xs">Last Contacted</TableHead>
+              <TableHead className="text-slate-400 text-xs">Areas of Interest</TableHead>
+              <TableHead className="text-slate-400 text-xs">Property Category Interests</TableHead>
+              <TableHead className="text-slate-400 text-xs">Max Budget</TableHead>
               <TableHead className="text-slate-400 w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow className="border-slate-800">
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={9} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Loader2 className="size-6 animate-spin text-primary" />
                     <p className="text-sm text-slate-500">Loading contacts...</p>
@@ -563,7 +607,7 @@ export default function ContactsPage() {
               </TableRow>
             ) : contacts.length === 0 ? (
               <TableRow className="border-slate-800">
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={9} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-slate-600" />
                     <p className="text-sm text-slate-500">
@@ -594,13 +638,20 @@ export default function ContactsPage() {
                   className="border-slate-800 hover:bg-slate-900/50 cursor-pointer"
                   onClick={() => openDetail(contact.id)}
                 >
-                  <TableCell className="text-white font-medium">
-                    {contact.name || <span className="text-slate-500 italic">Unnamed</span>}
+                  <TableCell className="text-white font-medium py-3">
+                    <div className="flex flex-col gap-1">
+                      <span>{contact.name || <span className="text-slate-500 italic text-xs">Unnamed</span>}</span>
+                      {contact.lead_temp && (
+                        <div className="mt-0.5">
+                          {renderLeadTempBadge(contact.lead_temp)}
+                        </div>
+                      )}
+                    </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-3">
                     {renderClassificationBadge(contact.classification)}
                   </TableCell>
-                  <TableCell className="text-slate-300 font-mono text-xs" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="text-slate-300 font-mono text-xs py-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       <a
                         href={`tel:${contact.phone}`}
@@ -618,13 +669,7 @@ export default function ContactsPage() {
                       </button>
                     </div>
                   </TableCell>
-                  <TableCell className="text-slate-400 hidden md:table-cell text-sm">
-                    {contact.email || <span className="text-slate-600">-</span>}
-                  </TableCell>
-                  <TableCell className="text-slate-400 hidden lg:table-cell text-sm">
-                    {contact.company || <span className="text-slate-600">-</span>}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell className="py-3">
                     <div className="flex flex-wrap gap-1">
                       {contact.tags && contact.tags.length > 0 ? (
                         contact.tags.slice(0, 3).map((tag) => (
@@ -649,14 +694,55 @@ export default function ContactsPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-slate-500 text-xs hidden lg:table-cell">
-                    {new Date(contact.created_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
+                  <TableCell className="text-slate-400 text-xs py-3">
+                    {contact.last_contacted_at ? (
+                      new Date(contact.last_contacted_at).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true
+                      })
+                    ) : (
+                      <span className="text-slate-600">Never</span>
+                    )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-slate-400 text-xs py-3">
+                    <div className="flex flex-wrap gap-1 max-w-[150px]">
+                      {contact.areas_of_interest && contact.areas_of_interest.length > 0 ? (
+                        contact.areas_of_interest.map((area) => (
+                          <span
+                            key={area}
+                            className="inline-flex items-center rounded bg-slate-800 text-slate-300 px-1.5 py-0.5 text-[9px] font-medium border border-slate-700"
+                          >
+                            {area}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-600 text-xs">-</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-slate-400 text-xs py-3">
+                    <div className="flex flex-wrap gap-1 max-w-[150px]">
+                      {contact.property_interests && contact.property_interests.length > 0 ? (
+                        contact.property_interests.map((interest) => (
+                          <span
+                            key={interest}
+                            className="inline-flex items-center rounded bg-slate-800 text-slate-300 px-1.5 py-0.5 text-[9px] font-medium border border-slate-700"
+                          >
+                            {interest}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-600 text-xs">-</span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-slate-300 font-medium text-xs py-3">
+                    {formatBudget(contact)}
+                  </TableCell>
+                  <TableCell className="py-3">
                     <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
