@@ -597,6 +597,7 @@ export interface ShowcaseSettings {
   website_url: string;
   contact_phone: string;
   whatsapp_message_template: string;
+  flyer_ai_provider?: 'google' | 'huggingface';
   created_at: string;
   updated_at: string;
 }

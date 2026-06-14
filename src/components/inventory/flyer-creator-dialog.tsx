@@ -77,7 +77,7 @@ export function FlyerCreatorDialog({
     }
   }, [open, property, user]);
 
-  // Generate image using Imagen 3 model
+  // Generate image using Imagen 4 model
   async function handleGenerateAIImage() {
     if (!aiPrompt.trim()) {
       toast.error('AI prompt cannot be empty');
@@ -93,6 +93,7 @@ export function FlyerCreatorDialog({
         body: JSON.stringify({
           prompt: aiPrompt.trim(),
           aspectRatio: '1:1',
+          image: (property && property.images && property.images.length > 0) ? property.images[0] : null,
         }),
       });
 
@@ -224,6 +225,38 @@ export function FlyerCreatorDialog({
       return `₹${amount.toLocaleString('en-IN')}`;
     };
 
+    // Truncate text helper using canvas measurement
+    const truncateText = (text: string, maxWidth: number) => {
+      if (ctx.measureText(text).width <= maxWidth) return text;
+      let truncated = text;
+      while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+        truncated = truncated.slice(0, -1);
+      }
+      return truncated + '...';
+    };
+
+    // Wrap text into lines helper using canvas measurement
+    const getWrappedLines = (text: string, maxWidth: number): string[] => {
+      const words = text.split(' ');
+      const lines: string[] = [];
+      let currentLine = words[0] || '';
+
+      for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const width = ctx.measureText(currentLine + ' ' + word).width;
+        if (width < maxWidth) {
+          currentLine += ' ' + word;
+        } else {
+          lines.push(currentLine);
+          currentLine = word;
+        }
+      }
+      if (currentLine) {
+        lines.push(currentLine);
+      }
+      return lines;
+    };
+
     // 2. Draw Badges in the Upper Section (Property Code and Category)
     if (showCode && property.property_code) {
       // Draw Property Code tag
@@ -257,32 +290,45 @@ export function FlyerCreatorDialog({
       ctx.fillStyle = grad;
       ctx.fillRect(0, height - 360, width, 360);
 
+      // Calculate Price Badge width first to constrain title width
+      let priceBadgeW = 0;
+      const priceLabel = formatPrice(property.price);
+      if (showPrice) {
+        ctx.font = 'bold 48px "Outfit", "Inter", sans-serif';
+        const priceW = ctx.measureText(priceLabel).width;
+        priceBadgeW = priceW + 40;
+      }
+
       // TITLE & CATEGORY (Left side)
       ctx.textAlign = 'left';
       ctx.textBaseline = 'alphabetic';
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 44px "Outfit", "Inter", sans-serif';
-      // Truncate title if extremely long
-      let titleLine = property.title;
-      if (ctx.measureText(titleLine).width > 600) {
-        titleLine = titleLine.slice(0, 30) + '...';
+      
+      const maxTitleWidth = showPrice ? (width - priceBadgeW - 136) : (width - 96);
+      const titleLines = getWrappedLines(property.title, maxTitleWidth);
+      if (titleLines.length > 2) {
+        titleLines[1] = truncateText(titleLines[1] + ' ' + titleLines.slice(2).join(' '), maxTitleWidth);
+        titleLines.splice(2);
       }
-      ctx.fillText(titleLine, 48, height - 210);
+
+      if (titleLines.length === 2) {
+        ctx.fillText(titleLines[0], 48, height - 240);
+        ctx.fillText(titleLines[1], 48, height - 195);
+      } else {
+        ctx.fillText(titleLines[0] || '', 48, height - 210);
+      }
 
       // LOCATION (Left bottom)
       if (showLocation) {
         ctx.fillStyle = '#94a3b8'; // Muted slate text
         ctx.font = '600 28px "Outfit", "Inter", sans-serif';
-        ctx.fillText(`📍 ${property.location}`, 48, height - 150);
+        const locationText = truncateText(`📍 ${property.location}`, width - 96);
+        ctx.fillText(locationText, 48, height - 145);
       }
 
       // PRICE BADGE (Right side)
       if (showPrice) {
-        const priceLabel = formatPrice(property.price);
-        ctx.font = 'bold 48px "Outfit", "Inter", sans-serif';
-        const priceW = ctx.measureText(priceLabel).width;
-        const priceBadgeW = priceW + 40;
-        
         drawRoundRect(width - priceBadgeW - 48, height - 260, priceBadgeW, 80, 16, '#10b981'); // Emerald solid green
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
@@ -299,12 +345,14 @@ export function FlyerCreatorDialog({
         ctx.font = 'bold 24px "Outfit", "Inter", sans-serif';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(brandName, 48, height - 45);
+        const leftBrandText = truncateText(brandName, width / 2 - 60);
+        ctx.fillText(leftBrandText, 48, height - 45);
 
         if (brandContact) {
           ctx.fillStyle = '#f8fafc';
           ctx.textAlign = 'right';
-          ctx.fillText(`📞 ${brandContact}`, width - 48, height - 45);
+          const rightBrandText = truncateText(`📞 ${brandContact}`, width / 2 - 60);
+          ctx.fillText(rightBrandText, width - 48, height - 45);
         }
       }
 
@@ -318,30 +366,51 @@ export function FlyerCreatorDialog({
       // Draw glass backing (dark background with frosted borders)
       drawRoundRect(cardX, cardY, cardW, cardH, 24, 'rgba(15, 23, 42, 0.88)', 'rgba(255, 255, 255, 0.18)');
 
+      // Calculate price width first to constrain title width
+      let priceW = 0;
+      const priceLabel = formatPrice(property.price);
+      if (showPrice) {
+        ctx.font = 'bold 44px "Outfit", "Inter", sans-serif';
+        priceW = ctx.measureText(priceLabel).width;
+      }
+
       // TITLE
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 42px "Outfit", "Inter", sans-serif';
-      let titleLine = property.title;
-      if (ctx.measureText(titleLine).width > 540) {
-        titleLine = titleLine.slice(0, 28) + '...';
+      
+      const maxTitleWidth = showPrice ? (cardW - priceW - 112) : (cardW - 72);
+      const titleLines = getWrappedLines(property.title, maxTitleWidth);
+      if (titleLines.length > 2) {
+        titleLines[1] = truncateText(titleLines[1] + ' ' + titleLines.slice(2).join(' '), maxTitleWidth);
+        titleLines.splice(2);
       }
-      ctx.fillText(titleLine, cardX + 36, cardY + 36);
+
+      if (titleLines.length === 2) {
+        ctx.fillText(titleLines[0], cardX + 36, cardY + 28);
+        ctx.fillText(titleLines[1], cardX + 36, cardY + 74);
+      } else {
+        ctx.fillText(titleLines[0] || '', cardX + 36, cardY + 36);
+      }
 
       // LOCATION
       if (showLocation) {
         ctx.fillStyle = '#cbd5e1';
         ctx.font = '500 24px "Outfit", "Inter", sans-serif';
-        ctx.fillText(`📍 ${property.location}`, cardX + 36, cardY + 100);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const locY = titleLines.length === 2 ? cardY + 120 : cardY + 100;
+        const locationText = truncateText(`📍 ${property.location}`, cardW - 72);
+        ctx.fillText(locationText, cardX + 36, locY);
       }
 
       // PRICE
       if (showPrice) {
-        const priceLabel = formatPrice(property.price);
         ctx.fillStyle = '#34d399'; // Mint green
         ctx.font = 'bold 44px "Outfit", "Inter", sans-serif';
         ctx.textAlign = 'right';
+        ctx.textBaseline = 'top';
         ctx.fillText(priceLabel, cardX + cardW - 36, cardY + 36);
       }
 
@@ -358,12 +427,15 @@ export function FlyerCreatorDialog({
         ctx.fillStyle = '#a5b4fc';
         ctx.font = 'bold 22px "Outfit", "Inter", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(brandName, cardX + 36, cardY + 184);
+        ctx.textBaseline = 'top';
+        const brandLeftText = truncateText(brandName, cardW / 2 - 40);
+        ctx.fillText(brandLeftText, cardX + 36, cardY + 184);
 
         if (brandContact) {
           ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'right';
-          ctx.fillText(`Contact: ${brandContact}`, cardX + cardW - 36, cardY + 184);
+          const contactRightText = truncateText(`Contact: ${brandContact}`, cardW / 2 - 40);
+          ctx.fillText(contactRightText, cardX + cardW - 36, cardY + 184);
         }
       }
 
@@ -388,37 +460,57 @@ export function FlyerCreatorDialog({
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 48px "Outfit", "Inter", sans-serif';
       ctx.textBaseline = 'middle';
-      ctx.fillText(property.title, width / 2, height / 2 - 120);
+      ctx.textAlign = 'center';
+      
+      const maxTitleWidth = width - 160;
+      const titleLines = getWrappedLines(property.title, maxTitleWidth);
+      if (titleLines.length > 2) {
+        titleLines[1] = truncateText(titleLines[1] + ' ' + titleLines.slice(2).join(' '), maxTitleWidth);
+        titleLines.splice(2);
+      }
+
+      if (titleLines.length === 2) {
+        ctx.fillText(titleLines[0], width / 2, height / 2 - 150);
+        ctx.fillText(titleLines[1], width / 2, height / 2 - 95);
+      } else {
+        ctx.fillText(titleLines[0] || '', width / 2, height / 2 - 120);
+      }
 
       // CATEGORY
       ctx.fillStyle = '#fbbf24'; // Amber Gold
       ctx.font = 'bold 28px "Outfit", "Inter", sans-serif';
-      ctx.fillText(`★   ${property.type.toUpperCase()}   ★`, width / 2, height / 2 - 50);
+      const categoryLabel = `★   ${property.type.toUpperCase()}   ★`;
+      const categoryText = truncateText(categoryLabel, width - 160);
+      ctx.fillText(categoryText, width / 2, height / 2 - 40);
 
       // PRICE
       if (showPrice) {
+        const priceLabel = formatPrice(property.price);
         ctx.fillStyle = '#ffffff';
         ctx.font = '800 68px "Outfit", "Inter", sans-serif';
-        ctx.fillText(formatPrice(property.price), width / 2, height / 2 + 50);
+        ctx.fillText(priceLabel, width / 2, height / 2 + 50);
       }
 
       // LOCATION
       if (showLocation) {
         ctx.fillStyle = '#cbd5e1';
         ctx.font = '500 28px "Outfit", "Inter", sans-serif';
-        ctx.fillText(`📍 ${property.location}`, width / 2, height / 2 + 130);
+        const locationText = truncateText(`📍 ${property.location}`, width - 160);
+        ctx.fillText(locationText, width / 2, height / 2 + 130);
       }
 
       // BRANDING
       if (showBranding) {
         ctx.fillStyle = '#f59e0b';
         ctx.font = 'bold 26px "Outfit", "Inter", sans-serif';
-        ctx.fillText(brandName, width / 2, height - 130);
+        const brandText = truncateText(brandName, width - 160);
+        ctx.fillText(brandText, width / 2, height - 130);
 
         if (brandContact) {
           ctx.fillStyle = '#ffffff';
           ctx.font = '600 24px "Outfit", "Inter", sans-serif';
-          ctx.fillText(`Direct Hotline: ${brandContact}`, width / 2, height - 85);
+          const contactText = truncateText(`Direct Hotline: ${brandContact}`, width - 160);
+          ctx.fillText(contactText, width / 2, height - 85);
         }
       }
     }
@@ -481,7 +573,7 @@ export function FlyerCreatorDialog({
               {generatingAiImage && (
                 <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 gap-3 select-none">
                   <RefreshCw className="size-8 animate-spin text-primary" />
-                  <p className="text-sm font-bold text-white">Imagen 3 is generating your image...</p>
+                  <p className="text-sm font-bold text-white">Imagen 4 is generating your image...</p>
                   <p className="text-xs text-slate-400">Usually takes 4-7 seconds. Please wait.</p>
                 </div>
               )}
@@ -533,7 +625,7 @@ export function FlyerCreatorDialog({
               <div className="bg-slate-950/40 border border-slate-800 p-3 rounded-lg space-y-2.5 animate-fade-in">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="ai-prompt-input" className="text-xs font-semibold text-primary">
-                    AI Text-to-Image Prompt (Imagen 3)
+                    AI Text-to-Image Prompt (Imagen 4)
                   </Label>
                   <Button
                     size="xs"

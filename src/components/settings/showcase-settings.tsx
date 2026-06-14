@@ -27,6 +27,7 @@ export function ShowcaseSettingsPanel() {
   const [whatsappTemplate, setWhatsappTemplate] = useState(
     'Hi! I am interested in your property "{title}" in {location}. Please share details.'
   );
+  const [flyerAiProvider, setFlyerAiProvider] = useState<'google' | 'huggingface'>('huggingface');
 
   useEffect(() => {
     if (authLoading || !accountId) return;
@@ -51,6 +52,7 @@ export function ShowcaseSettingsPanel() {
           setWebsiteUrl(data.website_url || 'https://www.aryavartaventures.com');
           setContactPhone(data.contact_phone || '');
           setWhatsappTemplate(data.whatsapp_message_template || '');
+          setFlyerAiProvider(data.flyer_ai_provider || 'huggingface');
         }
       } catch (err) {
         console.error('Unexpected error loading showcase settings:', err);
@@ -74,6 +76,7 @@ export function ShowcaseSettingsPanel() {
         website_url: websiteUrl.trim(),
         contact_phone: contactPhone.trim(),
         whatsapp_message_template: whatsappTemplate.trim(),
+        flyer_ai_provider: flyerAiProvider,
         updated_at: new Date().toISOString(),
       };
 
@@ -312,6 +315,24 @@ export function ShowcaseSettingsPanel() {
             </div>
             <p className="text-[11px] text-slate-400">
               The prefilled text message that opens when visitors click &quot;Inquire via WhatsApp&quot;. Use <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">{`{title}`}</code> and <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">{`{location}`}</code> as dynamic placeholders.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="flyerAiProvider" className="text-slate-350 font-medium">
+              Flyer AI Image Generator Preference
+            </Label>
+            <select
+              id="flyerAiProvider"
+              value={flyerAiProvider}
+              onChange={(e) => setFlyerAiProvider(e.target.value as 'google' | 'huggingface')}
+              className="w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white focus:border-primary focus:outline-none font-medium h-9"
+            >
+              <option value="huggingface">Hugging Face (Free Stable Diffusion)</option>
+              <option value="google">Google Cloud Imagen (Paid Gemini API)</option>
+            </select>
+            <p className="text-[11px] text-slate-400">
+              Choose the AI text-to-image engine for background generator/editor inside the Flyer Creator. Hugging Face is free (with minor rate/speed limits), while Google Imagen requires pay-as-you-go billing in your Gemini API key.
             </p>
           </div>
 

@@ -1871,4 +1871,10 @@ CREATE TRIGGER tr_update_contact_last_contacted
   FOR EACH ROW
   EXECUTE FUNCTION public.update_contact_last_contacted();
 
+-- ============================================================
+-- 037_add_flyer_ai_provider.sql — Add flyer_ai_provider column to showcase_settings table
+-- ============================================================
 
+ALTER TABLE showcase_settings 
+  ADD COLUMN IF NOT EXISTS flyer_ai_provider TEXT NOT NULL DEFAULT 'huggingface'
+  CHECK (flyer_ai_provider IN ('google', 'huggingface'));
