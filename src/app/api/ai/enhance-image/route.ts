@@ -89,34 +89,12 @@ export async function POST(request: Request) {
 
       console.log(`[HuggingFace AI] Requesting generation with prompt: "${prompt}"`);
 
-      // If we have an image, try image-to-image using Stable Diffusion XL Refinement
-      // Otherwise, use text-to-image
-      let url = 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0';
+      // Use FLUX.1-schnell as it is fully supported by Hugging Face's serverless Inference API (hf-inference)
+      let url = 'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell';
       let payload: Record<string, unknown> = { inputs: prompt };
 
       if (image) {
-        try {
-          let base64Image = '';
-          if (image.startsWith('data:image')) {
-            base64Image = image.split(',')[1];
-          } else if (image.startsWith('http')) {
-            const imgRes = await fetch(image);
-            if (imgRes.ok) {
-              const arrayBuffer = await imgRes.arrayBuffer();
-              base64Image = Buffer.from(arrayBuffer).toString('base64');
-            }
-          }
-
-          if (base64Image) {
-            url = 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-refinement-1.0';
-            payload = {
-              inputs: prompt,
-              image: base64Image,
-            };
-          }
-        } catch (err) {
-          console.error('[HuggingFace AI] Failed to process initial image for img2img, falling back to txt2img:', err);
-        }
+        console.log('[HuggingFace AI] Note: Image-to-image refinement is not supported by free serverless provider. Falling back to text-to-image using FLUX.1-schnell.');
       }
 
       const response = await fetch(url, {
