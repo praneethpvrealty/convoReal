@@ -32,6 +32,7 @@ import {
   Square,
   ArrowLeft,
   Smartphone,
+  Star,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import type { Contact, MessageTemplate } from '@/types';
@@ -193,6 +194,7 @@ export function PropertyForm({
   const [customVariableValues, setCustomVariableValues] = useState<Record<string, string>>({});
   const [broadcastResults, setBroadcastResults] = useState<Array<{ name: string; phone: string; status: 'sent' | 'failed'; error?: string }>>([]);
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [selectedBroadcastImage, setSelectedBroadcastImage] = useState<string>('');
 
   // Fetch contacts and templates
   const fetchContacts = useCallback(async () => {
@@ -404,6 +406,16 @@ export function PropertyForm({
     }
   }, [selectedTemplate, placeholders]);
 
+  // Sync selected broadcast image when selectedTemplate or images changes
+  useEffect(() => {
+    if (selectedTemplate && selectedTemplate.header_type === 'image') {
+      const defaultImg = images.map((img) => img.trim()).find((img) => img.length > 0) || '';
+      setSelectedBroadcastImage(defaultImg);
+    } else {
+      setSelectedBroadcastImage('');
+    }
+  }, [selectedTemplate, images]);
+
   async function handleSendBroadcast() {
     if (!selectedTemplate || selectedContactIds.length === 0) return;
     setSendingBroadcast(true);
@@ -458,8 +470,8 @@ export function PropertyForm({
           params.push(val);
         });
 
-        // If the template has an image header, dynamically supply the first property image URL if available
-        const propertyImage = images.map((img) => img.trim()).find((img) => img.length > 0);
+        // If the template has an image header, dynamically supply the selected broadcast header image (falling back to first listing image)
+        const propertyImage = selectedBroadcastImage || images.map((img) => img.trim()).find((img) => img.length > 0);
         const hasImageHeader = selectedTemplate.header_type === 'image';
 
         return {
@@ -985,6 +997,17 @@ export function PropertyForm({
       copy[index] = value;
       return copy;
     });
+  }
+
+  function handleSetDefaultImage(index: number) {
+    if (index === 0) return;
+    setImages((prev) => {
+      const copy = [...prev];
+      const selected = copy[index];
+      const remaining = copy.filter((_, i) => i !== index);
+      return [selected, ...remaining];
+    });
+    toast.success('Selected image set as default listing photo');
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -1935,19 +1958,41 @@ export function PropertyForm({
                       <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                         {images.map((imgUrl, idx) => (
                           <div key={idx} className="flex gap-2 items-center">
+                            {imgUrl.trim().length > 0 && (
+                              <img
+                                src={imgUrl}
+                                alt={`Property ${idx + 1}`}
+                                className="size-8 object-cover rounded border border-slate-700 shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            )}
                             <Input
                               value={imgUrl}
                               onChange={(e) => handleImageUrlChange(idx, e.target.value)}
                               placeholder="Image URL (e.g. https://...)"
                               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs flex-1"
                             />
+                            {imgUrl.trim().length > 0 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSetDefaultImage(idx)}
+                                className={`h-8 w-8 p-0 shrink-0 ${idx === 0 ? 'text-amber-400' : 'text-slate-500 hover:text-amber-400'}`}
+                                title={idx === 0 ? "Default Image" : "Set as Default"}
+                              >
+                                <Star className={`size-3.5 ${idx === 0 ? 'fill-amber-400' : ''}`} />
+                              </Button>
+                            )}
                             {images.length > 1 && (
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleRemoveImageUrl(idx)}
-                                className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                                className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
                               >
                                 <Trash2 className="size-3.5" />
                               </Button>
@@ -2208,6 +2253,44 @@ export function PropertyForm({
                           </select>
                         )}
                       </div>
+
+                      {/* Image Header Selector */}
+                      {selectedTemplate?.header_type === 'image' && (
+                        <div className="space-y-1.5 border border-slate-800 p-3 rounded-xl bg-slate-950/20">
+                          <Label className="text-slate-350 font-semibold text-xs block mb-1">
+                            Select Broadcast Header Image
+                          </Label>
+                          <div className="flex gap-2 items-center overflow-x-auto py-1 max-w-full">
+                            {images
+                              .filter((img) => img.trim().length > 0)
+                              .map((imgUrl, idx) => (
+                                <div
+                                  key={idx}
+                                  onClick={() => setSelectedBroadcastImage(imgUrl)}
+                                  className={`relative size-16 rounded-md overflow-hidden border-2 cursor-pointer shrink-0 transition-all ${
+                                    selectedBroadcastImage === imgUrl
+                                      ? 'border-primary ring-2 ring-primary/20 scale-95'
+                                      : 'border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Option ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      (e.target as HTMLElement).style.display = 'none';
+                                    }}
+                                  />
+                                  {idx === 0 && (
+                                    <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-[8px] text-amber-400 font-bold text-center py-0.5">
+                                      Default
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
 
                       {selectedTemplate && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border border-slate-800 p-4 rounded-xl bg-slate-950/15">

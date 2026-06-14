@@ -345,6 +345,7 @@ export default function InventoryPage() {
         open={flyerOpen}
         onOpenChange={setFlyerOpen}
         property={flyerProperty}
+        onSaved={fetchProperties}
       />
 
       {/* Delete Confirmation Modal */}

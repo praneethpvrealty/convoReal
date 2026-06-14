@@ -16,17 +16,20 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 import {
   Sparkles,
   Download,
   Loader2,
   RefreshCw,
+  Save,
 } from 'lucide-react';
 
 interface FlyerCreatorDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   property: Property | null;
+  onSaved?: () => void;
 }
 
 type TemplateStyle = 'minimalist' | 'glassmorphism' | 'vignette';
@@ -35,6 +38,7 @@ export function FlyerCreatorDialog({
   open,
   onOpenChange,
   property,
+  onSaved,
 }: FlyerCreatorDialogProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { user } = useAuth();
@@ -528,8 +532,77 @@ export function FlyerCreatorDialog({
     }
   }, [open, drawFlyer]);
 
+  const [savingToProperty, setSavingToProperty] = useState(false);
+
+  const uploadFlyerToProperty = async (silent = false) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !property) return;
+
+    if (!silent) setSavingToProperty(true);
+    try {
+      // 1. Convert canvas to Blob
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) {
+        throw new Error('Failed to generate image blob from design canvas.');
+      }
+
+      // 2. Upload blob to Supabase Storage
+      const supabase = createClient();
+      const randomStr = Math.random().toString(36).substring(2, 7);
+      const path = `${property.account_id}/flyer-${Date.now()}-${randomStr}.png`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('property-images')
+        .upload(path, blob, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: 'image/png',
+        });
+
+      if (uploadError) {
+        throw new Error(`Failed to upload flyer: ${uploadError.message}`);
+      }
+
+      // 3. Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('property-images')
+        .getPublicUrl(path);
+
+      // 4. Update the property's images in the database (placing flyer at index 0)
+      const currentImages = property.images || [];
+      const updatedImages = [publicUrl, ...currentImages.filter(url => url !== publicUrl)];
+
+      const { error: updateError } = await supabase
+        .from('properties')
+        .update({ images: updatedImages, updated_at: new Date().toISOString() })
+        .eq('id', property.id);
+
+      if (updateError) {
+        throw new Error(`Failed to save flyer url to property: ${updateError.message}`);
+      }
+
+      if (!silent) {
+        toast.success('Flyer saved successfully as the default property photo!');
+      } else {
+        console.log('[FlyerCreatorDialog] Flyer auto-saved to property images');
+      }
+      
+      // Invoke callback to refresh properties on the dashboard
+      if (onSaved) {
+        onSaved();
+      }
+    } catch (err: any) {
+      console.error('[FlyerCreatorDialog] Error saving flyer to property:', err);
+      if (!silent) {
+        toast.error(err.message || 'Failed to save flyer to property.');
+      }
+    } finally {
+      if (!silent) setSavingToProperty(false);
+    }
+  };
+
   // Handle PNG Flyer download
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -539,6 +612,9 @@ export function FlyerCreatorDialog({
       link.href = canvas.toDataURL('image/png');
       link.click();
       toast.success('AI Marketing Flyer downloaded successfully!');
+      
+      // Auto-save the flyer to property images by default
+      await uploadFlyerToProperty(true);
     } catch (err) {
       console.error(err);
       toast.error('Download failed. Supabase storage bucket CORS headers might be blocking canvas operations. Try using an AI generated image.');
@@ -742,14 +818,31 @@ export function FlyerCreatorDialog({
           >
             Cancel
           </Button>
-          <Button
-            type="button"
-            onClick={handleDownload}
-            className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold flex items-center gap-1.5"
-          >
-            <Download className="size-4" />
-            Download Flyer
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={savingToProperty}
+              onClick={() => uploadFlyerToProperty(false)}
+              className="border-primary text-primary hover:bg-primary/10 font-semibold flex items-center gap-1.5 cursor-pointer"
+            >
+              {savingToProperty ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
+              )}
+              Save to Property Photos
+            </Button>
+            <Button
+              type="button"
+              disabled={savingToProperty}
+              onClick={handleDownload}
+              className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold flex items-center gap-1.5"
+            >
+              <Download className="size-4" />
+              Download Flyer
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
