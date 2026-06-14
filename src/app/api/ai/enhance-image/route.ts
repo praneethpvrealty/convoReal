@@ -91,7 +91,7 @@ export async function POST(request: Request) {
 
       // If we have an image, try image-to-image using Stable Diffusion XL Refinement
       // Otherwise, use text-to-image
-      let url = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0';
+      let url = 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-base-1.0';
       let payload: Record<string, unknown> = { inputs: prompt };
 
       if (image) {
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
           }
 
           if (base64Image) {
-            url = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-refinement-1.0';
+            url = 'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-xl-refinement-1.0';
             payload = {
               inputs: prompt,
               image: base64Image,
