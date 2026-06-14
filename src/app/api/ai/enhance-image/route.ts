@@ -21,8 +21,8 @@ export async function POST(request: Request) {
 
     const { prompt, aspectRatio = '1:1' } = body;
 
-    // Use Google AI Studio Imagen 3 predict URL format
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`;
+    // Use Google AI Studio Imagen 4 predict URL format
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
 
     const payload = {
       instances: [

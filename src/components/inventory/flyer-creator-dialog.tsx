@@ -77,7 +77,7 @@ export function FlyerCreatorDialog({
     }
   }, [open, property, user]);
 
-  // Generate image using Imagen 3 model
+  // Generate image using Imagen 4 model
   async function handleGenerateAIImage() {
     if (!aiPrompt.trim()) {
       toast.error('AI prompt cannot be empty');
@@ -481,7 +481,7 @@ export function FlyerCreatorDialog({
               {generatingAiImage && (
                 <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 gap-3 select-none">
                   <RefreshCw className="size-8 animate-spin text-primary" />
-                  <p className="text-sm font-bold text-white">Imagen 3 is generating your image...</p>
+                  <p className="text-sm font-bold text-white">Imagen 4 is generating your image...</p>
                   <p className="text-xs text-slate-400">Usually takes 4-7 seconds. Please wait.</p>
                 </div>
               )}
@@ -533,7 +533,7 @@ export function FlyerCreatorDialog({
               <div className="bg-slate-950/40 border border-slate-800 p-3 rounded-lg space-y-2.5 animate-fade-in">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="ai-prompt-input" className="text-xs font-semibold text-primary">
-                    AI Text-to-Image Prompt (Imagen 3)
+                    AI Text-to-Image Prompt (Imagen 4)
                   </Label>
                   <Button
                     size="xs"
