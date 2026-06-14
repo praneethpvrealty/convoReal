@@ -16,6 +16,7 @@ import {
   Building,
   Home as HomeIcon,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 
 const highlightIcons: Record<string, string> = {
@@ -38,6 +39,7 @@ interface PropertyListProps {
   onDelete: (property: Property) => void;
   onTogglePublish: (property: Property) => Promise<void>;
   canEdit: boolean;
+  onFlyer?: (property: Property) => void;
 }
 
 export function PropertyList({
@@ -47,6 +49,7 @@ export function PropertyList({
   onDelete,
   onTogglePublish,
   canEdit,
+  onFlyer,
 }: PropertyListProps) {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -414,6 +417,17 @@ export function PropertyList({
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/60 mt-auto">
+                {onFlyer && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onFlyer(property)}
+                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                  >
+                    <Sparkles className="size-3.5 mr-1.5 text-primary" /> Flyer
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"

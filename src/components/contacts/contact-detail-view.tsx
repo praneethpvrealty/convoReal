@@ -904,19 +904,18 @@ export function ContactDetailView({
               </div>
             )}
 
-            {/* Tabs */}
             <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
               <TabsList className="bg-slate-800/50 border-b border-slate-700 mx-4 mt-3 overflow-x-auto flex-nowrap scrollbar-none justify-start">
                 <TabsTrigger
                   value="details"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                 >
                   Details
                 </TabsTrigger>
                 {editClassification === 'Buyer' && (
                   <TabsTrigger
                     value="preferences"
-                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                   >
                     Preferences
                   </TabsTrigger>
@@ -924,32 +923,32 @@ export function ContactDetailView({
                 {['Owner', 'Seller', 'Agent', 'Buyer'].includes(editClassification) && (
                   <TabsTrigger
                     value="properties"
-                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                    className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                   >
                     Properties
                   </TabsTrigger>
                 )}
                 <TabsTrigger
                   value="tags"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                 >
                   Tags
                 </TabsTrigger>
                 <TabsTrigger
                   value="notes"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                 >
                   Notes
                 </TabsTrigger>
                 <TabsTrigger
                   value="custom"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                 >
                   Custom Fields
                 </TabsTrigger>
                 <TabsTrigger
                   value="deals"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                 >
                   Deals
                 </TabsTrigger>

@@ -182,6 +182,7 @@ export function PropertyForm({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [showAgentsInMatches, setShowAgentsInMatches] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
@@ -288,8 +289,18 @@ export function PropertyForm({
       features,
       nearby_highlights: nearbyHighlights,
     };
-    return getMatchingContacts(currentProp, contacts);
+    // Only match agents and Buyers
+    const targetContacts = contacts.filter((c) => c.classification === 'Buyer' || c.classification === 'Agent');
+    return getMatchingContacts(currentProp, targetContacts);
   }, [contacts, title, description, price, address, type, sublocality, city, stateVal, project, features, nearbyHighlights]);
+
+  const displayedMatches = useMemo(() => {
+    return matchedContacts.filter(({ contact: c }) => {
+      if (c.classification === 'Buyer') return true;
+      if (c.classification === 'Agent' && showAgentsInMatches) return true;
+      return false;
+    });
+  }, [matchedContacts, showAgentsInMatches]);
 
   const placeholders = useMemo(() => {
     if (!selectedTemplate) return [];
@@ -517,10 +528,15 @@ export function PropertyForm({
   }
 
   function toggleSelectAllContacts() {
-    if (selectedContactIds.length === matchedContacts.length) {
-      setSelectedContactIds([]);
+    const displayedIds = displayedMatches.map((m) => m.contact.id);
+    const allSelected = displayedIds.every((id) => selectedContactIds.includes(id));
+    if (allSelected) {
+      setSelectedContactIds((prev) => prev.filter((id) => !displayedIds.includes(id)));
     } else {
-      setSelectedContactIds(matchedContacts.map((m) => m.contact.id));
+      setSelectedContactIds((prev) => {
+        const union = new Set([...prev, ...displayedIds]);
+        return Array.from(union);
+      });
     }
   }
 
@@ -1183,7 +1199,7 @@ export function PropertyForm({
                 Property Details
               </TabsTrigger>
               <TabsTrigger value="matches" className="data-[state=active]:bg-slate-800 data-[state=active]:text-primary text-slate-400 px-4 py-1.5 text-xs font-semibold">
-                Matching Contacts ({matchedContacts.length})
+                Matching Contacts ({displayedMatches.length})
               </TabsTrigger>
             </TabsList>
           </div>
@@ -2001,29 +2017,51 @@ export function PropertyForm({
                   {/* STEP 1: Matches list */}
                   {broadcastStep === 'matches' && (
                     <div className="space-y-4 flex flex-col flex-1 min-h-0">
-                      <div className="flex justify-between items-center bg-slate-950/20 border border-slate-850 p-3 rounded-lg">
-                        <div className="text-xs font-semibold text-slate-400">
-                          {loadingContacts ? (
-                            'Searching matching profiles...'
-                          ) : matchedContacts.length === 0 ? (
-                            '0 matching contacts found'
-                          ) : (
-                            `Found ${matchedContacts.length} matching contact${matchedContacts.length === 1 ? '' : 's'}`
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/20 border border-slate-850 p-3 rounded-lg">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="text-xs font-semibold text-slate-400">
+                            {loadingContacts ? (
+                              'Searching matching profiles...'
+                            ) : displayedMatches.length === 0 ? (
+                              '0 matching contacts found'
+                            ) : (
+                              `Found ${displayedMatches.length} matching contact${displayedMatches.length === 1 ? '' : 's'}`
+                            )}
+                          </div>
+                          {!loadingContacts && (
+                            <label className="inline-flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none bg-slate-900 border border-slate-700 px-2 py-0.5 rounded hover:text-white transition-all">
+                              <input
+                                type="checkbox"
+                                checked={showAgentsInMatches}
+                                onChange={(e) => {
+                                  setShowAgentsInMatches(e.target.checked);
+                                  if (!e.target.checked) {
+                                    // Deselect any selected agents when hiding them to keep state consistent
+                                    const agentIds = matchedContacts
+                                      .filter(({ contact: c }) => c.classification === 'Agent')
+                                      .map(({ contact: c }) => c.id);
+                                    setSelectedContactIds((prev) => prev.filter((id) => !agentIds.includes(id)));
+                                  }
+                                }}
+                                className="rounded border-slate-650 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 h-3 w-3 cursor-pointer"
+                              />
+                              Show Agents
+                            </label>
                           )}
                         </div>
-                        {matchedContacts.length > 0 && (
+                        {displayedMatches.length > 0 && (
                           <button
                             type="button"
                             onClick={toggleSelectAllContacts}
                             className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 cursor-pointer"
                           >
-                            {selectedContactIds.length === matchedContacts.length ? (
+                            {displayedMatches.every((m) => selectedContactIds.includes(m.contact.id)) ? (
                               <>
                                 <CheckSquare className="size-3.5" /> Deselect All
                               </>
                             ) : (
                               <>
-                                <Square className="size-3.5" /> Select All ({matchedContacts.length})
+                                <Square className="size-3.5" /> Select All ({displayedMatches.length})
                               </>
                             )}
                           </button>
@@ -2036,14 +2074,14 @@ export function PropertyForm({
                             <Loader2 className="size-6 animate-spin text-primary mr-2" />
                             Scanning database...
                           </div>
-                        ) : matchedContacts.length === 0 ? (
+                        ) : displayedMatches.length === 0 ? (
                           <div className="text-center py-12 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
                             <Users className="size-8 mx-auto text-slate-600 mb-2" />
                             <p className="text-sm text-slate-400 font-medium">No matching contacts found</p>
                             <p className="text-xs text-slate-550 mt-1">Adjust preferences or add budget tags to contacts.</p>
                           </div>
                         ) : (
-                          matchedContacts.map(({ contact: c, score, matchedFields }) => {
+                          displayedMatches.map(({ contact: c, score, matchedFields }) => {
                             const isSelected = selectedContactIds.includes(c.id);
                             return (
                               <div
@@ -2062,10 +2100,19 @@ export function PropertyForm({
                                   {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
                                 </button>
                                 <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between gap-2">
-                                    <h4 className="text-sm font-bold text-white truncate">{c.name || 'Unnamed Contact'}</h4>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <h4 className="text-sm font-bold text-white truncate">{c.name || 'Unnamed Contact'}</h4>
+                                      <span className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${
+                                        c.classification === 'Buyer'
+                                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                          : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                                      }`}>
+                                        {c.classification}
+                                      </span>
+                                    </div>
                                     <Badge
-                                      className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                                      className={`rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
                                         score >= 70
                                           ? 'bg-green-500/10 text-green-400 border border-green-500/20'
                                           : score >= 30

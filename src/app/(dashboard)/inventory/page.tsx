@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
+import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
@@ -48,6 +49,8 @@ export default function InventoryPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [flyerOpen, setFlyerOpen] = useState(false);
+  const [flyerProperty, setFlyerProperty] = useState<Property | null>(null);
 
   const fetchProperties = useCallback(async () => {
     setLoading(true);
@@ -80,6 +83,12 @@ export default function InventoryPage() {
   function handleAddClick() {
     setSelectedProperty(null);
     setFormOpen(true);
+  }
+
+  // Handle flyer click
+  function handleFlyerClick(property: Property) {
+    setFlyerProperty(property);
+    setFlyerOpen(true);
   }
 
   // Handle delete confirmation click
@@ -320,6 +329,7 @@ export default function InventoryPage() {
         onDelete={handleDeleteClick}
         onTogglePublish={handleTogglePublish}
         canEdit={canEdit}
+        onFlyer={handleFlyerClick}
       />
 
       {/* Add / Edit Form Modal */}
@@ -328,6 +338,13 @@ export default function InventoryPage() {
         onOpenChange={setFormOpen}
         property={selectedProperty}
         onSaved={fetchProperties}
+      />
+
+      {/* Flyer Creator Dialog */}
+      <FlyerCreatorDialog
+        open={flyerOpen}
+        onOpenChange={setFlyerOpen}
+        property={flyerProperty}
       />
 
       {/* Delete Confirmation Modal */}
