@@ -463,19 +463,40 @@ export function PropertyShareDialog({
           params.push(val);
         });
 
+        // If the template has an image header, dynamically supply the selected broadcast header image (falling back to first listing image)
         const propertyImage = selectedBroadcastImage || property.images?.map((img) => img.trim()).find((img) => img.length > 0);
         const hasImageHeader = selectedTemplate.header_type === 'image';
+
+        // Auto-resolve dynamic URL buttons if the template uses dynamic buttons
+        const buttonParams: Record<number, string> = {};
+        if (selectedTemplate.buttons?.length) {
+          selectedTemplate.buttons.forEach((btn, idx) => {
+            if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+              const code = property?.property_code || property?.id || '';
+              if (btn.url.includes('?property_id=')) {
+                buttonParams[idx] = code;
+              } else {
+                buttonParams[idx] = `?property_id=${code}`;
+              }
+            }
+          });
+        }
+
+        const messageParams: {
+          headerMediaUrl?: string;
+          buttonParams?: Record<number, string>;
+        } = {};
+        if (hasImageHeader && propertyImage) {
+          messageParams.headerMediaUrl = propertyImage;
+        }
+        if (Object.keys(buttonParams).length > 0) {
+          messageParams.buttonParams = buttonParams;
+        }
 
         return {
           phone: contact.phone,
           params,
-          ...(hasImageHeader && propertyImage
-            ? {
-                messageParams: {
-                  headerMediaUrl: propertyImage,
-                },
-              }
-            : {}),
+          ...(Object.keys(messageParams).length > 0 ? { messageParams } : {}),
         };
       });
 
