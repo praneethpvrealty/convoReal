@@ -103,6 +103,15 @@ export function DealCard({ deal, stage, onEdit, isOverlay }: DealCardProps) {
         <span className="truncate text-xs text-slate-400">{contactLabel}</span>
       </div>
 
+      {deal.property && (
+        <div className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-450 bg-slate-950/20 px-2 py-0.5 rounded border border-slate-800/40 w-fit max-w-full">
+          <span className="text-[10px] filter saturate-50 shrink-0">🏡</span>
+          <span className="truncate font-medium text-slate-350" title={deal.property.title}>
+            {deal.property.title}
+          </span>
+        </div>
+      )}
+
       <div className="mt-2 flex items-center justify-between">
         <span className="text-sm font-bold text-primary">
           {formatCurrency(deal.value, deal.currency)}

@@ -11,6 +11,7 @@ import type {
   DealStatus,
   PipelineStage,
   Profile,
+  Property,
 } from "@/types";
 import {
   Sheet,
@@ -62,9 +63,11 @@ export function DealForm({
   const [assignedTo, setAssignedTo] = useState("");
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
+  const [propertyId, setPropertyId] = useState("");
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [linkedConversation, setLinkedConversation] =
     useState<Conversation | null>(null);
 
@@ -91,6 +94,7 @@ export function DealForm({
       setAssignedTo(deal.assigned_to ?? "");
       setExpectedCloseDate(deal.expected_close_date ?? "");
       setNotes(deal.notes ?? "");
+      setPropertyId(deal.property_id ?? "");
     } else {
       setTitle("");
       setValue("");
@@ -115,6 +119,7 @@ export function DealForm({
       setAssignedTo("");
       setExpectedCloseDate("");
       setNotes("");
+      setPropertyId("");
     }
   }, [open, deal, defaultStageId, stages, accountId, supabase]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -124,13 +129,15 @@ export function DealForm({
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const [c, p] = await Promise.all([
+      const [c, p, prop] = await Promise.all([
         supabase.from("contacts").select("*").order("name"),
         supabase.from("profiles").select("*").order("full_name"),
+        supabase.from("properties").select("*").order("title"),
       ]);
       if (cancelled) return;
       setContacts((c.data ?? []) as Contact[]);
       setProfiles((p.data ?? []) as Profile[]);
+      setProperties((prop.data ?? []) as Property[]);
     })();
     return () => {
       cancelled = true;
@@ -180,6 +187,7 @@ export function DealForm({
       assigned_to: assignedTo || null,
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
+      property_id: propertyId || null,
     };
 
     if (deal) {
@@ -208,6 +216,23 @@ export function DealForm({
       }
     }
 
+    // Sync property status based on deal stage/status
+    if (propertyId) {
+      const targetStage = stages.find((s) => s.id === stageId);
+      if (targetStage) {
+        let propertyStatus = "Available";
+        if (targetStage.name === "Negotiation/Token") {
+          propertyStatus = "Under Contract";
+        } else if (targetStage.name === "Closed Won") {
+          propertyStatus = "Sold";
+        }
+        await supabase
+          .from("properties")
+          .update({ status: propertyStatus })
+          .eq("id", propertyId);
+      }
+    }
+
     setSaving(false);
     toast.success(deal ? "Deal updated" : "Deal created");
     onOpenChange(false);
@@ -226,6 +251,27 @@ export function DealForm({
       toast.error("Failed to update deal status");
       return;
     }
+
+    // Sync property status on status change
+    const activePropId = deal.property_id || propertyId;
+    if (activePropId) {
+      let propertyStatus = "Available";
+      if (status === "won") {
+        propertyStatus = "Sold";
+      } else if (status === "lost") {
+        propertyStatus = "Available";
+      } else { // reopened
+        const targetStage = stages.find((s) => s.id === (deal.stage_id || stageId));
+        if (targetStage?.name === "Negotiation/Token") {
+          propertyStatus = "Under Contract";
+        }
+      }
+      await supabase
+        .from("properties")
+        .update({ status: propertyStatus })
+        .eq("id", activePropId);
+    }
+
     toast.success(
       status === "won" ? "Marked as won" : status === "lost" ? "Marked as lost" : "Deal reopened",
     );
@@ -296,6 +342,22 @@ export function DealForm({
                   Link to Conversation
                 </Link>
               )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label className="text-slate-300">Property (Inventory)</Label>
+              <select
+                value={propertyId}
+                onChange={(e) => setPropertyId(e.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              >
+                <option value="">No Property Link</option>
+                {properties.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title} ({p.location})
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid grid-cols-[1fr_110px] gap-3">

@@ -319,6 +319,8 @@ export interface Deal {
   status?: DealStatus;
   created_at: string;
   updated_at?: string;
+  property_id?: string | null;
+  property?: Property;
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;

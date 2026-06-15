@@ -35,13 +35,14 @@ import { GatedButton } from "@/components/ui/gated-button";
 // agent+. The two CTAs gate on different `useCan` capabilities,
 // not on different copy.
 
-// Spec-defined seed — name and color per the product spec.
+// Seed stages for Real Estate Pipeline
 const SPEC_DEFAULT_STAGES = [
-  { name: "New Lead", color: "#3b82f6", position: 0 }, // blue
-  { name: "Qualified", color: "#eab308", position: 1 }, // yellow
-  { name: "Proposal Sent", color: "#f97316", position: 2 }, // orange
-  { name: "Negotiation", color: "#8b5cf6", position: 3 }, // purple
-  { name: "Won", color: "#22c55e", position: 4 }, // green
+  { name: "New Inquiry", color: "#3b82f6", position: 0 },            // blue
+  { name: "Profiling/Qualified", color: "#eab308", position: 1 },       // yellow
+  { name: "Site Visit Scheduled", color: "#f97316", position: 2 },     // orange
+  { name: "Negotiation/Token", color: "#8b5cf6", position: 3 },        // purple
+  { name: "Due Diligence/Contract", color: "#06b6d4", position: 4 },   // cyan
+  { name: "Closed Won", color: "#22c55e", position: 5 },              // green
 ];
 
 export default function PipelinesPage() {
@@ -120,7 +121,7 @@ export default function PipelinesPage() {
     async (pipelineId: string) => {
       const { data } = await supabase
         .from("deals")
-        .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*)")
+        .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*), property:properties(*)")
         .eq("pipeline_id", pipelineId)
         .order("created_at", { ascending: false });
       return (data ?? []) as Deal[];
@@ -133,7 +134,7 @@ export default function PipelinesPage() {
 
     const { data: pipeline, error } = await supabase
       .from("pipelines")
-      .insert({ user_id: user.id, account_id: accountId, name: "Sales Pipeline" })
+      .insert({ user_id: user.id, account_id: accountId, name: "Real Estate Pipeline" })
       .select()
       .single();
 
@@ -233,16 +234,46 @@ export default function PipelinesPage() {
       setDeals((prev) =>
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
       );
+      
       const { error } = await supabase
         .from("deals")
         .update({ stage_id: newStageId })
         .eq("id", dealId);
+
       if (error) {
         toast.error("Failed to move deal");
         refreshDeals();
+        return;
+      }
+
+      // Automated Status Transition for Real Estate Properties
+      try {
+        const deal = deals.find((d) => d.id === dealId);
+        if (deal && deal.property_id) {
+          const targetStage = stages.find((s) => s.id === newStageId);
+          if (targetStage) {
+            let nextStatus = "Available";
+            if (targetStage.name === "Negotiation/Token") {
+              nextStatus = "Under Contract";
+            } else if (targetStage.name === "Closed Won") {
+              nextStatus = "Sold";
+            }
+
+            const { error: propErr } = await supabase
+              .from("properties")
+              .update({ status: nextStatus })
+              .eq("id", deal.property_id);
+            
+            if (propErr) {
+              console.error("Failed to sync property status:", propErr.message);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Unexpected error in property status transition:", err);
       }
     },
-    [supabase, refreshDeals],
+    [supabase, refreshDeals, deals, stages],
   );
 
   const handleAddDeal = useCallback(
