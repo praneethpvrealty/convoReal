@@ -1878,3 +1878,11 @@ CREATE TRIGGER tr_update_contact_last_contacted
 ALTER TABLE showcase_settings 
   ADD COLUMN IF NOT EXISTS flyer_ai_provider TEXT NOT NULL DEFAULT 'huggingface'
   CHECK (flyer_ai_provider IN ('google', 'huggingface'));
+
+-- ============================================================
+-- 038_add_currency_to_showcase_settings.sql — Add currency column to showcase_settings table
+-- ============================================================
+
+ALTER TABLE showcase_settings 
+  ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'INR';
+

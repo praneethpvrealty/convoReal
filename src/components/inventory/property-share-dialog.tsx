@@ -75,25 +75,33 @@ export function PropertyShareDialog({
   const [freshPhone, setFreshPhone] = useState('');
   const [freshClassification, setFreshClassification] = useState<'Buyer' | 'Agent'>('Buyer');
   const [addingFresh, setAddingFresh] = useState(false);
+  const [currency, setCurrency] = useState('INR');
 
   // Currency Formatter
   const formattedPrice = useMemo(() => {
     if (!property) return '';
     const amount = Number(property.price);
     if (isNaN(amount) || amount <= 0) return '';
-    if (amount >= 10000000) {
-      const cr = amount / 10000000;
-      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-    } else if (amount >= 100000) {
-      const lakhs = amount / 100000;
-      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    if (currency === 'INR') {
+      if (amount >= 10000000) {
+        const cr = amount / 10000000;
+        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+      } else if (amount >= 100000) {
+        const lakhs = amount / 100000;
+        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      }
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+      }).format(amount);
     }
-    return new Intl.NumberFormat('en-IN', {
+    return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: 'INR',
+      currency: currency,
       maximumFractionDigits: 0,
     }).format(amount);
-  }, [property]);
+  }, [property, currency]);
 
   // Fetch all active contacts for matching
   const fetchContacts = useCallback(async () => {
@@ -139,6 +147,19 @@ export function PropertyShareDialog({
     if (open && property) {
       fetchContacts();
       fetchTemplates();
+      // Load currency settings from showcase_settings
+      if (accountId) {
+        supabase
+          .from('showcase_settings')
+          .select('currency')
+          .eq('account_id', accountId)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data?.currency) {
+              setCurrency(data.currency);
+            }
+          });
+      }
       setBroadcastStep('matches');
       setSelectedContactIds([]);
       setSelectedTemplate(null);
@@ -150,7 +171,7 @@ export function PropertyShareDialog({
       setFreshPhone('');
       setFreshClassification('Buyer');
     }
-  }, [open, property, fetchContacts, fetchTemplates]);
+  }, [open, property, fetchContacts, fetchTemplates, accountId, supabase]);
 
   // Get matching contacts from list
   const matchedContacts = useMemo(() => {

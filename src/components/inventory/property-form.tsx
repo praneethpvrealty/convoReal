@@ -195,6 +195,7 @@ export function PropertyForm({
   const [broadcastResults, setBroadcastResults] = useState<Array<{ name: string; phone: string; status: 'sent' | 'failed'; error?: string }>>([]);
   const [sendingBroadcast, setSendingBroadcast] = useState(false);
   const [selectedBroadcastImage, setSelectedBroadcastImage] = useState<string>('');
+  const [currency, setCurrency] = useState('INR');
 
   // Fetch contacts and templates
   const fetchContacts = useCallback(async () => {
@@ -234,6 +235,19 @@ export function PropertyForm({
     if (open) {
       fetchContacts();
       fetchTemplates();
+      // Load currency settings from showcase_settings
+      if (accountId) {
+        supabase
+          .from('showcase_settings')
+          .select('currency')
+          .eq('account_id', accountId)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data?.currency) {
+              setCurrency(data.currency);
+            }
+          });
+      }
       // Reset broadcast wizard
       setBroadcastStep('matches');
       setSelectedContactIds([]);
@@ -246,7 +260,7 @@ export function PropertyForm({
         setInterestedContactIds([]);
       }
     }
-  }, [open, fetchContacts, fetchTemplates, property]);
+  }, [open, fetchContacts, fetchTemplates, property, accountId, supabase]);
 
   useEffect(() => {
     if (open && property && contacts && contacts.length > 0) {
@@ -260,19 +274,26 @@ export function PropertyForm({
   const formattedPrice = useMemo(() => {
     const amount = Number(price);
     if (isNaN(amount) || amount <= 0) return '';
-    if (amount >= 10000000) {
-      const cr = amount / 10000000;
-      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-    } else if (amount >= 100000) {
-      const lakhs = amount / 100000;
-      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    if (currency === 'INR') {
+      if (amount >= 10000000) {
+        const cr = amount / 10000000;
+        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+      } else if (amount >= 100000) {
+        const lakhs = amount / 100000;
+        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      }
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+      }).format(amount);
     }
-    return new Intl.NumberFormat('en-IN', {
+    return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: 'INR',
+      currency: currency,
       maximumFractionDigits: 0,
     }).format(amount);
-  }, [price]);
+  }, [price, currency]);
 
   const matchedContacts = useMemo(() => {
     const fullLocation = [address.trim(), sublocality.trim(), city.trim(), stateVal.trim()]

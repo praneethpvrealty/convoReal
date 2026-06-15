@@ -25,12 +25,28 @@ interface PipelineBoardProps {
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  currency?: string;
 }
 
-function formatCurrency(value: number) {
+function formatCurrency(value: number, currency: string = "INR") {
+  if (currency === "INR") {
+    if (value >= 10000000) {
+      const cr = value / 10000000;
+      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+    } else if (value >= 100000) {
+      const lakhs = value / 100000;
+      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    }
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
@@ -42,6 +58,7 @@ export function PipelineBoard({
   onDealMoved,
   onAddDeal,
   onEditDeal,
+  currency = "INR",
 }: PipelineBoardProps) {
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
 
@@ -121,6 +138,7 @@ export function PipelineBoard({
               totalValue={totalValue}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              currency={currency}
             />
           );
         })}
@@ -170,12 +188,14 @@ function StageColumn({
   totalValue,
   onAddDeal,
   onEditDeal,
+  currency,
 }: {
   stage: PipelineStage;
   deals: Deal[];
   totalValue: number;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  currency: string;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -200,7 +220,7 @@ function StageColumn({
           {deals.length}
         </span>
       </div>
-      <p className="text-xs text-slate-400">{formatCurrency(totalValue)}</p>
+      <p className="text-xs text-slate-400">{formatCurrency(totalValue, currency)}</p>
 
       <div
         ref={setNodeRef}

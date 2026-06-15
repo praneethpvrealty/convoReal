@@ -42,6 +42,7 @@ interface PropertyListProps {
   canEdit: boolean;
   onFlyer?: (property: Property) => void;
   onShare?: (property: Property) => void;
+  currency?: string;
 }
 
 export function PropertyList({
@@ -53,21 +54,29 @@ export function PropertyList({
   canEdit,
   onFlyer,
   onShare,
+  currency = 'INR',
 }: PropertyListProps) {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Format currency helper (Lakhs and Crores standard for real estate)
   function formatPrice(amount: number) {
-    if (amount >= 10000000) {
-      const cr = amount / 10000000;
-      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-    } else if (amount >= 100000) {
-      const lakhs = amount / 100000;
-      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    if (currency === 'INR') {
+      if (amount >= 10000000) {
+        const cr = amount / 10000000;
+        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+      } else if (amount >= 100000) {
+        const lakhs = amount / 100000;
+        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      }
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0,
+      }).format(amount);
     }
-    return new Intl.NumberFormat('en-IN', {
+    return new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: 'INR',
+      currency: currency,
       maximumFractionDigits: 0,
     }).format(amount);
   }

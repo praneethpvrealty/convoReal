@@ -11,9 +11,26 @@ interface DealCardProps {
 }
 
 function formatCurrency(value: number, currency?: string) {
+  const activeCurrency = currency || "INR";
+  if (activeCurrency === "INR") {
+    const amount = Number(value || 0);
+    if (amount >= 10000000) {
+      const cr = amount / 10000000;
+      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+    } else if (amount >= 100000) {
+      const lakhs = amount / 100000;
+      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    }
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: currency || "USD",
+    currency: activeCurrency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(Number(value || 0));

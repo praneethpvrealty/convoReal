@@ -27,6 +27,7 @@ export function ShowcaseSettingsPanel() {
   const [whatsappTemplate, setWhatsappTemplate] = useState(
     'Hi! I am interested in your property "{title}" in {location}. Please share details.'
   );
+  const [currency, setCurrency] = useState('INR');
 
   useEffect(() => {
     if (authLoading || !accountId) return;
@@ -51,6 +52,7 @@ export function ShowcaseSettingsPanel() {
           setWebsiteUrl(data.website_url || 'https://www.aryavartaventures.com');
           setContactPhone(data.contact_phone || '');
           setWhatsappTemplate(data.whatsapp_message_template || '');
+          setCurrency(data.currency || 'INR');
         }
       } catch (err) {
         console.error('Unexpected error loading showcase settings:', err);
@@ -74,6 +76,7 @@ export function ShowcaseSettingsPanel() {
         website_url: websiteUrl.trim(),
         contact_phone: contactPhone.trim(),
         whatsapp_message_template: whatsappTemplate.trim(),
+        currency: currency,
         updated_at: new Date().toISOString(),
       };
 
@@ -274,24 +277,47 @@ export function ShowcaseSettingsPanel() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="contactPhone" className="text-slate-350 font-medium">
-              Public Contact Phone Number
-            </Label>
-            <div className="relative">
-              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
-              <Input
-                id="contactPhone"
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-                placeholder="e.g. +91 98765 43210"
-                required
-                className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary"
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="contactPhone" className="text-slate-350 font-medium">
+                Public Contact Phone Number
+              </Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+                <Input
+                  id="contactPhone"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="e.g. +91 98765 43210"
+                  required
+                  className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400">
+                The primary contact number displayed on listings. This will also be the WhatsApp contact phone (include country code, e.g., 91 for India).
+              </p>
             </div>
-            <p className="text-[11px] text-slate-400">
-              The primary contact number displayed on listings. This will also be the WhatsApp contact phone (include country code, e.g., 91 for India).
-            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="currency" className="text-slate-350 font-medium">
+                Default Currency
+              </Label>
+              <select
+                id="currency"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+              >
+                <option value="INR">INR (₹) - Rupees</option>
+                <option value="USD">USD ($) - Dollars</option>
+                <option value="EUR">EUR (€) - Euros</option>
+                <option value="GBP">GBP (£) - Pounds</option>
+                <option value="AED">AED (د.إ) - Dirhams</option>
+              </select>
+              <p className="text-[11px] text-slate-400">
+                Primary currency code. Indian Rupees use dynamic Lakhs/Crores representations automatically.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-2">

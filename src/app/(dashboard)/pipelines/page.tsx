@@ -55,6 +55,27 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currency, setCurrency] = useState("INR");
+
+  const fetchCurrency = useCallback(async () => {
+    if (!accountId) return;
+    try {
+      const { data } = await supabase
+        .from('showcase_settings')
+        .select('currency')
+        .eq('account_id', accountId)
+        .maybeSingle();
+      if (data?.currency) {
+        setCurrency(data.currency);
+      }
+    } catch (err) {
+      console.error('Failed to load showcase settings currency:', err);
+    }
+  }, [accountId, supabase]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => fetchCurrency());
+  }, [fetchCurrency]);
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -394,13 +415,14 @@ export default function PipelinesPage() {
         </div>
       ) : (
         <>
-          <PipelineAnalytics stages={stages} deals={deals} />
+          <PipelineAnalytics stages={stages} deals={deals} currency={currency} />
           <PipelineBoard
             stages={stages}
             deals={deals}
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
+            currency={currency}
           />
         </>
       )}

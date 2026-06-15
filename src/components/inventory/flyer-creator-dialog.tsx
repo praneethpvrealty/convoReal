@@ -41,7 +41,7 @@ export function FlyerCreatorDialog({
   onSaved,
 }: FlyerCreatorDialogProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { user } = useAuth();
+  const { user, accountId } = useAuth();
 
   // Settings states
   const [imageSource, setImageSource] = useState<'original' | 'ai'>('original');
@@ -62,6 +62,7 @@ export function FlyerCreatorDialog({
 
   // Image loading caches to avoid reloading during simple toggle modifications
   const [bgImageElement, setBgImageElement] = useState<HTMLImageElement | null>(null);
+  const [currency, setCurrency] = useState('INR');
 
   // Prefill defaults on open
   useEffect(() => {
@@ -78,8 +79,23 @@ export function FlyerCreatorDialog({
       setBrandContact(user?.phone || '');
       setAiImageUrl(null);
       setBgImageElement(null);
+
+      // Load currency settings from showcase_settings
+      if (accountId) {
+        const supabaseClient = createClient();
+        supabaseClient
+          .from('showcase_settings')
+          .select('currency')
+          .eq('account_id', accountId)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data?.currency) {
+              setCurrency(data.currency);
+            }
+          });
+      }
     }
-  }, [open, property, user]);
+  }, [open, property, user, accountId]);
 
   // Generate image using Imagen 4 model
   async function handleGenerateAIImage() {
@@ -219,14 +235,21 @@ export function FlyerCreatorDialog({
 
     // Format Price helper
     const formatPrice = (amount: number) => {
-      if (amount >= 10000000) {
-        const cr = amount / 10000000;
-        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-      } else if (amount >= 100000) {
-        const lakhs = amount / 100000;
-        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      if (currency === 'INR') {
+        if (amount >= 10000000) {
+          const cr = amount / 10000000;
+          return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+        } else if (amount >= 100000) {
+          const lakhs = amount / 100000;
+          return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+        }
+        return `₹${amount.toLocaleString('en-IN')}`;
       }
-      return `₹${amount.toLocaleString('en-IN')}`;
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: currency,
+        maximumFractionDigits: 0,
+      }).format(amount);
     };
 
     // Truncate text helper using canvas measurement
@@ -519,7 +542,7 @@ export function FlyerCreatorDialog({
       }
     }
 
-  }, [property, template, bgImageElement, showPrice, showCode, showLocation, showBranding, brandName, brandContact]);
+  }, [property, template, bgImageElement, showPrice, showCode, showLocation, showBranding, brandName, brandContact, currency]);
 
   // Redraw whenever parameters change
   useEffect(() => {

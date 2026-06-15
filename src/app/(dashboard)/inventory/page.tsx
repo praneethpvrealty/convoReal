@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useCan } from '@/hooks/use-can';
+import { useAuth } from '@/hooks/use-auth';
+import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Property } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -54,6 +56,30 @@ export default function InventoryPage() {
   const [flyerProperty, setFlyerProperty] = useState<Property | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
+
+  const { accountId } = useAuth();
+  const [currency, setCurrency] = useState('INR');
+
+  const fetchCurrency = useCallback(async () => {
+    if (!accountId) return;
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('showcase_settings')
+        .select('currency')
+        .eq('account_id', accountId)
+        .maybeSingle();
+      if (data?.currency) {
+        setCurrency(data.currency);
+      }
+    } catch (err) {
+      console.error('Failed to load showcase settings currency:', err);
+    }
+  }, [accountId]);
+
+  useEffect(() => {
+    fetchCurrency();
+  }, [fetchCurrency]);
 
   const fetchProperties = useCallback(async () => {
     setLoading(true);
@@ -340,6 +366,7 @@ export default function InventoryPage() {
         canEdit={canEdit}
         onFlyer={handleFlyerClick}
         onShare={handleShareClick}
+        currency={currency}
       />
 
       {/* Add / Edit Form Modal */}

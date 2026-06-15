@@ -21,12 +21,28 @@ import {
 interface PipelineAnalyticsProps {
   stages: PipelineStage[];
   deals: Deal[];
+  currency?: string;
 }
 
-function formatCurrency(value: number) {
+function formatCurrency(value: number, currency: string = "INR") {
+  if (currency === "INR") {
+    if (value >= 10000000) {
+      const cr = value / 10000000;
+      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+    } else if (value >= 100000) {
+      const lakhs = value / 100000;
+      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    }
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(value);
@@ -52,7 +68,7 @@ function computeStageProbability(
   return 0.1 + t * (0.9 - 0.1);
 }
 
-export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
+export function PipelineAnalytics({ stages, deals, currency = "INR" }: PipelineAnalyticsProps) {
   const sortedStages = useMemo(
     () => [...stages].sort((a, b) => a.position - b.position),
     [stages],
@@ -109,19 +125,19 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
         <Metric
           icon={<DollarSign className="h-4 w-4 text-primary" />}
           label="Pipeline Value"
-          value={formatCurrency(stats.totalValue)}
-          tooltip="Sum of the dollar values of all deals in this pipeline, excluding deals marked as Lost."
+          value={formatCurrency(stats.totalValue, currency)}
+          tooltip="Sum of the values of all deals in this pipeline, excluding deals marked as Lost."
         />
         <Metric
           icon={<Target className="h-4 w-4 text-blue-400" />}
           label="Avg Deal Size"
-          value={formatCurrency(stats.avgValue)}
+          value={formatCurrency(stats.avgValue, currency)}
           tooltip="Pipeline Value divided by Total Deals — the average value of a single non-lost deal."
         />
         <Metric
           icon={<TrendingUp className="h-4 w-4 text-purple-400" />}
           label="Weighted Value"
-          value={formatCurrency(stats.weightedValue)}
+          value={formatCurrency(stats.weightedValue, currency)}
           tooltip="Expected revenue: each open deal's value × its stage probability. First stage ≈ 10%, stages progress up to 90%, Won = 100%. Lost deals are excluded."
         />
         <Metric
