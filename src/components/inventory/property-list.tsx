@@ -17,6 +17,7 @@ import {
   Home as HomeIcon,
   Loader2,
   Sparkles,
+  Share2,
 } from 'lucide-react';
 
 const highlightIcons: Record<string, string> = {
@@ -40,6 +41,7 @@ interface PropertyListProps {
   onTogglePublish: (property: Property) => Promise<void>;
   canEdit: boolean;
   onFlyer?: (property: Property) => void;
+  onShare?: (property: Property) => void;
 }
 
 export function PropertyList({
@@ -50,6 +52,7 @@ export function PropertyList({
   onTogglePublish,
   canEdit,
   onFlyer,
+  onShare,
 }: PropertyListProps) {
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -426,6 +429,17 @@ export function PropertyList({
                     className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
                   >
                     <Sparkles className="size-3.5 mr-1.5 text-primary" /> Flyer
+                  </Button>
+                )}
+                {onShare && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onShare(property)}
+                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                  >
+                    <Share2 className="size-3.5 mr-1.5 text-primary" /> Share
                   </Button>
                 )}
                 <Button

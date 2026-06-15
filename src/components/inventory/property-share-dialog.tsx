@@ -1,0 +1,1053 @@
+'use client';
+
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { toast } from 'sonner';
+import type { Property, Contact, MessageTemplate } from '@/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import {
+  Loader2,
+  Users,
+  Send,
+  CheckSquare,
+  Square,
+  ArrowLeft,
+  Smartphone,
+  Plus,
+  UserPlus,
+  Share2,
+  X,
+} from 'lucide-react';
+import { getMatchingContacts } from '@/lib/matching';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+
+interface PropertyShareDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  property: Property | null;
+  onSaved?: () => void;
+}
+
+export function PropertyShareDialog({
+  open,
+  onOpenChange,
+  property,
+  onSaved,
+}: PropertyShareDialogProps) {
+  const supabase = createClient();
+  const { user, accountId, profile } = useAuth();
+
+  // Dialog flow steps: 'matches' | 'configure' | 'sending' | 'results'
+  const [broadcastStep, setBroadcastStep] = useState<'matches' | 'configure' | 'sending' | 'results'>('matches');
+
+  // Contact list and selections
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [showAgentsInMatches, setShowAgentsInMatches] = useState(false);
+
+  // Template config
+  const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null);
+  const [selectedBroadcastImage, setSelectedBroadcastImage] = useState<string>('');
+  const [variableMappings, setVariableMappings] = useState<Record<string, { type: 'field' | 'static'; value: string }>>({});
+  const [customVariableValues, setCustomVariableValues] = useState<Record<string, string>>({});
+
+  // Sending status
+  const [sendingBroadcast, setSendingBroadcast] = useState(false);
+  const [broadcastResults, setBroadcastResults] = useState<Array<{ name: string; phone: string; status: 'sent' | 'failed'; error?: string }>>([]);
+
+  // Fresh Contact Form state
+  const [showAddFresh, setShowAddFresh] = useState(false);
+  const [freshName, setFreshName] = useState('');
+  const [freshPhone, setFreshPhone] = useState('');
+  const [freshClassification, setFreshClassification] = useState<'Buyer' | 'Agent'>('Buyer');
+  const [addingFresh, setAddingFresh] = useState(false);
+
+  // Currency Formatter
+  const formattedPrice = useMemo(() => {
+    if (!property) return '';
+    const amount = Number(property.price);
+    if (isNaN(amount) || amount <= 0) return '';
+    if (amount >= 10000000) {
+      const cr = amount / 10000000;
+      return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+    } else if (amount >= 100000) {
+      const lakhs = amount / 100000;
+      return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    }
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(amount);
+  }, [property]);
+
+  // Fetch all active contacts for matching
+  const fetchContacts = useCallback(async () => {
+    if (!accountId) return;
+    setLoadingContacts(true);
+    try {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('status', 'active')
+        .order('name');
+      if (error) throw error;
+      setContacts(data || []);
+    } catch (err) {
+      console.error('Failed to load contacts for sharing:', err);
+      toast.error('Failed to load contacts');
+    } finally {
+      setLoadingContacts(false);
+    }
+  }, [supabase, accountId]);
+
+  // Fetch approved Meta WhatsApp message templates
+  const fetchTemplates = useCallback(async () => {
+    setLoadingTemplates(true);
+    try {
+      const { data, error } = await supabase
+        .from('message_templates')
+        .select('*')
+        .in('status', ['APPROVED', 'Approved'])
+        .order('name');
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (err) {
+      console.error('Failed to load templates for share:', err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, [supabase]);
+
+  // Reset dialog states when closed/opened
+  useEffect(() => {
+    if (open && property) {
+      fetchContacts();
+      fetchTemplates();
+      setBroadcastStep('matches');
+      setSelectedContactIds([]);
+      setSelectedTemplate(null);
+      setVariableMappings({});
+      setCustomVariableValues({});
+      setBroadcastResults([]);
+      setShowAddFresh(false);
+      setFreshName('');
+      setFreshPhone('');
+      setFreshClassification('Buyer');
+    }
+  }, [open, property, fetchContacts, fetchTemplates]);
+
+  // Get matching contacts from list
+  const matchedContacts = useMemo(() => {
+    if (!property || contacts.length === 0) return [];
+    // Standard matched target pool
+    const targetContacts = contacts.filter((c) => c.classification === 'Buyer' || c.classification === 'Agent');
+    return getMatchingContacts(property, targetContacts);
+  }, [contacts, property]);
+
+  // Filter showing based on Show Agents toggle
+  const displayedMatches = useMemo(() => {
+    return matchedContacts.filter(({ contact: c }) => {
+      if (c.classification === 'Buyer') return true;
+      if (c.classification === 'Agent' && showAgentsInMatches) return true;
+      return false;
+    });
+  }, [matchedContacts, showAgentsInMatches]);
+
+  // Toggle single selection
+  function toggleContactSelection(id: string) {
+    setSelectedContactIds((prev) =>
+      prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id]
+    );
+  }
+
+  // Toggle select-all control
+  function toggleSelectAllContacts() {
+    const allIds = displayedMatches.map((m) => m.contact.id);
+    const allSelected = displayedMatches.every((m) => selectedContactIds.includes(m.contact.id));
+    if (allSelected) {
+      // Remove all displayed matches from selected ids
+      setSelectedContactIds((prev) => prev.filter((id) => !allIds.includes(id)));
+    } else {
+      // Add missing displayed matches to selected ids
+      setSelectedContactIds((prev) => [...new Set([...prev, ...allIds])]);
+    }
+  }
+
+  // Save fresh contact inline
+  async function handleAddFreshContact(e: React.FormEvent) {
+    e.preventDefault();
+    if (!freshPhone.trim()) {
+      toast.error('Phone number is required');
+      return;
+    }
+    if (!user || !accountId) {
+      toast.error('Auth account context missing');
+      return;
+    }
+
+    setAddingFresh(true);
+    try {
+      const normalizedPhone = normalizePhoneWithCountryCode(freshPhone.trim());
+      
+      const newContactRecord = {
+        name: freshName.trim() || null,
+        phone: normalizedPhone || freshPhone.trim(),
+        classification: freshClassification,
+        user_id: user.id,
+        account_id: accountId,
+        status: 'active' as const,
+      };
+
+      const { data, error } = await supabase
+        .from('contacts')
+        .insert(newContactRecord)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        toast.success(`Contact "${data.name || data.phone}" created successfully.`);
+        // Append to local state list
+        setContacts((prev) => [data, ...prev]);
+        // Automatically select the contact
+        setSelectedContactIds((prev) => [...prev, data.id]);
+        
+        // Reset form
+        setFreshName('');
+        setFreshPhone('');
+        setShowAddFresh(false);
+      }
+    } catch (err) {
+      console.error('Failed to create fresh contact:', err);
+      const msg = err instanceof Error ? err.message : 'Unknown database error';
+      toast.error(`Failed to create contact: ${msg}`);
+    } finally {
+      setAddingFresh(false);
+    }
+  }
+
+  // Parse template body text variables
+  const placeholders = useMemo(() => {
+    if (!selectedTemplate) return [];
+    const matches = selectedTemplate.body_text.match(/\{\{(\d+)\}\}/g);
+    if (!matches) return [];
+    return [...new Set(matches)].sort();
+  }, [selectedTemplate]);
+
+  // Synchronize broadcast image when template is selected
+  useEffect(() => {
+    if (property) {
+      const defaultImg = property.images?.find((img) => img.trim().length > 0) || '';
+      setSelectedBroadcastImage(defaultImg);
+    }
+  }, [selectedTemplate, property]);
+
+  // Pre-fill variable mappings heuristic based on template content text clues
+  useEffect(() => {
+    if (selectedTemplate && placeholders.length > 0 && property) {
+      const mappings: Record<string, { type: 'field' | 'static'; value: string }> = {};
+      const customVals: Record<string, string> = {};
+      const lines = selectedTemplate.body_text.split(/\\n|\r?\n/);
+
+      placeholders.forEach((placeholder, idx) => {
+        const key = placeholder.replace(/^\{\{|\}\}$/g, '');
+        
+        let guessedType: 'field' | 'static' = 'static';
+        let guessedValue = 'custom';
+        let resolved = false;
+
+        const matchingLine = lines.find((line) => line.includes(placeholder));
+        if (matchingLine) {
+          const lowerLine = matchingLine.toLowerCase();
+          if (lowerLine.includes('hi ') || lowerLine.includes('hello ') || lowerLine.includes('dear ')) {
+            guessedType = 'field';
+            guessedValue = 'name';
+            resolved = true;
+          } else if (lowerLine.includes('location') || lowerLine.includes('address') || lowerLine.includes('📍')) {
+            guessedType = 'static';
+            guessedValue = 'location';
+            resolved = true;
+          } else if (lowerLine.includes('price') || lowerLine.includes('budget') || lowerLine.includes('💰') || lowerLine.includes('₹') || lowerLine.includes('$')) {
+            guessedType = 'static';
+            guessedValue = 'price';
+            resolved = true;
+          } else if (lowerLine.includes('area') || lowerLine.includes('size') || lowerLine.includes('built') || lowerLine.includes('sq') || lowerLine.includes('📐')) {
+            guessedType = 'static';
+            guessedValue = 'area';
+            resolved = true;
+          } else if (lowerLine.includes('highlight') || lowerLine.includes('feature') || lowerLine.includes('amenit')) {
+            guessedType = 'static';
+            guessedValue = 'highlights';
+            resolved = true;
+          } else if (lowerLine.includes('regards') || lowerLine.includes('thanks') || lowerLine.includes('agent') || lowerLine.includes('sincerely')) {
+            guessedType = 'static';
+            guessedValue = 'agent';
+            resolved = true;
+          }
+        }
+
+        if (!resolved) {
+          const placeholderLineIdx = lines.findIndex((line) => line.includes(placeholder));
+          if (placeholderLineIdx > 0) {
+            const prevLine = lines[placeholderLineIdx - 1].toLowerCase();
+            if (prevLine.includes('highlight') || prevLine.includes('feature') || prevLine.includes('amenit')) {
+              guessedType = 'static';
+              guessedValue = 'highlights';
+              resolved = true;
+            } else if (prevLine.includes('regards') || prevLine.includes('thanks') || prevLine.includes('sincerely')) {
+              guessedType = 'static';
+              guessedValue = 'agent';
+              resolved = true;
+            }
+          }
+        }
+
+        if (!resolved) {
+          if (idx === 0) {
+            guessedType = 'field';
+            guessedValue = 'name';
+          } else if (idx === 1) {
+            guessedType = 'static';
+            guessedValue = 'title';
+          } else if (idx === 2) {
+            guessedType = 'static';
+            guessedValue = 'location';
+          } else if (idx === 3) {
+            guessedType = 'static';
+            guessedValue = 'price';
+          } else if (idx === 4) {
+            guessedType = 'static';
+            guessedValue = 'area';
+          } else {
+            guessedType = 'static';
+            guessedValue = 'custom';
+            customVals[key] = '';
+          }
+        }
+
+        mappings[key] = { type: guessedType, value: guessedValue };
+        if (guessedType === 'static' && guessedValue === 'custom') {
+          customVals[key] = '';
+        }
+      });
+      setVariableMappings(mappings);
+      setCustomVariableValues(customVals);
+    }
+  }, [selectedTemplate, placeholders, property]);
+
+  // Execute broadcast sharing request
+  async function handleSendBroadcast() {
+    if (!selectedTemplate || selectedContactIds.length === 0 || !property) return;
+    setSendingBroadcast(true);
+    setBroadcastStep('sending');
+
+    try {
+      const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
+      const fullLoc = [
+        property.location.trim(),
+        (property.sublocality || '').trim(),
+        (property.city || '').trim(),
+        (property.state || '').trim(),
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      const recipientsPayload = selectedContacts.map((contact) => {
+        const params: string[] = [];
+        placeholders.forEach((placeholder) => {
+          const key = placeholder.replace(/^\{\{|\}\}$/g, '');
+          const mapping = variableMappings[key];
+
+          let val = '';
+          if (mapping) {
+            if (mapping.type === 'field') {
+              if (mapping.value === 'name') val = contact.name || 'Customer';
+              else if (mapping.value === 'phone') val = contact.phone;
+              else if (mapping.value === 'email') val = contact.email || '';
+              else if (mapping.value === 'company') val = contact.company || '';
+            } else {
+              if (mapping.value === 'title') val = property.title || '';
+              else if (mapping.value === 'price') val = formattedPrice || '';
+              else if (mapping.value === 'location') val = property.sublocality || property.location || '';
+              else if (mapping.value === 'area') {
+                const isLand = property.type === 'Land / Plot';
+                const areaVal = isLand ? property.land_area : property.area_sqft;
+                const unitVal = isLand ? property.land_area_unit : property.area_unit;
+                val = areaVal ? `${areaVal} ${unitVal}` : '';
+              } else if (mapping.value === 'highlights') {
+                const parsedHighlights = (property.nearby_highlights || []).filter(Boolean);
+                if (parsedHighlights.length > 0) {
+                  val = parsedHighlights.map((h) => `• ${h}`).join(' | ');
+                } else {
+                  const parsedFeatures = (property.features || []).filter(Boolean);
+                  val = parsedFeatures.map((f) => `• ${f}`).join(' | ');
+                }
+              } else if (mapping.value === 'agent') {
+                val = profile?.full_name || '';
+              } else if (mapping.value === 'custom') {
+                val = customVariableValues[key] || '';
+              }
+            }
+          }
+          if (!val || !val.trim()) {
+            val = '-';
+          }
+          params.push(val);
+        });
+
+        const propertyImage = selectedBroadcastImage || property.images?.map((img) => img.trim()).find((img) => img.length > 0);
+        const hasImageHeader = selectedTemplate.header_type === 'image';
+
+        return {
+          phone: contact.phone,
+          params,
+          ...(hasImageHeader && propertyImage
+            ? {
+                messageParams: {
+                  headerMediaUrl: propertyImage,
+                },
+              }
+            : {}),
+        };
+      });
+
+      const response = await fetch('/api/whatsapp/broadcast', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipients: recipientsPayload,
+          template_name: selectedTemplate.name,
+          template_language: selectedTemplate.language || 'en_US',
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Broadcast request failed');
+      }
+
+      const resData = await response.json();
+
+      const resultsMap = selectedContacts.map((c) => {
+        const matchResult = resData.results?.find(
+          (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
+            r.phone === c.phone ||
+            r.phone.includes(c.phone) ||
+            c.phone.includes(r.phone)
+        );
+        return {
+          name: c.name || 'Unknown',
+          phone: c.phone,
+          status: (matchResult?.status || 'failed') as 'sent' | 'failed',
+          error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+        };
+      });
+
+      setBroadcastResults(resultsMap);
+      setBroadcastStep('results');
+      toast.success(`Dispatched WhatsApp messages successfully.`);
+      if (onSaved) onSaved();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || 'Failed to send broadcast');
+      setBroadcastStep('configure');
+    } finally {
+      setSendingBroadcast(false);
+    }
+  }
+
+  if (!property) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader className="border-b border-slate-800 pb-3 mb-2">
+          <DialogTitle className="text-white flex items-center gap-2 text-lg font-black tracking-tight">
+            <Share2 className="size-5 text-primary" />
+            Share Property Details
+          </DialogTitle>
+          <DialogDescription className="text-slate-400 text-xs">
+            Send WhatsApp details of &quot;<span className="text-white font-semibold">{property.title}</span>&quot; using verified message templates.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* STEP 1: Audience & Matches */}
+        {broadcastStep === 'matches' && (
+          <div className="space-y-4 flex flex-col flex-1 min-h-0">
+            {/* Action Bar / Matching Status */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="text-xs font-semibold text-slate-400">
+                  {loadingContacts ? (
+                    'Searching matching contacts...'
+                  ) : displayedMatches.length === 0 ? (
+                    '0 matching contacts found'
+                  ) : (
+                    `Found ${displayedMatches.length} matching contact${displayedMatches.length === 1 ? '' : 's'}`
+                  )}
+                </div>
+                {!loadingContacts && (
+                  <label className="inline-flex items-center gap-1.5 text-xs text-slate-450 cursor-pointer select-none bg-slate-900 border border-slate-800 px-2 py-0.5 rounded hover:text-white transition-all">
+                    <input
+                      type="checkbox"
+                      checked={showAgentsInMatches}
+                      onChange={(e) => {
+                        setShowAgentsInMatches(e.target.checked);
+                        if (!e.target.checked) {
+                          // Deselect any selected agents to keep select state consistent
+                          const agentIds = matchedContacts
+                            .filter(({ contact: c }) => c.classification === 'Agent')
+                            .map(({ contact: c }) => c.id);
+                          setSelectedContactIds((prev) => prev.filter((id) => !agentIds.includes(id)));
+                        }
+                      }}
+                      className="rounded border-slate-700 bg-slate-850 text-primary focus:ring-0 focus:ring-offset-0 h-3 w-3 cursor-pointer"
+                    />
+                    Show Agents
+                  </label>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                {displayedMatches.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={toggleSelectAllContacts}
+                    className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 cursor-pointer"
+                  >
+                    {displayedMatches.every((m) => selectedContactIds.includes(m.contact.id)) ? (
+                      <>
+                        <CheckSquare className="size-3.5" /> Deselect All
+                      </>
+                    ) : (
+                      <>
+                        <Square className="size-3.5" /> Select All ({displayedMatches.length})
+                      </>
+                    )}
+                  </button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setShowAddFresh(!showAddFresh)}
+                  className="h-7 border-slate-800 hover:bg-slate-800 text-slate-300 text-xs px-2.5 rounded flex items-center gap-1"
+                >
+                  {showAddFresh ? <X className="size-3" /> : <UserPlus className="size-3 text-primary" />}
+                  {showAddFresh ? 'Cancel' : 'Add Fresh Contact'}
+                </Button>
+              </div>
+            </div>
+
+            {/* Collapsible Add Fresh Contact Form */}
+            {showAddFresh && (
+              <form
+                onSubmit={handleAddFreshContact}
+                className="bg-slate-950/30 border border-slate-800/80 p-4 rounded-xl space-y-3 animation-fade-in"
+              >
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1">
+                  <UserPlus className="size-3.5 text-primary" /> Add New Contact Details
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="fresh-name" className="text-slate-400 text-[11px] font-semibold">
+                      Full Name
+                    </Label>
+                    <Input
+                      id="fresh-name"
+                      placeholder="e.g. John Doe"
+                      value={freshName}
+                      onChange={(e) => setFreshName(e.target.value)}
+                      className="bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-600 h-8.5 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="fresh-phone" className="text-slate-400 text-[11px] font-semibold">
+                      Phone Number *
+                    </Label>
+                    <Input
+                      id="fresh-phone"
+                      placeholder="e.g. 9876543210"
+                      value={freshPhone}
+                      onChange={(e) => setFreshPhone(e.target.value)}
+                      required
+                      className="bg-slate-900 border-slate-800 text-slate-200 placeholder:text-slate-600 h-8.5 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="fresh-classification" className="text-slate-400 text-[11px] font-semibold">
+                      Classification
+                    </Label>
+                    <select
+                      id="fresh-classification"
+                      value={freshClassification}
+                      onChange={(e) => setFreshClassification(e.target.value as 'Buyer' | 'Agent')}
+                      className="flex h-8.5 w-full rounded-md border border-slate-800 bg-slate-900 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+                    >
+                      <option value="Buyer">Buyer (Lead)</option>
+                      <option value="Agent">Agent (Collaborator)</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex justify-end pt-1">
+                  <Button
+                    type="submit"
+                    disabled={addingFresh}
+                    className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold text-xs h-8 px-4"
+                  >
+                    {addingFresh ? (
+                      <>
+                        <Loader2 className="size-3 animate-spin mr-1.5" /> Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="size-3 mr-1" /> Save & Select Contact
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {/* Matching Contacts List */}
+            <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+              {loadingContacts ? (
+                <div className="flex justify-center items-center py-16 text-slate-500 text-sm">
+                  <Loader2 className="size-6 animate-spin text-primary mr-2" />
+                  Scanning database & applying matching logic...
+                </div>
+              ) : displayedMatches.length === 0 ? (
+                <div className="text-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
+                  <Users className="size-8 mx-auto text-slate-600 mb-2" />
+                  <p className="text-sm text-slate-400 font-semibold">No matching profiles found</p>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    This inventory listing doesn&apos;t align with client budget or location preferences. You can add a fresh contact inline to share.
+                  </p>
+                </div>
+              ) : (
+                displayedMatches.map(({ contact: c, score, matchedFields }) => {
+                  const isSelected = selectedContactIds.includes(c.id);
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => toggleContactSelection(c.id)}
+                      className={`flex items-start gap-3.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-primary/5 border-primary/45 ring-1 ring-primary/10'
+                          : 'bg-slate-900/50 border-slate-800 hover:border-slate-750'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className={`shrink-0 mt-0.5 ${isSelected ? 'text-primary' : 'text-slate-650'}`}
+                      >
+                        {isSelected ? <CheckSquare className="size-4" /> : <Square className="size-4" />}
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h4 className="text-xs font-bold text-white truncate">{c.name || 'Unnamed'}</h4>
+                            <span
+                              className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${
+                                c.classification === 'Buyer'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                              }`}
+                            >
+                              {c.classification}
+                            </span>
+                          </div>
+                          <Badge
+                            className={`rounded px-1.5 py-0.5 text-[9px] font-bold shrink-0 ${
+                              score >= 70
+                                ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                : score >= 30
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            {score}% Match
+                          </Badge>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.phone}</p>
+
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {matchedFields.budget && (
+                            <Badge className="bg-emerald-550/5 text-emerald-450 border border-emerald-500/10 text-[8px] px-1.5 py-0 font-medium">
+                              Budget matched
+                            </Badge>
+                          )}
+                          {matchedFields.area && (
+                            <Badge className="bg-sky-550/5 text-sky-450 border border-sky-500/10 text-[8px] px-1.5 py-0 font-medium">
+                              Location matched
+                            </Badge>
+                          )}
+                          {matchedFields.interest && (
+                            <Badge className="bg-indigo-550/5 text-indigo-400 border border-indigo-500/10 text-[8px] px-1.5 py-0 font-medium">
+                              Preferences matched
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="border-t border-slate-800 pt-3.5 flex justify-between items-center mt-auto">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                className="border-slate-800 hover:bg-slate-850 text-xs text-slate-300 h-9"
+              >
+                Close
+              </Button>
+              <Button
+                type="button"
+                disabled={selectedContactIds.length === 0}
+                onClick={() => setBroadcastStep('configure')}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs h-9 flex items-center gap-1.5"
+              >
+                <Send className="size-3.5" />
+                Configure Sharing ({selectedContactIds.length})
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: Configure Broadcast Message */}
+        {broadcastStep === 'configure' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-800 pb-2.5 mb-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setBroadcastStep('matches')}
+                className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+              >
+                <ArrowLeft className="size-4" />
+              </Button>
+              <div className="text-sm font-semibold text-white">Configure Broadcast Parameters</div>
+            </div>
+
+            {/* Template select */}
+            <div className="space-y-1.5">
+              <Label htmlFor="broadcast-template" className="text-slate-300 text-xs">
+                WhatsApp Message Template
+              </Label>
+              {loadingTemplates ? (
+                <div className="flex items-center text-xs text-slate-500 gap-1.5 py-1">
+                  <Loader2 className="size-3.5 animate-spin text-primary" /> Loading template structures...
+                </div>
+              ) : (
+                <select
+                  id="broadcast-template"
+                  value={selectedTemplate?.id || ''}
+                  onChange={(e) => {
+                    const t = templates.find((tpl) => tpl.id === e.target.value);
+                    setSelectedTemplate(t || null);
+                  }}
+                  className="flex h-9.5 w-full rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+                >
+                  <option value="">Select template type...</option>
+                  {templates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.language || 'en_US'})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Header image selector */}
+            {selectedTemplate?.header_type === 'image' && (
+              <div className="space-y-1.5 border border-slate-800 p-3 rounded-xl bg-slate-950/20">
+                <Label className="text-slate-400 font-semibold text-[10px] uppercase tracking-wider block mb-1">
+                  Select Broadcast Header Image
+                </Label>
+                <div className="flex gap-2 items-center overflow-x-auto py-1 max-w-full">
+                  {property.images
+                    ?.filter((img) => img.trim().length > 0)
+                    .map((imgUrl, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => setSelectedBroadcastImage(imgUrl)}
+                        className={`relative size-14 rounded-lg overflow-hidden border-2 cursor-pointer shrink-0 transition-all ${
+                          selectedBroadcastImage === imgUrl
+                            ? 'border-primary ring-2 ring-primary/20 scale-95'
+                            : 'border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={`Option ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                        {idx === 0 && (
+                          <span className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-[7px] text-amber-400 font-bold text-center py-0.2">
+                            Default
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {selectedTemplate && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border border-slate-800 p-4 rounded-xl bg-slate-950/15">
+                {/* Variable Mappings */}
+                <div className="space-y-3">
+                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Dynamic Variable Parameters
+                  </h5>
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    {placeholders.map((placeholder) => {
+                      const key = placeholder.replace(/^\{\{|\}\}$/g, '');
+                      const mapping = variableMappings[key] || { type: 'static', value: 'custom' };
+                      return (
+                        <div
+                          key={key}
+                          className="space-y-1.5 border border-slate-800/40 p-2.5 rounded-lg bg-slate-900/40"
+                        >
+                          <Label className="text-[10px] text-slate-300 font-bold flex items-center justify-between">
+                            <span>Variable {placeholder}</span>
+                          </Label>
+                          <div className="flex gap-2">
+                            <select
+                              value={mapping.type === 'field' ? mapping.value : `static-${mapping.value}`}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setVariableMappings((prev) => {
+                                  const copy = { ...prev };
+                                  if (val.startsWith('static-')) {
+                                    copy[key] = { type: 'static', value: val.replace('static-', '') };
+                                  } else {
+                                    copy[key] = { type: 'field', value: val };
+                                  }
+                                  return copy;
+                                });
+                              }}
+                              className="flex-1 h-8 rounded border border-slate-700 bg-slate-800 px-2 text-xs text-white"
+                            >
+                              <optgroup label="Contact Fields">
+                                <option value="name">Contact Name</option>
+                                <option value="phone">Contact Phone</option>
+                                <option value="email">Contact Email</option>
+                                <option value="company">Contact Company</option>
+                              </optgroup>
+                              <optgroup label="Property Fields">
+                                <option value="static-title">Property Title</option>
+                                <option value="static-price">Price (Formatted)</option>
+                                <option value="static-location">Location / Area</option>
+                                <option value="static-area">Property Area / Size</option>
+                                <option value="static-highlights">Highlights / Amenities</option>
+                                <option value="static-agent">Agent Name</option>
+                              </optgroup>
+                              <optgroup label="Custom Static Value">
+                                <option value="static-custom">Custom Text...</option>
+                              </optgroup>
+                            </select>
+                          </div>
+                          {mapping.type === 'static' && mapping.value === 'custom' && (
+                            <Input
+                              value={customVariableValues[key] || ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setCustomVariableValues((prev) => ({ ...prev, [key]: v }));
+                              }}
+                              placeholder="Enter text..."
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-650 h-8 text-xs mt-1"
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Smartphone Preview Box */}
+                <div className="space-y-2 flex flex-col h-full">
+                  <h5 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                    <Smartphone className="size-3.5 text-primary" /> Live Template Preview
+                  </h5>
+
+                  <div className="flex-1 bg-slate-950 border border-slate-850 p-4 rounded-xl text-xs flex flex-col font-sans relative min-h-[220px] justify-between">
+                    <div className="whitespace-pre-wrap text-slate-350 leading-relaxed">
+                      {(() => {
+                        let body = selectedTemplate.body_text.replace(/\\n/g, '\n');
+                        placeholders.forEach((placeholder) => {
+                          const key = placeholder.replace(/^\{\{|\}\}$/g, '');
+                          const mapping = variableMappings[key];
+                          let val = placeholder;
+                          if (mapping) {
+                            if (mapping.type === 'field') {
+                              if (mapping.value === 'name') val = `[Recipient Name]`;
+                              else if (mapping.value === 'phone') val = `[Recipient Phone]`;
+                              else if (mapping.value === 'email') val = `[Recipient Email]`;
+                              else if (mapping.value === 'company') val = `[Recipient Company]`;
+                            } else {
+                              if (mapping.value === 'title') val = property.title || `[Title]`;
+                              else if (mapping.value === 'price') val = formattedPrice || `[Price]`;
+                              else if (mapping.value === 'location') val = property.sublocality || property.location || `[Location]`;
+                              else if (mapping.value === 'area') {
+                                const isLand = property.type === 'Land / Plot';
+                                const areaVal = isLand ? property.land_area : property.area_sqft;
+                                const unitVal = isLand ? property.land_area_unit : property.area_unit;
+                                val = areaVal ? `${areaVal} ${unitVal}` : `[Area]`;
+                              } else if (mapping.value === 'highlights') {
+                                const parsedHighlights = (property.nearby_highlights || []).filter(Boolean);
+                                if (parsedHighlights.length > 0) {
+                                  val = parsedHighlights.map((h) => `• ${h}`).join(' | ');
+                                } else {
+                                  const parsedFeatures = (property.features || []).filter(Boolean);
+                                  val = parsedFeatures.length > 0 ? parsedFeatures.map((f) => `• ${f}`).join(' | ') : `[Highlights]`;
+                                }
+                              } else if (mapping.value === 'agent') {
+                                val = profile?.full_name || `[Agent Name]`;
+                              } else if (mapping.value === 'custom') {
+                                val = customVariableValues[key] || `[Custom]`;
+                              }
+                            }
+                          }
+                          body = body.replace(placeholder, val);
+                        });
+                        return body;
+                      })()}
+                    </div>
+                    <div className="text-[9px] text-slate-600 mt-4 border-t border-slate-800/80 pt-2 flex items-center justify-between">
+                      <span>Live view placeholders.</span>
+                      <span className="font-semibold">{selectedTemplate.language || 'en_US'}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Configure controls */}
+            <div className="border-t border-slate-800 pt-3.5 flex justify-between items-center mt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setBroadcastStep('matches')}
+                className="border-slate-800 hover:bg-slate-850 text-xs h-9"
+              >
+                Back to List
+              </Button>
+              <Button
+                type="button"
+                disabled={sendingBroadcast || !selectedTemplate}
+                onClick={handleSendBroadcast}
+                className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold text-xs h-9 flex items-center gap-1.5"
+              >
+                {sendingBroadcast ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin mr-1" /> Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="size-3.5" />
+                    Share Property ({selectedContactIds.length})
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: Sending State */}
+        {broadcastStep === 'sending' && (
+          <div className="flex flex-col items-center justify-center py-16 space-y-4">
+            <Loader2 className="size-10 animate-spin text-primary" />
+            <div className="text-center">
+              <h4 className="text-sm font-semibold text-white">Sending WhatsApp Broadcast</h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Dispatching template packets to {selectedContactIds.length} recipients. Do not exit the modal.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 4: Results Log View */}
+        {broadcastStep === 'results' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-2">
+              <h4 className="text-sm font-semibold text-white">Broadcast Transmission Log</h4>
+              <Badge className="bg-emerald-500/10 text-emerald-450 border border-emerald-500/20 text-xs font-semibold">
+                Completed
+              </Badge>
+            </div>
+
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              {broadcastResults.map((res, idx) => (
+                <div
+                  key={idx}
+                  className="flex justify-between items-center p-3 rounded-lg bg-slate-900 border border-slate-800/80"
+                >
+                  <div>
+                    <div className="text-xs font-bold text-white">{res.name}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{res.phone}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {res.status === 'sent' ? (
+                      <Badge className="bg-green-500/10 text-green-400 border border-green-500/20 text-[10px] font-bold">
+                        Success
+                      </Badge>
+                    ) : (
+                      <div className="flex flex-col items-end">
+                        <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[10px] font-bold">
+                          Failed
+                        </Badge>
+                        {res.error && <span className="text-[9px] text-red-450 mt-0.5">{res.error}</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-850 pt-3.5 flex justify-end">
+              <Button
+                type="button"
+                onClick={() => {
+                  setBroadcastStep('matches');
+                  setSelectedContactIds([]);
+                  onOpenChange(false);
+                }}
+                className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold text-xs h-9 px-5"
+              >
+                Done
+              </Button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -28,6 +28,7 @@ import {
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
+import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
@@ -51,6 +52,8 @@ export default function InventoryPage() {
   const [deleting, setDeleting] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
   const [flyerProperty, setFlyerProperty] = useState<Property | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareProperty, setShareProperty] = useState<Property | null>(null);
 
   const fetchProperties = useCallback(async () => {
     setLoading(true);
@@ -89,6 +92,12 @@ export default function InventoryPage() {
   function handleFlyerClick(property: Property) {
     setFlyerProperty(property);
     setFlyerOpen(true);
+  }
+
+  // Handle share click
+  function handleShareClick(property: Property) {
+    setShareProperty(property);
+    setShareOpen(true);
   }
 
   // Handle delete confirmation click
@@ -330,6 +339,7 @@ export default function InventoryPage() {
         onTogglePublish={handleTogglePublish}
         canEdit={canEdit}
         onFlyer={handleFlyerClick}
+        onShare={handleShareClick}
       />
 
       {/* Add / Edit Form Modal */}
@@ -345,6 +355,14 @@ export default function InventoryPage() {
         open={flyerOpen}
         onOpenChange={setFlyerOpen}
         property={flyerProperty}
+        onSaved={fetchProperties}
+      />
+
+      {/* Share Property Dialog */}
+      <PropertyShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        property={shareProperty}
         onSaved={fetchProperties}
       />
 
