@@ -324,6 +324,9 @@ export interface Deal {
   contact?: Contact;
   stage?: PipelineStage;
   assignee?: Profile;
+  brokerage_type?: 'percentage' | 'fixed' | null;
+  brokerage_value?: number | null;
+  brokerage_amount?: number | null;
 }
 
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';

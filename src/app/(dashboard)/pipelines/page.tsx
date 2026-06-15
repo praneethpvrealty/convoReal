@@ -90,6 +90,12 @@ export default function PipelinesPage() {
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
 
+  // Brokerage prompt on drag/move state
+  const [brokeragePromptDeal, setBrokeragePromptDeal] = useState<Deal | null>(null);
+  const [pendingStageId, setPendingStageId] = useState<string>("");
+  const [modalBrokerageType, setModalBrokerageType] = useState<"percentage" | "fixed">("percentage");
+  const [modalBrokerageValue, setModalBrokerageValue] = useState("");
+
   // Guard against double-seeding (React StrictMode double-effect in dev).
   const seedAttempted = useRef(false);
 
@@ -230,6 +236,19 @@ export default function PipelinesPage() {
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
+      const deal = deals.find((d) => d.id === dealId);
+      const targetStage = stages.find((s) => s.id === newStageId);
+      const isNegotiationOrLater = targetStage && ["Negotiation/Token", "Due Diligence/Contract", "Closed Won"].includes(targetStage.name);
+
+      if (isNegotiationOrLater && deal && deal.brokerage_amount === null) {
+        // Pause and trigger modal
+        setBrokeragePromptDeal(deal);
+        setPendingStageId(newStageId);
+        setModalBrokerageType("percentage");
+        setModalBrokerageValue("");
+        return;
+      }
+
       // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
@@ -248,9 +267,7 @@ export default function PipelinesPage() {
 
       // Automated Status Transition for Real Estate Properties
       try {
-        const deal = deals.find((d) => d.id === dealId);
         if (deal && deal.property_id) {
-          const targetStage = stages.find((s) => s.id === newStageId);
           if (targetStage) {
             let nextStatus = "Available";
             if (targetStage.name === "Negotiation/Token") {
@@ -275,6 +292,140 @@ export default function PipelinesPage() {
     },
     [supabase, refreshDeals, deals, stages],
   );
+
+  async function handleModalBrokerageSave() {
+    if (!brokeragePromptDeal || !pendingStageId) return;
+
+    const dealId = brokeragePromptDeal.id;
+    const dealValue = brokeragePromptDeal.value || 0;
+    const brokVal = parseFloat(modalBrokerageValue) || 0;
+    const brokerageAmt = modalBrokerageType === "percentage"
+      ? (dealValue * brokVal) / 100
+      : brokVal;
+
+    // Optimistically update
+    setDeals((prev) =>
+      prev.map((d) =>
+        d.id === dealId
+          ? {
+              ...d,
+              stage_id: pendingStageId,
+              brokerage_type: modalBrokerageType,
+              brokerage_value: brokVal,
+              brokerage_amount: brokerageAmt,
+            }
+          : d
+      )
+    );
+
+    const { error } = await supabase
+      .from("deals")
+      .update({
+        stage_id: pendingStageId,
+        brokerage_type: modalBrokerageType,
+        brokerage_value: brokVal,
+        brokerage_amount: brokerageAmt,
+      })
+      .eq("id", dealId);
+
+    if (error) {
+      toast.error("Failed to move deal");
+      refreshDeals();
+      setBrokeragePromptDeal(null);
+      setPendingStageId("");
+      return;
+    }
+
+    // Sync property status based on new stage
+    try {
+      if (brokeragePromptDeal.property_id) {
+        const targetStage = stages.find((s) => s.id === pendingStageId);
+        if (targetStage) {
+          let nextStatus = "Available";
+          if (targetStage.name === "Negotiation/Token") {
+            nextStatus = "Under Contract";
+          } else if (targetStage.name === "Closed Won") {
+            nextStatus = "Sold";
+          }
+
+          const { error: propErr } = await supabase
+            .from("properties")
+            .update({ status: nextStatus })
+            .eq("id", brokeragePromptDeal.property_id);
+          
+          if (propErr) {
+            console.error("Failed to sync property status:", propErr.message);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Unexpected error in property status transition:", err);
+    }
+
+    toast.success("Deal moved and brokerage updated");
+    setBrokeragePromptDeal(null);
+    setPendingStageId("");
+    refreshDeals();
+  }
+
+  function handleModalBrokerageCancel() {
+    setBrokeragePromptDeal(null);
+    setPendingStageId("");
+    refreshDeals(); // Forces board to snap back
+  }
+
+  function formatCalculatedModalBrokerage() {
+    if (!brokeragePromptDeal) return "";
+    const val = brokeragePromptDeal.value || 0;
+    const brokVal = parseFloat(modalBrokerageValue) || 0;
+    const amt = modalBrokerageType === "percentage" ? (val * brokVal) / 100 : brokVal;
+    
+    if (currency === "INR") {
+      if (amt >= 10000000) {
+        const cr = amt / 10000000;
+        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Crore`;
+      }
+      if (amt >= 100000) {
+        const lakhs = amt / 100000;
+        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      }
+      return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+      }).format(amt);
+    }
+    const symbols: Record<string, string> = {
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      AED: 'د.إ',
+    };
+    const sym = symbols[currency] || '';
+    return `${sym}${amt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  }
+
+  function formatModalDealValue(val: number) {
+    if (currency === "INR") {
+      if (val >= 10000000) {
+        const cr = val / 10000000;
+        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+      }
+      if (val >= 100000) {
+        const lakhs = val / 100000;
+        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      }
+      return `₹${val.toLocaleString('en-IN')}`;
+    }
+    const symbols: Record<string, string> = {
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      AED: 'د.إ',
+    };
+    const sym = symbols[currency] || '';
+    return `${sym}${val.toLocaleString()}`;
+  }
 
   const handleAddDeal = useCallback(
     (stageId?: string) => {
@@ -513,6 +664,78 @@ export default function PipelinesPage() {
           }}
         />
       )}
+
+      {/* Brokerage Prompt Dialog */}
+      <Dialog open={!!brokeragePromptDeal} onOpenChange={(open) => !open && handleModalBrokerageCancel()}>
+        <DialogContent className="sm:max-w-md bg-slate-900 border-slate-700 text-slate-200">
+          <DialogHeader>
+            <DialogTitle className="text-white">Enter Brokerage Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-3">
+            <p className="text-xs text-slate-400">
+              This deal is entering <span className="font-semibold text-primary">Negotiation/Token</span> or a later transaction-closing stage. Please specify the brokerage rate or amount.
+            </p>
+            {brokeragePromptDeal && (
+              <div className="text-xs bg-slate-950/40 border border-slate-800 rounded-lg p-3 space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-450">Deal:</span>
+                  <span className="font-semibold text-slate-300">{brokeragePromptDeal.title}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-450">Value:</span>
+                  <span className="font-bold text-primary">{formatModalDealValue(brokeragePromptDeal.value)}</span>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label className="text-slate-300">Brokerage Type</Label>
+                <select
+                  value={modalBrokerageType}
+                  onChange={(e) => setModalBrokerageType(e.target.value as "percentage" | "fixed")}
+                  className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary font-medium"
+                >
+                  <option value="percentage">Percentage (%)</option>
+                  <option value="fixed">Fixed Value</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-slate-300">
+                  {modalBrokerageType === "percentage" ? "Brokerage (%)" : "Brokerage Amount"}
+                </Label>
+                <Input
+                  type="number"
+                  value={modalBrokerageValue}
+                  onChange={(e) => setModalBrokerageValue(e.target.value)}
+                  placeholder={modalBrokerageType === "percentage" ? "2" : "0"}
+                  className="border-slate-700 bg-slate-800 text-white"
+                />
+              </div>
+            </div>
+            {modalBrokerageValue && !isNaN(Number(modalBrokerageValue)) && Number(modalBrokerageValue) > 0 && (
+              <p className="text-[11px] text-primary font-semibold mt-1">
+                Calculated Brokerage: {formatCalculatedModalBrokerage()}
+              </p>
+            )}
+          </div>
+          <DialogFooter className="bg-slate-900/50 border-slate-700">
+            <Button
+              variant="outline"
+              onClick={handleModalBrokerageCancel}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleModalBrokerageSave}
+              disabled={!modalBrokerageValue || isNaN(Number(modalBrokerageValue)) || Number(modalBrokerageValue) <= 0}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              Save & Move Deal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Deal Form (Sheet) */}
       <DealForm

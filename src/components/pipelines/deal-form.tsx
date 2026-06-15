@@ -64,6 +64,8 @@ export function DealForm({
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
   const [propertyId, setPropertyId] = useState("");
+  const [brokerageType, setBrokerageType] = useState<"percentage" | "fixed">("percentage");
+  const [brokerageValue, setBrokerageValue] = useState("");
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -95,6 +97,8 @@ export function DealForm({
       setExpectedCloseDate(deal.expected_close_date ?? "");
       setNotes(deal.notes ?? "");
       setPropertyId(deal.property_id ?? "");
+      setBrokerageType(deal.brokerage_type || "percentage");
+      setBrokerageValue(deal.brokerage_value ? String(deal.brokerage_value) : "");
     } else {
       setTitle("");
       setValue("");
@@ -120,6 +124,8 @@ export function DealForm({
       setExpectedCloseDate("");
       setNotes("");
       setPropertyId("");
+      setBrokerageType("percentage");
+      setBrokerageValue("");
     }
   }, [open, deal, defaultStageId, stages, accountId, supabase]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -177,9 +183,18 @@ export function DealForm({
     }
     setSaving(true);
 
+    const selectedStage = stages.find((s) => s.id === stageId);
+    const isNegotiationOrLater = selectedStage && ["Negotiation/Token", "Due Diligence/Contract", "Closed Won"].includes(selectedStage.name);
+
+    const dealValue = parseFloat(value) || 0;
+    const brokValue = isNegotiationOrLater ? (parseFloat(brokerageValue) || 0) : null;
+    const brokerageAmt = isNegotiationOrLater
+      ? (brokerageType === "percentage" ? (dealValue * (brokValue || 0)) / 100 : (brokValue || 0))
+      : null;
+
     const payload = {
       title: title.trim(),
-      value: parseFloat(value) || 0,
+      value: dealValue,
       currency,
       contact_id: contactId,
       pipeline_id: pipelineId,
@@ -188,6 +203,9 @@ export function DealForm({
       notes: notes.trim() || null,
       expected_close_date: expectedCloseDate || null,
       property_id: propertyId || null,
+      brokerage_type: isNegotiationOrLater ? brokerageType : null,
+      brokerage_value: brokValue,
+      brokerage_amount: brokerageAmt,
     };
 
     if (deal) {
@@ -294,6 +312,65 @@ export function DealForm({
     onSaved();
   }
 
+  function getEquivalentPriceLabel(priceStr: string, activeCurrency: string = "INR") {
+    const priceNum = Number(priceStr);
+    if (!priceStr || isNaN(priceNum) || priceNum <= 0) return '';
+    
+    if (activeCurrency === 'INR') {
+      if (priceNum >= 10000000) {
+        const cr = priceNum / 10000000;
+        return `Equivalent to: ₹${cr.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Crore`;
+      }
+      if (priceNum >= 100000) {
+        const lakhs = priceNum / 100000;
+        return `Equivalent to: ₹${lakhs.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Lakhs`;
+      }
+      return `Equivalent to: ₹${priceNum.toLocaleString('en-IN')}`;
+    }
+
+    const symbols: Record<string, string> = {
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      AED: 'د.إ',
+    };
+    const sym = symbols[activeCurrency] || '';
+    return `Equivalent to: ${sym}${priceNum.toLocaleString()}`;
+  }
+
+  function formatCalculatedBrokerage() {
+    const val = parseFloat(value) || 0;
+    const brokVal = parseFloat(brokerageValue) || 0;
+    const amt = brokerageType === "percentage" ? (val * brokVal) / 100 : brokVal;
+    
+    if (currency === "INR") {
+      if (amt >= 10000000) {
+        const cr = amt / 10000000;
+        return `₹${cr.toFixed(2).replace(/\.00$/, '')} Crore`;
+      }
+      if (amt >= 100000) {
+        const lakhs = amt / 100000;
+        return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      }
+      return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+      }).format(amt);
+    }
+    const symbols: Record<string, string> = {
+      USD: '$',
+      EUR: '€',
+      GBP: '£',
+      AED: 'د.إ',
+    };
+    const sym = symbols[currency] || '';
+    return `${sym}${amt.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  }
+
+  const selectedStage = stages.find((s) => s.id === stageId);
+  const isNegotiationOrLater = selectedStage && ["Negotiation/Token", "Due Diligence/Contract", "Closed Won"].includes(selectedStage.name);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -373,6 +450,11 @@ export function DealForm({
                     className="border-slate-700 bg-slate-800 pl-7 text-white"
                   />
                 </div>
+                {value && !isNaN(Number(value)) && Number(value) > 0 && (
+                  <p className="text-[11px] text-primary font-semibold mt-1">
+                    {getEquivalentPriceLabel(value, currency)}
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label className="text-slate-300">Currency</Label>
@@ -414,6 +496,41 @@ export function DealForm({
                 ))}
               </select>
             </div>
+
+            {isNegotiationOrLater && (
+              <div className="grid grid-cols-2 gap-3 border border-slate-800 rounded-lg p-3 bg-slate-950/40">
+                <div className="grid gap-2">
+                  <Label className="text-slate-300">Brokerage Type</Label>
+                  <select
+                    value={brokerageType}
+                    onChange={(e) => setBrokerageType(e.target.value as "percentage" | "fixed")}
+                    className="h-9 w-full rounded-lg border border-slate-700 bg-slate-800 px-2.5 text-sm text-white outline-none focus:border-primary font-medium"
+                  >
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed Value</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-slate-300 font-medium">
+                    {brokerageType === "percentage" ? "Brokerage (%)" : "Brokerage Amount"}
+                  </Label>
+                  <Input
+                    type="number"
+                    value={brokerageValue}
+                    onChange={(e) => setBrokerageValue(e.target.value)}
+                    placeholder={brokerageType === "percentage" ? "2" : "0"}
+                    className="border-slate-700 bg-slate-800 text-white"
+                  />
+                </div>
+                {brokerageValue && !isNaN(Number(brokerageValue)) && Number(brokerageValue) > 0 && (
+                  <div className="col-span-2 mt-1">
+                    <p className="text-[11px] text-primary font-semibold">
+                      Calculated Brokerage: {formatCalculatedBrokerage()}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-2">
               <Label className="text-slate-300">Assigned To</Label>
