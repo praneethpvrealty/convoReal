@@ -102,6 +102,28 @@ export default function InventoryPage() {
     fetchProperties();
   }, [fetchProperties]);
 
+  // Keep active modal property states in sync with the fetched properties list
+  useEffect(() => {
+    if (selectedProperty) {
+      const updated = properties.find((p) => p.id === selectedProperty.id);
+      if (updated && updated !== selectedProperty) {
+        setSelectedProperty(updated);
+      }
+    }
+    if (flyerProperty) {
+      const updated = properties.find((p) => p.id === flyerProperty.id);
+      if (updated && updated !== flyerProperty) {
+        setFlyerProperty(updated);
+      }
+    }
+    if (shareProperty) {
+      const updated = properties.find((p) => p.id === shareProperty.id);
+      if (updated && updated !== shareProperty) {
+        setShareProperty(updated);
+      }
+    }
+  }, [properties, selectedProperty, flyerProperty, shareProperty]);
+
   // Handle edit click
   function handleEditClick(property: Property) {
     setSelectedProperty(property);

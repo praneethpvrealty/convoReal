@@ -65,8 +65,11 @@ export function FlyerCreatorDialog({
   const [currency, setCurrency] = useState('INR');
 
   // Prefill defaults on open
+  const lastPropertyIdRef = useRef<string | null>(null);
+  const lastOpenRef = useRef<boolean>(false);
+
   useEffect(() => {
-    if (open && property) {
+    if (open && property && (open !== lastOpenRef.current || property.id !== lastPropertyIdRef.current)) {
       const hasOriginal = property.images && property.images.length > 0;
       setImageSource(hasOriginal ? 'original' : 'ai');
       
@@ -95,6 +98,8 @@ export function FlyerCreatorDialog({
           });
       }
     }
+    lastOpenRef.current = open;
+    lastPropertyIdRef.current = property?.id || null;
   }, [open, property, user, accountId]);
 
   // Generate image using Imagen 4 model
@@ -606,6 +611,7 @@ export function FlyerCreatorDialog({
 
       if (!silent) {
         toast.success('Flyer saved successfully as the default property photo!');
+        setImageSource('original');
       } else {
         console.log('[FlyerCreatorDialog] Flyer auto-saved to property images');
       }

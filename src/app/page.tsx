@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { ShowcaseView } from '@/components/showcase/showcase-view';
+import type { Property } from '@/types';
 
 export const metadata: Metadata = {
   title: 'Aryavarta Ventures — Premium Real Estate & Land Listings',
@@ -28,8 +29,26 @@ export default async function RootPage({ searchParams }: PageProps) {
   const ref = resolvedParams.ref || resolvedParams.account_id || resolvedParams.agent_id;
   const initialPropertyId = resolvedParams.property_id;
 
+  // 1. If property_id is specified in the URL, try resolving its account_id first
+  let targetProperty: Property | null = null;
+  if (initialPropertyId) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(initialPropertyId);
+    let propQuery = admin.from('properties').select('*');
+    if (isUuid) {
+      propQuery = propQuery.eq('id', initialPropertyId);
+    } else {
+      propQuery = propQuery.eq('property_code', initialPropertyId.toUpperCase());
+    }
+    const { data: propData } = await propQuery.maybeSingle();
+    if (propData) {
+      targetProperty = propData;
+      accountId = propData.account_id;
+    }
+  }
+
+  // 2. Resolve parameters if ref is present
   if (ref) {
-    // 1. Check if ref matches an account
+    // Check if ref matches an account
     const { data: accountByRef } = await admin
       .from('accounts')
       .select('id')
@@ -37,9 +56,11 @@ export default async function RootPage({ searchParams }: PageProps) {
       .maybeSingle();
 
     if (accountByRef) {
-      accountId = accountByRef.id;
+      if (!accountId) {
+        accountId = accountByRef.id;
+      }
     } else {
-      // 2. Check if ref matches a contact (agent / seller / owner)
+      // Check if ref matches a contact (agent / seller / owner)
       const { data: contactByRef } = await admin
         .from('contacts')
         .select('account_id, id')
@@ -47,10 +68,14 @@ export default async function RootPage({ searchParams }: PageProps) {
         .maybeSingle();
 
       if (contactByRef) {
-        accountId = contactByRef.account_id;
-        filterContactId = contactByRef.id;
+        if (!accountId) {
+          accountId = contactByRef.account_id;
+        }
+        if (accountId === contactByRef.account_id) {
+          filterContactId = contactByRef.id;
+        }
       } else {
-        // 3. Check if ref matches a profile (agent user)
+        // Check if ref matches a profile (agent user)
         const { data: profileByRef } = await admin
           .from('profiles')
           .select('account_id, user_id')
@@ -58,8 +83,12 @@ export default async function RootPage({ searchParams }: PageProps) {
           .maybeSingle();
 
         if (profileByRef) {
-          accountId = profileByRef.account_id;
-          filterUserId = profileByRef.user_id;
+          if (!accountId) {
+            accountId = profileByRef.account_id;
+          }
+          if (accountId === profileByRef.account_id) {
+            filterUserId = profileByRef.user_id;
+          }
         }
       }
     }
@@ -151,12 +180,21 @@ export default async function RootPage({ searchParams }: PageProps) {
     query = query.eq('user_id', filterUserId);
   }
 
-  const { data: properties } = await query.order('created_at', { ascending: false });
+  const { data: publishedProperties } = await query.order('created_at', { ascending: false });
 
-  // 5. Render
+  // 5. Merge the targeted property if it's not in the published list so direct links work
+  const propertiesList = publishedProperties ? [...publishedProperties] : [];
+  if (targetProperty) {
+    const exists = propertiesList.some((p) => p.id === targetProperty!.id);
+    if (!exists) {
+      propertiesList.unshift(targetProperty);
+    }
+  }
+
+  // 6. Render
   return (
     <ShowcaseView
-      properties={properties || []}
+      properties={propertiesList}
       settings={settings}
       accountId={accountId}
       referrerContactId={filterContactId || undefined}
