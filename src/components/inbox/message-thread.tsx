@@ -198,7 +198,8 @@ export function MessageThread({
 
   // 24-hour session timer
   const sessionInfo = useMemo(() => {
-    if (!messages.length) return { expired: false, remaining: "" };
+    if (loading) return { expired: false, remaining: "Loading..." };
+    if (!messages.length) return { expired: true, remaining: "No customer messages" };
 
     // Find last customer message
     const lastCustomerMsg = [...messages]
@@ -221,7 +222,7 @@ export function MessageThread({
         : `${Math.floor(hoursLeft * 60)}m remaining`;
 
     return { expired, remaining };
-  }, [messages]);
+  }, [messages, loading]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
