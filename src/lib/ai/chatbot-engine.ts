@@ -14,6 +14,7 @@ import {
 } from '@/lib/whatsapp/meta-api';
 
 // Lazy initialize supabase admin client
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _adminClient: any = null;
 function supabaseAdmin() {
   if (!_adminClient) {
@@ -137,15 +138,13 @@ function validateDraft(draft: ParsedPropertyDraft): {
 export async function processOwnerChatbotMessage(
   message: { id: string; type: string; image?: { id: string; mime_type: string } },
   contentText: string | null,
-  contactRecord: { id: string; name?: string },
+  contactRecord: { id: string; phone: string; name?: string },
   conversation: { id: string; unread_count: number },
   accountId: string,
   userId: string,
   accessToken: string,
   phoneNumberId: string
 ): Promise<boolean> {
-  const senderPhone = contactRecord.name || ''; // we fallback to check raw session from contactRecord.id
-  
   // 1. Fetch active session for this contact
   const { data: session, error: sessionErr } = await supabaseAdmin()
     .from('property_draft_sessions')
@@ -172,7 +171,7 @@ export async function processOwnerChatbotMessage(
         .eq('id', session.id);
 
       const reply = "❌ *Draft discarded.* Send another property details text or listing screenshot to start a new draft.";
-      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
       return true;
     }
@@ -184,7 +183,7 @@ export async function processOwnerChatbotMessage(
         const reply = `⚠️ *Cannot confirm yet.* The following mandatory fields are missing:\n\n` +
           missingFields.map(f => `• *${f}*`).join('\n') +
           `\n\nPlease provide them first (e.g. 'price is 1.5 Cr', 'title is HSR 3BHK Apartment').`;
-        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply);
         return true;
       }
@@ -219,7 +218,7 @@ export async function processOwnerChatbotMessage(
       if (propErr) {
         console.error('[chatbot-engine] Failed to save property:', propErr);
         const reply = "❌ *Error saving property to database.* Please try again later.";
-        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply);
         return true;
       }
@@ -237,7 +236,7 @@ export async function processOwnerChatbotMessage(
         `*Location:* ${prop.location}\n\n` +
         `View it in your dashboard: ${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/inventory`;
         
-      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
       return true;
     }
@@ -248,7 +247,7 @@ export async function processOwnerChatbotMessage(
       await sendTextMessage({
         phoneNumberId,
         accessToken,
-        to: contactRecord.name || '',
+        to: contactRecord.phone,
         text: "⏳ _Uploading photo to draft listing... Please wait._"
       });
 
@@ -280,13 +279,13 @@ export async function processOwnerChatbotMessage(
             ? "✅ All mandatory fields populated!\nReply *confirm* to save to inventory."
             : `⚠️ *Still missing:* ${missingFields.join(', ')}.\nReply with the details.`);
 
-        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply);
         return true;
       } catch (err) {
         console.error('[chatbot-engine] Error processing photo upload:', err);
         const reply = "❌ *Failed to upload image.* Please verify the photo format and try again.";
-        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply);
         return true;
       }
@@ -319,7 +318,7 @@ export async function processOwnerChatbotMessage(
           ? "✅ All mandatory fields populated!\n• Reply *confirm* to save.\n• Reply *cancel* to discard.\n• Send more updates to correct details."
           : `⚠️ *Still missing:* ${missingFields.join(', ')}.\nReply with details.`);
 
-      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
       return true;
     }
@@ -336,7 +335,7 @@ export async function processOwnerChatbotMessage(
     await sendTextMessage({
       phoneNumberId,
       accessToken,
-      to: contactRecord.name || '',
+      to: contactRecord.phone,
       text: "⏳ _Analyzing listing details... Please wait._"
     });
 
@@ -388,13 +387,13 @@ export async function processOwnerChatbotMessage(
           ? "✅ All mandatory fields populated!\n• Reply *confirm* to save to inventory.\n• Send property photos to add them.\n• Reply naturally to correct fields."
           : `⚠️ *Missing mandatory fields:* ${missingFields.join(', ')}.\nReply with details (e.g. 'price is 1.5 Cr', 'title is HSR 3BHK').`);
 
-      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
       return true;
     } catch (err) {
       console.error('[chatbot-engine] Error initializing draft parsing session:', err);
       const reply = "❌ *Failed to parse listing.* Please copy paste details as text or send a clean property advertisement image.";
-      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
       return true;
     }
@@ -410,7 +409,7 @@ export async function processOwnerChatbotMessage(
       `• Reply *cancel* to discard\n` +
       `• Reply *confirm* to save to your inventory`;
 
-    await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.name || '', text: reply });
+    await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
     await saveBotMessage(conversation.id, reply);
     return true;
   }
