@@ -33,6 +33,9 @@ import {
   ArrowLeft,
   Smartphone,
   Star,
+  MessageSquare,
+  Search,
+  X,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import type { Contact, MessageTemplate } from '@/types';
@@ -167,6 +170,9 @@ export function PropertyForm({
   const [saving, setSaving] = useState(false);
   const [ownerContactId, setOwnerContactId] = useState<string | null>(null);
   const [interestedContactIds, setInterestedContactIds] = useState<string[]>([]);
+  const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(new Set());
+  const [contactSearchInput, setContactSearchInput] = useState('');
+  const [isContactDropdownOpen, setIsContactDropdownOpen] = useState(false);
 
   // Helper classifications based on selected type
   const hasBedsBaths = [
@@ -261,10 +267,96 @@ export function PropertyForm({
     }
   }, [supabase]);
 
+  const fetchContactedStatus = useCallback(async () => {
+    if (!property?.id) {
+      setContactedContactIds(new Set());
+      return;
+    }
+    try {
+      const propertyCode = property.property_code;
+      const propertyTitle = property.title;
+      
+      const orConditions: string[] = [];
+      if (propertyCode) {
+        orConditions.push(`content_text.ilike.%${propertyCode}%`);
+      }
+      if (propertyTitle) {
+        orConditions.push(`content_text.ilike.%${propertyTitle.slice(0, 30)}%`);
+      }
+      
+      if (orConditions.length === 0) {
+        setContactedContactIds(new Set());
+        return;
+      }
+      
+      const { data, error } = await supabase
+        .from('messages')
+        .select('id, conversation:conversations(contact_id)')
+        .or(orConditions.join(','));
+        
+      if (error) throw error;
+      
+      const contactedIds = new Set<string>();
+      if (data) {
+        (data as Array<{ conversation: { contact_id: string } | null }>).forEach((m) => {
+          const cid = m.conversation?.contact_id;
+          if (cid) {
+            contactedIds.add(cid);
+          }
+        });
+      }
+      setContactedContactIds(contactedIds);
+    } catch (err) {
+      console.error('Failed to fetch contacted status:', err);
+    }
+  }, [supabase, property]);
+
+  const handleGoToChat = async (contactId: string) => {
+    if (!accountId) {
+      toast.error('Account not loaded yet');
+      return;
+    }
+    try {
+      // Find existing conversation
+      const { data: existing, error } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (existing) {
+        window.location.href = `/inbox?c=${existing.id}`;
+      } else {
+        // Create conversation
+        const { data: newConv, error: createError } = await supabase
+          .from('conversations')
+          .insert({
+            account_id: accountId,
+            user_id: (await supabase.auth.getUser()).data.user?.id,
+            contact_id: contactId,
+          })
+          .select('id')
+          .single();
+
+        if (createError) throw createError;
+        if (newConv) {
+          window.location.href = `/inbox?c=${newConv.id}`;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to navigate to chat:', err);
+      toast.error('Failed to navigate to chat');
+    }
+  };
+
   useEffect(() => {
     if (open) {
       fetchContacts();
       fetchTemplates();
+      fetchContactedStatus();
       // Load currency settings from showcase_settings
       if (accountId) {
         supabase
@@ -290,7 +382,7 @@ export function PropertyForm({
         setInterestedContactIds([]);
       }
     }
-  }, [open, fetchContacts, fetchTemplates, property, accountId, supabase]);
+  }, [open, fetchContacts, fetchTemplates, fetchContactedStatus, property, accountId, supabase]);
 
   useEffect(() => {
     if (open && property && contacts && contacts.length > 0) {
@@ -686,17 +778,47 @@ export function PropertyForm({
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const autocompleteRef = useRef<HTMLDivElement>(null);
+  const contactSearchRef = useRef<HTMLDivElement>(null);
 
-  // Close autocomplete on click outside
+  // Close autocomplete and contact dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (autocompleteRef.current && !autocompleteRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
       }
+      if (contactSearchRef.current && !contactSearchRef.current.contains(event.target as Node)) {
+        setIsContactDropdownOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const contactSearchResults = useMemo(() => {
+    if (!contactSearchInput.trim()) return [];
+    const query = contactSearchInput.toLowerCase();
+    return contacts.filter((c) => {
+      if (c.classification !== 'Buyer' && c.classification !== 'Agent') return false;
+      if (interestedContactIds.includes(c.id)) return false;
+      return (
+        (c.name || '').toLowerCase().includes(query) ||
+        c.phone.toLowerCase().includes(query) ||
+        (c.email || '').toLowerCase().includes(query)
+      );
+    });
+  }, [contacts, contactSearchInput, interestedContactIds]);
+
+  const interestedContacts = useMemo(() => {
+    return contacts.filter((c) => interestedContactIds.includes(c.id));
+  }, [contacts, interestedContactIds]);
+
+  const handleAddInterestedContact = (contactId: string) => {
+    if (!interestedContactIds.includes(contactId)) {
+      setInterestedContactIds((prev) => [...prev, contactId]);
+    }
+    setContactSearchInput('');
+    setIsContactDropdownOpen(false);
+  };
 
   useEffect(() => {
     if (open) {
@@ -1401,45 +1523,167 @@ export function PropertyForm({
                     </select>
                   </div>
 
-                  <div className="space-y-1.5 col-span-2">
-                    <Label className="text-slate-300">
-                      Contacts with Shown Interest (Buyers & Agents)
-                    </Label>
-                    <div className="max-h-40 overflow-y-auto border border-slate-700 bg-slate-800 rounded-md p-2.5 space-y-1.5">
-                      {contacts
-                        .filter((c) => c.classification === 'Buyer' || c.classification === 'Agent')
-                        .map((c) => {
-                          const checked = interestedContactIds.includes(c.id);
+                  <div className="space-y-3 col-span-2" ref={contactSearchRef}>
+                    <div className="flex justify-between items-center">
+                      <Label className="text-slate-350 font-medium">
+                        Contacts with Shown Interest (Buyers & Agents)
+                      </Label>
+                      <span className="text-[10px] text-slate-500 font-medium bg-slate-900 px-2 py-0.5 rounded-full border border-slate-800">
+                        {interestedContacts.length} Linked
+                      </span>
+                    </div>
+
+                    {/* Autocomplete Contact Search Input */}
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                        <Input
+                          type="text"
+                          placeholder="Search Buyer or Agent by name, phone or email..."
+                          value={contactSearchInput}
+                          onChange={(e) => {
+                            setContactSearchInput(e.target.value);
+                            setIsContactDropdownOpen(true);
+                          }}
+                          onFocus={() => setIsContactDropdownOpen(true)}
+                          className="pl-9 pr-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 text-xs"
+                        />
+                        {contactSearchInput && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setContactSearchInput('');
+                              setIsContactDropdownOpen(false);
+                            }}
+                            className="absolute right-3 top-2.5 text-slate-500 hover:text-white"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Dropdown search results */}
+                      {isContactDropdownOpen && contactSearchInput.trim() && (
+                        <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-slate-700 bg-slate-900 p-1 shadow-xl">
+                          {contactSearchResults.length > 0 ? (
+                            contactSearchResults.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => handleAddInterestedContact(c.id)}
+                                className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                              >
+                                <div className="truncate pr-4">
+                                  <span className="font-semibold block truncate text-slate-200">
+                                    {c.name || 'Unnamed'} ({c.phone})
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block truncate">
+                                    Classification: {c.classification}
+                                  </span>
+                                </div>
+                                <Plus className="h-3.5 w-3.5 text-slate-500 shrink-0" />
+                              </button>
+                            ))
+                          ) : (
+                            <div className="py-2 text-center text-xs text-slate-500">
+                              No matching Buyers or Agents found (or already linked)
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Linked Contacts list */}
+                    <div className="max-h-56 overflow-y-auto border border-slate-700 bg-slate-900 rounded-md p-2 space-y-2">
+                      {interestedContacts.length > 0 ? (
+                        interestedContacts.map((c) => {
+                          const isHot = c.lead_temp === 'HOT' || c.status === 'pending_review';
+                          const isContacted = contactedContactIds.has(c.id) || !!c.last_contacted_at;
+                          const isCold = c.lead_temp === 'COLD' || c.lead_temp === 'Dead';
+                          
+                          // Style based on interest and contact status
+                          let cardBorderClass = 'border-slate-800 bg-slate-800/20';
+                          if (isHot) {
+                            cardBorderClass = 'border-[#00ff88]/40 bg-[#00ff88]/5 shadow-[0_0_8px_rgba(0,255,136,0.06)]';
+                          } else if (isCold) {
+                            cardBorderClass = 'border-rose-950/30 bg-rose-950/5';
+                          } else if (isContacted) {
+                            cardBorderClass = 'border-emerald-600/30 bg-emerald-950/5';
+                          }
+
                           return (
-                            <label
+                            <div
                               key={c.id}
-                              className="flex items-start gap-2.5 text-xs text-slate-350 cursor-pointer select-none hover:text-white"
+                              className={`flex items-center justify-between gap-3 p-2.5 rounded-md border text-xs transition-all ${cardBorderClass}`}
                             >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setInterestedContactIds((prev) => [...prev, c.id]);
-                                  } else {
-                                    setInterestedContactIds((prev) => prev.filter((id) => id !== c.id));
-                                  }
-                                }}
-                                className="rounded border-slate-700 bg-slate-905 text-primary focus:ring-primary/40 mt-0.5 h-3.5 w-3.5"
-                              />
                               <div className="flex-1 min-w-0">
-                                <span className="font-semibold block text-slate-200">
-                                  {c.name || 'Unnamed'} ({c.phone})
-                                </span>
-                                <span className="text-[10px] text-slate-500 block">
-                                  Classification: {c.classification} {c.lead_temp ? `• Status: ${c.lead_temp}` : ''}
-                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-200">
+                                    {c.name || 'Unnamed'}
+                                  </span>
+                                  <span className="text-slate-500 text-[10px]">
+                                    ({c.phone})
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+                                    {c.classification || 'Buyer'}
+                                  </span>
+                                  <span className="text-[10px] text-slate-600">•</span>
+                                  
+                                  {/* Status badges */}
+                                  {isHot && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold border border-[#00ff88]/30 bg-[#00ff88]/10 text-[#00ff88] uppercase animate-pulse">
+                                      Interested (Hot)
+                                    </span>
+                                  )}
+                                  {isContacted && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-600 text-white uppercase">
+                                      Contacted
+                                    </span>
+                                  )}
+                                  {isCold && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-rose-950/40 text-rose-400 border border-rose-950/50 uppercase">
+                                      Not Interested
+                                    </span>
+                                  )}
+                                  {!isHot && !isContacted && !isCold && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-850 text-slate-400 border border-slate-700 uppercase">
+                                      Not Contacted
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </label>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleGoToChat(c.id)}
+                                  className="p-1.5 rounded bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-emerald-400 border border-slate-700 transition-colors"
+                                  title="Go to WhatsApp Chat Inbox"
+                                  aria-label="Open Chat"
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInterestedContactIds((prev) => prev.filter((id) => id !== c.id));
+                                  }}
+                                  className="p-1.5 rounded bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-900/50 transition-colors"
+                                  title="Remove link"
+                                  aria-label="Remove Contact Link"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </div>
                           );
-                        })}
-                      {contacts.filter((c) => c.classification === 'Buyer' || c.classification === 'Agent').length === 0 && (
-                        <p className="text-xs text-slate-500 py-2 text-center">No Buyers or Agents available in your contacts.</p>
+                        })
+                      ) : (
+                        <div className="py-6 text-center text-xs text-slate-500">
+                          No interested contacts linked to this property yet. Use the search bar above to link contacts.
+                        </div>
                       )}
                     </div>
                   </div>
