@@ -204,6 +204,12 @@ export function PropertyForm({
     'Agricultural Land'
   ].includes(type);
 
+  const isApartment = [
+    'Flat/ Apartment',
+    'Builder Floor Apartment',
+    'Studio Apartment'
+  ].includes(type);
+
   async function ensureLocalitiesLoaded() {
     if (!localitiesDb) {
       const db = await import('@/lib/data/bengaluru-localities');
@@ -1226,9 +1232,9 @@ export function PropertyForm({
       const parsedBedrooms = bedrooms.trim() !== '' ? Number(bedrooms) : null;
       const parsedBathrooms = bathrooms.trim() !== '' ? Number(bathrooms) : null;
       const parsedAreaSqft = areaSqft.trim() !== '' ? Number(areaSqft) : null;
-      const parsedLandArea = landArea.trim() !== '' ? Number(landArea) : null;
+      const parsedLandArea = (isLand || !isApartment) && landArea.trim() !== '' ? Number(landArea) : null;
       const parsedSuperBuiltArea = superBuiltArea.trim() !== '' ? Number(superBuiltArea) : null;
-      const parsedRoadWidth = roadWidth.trim() !== '' ? Number(roadWidth) : null;
+      const parsedRoadWidth = !isApartment && roadWidth.trim() !== '' ? Number(roadWidth) : null;
 
       const parsedFeatures = features;
       const parsedNearbyHighlights = nearbyHighlights;
@@ -1246,6 +1252,8 @@ export function PropertyForm({
         } else {
           finalDimensions = '';
         }
+      } else if (isApartment) {
+        finalDimensions = '';
       }
 
       const payload = {
@@ -2028,7 +2036,7 @@ export function PropertyForm({
                           </div>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}>
                           <Label htmlFor="prop-super-built" className="text-slate-300">
                             Super Built-up Area ({areaUnit})
                           </Label>
@@ -2042,30 +2050,32 @@ export function PropertyForm({
                           />
                         </div>
 
-                        <div className="space-y-1.5">
-                          <Label htmlFor="prop-land-area" className="text-slate-300">
-                            Land Area
-                          </Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="prop-land-area"
-                              type="number"
-                              value={landArea}
-                              onChange={(e) => setLandArea(e.target.value)}
-                              placeholder="e.g. 2400"
-                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 flex-1"
-                            />
-                            <select
-                              value={landAreaUnit}
-                              onChange={(e) => setLandAreaUnit(e.target.value)}
-                              className="w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary h-9 font-medium"
-                            >
-                              {AREA_UNITS.map((unit) => (
-                                <option key={unit} value={unit}>{unit}</option>
-                              ))}
-                            </select>
+                        {!isApartment && (
+                          <div className="space-y-1.5">
+                            <Label htmlFor="prop-land-area" className="text-slate-300">
+                              Land Area
+                            </Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id="prop-land-area"
+                                type="number"
+                                value={landArea}
+                                onChange={(e) => setLandArea(e.target.value)}
+                                placeholder="e.g. 2400"
+                                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 flex-1"
+                              />
+                              <select
+                                value={landAreaUnit}
+                                onChange={(e) => setLandAreaUnit(e.target.value)}
+                                className="w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary h-9 font-medium"
+                              >
+                                {AREA_UNITS.map((unit) => (
+                                  <option key={unit} value={unit}>{unit}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </>
                     )}
 
@@ -2099,45 +2109,49 @@ export function PropertyForm({
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-1.5 col-span-2">
-                        <Label htmlFor="prop-dimensions" className="text-slate-300">
-                          Dimensions
+                      !isApartment && (
+                        <div className="space-y-1.5 col-span-2">
+                          <Label htmlFor="prop-dimensions" className="text-slate-300">
+                            Dimensions
+                          </Label>
+                          <Input
+                            id="prop-dimensions"
+                            value={dimensions}
+                            onChange={(e) => setDimensions(e.target.value)}
+                            placeholder="e.g. 30x40, 50x80 (Width x Length)"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                          />
+                        </div>
+                      )
+                    )}
+
+                    {!isApartment && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-road-width" className="text-slate-300">
+                          Road Width
                         </Label>
-                        <Input
-                          id="prop-dimensions"
-                          value={dimensions}
-                          onChange={(e) => setDimensions(e.target.value)}
-                          placeholder="e.g. 30x40, 50x80 (Width x Length)"
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
-                        />
+                        <div className="flex gap-2">
+                          <Input
+                            id="prop-road-width"
+                            type="number"
+                            value={roadWidth}
+                            onChange={(e) => setRoadWidth(e.target.value)}
+                            placeholder="e.g. 40"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 flex-1"
+                          />
+                          <select
+                            value={roadWidthUnit}
+                            onChange={(e) => setRoadWidthUnit(e.target.value)}
+                            className="w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary h-9 font-medium"
+                          >
+                            <option value="Feet">Feet</option>
+                            <option value="Meters">Meters</option>
+                          </select>
+                        </div>
                       </div>
                     )}
 
-                    <div className="space-y-1.5">
-                      <Label htmlFor="prop-road-width" className="text-slate-300">
-                        Road Width
-                      </Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="prop-road-width"
-                          type="number"
-                          value={roadWidth}
-                          onChange={(e) => setRoadWidth(e.target.value)}
-                          placeholder="e.g. 40"
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 flex-1"
-                        />
-                        <select
-                          value={roadWidthUnit}
-                          onChange={(e) => setRoadWidthUnit(e.target.value)}
-                          className="w-24 rounded-md border border-slate-700 bg-slate-800 px-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-primary h-9 font-medium"
-                        >
-                          <option value="Feet">Feet</option>
-                          <option value="Meters">Meters</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
+                    <div className={`space-y-1.5 ${isApartment ? 'col-span-2' : ''}`}>
                       <Label htmlFor="prop-facing" className="text-slate-300">
                         Facing Direction
                       </Label>

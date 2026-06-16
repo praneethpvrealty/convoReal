@@ -84,7 +84,9 @@ export default function InventoryPage() {
   const fetchProperties = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/properties');
+      const response = await fetch(`/api/properties?_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch properties');
       }
