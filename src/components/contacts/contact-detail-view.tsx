@@ -92,6 +92,7 @@ export function ContactDetailView({
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
+  const [editSource, setEditSource] = useState('');
 
   const fetchCurrency = useCallback(async () => {
     try {
@@ -192,6 +193,7 @@ export function ContactDetailView({
       setEditPhone(data.phone);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
+      setEditSource(data.source ?? '');
       setEditClassification((data as Contact).classification ?? 'Others');
       setEditLeadTemp((data as Contact).lead_temp ?? '');
       setEditLastInquiredPropertyId(data.last_inquired_property_id ?? null);
@@ -471,6 +473,7 @@ export function ContactDetailView({
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         classification: editClassification,
+        source: editSource.trim() || null,
         lead_temp: editLeadTemp || null,
         last_inquired_property_id: editLastInquiredPropertyId,
         referrer: editReferrer.trim() || null,
@@ -841,6 +844,11 @@ export function ContactDetailView({
                         Ref: {contact.referrer}
                       </span>
                     )}
+                    {contact.source && (
+                      <span className="inline-flex items-center rounded bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary border border-primary/20">
+                        {contact.source}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1071,6 +1079,25 @@ export function ContactDetailView({
                       <option value="Seller">Seller</option>
                       <option value="Buyer">Buyer</option>
                       <option value="Agent">Agent</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-400 text-xs">Source</Label>
+                    <select
+                      value={editSource}
+                      onChange={(e) => setEditSource(e.target.value)}
+                      className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="">Select Source</option>
+                      <option value="Magic Bricks">Magic Bricks</option>
+                      <option value="Housing">Housing</option>
+                      <option value="99acres">99acres</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="Instagram">Instagram</option>
+                      <option value="Reference">Reference</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Others">Others</option>
                     </select>
                   </div>
 

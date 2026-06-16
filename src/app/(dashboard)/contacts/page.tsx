@@ -381,6 +381,7 @@ export default function ContactsPage() {
           company: '',
           classification: 'Others',
           status: 'active',
+          source: 'Phonebook',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         } as Contact);
@@ -422,6 +423,7 @@ export default function ContactsPage() {
         email: c.email || null,
         classification: c.classification,
         company: '',
+        source: 'Phonebook',
       }));
 
       const { error } = await supabase.from('contacts').insert(records);

@@ -795,6 +795,7 @@ async function processMessage(
             classification: 'Others',
             company: '',
             status: 'pending_review',
+            source: 'WhatsApp',
           });
         
         if (insertErr) {
@@ -1258,6 +1259,7 @@ async function findOrCreateContact(
       user_id: configOwnerUserId,
       phone,
       name: name || phone,
+      source: 'WhatsApp',
     })
     .select()
     .single()

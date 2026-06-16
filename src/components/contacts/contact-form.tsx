@@ -76,6 +76,7 @@ export function ContactForm({
   const [referrerContactId, setReferrerContactId] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
+  const [source, setSource] = useState('');
   const [saving, setSaving] = useState(false);
 
   // Notes state
@@ -185,6 +186,7 @@ export function ContactForm({
       setAreasOfInterest(initialAreas);
       setAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
       setPropertyInterests(contact?.property_interests ?? []);
+      setSource(contact?.source ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       fetchTags();
       fetchContacts();
@@ -304,6 +306,7 @@ export function ContactForm({
         no_budget: noBudget,
         areas_of_interest: areasOfInterest,
         property_interests: propertyInterests,
+        source: source.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -544,6 +547,28 @@ export function ContactForm({
               <option value="Seller">Seller</option>
               <option value="Buyer">Buyer</option>
               <option value="Agent">Agent</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-source" className="text-slate-300">
+              Source
+            </Label>
+            <select
+              id="cf-source"
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+            >
+              <option value="">Select Source</option>
+              <option value="Magic Bricks">Magic Bricks</option>
+              <option value="Housing">Housing</option>
+              <option value="99acres">99acres</option>
+              <option value="Facebook">Facebook</option>
+              <option value="Instagram">Instagram</option>
+              <option value="Reference">Reference</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Others">Others</option>
             </select>
           </div>
 

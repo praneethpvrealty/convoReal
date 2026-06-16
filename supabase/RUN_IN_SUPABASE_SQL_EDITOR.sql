@@ -1907,4 +1907,15 @@ ALTER TABLE deals
   ADD COLUMN IF NOT EXISTS brokerage_amount NUMERIC(12,2) DEFAULT 0;
 
 
+-- ============================================================
+-- 041_add_source_to_contacts.sql — Add source column to contacts table
+-- ============================================================
+
+ALTER TABLE contacts 
+  ADD COLUMN IF NOT EXISTS source TEXT DEFAULT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_contacts_source ON contacts(source);
+
+
+
 

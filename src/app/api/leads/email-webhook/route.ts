@@ -45,12 +45,12 @@ function parsePortalLead(subject: string, bodyText: string) {
   let phone = '';
   let email = '';
   let requirementText = '';
-  let source = 'Email Lead';
+  let source = 'Others';
 
   const combined = `${subject}\n${bodyText}`;
 
   if (combined.toLowerCase().includes('magicbricks')) {
-    source = 'MagicBricks';
+    source = 'Magic Bricks';
     
     // Name extraction: "Client Name: John Doe" or "Name: John Doe"
     const nameMatch = bodyText.match(/(?:client\s+name|name)\s*:\s*(.+)/i);
@@ -69,7 +69,7 @@ function parsePortalLead(subject: string, bodyText: string) {
     if (reqMatch) requirementText = reqMatch[1].trim();
 
   } else if (combined.toLowerCase().includes('housing')) {
-    source = 'Housing.com';
+    source = 'Housing';
 
     // Name extraction: "Name - Jane Doe"
     const nameMatch = bodyText.match(/name\s*-\s*(.+)/i);
@@ -230,6 +230,7 @@ export async function POST(request: Request) {
         areas_of_interest?: string[];
         property_interests?: string[];
         company?: string;
+        source?: string;
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
       if (areasOfInterest.length > 0) updatePayload.areas_of_interest = areasOfInterest;
@@ -237,6 +238,7 @@ export async function POST(request: Request) {
       
       // Tag source
       updatePayload.company = parsed.source;
+      updatePayload.source = parsed.source;
 
       await supabase
         .from('contacts')
@@ -260,6 +262,7 @@ export async function POST(request: Request) {
         email: parsed.email || null,
         classification: 'Buyer',
         company: parsed.source, // Stashing the lead portal name in company field
+        source: parsed.source, // Storing lead portal name in dedicated source field
         max_budget: maxBudget,
         areas_of_interest: areasOfInterest.length > 0 ? areasOfInterest : null,
         property_interests: propertyInterests.length > 0 ? propertyInterests : null,
