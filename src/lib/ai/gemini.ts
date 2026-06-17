@@ -383,6 +383,16 @@ export interface ParsedContactDraftsContainer {
   contacts: ParsedContactDraft[];
 }
 
+export function normalizeClassification(val?: string | null): "Owner" | "Seller" | "Buyer" | "Agent" | "Others" {
+  if (!val) return "Others";
+  const norm = val.trim().toLowerCase();
+  if (norm === "owner") return "Owner";
+  if (norm === "seller") return "Seller";
+  if (norm === "buyer") return "Buyer";
+  if (norm === "agent") return "Agent";
+  return "Others";
+}
+
 /**
  * Parses contact details from an image buffer (screenshot) and/or text block.
  */
@@ -442,7 +452,7 @@ export async function parseContactFromImageOrText(
         phone: c.phone || null,
         email: c.email || null,
         company: c.company || null,
-        classification: c.classification || "Others",
+        classification: normalizeClassification(c.classification),
         notes: c.notes || null
       }))
     };
@@ -480,7 +490,7 @@ export async function updateContactDraft(
         phone: c.phone || null,
         email: c.email || null,
         company: c.company || null,
-        classification: c.classification || "Others",
+        classification: normalizeClassification(c.classification),
         notes: c.notes || null
       }))
     };

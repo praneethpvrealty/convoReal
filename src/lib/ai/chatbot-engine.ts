@@ -8,7 +8,8 @@ import {
   classifyImageOrText,
   parseContactFromImageOrText,
   updateContactDraft,
-  type ParsedContactDraftsContainer
+  type ParsedContactDraftsContainer,
+  normalizeClassification
 } from '@/lib/ai/gemini';
 import { uploadPropertyImage } from '@/lib/storage/upload';
 import { 
@@ -571,7 +572,7 @@ export async function processOwnerChatbotMessage(
             phone: draft.phone!.trim(),
             email: draft.email || null,
             company: draft.company || '',
-            classification: draft.classification || 'Others',
+            classification: normalizeClassification(draft.classification),
             status: 'pending_review',
             source: 'WhatsApp'
           });
