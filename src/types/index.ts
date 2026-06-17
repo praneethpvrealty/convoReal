@@ -107,6 +107,8 @@ export interface Contact {
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;
+  min_roi?: number | null;
+  contact_notes?: { note_text: string }[] | null;
   last_inquired_property_id?: string | null;
   source?: string | null;
   created_at: string;

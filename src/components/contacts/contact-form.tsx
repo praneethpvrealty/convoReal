@@ -97,6 +97,7 @@ export function ContactForm({
   const [areasText, setAreasText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [propertyInterests, setPropertyInterests] = useState<string[]>([]);
+  const [minRoi, setMinRoi] = useState('');
   const [localitiesDb, setLocalitiesDb] = useState<{ major: string[] } | null>(null);
 
   async function ensureLocalitiesLoaded() {
@@ -186,6 +187,7 @@ export function ContactForm({
       setAreasOfInterest(initialAreas);
       setAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
       setPropertyInterests(contact?.property_interests ?? []);
+      setMinRoi((contact as any)?.min_roi ? String((contact as any).min_roi) : '');
       setSource(contact?.source ?? '');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       fetchTags();
@@ -306,6 +308,7 @@ export function ContactForm({
         no_budget: noBudget,
         areas_of_interest: areasOfInterest,
         property_interests: propertyInterests,
+        min_roi: minRoi ? Number(minRoi) : null,
         source: source.trim() || null,
         updated_at: new Date().toISOString(),
       };
@@ -663,6 +666,20 @@ export function ContactForm({
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* ROI Preference Field */}
+              <div className="space-y-2">
+                <Label htmlFor="cf-min-roi" className="text-slate-300">Expected Min ROI (%)</Label>
+                <Input
+                  id="cf-min-roi"
+                  type="number"
+                  step="0.01"
+                  value={minRoi}
+                  onChange={(e) => setMinRoi(e.target.value)}
+                  placeholder="e.g. 4.5"
+                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8.5 text-xs focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+                />
               </div>
 
               {/* Areas of Interest */}

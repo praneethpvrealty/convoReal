@@ -116,7 +116,7 @@ export function PropertyShareDialog({
     try {
       const { data, error } = await supabase
         .from('contacts')
-        .select('*')
+        .select('*, contact_notes(note_text)')
         .eq('account_id', accountId)
         .eq('status', 'active')
         .order('name');

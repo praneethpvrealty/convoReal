@@ -137,6 +137,7 @@ export function ContactDetailView({
   const [editAreasText, setEditAreasText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
+  const [editMinRoi, setEditMinRoi] = useState('');
   const [localitiesDb, setLocalitiesDb] = useState<{ major: string[] } | null>(null);
 
   async function ensureLocalitiesLoaded() {
@@ -207,6 +208,7 @@ export function ContactDetailView({
       setEditAreasOfInterest(initialAreas);
       setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
       setEditPropertyInterests(data.property_interests ?? []);
+      setEditMinRoi((data as any).min_roi ? String((data as any).min_roi) : '');
 
       // Fetch last inquired property details
       if (data.last_inquired_property_id) {
@@ -647,6 +649,7 @@ export function ContactDetailView({
         no_budget: editNoBudget,
         areas_of_interest: editAreasOfInterest,
         property_interests: editPropertyInterests,
+        min_roi: editMinRoi ? Number(editMinRoi) : null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -1249,6 +1252,19 @@ export function ContactDetailView({
                           )}
                         </div>
                       </div>
+                    </div>
+
+                    {/* ROI Preference Field */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-400 text-xs font-semibold">Expected Min ROI (%)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={editMinRoi}
+                        onChange={(e) => setEditMinRoi(e.target.value)}
+                        placeholder="e.g. 4.5"
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-xs focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
+                      />
                     </div>
 
                     {/* Areas of Interest */}

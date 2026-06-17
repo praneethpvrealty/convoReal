@@ -2103,3 +2103,15 @@ ALTER TABLE properties
 
 -- Create index to optimize filtering by source
 CREATE INDEX IF NOT EXISTS idx_properties_listing_source ON properties(listing_source);
+
+
+-- ============================================================
+-- 048_add_contacts_min_roi.sql
+-- Adds min_roi column to contacts table
+-- ============================================================
+
+ALTER TABLE contacts 
+  ADD COLUMN IF NOT EXISTS min_roi NUMERIC CHECK (min_roi >= 0);
+
+COMMENT ON COLUMN contacts.min_roi IS 'Minimum expected rental yield ROI (%) for buyer profiles.';
+

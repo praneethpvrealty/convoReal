@@ -264,7 +264,7 @@ export function PropertyForm({
     try {
       const { data, error } = await supabase
         .from('contacts')
-        .select('*')
+        .select('*, contact_notes(note_text)')
         .order('name');
       if (error) throw error;
       setContacts(data || []);
