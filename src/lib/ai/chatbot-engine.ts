@@ -1,16 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 import { phonesMatch } from '@/lib/whatsapp/phone-utils';
 import { 
-  isListingMessage, 
   parseListingFromImageOrText, 
   updateListingDraft, 
-  type ParsedPropertyDraft 
+  type ParsedPropertyDraft,
+  classifyImageOrText,
+  parseContactFromImageOrText,
+  updateContactDraft,
+  type ParsedContactDraft
 } from '@/lib/ai/gemini';
 import { uploadPropertyImage } from '@/lib/storage/upload';
 import { 
   sendTextMessage, 
   downloadMedia, 
-  getMediaUrl 
+  getMediaUrl,
+  sendInteractiveButtons
 } from '@/lib/whatsapp/meta-api';
 
 // Lazy initialize supabase admin client
@@ -151,10 +155,112 @@ function formatDraftPreviewMessage(
 
   reply += `*Images:* ${draft.images.length} attached\n\n` +
     (nextStatus === 'awaiting_confirmation'
-      ? "✅ All mandatory fields populated!\n• Reply *confirm* to save.\n• Reply *cancel* to discard.\n• Send more updates to correct details."
-      : `⚠️ *Still missing:* ${missingFields.join(', ')}.\nReply with details.`);
+      ? "✅ All mandatory fields populated!\n• Use the buttons below to Confirm or Cancel.\n• Send more updates to correct details."
+      : `⚠️ *Still missing:* ${missingFields.join(', ')}.\n• Use the Cancel button below to discard.\n• Reply with details to complete.`);
 
   return reply;
+}
+
+async function sendPropertyDraftPreview(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  header: string,
+  draft: ParsedPropertyDraft,
+  nextStatus: string,
+  missingFields: string[],
+  conversationId: string
+): Promise<void> {
+  const reply = formatDraftPreviewMessage(header, draft, nextStatus, missingFields);
+  
+  const buttons = nextStatus === 'awaiting_confirmation'
+    ? [
+        { id: 'confirm_property', title: 'Confirm' },
+        { id: 'cancel_property', title: 'Cancel' }
+      ]
+    : [
+        { id: 'cancel_property', title: 'Cancel' }
+      ];
+
+  await sendInteractiveButtons({
+    phoneNumberId,
+    accessToken,
+    to,
+    bodyText: reply,
+    buttons
+  });
+
+  await saveBotMessage(conversationId, reply);
+}
+
+function validateContactDraft(draft: ParsedContactDraft): { 
+  isValid: boolean; 
+  missingFields: string[] 
+} {
+  const missingFields: string[] = [];
+  if (!draft.name || draft.name.trim().length === 0) {
+    missingFields.push('Name');
+  }
+  if (!draft.phone || draft.phone.trim().length === 0) {
+    missingFields.push('Phone');
+  }
+
+  return {
+    isValid: missingFields.length === 0,
+    missingFields
+  };
+}
+
+function formatContactDraftPreview(
+  header: string,
+  draft: ParsedContactDraft,
+  nextStatus: string,
+  missingFields: string[]
+): string {
+  const reply = `${header}\n\n` +
+    `*Name:* ${draft.name || '❓ _Missing_'}\n` +
+    `*Phone:* ${draft.phone || '❓ _Missing_'}\n` +
+    `*Email:* ${draft.email || '_Not specified_'}\n` +
+    `*Company:* ${draft.company || '_Not specified_'}\n` +
+    `*Role/Classification:* ${draft.classification || 'Others'}\n` +
+    `*Notes:* ${draft.notes || '_No notes_'}\n\n` +
+    (nextStatus === 'awaiting_confirmation'
+      ? "✅ All mandatory fields populated!\n• Use the buttons below to Confirm or Cancel.\n• Send updates to correct details."
+      : `⚠️ *Still missing:* ${missingFields.join(', ')}.\n• Use the Cancel button below to discard.\n• Reply with details to complete.`);
+
+  return reply;
+}
+
+async function sendContactDraftPreview(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  header: string,
+  draft: ParsedContactDraft,
+  nextStatus: string,
+  missingFields: string[],
+  conversationId: string
+): Promise<void> {
+  const reply = formatContactDraftPreview(header, draft, nextStatus, missingFields);
+  
+  const buttons = nextStatus === 'awaiting_confirmation'
+    ? [
+        { id: 'confirm_contact', title: 'Confirm' },
+        { id: 'cancel_contact', title: 'Cancel' }
+      ]
+    : [
+        { id: 'cancel_contact', title: 'Cancel' }
+      ];
+
+  await sendInteractiveButtons({
+    phoneNumberId,
+    accessToken,
+    to,
+    bodyText: reply,
+    buttons
+  });
+
+  await saveBotMessage(conversationId, reply);
 }
 
 /**
@@ -162,7 +268,16 @@ function formatDraftPreviewMessage(
  * Returns true if the message was handled/consumed by the chatbot engine, false otherwise.
  */
 export async function processOwnerChatbotMessage(
-  message: { id: string; type: string; image?: { id: string; mime_type: string } },
+  message: { 
+    id: string; 
+    type: string; 
+    image?: { id: string; mime_type: string };
+    interactive?: {
+      type: 'button_reply' | 'list_reply';
+      button_reply?: { id: string; title: string };
+      list_reply?: { id: string; title: string; description?: string };
+    };
+  },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
   conversation: { id: string; unread_count: number },
@@ -171,39 +286,52 @@ export async function processOwnerChatbotMessage(
   accessToken: string,
   phoneNumberId: string
 ): Promise<boolean> {
-  // 1. Fetch active session for this contact
-  const { data: session, error: sessionErr } = await supabaseAdmin()
+  // 1. Fetch active sessions for this contact
+  const { data: propSession, error: propSessionErr } = await supabaseAdmin()
     .from('property_draft_sessions')
     .select('*')
     .eq('contact_id', contactRecord.id)
     .maybeSingle();
 
-  if (sessionErr) {
-    console.error('[chatbot-engine] Error fetching draft session:', sessionErr);
+  const { data: contactSession, error: contactSessionErr } = await supabaseAdmin()
+    .from('contact_draft_sessions')
+    .select('*')
+    .eq('contact_id', contactRecord.id)
+    .maybeSingle();
+
+  if (propSessionErr) {
+    console.error('[chatbot-engine] Error fetching property draft session:', propSessionErr);
+  }
+  if (contactSessionErr) {
+    console.error('[chatbot-engine] Error fetching contact draft session:', contactSessionErr);
   }
 
   const cleanedText = contentText?.trim() || '';
   const lowerText = cleanedText.toLowerCase();
 
-  // 2. Active Session Exists Flow
-  if (session) {
-    const draft = session.draft_data as ParsedPropertyDraft;
+  const buttonId = message.type === 'interactive'
+    ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
+    : null;
+
+  // 2. Active Property Session Exists Flow
+  if (propSession) {
+    const draft = propSession.draft_data as ParsedPropertyDraft;
 
     // Handle CANCEL instruction
-    if (lowerText === 'cancel') {
+    if (buttonId === 'cancel_property' || lowerText === 'cancel') {
       await supabaseAdmin()
         .from('property_draft_sessions')
         .delete()
-        .eq('id', session.id);
+        .eq('id', propSession.id);
 
-      const reply = "❌ *Draft discarded.* Send another property details text or listing screenshot to start a new draft.";
+      const reply = "❌ *Property draft discarded.* Send another property details text or listing screenshot to start a new draft.";
       await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
       return true;
     }
 
     // Handle CONFIRM instruction
-    if (lowerText === 'confirm') {
+    if (buttonId === 'confirm_property' || lowerText === 'confirm') {
       const { isValid, missingFields } = validateDraft(draft);
       if (!isValid) {
         const reply = `⚠️ *Cannot confirm yet.* The following mandatory fields are missing:\n\n` +
@@ -255,7 +383,7 @@ export async function processOwnerChatbotMessage(
       await supabaseAdmin()
         .from('property_draft_sessions')
         .delete()
-        .eq('id', session.id);
+        .eq('id', propSession.id);
 
       let reply = `✅ *Property listing created successfully!*\n\n` +
         `*Code:* ${prop.property_code}\n` +
@@ -307,16 +435,18 @@ export async function processOwnerChatbotMessage(
             status: nextStatus,
             updated_at: new Date().toISOString()
           })
-          .eq('id', session.id);
+          .eq('id', propSession.id);
 
-        const reply = `📸 *Photo added successfully!*\n` +
-          `Total photos attached: *${updatedImages.length}*.\n\n` +
-          (nextStatus === 'awaiting_confirmation'
-            ? "✅ All mandatory fields populated!\nReply *confirm* to save to inventory."
-            : `⚠️ *Still missing:* ${missingFields.join(', ')}.\nReply with the details.`);
-
-        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
-        await saveBotMessage(conversation.id, reply);
+        await sendPropertyDraftPreview(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          `📸 *Photo added successfully!* Total photos attached: *${updatedImages.length}*.`,
+          updatedDraft,
+          nextStatus,
+          missingFields,
+          conversation.id
+        );
         return true;
       } catch (err) {
         console.error('[chatbot-engine] Error processing photo upload:', err);
@@ -340,90 +470,286 @@ export async function processOwnerChatbotMessage(
           status: nextStatus,
           updated_at: new Date().toISOString()
         })
-        .eq('id', session.id);
+        .eq('id', propSession.id);
 
-      const reply = formatDraftPreviewMessage(`📝 *Draft Listing Updated:*`, updatedDraft, nextStatus, missingFields);
-
-      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
-      await saveBotMessage(conversation.id, reply);
+      await sendPropertyDraftPreview(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        `📝 *Draft Listing Updated:*`,
+        updatedDraft,
+        nextStatus,
+        missingFields,
+        conversation.id
+      );
       return true;
     }
 
     return true;
   }
 
-  // 3. Start New Session Flow (No Session Exists)
-  const isImageMsg = message.type === 'image' && message.image?.id;
-  const isTextListing = cleanedText && await isListingMessage(cleanedText);
+  // 3. Active Contact Session Exists Flow
+  if (contactSession) {
+    const draft = contactSession.draft_data as ParsedContactDraft;
 
-  if (isImageMsg || isTextListing) {
-    // Notify parsing started
-    await sendTextMessage({
-      phoneNumberId,
-      accessToken,
-      to: contactRecord.phone,
-      text: "⏳ _Analyzing listing details... Please wait._"
-    });
+    // Handle CANCEL instruction
+    if (buttonId === 'cancel_contact' || lowerText === 'cancel') {
+      await supabaseAdmin()
+        .from('contact_draft_sessions')
+        .delete()
+        .eq('id', contactSession.id);
 
-    try {
-      let parsedDraft: ParsedPropertyDraft;
-      const uploadedImages: string[] = [];
+      const reply = "❌ *Contact draft discarded.* Send another contact text details or screenshot to start a new contact draft.";
+      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      await saveBotMessage(conversation.id, reply);
+      return true;
+    }
 
-      if (isImageMsg) {
-        const mediaId = message.image!.id;
-        const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
-        const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
-        
-        // Parallel parse and upload to save latency
-        const [parsed, publicUrl] = await Promise.all([
-          parseListingFromImageOrText(contentText || '', buffer, mimeType),
-          uploadPropertyImage(accountId, buffer, mimeType)
-        ]);
-
-        parsedDraft = parsed;
-        uploadedImages.push(publicUrl);
-        parsedDraft.images = uploadedImages;
-      } else {
-        parsedDraft = await parseListingFromImageOrText(cleanedText);
-        parsedDraft.images = [];
+    // Handle CONFIRM instruction
+    if (buttonId === 'confirm_contact' || lowerText === 'confirm') {
+      const { isValid, missingFields } = validateContactDraft(draft);
+      if (!isValid) {
+        const reply = `⚠️ *Cannot confirm yet.* The following fields are missing:\n\n` +
+          missingFields.map(f => `• *${f}*`).join('\n') +
+          `\n\nPlease provide them first (e.g. 'name is Ramesh').`;
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply);
+        return true;
       }
 
-      const { isValid, missingFields } = validateDraft(parsedDraft);
-      const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+      // Check if contact already exists
+      const cleanPhone = draft.phone!.replace(/\D/g, '');
+      const { data: existingContact } = await supabaseAdmin()
+        .from('contacts')
+        .select('id, name')
+        .eq('account_id', accountId)
+        .or(`phone.eq.${draft.phone},phone.eq.${cleanPhone}`)
+        .maybeSingle();
 
-      // Insert new active session
-      await supabaseAdmin()
-        .from('property_draft_sessions')
+      if (existingContact) {
+        const reply = `⚠️ *Contact already exists in CRM:* ${existingContact.name}. Contact draft discarded.`;
+        await supabaseAdmin()
+          .from('contact_draft_sessions')
+          .delete()
+          .eq('id', contactSession.id);
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply);
+        return true;
+      }
+
+      // Create new contact in CRM
+      const { data: contact, error: contactErr } = await supabaseAdmin()
+        .from('contacts')
         .insert({
           account_id: accountId,
-          contact_id: contactRecord.id,
-          draft_data: parsedDraft,
-          status: initialStatus
-        });
+          user_id: userId,
+          name: draft.name!.trim(),
+          phone: draft.phone!.trim(),
+          email: draft.email || null,
+          company: draft.company || '',
+          classification: draft.classification || 'Others',
+          status: 'pending_review',
+          source: 'WhatsApp'
+        })
+        .select()
+        .single();
 
-      const reply = formatDraftPreviewMessage(`📝 *Draft Property Listing Created!*`, parsedDraft, initialStatus, missingFields);
+      if (contactErr) {
+        console.error('[chatbot-engine] Failed to save contact:', contactErr);
+        const reply = "❌ *Error saving contact to database.* Please try again later.";
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply);
+        return true;
+      }
 
+      // Delete contact draft session
+      await supabaseAdmin()
+        .from('contact_draft_sessions')
+        .delete()
+        .eq('id', contactSession.id);
+
+      const reply = `✅ *Contact created successfully!*\n\n` +
+        `*Name:* ${contact.name}\n` +
+        `*Phone:* ${contact.phone}\n` +
+        `*Role/Classification:* ${contact.classification}\n` +
+        `*Email:* ${contact.email || '_None_'}\n\n` +
+        `View in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts`;
+        
       await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
       return true;
-    } catch (err) {
-      console.error('[chatbot-engine] Error initializing draft parsing session:', err);
-      const reply = "❌ *Failed to parse listing.* Please copy paste details as text or send a clean property advertisement image.";
-      await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
-      await saveBotMessage(conversation.id, reply);
+    }
+
+    // Handle conversational updates to contact draft
+    if (cleanedText) {
+      const updatedDraft = await updateContactDraft(draft, cleanedText);
+      const { isValid, missingFields } = validateContactDraft(updatedDraft);
+      const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+      await supabaseAdmin()
+        .from('contact_draft_sessions')
+        .update({
+          draft_data: updatedDraft,
+          status: nextStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', contactSession.id);
+
+      await sendContactDraftPreview(
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        `📝 *Contact Draft Updated:*`,
+        updatedDraft,
+        nextStatus,
+        missingFields,
+        conversation.id
+      );
       return true;
+    }
+
+    return true;
+  }
+
+  // 4. Start New Session Flow (No Session Exists)
+  const isImageMsg = message.type === 'image' && message.image?.id;
+  
+  if (isImageMsg || cleanedText) {
+    let mediaBuffer: Buffer | undefined = undefined;
+    let mediaMimeType: string | undefined = undefined;
+
+    if (isImageMsg) {
+      const mediaId = message.image!.id;
+      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
+      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+      mediaBuffer = buffer;
+      mediaMimeType = mimeType;
+    }
+
+    const classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
+
+    // --- PROPERTY INGESTION FLOW ---
+    if (classification === 'property') {
+      await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: "⏳ _Analyzing listing details... Please wait._"
+      });
+
+      try {
+        let parsedDraft: ParsedPropertyDraft;
+        const uploadedImages: string[] = [];
+
+        if (isImageMsg && mediaBuffer && mediaMimeType) {
+          // Parallel parse and upload to save latency
+          const [parsed, publicUrl] = await Promise.all([
+            parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
+            uploadPropertyImage(accountId, mediaBuffer, mediaMimeType)
+          ]);
+
+          parsedDraft = parsed;
+          uploadedImages.push(publicUrl);
+          parsedDraft.images = uploadedImages;
+        } else {
+          parsedDraft = await parseListingFromImageOrText(cleanedText);
+          parsedDraft.images = [];
+        }
+
+        const { isValid, missingFields } = validateDraft(parsedDraft);
+        const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+        // Insert new active session
+        await supabaseAdmin()
+          .from('property_draft_sessions')
+          .insert({
+            account_id: accountId,
+            contact_id: contactRecord.id,
+            draft_data: parsedDraft,
+            status: initialStatus
+          });
+
+        await sendPropertyDraftPreview(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          `📝 *Draft Property Listing Created!*`,
+          parsedDraft,
+          initialStatus,
+          missingFields,
+          conversation.id
+        );
+        return true;
+      } catch (err) {
+        console.error('[chatbot-engine] Error initializing property draft session:', err);
+        const reply = "❌ *Failed to parse listing.* Please copy paste details as text or send a clean property advertisement image.";
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply);
+        return true;
+      }
+    }
+
+    // --- CONTACT INGESTION FLOW ---
+    if (classification === 'contact') {
+      await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: "⏳ _Analyzing contact details... Please wait._"
+      });
+
+      try {
+        let parsedDraft: ParsedContactDraft;
+
+        if (isImageMsg && mediaBuffer && mediaMimeType) {
+          parsedDraft = await parseContactFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
+        } else {
+          parsedDraft = await parseContactFromImageOrText(cleanedText);
+        }
+
+        const { isValid, missingFields } = validateContactDraft(parsedDraft);
+        const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+        // Insert new active session
+        await supabaseAdmin()
+          .from('contact_draft_sessions')
+          .insert({
+            account_id: accountId,
+            contact_id: contactRecord.id,
+            draft_data: parsedDraft,
+            status: initialStatus
+          });
+
+        await sendContactDraftPreview(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          `📝 *Contact Draft Created!*`,
+          parsedDraft,
+          initialStatus,
+          missingFields,
+          conversation.id
+        );
+        return true;
+      } catch (err) {
+        console.error('[chatbot-engine] Error initializing contact draft session:', err);
+        const reply = "❌ *Failed to parse contact details.* Please copy paste details as text or send a clean contact screenshot.";
+        await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply);
+        return true;
+      }
     }
   }
 
   // Handle help command or general welcome instructions
   if (lowerText === 'help' || cleanedText) {
-    const reply = `👋 *AI Property Ingestion Chatbot*\n\n` +
-      `Send a property listing details (text) or a screenshot of the listing to automatically start an inventory draft.\n\n` +
-      `*Commands:* (only active during active session)\n` +
-      `• Send property photos to add them\n` +
-      `• Reply naturally to correct details (e.g., 'price is 1.8 Cr')\n` +
-      `• Reply *cancel* to discard\n` +
-      `• Reply *confirm* to save to your inventory`;
+    const reply = `👋 *AI Ingestion Chatbot*\n\n` +
+      `Send property listing details or a contact profile (as text or screenshot) to automatically start a draft.\n\n` +
+      `*Commands:* (only active during an active session)\n` +
+      `• Send property photos to add them to listing\n` +
+      `• Reply naturally to correct details (e.g., 'price is 1.8 Cr' or 'name is Suresh')\n` +
+      `• Click the **Cancel** button to discard\n` +
+      `• Click the **Confirm** button to save`;
 
     await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
     await saveBotMessage(conversation.id, reply);

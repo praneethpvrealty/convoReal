@@ -11,7 +11,7 @@ export async function checkAndSendAppointmentReminders(): Promise<void> {
   // Query scheduled appointments starting in the next 24 hours that haven't sent at least one reminder
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('*, contact:contacts(*), property:properties(id, title, location, sublocality)')
+    .select('*, contact:contacts(*), property:properties(id, title, location, sublocality), account:accounts(name)')
     .eq('status', 'scheduled')
     .gt('start_time', now.toISOString())
     .lte('start_time', target24h.toISOString())
@@ -104,6 +104,8 @@ export async function checkAndSendAppointmentReminders(): Promise<void> {
       continue
     }
 
+    const accountName = (appt.account as { name: string } | null)?.name || 'our team'
+
     // Try variants (e.g. adding country code prefix)
     const variants = phoneVariants(sanitizedPhone)
     let sentMessageId: string | null = null
@@ -122,7 +124,8 @@ export async function checkAndSendAppointmentReminders(): Promise<void> {
             contact.name || 'Client',
             appt.property?.title || appt.title || 'Property visit',
             formattedTime,
-            appt.location || 'Scheduled Location'
+            appt.location || 'Scheduled Location',
+            accountName
           ]
         })
         sentMessageId = result.messageId
@@ -164,7 +167,7 @@ export async function checkAndSendAppointmentReminders(): Promise<void> {
         }
 
         if (conversation) {
-          const bodyText = `Hi ${contact.name || 'Client'}, this is a friendly reminder for your scheduled property visit for "${appt.property?.title || appt.title || 'Property visit'}" on ${formattedTime}. Location: ${appt.location || 'Scheduled Location'}.`
+          const bodyText = `Hi ${contact.name || 'Client'}, this is a friendly reminder for your scheduled property visit for "${appt.property?.title || appt.title || 'Property visit'}" on ${formattedTime}. Location: ${appt.location || 'Scheduled Location'}. Regards, ${accountName}.`
           
           await admin.from('messages').insert({
             conversation_id: conversation.id,

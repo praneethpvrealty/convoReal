@@ -145,6 +145,57 @@ export async function isListingMessage(text: string): Promise<boolean> {
   }
 }
 
+/**
+ * Classifies if a message (text or image) is a real estate listing, contact details, or neither.
+ */
+export async function classifyImageOrText(
+  text?: string,
+  buffer?: Buffer,
+  mimeType?: string
+): Promise<'property' | 'contact' | 'none'> {
+  const systemInstruction =
+    "You are an expert real estate CRM classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
+    "1. 'property': A real estate listing, advertisement, screenshot of property details, or property inquiry/requirement.\n" +
+    "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, or screenshot of contact information/profile.\n" +
+    "3. 'none': Neither of the above.\n\n" +
+    "Only respond with exactly 'property', 'contact', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
+
+  const parts: GeminiPart[] = [];
+  if (buffer && mimeType) {
+    parts.push({
+      inlineData: { mimeType, data: buffer.toString("base64") }
+    });
+  }
+  const promptText = text 
+    ? `Classify this content:\n\n"${text}"`
+    : "Classify the provided image.";
+  parts.push({ text: promptText });
+
+  const contents = [{ parts }];
+
+  try {
+    const response = await generateContentRaw(contents, systemInstruction, false);
+    const classification = response.toLowerCase().trim();
+    if (classification.includes("property")) return "property";
+    if (classification.includes("contact")) return "contact";
+    return "none";
+  } catch (err) {
+    console.error("[Gemini AI] Error in classifyImageOrText:", err);
+    // Fallback logic
+    const lowerText = text?.toLowerCase() || "";
+    const contactKeywords = ["add contact", "save contact", "new lead", "create contact", "add lead", "email is", "phone is", "save as contact"];
+    if (contactKeywords.some(kw => lowerText.includes(kw))) {
+      return "contact";
+    }
+    const propertyKeywords = ["bhk", "sqft", "flat", "plot", "villa", "sale", "rent", "layout", "crore", "lakh", "price", "location"];
+    if (propertyKeywords.some(kw => lowerText.includes(kw))) {
+      return "property";
+    }
+    return "none";
+  }
+}
+
+
 export interface ParsedPropertyDraft {
   title: string | null;
   price: number | null;
@@ -293,3 +344,128 @@ export async function updateListingDraft(
     return currentDraft; // Return unchanged on error
   }
 }
+
+/**
+ * Classifies if a message text is a request to save/add a contact or contains contact details.
+ */
+export async function isContactMessage(text: string): Promise<boolean> {
+  const cleanText = text.trim();
+  if (!cleanText) return false;
+
+  const systemInstruction = 
+    "You are an expert contact classifier. Your job is to classify if the incoming message contains contact details " +
+    "to be saved, or requests to add, create, or save a contact/lead in a CRM system. " +
+    "Only respond with exactly 'true' or 'false'. Absolutely no markdown, no punctuation, and no other text.";
+
+  const prompt = `Classify this message:\n\n"${cleanText}"`;
+  
+  try {
+    const response = await generateText(prompt, systemInstruction);
+    return response.toLowerCase().includes("true");
+  } catch (err) {
+    console.error("[Gemini AI] Error in isContactMessage classification:", err);
+    // Fallback logic in case of API failure
+    const keywords = ["add contact", "save contact", "new lead", "create contact", "add lead", "email is", "phone is", "save as contact"];
+    return keywords.some(kw => cleanText.toLowerCase().includes(kw));
+  }
+}
+
+export interface ParsedContactDraft {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  company: string | null;
+  classification: "Owner" | "Seller" | "Buyer" | "Agent" | "Others";
+  notes: string | null;
+}
+
+/**
+ * Parses contact details from an image buffer (screenshot) and/or text block.
+ */
+export async function parseContactFromImageOrText(
+  text?: string,
+  buffer?: Buffer,
+  mimeType?: string
+): Promise<ParsedContactDraft> {
+  const systemInstruction = 
+    "You are an expert contact data parser. Extract contact details from the provided text and/or image.\n" +
+    "You must return a JSON object conforming to the following structure:\n" +
+    "{\n" +
+    "  \"name\": \"Full name of the contact or null\",\n" +
+    "  \"phone\": \"Phone number (numeric digits only, e.g. '9876543210' or with country code if visible like '919876543210') or null\",\n" +
+    "  \"email\": \"Email address or null\",\n" +
+    "  \"company\": \"Company name if specified or null\",\n" +
+    "  \"classification\": \"Must be exactly one of: 'Owner', 'Seller', 'Buyer', 'Agent', 'Others'\",\n" +
+    "  \"notes\": \"Any additional details or requirements found in the text/image (e.g. 'Looking for 2BHK HSR') or null\"\n" +
+    "}\n\n" +
+    "Important parsing rules:\n" +
+    "1. Set any fields that cannot be found to null. For classification, choose the best fit based on context or default to 'Others'.\n" +
+    "2. Output MUST be valid JSON.";
+
+  const parts: GeminiPart[] = [];
+
+  if (buffer && mimeType) {
+    parts.push({
+      inlineData: {
+        mimeType,
+        data: buffer.toString("base64")
+      }
+    });
+  }
+
+  const promptText = text 
+    ? `Parse the following contact details:\n\n"${text}"`
+    : "Extract all visible contact details from the provided image.";
+
+  parts.push({ text: promptText });
+
+  const contents = [{ parts }];
+
+  try {
+    const rawResult = await generateContentRaw(contents, systemInstruction, true);
+    const parsed = JSON.parse(rawResult);
+    
+    return {
+      name: parsed.name || null,
+      phone: parsed.phone || null,
+      email: parsed.email || null,
+      company: parsed.company || null,
+      classification: parsed.classification || "Others",
+      notes: parsed.notes || null
+    };
+  } catch (err) {
+    console.error("[Gemini AI] Error parsing contact details:", err);
+    throw err;
+  }
+}
+
+/**
+ * Updates an existing parsed contact draft JSON with a conversational update instruction.
+ */
+export async function updateContactDraft(
+  currentDraft: ParsedContactDraft,
+  updateRequest: string
+): Promise<ParsedContactDraft> {
+  const systemInstruction = 
+    "You are an expert contact data updater. You are given a current contact draft JSON object and a natural language instruction from the user.\n" +
+    "Your job is to apply the updates requested by the user and return the complete updated JSON object matching the exact structure.\n" +
+    "Do not change any other fields unless requested by the user.\n" +
+    "Output MUST be valid JSON.";
+
+  const prompt = `Current Draft:\n${JSON.stringify(currentDraft, null, 2)}\n\nUser Update Request:\n"${updateRequest}"\n\nApply these updates and return the updated JSON.`;
+  const contents = [{ parts: [{ text: prompt }] }];
+
+  try {
+    const rawResult = await generateContentRaw(contents, systemInstruction, true);
+    const parsed = JSON.parse(rawResult);
+    
+    return {
+      ...currentDraft,
+      ...parsed
+    };
+  } catch (err) {
+    console.error("[Gemini AI] Error updating contact draft:", err);
+    return currentDraft; // Return unchanged on error
+  }
+}
+
