@@ -31,6 +31,7 @@ import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
+import { parsePropertyQuery } from '@/lib/search-parser';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
@@ -230,17 +231,35 @@ export default function InventoryPage() {
     return properties.filter((prop) => {
       // 1. Search term match
       if (search.trim()) {
-        const term = search.toLowerCase();
-        const matchesTitle = prop.title.toLowerCase().includes(term);
-        const matchesLoc = prop.location.toLowerCase().includes(term);
-        const matchesDesc = prop.description?.toLowerCase()?.includes(term) ?? false;
-        const matchesProject = prop.project?.toLowerCase()?.includes(term) ?? false;
-        const matchesFacing = prop.facing_direction?.toLowerCase()?.includes(term) ?? false;
-        const matchesDim = prop.dimensions?.toLowerCase()?.includes(term) ?? false;
-        const matchesFeatures = prop.features?.some(f => f.toLowerCase().includes(term)) ?? false;
-        const matchesHighlights = prop.nearby_highlights?.some(h => h.toLowerCase().includes(term)) ?? false;
+        const parsed = parsePropertyQuery(search);
+        
+        // Match price filters if present
+        if (parsed.minPrice !== null && (!prop.price || Number(prop.price) < parsed.minPrice)) {
+          return false;
+        }
+        if (parsed.maxPrice !== null && (!prop.price || Number(prop.price) > parsed.maxPrice)) {
+          return false;
+        }
+        
+        // Match parsed types if present
+        if (parsed.types.length > 0 && !parsed.types.includes(prop.type)) {
+          return false;
+        }
+        
+        // Match remaining text keyword if present
+        if (parsed.remainingSearch) {
+          const term = parsed.remainingSearch.toLowerCase();
+          const matchesTitle = prop.title.toLowerCase().includes(term);
+          const matchesLoc = prop.location.toLowerCase().includes(term);
+          const matchesDesc = prop.description?.toLowerCase()?.includes(term) ?? false;
+          const matchesProject = prop.project?.toLowerCase()?.includes(term) ?? false;
+          const matchesFacing = prop.facing_direction?.toLowerCase()?.includes(term) ?? false;
+          const matchesDim = prop.dimensions?.toLowerCase()?.includes(term) ?? false;
+          const matchesFeatures = prop.features?.some(f => f.toLowerCase().includes(term)) ?? false;
+          const matchesHighlights = prop.nearby_highlights?.some(h => h.toLowerCase().includes(term)) ?? false;
 
-        if (!matchesTitle && !matchesLoc && !matchesDesc && !matchesProject && !matchesFacing && !matchesDim && !matchesFeatures && !matchesHighlights) return false;
+          if (!matchesTitle && !matchesLoc && !matchesDesc && !matchesProject && !matchesFacing && !matchesDim && !matchesFeatures && !matchesHighlights) return false;
+        }
       }
 
       // 2. Type filter match

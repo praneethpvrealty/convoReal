@@ -257,13 +257,28 @@ export default function ContactsPage() {
       .select('*', { count: 'exact' })
       .eq('account_id', accountId)
       .eq('status', activeTab)
-      .order('created_at', { ascending: false })
-      .range(from, to);
+      .order('created_at', { ascending: false });
 
     if (search.trim()) {
       const term = `%${search.trim()}%`;
-      query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
+      const { data: matchedNotes } = await supabaseClient
+        .from('contact_notes')
+        .select('contact_id')
+        .eq('account_id', accountId)
+        .ilike('note_text', term);
+      
+      const noteContactIds = matchedNotes
+        ? Array.from(new Set(matchedNotes.map((n) => n.contact_id).filter(Boolean)))
+        : [];
+      
+      let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+      if (noteContactIds.length > 0) {
+        orFilter += `,id.in.(${noteContactIds.join(',')})`;
+      }
+      query = query.or(orFilter);
     }
+
+    query = query.range(from, to);
 
     const { data, count, error } = await query;
 
