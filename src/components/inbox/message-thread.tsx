@@ -21,6 +21,8 @@ import {
   Clock,
   ArrowLeft,
   RefreshCw,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +88,13 @@ interface MessageThreadProps {
    * working; the button is only rendered when this is provided.
    */
   onRefresh?: () => void;
+  /**
+   * Fired when the archive button is clicked in the thread header.
+   * The parent should toggle is_archived on the conversation and
+   * deselect it so the thread clears. Optional so existing callers
+   * keep working.
+   */
+  onArchive?: (conversationId: string, isArchived: boolean) => void;
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -142,6 +151,7 @@ export function MessageThread({
   onBack,
   resyncToken = 0,
   onRefresh,
+  onArchive,
 }: MessageThreadProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -171,6 +181,34 @@ export function MessageThread({
       refreshTimerRef.current = null;
     }, 700);
   }, [isRefreshing, onRefresh]);
+
+  const handleArchiveClick = useCallback(async () => {
+    if (!conversation) return;
+    const newArchived = !conversation.is_archived;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("conversations")
+      .update({ is_archived: newArchived })
+      .eq("id", conversation.id);
+    if (error) {
+      toast.error("Failed to archive conversation");
+      return;
+    }
+    onArchive?.(conversation.id, newArchived);
+    toast.success(newArchived ? "Conversation archived" : "Conversation unarchived", {
+      action: {
+        label: "Undo",
+        onClick: async () => {
+          const supabase2 = createClient();
+          await supabase2
+            .from("conversations")
+            .update({ is_archived: !newArchived })
+            .eq("id", conversation.id);
+          onArchive?.(conversation.id, !newArchived);
+        },
+      },
+    });
+  }, [conversation, onArchive]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
 
   // Profiles are bounded by RLS to rows the current user is allowed to
@@ -781,6 +819,19 @@ export function MessageThread({
               />
             </button>
           )}
+
+          {/* Archive / Unarchive button */}
+          <button
+            type="button"
+            onClick={handleArchiveClick}
+            aria-label={conversation.is_archived ? "Unarchive conversation" : "Archive conversation"}
+            title={conversation.is_archived ? "Unarchive" : "Archive"}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-amber-400"
+          >
+            {conversation.is_archived
+              ? <ArchiveRestore className="h-3.5 w-3.5" />
+              : <Archive className="h-3.5 w-3.5" />}
+          </button>
 
           {/* Status dropdown */}
           <DropdownMenu>

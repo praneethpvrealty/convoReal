@@ -150,7 +150,9 @@ export interface ContactNote {
   contact_id: string;
   user_id: string;
   note_text: string;
+  is_completed: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
@@ -164,6 +166,7 @@ export interface Conversation {
   last_message_text?: string;
   last_message_at?: string;
   unread_count: number;
+  is_archived: boolean;
   created_at: string;
   updated_at: string;
   contact?: Contact;

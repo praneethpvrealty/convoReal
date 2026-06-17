@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,12 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 
 interface ConversationListProps {
   activeConversationId: string | null;
   onSelect: (conversation: Conversation) => void;
   conversations: Conversation[];
   onConversationsLoaded: (conversations: Conversation[]) => void;
+  onArchiveChange?: (conversationId: string, isArchived: boolean) => void;
   /**
    * Increment to force the fetch effect below to refire. The parent
    * bumps this on realtime reconnect / tab visibility → visible so the
@@ -35,11 +37,14 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-slate-500",
 };
 
-const FILTER_OPTIONS: { label: string; value: ConversationStatus | "all" }[] = [
+type FilterValue = ConversationStatus | "all" | "archived";
+
+const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
   { label: "All", value: "all" },
   { label: "Open", value: "open" },
   { label: "Pending", value: "pending" },
   { label: "Closed", value: "closed" },
+  { label: "Archived", value: "archived" },
 ];
 
 export function ConversationList({
@@ -47,10 +52,11 @@ export function ConversationList({
   onSelect,
   conversations,
   onConversationsLoaded,
+  onArchiveChange,
   resyncToken = 0,
 }: ConversationListProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<ConversationStatus | "all">("all");
+  const [filter, setFilter] = useState<FilterValue>("all");
   const [loading, setLoading] = useState(true);
 
   // Keep the latest callback in a ref so the fetch effect below can
@@ -109,8 +115,14 @@ export function ConversationList({
   const filtered = useMemo(() => {
     let result = conversations;
 
-    if (filter !== "all") {
-      result = result.filter((c) => c.status === filter);
+    if (filter === "archived") {
+      result = result.filter((c) => c.is_archived);
+    } else {
+      // Hide archived conversations from all non-archived views
+      result = result.filter((c) => !c.is_archived);
+      if (filter !== "all") {
+        result = result.filter((c) => c.status === filter);
+      }
     }
 
     if (search.trim()) {
@@ -138,6 +150,39 @@ export function ConversationList({
       onSelect(conv);
     },
     [onSelect]
+  );
+
+  const handleArchiveToggle = useCallback(
+    async (conv: Conversation, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newArchived = !conv.is_archived;
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update({ is_archived: newArchived })
+        .eq("id", conv.id);
+
+      if (error) {
+        toast.error("Failed to update conversation");
+        return;
+      }
+
+      onArchiveChange?.(conv.id, newArchived);
+      toast.success(newArchived ? "Conversation archived" : "Conversation unarchived", {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const supabase2 = createClient();
+            await supabase2
+              .from("conversations")
+              .update({ is_archived: !newArchived })
+              .eq("id", conv.id);
+            onArchiveChange?.(conv.id, !newArchived);
+          },
+        },
+      });
+    },
+    [onArchiveChange]
   );
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
@@ -176,9 +221,10 @@ export function ConversationList({
                   "text-sm",
                   filter === opt.value
                     ? "text-primary"
-                    : "text-slate-300"
+                    : opt.value === "archived" ? "text-slate-400" : "text-slate-300"
                 )}
               >
+                {opt.value === "archived" && <Archive className="mr-2 h-3 w-3" />}
                 {opt.label}
               </DropdownMenuItem>
             ))}
@@ -194,7 +240,9 @@ export function ConversationList({
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">
-            <p className="text-sm text-slate-500">No conversations found</p>
+            <p className="text-sm text-slate-500">
+              {filter === "archived" ? "No archived conversations" : "No conversations found"}
+            </p>
           </div>
         ) : (
           <div className="flex flex-col">
@@ -204,6 +252,7 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                onArchiveToggle={handleArchiveToggle}
               />
             ))}
           </div>
@@ -217,13 +266,16 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  onArchiveToggle: (conv: Conversation, e: React.MouseEvent) => void;
 }
 
 function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  onArchiveToggle,
 }: ConversationItemProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || "Unknown";
   const initials = displayName.charAt(0).toUpperCase();
@@ -239,55 +291,87 @@ function ConversationItem({
     : "";
 
   return (
-    <button
-      onClick={handleClick}
+    <div
       className={cn(
-        "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-800/50",
+        "group relative flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-slate-800/50",
         isActive && "border-l-2 border-primary bg-slate-800/70"
       )}
     >
-      {/* Avatar */}
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
-        {contact?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={contact.avatar_url}
-            alt={displayName}
-            className="h-10 w-10 rounded-full object-cover"
-          />
-        ) : (
-          initials
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium text-white">
-            {displayName}
-          </span>
-          <span className="shrink-0 text-[10px] text-slate-500">{timeAgo}</span>
-        </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-slate-400">
-            {conversation.last_message_text || "No messages yet"}
-          </p>
-          <div className="flex shrink-0 items-center gap-1.5">
-            {conversation.unread_count > 0 && (
-              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
-                {conversation.unread_count}
-              </span>
-            )}
-            <span
-              className={cn(
-                "h-2 w-2 rounded-full",
-                STATUS_COLORS[conversation.status]
-              )}
-              title={conversation.status}
+      <button
+        onClick={handleClick}
+        className="flex flex-1 items-start gap-3 min-w-0"
+      >
+        {/* Avatar */}
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-700 text-sm font-medium text-white">
+          {contact?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={contact.avatar_url}
+              alt={displayName}
+              className="h-10 w-10 rounded-full object-cover"
             />
+          ) : (
+            initials
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-medium text-white">
+              {displayName}
+            </span>
+            <span className="shrink-0 text-[10px] text-slate-500">{timeAgo}</span>
+          </div>
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <p className="truncate text-xs text-slate-400">
+              {conversation.last_message_text || "No messages yet"}
+            </p>
+            <div className="flex shrink-0 items-center gap-1.5">
+              {conversation.unread_count > 0 && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+                  {conversation.unread_count}
+                </span>
+              )}
+              <span
+                className={cn(
+                  "h-2 w-2 rounded-full",
+                  conversation.is_archived
+                    ? "bg-slate-600"
+                    : STATUS_COLORS[conversation.status]
+                )}
+                title={conversation.is_archived ? "archived" : conversation.status}
+              />
+            </div>
           </div>
         </div>
-      </div>
-    </button>
+      </button>
+
+      {/* Context menu — archive / unarchive */}
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger
+          onClick={(e) => { e.stopPropagation(); }}
+          className={cn(
+            "absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:text-white hover:bg-slate-700 transition-opacity",
+            menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+          )}
+          aria-label="Conversation options"
+        >
+          <MoreVertical className="h-3.5 w-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="border-slate-700 bg-slate-800 min-w-36">
+          <DropdownMenuItem
+            onClick={(e) => { setMenuOpen(false); onArchiveToggle(conversation, e); }}
+            className="gap-2 text-sm text-slate-300"
+          >
+            {conversation.is_archived ? (
+              <><ArchiveRestore className="h-3.5 w-3.5 text-slate-400" /> Unarchive</>
+            ) : (
+              <><Archive className="h-3.5 w-3.5 text-slate-400" /> Archive</>
+            )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

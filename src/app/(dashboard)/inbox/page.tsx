@@ -502,6 +502,25 @@ export default function InboxPage() {
     [activeConversation]
   );
 
+  const handleArchiveChange = useCallback(
+    (conversationId: string, isArchived: boolean) => {
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === conversationId ? { ...c, is_archived: isArchived } : c
+        )
+      );
+      // Deselect and clear thread when the active conversation is archived
+      if (isArchived && activeConversation?.id === conversationId) {
+        setActiveConversation(null);
+        setActiveContact(null);
+        setMessages([]);
+        autoSelectedForDeepLinkRef.current = null;
+        router.replace("/inbox", { scroll: false });
+      }
+    },
+    [activeConversation, router]
+  );
+
   // On mobile (<lg) we show a SINGLE pane — either the list or the
   // thread — rather than cramming both side-by-side. Selecting a
   // conversation slides the thread in; the thread's back button pops
@@ -537,6 +556,7 @@ export default function InboxPage() {
             onSelect={handleSelectConversation}
             conversations={conversations}
             onConversationsLoaded={handleConversationsLoaded}
+            onArchiveChange={handleArchiveChange}
             resyncToken={resyncToken}
           />
         </div>
@@ -566,6 +586,7 @@ export default function InboxPage() {
             onUpdateMessage={handleUpdateMessage}
             onStatusChange={handleStatusChange}
             onAssignChange={handleAssignChange}
+            onArchive={handleArchiveChange}
             onBack={handleCloseConversation}
             resyncToken={resyncToken}
             onRefresh={handleManualRefresh}
