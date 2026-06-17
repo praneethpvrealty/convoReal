@@ -155,8 +155,8 @@ export async function classifyImageOrText(
 ): Promise<'property' | 'contact' | 'none'> {
   const systemInstruction =
     "You are an expert real estate CRM classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
-    "1. 'property': A real estate listing, advertisement, screenshot of property details, or property inquiry/requirement.\n" +
-    "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, or screenshot of contact information/profile.\n" +
+    "1. 'property': A property listing to be added to inventory, layout plan, listing advertisement, or property details description.\n" +
+    "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, screenshot of contact/profile details, or lead forwarding/inquiry messages containing contact name/phone and their property interest (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters' or Magicbricks/99acres/Housing forwards).\n" +
     "3. 'none': Neither of the above.\n\n" +
     "Only respond with exactly 'property', 'contact', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
 
@@ -183,7 +183,7 @@ export async function classifyImageOrText(
     console.error("[Gemini AI] Error in classifyImageOrText:", err);
     // Fallback logic
     const lowerText = text?.toLowerCase() || "";
-    const contactKeywords = ["add contact", "save contact", "new lead", "create contact", "add lead", "email is", "phone is", "save as contact"];
+    const contactKeywords = ["add contact", "save contact", "new lead", "create contact", "add lead", "email is", "phone is", "save as contact", "is interested in", "magicbricks", "99acres", "housing.com"];
     if (contactKeywords.some(kw => lowerText.includes(kw))) {
       return "contact";
     }
@@ -396,11 +396,12 @@ export async function parseContactFromImageOrText(
     "  \"email\": \"Email address or null\",\n" +
     "  \"company\": \"Company name if specified or null\",\n" +
     "  \"classification\": \"Must be exactly one of: 'Owner', 'Seller', 'Buyer', 'Agent', 'Others'\",\n" +
-    "  \"notes\": \"Any additional details or requirements found in the text/image (e.g. 'Looking for 2BHK HSR') or null\"\n" +
+    "  \"notes\": \"Any additional details or requirements found in the text/image (e.g. 'Interested in SJR Blue Waters, Sarjapur Road. Source: Magicbricks') or null\"\n" +
     "}\n\n" +
     "Important parsing rules:\n" +
-    "1. Set any fields that cannot be found to null. For classification, choose the best fit based on context or default to 'Others'.\n" +
-    "2. Output MUST be valid JSON.";
+    "1. Set any fields that cannot be found to null. For classification, choose the best fit based on context. Lead forwards showing interest in buying/renting a property must be classified as 'Buyer'.\n" +
+    "2. In lead forwarding messages (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters...'), extract the lead's name ('VaishaliGaur'), phone ('917737932199'), classify as 'Buyer', and put their interest ('Interested in SJR Blue Waters, Sarjapur Road Magicbricks') in 'notes'.\n" +
+    "3. Output MUST be valid JSON.";
 
   const parts: GeminiPart[] = [];
 
