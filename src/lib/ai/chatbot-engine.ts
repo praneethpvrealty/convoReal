@@ -426,7 +426,7 @@ export async function processOwnerChatbotMessage(
         reply += `*ROI (Yield):* ${prop.roi}%\n`;
       }
 
-      reply += `\nView it in your dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/inventory`;
+      reply += `\nView it in your dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/inventory?propertyId=${prop.id}`;
         
       await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);
@@ -615,7 +615,11 @@ export async function processOwnerChatbotMessage(
       if (duplicates.length > 0) {
         reply += `\n⚠️ *Skipped duplicates:* \n` + duplicates.map(d => `• ${d}`).join('\n') + `\n`;
       }
-      reply += `\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts`;
+      if (inserted.length === 1) {
+        reply += `\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts?contactId=${inserted[0].id}`;
+      } else {
+        reply += `\nView in dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/contacts`;
+      }
         
       await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply);

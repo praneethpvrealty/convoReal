@@ -41,6 +41,7 @@ export default function InventoryPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
   
   // Filters
   const [typeFilter, setTypeFilter] = useState('All');
@@ -105,6 +106,19 @@ export default function InventoryPage() {
   useEffect(() => {
     fetchProperties();
   }, [fetchProperties]);
+
+  // Automatically open property form modal if propertyId is specified in query parameters
+  useEffect(() => {
+    const pid = searchParams?.get('propertyId');
+    if (pid && properties.length > 0 && !hasAutoOpened) {
+      const prop = properties.find((p) => p.id === pid || p.property_code === pid);
+      if (prop) {
+        setSelectedProperty(prop);
+        setFormOpen(true);
+        setHasAutoOpened(true);
+      }
+    }
+  }, [searchParams, properties, hasAutoOpened]);
 
   // Keep active modal property states in sync with the fetched properties list
   useEffect(() => {

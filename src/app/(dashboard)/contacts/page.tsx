@@ -222,6 +222,7 @@ export default function ContactsPage() {
   const [editContactTags, setEditContactTags] = useState<ContactTag[]>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
@@ -348,6 +349,16 @@ export default function ContactsPage() {
   useEffect(() => {
     fetchContacts();
   }, [fetchContacts]);
+
+  // Automatically open contact detail modal if contactId is specified in query parameters
+  useEffect(() => {
+    const cid = searchParams?.get('contactId');
+    if (cid && !hasAutoOpened) {
+      setDetailContactId(cid);
+      setDetailOpen(true);
+      setHasAutoOpened(true);
+    }
+  }, [searchParams, hasAutoOpened]);
 
   function openAddForm() {
     setEditContact(null);
