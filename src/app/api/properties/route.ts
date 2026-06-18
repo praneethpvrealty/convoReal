@@ -2,16 +2,74 @@ import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 
+const MAX_LIMIT = 100;
+const DEFAULT_LIMIT = 25;
+const ALLOWED_SORT_FIELDS = ["created_at", "updated_at", "title", "price", "location", "status", "is_published"] as const;
+type SortField = typeof ALLOWED_SORT_FIELDS[number];
+
 // GET /api/properties
-// Lists all properties for the user's account
-export async function GET() {
+// Lists properties for the user's account with pagination and filtering
+export async function GET(request: Request) {
   try {
     const ctx = await requireRole("viewer");
+    const { searchParams } = new URL(request.url);
 
-    const { data, error } = await ctx.supabase
+    const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10));
+    const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT), 10)));
+    const search = searchParams.get("search")?.trim() || "";
+    const type = searchParams.get("type")?.trim() || "";
+    const status = searchParams.get("status")?.trim() || "";
+    const isPublished = searchParams.get("is_published");
+    const listingSource = searchParams.get("listing_source")?.trim() || "";
+    const minPrice = searchParams.get("min_price");
+    const maxPrice = searchParams.get("max_price");
+    const sort = (ALLOWED_SORT_FIELDS.includes(searchParams.get("sort") as SortField)
+      ? searchParams.get("sort")
+      : "created_at") as SortField;
+    const order = searchParams.get("order") === "asc" ? "asc" : "desc";
+
+    const from = page * limit;
+    const to = from + limit - 1;
+
+    let query = ctx.supabase
       .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)")
-      .order("created_at", { ascending: false });
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(*)", { count: "exact" })
+      .eq("account_id", ctx.accountId)
+      .order(sort, { ascending: order === "asc" })
+      .range(from, to);
+
+    if (search) {
+      const term = `%${search}%`;
+      query = query.or(`title.ilike.${term},location.ilike.${term},project.ilike.${term},description.ilike.${term},property_code.ilike.${term}`);
+    }
+
+    if (type) {
+      query = query.eq("type", type);
+    }
+
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    if (isPublished !== null && isPublished !== "") {
+      query = query.eq("is_published", isPublished === "true");
+    }
+
+    if (listingSource) {
+      query = query.eq("listing_source", listingSource);
+    }
+
+    if (minPrice !== null && minPrice !== "") {
+      const min = Number(minPrice);
+      if (!isNaN(min)) query = query.gte("price", min);
+    }
+
+    if (maxPrice !== null && maxPrice !== "") {
+      const max = Number(maxPrice);
+      if (!isNaN(max)) query = query.lte("price", max);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("[GET /api/properties] Select error:", error);
@@ -21,7 +79,15 @@ export async function GET() {
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json({
+      data: data ?? [],
+      pagination: {
+        page,
+        limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / limit),
+      },
+    });
   } catch (err) {
     return toErrorResponse(err);
   }

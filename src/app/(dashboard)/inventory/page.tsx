@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -26,21 +26,26 @@ import {
   Loader2,
   Trash2,
   Tag,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
-import { parsePropertyQuery } from '@/lib/search-parser';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
+  const initialPage = parseInt(searchParams?.get('page') || '0', 10);
 
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
+  const [page, setPage] = useState(initialPage);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
   
   // Filters
@@ -62,6 +67,7 @@ export default function InventoryPage() {
 
   const { accountId } = useAuth();
   const [currency, setCurrency] = useState('INR');
+  const router = useRouter();
 
   const fetchCurrency = useCallback(async () => {
     if (!accountId) return;
@@ -87,25 +93,44 @@ export default function InventoryPage() {
   const fetchProperties = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/properties?_t=${Date.now()}`, {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: '25',
+      });
+      if (search.trim()) params.set('search', search.trim());
+      if (typeFilter !== 'All') params.set('type', typeFilter);
+      if (statusFilter !== 'All') params.set('status', statusFilter);
+      if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
+      if (sourceFilter !== 'All') params.set('listing_source', sourceFilter === 'Owner' ? 'owner' : 'agent');
+
+      const response = await fetch(`/api/properties?${params.toString()}`, {
         cache: 'no-store',
       });
       if (!response.ok) {
         throw new Error('Failed to fetch properties');
       }
-      const data = await response.json();
-      setProperties(data || []);
+      const result = await response.json();
+      setProperties(result.data || []);
+      setTotalCount(result.pagination?.total || 0);
+      setTotalPages(result.pagination?.totalPages || 0);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error loading properties';
       toast.error(message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, search, typeFilter, statusFilter, showcaseFilter, sourceFilter]);
 
   useEffect(() => {
     fetchProperties();
   }, [fetchProperties]);
+
+  // Sync page with URL
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams?.toString());
+    params.set('page', String(page));
+    router.replace(`/inventory?${params.toString()}`, { scroll: false });
+  }, [page, searchParams, router]);
 
   // Automatically open property form modal if propertyId is specified in query parameters
   useEffect(() => {
@@ -240,71 +265,6 @@ export default function InventoryPage() {
     return { total, published, available, soldOrContract };
   }, [properties]);
 
-  // Client-side filtering logic for instant search/filter responsiveness
-  const filteredProperties = useMemo(() => {
-    return properties.filter((prop) => {
-      // 1. Search term match
-      if (search.trim()) {
-        const parsed = parsePropertyQuery(search);
-        
-        // Match price filters if present
-        if (parsed.minPrice !== null && (!prop.price || Number(prop.price) < parsed.minPrice)) {
-          return false;
-        }
-        if (parsed.maxPrice !== null && (!prop.price || Number(prop.price) > parsed.maxPrice)) {
-          return false;
-        }
-        
-        // Match parsed types if present
-        if (parsed.types.length > 0 && !parsed.types.includes(prop.type)) {
-          return false;
-        }
-        
-        // Match remaining text keyword if present
-        if (parsed.remainingSearch) {
-          const term = parsed.remainingSearch.toLowerCase();
-          const matchesTitle = prop.title.toLowerCase().includes(term);
-          const matchesLoc = prop.location.toLowerCase().includes(term);
-          const matchesDesc = prop.description?.toLowerCase()?.includes(term) ?? false;
-          const matchesProject = prop.project?.toLowerCase()?.includes(term) ?? false;
-          const matchesFacing = prop.facing_direction?.toLowerCase()?.includes(term) ?? false;
-          const matchesDim = prop.dimensions?.toLowerCase()?.includes(term) ?? false;
-          const matchesFeatures = prop.features?.some(f => f.toLowerCase().includes(term)) ?? false;
-          const matchesHighlights = prop.nearby_highlights?.some(h => h.toLowerCase().includes(term)) ?? false;
-
-          if (!matchesTitle && !matchesLoc && !matchesDesc && !matchesProject && !matchesFacing && !matchesDim && !matchesFeatures && !matchesHighlights) return false;
-        }
-      }
-
-      // 2. Type filter match
-      if (typeFilter !== 'All') {
-        const resTypes = ['Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment'];
-        const commTypes = ['Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed'];
-        const agriTypes = ['Agricultural Land', 'Farm House'];
-
-        if (typeFilter === 'Residential' && !resTypes.includes(prop.type)) return false;
-        if (typeFilter === 'Commercial' && !commTypes.includes(prop.type)) return false;
-        if (typeFilter === 'Agricultural' && !agriTypes.includes(prop.type)) return false;
-      }
-
-      // 3. Status filter match
-      if (statusFilter !== 'All' && prop.status !== statusFilter) return false;
-
-      // 4. Showcase filter match
-      if (showcaseFilter === 'Showcased' && !prop.is_published) return false;
-      if (showcaseFilter === 'Private' && prop.is_published) return false;
-
-      // 5. Source filter match
-      if (sourceFilter !== 'All') {
-        const isAgent = prop.listing_source === 'agent';
-        if (sourceFilter === 'Owner' && isAgent) return false;
-        if (sourceFilter === 'Agent' && !isAgent) return false;
-      }
-
-      return true;
-    });
-  }, [properties, search, typeFilter, statusFilter, showcaseFilter, sourceFilter]);
-
   return (
     <div className="flex flex-col flex-1 p-6 space-y-6">
       {/* Page Header */}
@@ -378,7 +338,7 @@ export default function InventoryPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
             placeholder="Search by title, location or keywords..."
             className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
           />
@@ -386,54 +346,54 @@ export default function InventoryPage() {
 
         {/* Filter Selection Panel */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-          >
-            <option value="All">All Categories</option>
-            <option value="Residential">Residential</option>
-            <option value="Commercial">Commercial</option>
-            <option value="Agricultural">Agricultural</option>
-          </select>
+           <select
+             value={typeFilter}
+             onChange={(e) => { setTypeFilter(e.target.value); setPage(0); }}
+             className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+           >
+             <option value="All">All Categories</option>
+             <option value="Residential">Residential</option>
+             <option value="Commercial">Commercial</option>
+             <option value="Agricultural">Agricultural</option>
+           </select>
 
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-          >
-            <option value="All">All Statuses</option>
-            <option value="Available">Available</option>
-            <option value="Under Contract">Under Contract</option>
-            <option value="Sold">Sold</option>
-            <option value="Off Market">Off Market</option>
-          </select>
+           <select
+             value={statusFilter}
+             onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+             className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+           >
+             <option value="All">All Statuses</option>
+             <option value="Available">Available</option>
+             <option value="Under Contract">Under Contract</option>
+             <option value="Sold">Sold</option>
+             <option value="Off Market">Off Market</option>
+           </select>
 
-          <select
-            value={showcaseFilter}
-            onChange={(e) => setShowcaseFilter(e.target.value)}
-            className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-          >
-            <option value="All">All Showcase</option>
-            <option value="Showcased">Showcased Only</option>
-            <option value="Private">Private Only</option>
-          </select>
+           <select
+             value={showcaseFilter}
+             onChange={(e) => { setShowcaseFilter(e.target.value); setPage(0); }}
+             className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+           >
+             <option value="All">All Showcase</option>
+             <option value="Showcased">Showcased Only</option>
+             <option value="Private">Private Only</option>
+           </select>
 
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-          >
-            <option value="All">All Sources</option>
-            <option value="Owner">Direct (Owner)</option>
-            <option value="Agent">Referred by Agent</option>
-          </select>
+           <select
+             value={sourceFilter}
+             onChange={(e) => { setSourceFilter(e.target.value); setPage(0); }}
+             className="h-9 rounded-md border border-slate-700 bg-slate-800 px-3 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
+           >
+             <option value="All">All Sources</option>
+             <option value="Owner">Direct (Owner)</option>
+             <option value="Agent">Referred by Agent</option>
+           </select>
         </div>
       </div>
 
       {/* Main Grid View */}
       <PropertyList
-        properties={filteredProperties}
+        properties={properties}
         loading={loading}
         onEdit={handleEditClick}
         onDelete={handleDeleteClick}
@@ -501,6 +461,38 @@ export default function InventoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+          <p className="text-xs text-slate-500">
+            Showing {page * 25 + 1}-{Math.min((page + 1) * 25, totalCount)} of {totalCount}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              disabled={page === 0}
+              onClick={() => setPage((p) => p - 1)}
+              className="border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <span className="text-xs text-slate-400 px-2">
+              Page {page + 1} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage((p) => p + 1)}
+              className="border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-30"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
