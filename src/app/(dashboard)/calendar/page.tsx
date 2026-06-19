@@ -66,6 +66,7 @@ interface Todo {
     location: string | null;
     sublocality: string | null;
   } | null;
+  isAppointment?: boolean;
 }
 
 interface SimpleContact {
@@ -703,7 +704,7 @@ export default function CalendarPage() {
 
   const toggleTodo = async (todo: Todo) => {
     try {
-      if ((todo as any).isAppointment) {
+      if (todo.isAppointment) {
         const appt = appointments.find((a) => a.id === todo.id);
         if (!appt) return;
         const newStatus = appt.status === "completed" ? "scheduled" : "completed";
@@ -1007,7 +1008,7 @@ export default function CalendarPage() {
                     )}
                     <button
                       onClick={() => {
-                        if ((todo as any).isAppointment) {
+                        if (todo.isAppointment) {
                           const appt = appointments.find((a) => a.id === todo.id);
                           if (appt) openEditApptModal(appt);
                         } else {
@@ -1022,7 +1023,7 @@ export default function CalendarPage() {
                     </button>
                     <button
                       onClick={() => {
-                        if ((todo as any).isAppointment) {
+                        if (todo.isAppointment) {
                           const appt = appointments.find((a) => a.id === todo.id);
                           if (appt) deleteAppointment(appt);
                         } else {
