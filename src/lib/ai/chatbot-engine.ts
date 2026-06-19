@@ -147,6 +147,7 @@ function formatDraftPreviewMessage(
     `*Location:* ${draft.location || '❓ _Missing_'}\n` +
     `*Type:* ${draft.type || '❓ _Missing_'}\n` +
     `*Area:* ${draft.area_sqft ? draft.area_sqft + ' Sq.Ft.' : '_Not specified_'}\n` +
+    (draft.land_area ? `*Land Area:* ${draft.land_area} ${draft.land_area_unit || 'Sq.Ft.'}\n` : '') +
     `*Beds/Baths:* ${draft.bedrooms ? draft.bedrooms + ' BHK' : '_Not specified_'} / ${draft.bathrooms ? draft.bathrooms + ' Bath' : '_Not specified_'}\n`;
 
   if (draft.rental_income) {
@@ -157,6 +158,17 @@ function formatDraftPreviewMessage(
   }
   if (draft.google_map_link) {
     reply += `*Google Map Link:* ${draft.google_map_link}\n`;
+  }
+  if (draft.features && draft.features.length > 0) {
+    reply += `*Amenities:* ${draft.features.join(', ')}\n`;
+  }
+  if (draft.nearby_highlights && draft.nearby_highlights.length > 0) {
+    reply += `*Nearby Highlights:* ${draft.nearby_highlights.join(', ')}\n`;
+  }
+  if ((draft as any).owner_contact_name) {
+    const rolePart = (draft as any).owner_contact_role ? ` [${(draft as any).owner_contact_role}]` : '';
+    const phonePart = (draft as any).owner_contact_phone ? ` (${(draft as any).owner_contact_phone})` : '';
+    reply += `*Listing Owner/Agent:* ${(draft as any).owner_contact_name}${phonePart}${rolePart}\n`;
   }
 
   reply += `*Images:* ${draft.images.length} attached\n\n` +
@@ -299,6 +311,7 @@ async function formatContactDraftsContainerPreview(
         `• *Email:* ${draft.email || '_Not specified_'}\n` +
         `• *Company:* ${draft.company || '_Not specified_'}\n` +
         `• *Role/Classification:* ${draft.classification || 'Others'}\n` +
+        ((draft as any).referrer_name ? `• *Referrer:* ${(draft as any).referrer_name}${(draft as any).referrer_phone ? ' (' + (draft as any).referrer_phone + ')' : ''}\n` : '') +
         `• *Notes:* ${draft.notes || '_No notes_'}\n` +
         (duplicateWarning ? `${duplicateWarning}\n` : '') +
         `\n`;
@@ -428,6 +441,58 @@ export async function processOwnerChatbotMessage(
         return true;
       }
 
+      let ownerContactId = null;
+      let listingSource = 'owner';
+
+      if ((draft as any).owner_contact_name) {
+        const ownerName = (draft as any).owner_contact_name.trim();
+        const ownerPhone = (draft as any).owner_contact_phone;
+        let query = supabaseAdmin().from('contacts').select('id, name, classification').eq('account_id', accountId);
+        
+        if (ownerPhone) {
+          const normalized = normalizePhoneWithCountryCode(ownerPhone, '91');
+          const cleanPhone = normalized.replace(/\D/g, '');
+          query = query.or(`phone.eq.${ownerPhone},phone.eq.${normalized},phone.eq.${cleanPhone},name.ilike.${ownerName}`);
+        } else {
+          query = query.ilike('name', ownerName);
+        }
+
+        const { data: existingContacts } = await query;
+        if (existingContacts && existingContacts.length > 0) {
+          const contact = existingContacts[0];
+          ownerContactId = contact.id;
+          if (contact.classification === 'Agent') {
+            listingSource = 'agent';
+          } else {
+            listingSource = 'owner';
+          }
+        } else {
+          // Contact not found -> Create a new contact
+          const newClassification = (draft as any).owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
+          const normalizedPhone = ownerPhone ? (normalizePhoneWithCountryCode(ownerPhone, '91') || null) : null;
+          const { data: newContact, error: createErr } = await supabaseAdmin()
+            .from('contacts')
+            .insert({
+              account_id: accountId,
+              user_id: userId,
+              name: ownerName,
+              phone: normalizedPhone || '',
+              classification: newClassification,
+              status: 'pending_review',
+              source: 'WhatsApp'
+            })
+            .select()
+            .single();
+
+          if (!createErr && newContact) {
+            ownerContactId = newContact.id;
+            listingSource = newClassification === 'Agent' ? 'agent' : 'owner';
+          } else {
+            console.error('[chatbot-engine] Error creating new contact for listing owner:', createErr);
+          }
+        }
+      }
+
       // Create new property in inventory
       const { data: prop, error: propErr } = await supabaseAdmin()
         .from('properties')
@@ -450,10 +515,15 @@ export async function processOwnerChatbotMessage(
           facing_direction: draft.facing_direction,
           is_published: true,
           features: draft.features || [],
+          nearby_highlights: draft.nearby_highlights || [],
           images: draft.images || [],
           rental_income: draft.rental_income,
           roi: draft.roi,
-          google_map_link: draft.google_map_link
+          google_map_link: draft.google_map_link,
+          land_area: draft.land_area,
+          land_area_unit: draft.land_area_unit || 'Sq.Ft.',
+          owner_contact_id: ownerContactId,
+          listing_source: listingSource
         })
         .select()
         .single();
@@ -476,13 +546,24 @@ export async function processOwnerChatbotMessage(
         `*Code:* ${prop.property_code}\n` +
         `*Title:* ${prop.title}\n` +
         `*Price:* ₹${prop.price.toLocaleString('en-IN')}\n` +
-        `*Location:* ${prop.location}\n`;
+        `*Location:* ${prop.location}\n` +
+        `*Type:* ${prop.type}\n` +
+        (prop.land_area ? `*Land Area:* ${prop.land_area} ${prop.land_area_unit || 'Sq.Ft.'}\n` : '');
 
       if (prop.rental_income) {
         reply += `*Rent:* ₹${prop.rental_income.toLocaleString('en-IN')}/month\n`;
       }
       if (prop.roi) {
         reply += `*ROI (Yield):* ${prop.roi}%\n`;
+      }
+      if (prop.features && prop.features.length > 0) {
+        reply += `*Amenities:* ${prop.features.join(', ')}\n`;
+      }
+      if (prop.nearby_highlights && prop.nearby_highlights.length > 0) {
+        reply += `*Nearby Highlights:* ${prop.nearby_highlights.join(', ')}\n`;
+      }
+      if (ownerContactId && (draft as any).owner_contact_name) {
+        reply += `*Source Referrer/Owner:* ${(draft as any).owner_contact_name} [Mapped as ${listingSource.toUpperCase()}]\n`;
       }
 
       reply += `\nView it in your dashboard: ${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/inventory?propertyId=${prop.id}`;
@@ -661,6 +742,30 @@ export async function processOwnerChatbotMessage(
         if (existingContact) {
           duplicates.push(`${existingContact.name} (${normalized || draft.phone})`);
         } else {
+          // Resolve referrer if present
+          let referrerContactId = null;
+          let referrerNameText = (draft as any).referrer_name || null;
+
+          if ((draft as any).referrer_name) {
+            const refName = (draft as any).referrer_name.trim();
+            const refPhone = (draft as any).referrer_phone;
+            let refQuery = supabaseAdmin().from('contacts').select('id, name').eq('account_id', accountId);
+            
+            if (refPhone) {
+              const refNormalized = normalizePhoneWithCountryCode(refPhone, '91');
+              const refCleanPhone = refNormalized.replace(/\D/g, '');
+              refQuery = refQuery.or(`phone.eq.${refPhone},phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike.${refName}`);
+            } else {
+              refQuery = refQuery.ilike('name', refName);
+            }
+
+            const { data: existingRefs } = await refQuery;
+            if (existingRefs && existingRefs.length > 0) {
+              referrerContactId = existingRefs[0].id;
+              referrerNameText = existingRefs[0].name;
+            }
+          }
+
           toInsert.push({
             account_id: accountId,
             user_id: userId,
@@ -672,6 +777,8 @@ export async function processOwnerChatbotMessage(
             status: 'pending_review',
             source: 'WhatsApp',
             _notes: draft.notes || null, // temporary field, stripped before DB insert
+            referrer: referrerNameText,
+            referrer_contact_id: referrerContactId
           });
         }
       }

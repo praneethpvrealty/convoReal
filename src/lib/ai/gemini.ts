@@ -202,21 +202,47 @@ export interface ParsedPropertyDraft {
   title: string | null;
   price: number | null;
   location: string | null;
-  type: "Flat/ Apartment" | "Villa" | "Residential Land/ Plot" | "Commercial/ Industrial" | "Others" | null;
+  type: 
+    | "Flat/ Apartment"
+    | "Residential House"
+    | "Villa"
+    | "Builder Floor Apartment"
+    | "Residential Land/ Plot"
+    | "Penthouse"
+    | "Studio Apartment"
+    | "Commercial Office Space"
+    | "Office in IT Park/ SEZ"
+    | "Commercial Shop"
+    | "Commercial Showroom"
+    | "Commercial Land"
+    | "Warehouse/ Godown"
+    | "Industrial Land"
+    | "Industrial Building"
+    | "Industrial Shed"
+    | "Agricultural Land"
+    | "Farm House"
+    | "Others"
+    | null;
   sublocality: string | null;
   city: string | null;
   state: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
   area_sqft: number | null;
+  land_area: number | null;
+  land_area_unit: string | null;
   description: string | null;
   features: string[] | null;
+  nearby_highlights: string[] | null;
   dimensions: string | null;
   facing_direction: string | null;
   rental_income: number | null;
   roi: number | null;
   google_map_link: string | null;
   images: string[];
+  owner_contact_name: string | null;
+  owner_contact_phone: string | null;
+  owner_contact_role: string | null;
 }
 
 /**
@@ -234,25 +260,35 @@ export async function parseListingFromImageOrText(
     "  \"title\": \"A descriptive title (e.g. '3 BHK Apartment in HSR Layout' or '30x40 Residential Plot in Devanahalli') or null\",\n" +
     "  \"price\": Numeric price in INR (e.g. if text says '1.2 Cr' or '120 Lakhs', price is 12000000) or null,\n" +
     "  \"location\": \"Exact location or address or null\",\n" +
-    "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Villa', 'Residential Land/ Plot', 'Commercial/ Industrial', 'Others' or null\",\n" +
+    "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
     "  \"sublocality\": \"Sublocality or neighborhood name or null\",\n" +
     "  \"city\": \"City name (default 'Bangalore')\",\n" +
     "  \"state\": \"State name (default 'Karnataka')\",\n" +
     "  \"bedrooms\": Number of bedrooms (numeric) or null,\n" +
     "  \"bathrooms\": Number of bathrooms (numeric) or null,\n" +
     "  \"area_sqft\": Area in Sq.Ft. (numeric) or null,\n" +
+    "  \"land_area\": Land area (numeric) or null,\n" +
+    "  \"land_area_unit\": \"Land area unit (must be one of: 'Sq.Ft.', 'Sq.Mtr.', 'Acre', 'Gunta', 'Cent', 'Ground') or null\",\n" +
     "  \"description\": \"A professional description summarizing the listing or null\",\n" +
-    "  \"features\": Array of string features/amenities (e.g., ['Fenced Boundary', 'Access Road']) or empty array,\n" +
+    "  \"features\": Array of string features/amenities (e.g., ['Fenced Boundary', 'Access Road', '24/7 Security']) or empty array,\n" +
+    "  \"nearby_highlights\": Array of string nearby landmarks/highlights (e.g., ['Metro Station', 'School', 'Hospital', 'Mall']) or empty array,\n" +
     "  \"dimensions\": \"Dimensions if land/plot (e.g., '30x40') or null\",\n" +
     "  \"facing_direction\": \"E.g. 'North', 'East', 'West', 'South' or null\",\n" +
     "  \"rental_income\": \"Numeric monthly rental income in INR if specified (e.g., if text says 'rent 2.5 Lakhs/month' or '2.5 L rent', rental_income is 250000) or null\",\n" +
-    "  \"google_map_link\": \"Google Map link URL if present in text/image (e.g., 'https://maps.app.goo.gl/...' or 'https://google.com/maps/...') or null\"\n" +
+    "  \"google_map_link\": \"Google Map link URL if present in text/image (e.g., 'https://maps.app.goo.gl/...' or 'https://google.com/maps/...') or null\",\n" +
+    "  \"owner_contact_name\": \"Contact person's name, or sender's name or listing agent/owner name mentioned or null\",\n" +
+    "  \"owner_contact_phone\": \"Contact person's phone number mentioned (numeric digits only) or null\",\n" +
+    "  \"owner_contact_role\": \"Role of the contact person mentioned (must be 'Agent' or 'Owner' or null)\"\n" +
     "}\n\n" +
     "Important parsing rules:\n" +
     "1. For Price and Rental Income: Convert terms like 'Crore', 'Cr', 'Lakhs', 'L' to standard numeric integer values (e.g., '80 Lakhs' -> 8000000, '1.5 Cr' -> 15000000, '2.5 L' -> 250000).\n" +
     "2. For Location/Sublocality: Infer the sublocality / layout name (e.g. HSR Layout, Koramangala) if mentioned.\n" +
-    "3. Set any fields that cannot be found or reasonably inferred to null.\n" +
-    "4. Output MUST be valid JSON.";
+    "3. For vacant land/plot without building details (e.g., no bedrooms/bathrooms/apartment mention), map 'type' intelligently based on keywords to 'Residential Land/ Plot', 'Commercial Land', 'Industrial Land', or 'Agricultural Land'. For example, commercial plots go to 'Commercial Land'.\n" +
+    "4. Set any fields that cannot be found or reasonably inferred to null.\n" +
+    "5. For Amenities/Features: Extract any amenities, specifications, or internal/external building features of the property (such as wood flooring, modular kitchen, power backup, gym, pool, gated community, library, basement, water supply, fenced boundary, security, etc.) into the `features` array.\n" +
+    "6. For Nearby Highlights/Landmark information: Extract any nearby landmarks, highlights, or proximity information (such as near metro station, opposite Starbucks, near shopping mall, hospital, school, tech park, etc.) into the `nearby_highlights` array. Do NOT confuse building details/features with nearby landmarks/highlights.\n" +
+    "7. For Listing/Owner Contact details: If the message/image details have any contact person or sender's name (e.g., 'Regards, Ramesh (Agent)' or 'Contact Suresh on 9876543210'), extract their name, phone (if present), and role ('Agent' or 'Owner'). If not mentioned, set to null.\n" +
+    "8. Output MUST be valid JSON.";
 
   const parts: GeminiPart[] = [];
 
@@ -294,14 +330,20 @@ export async function parseListingFromImageOrText(
       bedrooms: parsed.bedrooms || null,
       bathrooms: parsed.bathrooms || null,
       area_sqft: parsed.area_sqft || null,
+      land_area: parsed.land_area || null,
+      land_area_unit: parsed.land_area_unit || "Sq.Ft.",
       description: parsed.description || null,
       features: parsed.features || [],
+      nearby_highlights: parsed.nearby_highlights || [],
       dimensions: parsed.dimensions || null,
       facing_direction: parsed.facing_direction || null,
       rental_income,
       roi,
       google_map_link: parsed.google_map_link || null,
-      images: []
+      images: [],
+      owner_contact_name: parsed.owner_contact_name || null,
+      owner_contact_phone: parsed.owner_contact_phone || null,
+      owner_contact_role: parsed.owner_contact_role || null
     };
   } catch (err) {
     console.error("[Gemini AI] Error parsing listing details:", err);
@@ -321,6 +363,8 @@ export async function updateListingDraft(
     "Your job is to apply the updates requested by the user and return the complete updated JSON object matching the exact structure.\n" +
     "Do not change any other fields unless requested by the user.\n" +
     "Convert terms like 'Crore', 'Cr', 'Lakhs', 'L' to standard numeric integer values for the price and rental_income fields. Extracted Google Map links should be placed in 'google_map_link' field.\n" +
+    "Handle updates to amenities (features) and nearby highlights (nearby_highlights) intelligently (e.g. if the user says 'add Gym to amenities', add 'Gym' to the features array; if they say 'add HSR Metro to landmarks', add 'HSR Metro' to the nearby_highlights array).\n" +
+    "Handle updates to listing/owner contact details intelligently (e.g. if the user says 'contact name is Ramesh' or 'owner phone is 9876543210', update owner_contact_name or owner_contact_phone respectively).\n" +
     "Output MUST be valid JSON.";
 
   const prompt = `Current Draft:\n${JSON.stringify(currentDraft, null, 2)}\n\nUser Update Request:\n"${updateRequest}"\n\nApply these updates and return the updated JSON.`;
@@ -382,6 +426,8 @@ export interface ParsedContactDraft {
   company: string | null;
   classification: "Owner" | "Seller" | "Buyer" | "Agent" | "Developer" | "Others";
   notes: string | null;
+  referrer_name: string | null;
+  referrer_phone: string | null;
 }
 
 export interface ParsedContactDraftsContainer {
@@ -418,7 +464,9 @@ export async function parseContactFromImageOrText(
     "      \"email\": \"Email address or null\",\n" +
     "      \"company\": \"Company name if specified or null\",\n" +
     "      \"classification\": \"Must be exactly one of: 'Owner', 'Seller', 'Buyer', 'Agent', 'Developer', 'Others'\",\n" +
-    "      \"notes\": \"Any additional details or requirements found in the text/image (e.g. 'Interested in SJR Blue Waters, Sarjapur Road. Source: Magicbricks') or null\"\n" +
+    "      \"notes\": \"Any additional details or requirements found in the text/image (e.g. 'Interested in SJR Blue Waters, Sarjapur Road. Source: Magicbricks') or null\",\n" +
+    "      \"referrer_name\": \"Referrer or sender's name if mentioned (e.g. 'Sent by Suresh' or 'Referred by Suresh') or null\",\n" +
+    "      \"referrer_phone\": \"Referrer or sender's phone number if mentioned (numeric digits only) or null\"\n" +
     "    }\n" +
     "  ]\n" +
     "}\n\n" +
@@ -426,7 +474,8 @@ export async function parseContactFromImageOrText(
     "1. You can parse MULTIPLE contacts from the same image or text block. If there are multiple people/profiles/leads, create a separate object inside the 'contacts' array for each one.\n" +
     "2. Set any fields that cannot be found to null. For classification, choose the best fit based on context. Lead forwards showing interest in buying/renting a property must be classified as 'Buyer'.\n" +
     "3. In lead forwarding messages (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters...'), extract the lead's name ('VaishaliGaur'), phone ('917737932199'), classify as 'Buyer', and put their interest ('Interested in SJR Blue Waters, Sarjapur Road Magicbricks') in 'notes'.\n" +
-    "4. Output MUST be valid JSON matching the schema.";
+    "4. For Referrer/Sender details: If the message/image details mention any sender or referrer name/phone (e.g., 'Referred by Suresh' or 'Sent by Suresh'), extract it into `referrer_name` and `referrer_phone` respectively. If not mentioned, set to null.\n" +
+    "5. Output MUST be valid JSON matching the schema.";
 
   const parts: GeminiPart[] = [];
 
@@ -453,13 +502,15 @@ export async function parseContactFromImageOrText(
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
     
     return {
-      contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
+      contacts: contactsList.map((c: any) => ({
         name: c.name || null,
         phone: c.phone ? (normalizePhoneWithCountryCode(c.phone, "91") || null) : null,
         email: c.email || null,
         company: c.company || null,
         classification: normalizeClassification(c.classification),
-        notes: c.notes || null
+        notes: c.notes || null,
+        referrer_name: c.referrer_name || null,
+        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone, "91") || null) : null
       }))
     };
   } catch (err) {
@@ -478,7 +529,7 @@ export async function updateContactDraft(
   const systemInstruction = 
     "You are an expert contact data updater. You are given a current contact drafts JSON object containing an array of contacts and a natural language instruction from the user.\n" +
     "Your job is to apply the updates requested by the user and return the complete updated JSON object matching the exact structure.\n" +
-    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list.\n" +
+    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name.\n" +
     "Do not change any other fields unless requested by the user.\n" +
     "Output MUST be valid JSON.";
 
@@ -491,13 +542,15 @@ export async function updateContactDraft(
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
     
     return {
-      contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
+      contacts: contactsList.map((c: any) => ({
         name: c.name || null,
         phone: c.phone ? (normalizePhoneWithCountryCode(c.phone, "91") || null) : null,
         email: c.email || null,
         company: c.company || null,
         classification: normalizeClassification(c.classification),
-        notes: c.notes || null
+        notes: c.notes || null,
+        referrer_name: c.referrer_name || null,
+        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone, "91") || null) : null
       }))
     };
   } catch (err) {

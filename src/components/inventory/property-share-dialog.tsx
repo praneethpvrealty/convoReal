@@ -991,6 +991,7 @@ export function PropertyShareDialog({
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
+                          key={imgUrl}
                           src={imgUrl}
                           alt={`Option ${idx + 1}`}
                           className="w-full h-full object-cover"

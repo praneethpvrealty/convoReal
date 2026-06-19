@@ -2148,6 +2148,7 @@ export function PropertyForm({
                             {imgUrl.trim().length > 0 && (
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
+                                key={imgUrl}
                                 src={imgUrl}
                                 alt={`Property ${idx + 1}`}
                                 className="size-8 object-cover rounded border border-slate-700 shrink-0"
@@ -2707,6 +2708,7 @@ export function PropertyForm({
                                 >
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
+                                    key={imgUrl}
                                     src={imgUrl}
                                     alt={`Option ${idx + 1}`}
                                     className="w-full h-full object-cover"
