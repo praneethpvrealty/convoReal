@@ -135,6 +135,10 @@ export function ContactDetailView({
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
   const [selectedPropertyForEdit, setSelectedPropertyForEdit] = useState<Property | null>(null);
 
+  // Shared properties via WhatsApp
+  const [sharedProperties, setSharedProperties] = useState<Array<Property & { sharedAt: string }>>([]);
+  const [loadingSharedProperties, setLoadingSharedProperties] = useState(false);
+
   // Real estate preferences
   const [editMinBudget, setEditMinBudget] = useState('');
   const [editMaxBudget, setEditMaxBudget] = useState('');
@@ -247,6 +251,71 @@ export function ContactDetailView({
     }
     setLoadingProperties(false);
   }, [contactId, supabase]);
+
+  const fetchSharedProperties = useCallback(async () => {
+    if (!contactId || allProperties.length === 0) return;
+    setLoadingSharedProperties(true);
+    try {
+      const { data: conv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('contact_id', contactId)
+        .maybeSingle();
+
+      if (!conv) {
+        setSharedProperties([]);
+        setLoadingSharedProperties(false);
+        return;
+      }
+
+      const { data: messages, error } = await supabase
+        .from('messages')
+        .select('content_text, created_at')
+        .eq('conversation_id', conv.id)
+        .eq('sender_type', 'agent')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const sharedProps: Array<Property & { sharedAt: string }> = [];
+      const seenPropIds = new Set<string>();
+
+      if (messages && messages.length > 0) {
+        messages.forEach((msg) => {
+          const text = msg.content_text || '';
+          if (!text) return;
+
+          allProperties.forEach((prop) => {
+            if (seenPropIds.has(prop.id)) return;
+
+            // 1. Check by property_id parameter in showcase link
+            const hasIdLink = text.includes(`property_id=${prop.id}`);
+
+            // 2. Check by property code (e.g. PROP-1002)
+            const hasCode = !!prop.property_code && text.includes(prop.property_code);
+
+            // 3. Check by exact property title (case-insensitive, minimum length to avoid false positives)
+            const cleanTitle = prop.title.trim();
+            const hasTitle = cleanTitle.length > 8 && text.toLowerCase().includes(cleanTitle.toLowerCase());
+
+            if (hasIdLink || hasCode || hasTitle) {
+              seenPropIds.add(prop.id);
+              sharedProps.push({
+                ...prop,
+                sharedAt: msg.created_at,
+              });
+            }
+          });
+        });
+      }
+
+      setSharedProperties(sharedProps);
+    } catch (err) {
+      console.error('Error fetching shared properties:', err);
+    } finally {
+      setLoadingSharedProperties(false);
+    }
+  }, [contactId, allProperties, supabase]);
 
   async function handleUnlinkProperty(propertyId: string) {
     try {
@@ -392,6 +461,12 @@ export function ContactDetailView({
       fetchAllProperties();
     }
   }, [open, contactId, fetchCurrency, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchAssociatedProperties, fetchAllProperties]);
+
+  useEffect(() => {
+    if (open && contactId && allProperties.length > 0) {
+      fetchSharedProperties();
+    }
+  }, [open, contactId, allProperties, fetchSharedProperties]);
 
   async function copyPhone() {
     if (!contact) return;
@@ -1520,6 +1595,65 @@ export function ContactDetailView({
                             </div>
                           </div>
                         )}
+
+                        {/* Shared Properties Section */}
+                        <div className="pt-4 border-t border-slate-800/60 mt-4">
+                          <h4 className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
+                            <Share2 className="size-3.5 text-primary" />
+                            Shared Properties
+                          </h4>
+                          {loadingSharedProperties ? (
+                            <div className="flex items-center justify-center py-6">
+                              <Loader2 className="size-4 animate-spin text-slate-500" />
+                            </div>
+                          ) : sharedProperties.length === 0 ? (
+                            <div className="text-center py-6 border border-dashed border-slate-800 rounded-lg bg-slate-900/10">
+                              <p className="text-[10px] text-slate-500 max-w-[220px] mx-auto">
+                                No properties have been shared with this contact via WhatsApp yet.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {sharedProperties.map((prop) => (
+                                <div
+                                  key={prop.id}
+                                  className="rounded-lg bg-slate-850/40 border border-slate-850 p-3 hover:border-slate-700/60 transition-all duration-205"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                      <h5 className="text-xs font-semibold text-white truncate">
+                                        {prop.property_code ? `[${prop.property_code}] ` : ''}
+                                        {prop.title}
+                                      </h5>
+                                      <p className="text-[10px] text-slate-450 mt-0.5 truncate">{prop.location}</p>
+                                      <div className="flex items-center justify-between gap-2 mt-1.5">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[10px] text-primary font-bold">
+                                            {prop.price >= 10000000 
+                                              ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                                              : prop.price >= 100000 
+                                                ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
+                                                : `₹${prop.price.toLocaleString('en-IN')}`}
+                                          </span>
+                                          <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-350 rounded uppercase font-semibold">
+                                            {prop.status}
+                                          </span>
+                                        </div>
+                                        <span className="text-[9px] text-slate-500">
+                                          Shared: {new Date(prop.sharedAt).toLocaleDateString('en-IN', {
+                                            day: '2-digit',
+                                            month: 'short',
+                                            year: '2-digit'
+                                          })}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (
