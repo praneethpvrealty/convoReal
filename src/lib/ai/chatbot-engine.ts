@@ -841,7 +841,7 @@ export async function processOwnerChatbotMessage(
           let lastInquiredPropertyId = null;
           if (properties && draft.notes) {
             const notesLower = draft.notes.toLowerCase();
-            const matchedProp = properties.find((p: any) => {
+            const matchedProp = properties.find((p: { id: string; title: string; property_code?: string | null; project?: string | null }) => {
               // 1. Code match (e.g. PROP-1002)
               if (p.property_code && notesLower.includes(p.property_code.toLowerCase())) {
                 return true;
@@ -968,7 +968,7 @@ export async function processOwnerChatbotMessage(
 
           const tagsCache = new Map<string, string>();
           if (existingTags) {
-            existingTags.forEach((t: any) => tagsCache.set(t.name.toLowerCase(), t.id));
+            existingTags.forEach((t: { id: string; name: string }) => tagsCache.set(t.name.toLowerCase(), t.id));
           }
 
           const tagColors = ['#0EA5E9', '#10B981', '#8B5CF6', '#F59E0B', '#EC4899', '#6366F1', '#EF4444', '#14B8A6'];
