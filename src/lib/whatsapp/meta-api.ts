@@ -771,8 +771,13 @@ export async function sendInteractiveButtons(
 ): Promise<MetaSendResult> {
   const {
     phoneNumberId, accessToken, to,
-    bodyText, headerText, footerText, buttons, contextMessageId,
+    bodyText: rawBodyText, headerText, footerText, buttons, contextMessageId,
   } = args
+  
+  const bodyText = rawBodyText && rawBodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
+    ? rawBodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
+    : rawBodyText;
+
   validateInteractiveBody(bodyText)
   validateInteractiveHeaderFooter(headerText, footerText)
   if (buttons.length < 1 || buttons.length > INTERACTIVE_LIMITS.maxButtons) {
@@ -871,8 +876,13 @@ export async function sendInteractiveList(
 ): Promise<MetaSendResult> {
   const {
     phoneNumberId, accessToken, to,
-    bodyText, buttonLabel, headerText, footerText, sections, contextMessageId,
+    bodyText: rawBodyText, buttonLabel, headerText, footerText, sections, contextMessageId,
   } = args
+  
+  const bodyText = rawBodyText && rawBodyText.length > INTERACTIVE_LIMITS.bodyMaxLength
+    ? rawBodyText.substring(0, INTERACTIVE_LIMITS.bodyMaxLength - 4) + '...'
+    : rawBodyText;
+
   validateInteractiveBody(bodyText)
   validateInteractiveHeaderFooter(headerText, footerText)
   if (!buttonLabel) throw new Error('Interactive list requires a buttonLabel.')
