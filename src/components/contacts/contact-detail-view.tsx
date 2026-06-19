@@ -36,8 +36,10 @@ import {
   Building,
   Unlink,
   Edit,
+  CalendarDays,
 } from 'lucide-react';
 import { getCurrencyIcon } from '@/lib/currency-utils';
+import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
 
@@ -86,6 +88,7 @@ export function ContactDetailView({
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -828,6 +831,13 @@ export function ContactDetailView({
                     >
                       <MessageSquare className="size-3 text-emerald-400 fill-current" />
                       WhatsApp Chat
+                    </button>
+                    <button
+                      onClick={() => setScheduleOpen(true)}
+                      className="flex items-center gap-1.5 text-primary hover:text-primary-foreground hover:bg-primary/10 border border-primary/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                    >
+                      <CalendarDays className="size-3 text-primary" />
+                      Schedule
                     </button>
                     {contact.email && (
                       <span className="flex items-center gap-1">
@@ -1787,6 +1797,13 @@ export function ContactDetailView({
                 fetchAssociatedProperties();
                 onUpdated();
               }}
+            />
+
+            {/* Schedule Dialog */}
+            <ScheduleDialog
+              open={scheduleOpen}
+              onOpenChange={setScheduleOpen}
+              contactId={contactId}
             />
           </div>
         )}

@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 
+const MAX_LIMIT = 50;
+const DEFAULT_LIMIT = 12;
+
 // GET /api/public/properties
-// Public endpoint to fetch published and available properties for showcase
+// Public endpoint to fetch published and available properties for showcase with pagination
 export async function GET(request: Request) {
   try {
     // 1. Optional API Key security check
@@ -28,15 +31,41 @@ export async function GET(request: Request) {
       );
     }
 
-    // 3. Fetch properties bypassing RLS using supabaseAdmin client
+    // 3. Pagination params
+    const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10));
+    const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT), 10)));
+    const from = page * limit;
+    const to = from + limit - 1;
+
+    // Optional filters
+    const type = searchParams.get("type")?.trim() || "";
+    const minPrice = searchParams.get("min_price");
+    const maxPrice = searchParams.get("max_price");
+    const location = searchParams.get("location")?.trim() || "";
+
+    // 4. Fetch properties bypassing RLS using supabaseAdmin client
     const client = supabaseAdmin();
-    const { data, error } = await client
+    let query = client
       .from("properties")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("account_id", accountId)
       .eq("is_published", true)
       .eq("status", "Available")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (type) query = query.eq("type", type);
+    if (location) query = query.ilike("location", `%${location}%`);
+    if (minPrice) {
+      const min = Number(minPrice);
+      if (!isNaN(min)) query = query.gte("price", min);
+    }
+    if (maxPrice) {
+      const max = Number(maxPrice);
+      if (!isNaN(max)) query = query.lte("price", max);
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error("[GET /api/public/properties] Fetch error:", error);
@@ -46,7 +75,20 @@ export async function GET(request: Request) {
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json({
+      data: data ?? [],
+      pagination: {
+        page,
+        limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / limit),
+      },
+    }, {
+      headers: {
+        // Cache for 60s, serve stale for 5min while revalidating
+        "Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+      },
+    });
   } catch (err) {
     console.error("[GET /api/public/properties] Unexpected error:", err);
     return NextResponse.json(

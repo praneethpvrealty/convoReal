@@ -226,6 +226,32 @@ export default function CalendarPage() {
     return cells;
   }, [year, month, firstDayIndex, daysInMonth, prevDaysInMonth]);
 
+  // Combine appointments and todos for the To-Do task list
+  const combinedTodos = useMemo(() => {
+    const apptTodos: (Todo & { isAppointment?: boolean })[] = appointments.map((appt) => ({
+      id: appt.id,
+      title: `[Schedule] ${appt.title}`,
+      description: appt.description,
+      due_date: appt.start_time,
+      priority: "medium",
+      completed: appt.status === "completed" || appt.status === "cancelled",
+      contact_id: appt.contact_id,
+      property_id: appt.property_id,
+      contact: appt.contact,
+      property: appt.property,
+      isAppointment: true,
+    }));
+
+    return [...todos, ...apptTodos].sort((a, b) => {
+      if (a.completed !== b.completed) {
+        return a.completed ? 1 : -1;
+      }
+      const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
+      const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
+      return dateA - dateB;
+    });
+  }, [todos, appointments]);
+
   // Group appointments by date string
   const appointmentsByDate = useMemo(() => {
     const map: Record<string, Appointment[]> = {};
@@ -344,15 +370,16 @@ export default function CalendarPage() {
     }
   };
 
-  const deleteAppointment = async () => {
-    if (!selectedAppt) return;
-    if (!confirm("Are you sure you want to cancel and delete this appointment?")) return;
+  const deleteAppointment = async (apptToDelete?: Appointment) => {
+    const target = apptToDelete || selectedAppt;
+    if (!target) return;
+    if (!confirm(`Are you sure you want to cancel and delete "${target.title}"?`)) return;
 
     try {
       const { error } = await supabase
         .from("appointments")
         .delete()
-        .eq("id", selectedAppt.id)
+        .eq("id", target.id)
         .eq("account_id", accountId);
 
       if (error) throw error;
@@ -676,6 +703,22 @@ export default function CalendarPage() {
 
   const toggleTodo = async (todo: Todo) => {
     try {
+      if ((todo as any).isAppointment) {
+        const appt = appointments.find((a) => a.id === todo.id);
+        if (!appt) return;
+        const newStatus = appt.status === "completed" ? "scheduled" : "completed";
+        const { error } = await supabase
+          .from("appointments")
+          .update({ status: newStatus })
+          .eq("id", appt.id)
+          .eq("account_id", accountId);
+
+        if (error) throw error;
+        toast.success(`Appointment marked as ${newStatus}`);
+        loadData();
+        return;
+      }
+
       const { error } = await supabase
         .from("todos")
         .update({ completed: !todo.completed })
@@ -746,7 +789,7 @@ export default function CalendarPage() {
               className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
             >
               <Plus className="h-3.5 w-3.5" />
-              Schedule Visit
+              Schedule
             </button>
           </div>
         </div>
@@ -902,12 +945,12 @@ export default function CalendarPage() {
 
           {/* Task checklist */}
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {todos.length === 0 ? (
+            {combinedTodos.length === 0 ? (
               <div className="flex h-32 flex-col items-center justify-center text-center text-slate-500">
                 <p className="text-xs">No pending tasks!</p>
               </div>
             ) : (
-              todos.map((todo) => (
+              combinedTodos.map((todo) => (
                 <div
                   key={todo.id}
                   className={cn(
@@ -963,7 +1006,14 @@ export default function CalendarPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => openEditTodoModal(todo)}
+                      onClick={() => {
+                        if ((todo as any).isAppointment) {
+                          const appt = appointments.find((a) => a.id === todo.id);
+                          if (appt) openEditApptModal(appt);
+                        } else {
+                          openEditTodoModal(todo);
+                        }
+                      }}
                       className="text-slate-500 hover:text-white transition-colors p-0.5"
                       title="Edit task"
                       aria-label="Edit task"
@@ -971,7 +1021,14 @@ export default function CalendarPage() {
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
-                      onClick={() => deleteTodo(todo.id)}
+                      onClick={() => {
+                        if ((todo as any).isAppointment) {
+                          const appt = appointments.find((a) => a.id === todo.id);
+                          if (appt) deleteAppointment(appt);
+                        } else {
+                          deleteTodo(todo.id);
+                        }
+                      }}
                       className="text-slate-500 hover:text-rose-450 transition-colors p-0.5"
                       title="Delete task"
                       aria-label="Delete task"
@@ -988,13 +1045,13 @@ export default function CalendarPage() {
 
       {/* ── Appointment Edit/Create Dialog Modal Overlay ────────────────── */}
       {isApptModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
             {/* Modal Header */}
             <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <CalendarDays className="h-5 w-5 text-primary" />
-                {selectedAppt ? "Edit Scheduled Visit" : "Schedule Property Visit"}
+                {selectedAppt ? "Edit Schedule" : "Schedule Appointment"}
               </h3>
               <button
                 onClick={() => setIsApptModalOpen(false)}
@@ -1153,8 +1210,8 @@ export default function CalendarPage() {
 
       {/* ── Todo Edit Dialog Modal Overlay ────────────────── */}
       {isTodoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
             {/* Modal Header */}
             <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">

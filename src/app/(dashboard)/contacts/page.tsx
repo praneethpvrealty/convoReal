@@ -52,6 +52,8 @@ import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
+import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
+import { CalendarDays } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -271,6 +273,9 @@ export default function ContactsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleContactId, setScheduleContactId] = useState<string | null>(null);
 
   // Bulk Device Import state
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
@@ -1039,6 +1044,18 @@ export default function ContactsPage() {
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
+                            setScheduleContactId(contact.id);
+                            setScheduleOpen(true);
+                          }}
+                          className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                        >
+                          <CalendarDays className="size-4" />
+                          Schedule
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator className="bg-slate-700" />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
                             openEditForm(contact);
                           }}
                           className="text-slate-300 focus:bg-slate-800 focus:text-white"
@@ -1167,6 +1184,13 @@ export default function ContactsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Schedule Dialog */}
+      <ScheduleDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        contactId={scheduleContactId}
+      />
     </div>
   );
 }
