@@ -23,8 +23,10 @@ if (existsSync(envPath)) {
 
 import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft } from './gemini';
 
-// Increase test timeout since we are making real generative AI REST calls
-describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
+const hasApiKey = !!process.env.GEMINI_API_KEY;
+
+// Only run these tests if GEMINI_API_KEY is configured (will be skipped gracefully in CI/CD environments without keys)
+describe.runIf(hasApiKey)('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   describe('Property Listing Parsing', () => {
     it('correctly parses amenities, landmarks, and listing owner details', async () => {
       const message = `Hi Swami,
