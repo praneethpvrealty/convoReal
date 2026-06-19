@@ -239,14 +239,34 @@ export async function POST(request: Request) {
     // the loop would N+1 against Supabase for every recipient.
     // Guard against a malformed local row crashing every send in
     // the loop with the same opaque TypeError — fail loudly once.
-    const { data: rawTemplates } = await supabase
+    let query = supabase
       .from('message_templates')
       .select('*')
       .eq('account_id', accountId)
       .eq('name', template_name)
-      .eq('language', template_language || 'en_US')
-      .limit(1)
-    const rawTemplateRow = rawTemplates && rawTemplates.length > 0 ? rawTemplates[0] : null
+
+    if (template_language) {
+      query = query.eq('language', template_language)
+    } else {
+      query = query.eq('language', 'en_US')
+    }
+
+    const { data: rawTemplates } = await query.limit(1)
+    let rawTemplateRow = rawTemplates && rawTemplates.length > 0 ? rawTemplates[0] : null
+
+    // Fallback: If not found, try to find the template in any language
+    if (!rawTemplateRow) {
+      const { data: fallbackTemplates } = await supabase
+        .from('message_templates')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('name', template_name)
+        .limit(1)
+      if (fallbackTemplates && fallbackTemplates.length > 0) {
+        rawTemplateRow = fallbackTemplates[0]
+      }
+    }
+
     if (rawTemplateRow && !isMessageTemplate(rawTemplateRow)) {
       return NextResponse.json(
         {
@@ -283,14 +303,14 @@ export async function POST(request: Request) {
 
       for (const variant of variants) {
         try {
-          console.log(`[Broadcast] Dispatching to ${variant}. Template: ${template_name}, Lang: ${template_language || 'en_US'}`)
+          console.log(`[Broadcast] Dispatching to ${variant}. Template: ${template_name}, Lang: ${templateRow?.language || template_language || 'en_US'}`)
           console.log(`[Broadcast] Params: ${JSON.stringify(recipient.params)}, MessageParams: ${JSON.stringify(recipient.messageParams)}`)
           const result = await sendTemplateMessage({
             phoneNumberId: config.phone_number_id,
             accessToken,
             to: variant,
             templateName: template_name,
-            language: template_language || 'en_US',
+            language: templateRow?.language || template_language || 'en_US',
             template: templateRow ?? undefined,
             messageParams: recipient.messageParams,
             params: recipient.params ?? [],

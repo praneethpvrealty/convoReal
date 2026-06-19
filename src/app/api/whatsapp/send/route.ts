@@ -217,7 +217,21 @@ export async function POST(request: Request) {
         .eq('name', template_name)
         .eq('language', template_language || 'en_US')
         .maybeSingle()
-      if (data && !isMessageTemplate(data)) {
+
+      let templateData = data
+      if (!templateData) {
+        const { data: fallbackTemplates } = await supabase
+          .from('message_templates')
+          .select('*')
+          .eq('account_id', accountId)
+          .eq('name', template_name)
+          .limit(1)
+        if (fallbackTemplates && fallbackTemplates.length > 0) {
+          templateData = fallbackTemplates[0]
+        }
+      }
+
+      if (templateData && !isMessageTemplate(templateData)) {
         return NextResponse.json(
           {
             error:
@@ -226,7 +240,7 @@ export async function POST(request: Request) {
           { status: 500 },
         )
       }
-      templateRow = data ?? null
+      templateRow = (templateData as MessageTemplate) ?? null
     }
 
     const attempt = async (phone: string): Promise<string> => {
@@ -236,7 +250,7 @@ export async function POST(request: Request) {
           accessToken,
           to: phone,
           templateName: template_name,
-          language: template_language || 'en_US',
+          language: templateRow?.language || template_language || 'en_US',
           template: templateRow ?? undefined,
           messageParams: template_message_params ?? undefined,
           // Legacy body-only fallback — only consulted when

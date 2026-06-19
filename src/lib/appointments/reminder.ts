@@ -118,7 +118,7 @@ export async function checkAndSendAppointmentReminders(): Promise<void> {
           accessToken,
           to: variant,
           templateName: 'property_visit_reminder',
-          language: 'en_US',
+          language: templateRow?.language || 'en_US',
           template: templateRow ?? undefined,
           params: [
             contact.name || 'Client',
