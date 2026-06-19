@@ -508,7 +508,7 @@ export async function sendTemplateMessage(
     body.context = { message_id: contextMessageId }
   }
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -516,6 +516,41 @@ export async function sendTemplateMessage(
     },
     body: JSON.stringify(body),
   })
+
+  if (!response.ok) {
+    let shouldRetry = false
+    let nextLanguage = ''
+    try {
+      const errorJson = await response.clone().json() as MetaErrorResponse
+      if (errorJson.error?.code === 132001) {
+        const currentLang = (templatePayload.language as { code?: string })?.code
+        if (currentLang === 'en_US') {
+          nextLanguage = 'en'
+          shouldRetry = true
+        } else if (currentLang === 'en') {
+          nextLanguage = 'en_US'
+          shouldRetry = true
+        }
+      }
+    } catch {
+      // Ignored
+    }
+
+    if (shouldRetry) {
+      console.warn(`[Meta API] sendTemplateMessage failed with 132001 (Template not found) for language "${language}". Retrying with "${nextLanguage}"...`)
+      templatePayload.language = { code: nextLanguage }
+      body.template = templatePayload
+      response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
+      })
+    }
+  }
+
   if (!response.ok) {
     await throwMetaError(response, `Meta API error: ${response.status}`)
   }

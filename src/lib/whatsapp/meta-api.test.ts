@@ -3,6 +3,7 @@ import {
   INTERACTIVE_LIMITS,
   sendInteractiveButtons,
   sendInteractiveList,
+  sendTemplateMessage,
 } from "./meta-api";
 
 // All assertions in this file run BEFORE the network call. We stub fetch
@@ -267,3 +268,137 @@ describe("sendInteractiveList — validation", () => {
     });
   });
 });
+
+describe("sendTemplateMessage — language fallback retry", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("retries once with 'en' when 'en_US' fails with 132001, and succeeds", async () => {
+    let callCount = 0;
+    const capturedPayloads: Array<{ template?: { language?: { code?: string } } }> = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        callCount++;
+        const body = JSON.parse(String(init.body)) as { template?: { language?: { code?: string } } };
+        capturedPayloads.push(body);
+
+        if (callCount === 1) {
+          return new Response(
+            JSON.stringify({
+              error: {
+                message: "Template name does not exist in the translation",
+                code: 132001,
+                error_data: { details: "template name (share_property_details) does not exist in en_US" }
+              }
+            }),
+            { status: 400 }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ messages: [{ id: "wamid.RETRY_SUCCESS" }] }),
+          { status: 200 }
+        );
+      })
+    );
+
+    const result = await sendTemplateMessage({
+      phoneNumberId: "test-phone",
+      accessToken: "test-token",
+      to: "1234567890",
+      templateName: "share_property_details",
+      language: "en_US",
+      params: ["hello"],
+    });
+
+    expect(result).toEqual({ messageId: "wamid.RETRY_SUCCESS" });
+    expect(callCount).toBe(2);
+    expect(capturedPayloads[0].template?.language?.code).toBe("en_US");
+    expect(capturedPayloads[1].template?.language?.code).toBe("en");
+  });
+
+  it("retries once with 'en_US' when 'en' fails with 132001, and succeeds", async () => {
+    let callCount = 0;
+    const capturedPayloads: Array<{ template?: { language?: { code?: string } } }> = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        callCount++;
+        const body = JSON.parse(String(init.body)) as { template?: { language?: { code?: string } } };
+        capturedPayloads.push(body);
+
+        if (callCount === 1) {
+          return new Response(
+            JSON.stringify({
+              error: {
+                message: "Template name does not exist in the translation",
+                code: 132001,
+              }
+            }),
+            { status: 400 }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ messages: [{ id: "wamid.RETRY_SUCCESS_2" }] }),
+          { status: 200 }
+        );
+      })
+    );
+
+    const result = await sendTemplateMessage({
+      phoneNumberId: "test-phone",
+      accessToken: "test-token",
+      to: "1234567890",
+      templateName: "share_property_details",
+      language: "en",
+      params: ["hello"],
+    });
+
+    expect(result).toEqual({ messageId: "wamid.RETRY_SUCCESS_2" });
+    expect(callCount).toBe(2);
+    expect(capturedPayloads[0].template?.language?.code).toBe("en");
+    expect(capturedPayloads[1].template?.language?.code).toBe("en_US");
+  });
+
+  it("does not retry for other error codes and fails", async () => {
+    let callCount = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        callCount++;
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: "Some other error",
+              code: 100,
+            }
+          }),
+          { status: 400 }
+        );
+      })
+    );
+
+    await expect(
+      sendTemplateMessage({
+        phoneNumberId: "test-phone",
+        accessToken: "test-token",
+        to: "1234567890",
+        templateName: "share_property_details",
+        language: "en_US",
+        params: ["hello"],
+      })
+    ).rejects.toThrow(/Some other error/);
+
+    expect(callCount).toBe(1);
+  });
+});
+
