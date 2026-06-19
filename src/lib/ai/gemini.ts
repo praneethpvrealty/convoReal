@@ -246,6 +246,129 @@ export interface ParsedPropertyDraft {
 }
 
 /**
+ * Safely parse a JSON string returned by Gemini, with fallbacks for trailing commas, comments, and regex-based extraction.
+ */
+function parseGeminiResponse(rawResult: string): Record<string, unknown> {
+  let cleaned = rawResult.trim();
+  
+  // 1. Strip markdown code block if present
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(json)?/, "").replace(/```$/, "").trim();
+  }
+
+  // 2. Try parsing directly first
+  try {
+    return JSON.parse(cleaned) as Record<string, unknown>;
+  } catch (e) {
+    console.warn("[Gemini AI] Initial JSON parse failed, attempting cleanup:", e);
+  }
+
+  // 3. Cleanup comments and trailing commas
+  try {
+    // Remove single line comments
+    let temp = cleaned.replace(/\/\/.*$/gm, "");
+    // Remove multi-line comments
+    temp = temp.replace(/\/\*[\s\S]*?\*\//g, "");
+    // Remove trailing commas before closing braces/brackets
+    temp = temp.replace(/,(\s*[\]}])/g, "$1");
+    return JSON.parse(temp) as Record<string, unknown>;
+  } catch (e) {
+    console.warn("[Gemini AI] JSON cleanup parse failed:", e);
+  }
+
+  // 4. Try regex repair for common fields if the JSON is truncated or badly malformed
+  const fallback: Record<string, unknown> = {};
+  
+  const extractString = (field: string): string | null => {
+    const match = cleaned.match(new RegExp(`"${field}"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`));
+    return match ? match[1] : null;
+  };
+
+  const extractNumber = (field: string): number | null => {
+    const match = cleaned.match(new RegExp(`"${field}"\\s*:\\s*(-?\\d+(?:\\.\\d+)?|null)`));
+    if (match && match[1] !== 'null') {
+      const val = Number(match[1]);
+      return isNaN(val) ? null : val;
+    }
+    return null;
+  };
+
+  const extractArray = (field: string): string[] => {
+    const match = cleaned.match(new RegExp(`"${field}"\\s*:\\s*\\[([^\\]]*)\\]`));
+    if (match) {
+      const itemsStr = match[1];
+      const items: string[] = [];
+      const itemRegex = /"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"/g;
+      let itemMatch;
+      while ((itemMatch = itemRegex.exec(itemsStr)) !== null) {
+        items.push(itemMatch[1]);
+      }
+      return items;
+    }
+    return [];
+  };
+
+  try {
+    fallback.title = extractString("title");
+    fallback.price = extractNumber("price");
+    fallback.location = extractString("location");
+    fallback.type = extractString("type");
+    fallback.sublocality = extractString("sublocality");
+    fallback.city = extractString("city");
+    fallback.state = extractString("state");
+    fallback.bedrooms = extractNumber("bedrooms");
+    fallback.bathrooms = extractNumber("bathrooms");
+    fallback.area_sqft = extractNumber("area_sqft");
+    fallback.land_area = extractNumber("land_area");
+    fallback.land_area_unit = extractString("land_area_unit");
+    fallback.description = extractString("description");
+    fallback.features = extractArray("features");
+    fallback.nearby_highlights = extractArray("nearby_highlights");
+    fallback.dimensions = extractString("dimensions");
+    fallback.facing_direction = extractString("facing_direction");
+    fallback.rental_income = extractNumber("rental_income");
+    fallback.google_map_link = extractString("google_map_link");
+    fallback.owner_contact_name = extractString("owner_contact_name");
+    fallback.owner_contact_phone = extractString("owner_contact_phone");
+    fallback.owner_contact_role = extractString("owner_contact_role");
+
+    // Also support parsing contacts array for contact parser if needed
+    const contactsMatch = cleaned.match(/"contacts"\s*:\s*\[([\s\S]*?)\]/);
+    if (contactsMatch) {
+      const contactsStr = contactsMatch[1];
+      const contactObjects = contactsStr.split(/}\s*,\s*{/);
+      fallback.contacts = contactObjects.map(objStr => {
+        const contact: Record<string, unknown> = {};
+        const extractContactStr = (field: string): string | null => {
+          const m = objStr.match(new RegExp(`"${field}"\\s*:\\s*"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"`));
+          return m ? m[1] : null;
+        };
+        contact.name = extractContactStr("name");
+        contact.phone = extractContactStr("phone");
+        contact.email = extractContactStr("email");
+        contact.company = extractContactStr("company");
+        contact.classification = extractContactStr("classification");
+        contact.notes = extractContactStr("notes");
+        contact.referrer_name = extractContactStr("referrer_name");
+        contact.referrer_phone = extractContactStr("referrer_phone");
+        return contact;
+      });
+    }
+
+    // Check if we successfully extracted at least some fields
+    if (Object.keys(fallback).some(k => fallback[k] !== null && fallback[k] !== undefined && (Array.isArray(fallback[k]) ? fallback[k].length > 0 : true))) {
+      console.log("[Gemini AI] Successfully recovered fields using regex fallback.");
+      return fallback;
+    }
+  } catch (regexErr) {
+    console.error("[Gemini AI] Regex fallback parsing failed:", regexErr);
+  }
+
+  // Final fallback: throw the original JSON parse error
+  throw new Error(`Failed to parse Gemini response: ${rawResult}`);
+}
+
+/**
  * Parses listing details from an image buffer and/or text block.
  */
 export async function parseListingFromImageOrText(
@@ -311,7 +434,7 @@ export async function parseListingFromImageOrText(
 
   try {
     const rawResult = await generateContentRaw(contents, systemInstruction, true);
-    const parsed = JSON.parse(rawResult);
+    const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedPropertyDraft>;
     
     const rental_income = parsed.rental_income || null;
     let roi = null;
@@ -372,7 +495,7 @@ export async function updateListingDraft(
 
   try {
     const rawResult = await generateContentRaw(contents, systemInstruction, true);
-    const parsed = JSON.parse(rawResult);
+    const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedPropertyDraft>;
     
     const updatedDraft = {
       ...currentDraft,
@@ -498,7 +621,7 @@ export async function parseContactFromImageOrText(
 
   try {
     const rawResult = await generateContentRaw(contents, systemInstruction, true);
-    const parsed = JSON.parse(rawResult);
+    const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedContactDraftsContainer>;
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
     
     return {
@@ -538,7 +661,7 @@ export async function updateContactDraft(
 
   try {
     const rawResult = await generateContentRaw(contents, systemInstruction, true);
-    const parsed = JSON.parse(rawResult);
+    const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedContactDraftsContainer>;
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
     
     return {
