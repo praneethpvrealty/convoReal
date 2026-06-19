@@ -277,7 +277,7 @@ describe("sendTemplateMessage — language fallback retry", () => {
     vi.unstubAllGlobals();
   });
 
-  it("retries once with 'en' when 'en_US' fails with 132001, and succeeds", async () => {
+  it("retries sequentially with 'en' then 'en_GB' when 'en_US' fails with 132001, and succeeds on the last one", async () => {
     let callCount = 0;
     const capturedPayloads: Array<{ template?: { language?: { code?: string } } }> = [];
 
@@ -288,13 +288,12 @@ describe("sendTemplateMessage — language fallback retry", () => {
         const body = JSON.parse(String(init.body)) as { template?: { language?: { code?: string } } };
         capturedPayloads.push(body);
 
-        if (callCount === 1) {
+        if (callCount < 3) {
           return new Response(
             JSON.stringify({
               error: {
                 message: "Template name does not exist in the translation",
                 code: 132001,
-                error_data: { details: "template name (share_property_details) does not exist in en_US" }
               }
             }),
             { status: 400 }
@@ -302,7 +301,7 @@ describe("sendTemplateMessage — language fallback retry", () => {
         }
 
         return new Response(
-          JSON.stringify({ messages: [{ id: "wamid.RETRY_SUCCESS" }] }),
+          JSON.stringify({ messages: [{ id: "wamid.GB_SUCCESS" }] }),
           { status: 200 }
         );
       })
@@ -317,10 +316,11 @@ describe("sendTemplateMessage — language fallback retry", () => {
       params: ["hello"],
     });
 
-    expect(result).toEqual({ messageId: "wamid.RETRY_SUCCESS" });
-    expect(callCount).toBe(2);
+    expect(result).toEqual({ messageId: "wamid.GB_SUCCESS" });
+    expect(callCount).toBe(3);
     expect(capturedPayloads[0].template?.language?.code).toBe("en_US");
     expect(capturedPayloads[1].template?.language?.code).toBe("en");
+    expect(capturedPayloads[2].template?.language?.code).toBe("en_GB");
   });
 
   it("retries once with 'en_US' when 'en' fails with 132001, and succeeds", async () => {

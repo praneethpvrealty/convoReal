@@ -518,27 +518,25 @@ export async function sendTemplateMessage(
   })
 
   if (!response.ok) {
-    let shouldRetry = false
-    let nextLanguage = ''
+    let nextLanguages: string[] = []
     try {
       const errorJson = await response.clone().json() as MetaErrorResponse
       if (errorJson.error?.code === 132001) {
-        const currentLang = (templatePayload.language as { code?: string })?.code
-        if (currentLang === 'en_US') {
-          nextLanguage = 'en'
-          shouldRetry = true
-        } else if (currentLang === 'en') {
-          nextLanguage = 'en_US'
-          shouldRetry = true
+        const currentLang = (templatePayload.language as { code?: string })?.code || language
+        const englishLocales = ['en_US', 'en', 'en_GB']
+        if (englishLocales.includes(currentLang)) {
+          nextLanguages = englishLocales.filter(l => l !== currentLang)
         }
       }
     } catch {
       // Ignored
     }
 
-    if (shouldRetry) {
-      console.warn(`[Meta API] sendTemplateMessage failed with 132001 (Template not found) for language "${language}". Retrying with "${nextLanguage}"...`)
-      templatePayload.language = { code: nextLanguage }
+    for (const nextLang of nextLanguages) {
+      if (response.ok) break
+
+      console.warn(`[Meta API] sendTemplateMessage failed with 132001 (Template not found) for language "${(templatePayload.language as { code?: string })?.code || language}". Retrying with "${nextLang}"...`)
+      templatePayload.language = { code: nextLang }
       body.template = templatePayload
       response = await fetch(url, {
         method: 'POST',
