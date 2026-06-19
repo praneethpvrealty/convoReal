@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -159,36 +159,43 @@ export function PropertyShareDialog({
     }
   }, [supabase]);
 
+  const wasOpenRef = useRef(false);
+
   // Reset dialog states when closed/opened
   useEffect(() => {
-    if (open && property) {
-      fetchContacts();
-      fetchTemplates();
-      // Load currency settings from showcase_settings
-      if (accountId) {
-        supabase
-          .from('showcase_settings')
-          .select('currency')
-          .eq('account_id', accountId)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data?.currency) {
-              setCurrency(data.currency);
-            }
-          });
+    if (open) {
+      if (!wasOpenRef.current && property) {
+        wasOpenRef.current = true;
+        fetchContacts();
+        fetchTemplates();
+        // Load currency settings from showcase_settings
+        if (accountId) {
+          supabase
+            .from('showcase_settings')
+            .select('currency')
+            .eq('account_id', accountId)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data?.currency) {
+                setCurrency(data.currency);
+              }
+            });
+        }
+        setBroadcastStep(preSelectedContactId ? 'matches' : 'link');
+        setSearchQuery('');
+        setCopiedLink(false);
+        setSelectedContactIds(preSelectedContactId ? [preSelectedContactId] : []);
+        setSelectedTemplate(null);
+        setVariableMappings({});
+        setCustomVariableValues({});
+        setBroadcastResults([]);
+        setShowAddFresh(false);
+        setFreshName('');
+        setFreshPhone('');
+        setFreshClassification('Buyer');
       }
-      setBroadcastStep(preSelectedContactId ? 'matches' : 'link');
-      setSearchQuery('');
-      setCopiedLink(false);
-      setSelectedContactIds(preSelectedContactId ? [preSelectedContactId] : []);
-      setSelectedTemplate(null);
-      setVariableMappings({});
-      setCustomVariableValues({});
-      setBroadcastResults([]);
-      setShowAddFresh(false);
-      setFreshName('');
-      setFreshPhone('');
-      setFreshClassification('Buyer');
+    } else {
+      wasOpenRef.current = false;
     }
   }, [open, property, fetchContacts, fetchTemplates, accountId, supabase, preSelectedContactId]);
 
