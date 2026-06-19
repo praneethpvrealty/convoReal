@@ -230,24 +230,76 @@ function validateContactDraftsContainer(container: ParsedContactDraftsContainer)
   };
 }
 
-function formatContactDraftsContainerPreview(
+async function formatContactDraftsContainerPreview(
   header: string,
   container: ParsedContactDraftsContainer,
   nextStatus: string,
-  missingFields: string[]
-): string {
+  missingFields: string[],
+  accountId: string
+): Promise<string> {
   let reply = `${header}\n\n`;
   
   if (container.contacts && container.contacts.length > 0) {
-    container.contacts.forEach((draft, idx) => {
+    for (let idx = 0; idx < container.contacts.length; idx++) {
+      const draft = container.contacts[idx];
+      let duplicateWarning = '';
+      if (draft.phone || draft.name) {
+        try {
+          let existingContact = null;
+          let matchType = '';
+          
+          if (draft.phone) {
+            const normalized = normalizePhoneWithCountryCode(draft.phone, '91');
+            const cleanPhone = normalized.replace(/\D/g, '');
+            const { data: byPhone } = await supabaseAdmin()
+              .from('contacts')
+              .select('id, name')
+              .eq('account_id', accountId)
+              .or(`phone.eq.${draft.phone},phone.eq.${normalized},phone.eq.${cleanPhone}`)
+              .maybeSingle();
+            
+            if (byPhone) {
+              existingContact = byPhone;
+              matchType = 'phone';
+            }
+          }
+          
+          if (!existingContact && draft.name) {
+            const { data: byName } = await supabaseAdmin()
+              .from('contacts')
+              .select('id, name')
+              .eq('account_id', accountId)
+              .ilike('name', draft.name.trim())
+              .maybeSingle();
+              
+            if (byName) {
+              existingContact = byName;
+              matchType = 'name';
+            }
+          }
+            
+          if (existingContact) {
+            if (matchType === 'phone') {
+              duplicateWarning = `\n⚠️ *The contact with phone number ${draft.phone} already exists as "${existingContact.name}". Please type different number and try again.*`;
+            } else {
+              duplicateWarning = `\n⚠️ *The contact with Name "${draft.name}" already exists. Please type different name and try again.*`;
+            }
+          }
+        } catch (err) {
+          console.error('[chatbot-engine] Error checking duplicate contacts:', err);
+        }
+      }
+
       reply += `*Contact #${idx + 1}:*\n` +
         `• *Name:* ${draft.name || '❓ _Missing_'}\n` +
         `• *Phone:* ${draft.phone || '❓ _Missing_'}\n` +
         `• *Email:* ${draft.email || '_Not specified_'}\n` +
         `• *Company:* ${draft.company || '_Not specified_'}\n` +
         `• *Role/Classification:* ${draft.classification || 'Others'}\n` +
-        `• *Notes:* ${draft.notes || '_No notes_'}\n\n`;
-    });
+        `• *Notes:* ${draft.notes || '_No notes_'}\n` +
+        (duplicateWarning ? `${duplicateWarning}\n` : '') +
+        `\n`;
+    }
   } else {
     reply += `_No contacts parsed._\n\n`;
   }
@@ -269,9 +321,10 @@ async function sendContactDraftPreview(
   container: ParsedContactDraftsContainer,
   nextStatus: string,
   missingFields: string[],
-  conversationId: string
+  conversationId: string,
+  accountId: string
 ): Promise<void> {
-  const reply = formatContactDraftsContainerPreview(header, container, nextStatus, missingFields);
+  const reply = await formatContactDraftsContainerPreview(header, container, nextStatus, missingFields, accountId);
   
   const buttons = nextStatus === 'awaiting_confirmation'
     ? [
@@ -683,7 +736,8 @@ export async function processOwnerChatbotMessage(
         updatedContainer,
         nextStatus,
         missingFields,
-        conversation.id
+        conversation.id,
+        accountId
       );
       return true;
     }
@@ -812,7 +866,8 @@ export async function processOwnerChatbotMessage(
           parsedContainer,
           initialStatus,
           missingFields,
-          conversation.id
+          conversation.id,
+          accountId
         );
         return true;
       } catch (err) {
