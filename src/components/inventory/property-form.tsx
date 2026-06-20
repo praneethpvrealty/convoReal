@@ -49,6 +49,7 @@ import {
   Sparkles,
   Share2,
   Edit,
+  Building,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { formatCurrency } from '@/lib/currency-utils';
