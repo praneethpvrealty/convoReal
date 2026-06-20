@@ -1126,7 +1126,7 @@ export async function syncProductToCatalog(
         method: 'UPDATE',
         retailer_id: retailerId,
         data: {
-          title: title.substring(0, 140),
+          name: title.substring(0, 140),
           description,
           image_url: heroImage,
           price,
@@ -1155,6 +1155,22 @@ export async function syncProductToCatalog(
 
   const resJson = await response.json().catch(() => ({}));
   console.log('[syncProductToCatalog] Meta API Response:', JSON.stringify(resJson, null, 2));
+
+  if (Array.isArray(resJson.validation_status)) {
+    const errorMessages: string[] = []
+    for (const status of resJson.validation_status) {
+      if (Array.isArray(status.errors) && status.errors.length > 0) {
+        for (const err of status.errors) {
+          if (err.message) {
+            errorMessages.push(`${status.retailer_id ? status.retailer_id + ': ' : ''}${err.message}`)
+          }
+        }
+      }
+    }
+    if (errorMessages.length > 0) {
+      throw new Error(`Meta validation error: ${errorMessages.join('; ')}`)
+    }
+  }
 }
 
 export interface DeleteProductFromCatalogArgs {
