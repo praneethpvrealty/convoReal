@@ -8,6 +8,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import type { MessageTemplate } from '@/types'
 
 interface BroadcastResult {
   phone: string
@@ -230,7 +231,7 @@ export async function POST(request: Request) {
           customDbClient: supabase,
         })
       } else {
-        const defaultText = content_text || `*New Listing Available*\n\n${property_retailer_id}`
+        const defaultText = content_text || `*New Listing Available*\n\n${product_retailer_id}`
         result = await sendWhatsAppMessageAndPersist({
           accountId,
           userId: user.id,

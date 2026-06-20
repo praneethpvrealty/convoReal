@@ -112,9 +112,8 @@ export async function GET() {
 
     // Try to decrypt the stored token with the current ENCRYPTION_KEY.
     // If this fails, the key changed (or was never consistent across envs).
-    let accessToken: string
     try {
-      accessToken = decrypt(config.access_token)
+      decrypt(config.access_token)
     } catch (err) {
       console.error('[whatsapp/config GET] Token decryption failed:', err)
       return NextResponse.json(
@@ -129,11 +128,11 @@ export async function GET() {
       )
     }
 
-    // Validate credentials against Meta
+    // Return stored configuration
     try {
       return NextResponse.json({
         connected: true,
-        phone_info: phoneInfo,
+        phone_number_id: config.phone_number_id,
         catalog_id: config.catalog_id || null,
         auto_sync_catalog: config.auto_sync_catalog || false,
       })

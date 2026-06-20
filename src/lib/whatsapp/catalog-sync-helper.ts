@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { syncProductToCatalog } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 
@@ -5,10 +6,8 @@ import { decrypt } from '@/lib/whatsapp/encryption'
  * Checks the active account's whatsapp_config for auto_sync_catalog,
  * retrieves credentials, and synchronizes the property with Meta's Catalog.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function autoSyncPropertyCatalogIfNeeded(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
+  supabase: SupabaseClient,
   propertyId: string,
   accountId: string
 ): Promise<void> {
