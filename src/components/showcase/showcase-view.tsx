@@ -29,6 +29,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
+const trackPixelEvent = (
+  eventName: string,
+  params?: Record<string, unknown>
+) => {
+  if (typeof window !== 'undefined') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fbq = (window as any).fbq;
+    if (typeof fbq === 'function') {
+      fbq('track', eventName, params);
+    }
+  }
+};
+
 interface ShowcaseViewProps {
   properties: Property[];
   settings: ShowcaseSettings | null;
@@ -193,6 +206,16 @@ export function ShowcaseView({
       setInterestModalOpen(false);
       setInterestProperty(null);
       toast.success(`Interest recorded for "${interestProperty.title}"!`);
+
+      // Track Meta Pixel Lead event
+      trackPixelEvent('Lead', {
+        content_name: interestProperty.title,
+        content_ids: [interestProperty.property_code || interestProperty.id],
+        content_type: 'product',
+        value: Number(interestProperty.price) || 0,
+        currency: settings?.currency || 'INR',
+        inquiry_type: 'quick_interest',
+      });
     } catch (err) {
       console.error(err);
       toast.error('Failed to register interest. Please try again.');
@@ -211,6 +234,16 @@ export function ShowcaseView({
     try {
       updateInterestStatus(property.id, 'interested');
       toast.success(`Interest recorded for "${property.title}"!`);
+
+      // Track Meta Pixel Lead event
+      trackPixelEvent('Lead', {
+        content_name: property.title,
+        content_ids: [property.property_code || property.id],
+        content_type: 'product',
+        value: Number(property.price) || 0,
+        currency: settings?.currency || 'INR',
+        inquiry_type: 'quick_interest_prefilled',
+      });
 
       await fetch('/api/public/inquiry', {
         method: 'POST',
@@ -275,6 +308,13 @@ export function ShowcaseView({
       saveVisitorInfo(reqName.trim(), reqPhone.trim(), reqEmail.trim());
       toast.success('Your requirements have been recorded. Our team will contact you shortly!');
       setRequirementsModalOpen(false);
+
+      // Track Meta Pixel Lead event
+      trackPixelEvent('Lead', {
+        content_name: 'Requirements Submission',
+        content_category: reqCategories.join(','),
+        inquiry_type: 'requirements_form',
+      });
       
       setReqCategories([]);
       setReqLocations([]);
@@ -443,6 +483,16 @@ export function ShowcaseView({
 
       setSubmitSuccess(true);
       toast.success('Your inquiry has been submitted successfully!');
+
+      // Track Meta Pixel Lead event
+      trackPixelEvent('Lead', {
+        content_name: selectedProperty.title,
+        content_ids: [selectedProperty.property_code || selectedProperty.id],
+        content_type: 'product',
+        value: Number(selectedProperty.price) || 0,
+        currency: settings?.currency || 'INR',
+        inquiry_type: 'inquiry_form',
+      });
       
       // Clear inputs
       setInquiryName('');
@@ -467,9 +517,18 @@ export function ShowcaseView({
         setSelectedProperty(match);
         setActiveImageIdx(0);
         setSubmitSuccess(false);
+
+        // Track Meta Pixel ViewContent event on deep-link mount
+        trackPixelEvent('ViewContent', {
+          content_ids: [match.property_code || match.id],
+          content_type: 'product',
+          content_name: match.title,
+          value: Number(match.price) || 0,
+          currency: settings?.currency || 'INR',
+        });
       }
     }
-  }, [initialPropertyId, properties]);
+  }, [initialPropertyId, properties, settings?.currency]);
 
   const openPropertyModal = (property: Property) => {
     setSelectedProperty(property);
@@ -481,7 +540,27 @@ export function ShowcaseView({
       const url = new URL(window.location.href);
       url.searchParams.set('property_id', property.property_code || property.id);
       window.history.pushState({}, '', url.toString());
+
+      // Track Meta Pixel ViewContent event
+      trackPixelEvent('ViewContent', {
+        content_ids: [property.property_code || property.id],
+        content_type: 'product',
+        content_name: property.title,
+        value: Number(property.price) || 0,
+        currency: settings?.currency || 'INR',
+      });
     }
+  };
+
+  const trackWhatsAppInquiry = (property: Property) => {
+    trackPixelEvent('Lead', {
+      content_name: property.title,
+      content_ids: [property.property_code || property.id],
+      content_type: 'product',
+      value: Number(property.price) || 0,
+      currency: settings?.currency || 'INR',
+      inquiry_type: 'whatsapp_click',
+    });
   };
 
   const closePropertyModal = () => {
@@ -890,6 +969,7 @@ export function ShowcaseView({
                           {(displayPhone || property.agent_details?.phone) && (
                             <a
                               href={getWhatsAppLink(property)}
+                              onClick={() => trackWhatsAppInquiry(property)}
                               target="_blank"
                               rel="noreferrer"
                               className="h-9 w-9 rounded-lg bg-green-600 hover:bg-green-500 text-white flex items-center justify-center hover:scale-105 transition-all shadow-md shadow-green-950/40 cursor-pointer"
@@ -1052,6 +1132,7 @@ export function ShowcaseView({
                   {(displayPhone || selectedProperty.agent_details?.phone) && (
                     <a
                       href={getWhatsAppLink(selectedProperty)}
+                      onClick={() => trackWhatsAppInquiry(selectedProperty)}
                       target="_blank"
                       rel="noreferrer"
                       className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/20 hover:scale-[1.02] transition-all shrink-0"
@@ -1220,6 +1301,7 @@ export function ShowcaseView({
                         </a>
                         <a
                           href={getWhatsAppLink(selectedProperty)}
+                          onClick={() => trackWhatsAppInquiry(selectedProperty)}
                           target="_blank"
                           rel="noreferrer"
                           className="h-8 px-3 rounded-lg bg-green-600 hover:bg-green-500 text-white flex items-center justify-center gap-1.5 text-[11px] font-bold cursor-pointer shadow-md shadow-green-950/20"
@@ -1327,6 +1409,7 @@ export function ShowcaseView({
                       {(displayPhone || selectedProperty.agent_details?.phone) && (
                         <a
                           href={getWhatsAppLink(selectedProperty)}
+                          onClick={() => trackWhatsAppInquiry(selectedProperty)}
                           target="_blank"
                           rel="noreferrer"
                           className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/20 hover:scale-[1.01] transition-all text-center"
