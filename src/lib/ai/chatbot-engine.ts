@@ -1288,21 +1288,34 @@ export async function processOwnerChatbotMessage(
           });
 
         if (insertErr) {
-          // If a concurrent thread created the session first, fall back to appending the uploaded image
+          // If a concurrent thread created the session first, fall back to merging or appending
           if (insertErr.code === '23505') {
-            console.log('[chatbot-engine] Session already initialized by concurrent request. Falling back to append flow.');
+            console.log('[chatbot-engine] Session already initialized by concurrent request. Falling back to merge/append flow.');
             const { data: existingSession } = await supabaseAdmin()
               .from('property_draft_sessions')
               .select('*')
               .eq('contact_id', contactRecord.id)
               .maybeSingle();
 
-            if (existingSession && isImageMsg && uploadedImages.length > 0) {
-              const publicUrl = uploadedImages[0];
+            if (existingSession) {
+              const currentDraft = existingSession.draft_data as ParsedPropertyDraft;
+
+              // 1. Check if it is a duplicate of the same ingestion (e.g. duplicate webhook retry)
+              const isDuplicate = 
+                (parsedDraft.title && currentDraft.title === parsedDraft.title) ||
+                (parsedDraft.location && currentDraft.location === parsedDraft.location) ||
+                (parsedDraft.images && parsedDraft.images.length > 0 && currentDraft.images && currentDraft.images.some((img: string) => parsedDraft.images.includes(img)));
+
+              if (isDuplicate) {
+                console.log('[chatbot-engine] Duplicate ingestion detected concurrently. Exiting duplicate thread silently.');
+                return true;
+              }
+
+              // 2. Otherwise, merge the newly parsed details/images into the existing fresh session
               let success = false;
               let retryCount = 0;
               const maxRetries = 5;
-              let updatedDraft = existingSession.draft_data as ParsedPropertyDraft;
+              let mergedDraft = currentDraft;
               let nextStatus = existingSession.status;
               let validationFields: string[] = [];
 
@@ -1314,21 +1327,43 @@ export async function processOwnerChatbotMessage(
                   .single();
 
                 if (latestSession) {
-                  const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-                  const currentImages = currentDraft.images || [];
-                  const updatedImages = currentImages.includes(publicUrl)
-                    ? currentImages
-                    : [...currentImages, publicUrl];
+                  const latestDraft = latestSession.draft_data as ParsedPropertyDraft;
                   
-                  updatedDraft = { ...currentDraft, images: updatedImages };
-                  const validation = validateDraft(updatedDraft);
+                  mergedDraft = {
+                    title: latestDraft.title || parsedDraft.title,
+                    description: latestDraft.description || parsedDraft.description,
+                    price: latestDraft.price || parsedDraft.price,
+                    location: latestDraft.location || parsedDraft.location,
+                    type: latestDraft.type || parsedDraft.type,
+                    bedrooms: latestDraft.bedrooms || parsedDraft.bedrooms,
+                    bathrooms: latestDraft.bathrooms || parsedDraft.bathrooms,
+                    area_sqft: latestDraft.area_sqft || parsedDraft.area_sqft,
+                    sublocality: latestDraft.sublocality || parsedDraft.sublocality,
+                    city: latestDraft.city || parsedDraft.city,
+                    state: latestDraft.state || parsedDraft.state,
+                    dimensions: latestDraft.dimensions || parsedDraft.dimensions,
+                    facing_direction: latestDraft.facing_direction || parsedDraft.facing_direction,
+                    google_map_link: latestDraft.google_map_link || parsedDraft.google_map_link,
+                    land_area: latestDraft.land_area || parsedDraft.land_area,
+                    land_area_unit: latestDraft.land_area_unit || parsedDraft.land_area_unit,
+                    rental_income: latestDraft.rental_income || parsedDraft.rental_income,
+                    roi: latestDraft.roi || parsedDraft.roi,
+                    owner_contact_name: latestDraft.owner_contact_name || parsedDraft.owner_contact_name,
+                    owner_contact_phone: latestDraft.owner_contact_phone || parsedDraft.owner_contact_phone,
+                    owner_contact_role: latestDraft.owner_contact_role || parsedDraft.owner_contact_role,
+                    features: Array.from(new Set([...(latestDraft.features || []), ...(parsedDraft.features || [])])),
+                    nearby_highlights: Array.from(new Set([...(latestDraft.nearby_highlights || []), ...(parsedDraft.nearby_highlights || [])])),
+                    images: Array.from(new Set([...(latestDraft.images || []), ...(parsedDraft.images || [])]))
+                  };
+
+                  const validation = validateDraft(mergedDraft);
                   nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
                   validationFields = validation.missingFields;
 
                   const { data: updateData, error: updateErr } = await supabaseAdmin()
                     .from('property_draft_sessions')
                     .update({
-                      draft_data: updatedDraft,
+                      draft_data: mergedDraft,
                       status: nextStatus,
                       updated_at: new Date().toISOString()
                     })
@@ -1346,13 +1381,14 @@ export async function processOwnerChatbotMessage(
                   retryCount++;
                 }
               }
+
               if (success) {
                 await sendPropertyDraftPreview(
                   phoneNumberId,
                   accessToken,
                   contactRecord.phone,
-                  `📸 *Photo added successfully!* Total photos attached: *${updatedDraft.images.length}*.`,
-                  updatedDraft,
+                  `📝 *Listing details and photos merged into draft!*`,
+                  mergedDraft,
                   nextStatus,
                   validationFields,
                   conversation.id
