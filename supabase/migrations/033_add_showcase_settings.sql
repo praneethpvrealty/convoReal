@@ -2,8 +2,8 @@
 CREATE TABLE IF NOT EXISTS showcase_settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   account_id UUID NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
-  website_name TEXT NOT NULL DEFAULT 'Aryavarta Ventures',
-  website_url TEXT NOT NULL DEFAULT 'https://www.aryavartaventures.com',
+  website_name TEXT NOT NULL DEFAULT 'ConvoReal',
+  website_url TEXT NOT NULL DEFAULT 'https://www.convoreal.com',
   contact_phone TEXT NOT NULL DEFAULT '',
   whatsapp_message_template TEXT NOT NULL DEFAULT 'Hi! I am interested in your property "{title}" in {location}. Please share details.',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -11,6 +11,7 @@ import {
   validateTemplatePayload,
   type TemplatePayload,
 } from './template-validators';
+import { BRANDING } from '@/config/branding';
 
 const baseValid: TemplatePayload = {
   name: 'order_confirmation',
@@ -297,7 +298,7 @@ describe('validateTemplatePayload — integration', () => {
     expect(() =>
       validateTemplatePayload({
         ...baseValid,
-        body_text: 'Hi {{1}} {{2}}, welcome to Aryavarta Realty!',
+        body_text: `Hi {{1}} {{2}}, welcome to ${BRANDING.name}!`,
         sample_values: { body: ['John', 'Doe'] },
       }),
     ).toThrow(/Consecutive variable/);

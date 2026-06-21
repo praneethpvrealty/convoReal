@@ -90,7 +90,7 @@ To send Product Cards, your inventory must exist in a Meta Catalog.
 2. Click **Add Catalog**.
 3. Choose **Ecommerce** (suitable for product, real estate, and generic inventories).
 4. Select **Upload product info** (do not link a platform like Shopify).
-5. Choose your Business Portfolio owner, name the catalog (e.g., `Aryavarta Properties`), and click **Create**.
+5. Choose your Business Portfolio owner, name the catalog (e.g., `ConvoReal Properties`), and click **Create**.
 6. Go to **Settings** (gear icon) and copy the **Catalog ID** (e.g., `1547752690053122`).
 
 ### Step 2: Assign System User Access to the Catalog
@@ -120,7 +120,7 @@ To go live for public clients, your Meta App must be approved for `catalog_manag
 ### Step 2: Complete App Settings
 1. Go to **App settings** → **Basic** in the sidebar.
 2. Enter the following mandatory information:
-   - **App Domains:** Your CRM domain (e.g., `aryavartaventures.com`).
+   - **App Domains:** Your CRM domain (e.g., `convoreal.com`).
    - **Privacy Policy URL:** Link to your privacy policy.
    - **Terms of Service URL:** Link to your terms of service.
    - **User Data Deletion:** Choose "Data deletion instructions URL" and link to your privacy policy page (`#data-deletion`).

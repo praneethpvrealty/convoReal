@@ -626,6 +626,7 @@ export interface ShowcaseSettings {
   flyer_ai_provider?: 'google' | 'huggingface';
   currency?: string;
   meta_pixel_id?: string | null;
+  subdomain?: string | null;
   created_at: string;
   updated_at: string;
 }

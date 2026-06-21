@@ -1751,8 +1751,8 @@ ALTER TABLE contacts
 CREATE TABLE IF NOT EXISTS showcase_settings (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   account_id UUID NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
-  website_name TEXT NOT NULL DEFAULT 'Aryavarta Ventures',
-  website_url TEXT NOT NULL DEFAULT 'https://www.aryavartaventures.com',
+  website_name TEXT NOT NULL DEFAULT 'ConvoReal',
+  website_url TEXT NOT NULL DEFAULT 'https://www.convoreal.com',
   contact_phone TEXT NOT NULL DEFAULT '',
   whatsapp_message_template TEXT NOT NULL DEFAULT 'Hi! I am interested in your property "{title}" in {location}. Please share details.',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -2127,5 +2127,32 @@ ALTER TABLE whatsapp_config ADD COLUMN IF NOT EXISTS auto_sync_catalog BOOLEAN D
 
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS meta_catalog_synced_at TIMESTAMPTZ;
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS meta_catalog_error TEXT;
+
+-- ============================================================
+-- 054_add_meta_pixel_id_to_showcase_settings.sql
+-- Add meta_pixel_id to showcase_settings table
+-- ============================================================
+
+ALTER TABLE showcase_settings ADD COLUMN IF NOT EXISTS meta_pixel_id TEXT;
+
+-- ============================================================
+-- 055_add_subdomain_to_showcase_settings.sql
+-- Add subdomain to showcase_settings table with unique constraint
+-- ============================================================
+
+ALTER TABLE showcase_settings ADD COLUMN IF NOT EXISTS subdomain TEXT;
+
+-- Enforce unique constraint on subdomain column (ignores multiple NULL values)
+ALTER TABLE showcase_settings DROP CONSTRAINT IF EXISTS showcase_settings_subdomain_unique;
+ALTER TABLE showcase_settings ADD CONSTRAINT showcase_settings_subdomain_unique UNIQUE (subdomain);
+
+-- ============================================================
+-- 056_alter_showcase_settings_branding_defaults.sql
+-- Alter default values for showcase_settings to ConvoReal / convoreal.com branding
+-- ============================================================
+
+ALTER TABLE showcase_settings ALTER COLUMN website_name SET DEFAULT 'ConvoReal';
+ALTER TABLE showcase_settings ALTER COLUMN website_url SET DEFAULT 'https://www.convoreal.com';
+
 
 

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import type { ShowcaseSettings } from '@/types';
+import { BRANDING } from '@/config/branding';
 
 export function ShowcaseSettingsPanel() {
   const supabase = createClient();
@@ -21,13 +22,14 @@ export function ShowcaseSettingsPanel() {
   const [copiedUrlType, setCopiedUrlType] = useState<'company' | 'personal' | null>(null);
   const [settings, setSettings] = useState<ShowcaseSettings | null>(null);
 
-  const [websiteName, setWebsiteName] = useState('Aryavarta Ventures');
-  const [websiteUrl, setWebsiteUrl] = useState('https://www.aryavartaventures.com');
+  const [websiteName, setWebsiteName] = useState(BRANDING.name);
+  const [websiteUrl, setWebsiteUrl] = useState(BRANDING.websiteUrl);
   const [contactPhone, setContactPhone] = useState('');
   const [whatsappTemplate, setWhatsappTemplate] = useState(
     'Hi! I am interested in your property "{title}" in {location}. Please share details.'
   );
   const [metaPixelId, setMetaPixelId] = useState('');
+  const [subdomain, setSubdomain] = useState('');
 
 
   useEffect(() => {
@@ -49,11 +51,12 @@ export function ShowcaseSettingsPanel() {
 
         if (data) {
           setSettings(data);
-          setWebsiteName(data.website_name || 'Aryavarta Ventures');
-          setWebsiteUrl(data.website_url || 'https://www.aryavartaventures.com');
+          setWebsiteName(data.website_name || BRANDING.name);
+          setWebsiteUrl(data.website_url || BRANDING.websiteUrl);
           setContactPhone(data.contact_phone || '');
           setWhatsappTemplate(data.whatsapp_message_template || '');
           setMetaPixelId(data.meta_pixel_id || '');
+          setSubdomain(data.subdomain || '');
 
         }
       } catch (err) {
@@ -79,6 +82,7 @@ export function ShowcaseSettingsPanel() {
         contact_phone: contactPhone.trim(),
         whatsapp_message_template: whatsappTemplate.trim(),
         meta_pixel_id: metaPixelId.trim() || null,
+        subdomain: subdomain.trim().toLowerCase() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -243,7 +247,7 @@ export function ShowcaseSettingsPanel() {
                   id="websiteName"
                   value={websiteName}
                   onChange={(e) => setWebsiteName(e.target.value)}
-                  placeholder="Aryavarta Ventures"
+                  placeholder={BRANDING.name}
                   required
                   className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary"
                 />
@@ -271,12 +275,31 @@ export function ShowcaseSettingsPanel() {
                   type="url"
                   value={websiteUrl}
                   onChange={(e) => setWebsiteUrl(e.target.value)}
-                  placeholder="https://www.aryavartaventures.com"
+                  placeholder={BRANDING.websiteUrl}
                   required
                   className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-600 focus:border-primary focus:ring-1 focus:ring-primary"
                 />
               </div>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="subdomain" className="text-slate-350 font-medium">
+              Showcase Subdomain (e.g. agency1)
+            </Label>
+            <div className="relative">
+              <Globe className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+              <Input
+                id="subdomain"
+                value={subdomain}
+                onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                placeholder="e.g. myagency"
+                className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-650 focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400">
+              If configured, your showcase site will be accessible directly at <code className="text-primary">{`https://${subdomain || 'your-subdomain'}.${BRANDING.baseDomain}`}</code> (or locally at <code className="text-primary">{`http://${subdomain || 'your-subdomain'}.localhost:3000`}</code>).
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { ShowcaseView } from '@/components/showcase/showcase-view';
 import type { Property } from '@/types';
+import { BRANDING } from '@/config/branding';
 
 export const metadata: Metadata = {
-  title: 'Aryavarta Ventures — Premium Real Estate & Land Listings',
+  title: `${BRANDING.name} — Premium Real Estate & Land Listings`,
   description:
     'Browse our handpicked collection of high-end villa plots, lands, apartments, and commercial spaces. Inquire directly via WhatsApp or submit a request.',
   robots: {
@@ -21,15 +23,44 @@ interface PageProps {
 export default async function RootPage({ searchParams }: PageProps) {
   const resolvedParams = await searchParams;
   const admin = supabaseAdmin();
+  const reqHeaders = await headers();
+  const host = reqHeaders.get('host') || '';
+
+  // Resolve subdomain from hostname (e.g. agency1.convoreal.com or agency1.localhost:3000)
+  let subdomain: string | null = null;
+  const domainParts = host.split('.');
+  if (
+    (domainParts.length >= 3 && !host.includes('localhost')) ||
+    (host.includes('localhost') && domainParts.length >= 2 && !host.startsWith('localhost'))
+  ) {
+    const possibleSubdomain = domainParts[0].toLowerCase();
+    const systemSubdomains = ['www', 'app', 'admin', 'api'];
+    if (!systemSubdomains.includes(possibleSubdomain)) {
+      subdomain = possibleSubdomain;
+    }
+  }
 
   let accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID;
+  
+  if (subdomain) {
+    const { data: matchedSettings } = await admin
+      .from('showcase_settings')
+      .select('account_id')
+      .eq('subdomain', subdomain)
+      .maybeSingle();
+    
+    if (matchedSettings) {
+      accountId = matchedSettings.account_id;
+    }
+  }
+
   let filterContactId: string | null = null;
   let filterUserId: string | null = null;
 
   const ref = resolvedParams.ref || resolvedParams.account_id || resolvedParams.agent_id;
   const initialPropertyId = resolvedParams.property_id;
 
-  // 1. If property_id is specified in the URL, try resolving its account_id first
+  // 1. If property_id is specified in the URL, try resolving its account_id first (scoped to subdomain account if resolved)
   let targetProperty: Property | null = null;
   if (initialPropertyId) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(initialPropertyId);
@@ -38,6 +69,9 @@ export default async function RootPage({ searchParams }: PageProps) {
       propQuery = propQuery.eq('id', initialPropertyId);
     } else {
       propQuery = propQuery.eq('property_code', initialPropertyId.toUpperCase());
+    }
+    if (accountId) {
+      propQuery = propQuery.eq('account_id', accountId);
     }
     const { data: propData } = await propQuery.maybeSingle();
     if (propData) {

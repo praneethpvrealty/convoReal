@@ -133,6 +133,41 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  async redirects() {
+    const fromDomain = process.env.REDIRECT_FROM_DOMAIN;
+    const toDomain = process.env.REDIRECT_TO_DOMAIN || 'convoreal.com';
+    if (!fromDomain) return [];
+
+    const escapedFrom = fromDomain.replace(/\./g, '\\.');
+
+    return [
+      // 1. Redirect main domain root and all paths
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: escapedFrom,
+          },
+        ],
+        destination: `https://${toDomain}/:path*`,
+        permanent: false,
+      },
+      // 2. Redirect all subdomains (retaining subdomain slug)
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: `(?<subdomain>[^\\.]+)\\.${escapedFrom}`,
+          },
+        ],
+        destination: `https://:subdomain.${toDomain}/:path*`,
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

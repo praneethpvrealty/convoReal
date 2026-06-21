@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { BRANDING } from '@/config/branding';
 import {
   Sparkles,
   Download,
@@ -57,7 +58,7 @@ export function FlyerCreatorDialog({
   const [showBranding, setShowBranding] = useState(true);
 
   // Branding Custom Text
-  const [brandName, setBrandName] = useState('Aryavarta Ventures');
+  const [brandName, setBrandName] = useState(BRANDING.name);
   const [brandContact, setBrandContact] = useState('');
 
   // Image loading caches to avoid reloading during simple toggle modifications
@@ -78,7 +79,7 @@ export function FlyerCreatorDialog({
       );
 
       // Default brand details
-      setBrandName('Aryavarta Ventures');
+      setBrandName(BRANDING.name);
       setBrandContact(user?.phone || '');
       setAiImageUrl(null);
       setBgImageElement(null);
