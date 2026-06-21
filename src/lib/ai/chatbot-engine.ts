@@ -19,6 +19,7 @@ import {
   sendInteractiveButtons
 } from '@/lib/whatsapp/meta-api';
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
+import { extractImagesFromPdf } from '@/lib/pdf/image-extractor';
 
 // Lazy initialize supabase admin client
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -413,17 +414,19 @@ export async function processOwnerChatbotMessage(
   const lowerText = cleanedText.toLowerCase();
 
   const isImageMsg = message.type === 'image' && message.image?.id;
+  const isDocMsg = message.type === 'document' && message.document?.id;
+  const isMediaMsg = isImageMsg || isDocMsg;
 
-  // Concurrency check: If there is no active session yet, and we are either an image message or
+  // Concurrency check: If there is no active session yet, and we are either an image/document message or
   // a text message that is NOT a property initiator (e.g. location map link or quick correction),
   // we check if another customer message arrived in the same conversation within the last 15s.
   // If so, we poll and wait up to 8 seconds for the concurrent initiator thread to parse and insert the session.
-  const isInitiator = !isImageMsg && (
+  const isInitiator = !isMediaMsg && (
     cleanedText.length > 15 && 
     ["bhk", "sqft", "flat", "plot", "villa", "sale", "rent", "layout", "crore", "lakh", "price", "location", "acres", "commercial", "industrial", "built", "structure", "facing"].some(kw => lowerText.includes(kw))
   );
 
-  const shouldPoll = !propSession && !contactSession && (isImageMsg || !isInitiator) && (isImageMsg || cleanedText);
+  const shouldPoll = !propSession && !contactSession && (isMediaMsg || !isInitiator) && (isMediaMsg || cleanedText);
 
   if (shouldPoll) {
     try {
@@ -1184,12 +1187,18 @@ export async function processOwnerChatbotMessage(
   }
 
   // 4. Start New Session Flow (No Session Exists)
-  if (isImageMsg || cleanedText) {
+  if (isMediaMsg || cleanedText) {
     let mediaBuffer: Buffer | undefined = undefined;
     let mediaMimeType: string | undefined = undefined;
 
     if (isImageMsg) {
       const mediaId = message.image!.id;
+      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
+      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+      mediaBuffer = buffer;
+      mediaMimeType = mimeType;
+    } else if (isDocMsg) {
+      const mediaId = message.document!.id;
       const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
       const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
       mediaBuffer = buffer;
@@ -1213,16 +1222,52 @@ export async function processOwnerChatbotMessage(
         let parsedDraft: ParsedPropertyDraft;
         const uploadedImages: string[] = [];
 
-        if (isImageMsg && mediaBuffer && mediaMimeType) {
-          // Parallel parse and upload to save latency
-          const [parsed, publicUrl] = await Promise.all([
-            parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
-            uploadPropertyImage(accountId, mediaBuffer, mediaMimeType)
-          ]);
+        if (isMediaMsg && mediaBuffer && mediaMimeType) {
+          if (isImageMsg) {
+            // Parallel parse and upload to save latency
+            const [parsed, publicUrl] = await Promise.all([
+              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
+              uploadPropertyImage(accountId, mediaBuffer, mediaMimeType)
+            ]);
 
-          parsedDraft = parsed;
-          uploadedImages.push(publicUrl);
-          parsedDraft.images = uploadedImages;
+            parsedDraft = parsed;
+            uploadedImages.push(publicUrl);
+            parsedDraft.images = uploadedImages;
+          } else if (mediaMimeType === 'application/pdf') {
+            // Parallel parse text details and extract images
+            const [parsed, extractedImgBuffers] = await Promise.all([
+              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
+              extractImagesFromPdf(mediaBuffer)
+            ]);
+
+            parsedDraft = parsed;
+
+            // Limit and upload extracted images
+            if (extractedImgBuffers.length > 0) {
+              const maxImages = 15;
+              const imagesToUpload = extractedImgBuffers.slice(0, maxImages);
+              console.log(`[chatbot-engine] Extracted ${extractedImgBuffers.length} images from PDF. Uploading top ${imagesToUpload.length} to storage...`);
+
+              const uploadPromises = imagesToUpload.map(buf =>
+                uploadPropertyImage(accountId, buf, 'image/jpeg')
+                  .catch(err => {
+                    console.error('[chatbot-engine] Image upload from PDF failed:', err);
+                    return null;
+                  })
+              );
+
+              const urls = await Promise.all(uploadPromises);
+              const validUrls = urls.filter((url): url is string => url !== null);
+              uploadedImages.push(...validUrls);
+              parsedDraft.images = uploadedImages;
+            } else {
+              parsedDraft.images = [];
+            }
+          } else {
+            // Other document types fallback
+            parsedDraft = await parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
+            parsedDraft.images = [];
+          }
         } else {
           parsedDraft = await parseListingFromImageOrText(cleanedText);
           parsedDraft.images = [];
@@ -1352,7 +1397,7 @@ export async function processOwnerChatbotMessage(
       try {
         let parsedContainer: ParsedContactDraftsContainer;
 
-        if (isImageMsg && mediaBuffer && mediaMimeType) {
+        if (isMediaMsg && mediaBuffer && mediaMimeType) {
           parsedContainer = await parseContactFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
         } else {
           parsedContainer = await parseContactFromImageOrText(cleanedText);
