@@ -271,17 +271,43 @@ export async function POST(request: Request) {
       
       console.log(`[lead-webhook] ==========================================`);
       console.log(`[lead-webhook] GMAIL FORWARDING VERIFICATION RECEIVED`);
-      if (codeMatch) {
-        console.log(`[lead-webhook] ---> CONFIRMATION CODE: ${codeMatch[1]}`);
+      const code = codeMatch ? codeMatch[1] : null;
+      const link = linkMatch ? linkMatch[0] : null;
+      
+      if (code) {
+        console.log(`[lead-webhook] ---> CONFIRMATION CODE: ${code}`);
       }
-      if (linkMatch) {
-        console.log(`[lead-webhook] ---> CONFIRMATION LINK: ${linkMatch[0]}`);
+      if (link) {
+        console.log(`[lead-webhook] ---> CONFIRMATION LINK: ${link}`);
       }
-      if (!codeMatch && !linkMatch) {
+      if (!code && !link) {
         // Fallback: log raw text to help find details
         console.log(`[lead-webhook] Raw Content: ${bodyText.slice(0, 1500)}`);
       }
       console.log(`[lead-webhook] ==========================================`);
+
+      if (accountId) {
+        const supabase = getAdminClient();
+        const { error: dbErr } = await supabase
+          .from('email_sync_configs')
+          .upsert({
+            account_id: accountId,
+            last_verification_code: code,
+            last_verification_link: link,
+            last_verification_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'account_id',
+          });
+
+        if (dbErr) {
+          console.error(`[lead-webhook] Failed to save verification to DB:`, dbErr);
+        } else {
+          console.log(`[lead-webhook] Saved forwarding verification to DB for account ${accountId}`);
+        }
+      } else {
+        console.warn(`[lead-webhook] Received verification email but no account_id resolved.`);
+      }
 
       return NextResponse.json({
         status: 'verification_received',

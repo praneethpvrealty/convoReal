@@ -647,6 +647,9 @@ export interface EmailSyncConfig {
   is_active: boolean;
   auto_reply_enabled: boolean;
   auto_reply_text: string | null;
+  last_verification_code: string | null;
+  last_verification_link: string | null;
+  last_verification_at: string | null;
   created_at: string;
   updated_at: string;
 }

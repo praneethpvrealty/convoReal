@@ -34,6 +34,11 @@ export function OtherSettingsPanel() {
   const [syncConfigSaving, setSyncConfigSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Email sync verification code states
+  const [verCode, setVerCode] = useState<string | null>(null);
+  const [verLink, setVerLink] = useState<string | null>(null);
+  const [verAt, setVerAt] = useState<string | null>(null);
+
   const fetchProjectCount = useCallback(async () => {
     try {
       const { count, error } = await supabase
@@ -47,6 +52,43 @@ export function OtherSettingsPanel() {
       console.error('Failed to fetch RERA project count:', err);
     }
   }, [supabase]);
+
+  const fetchSyncConfig = useCallback(async (isInitial = false) => {
+    if (!accountId) return;
+    try {
+      const { data, error } = await supabase
+        .from('email_sync_configs')
+        .select('*')
+        .eq('account_id', accountId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching email sync config:', error);
+        if (isInitial) {
+          toast.error('Failed to load email sync settings');
+        }
+        return;
+      }
+
+      if (data) {
+        if (isInitial) {
+          setSyncActive(data.is_active);
+          setAutoReply(data.auto_reply_enabled);
+          setAutoReplyText(data.auto_reply_text || 'Hi {name}, thanks for your interest on {source}. We will get back to you shortly.');
+          setHasSyncConfig(true);
+        }
+        setVerCode(data.last_verification_code || null);
+        setVerLink(data.last_verification_link || null);
+        setVerAt(data.last_verification_at || null);
+      }
+    } catch (err) {
+      console.error('Unexpected error loading email sync config:', err);
+    } finally {
+      if (isInitial) {
+        setSyncConfigLoading(false);
+      }
+    }
+  }, [accountId, supabase]);
 
   useEffect(() => {
     if (!accountId) return;
@@ -76,43 +118,27 @@ export function OtherSettingsPanel() {
       }
     }
 
-    async function fetchSyncConfig() {
-      try {
-        const { data, error } = await supabase
-          .from('email_sync_configs')
-          .select('*')
-          .eq('account_id', accountId)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error fetching email sync config:', error);
-          toast.error('Failed to load email sync settings');
-          return;
-        }
-
-        if (data) {
-          setSyncActive(data.is_active);
-          setAutoReply(data.auto_reply_enabled);
-          setAutoReplyText(data.auto_reply_text || 'Hi {name}, thanks for your interest on {source}. We will get back to you shortly.');
-          setHasSyncConfig(true);
-        }
-      } catch (err) {
-        console.error('Unexpected error loading email sync config:', err);
-      } finally {
-        setSyncConfigLoading(false);
-      }
-    }
-
     fetchSettings();
     fetchProjectCount();
-    fetchSyncConfig();
+    fetchSyncConfig(true);
     
     // Load last synced from localStorage if exists
     const stored = localStorage.getItem('krera_last_synced');
     if (stored) {
       setLastSynced(stored);
     }
-  }, [accountId, supabase, fetchProjectCount]);
+  }, [accountId, supabase, fetchProjectCount, fetchSyncConfig]);
+
+  useEffect(() => {
+    if (!accountId) return;
+    
+    // Poll sync config every 5 seconds to capture verification emails in real time
+    const interval = setInterval(() => {
+      fetchSyncConfig(false);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [accountId, fetchSyncConfig]);
 
   const handleSaveSyncConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,6 +275,21 @@ export function OtherSettingsPanel() {
 
   const leadsDomain = process.env.NEXT_PUBLIC_LEADS_EMAIL_DOMAIN || 'leads.convoreal.com';
   const forwardingEmail = `lead-sync-${accountId}@${leadsDomain}`;
+
+  const isVerificationRecent = verAt ? (new Date().getTime() - new Date(verAt).getTime() < 15 * 60 * 1000) : false;
+
+  const getRelativeTimeString = (isoString: string | null) => {
+    if (!isoString) return '';
+    try {
+      const diffMs = new Date().getTime() - new Date(isoString).getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return 'just now';
+      if (diffMins === 1) return '1 minute ago';
+      return `${diffMins} minutes ago`;
+    } catch {
+      return '';
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -405,6 +446,78 @@ export function OtherSettingsPanel() {
               </p>
             </div>
 
+            {/* Inbound Verification Alert Banner */}
+            {isVerificationRecent && (verCode || verLink) && (
+              <div className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-950/20 backdrop-blur-md text-slate-200 space-y-3 mt-2">
+                <div className="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+                  <div className="font-bold text-indigo-400 flex items-center gap-2 text-xs">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                    </span>
+                    Inbound Verification Received
+                  </div>
+                  <span className="text-[10px] text-slate-450">
+                    Captured {getRelativeTimeString(verAt)}
+                  </span>
+                </div>
+                <div className="space-y-3 text-xs leading-relaxed">
+                  <p className="text-slate-350 text-[11px]">
+                    A forwarding verification email was just received on your inbound address. Copy the code or click the confirmation link to complete your forwarding setup.
+                  </p>
+                  
+                  {verCode && (
+                    <div className="space-y-1">
+                      <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Confirmation Code</span>
+                      <div className="flex items-center gap-2 max-w-sm">
+                        <div className="flex-1 bg-slate-950 border border-indigo-500/20 rounded-md px-3 h-9 flex items-center text-xs font-mono text-indigo-200 select-all">
+                          {verCode}
+                        </div>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(verCode);
+                            toast.success('Confirmation code copied');
+                          }}
+                          className="bg-indigo-900/50 hover:bg-indigo-800/50 text-indigo-200 border border-indigo-500/20 h-9 px-3 text-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <Copy className="size-3.5" />
+                          Copy
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {verLink && (
+                    <div className="space-y-1">
+                      <span className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Confirmation Link</span>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={verLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 bg-slate-950 hover:bg-slate-900 border border-indigo-500/20 rounded-md px-3 h-9 flex items-center text-[10px] font-mono text-indigo-350 truncate underline cursor-pointer"
+                        >
+                          {verLink}
+                        </a>
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(verLink);
+                            toast.success('Confirmation link copied');
+                          }}
+                          className="bg-indigo-900/50 hover:bg-indigo-800/50 text-indigo-200 border border-indigo-500/20 h-9 px-3 text-xs flex items-center gap-1 cursor-pointer shrink-0"
+                        >
+                          <Copy className="size-3.5" />
+                          Copy Link
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Premium Toggle Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               {/* Toggle Sync Active */}
@@ -463,7 +576,7 @@ export function OtherSettingsPanel() {
                 />
                 <div className="text-[10px] text-slate-400 leading-relaxed flex flex-wrap gap-x-3 gap-y-1">
                   <span>Supported variables:</span>
-                  <span><code className="bg-slate-900 px-1 py-0.2 rounded text-primary text-[9px] font-mono">{`{name}`}</code> Lead's Name</span>
+                  <span><code className="bg-slate-900 px-1 py-0.2 rounded text-primary text-[9px] font-mono">{`{name}`}</code> Lead&apos;s Name</span>
                   <span><code className="bg-slate-900 px-1 py-0.2 rounded text-primary text-[9px] font-mono">{`{source}`}</code> Portal Name (e.g. Housing)</span>
                 </div>
               </div>
@@ -480,7 +593,7 @@ export function OtherSettingsPanel() {
                   <strong>Create filter:</strong> In your business Gmail settings, go to <span className="text-slate-300">Filters and Blocked Addresses</span> &gt; <span className="text-slate-350">Create a new filter</span>.
                 </li>
                 <li>
-                  <strong>Set Sender:</strong> Set "From" to match:
+                  <strong>Set Sender:</strong> Set &quot;From&quot; to match:
                   <code className="block bg-slate-900 text-slate-300 font-mono p-1.5 rounded mt-1 text-[9px] select-all overflow-x-auto whitespace-pre-wrap">
                     services@99acres.com OR info@magicbricks.com OR noreply@housing-mailer.com
                   </code>

@@ -79,8 +79,6 @@ describe('Email Webhook Lead Parsing', () => {
   });
 
   describe('resolvePhoneNumberFromUrl', () => {
-    const originalFetch = global.fetch;
-
     beforeEach(() => {
       vi.stubGlobal('fetch', vi.fn());
     });
