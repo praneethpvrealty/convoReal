@@ -286,6 +286,189 @@ const LEAD_CAPTURE: FlowTemplate = {
 };
 
 // ============================================================
+// 4. Real Estate Onboarding & Showcase — list-message and buttons template
+// ============================================================
+const REAL_ESTATE_ONBOARDING: FlowTemplate = {
+  slug: "real_estate_onboarding",
+  name: "Real Estate Showcase",
+  description:
+    "Onboard real estate customers, segment by Buy/Rent preferences, showcase matching property listings, and capture details for agents.",
+  icon: "MessageSquare",
+  trigger_type: "keyword",
+  trigger_config: {
+    keywords: ["invest", "buy", "rent", "properties", "homes", "listing"],
+    match_type: "contains",
+  },
+  entry_node_id: "start",
+  nodes: [
+    {
+      node_key: "start",
+      node_type: "start",
+      config: { next_node_key: "welcome" },
+    },
+    {
+      node_key: "welcome",
+      node_type: "send_buttons",
+      config: {
+        text: "Welcome to PV Realty! 🏡 Let's help you find your dream property. What are you looking to do?",
+        footer_text: "Select a requirement option below:",
+        buttons: [
+          {
+            reply_id: "buy",
+            title: "Buy Property",
+            next_node_key: "buy_menu",
+          },
+          {
+            reply_id: "rent",
+            title: "Rent Property",
+            next_node_key: "rent_menu",
+          },
+          {
+            reply_id: "list",
+            title: "List My Property",
+            next_node_key: "seller_handoff",
+          },
+        ],
+      } as SendButtonsNodeConfig,
+    },
+    {
+      node_key: "buy_menu",
+      node_type: "send_list",
+      config: {
+        text: "Great choice! Let's explore our buying options. What type of property interests you?",
+        button_label: "View Collections",
+        sections: [
+          {
+            title: "Residential Properties",
+            rows: [
+              {
+                reply_id: "buy_villas",
+                title: "Luxury Villas",
+                description: "Premium villas in gated communities",
+                next_node_key: "villas_showcase",
+              },
+              {
+                reply_id: "buy_apartments",
+                title: "Premium Apartments",
+                description: "2, 3, & 4 BHK luxury residences",
+                next_node_key: "apartments_showcase",
+              },
+            ],
+          },
+          {
+            title: "Investment & Commercial",
+            rows: [
+              {
+                reply_id: "buy_plots",
+                title: "Plots / Farmland",
+                description: "Investment plots and farmland",
+                next_node_key: "plots_showcase",
+              },
+            ],
+          },
+        ],
+      } as SendListNodeConfig,
+    },
+    {
+      node_key: "rent_menu",
+      node_type: "send_buttons",
+      config: {
+        text: "Looking for rental properties? We have excellent listings in prime locations. Select your preference:",
+        buttons: [
+          {
+            reply_id: "rent_2bhk",
+            title: "2 BHK Apartments",
+            next_node_key: "rent_2bhk_info",
+          },
+          {
+            reply_id: "rent_3bhk",
+            title: "3 BHK & Penthouse",
+            next_node_key: "rent_3bhk_info",
+          },
+          {
+            reply_id: "rent_commercial",
+            title: "Commercial Space",
+            next_node_key: "rent_commercial_info",
+          },
+        ],
+      } as SendButtonsNodeConfig,
+    },
+    {
+      node_key: "villas_showcase",
+      node_type: "send_message",
+      config: {
+        text: "🏡 *Luxury Villa Collection*\n\n1. **Swiss Town, Devanahalli**: 5 BHK, 8300 Sq.Ft., Private Pool. Price: ₹15 Cr.\n2. **Whitefield Gated Community**: 4 BHK, 4500 Sq.Ft., modern specs. Price: ₹8.5 Cr.\n\nLet's capture your contact details so our villa specialist can send layout plans.",
+        next_node_key: "collect_email",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "apartments_showcase",
+      node_type: "send_message",
+      config: {
+        text: "🏢 *Premium Apartment Collection*\n\n1. **Sarjapur Road**: 3 BHK, 1800 Sq.Ft., Lake View, Club Amenities. Price: ₹2.2 Cr.\n2. **Koramangala Penthouse**: 4 BHK, 3200 Sq.Ft. Price: ₹4.8 Cr.\n\nLet's capture your contact details so we can send brochure links.",
+        next_node_key: "collect_email",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "plots_showcase",
+      node_type: "send_message",
+      config: {
+        text: "🌾 *Land & Investment Plots*\n\n1. **Devanahalli Airport Road**: Gated layouts, ready for registration. Price: ₹75 Lakhs onwards.\n2. **Kanakapura Managed Farm**: 1/4 acre agro-farmlands. Price: ₹1.2 Cr.\n\nLet's capture your contact details so we can send location coordinates.",
+        next_node_key: "collect_email",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "rent_2bhk_info",
+      node_type: "send_message",
+      config: {
+        text: "🔑 *2 BHK Rent Listings*\n\nSemi-furnished residences in Indiranagar, HSR Layout, and Whitefield starting from ₹35,000/month.\n\nLet's capture your contact details to schedule a physical/virtual walkthrough.",
+        next_node_key: "collect_email",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "rent_3bhk_info",
+      node_type: "send_message",
+      config: {
+        text: "🔑 *3 BHK & Penthouse Rentals*\n\nHigh-rise configurations in Outer Ring Road and Koramangala starting from ₹65,000/month.\n\nLet's capture your contact details to schedule a walkthrough.",
+        next_node_key: "collect_email",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "rent_commercial_info",
+      node_type: "send_message",
+      config: {
+        text: "🏢 *Commercial & Retail spaces*\n\nPrime spaces (500 - 5000 Sq.Ft.) in Indiranagar & HSR Layout.\n\nLet's capture your contact details so our commercial team can connect.",
+        next_node_key: "collect_email",
+      } as SendMessageNodeConfig,
+    },
+    {
+      node_key: "collect_email",
+      node_type: "collect_input",
+      config: {
+        prompt_text: "Please reply with your email address to receive files and contact from our specialist:",
+        var_key: "email",
+        validation: "email",
+        next_node_key: "handoff_onboarding",
+      } as CollectInputNodeConfig,
+    },
+    {
+      node_key: "handoff_onboarding",
+      node_type: "handoff",
+      config: {
+        note: "Real Estate Buyer/Tenant Lead! Captured email: {{vars.email}}.",
+      } as HandoffNodeConfig,
+    },
+    {
+      node_key: "seller_handoff",
+      node_type: "handoff",
+      config: {
+        note: "Onboarding lead wants to list their property. Please connect immediately.",
+      } as HandoffNodeConfig,
+    },
+  ],
+};
+
+// ============================================================
 // Registry
 // ============================================================
 
@@ -293,6 +476,7 @@ const TEMPLATES: Record<string, FlowTemplate> = {
   welcome_menu: WELCOME_MENU,
   faq_bot: FAQ_BOT,
   lead_capture: LEAD_CAPTURE,
+  real_estate_onboarding: REAL_ESTATE_ONBOARDING,
 };
 
 export function getFlowTemplate(slug: string): FlowTemplate | null {
