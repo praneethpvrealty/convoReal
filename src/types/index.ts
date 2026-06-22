@@ -637,3 +637,18 @@ export interface ShowcaseSettings {
   updated_at: string;
 }
 
+// ============================================================
+// Email Sync Settings (059_create_email_sync_configs.sql)
+// ============================================================
+
+export interface EmailSyncConfig {
+  id: string;
+  account_id: string;
+  is_active: boolean;
+  auto_reply_enabled: boolean;
+  auto_reply_text: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+

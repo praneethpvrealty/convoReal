@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 
 // Lazy-initialized admin client
 let _adminClient: SupabaseClient | null = null;
@@ -39,8 +40,96 @@ function parseBudgetToINR(text: string): number | null {
   return null;
 }
 
+// Helper to follow redirect headers (manual mode) to extract phone number
+export async function resolvePhoneNumberFromUrl(url: string, depth = 0): Promise<string | null> {
+  if (depth > 3) return null; // Avoid infinite redirects
+  try {
+    const cleanUrl = url.replace(/&amp;/g, '&');
+    
+    // Check if the URL itself already contains the phone number
+    const directPhoneMatch = cleanUrl.match(/(?:phone|phone_number|wa\.me\/|send\?phone=|tel:)(\+?\d{10,15})/i);
+    if (directPhoneMatch) {
+      return directPhoneMatch[1];
+    }
+    
+    const response = await fetch(cleanUrl, {
+      method: 'GET',
+      redirect: 'manual', // Stop redirecting automatically so we can read headers
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+    
+    const location = response.headers.get('location');
+    if (location) {
+      const phoneMatch = location.match(/(?:phone|phone_number|wa\.me\/|send\?phone=|tel:)(\+?\d{10,15})/i);
+      if (phoneMatch) {
+        return phoneMatch[1];
+      }
+      if (location.startsWith('http')) {
+        return await resolvePhoneNumberFromUrl(location, depth + 1);
+      }
+    }
+    
+    // Fallback: search within page body if it returned 200 instead of a redirect
+    const body = await response.text();
+    const bodyPhoneMatch = body.match(/(?:tel:|phone=|wa\.me\/|send\?phone=)(\+?\d{10,15})/i);
+    if (bodyPhoneMatch) {
+      return bodyPhoneMatch[1];
+    }
+  } catch (err) {
+    console.error(`[resolvePhoneNumberFromUrl] Error at depth ${depth} for URL ${url}:`, err);
+  }
+  return null;
+}
+
+// Helper to extract action links from Housing.com email HTML
+export function extractHousingUrls(html: string) {
+  let whatsappUrl = '';
+  let callNowUrl = '';
+  let mailtoEmail = '';
+
+  const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = linkRegex.exec(html)) !== null) {
+    const href = match[1];
+    const text = match[2].replace(/<[^>]*>/g, '').toLowerCase();
+
+    if (href.startsWith('mailto:')) {
+      mailtoEmail = href.replace('mailto:', '').split('?')[0].trim();
+    } else if (text.includes('whatsapp') || href.includes('whatsapp')) {
+      whatsappUrl = href;
+    } else if (text.includes('call now') || text.includes('call') || href.includes('call')) {
+      callNowUrl = href;
+    }
+  }
+
+  return { whatsappUrl, callNowUrl, mailtoEmail };
+}
+
+// Asynchronously resolve Housing phone numbers
+export async function resolveHousingPhone(html: string, bodyText: string): Promise<string> {
+  const { whatsappUrl, callNowUrl } = extractHousingUrls(html || bodyText);
+  
+  if (whatsappUrl) {
+    const phone = await resolvePhoneNumberFromUrl(whatsappUrl);
+    if (phone) return phone;
+  }
+  
+  if (callNowUrl) {
+    const phone = await resolvePhoneNumberFromUrl(callNowUrl);
+    if (phone) return phone;
+  }
+  
+  // Regex fallback
+  const phoneMatch = bodyText.match(/(?:phone|mobile)\s*[:|-]\s*([+\d\s-]{7,15})/i);
+  if (phoneMatch) return phoneMatch[1].trim();
+  
+  return '';
+}
+
 // Extractor rules for different portals
-function parsePortalLead(subject: string, bodyText: string) {
+export function parsePortalLead(subject: string, bodyText: string, html: string) {
   let name = '';
   let phone = '';
   let email = '';
@@ -71,21 +160,35 @@ function parsePortalLead(subject: string, bodyText: string) {
   } else if (combined.toLowerCase().includes('housing')) {
     source = 'Housing';
 
-    // Name extraction: "Name - Jane Doe"
-    const nameMatch = bodyText.match(/name\s*-\s*(.+)/i);
+    // Name extraction: "Name - Jane Doe" or "Name: Jane Doe"
+    const nameMatch = bodyText.match(/name\s*[:|-]\s*(.+)/i);
     if (nameMatch) name = nameMatch[1].trim();
 
-    // Phone extraction: "Phone - 9876543210" or "Mobile - 9876543210"
-    const phoneMatch = bodyText.match(/(?:phone|mobile)\s*-\s*(.+)/i);
+    // Phone extraction: "Phone - 9876543210" or "Mobile: 9876543210"
+    const phoneMatch = bodyText.match(/(?:phone|mobile)\s*[:|-]\s*(.+)/i);
     if (phoneMatch) phone = phoneMatch[1].trim();
 
-    // Email extraction: "Email - jane@example.com"
-    const emailMatch = bodyText.match(/email\s*-\s*(.+)/i);
+    // Email extraction: "Email - jane@example.com" or "Email: jane@example.com"
+    const emailMatch = bodyText.match(/email\s*[:|-]\s*(.+)/i);
     if (emailMatch) email = emailMatch[1].trim();
 
-    // Requirement extraction: "Requirement - 2 BHK Flat"
-    const reqMatch = bodyText.match(/(?:requirement|enquiry|interest)\s*-\s*(.+)/i);
-    if (reqMatch) requirementText = reqMatch[1].trim();
+    // Try mailto link from HTML
+    if (html && !email) {
+      const { mailtoEmail } = extractHousingUrls(html);
+      if (mailtoEmail) email = mailtoEmail;
+    }
+
+    // Requirement extraction: "Requirement - 2 BHK Flat" or "regarding your villa:" etc.
+    const reqMatch = bodyText.match(/(?:requirement|enquiry|interest| villa| house| apartment| plot)\s*[:|-]\s*(.+)/i);
+    if (reqMatch) {
+      requirementText = reqMatch[1].trim();
+    } else {
+      // Find standard lines following Devanahalli / Devanahallu / Property ID
+      const propIdMatch = bodyText.match(/(?:Property ID|Property)\s*[:|-]\s*(.+)/i);
+      if (propIdMatch) {
+        requirementText = `Inquiry on Property ID: ${propIdMatch[1].trim()}`;
+      }
+    }
 
   } else if (combined.toLowerCase().includes('99acres')) {
     source = '99acres';
@@ -147,12 +250,34 @@ export async function POST(request: Request) {
     const payload = await request.json();
     const subject = payload.subject || '';
     const bodyText = payload.text || payload.html || '';
+    const htmlContent = payload.html || '';
 
     if (!bodyText) {
       return NextResponse.json({ error: 'Empty email body text' }, { status: 400 });
     }
 
-    const parsed = parsePortalLead(subject, bodyText);
+    // Auto-approve email forwarding confirmation request checks (e.g. Gmail forwarding setup)
+    const isVerificationEmail = /forwarding.*confirm/i.test(subject) || 
+                                 /verification/i.test(subject) || 
+                                 /confirm.*forward/i.test(subject) ||
+                                 /google.*forward/i.test(subject);
+    if (isVerificationEmail) {
+      console.log(`[lead-webhook] Forwarding verification email received. Subject: ${subject}`);
+      return NextResponse.json({
+        status: 'verification_received',
+        message: 'Forwarding verification email successfully processed.',
+      });
+    }
+
+    const parsed = parsePortalLead(subject, bodyText, htmlContent);
+
+    // Dynamic resolution for Housing.com lead phone number
+    if (parsed.source === 'Housing' && (!parsed.phone || parsed.phone === '')) {
+      const resolvedPhone = await resolveHousingPhone(htmlContent, bodyText);
+      if (resolvedPhone) {
+        parsed.phone = resolvedPhone;
+      }
+    }
 
     if (!parsed.phone) {
       return NextResponse.json({ error: 'Failed to extract phone number from lead' }, { status: 422 });
@@ -182,7 +307,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No account ID resolved' }, { status: 400 });
     }
 
-    // 2. Parse property preferences from requirement text
+    // 2. Check if email lead sync is active for this account
+    const { data: syncConfig } = await supabase
+      .from('email_sync_configs')
+      .select('is_active, auto_reply_enabled, auto_reply_text')
+      .eq('account_id', accountId)
+      .maybeSingle();
+
+    if (syncConfig && !syncConfig.is_active) {
+      return NextResponse.json({ error: 'Email lead synchronization is disabled for this account' }, { status: 403 });
+    }
+
+    // 3. Parse property preferences from requirement text
     let maxBudget: number | null = null;
     const areasOfInterest: string[] = [];
     const propertyInterests: string[] = [];
@@ -245,6 +381,33 @@ export async function POST(request: Request) {
         .update(updatePayload)
         .eq('id', existingContact.id);
 
+      // Trigger automatic WhatsApp reply if configured
+      if (syncConfig?.auto_reply_enabled && syncConfig.auto_reply_text) {
+        const { data: waConfig } = await supabase
+          .from('whatsapp_config')
+          .select('phone_number_id, access_token')
+          .eq('account_id', accountId)
+          .eq('status', 'connected')
+          .maybeSingle();
+
+        if (waConfig) {
+          const replyText = syncConfig.auto_reply_text
+            .replace(/{name}/g, existingContact.name || 'there')
+            .replace(/{source}/g, parsed.source || 'portal');
+          
+          try {
+            await sendTextMessage({
+              phoneNumberId: waConfig.phone_number_id,
+              accessToken: waConfig.access_token,
+              to: cleanPhone,
+              text: replyText,
+            });
+          } catch (sendErr) {
+            console.error('[lead-webhook] Failed to send auto-reply to existing contact:', sendErr);
+          }
+        }
+      }
+
       return NextResponse.json({
         status: 'updated',
         contactId: existingContact.id,
@@ -283,6 +446,33 @@ export async function POST(request: Request) {
       last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
       last_message_at: new Date().toISOString(),
     });
+
+    // Trigger automatic WhatsApp reply if configured
+    if (syncConfig?.auto_reply_enabled && syncConfig.auto_reply_text) {
+      const { data: waConfig } = await supabase
+        .from('whatsapp_config')
+        .select('phone_number_id, access_token')
+        .eq('account_id', accountId)
+        .eq('status', 'connected')
+        .maybeSingle();
+
+      if (waConfig) {
+        const replyText = syncConfig.auto_reply_text
+          .replace(/{name}/g, parsed.name || 'there')
+          .replace(/{source}/g, parsed.source || 'portal');
+        
+        try {
+          await sendTextMessage({
+            phoneNumberId: waConfig.phone_number_id,
+            accessToken: waConfig.access_token,
+            to: cleanPhone,
+            text: replyText,
+          });
+        } catch (sendErr) {
+          console.error('[lead-webhook] Failed to send auto-reply to new contact:', sendErr);
+        }
+      }
+    }
 
     return NextResponse.json({
       status: 'created',
