@@ -263,6 +263,26 @@ export async function POST(request: Request) {
                                  /google.*forward/i.test(subject);
     if (isVerificationEmail) {
       console.log(`[lead-webhook] Forwarding verification email received. Subject: ${subject}`);
+      
+      // Parse Gmail confirmation code
+      const codeMatch = bodyText.match(/(?:confirmation\s*code\s*:\s*|code\s*:\s*)(\d{8,12})/i);
+      // Parse Gmail confirmation link
+      const linkMatch = bodyText.match(/https:\/\/mail\.google\.com\/mail\/f-[^\s"'>]+/i);
+      
+      console.log(`[lead-webhook] ==========================================`);
+      console.log(`[lead-webhook] GMAIL FORWARDING VERIFICATION RECEIVED`);
+      if (codeMatch) {
+        console.log(`[lead-webhook] ---> CONFIRMATION CODE: ${codeMatch[1]}`);
+      }
+      if (linkMatch) {
+        console.log(`[lead-webhook] ---> CONFIRMATION LINK: ${linkMatch[0]}`);
+      }
+      if (!codeMatch && !linkMatch) {
+        // Fallback: log raw text to help find details
+        console.log(`[lead-webhook] Raw Content: ${bodyText.slice(0, 1500)}`);
+      }
+      console.log(`[lead-webhook] ==========================================`);
+
       return NextResponse.json({
         status: 'verification_received',
         message: 'Forwarding verification email successfully processed.',
