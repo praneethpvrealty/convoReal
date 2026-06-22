@@ -110,12 +110,22 @@ export function ShowcaseView({
     let searchQueryToSet = '';
     let propertyIdToSet = '';
 
+    interface SavedShowcaseState {
+      timestamp: number;
+      selectedType?: string;
+      selectedListingType?: 'All' | 'Sale' | 'Rent';
+      minBeds?: string;
+      sortBy?: string;
+      searchQuery?: string;
+      selectedPropertyId?: string | null;
+    }
+
     // Load from localStorage if less than 7 days old
     const savedStateStr = localStorage.getItem('showcase_state');
-    let savedState: any = null;
+    let savedState: SavedShowcaseState | null = null;
     if (savedStateStr) {
       try {
-        const parsed = JSON.parse(savedStateStr);
+        const parsed = JSON.parse(savedStateStr) as SavedShowcaseState;
         const age = Date.now() - (parsed.timestamp || 0);
         if (age < 7 * 24 * 60 * 60 * 1000) {
           savedState = parsed;
