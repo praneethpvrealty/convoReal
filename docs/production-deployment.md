@@ -114,3 +114,33 @@ This file uses the **Ignored Build Step** feature to tell Vercel to check if cha
 ```
 
 No additional setup is required. Vercel will automatically detect this `vercel.json` file on your next deployment.
+
+---
+
+## 7. Retry and Dead Letter Queue (DLQ) Recovery
+
+To prevent message loss during worker downtime or backend database disruptions, the queue worker implements a retry loop with a Dead Letter Queue (DLQ):
+
+- **In-Memory Retries**: Failed jobs are automatically retried up to **3 times** with exponential backoff (2 seconds, then 4 seconds). This resolves transient errors (e.g., temporary database lockups or external API limits).
+- **Dead Letter Queue (DLQ)**: If a job fails all 3 attempts (or is completely malformed), the worker moves the payload into a Redis list named `whatsapp-webhooks-dlq` along with error details, stack traces, and failure timestamps.
+
+### Checking the DLQ size:
+You can check if there are any failed messages in your Upstash Redis database:
+- **Via Upstash CLI / redis-cli**:
+  ```bash
+  LLEN whatsapp-webhooks-dlq
+  ```
+- **Via Upstash Console**: Under the **Data Browser** tab of your Upstash Redis database page, look for the list key `whatsapp-webhooks-dlq`.
+
+### Replaying failed messages:
+Once worker sanity or database connectivity is restored, you can replay all messages in the DLQ back to the main processing queue:
+1. Run the following command from the project root:
+   ```bash
+   npm run queue:replay-dlq
+   ```
+2. The command will:
+   - Extract each failed message payload from the DLQ.
+   - Re-enqueue it into the main `whatsapp-webhooks` list.
+   - Log a success summary.
+3. The queue worker will immediately pick up and re-process the re-queued jobs.
+

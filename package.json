@@ -38,7 +38,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "husky install",
-    "worker": "tsx src/scripts/queue-worker.ts"
+    "worker": "tsx src/scripts/queue-worker.ts",
+    "queue:replay-dlq": "tsx src/scripts/replay-dlq.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
