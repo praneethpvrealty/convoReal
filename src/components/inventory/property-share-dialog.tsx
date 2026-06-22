@@ -85,7 +85,7 @@ export function PropertyShareDialog({
   const [addingFresh, setAddingFresh] = useState(false);
   const [currency, setCurrency] = useState('INR');
   const [catalogId, setCatalogId] = useState<string | null>(null);
-  const [shareMode, setShareMode] = useState<'template' | 'catalog'>('template');
+  const [shareMode, setShareMode] = useState<'template' | 'catalog' | 'greeting'>('template');
   const [syncingCatalog, setSyncingCatalog] = useState(false);
   const [metaCatalogSyncedAt, setMetaCatalogSyncedAt] = useState<string | null>(null);
   const [metaCatalogError, setMetaCatalogError] = useState<string | null>(null);
@@ -721,6 +721,65 @@ export function PropertyShareDialog({
     }
   }
 
+  // Execute interactive greeting sharing request
+  async function handleSendGreetingBroadcast() {
+    if (selectedContactIds.length === 0 || !property) return;
+    setSendingBroadcast(true);
+    setBroadcastStep('sending');
+
+    try {
+      const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
+      const recipientsPayload = selectedContacts.map((contact) => ({
+        phone: contact.phone,
+      }));
+
+      const response = await fetch('/api/whatsapp/broadcast', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipients: recipientsPayload,
+          broadcast_type: 'greeting',
+          property_id: property.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Greeting broadcast failed');
+      }
+
+      const resData = await response.json();
+
+      const resultsMap = selectedContacts.map((c) => {
+        const matchResult = resData.results?.find(
+          (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
+            r.phone === c.phone ||
+            r.phone.includes(c.phone) ||
+            c.phone.includes(r.phone)
+        );
+        return {
+          name: c.name || 'Unknown',
+          phone: c.phone,
+          status: (matchResult?.status || 'failed') as 'sent' | 'failed',
+          error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+        };
+      });
+
+      setBroadcastResults(resultsMap);
+      setBroadcastStep('results');
+      toast.success(`Dispatched interactive greeting messages successfully.`);
+      if (onSaved) onSaved();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || 'Failed to send greeting messages');
+      setBroadcastStep('matches');
+    } finally {
+      setSendingBroadcast(false);
+    }
+  }
+
   if (!property) return null;
 
   return (
@@ -734,9 +793,11 @@ export function PropertyShareDialog({
           <DialogDescription className="text-slate-400 text-xs">
             {broadcastStep === 'link'
               ? `Share public showcasing details of "${property.title}" directly.`
-              : shareMode === 'catalog'
-                ? `Send interactive catalog product messages for "${property.title}" to your contacts.`
-                : `Send WhatsApp details of "${property.title}" using verified message templates.`
+              : shareMode === 'greeting'
+                ? `Send interactive greeting buttons for "${property.title}" to your contacts.`
+                : shareMode === 'catalog'
+                  ? `Send interactive catalog product messages for "${property.title}" to your contacts.`
+                  : `Send WhatsApp details of "${property.title}" using verified message templates.`
             }
           </DialogDescription>
         </DialogHeader>
@@ -792,6 +853,27 @@ export function PropertyShareDialog({
                   </div>
                 </div>
               )}
+            </div>
+
+            <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                👋 Send Interactive Greeting First
+              </h3>
+              <p className="text-xs text-slate-400">
+                Sends a welcome greeting with quick reply buttons first. If the contact clicks <strong className="text-primary font-semibold">&quot;Sure, please send&quot;</strong>, the CRM will automatically share the full property details.
+              </p>
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => {
+                    setShareMode('greeting');
+                    setBroadcastStep('matches');
+                  }}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs h-9 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Share2 className="size-3.5" />
+                  Select Contacts & Send Greeting
+                </Button>
+              </div>
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
@@ -1173,7 +1255,25 @@ export function PropertyShareDialog({
               </Button>
 
               <div className="flex items-center gap-2">
-                {shareMode === 'catalog' ? (
+                {shareMode === 'greeting' ? (
+                  <Button
+                    type="button"
+                    disabled={selectedContactIds.length === 0 || sendingBroadcast}
+                    onClick={handleSendGreetingBroadcast}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 flex items-center gap-1.5"
+                  >
+                    {sendingBroadcast ? (
+                      <>
+                        <Loader2 className="size-3.5 animate-spin mr-1" /> Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="size-3.5" />
+                        Send Greeting Message ({selectedContactIds.length})
+                      </>
+                    )}
+                  </Button>
+                ) : shareMode === 'catalog' ? (
                   <Button
                     type="button"
                     disabled={selectedContactIds.length === 0 || sendingBroadcast || indexingTimeLeft > 0}

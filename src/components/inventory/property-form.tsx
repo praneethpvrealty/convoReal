@@ -148,6 +148,7 @@ export function PropertyForm({
   const canEdit = useCan('send-messages');
   const isEdit = !!property;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const [viewMode, setViewMode] = useState(viewOnly);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -193,6 +194,8 @@ export function PropertyForm({
   const [features, setFeatures] = useState<string[]>([]);
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>(['']);
+  const [documents, setDocuments] = useState<string[]>(['']);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
   const [googleMapLink, setGoogleMapLink] = useState('');
   const [localitiesDb, setLocalitiesDb] = useState<{ detailed: string[] } | null>(null);
   const [rentalIncome, setRentalIncome] = useState('');
@@ -934,6 +937,7 @@ export function PropertyForm({
         setFeatures(property.features || []);
         setNearbyHighlights(property.nearby_highlights || []);
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
+        setDocuments(property.documents && property.documents.length > 0 ? property.documents : ['']);
         setOwnerContactId(property.owner_contact_id ?? null);
         setListingSource(property.listing_source ?? 'owner');
         setGoogleMapLink(property.google_map_link ?? '');
@@ -1009,6 +1013,7 @@ export function PropertyForm({
         setFeatures([]);
         setNearbyHighlights([]);
         setImages(['']);
+        setDocuments(['']);
         setSearchQuery('');
         setGoogleMapLink('');
         setOwnerContactId(defaultOwnerId ?? null);
@@ -1255,6 +1260,87 @@ export function PropertyForm({
     }
   }
 
+  async function onUploadDocuments(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (!accountId) {
+      toast.error('Account not loaded, please try again.');
+      return;
+    }
+
+    setUploadingDocument(true);
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        // 10MB limit
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`File "${file.name}" is too large. Max size is 10MB.`);
+          continue;
+        }
+
+        const ext = file.name.split('.').pop()?.toLowerCase() || 'pdf';
+        const randomStr = Math.random().toString(36).substring(2, 7);
+        // Scoped by account ID folder
+        const path = `${accountId}/doc-${Date.now()}-${randomStr}.${ext}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('property-documents')
+          .upload(path, file, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: file.type,
+          });
+
+        if (uploadError) {
+          throw new Error(`Upload failed: ${uploadError.message}`);
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('property-documents')
+          .getPublicUrl(path);
+
+        uploadedUrls.push(publicUrl);
+      }
+
+      if (uploadedUrls.length > 0) {
+        setDocuments((prev) => {
+          const filteredPrev = prev.filter(url => url.trim().length > 0);
+          return [...filteredPrev, ...uploadedUrls];
+        });
+        toast.success(`Uploaded ${uploadedUrls.length} document(s)`);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Document upload failed';
+      toast.error(message);
+    } finally {
+      setUploadingDocument(false);
+      if (documentInputRef.current) documentInputRef.current.value = '';
+    }
+  }
+
+  function handleAddDocumentUrl() {
+    setDocuments((prev) => [...prev, '']);
+  }
+
+  function handleRemoveDocumentUrl(index: number) {
+    if (documents.length === 1) {
+      setDocuments(['']);
+    } else {
+      setDocuments((prev) => prev.filter((_, i) => i !== index));
+    }
+  }
+
+  function handleDocumentUrlChange(index: number, value: string) {
+    setDocuments((prev) => {
+      const copy = [...prev];
+      copy[index] = value;
+      return copy;
+    });
+  }
+
   function handleAddImageUrl() {
     setImages((prev) => [...prev, '']);
   }
@@ -1355,6 +1441,7 @@ export function PropertyForm({
       const parsedFeatures = features;
       const parsedNearbyHighlights = nearbyHighlights;
       const parsedImages = images.map((img) => img.trim()).filter((img) => img.length > 0);
+      const parsedDocuments = documents.map((doc) => doc.trim()).filter((doc) => doc.length > 0);
 
       // Construct formatted complete location string
       const fullLocation = [address.trim(), finalSublocality, city.trim(), stateVal.trim()]
@@ -1405,6 +1492,7 @@ export function PropertyForm({
         is_published: isPublished,
         features: parsedFeatures,
         images: parsedImages,
+        documents: parsedDocuments,
         owner_contact_id: ownerContactId,
         listing_source: listingSource,
         google_map_link: googleMapLink.trim() || null,
@@ -1944,6 +2032,38 @@ export function PropertyForm({
                       </div>
                     );
                   })()}
+
+                  {/* Property Documents */}
+                  {documents && documents.filter(doc => doc && doc.trim().length > 0).length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Property Documents</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950/15 p-4 rounded-xl border border-slate-850">
+                        {documents.filter(doc => doc && doc.trim().length > 0).map((docUrl, idx) => {
+                          const filename = docUrl.split('/').pop()?.split('?')[0] || `document-${idx + 1}`;
+                          const decodedFilename = decodeURIComponent(filename);
+                          const cleanName = decodedFilename.replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-[a-zA-Z0-9]+-/, '')
+                            .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-/, '');
+                          return (
+                            <a
+                              key={idx}
+                              href={docUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:bg-slate-950 hover:border-slate-700 flex items-center justify-between gap-3 text-xs font-medium text-slate-200 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 truncate">
+                                <span className="text-lg shrink-0">📄</span>
+                                <span className="truncate text-slate-300 font-semibold" title={cleanName}>
+                                  {cleanName || `Document ${idx + 1}`}
+                                </span>
+                              </div>
+                              <ExternalLink className="size-3.5 text-slate-500 hover:text-white shrink-0" />
+                            </a>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 10. ACTION FOOTER */}
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4 mt-6">
@@ -2783,6 +2903,83 @@ export function PropertyForm({
                           className="h-7 text-xs text-slate-400 hover:text-white flex items-center gap-1 mt-1 font-semibold"
                         >
                           <Plus className="size-3" /> Add Image URL
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Property Documents */}
+                    <div className="space-y-3 p-4 rounded-lg border border-slate-800 bg-slate-950/20 col-span-2">
+                      <div className="flex justify-between items-center">
+                        <Label className="text-slate-300">Property Documents</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => documentInputRef.current?.click()}
+                          disabled={uploadingDocument}
+                          className="h-7 text-xs text-primary hover:bg-primary/10 flex items-center gap-1 font-semibold"
+                        >
+                          {uploadingDocument ? (
+                            <>
+                              <Loader2 className="size-3 animate-spin" /> Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="size-3" /> Upload
+                            </>
+                          )}
+                        </Button>
+                        <input
+                          type="file"
+                          ref={documentInputRef}
+                          onChange={onUploadDocuments}
+                          multiple
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,text/plain"
+                          className="hidden"
+                        />
+                      </div>
+
+                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {documents.map((docUrl, idx) => (
+                          <div key={idx} className="flex gap-2 items-center">
+                            <Input
+                              value={docUrl}
+                              onChange={(e) => handleDocumentUrlChange(idx, e.target.value)}
+                              placeholder="Document URL (e.g. https://...)"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs flex-1"
+                            />
+                            {docUrl.trim().length > 0 && (
+                              <a
+                                href={docUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="h-8 w-8 flex items-center justify-center shrink-0 border border-slate-700 rounded bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                                title="Open Document"
+                              >
+                                <ExternalLink className="size-3.5" />
+                              </a>
+                            )}
+                            {documents.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveDocumentUrl(idx)}
+                                className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
+                              >
+                                <Trash2 className="size-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleAddDocumentUrl}
+                          className="h-7 text-xs text-slate-400 hover:text-white flex items-center gap-1 mt-1 font-semibold"
+                        >
+                          <Plus className="size-3" /> Add Document URL
                         </Button>
                       </div>
                     </div>

@@ -596,6 +596,7 @@ export interface Property {
   is_published: boolean;
   features: string[];
   images: string[];
+  documents?: string[];
   google_map_link?: string | null;
   property_code?: string;
   owner_contact_id?: string | null;

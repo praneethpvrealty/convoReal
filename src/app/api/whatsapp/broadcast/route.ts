@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     // Resolve the caller's account_id.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('account_id')
+      .select('account_id, full_name')
       .eq('user_id', user.id)
       .maybeSingle()
     const accountId = profile?.account_id as string | undefined
@@ -109,6 +109,7 @@ export async function POST(request: Request) {
       product_catalog_id,
       product_retailer_id,
       content_text,
+      property_id,
     } = body
 
     // Normalize to a list of {phone, params, messageParams} regardless of shape.
@@ -161,6 +162,29 @@ export async function POST(request: Request) {
         },
         { status: 400 }
       )
+    }
+
+    let propertyRow: { id: string; title: string } | null = null
+    if (broadcast_type === 'greeting') {
+      if (!property_id) {
+        return NextResponse.json(
+          { error: 'property_id is required for greeting broadcasts' },
+          { status: 400 }
+        )
+      }
+      const { data: prop, error: propErr } = await supabase
+        .from('properties')
+        .select('id, title')
+        .eq('id', property_id)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      if (propErr || !prop) {
+        return NextResponse.json(
+          { error: 'Property not found or access denied' },
+          { status: 400 }
+        )
+      }
+      propertyRow = prop
     }
 
     let templateRow: MessageTemplate | null = null
@@ -259,6 +283,24 @@ export async function POST(request: Request) {
           messageParams: recipient.messageParams || undefined,
           templateRow: templateRow ?? undefined,
           text: resolvedText,
+          customDbClient: supabase,
+        })
+      } else if (broadcast_type === 'greeting' && propertyRow) {
+        const agentName = profile?.full_name || 'An agent'
+        const greetingText = `Welcome to ConvoReal! ${agentName} would like to share ${propertyRow.title} with you.`
+        result = await sendWhatsAppMessageAndPersist({
+          accountId,
+          userId: user.id,
+          toPhone: recipient.phone,
+          kind: 'interactive',
+          senderType: 'agent',
+          interactiveType: 'buttons',
+          interactiveBody: greetingText,
+          interactiveButtons: [
+            { id: `share_property_yes:${propertyRow.id}`, title: 'Sure, please send' },
+            { id: `share_property_no:${propertyRow.id}`, title: 'No Thanks' }
+          ],
+          text: greetingText,
           customDbClient: supabase,
         })
       } else {

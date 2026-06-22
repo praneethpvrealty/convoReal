@@ -9,6 +9,7 @@ import {
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
 import { checkIsAccountOwner, processOwnerChatbotMessage } from '@/lib/ai/chatbot-engine'
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -711,6 +712,41 @@ async function processMessage(
     return
   }
 
+  if (interactiveReplyId) {
+    if (interactiveReplyId.startsWith('share_property_yes:')) {
+      const propertyId = interactiveReplyId.split(':')[1]
+      await handlePropertyShareYesReply(
+        propertyId,
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      )
+      return
+    } else if (interactiveReplyId.startsWith('share_property_no:')) {
+      const propertyId = interactiveReplyId.split(':')[1]
+      await handlePropertyShareNoReply(
+        propertyId,
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      )
+      return
+    } else if (interactiveReplyId === 'browse_all_properties') {
+      await handleBrowseAllProperties(
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      )
+      return
+    }
+  }
+
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
@@ -995,4 +1031,252 @@ async function findOrCreateConversation(
   }
 
   return newConv
+}
+
+async function handlePropertyShareYesReply(
+  propertyId: string,
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string,
+  toPhone: string
+) {
+  try {
+    const { data: property, error } = await supabaseAdmin()
+      .from('properties')
+      .select('*')
+      .eq('id', propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle()
+
+    if (error || !property) {
+      console.error('[webhook] Property not found for share yes reply:', propertyId, error)
+      return
+    }
+
+    let currency = 'INR'
+    const { data: settings } = await supabaseAdmin()
+      .from('showcase_settings')
+      .select('currency')
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (settings?.currency) {
+      currency = settings.currency
+    }
+
+    const amount = Number(property.price)
+    let formattedPrice = ''
+    if (!isNaN(amount) && amount > 0) {
+      if (currency === 'INR') {
+        if (amount >= 10000000) {
+          formattedPrice = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+        } else if (amount >= 100000) {
+          formattedPrice = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`
+        } else {
+          formattedPrice = new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            maximumFractionDigits: 0,
+          }).format(amount)
+        }
+      } else {
+        formattedPrice = new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: currency,
+          maximumFractionDigits: 0,
+        }).format(amount)
+      }
+    }
+
+    const isLand = property.type?.includes('Land') || property.type?.includes('Plot')
+    const areaVal = isLand ? property.land_area : property.area_sqft
+    const unitVal = isLand ? property.land_area_unit : property.area_unit
+    const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
+
+    const locationParts = [
+      property.sublocality?.trim(),
+      property.city?.trim()
+    ].filter(Boolean).join(', ') || property.location
+
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const showcaseUrl = `${baseUrl}/?property_id=${property.id}`
+
+    let detailsText = `🏠 *${property.title}*\n`
+    if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`
+    if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`
+    if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`
+    if (property.bedrooms) detailsText += `🛏️ *BHK:* ${property.bedrooms} BHK\n`
+    if (property.bathrooms) detailsText += `🛁 *Bathrooms:* ${property.bathrooms}\n`
+    if (property.description) detailsText += `\n📝 *Description:*\n${property.description}\n`
+    
+    if (property.google_map_link) {
+      detailsText += `\n🗺️ *Google Maps:* ${property.google_map_link}\n`
+    }
+    detailsText += `\n🔗 *View full listing showcase here:*\n${showcaseUrl}`
+
+    const firstImage = property.images?.find((img: string) => img.trim().length > 0)
+    if (firstImage) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        conversationId,
+        toPhone,
+        kind: 'media',
+        mediaKind: 'image',
+        mediaLink: firstImage,
+        mediaCaption: `Showcase image for ${property.title}`,
+        senderType: 'bot',
+      })
+    }
+
+    // Send property details
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      kind: 'text',
+      text: detailsText,
+      senderType: 'bot',
+    })
+
+    // Offer browse properties option
+    const followUpText = `Would you like to explore other properties? Tap below to browse all available listings.`
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      kind: 'interactive',
+      interactiveType: 'buttons',
+      interactiveBody: followUpText,
+      interactiveButtons: [
+        { id: 'browse_all_properties', title: 'Browse Properties' },
+        { id: `share_property_no:${property.id}`, title: 'No Thanks' }
+      ],
+      senderType: 'bot',
+    })
+
+    console.log(`[webhook] Successfully shared property ${propertyId} with contact ${contactId}`)
+  } catch (err) {
+    console.error('[webhook] Failed in handlePropertyShareYesReply:', err)
+  }
+}
+
+async function handlePropertyShareNoReply(
+  propertyId: string,
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string,
+  toPhone: string
+) {
+  try {
+    const politeMessage = `No problem! If you would like to explore our other listings anytime, tap the button below.`
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      kind: 'interactive',
+      interactiveType: 'buttons',
+      interactiveBody: politeMessage,
+      interactiveButtons: [
+        { id: 'browse_all_properties', title: 'Browse Properties' }
+      ],
+      senderType: 'bot',
+    })
+    console.log(`[webhook] Handled share no reply for contact ${contactId}`)
+  } catch (err) {
+    console.error('[webhook] Failed in handlePropertyShareNoReply:', err)
+  }
+}
+
+async function handleBrowseAllProperties(
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string,
+  toPhone: string
+) {
+  try {
+    const { data: properties, error } = await supabaseAdmin()
+      .from('properties')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('is_published', true)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    if (error || !properties || properties.length === 0) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId,
+        conversationId,
+        toPhone,
+        kind: 'text',
+        text: `We don't have any other active listings at the moment. Please check back later!`,
+        senderType: 'bot',
+      })
+      return
+    }
+
+    const rows = properties.map((prop: {
+      id: string;
+      title: string;
+      price: number | string | null;
+      area_sqft: number | null;
+      area_unit: string | null;
+      bedrooms: number | null;
+    }) => {
+      let priceStr = ''
+      const amount = Number(prop.price)
+      if (!isNaN(amount) && amount > 0) {
+        if (amount >= 10000000) {
+          priceStr = `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`
+        } else if (amount >= 100000) {
+          priceStr = `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`
+        } else {
+          priceStr = `₹${amount}`
+        }
+      }
+
+      const areaStr = prop.area_sqft ? `${prop.area_sqft} ${prop.area_unit || 'Sq.Ft.'}` : ''
+      const details = [priceStr, areaStr, prop.bedrooms ? `${prop.bedrooms} BHK` : ''].filter(Boolean).join(' | ')
+
+      return {
+        id: `share_property_yes:${prop.id}`,
+        title: prop.title.substring(0, 24),
+        description: details.substring(0, 72),
+      }
+    })
+
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      kind: 'interactive',
+      interactiveType: 'list',
+      interactiveBody: `Explore our top available properties below. Tap a property to see full details and photos.`,
+      interactiveButtonLabel: `View Properties`,
+      interactiveSections: [
+        {
+          title: `Active Listings`,
+          rows,
+        },
+      ],
+      senderType: 'bot',
+    })
+
+    console.log(`[webhook] Sent interactive browse list to contact ${contactId}`)
+  } catch (err) {
+    console.error('[webhook] Failed to handle browse all properties:', err)
+  }
 }
