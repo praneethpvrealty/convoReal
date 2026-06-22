@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils'
@@ -12,9 +12,8 @@ import { checkIsAccountOwner, processOwnerChatbotMessage } from '@/lib/ai/chatbo
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null
-function supabaseAdmin() {
+let _adminClient: SupabaseClient | null = null
+function supabaseAdmin(): SupabaseClient {
   if (!_adminClient) {
     _adminClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -936,8 +935,33 @@ async function parseMessageContent(
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ContactRow = any
+interface ContactRow {
+  id: string
+  account_id: string
+  user_id: string | null
+  phone: string
+  name: string
+  classification?: string
+}
+
+interface PropertyRow {
+  id: string
+  title: string
+  price: number | string | null
+  area_sqft: number | null
+  area_unit: string | null
+  bedrooms: number | null
+  type?: string | null
+  land_area?: number | null
+  land_area_unit?: string | null
+  sublocality?: string | null
+  city?: string | null
+  location?: string | null
+  description?: string | null
+  google_map_link?: string | null
+  images?: string[] | null
+  bathrooms?: number | null
+}
 
 interface ContactOutcome {
   contact: ContactRow
@@ -1033,7 +1057,7 @@ async function findOrCreateConversation(
   return newConv
 }
 
-async function handlePropertyShareYesReply(
+export async function handlePropertyShareYesReply(
   propertyId: string,
   accountId: string,
   configOwnerUserId: string,
@@ -1049,7 +1073,9 @@ async function handlePropertyShareYesReply(
       .eq('account_id', accountId)
       .maybeSingle()
 
-    if (error || !property) {
+    const typedProperty = property as PropertyRow | null
+
+    if (error || !typedProperty) {
       console.error('[webhook] Property not found for share yes reply:', propertyId, error)
       return
     }
@@ -1064,7 +1090,7 @@ async function handlePropertyShareYesReply(
       currency = settings.currency
     }
 
-    const amount = Number(property.price)
+    const amount = Number(typedProperty.price)
     let formattedPrice = ''
     if (!isNaN(amount) && amount > 0) {
       if (currency === 'INR') {
@@ -1088,33 +1114,33 @@ async function handlePropertyShareYesReply(
       }
     }
 
-    const isLand = property.type?.includes('Land') || property.type?.includes('Plot')
-    const areaVal = isLand ? property.land_area : property.area_sqft
-    const unitVal = isLand ? property.land_area_unit : property.area_unit
+    const isLand = typedProperty.type?.includes('Land') || typedProperty.type?.includes('Plot')
+    const areaVal = isLand ? typedProperty.land_area : typedProperty.area_sqft
+    const unitVal = isLand ? typedProperty.land_area_unit : typedProperty.area_unit
     const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
 
     const locationParts = [
-      property.sublocality?.trim(),
-      property.city?.trim()
-    ].filter(Boolean).join(', ') || property.location
+      typedProperty.sublocality?.trim(),
+      typedProperty.city?.trim()
+    ].filter(Boolean).join(', ') || typedProperty.location
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    const showcaseUrl = `${baseUrl}/?property_id=${property.id}`
+    const showcaseUrl = `${baseUrl}/?property_id=${typedProperty.id}`
 
-    let detailsText = `🏠 *${property.title}*\n`
+    let detailsText = `🏠 *${typedProperty.title}*\n`
     if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`
     if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`
     if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`
-    if (property.bedrooms) detailsText += `🛏️ *BHK:* ${property.bedrooms} BHK\n`
-    if (property.bathrooms) detailsText += `🛁 *Bathrooms:* ${property.bathrooms}\n`
-    if (property.description) detailsText += `\n📝 *Description:*\n${property.description}\n`
+    if (typedProperty.bedrooms) detailsText += `🛏️ *BHK:* ${typedProperty.bedrooms} BHK\n`
+    if (typedProperty.bathrooms) detailsText += `🛁 *Bathrooms:* ${typedProperty.bathrooms}\n`
+    if (typedProperty.description) detailsText += `\n📝 *Description:*\n${typedProperty.description}\n`
     
-    if (property.google_map_link) {
-      detailsText += `\n🗺️ *Google Maps:* ${property.google_map_link}\n`
+    if (typedProperty.google_map_link) {
+      detailsText += `\n🗺️ *Google Maps:* ${typedProperty.google_map_link}\n`
     }
     detailsText += `\n🔗 *View full listing showcase here:*\n${showcaseUrl}`
 
-    const firstImage = property.images?.find((img: string) => img.trim().length > 0)
+    const firstImage = typedProperty.images?.find((img: string) => img.trim().length > 0)
     if (firstImage) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1125,7 +1151,7 @@ async function handlePropertyShareYesReply(
         kind: 'media',
         mediaKind: 'image',
         mediaLink: firstImage,
-        mediaCaption: `Showcase image for ${property.title}`,
+        mediaCaption: `Showcase image for ${typedProperty.title}`,
         senderType: 'bot',
       })
     }
@@ -1155,7 +1181,7 @@ async function handlePropertyShareYesReply(
       interactiveBody: followUpText,
       interactiveButtons: [
         { id: 'browse_all_properties', title: 'Browse Properties' },
-        { id: `share_property_no:${property.id}`, title: 'No Thanks' }
+        { id: `share_property_no:${typedProperty.id}`, title: 'No Thanks' }
       ],
       senderType: 'bot',
     })
@@ -1166,7 +1192,7 @@ async function handlePropertyShareYesReply(
   }
 }
 
-async function handlePropertyShareNoReply(
+export async function handlePropertyShareNoReply(
   propertyId: string,
   accountId: string,
   configOwnerUserId: string,
@@ -1196,7 +1222,7 @@ async function handlePropertyShareNoReply(
   }
 }
 
-async function handleBrowseAllProperties(
+export async function handleBrowseAllProperties(
   accountId: string,
   configOwnerUserId: string,
   contactId: string,
@@ -1212,7 +1238,9 @@ async function handleBrowseAllProperties(
       .order('created_at', { ascending: false })
       .limit(10)
 
-    if (error || !properties || properties.length === 0) {
+    const typedProperties = properties as PropertyRow[] | null
+
+    if (error || !typedProperties || typedProperties.length === 0) {
       await sendWhatsAppMessageAndPersist({
         accountId,
         userId: configOwnerUserId,
@@ -1226,14 +1254,7 @@ async function handleBrowseAllProperties(
       return
     }
 
-    const rows = properties.map((prop: {
-      id: string;
-      title: string;
-      price: number | string | null;
-      area_sqft: number | null;
-      area_unit: string | null;
-      bedrooms: number | null;
-    }) => {
+    const rows = typedProperties.map((prop) => {
       let priceStr = ''
       const amount = Number(prop.price)
       if (!isNaN(amount) && amount > 0) {
