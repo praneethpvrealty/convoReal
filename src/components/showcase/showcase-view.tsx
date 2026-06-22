@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
+import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
 import {
   Search,
   MapPin,
@@ -560,10 +561,25 @@ export function ShowcaseView({
   // Get distinct property types
   const propertyTypes = useMemo(() => {
     const types = new Set<string>();
+    let hasResidential = false;
+    let hasCommercial = false;
+    let hasAgricultural = false;
+
     properties.forEach((p) => {
-      if (p.type) types.add(p.type);
+      if (p.type) {
+        types.add(p.type);
+        if (CATEGORY_SUBTYPES.Residential.includes(p.type)) hasResidential = true;
+        if (CATEGORY_SUBTYPES.Commercial.includes(p.type)) hasCommercial = true;
+        if (CATEGORY_SUBTYPES.Agricultural.includes(p.type)) hasAgricultural = true;
+      }
     });
-    return ['All', ...Array.from(types)];
+
+    const list = ['All'];
+    if (hasResidential) list.push('Residential');
+    if (hasCommercial) list.push('Commercial');
+    if (hasAgricultural) list.push('Agricultural');
+
+    return [...list, ...Array.from(types)];
   }, [properties]);
 
   // Format price helper
@@ -596,7 +612,11 @@ export function ShowcaseView({
 
     // Filter by type
     if (selectedType !== 'All') {
-      result = result.filter((p) => p.type === selectedType);
+      if (selectedType in CATEGORY_SUBTYPES) {
+        result = result.filter((p) => CATEGORY_SUBTYPES[selectedType].includes(p.type));
+      } else {
+        result = result.filter((p) => p.type === selectedType);
+      }
     }
 
     // Filter by listing type

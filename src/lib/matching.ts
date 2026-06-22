@@ -97,6 +97,52 @@ export function getMatchingContacts(
     const requirementsText = contact.requirements || '';
     const combinedText = (requirementsText + ' ' + notesText).toLowerCase();
 
+    // Heuristically infer category interests from notes text
+    const hasTypeMentions = 
+      combinedText.includes('commercial') ||
+      combinedText.includes('residential') ||
+      combinedText.includes('luxury') ||
+      combinedText.includes('apartment') ||
+      combinedText.includes('flat') ||
+      combinedText.includes('villa') ||
+      combinedText.includes('plot') ||
+      combinedText.includes('land');
+
+    // Check if the contact has ANY explicit real estate preferences set
+    const hasMinBudget = contact.min_budget !== null && contact.min_budget !== undefined && Number(contact.min_budget) > 0;
+    const hasMaxBudget = contact.max_budget !== null && contact.max_budget !== undefined && Number(contact.max_budget) > 0;
+    const hasNoBudget = !!contact.no_budget;
+    const hasMinRoi = contact.min_roi !== null && contact.min_roi !== undefined && Number(contact.min_roi) > 0;
+    
+    const specificAreas = (contact.areas_of_interest || []).filter(
+      (a) => !['not specific', 'any', ''].includes(a.toLowerCase().trim())
+    );
+    const hasSpecificAreas = specificAreas.length > 0;
+    const hasCategoryInterests = (contact.property_interests || []).length > 0;
+
+    const parsedTextBudget = parseBudgetFromText(combinedText);
+    const hasParsedBudget = parsedTextBudget.min !== null || parsedTextBudget.max !== null;
+
+    const yieldPattern = /(?:yielding|yield|roi|return)\s*(?:of|is|above|greater\s*than|>)?\s*(\d+(?:\.\d+)?)\s*%/g;
+    const hasParsedRoi = yieldPattern.test(combinedText);
+    yieldPattern.lastIndex = 0; // reset
+
+    const hasRealEstatePreferences =
+      hasMinBudget ||
+      hasMaxBudget ||
+      hasNoBudget ||
+      hasMinRoi ||
+      hasSpecificAreas ||
+      hasCategoryInterests ||
+      hasParsedBudget ||
+      hasParsedRoi ||
+      hasTypeMentions;
+
+    if (!hasRealEstatePreferences) {
+      // Skip contacts with no explicitly defined property preferences
+      continue;
+    }
+
     // 1. Budget Match
     let budgetMatch = false;
     const price = Number(property.price || 0);
@@ -215,16 +261,7 @@ export function getMatchingContacts(
       areaMatch = false;
     }
 
-    // Heuristically infer category interests from notes text
-    const hasTypeMentions = 
-      combinedText.includes('commercial') ||
-      combinedText.includes('residential') ||
-      combinedText.includes('luxury') ||
-      combinedText.includes('apartment') ||
-      combinedText.includes('flat') ||
-      combinedText.includes('villa') ||
-      combinedText.includes('plot') ||
-      combinedText.includes('land');
+    // Heuristically infer category interests from notes text (hasTypeMentions is defined at the top of the loop)
 
     // 4. Property Interest/Type Match
     let interestMatch = false;

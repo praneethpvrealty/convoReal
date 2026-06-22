@@ -54,7 +54,7 @@ describe('getMatchingContacts', () => {
     });
 
     it('matches when contact has no min_roi set', () => {
-      const contact = createTestContact({ min_roi: null });
+      const contact = createTestContact({ min_roi: null, no_budget: true });
       const property = createTestProperty({ roi: 4 });
       const results = getMatchingContacts(property, [contact]);
       expect(results.length).toBe(1);
