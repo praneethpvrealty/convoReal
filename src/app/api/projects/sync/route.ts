@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { generateText } from "@/lib/ai/gemini";
+import { createClient } from "@supabase/supabase-js";
 
 // Pre-compiled list of 155 popular residential projects in Bangalore Urban, Rural, and surrounding taluks
 const CORE_PROJECTS = [
@@ -197,8 +198,16 @@ export async function POST() {
 
     console.log(`[Sync Projects] Triggering ingestion of ${SEEDED_PROJECTS.length} offline seeds...`);
 
-    // 2. Perform bulk upsert in Supabase
-    const { error: upsertError } = await ctx.supabase
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    if (!serviceKey || !dbUrl) {
+      throw new Error("Missing service role key or database URL environment variables.");
+    }
+    const adminSupabase = createClient(dbUrl, serviceKey);
+
+    // 2. Perform bulk upsert in Supabase using the admin client to bypass RLS policies
+    const { error: upsertError } = await adminSupabase
       .from("rera_projects")
       .upsert(SEEDED_PROJECTS, { onConflict: "rera_registration_number" });
 
@@ -270,7 +279,7 @@ Return ONLY a valid JSON array of these 15 projects. Do not include markdown tic
             total_land_area: typeof proj.total_land_area === 'number' ? proj.total_land_area : null
           }));
 
-          const { error: genError } = await ctx.supabase
+          const { error: genError } = await adminSupabase
             .from("rera_projects")
             .upsert(formattedGen, { onConflict: "rera_registration_number" });
 
