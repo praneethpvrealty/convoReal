@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import {
   Search,
@@ -50,6 +50,7 @@ interface ShowcaseViewProps {
   referrerContactId?: string;
   referrerPhone?: string;
   initialPropertyId?: string;
+  initialCategory?: string;
 }
 
 export function ShowcaseView({ 
@@ -58,7 +59,8 @@ export function ShowcaseView({
   accountId, 
   referrerContactId,
   referrerPhone,
-  initialPropertyId 
+  initialPropertyId,
+  initialCategory
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
@@ -86,6 +88,146 @@ export function ShowcaseView({
   const [interestProperty, setInterestProperty] = useState<Property | null>(null);
   const [interestModalOpen, setInterestModalOpen] = useState(false);
   const [interestSubmitting, setInterestSubmitting] = useState(false);
+
+  const isStateLoadedRef = useRef(false);
+
+  // 1. Client-side mount hook to load state from URL and localStorage (retained for 7 days)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlCategory = urlParams.get('category');
+    const urlPropertyId = urlParams.get('property_id');
+    const urlListingType = urlParams.get('listing_type');
+    const urlMinBeds = urlParams.get('beds');
+    const urlSortBy = urlParams.get('sort');
+    const urlSearchQuery = urlParams.get('search');
+
+    let categoryToSet = 'All';
+    let listingTypeToSet: 'All' | 'Sale' | 'Rent' = 'All';
+    let bedsToSet = 'All';
+    let sortByToSet = 'newest';
+    let searchQueryToSet = '';
+    let propertyIdToSet = '';
+
+    // Load from localStorage if less than 7 days old
+    const savedStateStr = localStorage.getItem('showcase_state');
+    let savedState: any = null;
+    if (savedStateStr) {
+      try {
+        const parsed = JSON.parse(savedStateStr);
+        const age = Date.now() - (parsed.timestamp || 0);
+        if (age < 7 * 24 * 60 * 60 * 1000) {
+          savedState = parsed;
+        } else {
+          localStorage.removeItem('showcase_state');
+        }
+      } catch (e) {
+        console.error('Failed to parse showcase state:', e);
+      }
+    }
+
+    if (urlCategory) {
+      categoryToSet = urlCategory;
+    } else if (initialCategory) {
+      categoryToSet = initialCategory;
+    } else if (savedState?.selectedType) {
+      categoryToSet = savedState.selectedType;
+    }
+
+    if (urlListingType === 'Sale' || urlListingType === 'Rent') {
+      listingTypeToSet = urlListingType as 'All' | 'Sale' | 'Rent';
+    } else if (savedState?.selectedListingType) {
+      listingTypeToSet = savedState.selectedListingType;
+    }
+
+    if (urlMinBeds) {
+      bedsToSet = urlMinBeds;
+    } else if (savedState?.minBeds) {
+      bedsToSet = savedState.minBeds;
+    }
+
+    if (urlSortBy) {
+      sortByToSet = urlSortBy;
+    } else if (savedState?.sortBy) {
+      sortByToSet = savedState.sortBy;
+    }
+
+    if (urlSearchQuery) {
+      searchQueryToSet = urlSearchQuery;
+    } else if (savedState?.searchQuery) {
+      searchQueryToSet = savedState.searchQuery;
+    }
+
+    if (urlPropertyId) {
+      propertyIdToSet = urlPropertyId;
+    } else if (initialPropertyId) {
+      propertyIdToSet = initialPropertyId;
+    } else if (savedState?.selectedPropertyId) {
+      propertyIdToSet = savedState.selectedPropertyId;
+    }
+
+    // Restore state
+    if (categoryToSet !== 'All') setSelectedType(categoryToSet);
+    if (listingTypeToSet !== 'All') setSelectedListingType(listingTypeToSet);
+    if (bedsToSet !== 'All') setMinBeds(bedsToSet);
+    if (sortByToSet !== 'newest') setSortBy(sortByToSet);
+    if (searchQueryToSet) setSearchQuery(searchQueryToSet);
+
+    if (propertyIdToSet) {
+      const match = properties.find(
+        (p) => p.id === propertyIdToSet || (p.property_code && p.property_code.toLowerCase() === propertyIdToSet.toLowerCase())
+      );
+      if (match) {
+        setSelectedProperty(match);
+      }
+    }
+
+    isStateLoadedRef.current = true;
+  }, [initialCategory, initialPropertyId, properties]);
+
+  // 2. Hook to save state to localStorage whenever filters or property details modal changes
+  useEffect(() => {
+    if (!isStateLoadedRef.current || typeof window === 'undefined') return;
+
+    const stateToSave = {
+      timestamp: Date.now(),
+      selectedType,
+      selectedListingType,
+      minBeds,
+      sortBy,
+      searchQuery,
+      selectedPropertyId: selectedProperty?.property_code || selectedProperty?.id || null
+    };
+
+    localStorage.setItem('showcase_state', JSON.stringify(stateToSave));
+  }, [selectedType, selectedListingType, minBeds, sortBy, searchQuery, selectedProperty]);
+
+  // 3. Debounced Search Analytics Event
+  useEffect(() => {
+    if (!isStateLoadedRef.current || !searchQuery.trim()) return;
+
+    const timer = setTimeout(() => {
+      trackPixelEvent('Search', {
+        search_string: searchQuery.trim(),
+      });
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // 4. Custom Filter Properties Analytics Event
+  useEffect(() => {
+    if (!isStateLoadedRef.current) return;
+    if (selectedType === 'All' && selectedListingType === 'All' && minBeds === 'All' && sortBy === 'newest') return;
+
+    trackPixelEvent('FilterProperties', {
+      category: selectedType,
+      listing_type: selectedListingType,
+      bedrooms: minBeds,
+      sort_by: sortBy,
+    });
+  }, [selectedType, selectedListingType, minBeds, sortBy]);
 
   // General requirements modal
   const [requirementsModalOpen, setRequirementsModalOpen] = useState(false);
@@ -591,6 +733,12 @@ export function ShowcaseView({
       currency: settings?.currency || 'INR',
       inquiry_type: 'whatsapp_click',
     });
+
+    trackPixelEvent('Contact', {
+      content_name: property.title,
+      content_ids: [property.property_code || property.id],
+      contact_method: 'whatsapp',
+    });
   };
 
   const closePropertyModal = () => {
@@ -621,6 +769,13 @@ export function ShowcaseView({
 
   const handleShareListing = async (property: Property, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    trackPixelEvent('ShareProperty', {
+      content_name: property.title,
+      content_ids: [property.property_code || property.id],
+      content_type: 'product',
+    });
+
     const url = getPropertyShareUrl(property);
     if (!url) return;
 
@@ -664,6 +819,7 @@ export function ShowcaseView({
             {displayPhone && (
               <a
                 href={`tel:${displayPhone.replace(/\s+/g, '')}`}
+                onClick={() => trackPixelEvent('Contact', { contact_method: 'phone' })}
                 className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
               >
                 <Phone className="size-3.5 text-primary" />
@@ -1363,6 +1519,11 @@ export function ShowcaseView({
                       <div className="flex items-center gap-2">
                         <a
                           href={`tel:${selectedProperty.agent_details.phone.replace(/\D/g, '')}`}
+                          onClick={() => trackPixelEvent('Contact', {
+                            content_name: selectedProperty.title,
+                            content_ids: [selectedProperty.property_code || selectedProperty.id],
+                            contact_method: 'phone',
+                          })}
                           className="h-8 px-3 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-850 text-slate-250 hover:text-white flex items-center justify-center gap-1.5 text-[11px] font-semibold cursor-pointer"
                         >
                           <Phone className="size-3 text-primary" />

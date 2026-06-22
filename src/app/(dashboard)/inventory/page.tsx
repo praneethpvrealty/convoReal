@@ -6,7 +6,7 @@ import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Property } from '@/types';
+import type { Property, ShowcaseSettings } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -28,11 +28,13 @@ import {
   Tag,
   ChevronLeft,
   ChevronRight,
+  Share2,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
+import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
@@ -65,31 +67,36 @@ export default function InventoryPage() {
   const [flyerProperty, setFlyerProperty] = useState<Property | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
+  const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
+  const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
 
   const { accountId } = useAuth();
   const [currency, setCurrency] = useState('INR');
   const router = useRouter();
 
-  const fetchCurrency = useCallback(async () => {
+  const fetchShowcaseSettings = useCallback(async () => {
     if (!accountId) return;
     try {
       const supabase = createClient();
       const { data } = await supabase
         .from('showcase_settings')
-        .select('currency')
+        .select('*')
         .eq('account_id', accountId)
         .maybeSingle();
-      if (data?.currency) {
-        setCurrency(data.currency);
+      if (data) {
+        setShowcaseSettings(data);
+        if (data.currency) {
+          setCurrency(data.currency);
+        }
       }
     } catch (err) {
-      console.error('Failed to load showcase settings currency:', err);
+      console.error('Failed to load showcase settings:', err);
     }
   }, [accountId]);
 
   useEffect(() => {
-    fetchCurrency();
-  }, [fetchCurrency]);
+    fetchShowcaseSettings();
+  }, [fetchShowcaseSettings]);
 
   const fetchProperties = useCallback(async () => {
     setLoading(true);
@@ -314,14 +321,23 @@ export default function InventoryPage() {
             Manage your real estate listings and publish properties to showcase on the main portal.
           </p>
         </div>
-        {canEdit && (
+        <div className="flex items-center gap-2 shrink-0">
           <Button
-            onClick={handleAddClick}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm shrink-0 flex items-center gap-2 shadow"
+            onClick={() => setShowcaseShareOpen(true)}
+            variant="outline"
+            className="border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-sm flex items-center gap-2 shadow"
           >
-            <Plus className="size-4" /> Add Property
+            <Share2 className="size-4 text-primary" /> Share Showcase Portal
           </Button>
-        )}
+          {canEdit && (
+            <Button
+              onClick={handleAddClick}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm flex items-center gap-2 shadow"
+            >
+              <Plus className="size-4" /> Add Property
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats Summary Panel */}
@@ -463,6 +479,14 @@ export default function InventoryPage() {
         onOpenChange={setShareOpen}
         property={shareProperty}
         onSaved={fetchProperties}
+      />
+
+      {/* Share Showcase Portal Dialog */}
+      <ShowcaseShareDialog
+        open={showcaseShareOpen}
+        onOpenChange={setShowcaseShareOpen}
+        accountId={accountId}
+        showcaseSettings={showcaseSettings}
       />
 
       {/* Delete Confirmation Modal */}

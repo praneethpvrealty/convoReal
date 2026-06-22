@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 interface PageProps {
-  searchParams: Promise<{ account_id?: string; ref?: string; agent_id?: string; property_id?: string }>;
+  searchParams: Promise<{ account_id?: string; ref?: string; agent_id?: string; property_id?: string; category?: string }>;
 }
 
 // Server Component: fetches public listings & configuration details
@@ -300,6 +300,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       referrerContactId={filterContactId || undefined}
       referrerPhone={referrerPhone || undefined}
       initialPropertyId={initialPropertyId}
+      initialCategory={resolvedParams.category}
     />
   );
 }
