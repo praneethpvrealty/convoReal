@@ -773,6 +773,51 @@ export async function POST(request: Request) {
         .update(updatePayload)
         .eq('id', existingContact.id);
 
+      // Find or create conversation for existing contact
+      let conversationId = '';
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('account_id', accountId)
+        .eq('contact_id', existingContact.id)
+        .maybeSingle();
+
+      if (existingConv) {
+        conversationId = existingConv.id;
+        // Update conversation last message
+        await supabase
+          .from('conversations')
+          .update({
+            last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
+            last_message_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', conversationId);
+      } else {
+        // Resolve user_id for existing contact path
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('account_id', accountId)
+          .limit(1)
+          .maybeSingle();
+        
+        if (profile) {
+          const { data: newConv } = await supabase
+            .from('conversations')
+            .insert({
+              account_id: accountId,
+              user_id: profile.user_id,
+              contact_id: existingContact.id,
+              last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
+              last_message_at: new Date().toISOString(),
+            })
+            .select('id')
+            .single();
+          if (newConv) conversationId = newConv.id;
+        }
+      }
+
       await writeSyncLog({
         accountId,
         sender,
@@ -800,12 +845,24 @@ export async function POST(request: Request) {
             .replace(/{source}/g, parsed.source || 'portal');
           
           try {
-            await sendTextMessage({
+            const sendRes = await sendTextMessage({
               phoneNumberId: waConfig.phone_number_id,
               accessToken: decrypt(waConfig.access_token),
               to: cleanPhone,
               text: replyText,
             });
+
+            if (conversationId) {
+              await supabase.from('messages').insert({
+                conversation_id: conversationId,
+                sender_type: 'bot',
+                content_type: 'text',
+                content_text: replyText,
+                message_id: sendRes.messageId,
+                status: 'sent',
+                created_at: new Date().toISOString(),
+              });
+            }
           } catch (sendErr) {
             console.error('[lead-webhook] Failed to send auto-reply to existing contact:', sendErr);
           }
@@ -880,12 +937,21 @@ export async function POST(request: Request) {
     }
 
     // 5. Create active conversation thread
-    await supabase.from('conversations').insert({
-      account_id: accountId,
-      contact_id: newContact.id,
-      last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
-      last_message_at: new Date().toISOString(),
-    });
+    const { data: conversation, error: convErr } = await supabase
+      .from('conversations')
+      .insert({
+        account_id: accountId,
+        user_id: userId,
+        contact_id: newContact.id,
+        last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
+        last_message_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+    if (convErr) {
+      console.error('[lead-webhook] Error creating conversation:', convErr);
+    }
 
     await writeSyncLog({
       accountId,
@@ -914,12 +980,24 @@ export async function POST(request: Request) {
           .replace(/{source}/g, parsed.source || 'portal');
         
         try {
-          await sendTextMessage({
+          const sendRes = await sendTextMessage({
             phoneNumberId: waConfig.phone_number_id,
             accessToken: decrypt(waConfig.access_token),
             to: cleanPhone,
             text: replyText,
           });
+
+          if (conversation?.id) {
+            await supabase.from('messages').insert({
+              conversation_id: conversation.id,
+              sender_type: 'bot',
+              content_type: 'text',
+              content_text: replyText,
+              message_id: sendRes.messageId,
+              status: 'sent',
+              created_at: new Date().toISOString(),
+            });
+          }
         } catch (sendErr) {
           console.error('[lead-webhook] Failed to send auto-reply to new contact:', sendErr);
         }
