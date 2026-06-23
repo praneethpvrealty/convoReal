@@ -815,7 +815,6 @@ export async function processOwnerChatbotMessage(
         
         let updatedDraft = draft;
         let nextStatus = propSession.status;
-        let missingFields: string[] = [];
         let success = false;
         let retryCount = 0;
         const maxRetries = 5;
@@ -845,7 +844,6 @@ export async function processOwnerChatbotMessage(
           
           const validation = validateDraft(updatedDraft);
           nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
-          missingFields = validation.missingFields;
 
           const { data: updateData, error: updateErr } = await supabaseAdmin()
             .from('property_draft_sessions')
@@ -894,7 +892,7 @@ export async function processOwnerChatbotMessage(
     // Handle conversational update/correction text
     if (cleanedText) {
       const updatedDraft = await updateListingDraft(draft, cleanedText);
-      const { isValid, missingFields } = validateDraft(updatedDraft);
+      const { isValid } = validateDraft(updatedDraft);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
       const savedTime = new Date().toISOString();
@@ -1367,7 +1365,7 @@ export async function processOwnerChatbotMessage(
           parsedDraft.images = [];
         }
 
-        const { isValid, missingFields } = validateDraft(parsedDraft);
+        const { isValid } = validateDraft(parsedDraft);
         const initialStatus = isValid ? 'awaiting_confirmation' : 'collecting';
 
         // Insert new active session
@@ -1411,7 +1409,6 @@ export async function processOwnerChatbotMessage(
               const maxRetries = 5;
               let mergedDraft = currentDraft;
               let nextStatus = existingSession.status;
-              let validationFields: string[] = [];
 
               while (retryCount < maxRetries && !success) {
                 const { data: latestSession } = await supabaseAdmin()
@@ -1457,7 +1454,6 @@ export async function processOwnerChatbotMessage(
 
                   const validation = validateDraft(mergedDraft);
                   nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
-                  validationFields = validation.missingFields;
 
                   const { data: updateData, error: updateErr } = await supabaseAdmin()
                     .from('property_draft_sessions')

@@ -9,6 +9,7 @@ import { BRANDING } from '@/config/branding';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { MessageTemplate } from '@/types';
 
 
 export function OtherSettingsPanel() {
@@ -30,7 +31,7 @@ export function OtherSettingsPanel() {
   const [autoReply, setAutoReply] = useState(false);
   const [autoReplyText, setAutoReplyText] = useState('Hi {name}, thanks for your interest on {source}. We will get back to you shortly.');
   const [autoReplyTemplateName, setAutoReplyTemplateName] = useState<string | null>(null);
-  const [approvedTemplates, setApprovedTemplates] = useState<any[]>([]);
+  const [approvedTemplates, setApprovedTemplates] = useState<MessageTemplate[]>([]);
   const [hasSyncConfig, setHasSyncConfig] = useState(false);
   const [syncConfigLoading, setSyncConfigLoading] = useState(true);
   const [syncConfigSaving, setSyncConfigSaving] = useState(false);

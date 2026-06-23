@@ -3,6 +3,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
+import { EmailSyncConfig, MessageTemplate } from '@/types';
 
 // Lazy-initialized admin client
 let _adminClient: SupabaseClient | null = null;
@@ -251,7 +252,7 @@ async function sendAutoReply({
 }: {
   supabase: SupabaseClient;
   accountId: string;
-  syncConfig: any;
+  syncConfig: EmailSyncConfig | null;
   conversationId: string | null;
   cleanPhone: string;
   leadName: string;
@@ -273,7 +274,7 @@ async function sendAutoReply({
     let messageId = '';
     let usedTemplateName: string | null = null;
 
-    let template = null;
+    let template: MessageTemplate | null = null;
     if (syncConfig.auto_reply_template_name) {
       const { data: foundTemplate } = await supabase
         .from('message_templates')
@@ -282,7 +283,7 @@ async function sendAutoReply({
         .eq('name', syncConfig.auto_reply_template_name)
         .eq('status', 'APPROVED')
         .maybeSingle();
-      template = foundTemplate;
+      template = foundTemplate as unknown as MessageTemplate;
     }
 
     if (template) {
@@ -294,7 +295,7 @@ async function sendAutoReply({
       // Auto-resolve dynamic URL buttons if the template has them
       const buttonParams: Record<number, string> = {};
       if (template.buttons && Array.isArray(template.buttons)) {
-        template.buttons.forEach((btn: any, idx: number) => {
+        template.buttons.forEach((btn, idx: number) => {
           if (btn.type === 'URL' && btn.url && btn.url.includes('{{1}}')) {
             buttonParams[idx] = `?ref=${accountId}`;
           }
@@ -307,7 +308,7 @@ async function sendAutoReply({
         to: cleanPhone,
         templateName: template.name,
         language: template.language || 'en_US',
-        template: template as any,
+        template: template || undefined,
         messageParams: {
           body: bodyParams,
           ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
@@ -807,7 +808,7 @@ export async function POST(request: Request) {
     // 2. Check if email lead sync is active for this account
     const { data: syncConfig } = await supabase
       .from('email_sync_configs')
-      .select('is_active, auto_reply_enabled, auto_reply_text')
+      .select('is_active, auto_reply_enabled, auto_reply_text, auto_reply_template_name')
       .eq('account_id', accountId)
       .maybeSingle();
 
