@@ -818,6 +818,7 @@ export async function processOwnerChatbotMessage(
         let success = false;
         let retryCount = 0;
         const maxRetries = 5;
+        let finalUpdateData: { updated_at: string }[] | null = null;
 
         while (retryCount < maxRetries && !success) {
           const { data: latestSession, error: fetchErr } = await supabaseAdmin()
@@ -858,17 +859,18 @@ export async function processOwnerChatbotMessage(
 
           if (!updateErr && updateData && updateData.length > 0) {
             success = true;
+            finalUpdateData = updateData;
           } else {
             retryCount++;
             await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
           }
         }
 
-        if (!success) {
+        if (!success || !finalUpdateData || finalUpdateData.length === 0) {
           throw new Error('Failed to update draft session due to concurrent modifications');
         }
 
-        const savedTime = updateData[0].updated_at;
+        const savedTime = finalUpdateData[0].updated_at;
 
         await sendPropertyDraftPreviewDebounced(
           propSession.id,
@@ -1409,6 +1411,7 @@ export async function processOwnerChatbotMessage(
               const maxRetries = 5;
               let mergedDraft = currentDraft;
               let nextStatus = existingSession.status;
+              let finalUpdateData: { updated_at: string }[] | null = null;
 
               while (retryCount < maxRetries && !success) {
                 const { data: latestSession } = await supabaseAdmin()
@@ -1468,6 +1471,7 @@ export async function processOwnerChatbotMessage(
 
                   if (!updateErr && updateData && updateData.length > 0) {
                     success = true;
+                    finalUpdateData = updateData;
                   } else {
                     retryCount++;
                     await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
@@ -1477,8 +1481,8 @@ export async function processOwnerChatbotMessage(
                 }
               }
 
-              if (success) {
-                const savedTime = updateData[0].updated_at;
+              if (success && finalUpdateData && finalUpdateData.length > 0) {
+                const savedTime = finalUpdateData[0].updated_at;
                 await sendPropertyDraftPreviewDebounced(
                   existingSession.id,
                   savedTime,

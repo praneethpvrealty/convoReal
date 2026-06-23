@@ -99,7 +99,7 @@ export function OtherSettingsPanel() {
     try {
       const { data, error } = await supabase
         .from('message_templates')
-        .select('name, category, body_text')
+        .select('*')
         .eq('account_id', accountId)
         .eq('status', 'APPROVED');
       

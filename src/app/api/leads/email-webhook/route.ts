@@ -808,7 +808,7 @@ export async function POST(request: Request) {
     // 2. Check if email lead sync is active for this account
     const { data: syncConfig } = await supabase
       .from('email_sync_configs')
-      .select('is_active, auto_reply_enabled, auto_reply_text, auto_reply_template_name')
+      .select('*')
       .eq('account_id', accountId)
       .maybeSingle();
 
