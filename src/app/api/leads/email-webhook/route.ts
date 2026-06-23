@@ -572,7 +572,7 @@ export async function POST(request: Request) {
       // Parse Gmail confirmation code
       const codeMatch = bodyText.match(/(?:confirmation\s*code\s*:\s*|code\s*:\s*)(\d{8,12})/i);
       // Parse Gmail confirmation link
-      const linkMatch = bodyText.match(/https:\/\/mail\.google\.com\/mail\/f-[^\s"'>]+/i);
+      const linkMatch = bodyText.match(/https:\/\/mail\.google\.com\/mail\/v?f-[^\s"'>]+/i);
       
       console.log(`[lead-webhook] ==========================================`);
       console.log(`[lead-webhook] GMAIL FORWARDING VERIFICATION RECEIVED`);
