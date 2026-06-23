@@ -379,9 +379,17 @@ export default function InboxPage() {
           setMessages([]);
           // Mirror the optimistic unread reset that handleSelectConversation
           // does — the user just deep-linked into this conv, treat that the
-          // same as a click. Leaves activeConversation.unread_count alone so
-          // the MessageThread reset effect still fires the server UPDATE.
+          // same as a click. Immediately reset unread_count in the DB so a
+          // refetch can't restore the blue dot.
           if (match.unread_count > 0) {
+            const supabase = createClient();
+            supabase
+              .from("conversations")
+              .update({ unread_count: 0 })
+              .eq("id", match.id)
+              .then(({ error }) => {
+                if (error) console.error("Failed to reset unread_count:", error);
+              });
             setConversations((prev) =>
               prev.map((c) =>
                 c.id === match.id ? { ...c, unread_count: 0 } : c,
@@ -404,15 +412,21 @@ export default function InboxPage() {
       setActiveConversation(conv);
       setActiveContact(conv.contact ?? null);
       setMessages([]);
-      // Optimistically clear the unread badge for this conv. The
-      // server-side reset is fired by the unread-reset effect inside
-      // MessageThread (which reads activeConversation.unread_count, not
-      // the list copy — so we deliberately leave that intact below to
-      // keep the effect firing), and the realtime UPDATE that comes
-      // back will sync to 0 again as a no-op. Zeroing the list copy
-      // here means the user sees the badge disappear the instant they
-      // click instead of waiting for the round-trip — and it persists
-      // even if the realtime UPDATE is dropped.
+      // Optimistically clear the unread badge for this conv AND
+      // immediately reset unread_count in the DB. Previously we relied
+      // solely on the MessageThread unread-reset effect, but a refetch
+      // (e.g. on realtime reconnect / tab focus) could read the old DB
+      // value and restore the blue dot before the effect fired.
+      if (conv.unread_count > 0) {
+        const supabase = createClient();
+        supabase
+          .from("conversations")
+          .update({ unread_count: 0 })
+          .eq("id", conv.id)
+          .then(({ error }) => {
+            if (error) console.error("Failed to reset unread_count:", error);
+          });
+      }
       setConversations((prev) =>
         prev.map((c) =>
           c.id === conv.id && c.unread_count > 0

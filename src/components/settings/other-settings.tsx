@@ -624,7 +624,7 @@ export function OtherSettingsPanel() {
                     }}
                     className="flex h-10 w-full rounded-md border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary font-medium"
                   >
-                    <option value="custom">Custom Text Message (Restricted to 24h window)</option>
+                    <option value="custom">Custom Text Message (within 24h window; auto-falls back to Utility template if expired)</option>
                     {approvedTemplates.map((t) => (
                       <option key={t.name} value={t.name}>
                         Template: {t.name} ({t.category})
@@ -650,6 +650,9 @@ export function OtherSettingsPanel() {
                       <span><code className="bg-slate-900 px-1 py-0.2 rounded text-primary text-[9px] font-mono">{`{name}`}</code> Lead&apos;s Name</span>
                       <span><code className="bg-slate-900 px-1 py-0.2 rounded text-primary text-[9px] font-mono">{`{source}`}</code> Portal Name (e.g. Housing)</span>
                     </div>
+                    <p className="text-[10px] text-amber-500/80 leading-relaxed pt-1">
+                      If the 24-hour WhatsApp session has expired, the system will automatically send the first approved Utility/Marketing template instead of this text.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2">

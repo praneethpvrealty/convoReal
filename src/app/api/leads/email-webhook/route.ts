@@ -323,18 +323,86 @@ async function sendAutoReply({
         .replace(/{{1}}/g, leadName || 'there')
         .replace(/{{2}}/g, leadSource || 'portal');
     } else if (syncConfig.auto_reply_text) {
-      // Fallback to text message
-      replyText = syncConfig.auto_reply_text
-        .replace(/{name}/g, leadName || 'there')
-        .replace(/{source}/g, leadSource || 'portal');
+      // Check 24-hour customer service window before sending free-form text.
+      // Meta rejects free-form messages outside the window (Error 131047).
+      let isWithin24Hours = false;
+      if (conversationId) {
+        const { data: lastCustomerMsg } = await supabase
+          .from('messages')
+          .select('created_at')
+          .eq('conversation_id', conversationId)
+          .eq('sender_type', 'customer')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      const sendRes = await sendTextMessage({
-        phoneNumberId: waConfig.phone_number_id,
-        accessToken: decrypt(waConfig.access_token),
-        to: cleanPhone,
-        text: replyText,
-      });
-      messageId = sendRes.messageId;
+        if (lastCustomerMsg) {
+          const lastMsgTime = new Date(lastCustomerMsg.created_at).getTime();
+          isWithin24Hours = (Date.now() - lastMsgTime) < 24 * 60 * 60 * 1000;
+        }
+      }
+
+      if (isWithin24Hours) {
+        // Within 24h window — send free-form text
+        replyText = syncConfig.auto_reply_text
+          .replace(/{name}/g, leadName || 'there')
+          .replace(/{source}/g, leadSource || 'portal');
+
+        const sendRes = await sendTextMessage({
+          phoneNumberId: waConfig.phone_number_id,
+          accessToken: decrypt(waConfig.access_token),
+          to: cleanPhone,
+          text: replyText,
+        });
+        messageId = sendRes.messageId;
+      } else {
+        // 24h window expired — fall back to an approved Utility template.
+        // Templates work outside the 24h window; free-form text does not.
+        const { data: fallbackTemplates } = await supabase
+          .from('message_templates')
+          .select('*')
+          .eq('account_id', accountId)
+          .eq('status', 'APPROVED')
+          .in('category', ['UTILITY', 'UTILITY_MARKETING', 'MARKETING'])
+          .order('created_at', { ascending: true });
+
+        const fallbackTemplate = fallbackTemplates?.[0] as MessageTemplate | undefined;
+
+        if (fallbackTemplate) {
+          console.log(`[lead-webhook] 24h session expired for ${cleanPhone}. Using fallback template: ${fallbackTemplate.name}`);
+
+          const bodyParams = [leadName || 'there', leadSource || 'portal'];
+          const buttonParams: Record<number, string> = {};
+          if (fallbackTemplate.buttons && Array.isArray(fallbackTemplate.buttons)) {
+            fallbackTemplate.buttons.forEach((btn, idx: number) => {
+              if (btn.type === 'URL' && btn.url && btn.url.includes('{{1}}')) {
+                buttonParams[idx] = `?ref=${accountId}`;
+              }
+            });
+          }
+
+          const sendRes = await sendTemplateMessage({
+            phoneNumberId: waConfig.phone_number_id,
+            accessToken: decrypt(waConfig.access_token),
+            to: cleanPhone,
+            templateName: fallbackTemplate.name,
+            language: fallbackTemplate.language || 'en_US',
+            template: fallbackTemplate,
+            messageParams: {
+              body: bodyParams,
+              ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
+            }
+          });
+
+          messageId = sendRes.messageId;
+          usedTemplateName = fallbackTemplate.name;
+          replyText = (fallbackTemplate.body_text || '')
+            .replace(/{{1}}/g, leadName || 'there')
+            .replace(/{{2}}/g, leadSource || 'portal');
+        } else {
+          console.warn(`[lead-webhook] 24h session expired for ${cleanPhone} and no approved fallback template found. Configure a Utility template in Settings > WhatsApp > Templates for re-engagement.`);
+        }
+      }
     } else {
       return; // No reply configured
     }
