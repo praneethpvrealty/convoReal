@@ -5,6 +5,18 @@ import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { EmailSyncConfig, MessageTemplate } from '@/types';
 
+// Type for property matching in email webhooks
+interface PropertyForMatching {
+  id: string;
+  title: string;
+  type: string | null;
+  location: string | null;
+  bedrooms: number | null;
+  area_sqft: number | null;
+  price: number | null;
+  property_code: string | null;
+}
+
 // Lazy-initialized admin client
 let _adminClient: SupabaseClient | null = null;
 function getAdminClient(): SupabaseClient {
@@ -217,6 +229,85 @@ function isValidContactName(name: string): boolean {
 export function stripOwnerSuffix(name: string): string {
   if (!name) return name;
   return name.replace(/\s*\((?:Owner|Developer|Builder|Broker|Landlord|Seller)\)\s*$/i, '').trim();
+}
+
+// Helper to find or create a tag and return its ID
+async function findOrCreateTag(
+  supabase: SupabaseClient,
+  accountId: string,
+  tagName: string,
+  color: string = '#3b82f6'
+): Promise<string | null> {
+  // First, try to find existing tag
+  const { data: existingTag } = await supabase
+    .from('tags')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('name', tagName)
+    .maybeSingle();
+
+  if (existingTag) {
+    return existingTag.id;
+  }
+
+  // Create new tag if not found
+  const { data: newTag, error } = await supabase
+    .from('tags')
+    .insert({
+      account_id: accountId,
+      name: tagName,
+      color: color,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error(`[lead-webhook] Failed to create tag "${tagName}":`, error);
+    return null;
+  }
+
+  return newTag?.id || null;
+}
+
+// Helper to assign tags to a contact
+async function assignTagsToContact(
+  supabase: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  tagNames: string[]
+): Promise<void> {
+  const tagColorMap: Record<string, string> = {
+    'Residential': '#10b981',
+    'Commercial': '#f59e0b',
+    'Plots/Land': '#8b5cf6',
+    'Flat/Apartment': '#3b82f6',
+    'Villa': '#ec4899',
+    'Housing Lead': '#06b6d4',
+    'Budget 150Cr+': '#991b1b',
+    'Budget 100-150Cr': '#b91c1c',
+    'Budget 50-100Cr': '#dc2626',
+    'Budget 25-50Cr': '#ef4444',
+    'Budget 10-25Cr': '#f43f5e',
+    'Budget 5-10Cr': '#f97316',
+    'Budget 2-5Cr': '#fb923c',
+    'Budget 1-2Cr': '#fdba74',
+    'Budget 50L-1Cr': '#fed7aa',
+    'Budget 20L-50L': '#84cc16',
+    'Budget <20L': '#a3e635',
+  };
+
+  for (const tagName of tagNames) {
+    const tagId = await findOrCreateTag(supabase, accountId, tagName, tagColorMap[tagName] || '#3b82f6');
+    if (tagId) {
+      // Assign tag to contact (ignore if already assigned)
+      await supabase
+        .from('contact_tags')
+        .upsert({
+          contact_id: contactId,
+          tag_id: tagId,
+        }, { onConflict: 'contact_id,tag_id' });
+    }
+  }
 }
 
 // Helper to follow redirect headers (manual mode) to extract phone number
@@ -1288,6 +1379,46 @@ export async function POST(request: Request) {
           if (matchedProperties.length > 0) {
             matchedPropertyIds = matchedProperties.map(p => p.id);
             console.log(`[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.title).join(', ')} from Housing.com inquiry`);
+
+            // Use matched property data to enhance budget, areas, and interests
+            // Use the highest price from matched properties as budget if not already set
+            if (!maxBudget) {
+              const maxPrice = Math.max(...matchedProperties.map(p => p.price || 0));
+              if (maxPrice > 0) {
+                maxBudget = maxPrice;
+              }
+            }
+
+            // Add areas from matched property locations
+            matchedProperties.forEach((p: PropertyForMatching) => {
+              if (p.location) {
+                // Extract main area from location (e.g., "Kudlu, SJR Blue waters, Bangalore, Karnataka" -> "Kudlu")
+                const mainArea = p.location.split(',')[0]?.trim();
+                if (mainArea && !areasOfInterest.includes(mainArea)) {
+                  areasOfInterest.push(mainArea);
+                }
+              }
+            });
+
+            // Add property interests from matched property types
+            matchedProperties.forEach((p: PropertyForMatching) => {
+              if (p.type) {
+                const typeLower = p.type.toLowerCase();
+                let interest = '';
+                if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
+                  interest = 'Flat/ Apartment';
+                } else if (typeLower.includes('plot') || typeLower.includes('land')) {
+                  interest = 'Vacant plot';
+                } else if (typeLower.includes('house') || typeLower.includes('villa')) {
+                  interest = 'Vacant building';
+                } else if (typeLower.includes('commercial') || typeLower.includes('office')) {
+                  interest = 'Commercial';
+                }
+                if (interest && !propertyInterests.includes(interest)) {
+                  propertyInterests.push(interest);
+                }
+              }
+            });
           }
         }
       } catch (err) {
@@ -1337,6 +1468,37 @@ export async function POST(request: Request) {
         await supabase
           .from('contact_property_inquiries')
           .upsert(inquiries, { onConflict: 'contact_id,property_id' });
+      }
+
+      // Auto-assign tags based on property interests and budget
+      const tagsToAssign: string[] = [];
+      
+      // Add property type tags
+      if (propertyInterests.includes('Flat/ Apartment')) tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Vacant plot')) tagsToAssign.push('Plots/Land');
+      if (propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential', 'Villa');
+      if (propertyInterests.includes('Commercial')) tagsToAssign.push('Commercial');
+      
+      // Add source tag
+      if (parsed.source) tagsToAssign.push(`${parsed.source} Lead`);
+      
+      // Add budget-based tags (ranges up to 150Cr+)
+      if (maxBudget) {
+        if (maxBudget >= 15000000000) tagsToAssign.push('Budget 150Cr+');
+        else if (maxBudget >= 10000000000) tagsToAssign.push('Budget 100-150Cr');
+        else if (maxBudget >= 5000000000) tagsToAssign.push('Budget 50-100Cr');
+        else if (maxBudget >= 2500000000) tagsToAssign.push('Budget 25-50Cr');
+        else if (maxBudget >= 1000000000) tagsToAssign.push('Budget 10-25Cr');
+        else if (maxBudget >= 500000000) tagsToAssign.push('Budget 5-10Cr');
+        else if (maxBudget >= 200000000) tagsToAssign.push('Budget 2-5Cr');
+        else if (maxBudget >= 100000000) tagsToAssign.push('Budget 1-2Cr');
+        else if (maxBudget >= 50000000) tagsToAssign.push('Budget 50L-1Cr');
+        else if (maxBudget >= 20000000) tagsToAssign.push('Budget 20L-50L');
+        else tagsToAssign.push('Budget <20L');
+      }
+
+      if (tagsToAssign.length > 0) {
+        await assignTagsToContact(supabase, accountId, existingContact.id, tagsToAssign);
       }
 
       // Find or create conversation for existing contact
@@ -1485,6 +1647,39 @@ export async function POST(request: Request) {
       await supabase
         .from('contact_property_inquiries')
         .upsert(inquiries, { onConflict: 'contact_id,property_id' });
+    }
+
+    // Auto-assign tags based on property interests and budget
+    if (newContact) {
+      const tagsToAssign: string[] = [];
+      
+      // Add property type tags
+      if (propertyInterests.includes('Flat/ Apartment')) tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Vacant plot')) tagsToAssign.push('Plots/Land');
+      if (propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential', 'Villa');
+      if (propertyInterests.includes('Commercial')) tagsToAssign.push('Commercial');
+      
+      // Add source tag
+      if (parsed.source) tagsToAssign.push(`${parsed.source} Lead`);
+      
+      // Add budget-based tags (ranges up to 150Cr+)
+      if (maxBudget) {
+        if (maxBudget >= 15000000000) tagsToAssign.push('Budget 150Cr+');
+        else if (maxBudget >= 10000000000) tagsToAssign.push('Budget 100-150Cr');
+        else if (maxBudget >= 5000000000) tagsToAssign.push('Budget 50-100Cr');
+        else if (maxBudget >= 2500000000) tagsToAssign.push('Budget 25-50Cr');
+        else if (maxBudget >= 1000000000) tagsToAssign.push('Budget 10-25Cr');
+        else if (maxBudget >= 500000000) tagsToAssign.push('Budget 5-10Cr');
+        else if (maxBudget >= 200000000) tagsToAssign.push('Budget 2-5Cr');
+        else if (maxBudget >= 100000000) tagsToAssign.push('Budget 1-2Cr');
+        else if (maxBudget >= 50000000) tagsToAssign.push('Budget 50L-1Cr');
+        else if (maxBudget >= 20000000) tagsToAssign.push('Budget 20L-50L');
+        else tagsToAssign.push('Budget <20L');
+      }
+
+      if (tagsToAssign.length > 0) {
+        await assignTagsToContact(supabase, accountId, newContact.id, tagsToAssign);
+      }
     }
 
     // 5. Create active conversation thread
