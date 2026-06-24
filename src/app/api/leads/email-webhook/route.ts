@@ -234,7 +234,7 @@ export function stripOwnerSuffix(name: string): string {
 // Helper to find or create a tag and return its ID
 async function findOrCreateTag(
   supabase: SupabaseClient,
-  accountId: string,
+  userId: string,
   tagName: string,
   color: string = '#3b82f6'
 ): Promise<string | null> {
@@ -242,7 +242,7 @@ async function findOrCreateTag(
   const { data: existingTag } = await supabase
     .from('tags')
     .select('id')
-    .eq('account_id', accountId)
+    .eq('user_id', userId)
     .eq('name', tagName)
     .maybeSingle();
 
@@ -254,7 +254,7 @@ async function findOrCreateTag(
   const { data: newTag, error } = await supabase
     .from('tags')
     .insert({
-      account_id: accountId,
+      user_id: userId,
       name: tagName,
       color: color,
     })
@@ -272,7 +272,7 @@ async function findOrCreateTag(
 // Helper to assign tags to a contact
 async function assignTagsToContact(
   supabase: SupabaseClient,
-  accountId: string,
+  userId: string,
   contactId: string,
   tagNames: string[]
 ): Promise<void> {
@@ -297,7 +297,7 @@ async function assignTagsToContact(
   };
 
   for (const tagName of tagNames) {
-    const tagId = await findOrCreateTag(supabase, accountId, tagName, tagColorMap[tagName] || '#3b82f6');
+    const tagId = await findOrCreateTag(supabase, userId, tagName, tagColorMap[tagName] || '#3b82f6');
     if (tagId) {
       // Assign tag to contact (ignore if already assigned)
       await supabase
@@ -1434,6 +1434,30 @@ export async function POST(request: Request) {
       .or(`phone.eq.${normalizedPhoneNum},phone.eq.${cleanPhone}`)
       .maybeSingle();
 
+    // Get user_id for tag creation (needed for both existing and new contacts)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('user_id')
+      .eq('account_id', accountId)
+      .limit(1)
+      .maybeSingle();
+    
+    if (!profile) {
+      await writeSyncLog({
+        accountId,
+        sender,
+        subject,
+        extractedName: parsed.name,
+        extractedPhone: normalizedPhoneNum,
+        extractedEmail: parsed.email,
+        status: 'failed',
+        errorMessage: 'No user profile found for this account',
+        bodyPreview: bodyText.slice(0, 200),
+      });
+      return NextResponse.json({ error: 'No user found for this account' }, { status: 422 });
+    }
+    const userId = profile.user_id;
+
     if (existingContact) {
       // Update existing contact preferences
       const updatePayload: {
@@ -1498,7 +1522,7 @@ export async function POST(request: Request) {
       }
 
       if (tagsToAssign.length > 0) {
-        await assignTagsToContact(supabase, accountId, existingContact.id, tagsToAssign);
+        await assignTagsToContact(supabase, userId, existingContact.id, tagsToAssign);
       }
 
       // Find or create conversation for existing contact
@@ -1575,30 +1599,6 @@ export async function POST(request: Request) {
         name: existingContact.name,
       });
     }
-
-    // Resolve user_id associated with the account to satisfy contacts NOT NULL constraint
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('account_id', accountId)
-      .limit(1)
-      .maybeSingle();
-
-    if (!profile) {
-      await writeSyncLog({
-        accountId,
-        sender,
-        subject,
-        extractedName: parsed.name,
-        extractedPhone: normalizedPhoneNum,
-        extractedEmail: parsed.email,
-        status: 'failed',
-        errorMessage: 'No user profile found for this account',
-        bodyPreview: bodyText.slice(0, 200),
-      });
-      return NextResponse.json({ error: 'No user found for this account' }, { status: 422 });
-    }
-    const userId = profile.user_id;
 
     // 4. Insert new buyer contact
     const { data: newContact, error: insertErr } = await supabase
@@ -1678,7 +1678,7 @@ export async function POST(request: Request) {
       }
 
       if (tagsToAssign.length > 0) {
-        await assignTagsToContact(supabase, accountId, newContact.id, tagsToAssign);
+        await assignTagsToContact(supabase, userId, newContact.id, tagsToAssign);
       }
     }
 
