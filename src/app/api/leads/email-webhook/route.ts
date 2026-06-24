@@ -286,6 +286,7 @@ async function sendAutoReply({
       template = foundTemplate as unknown as MessageTemplate;
     }
 
+    let primaryTemplateFailed = false;
     if (template) {
       const bodyParams = [
         leadName || 'there',
@@ -302,27 +303,45 @@ async function sendAutoReply({
         });
       }
       
-      const sendRes = await sendTemplateMessage({
-        phoneNumberId: waConfig.phone_number_id,
-        accessToken: decrypt(waConfig.access_token),
-        to: cleanPhone,
-        templateName: template.name,
-        language: template.language || 'en_US',
-        template: template || undefined,
-        messageParams: {
-          body: bodyParams,
-          ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
+      try {
+        const sendRes = await sendTemplateMessage({
+          phoneNumberId: waConfig.phone_number_id,
+          accessToken: decrypt(waConfig.access_token),
+          to: cleanPhone,
+          templateName: template.name,
+          language: template.language || 'en_US',
+          template: template || undefined,
+          messageParams: {
+            body: bodyParams,
+            ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
+          }
+        });
+        
+        messageId = sendRes.messageId;
+        usedTemplateName = template.name;
+        
+        // Format text for storing in messages log
+        replyText = template.body_text
+          .replace(/{{1}}/g, leadName || 'there')
+          .replace(/{{2}}/g, leadSource || 'portal');
+      } catch (tplErr) {
+        const errMsg = (tplErr as Error).message || '';
+        // If template not found on Meta (132001), mark inactive and fall through
+        if (errMsg.includes('132001') || errMsg.toLowerCase().includes('does not exist')) {
+          console.warn(`[lead-webhook] Configured template ${template.name} does not exist on Meta. Marking inactive and trying fallbacks.`);
+          await supabase
+            .from('message_templates')
+            .update({ status: 'INACTIVE' })
+            .eq('id', template.id);
+          primaryTemplateFailed = true;
+        } else {
+          throw tplErr; // Re-throw other errors
         }
-      });
-      
-      messageId = sendRes.messageId;
-      usedTemplateName = template.name;
-      
-      // Format text for storing in messages log
-      replyText = template.body_text
-        .replace(/{{1}}/g, leadName || 'there')
-        .replace(/{{2}}/g, leadSource || 'portal');
-    } else if (syncConfig.auto_reply_text) {
+      }
+    }
+
+    // If primary template wasn't configured or failed, try fallback templates
+    if (!messageId && (primaryTemplateFailed || !template)) {
       // Check 24-hour customer service window before sending free-form text.
       // Meta rejects free-form messages outside the window (Error 131047).
       let isWithin24Hours = false;
@@ -342,7 +361,7 @@ async function sendAutoReply({
         }
       }
 
-      if (isWithin24Hours) {
+      if (isWithin24Hours && syncConfig.auto_reply_text) {
         // Within 24h window — send free-form text
         replyText = syncConfig.auto_reply_text
           .replace(/{name}/g, leadName || 'there')
@@ -366,41 +385,73 @@ async function sendAutoReply({
           .in('category', ['UTILITY', 'UTILITY_MARKETING', 'MARKETING'])
           .order('created_at', { ascending: true });
 
-        const fallbackTemplate = fallbackTemplates?.[0] as MessageTemplate | undefined;
+        // Try templates in order, attempting the DB language first then
+        // common English fallbacks. This handles cases where the DB
+        // language code doesn't match Meta's registered locale.
+        // If a template fails with 132001 (not found), mark it inactive
+        // in the DB so future requests skip it.
+        let sent = false;
+        for (const fallbackTemplate of fallbackTemplates || []) {
+          if (sent) break;
 
-        if (fallbackTemplate) {
-          console.log(`[lead-webhook] 24h session expired for ${cleanPhone}. Using fallback template: ${fallbackTemplate.name}`);
+          const dbLang = (fallbackTemplate as MessageTemplate).language || 'en_US';
+          const tryLanguages = [dbLang, ...['en_US', 'en', 'en_GB'].filter(l => l !== dbLang)];
 
-          const bodyParams = [leadName || 'there', leadSource || 'portal'];
-          const buttonParams: Record<number, string> = {};
-          if (fallbackTemplate.buttons && Array.isArray(fallbackTemplate.buttons)) {
-            fallbackTemplate.buttons.forEach((btn, idx: number) => {
-              if (btn.type === 'URL' && btn.url && btn.url.includes('{{1}}')) {
-                buttonParams[idx] = `?ref=${accountId}`;
+          for (const lang of tryLanguages) {
+            try {
+              console.log(`[lead-webhook] 24h session expired for ${cleanPhone}. Trying template: ${fallbackTemplate.name} (lang: ${lang})`);
+
+              const bodyParams = [leadName || 'there', leadSource || 'portal'];
+              const tpl = fallbackTemplate as MessageTemplate;
+              const buttonParams: Record<number, string> = {};
+              if (tpl.buttons && Array.isArray(tpl.buttons)) {
+                tpl.buttons.forEach((btn, idx: number) => {
+                  if (btn.type === 'URL' && btn.url && btn.url.includes('{{1}}')) {
+                    buttonParams[idx] = `?ref=${accountId}`;
+                  }
+                });
               }
-            });
-          }
 
-          const sendRes = await sendTemplateMessage({
-            phoneNumberId: waConfig.phone_number_id,
-            accessToken: decrypt(waConfig.access_token),
-            to: cleanPhone,
-            templateName: fallbackTemplate.name,
-            language: fallbackTemplate.language || 'en_US',
-            template: fallbackTemplate,
-            messageParams: {
-              body: bodyParams,
-              ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
+              const sendRes = await sendTemplateMessage({
+                phoneNumberId: waConfig.phone_number_id,
+                accessToken: decrypt(waConfig.access_token),
+                to: cleanPhone,
+                templateName: tpl.name,
+                language: lang,
+                template: tpl,
+                messageParams: {
+                  body: bodyParams,
+                  ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {})
+                }
+              });
+
+              messageId = sendRes.messageId;
+              usedTemplateName = tpl.name;
+              replyText = (tpl.body_text || '')
+                .replace(/{{1}}/g, leadName || 'there')
+                .replace(/{{2}}/g, leadSource || 'portal');
+              sent = true;
+              break;
+            } catch (langErr) {
+              const errMsg = (langErr as Error).message || '';
+              console.warn(`[lead-webhook] Template ${fallbackTemplate.name} failed with lang ${lang}:`, errMsg);
+
+              // If 132001 (template not found on Meta), mark inactive in DB
+              if (errMsg.includes('132001') || errMsg.toLowerCase().includes('does not exist')) {
+                console.warn(`[lead-webhook] Template ${fallbackTemplate.name} does not exist on Meta. Marking as inactive.`);
+                await supabase
+                  .from('message_templates')
+                  .update({ status: 'INACTIVE' })
+                  .eq('id', fallbackTemplate.id);
+                break; // Skip to next template, don't try other languages
+              }
+              // Continue to next language for other errors
             }
-          });
+          }
+        }
 
-          messageId = sendRes.messageId;
-          usedTemplateName = fallbackTemplate.name;
-          replyText = (fallbackTemplate.body_text || '')
-            .replace(/{{1}}/g, leadName || 'there')
-            .replace(/{{2}}/g, leadSource || 'portal');
-        } else {
-          console.warn(`[lead-webhook] 24h session expired for ${cleanPhone} and no approved fallback template found. Configure a Utility template in Settings > WhatsApp > Templates for re-engagement.`);
+        if (!sent) {
+          console.warn(`[lead-webhook] 24h session expired for ${cleanPhone} and no fallback template worked. Create a Utility template on Meta Business Manager and sync from Settings > WhatsApp > Templates.`);
         }
       }
     } else {

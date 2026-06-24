@@ -210,6 +210,44 @@ export async function POST() {
       nextUrl = metaBody.paging?.next ?? null
     }
 
+    // ── Deduplicate existing rows ──────────────────────────────────────────
+    // Before syncing, remove any duplicate rows (same name + account_id)
+    // that may have been created by earlier buggy syncs. Keep the oldest row.
+    try {
+      const { data: allTemplates } = await supabase
+        .from('message_templates')
+        .select('id, name, language')
+        .eq('account_id', accountId);
+
+      if (allTemplates && allTemplates.length > 0) {
+        const byName = new Map<string, typeof allTemplates>();
+        for (const t of allTemplates) {
+          const key = t.name;
+          const existing = byName.get(key) || [];
+          existing.push(t);
+          byName.set(key, existing);
+        }
+
+        const idsToDelete: string[] = [];
+        for (const [, rows] of byName) {
+          if (rows.length > 1) {
+            // Keep the first (oldest), delete the rest
+            idsToDelete.push(...rows.slice(1).map(r => r.id));
+          }
+        }
+
+        if (idsToDelete.length > 0) {
+          console.log(`[template-sync] Cleaning up ${idsToDelete.length} duplicate template rows`);
+          await supabase
+            .from('message_templates')
+            .delete()
+            .in('id', idsToDelete);
+        }
+      }
+    } catch (cleanupErr) {
+      console.warn('[template-sync] Duplicate cleanup failed (non-fatal):', cleanupErr);
+    }
+
     let inserted = 0
     let updated = 0
     const errors: { name: string; language: string; message: string }[] = []
@@ -260,6 +298,7 @@ export async function POST() {
         .eq('account_id', accountId)
         .eq('name', t.name)
         .eq('language', t.language)
+        .limit(1)
         .maybeSingle()
 
       if (lookupErr) {
@@ -267,8 +306,28 @@ export async function POST() {
           name: t.name,
           language: t.language,
           message: lookupErr.message,
-        })
-        continue
+        });
+        continue;
+      }
+
+      // If duplicates exist (shouldn't, but handle gracefully), clean them up
+      if (!existing?.id) {
+        const { data: anyExisting } = await supabase
+          .from('message_templates')
+          .select('id')
+          .eq('account_id', accountId)
+          .eq('name', t.name)
+          .limit(1)
+          .maybeSingle();
+        
+        if (anyExisting?.id) {
+          // Found a row with same name but different language — update it
+          const { error: updLangErr } = await supabase
+            .from('message_templates')
+            .update(row)
+            .eq('id', anyExisting.id);
+          if (!updLangErr) { updated++; continue; }
+        }
       }
 
       if (existing?.id) {
