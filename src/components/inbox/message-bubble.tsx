@@ -17,6 +17,12 @@ import {
 import { format } from "date-fns";
 import { ReplyQuote } from "./reply-quote";
 import { MessageReactions } from "./message-reactions";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MessageBubbleProps {
   message: Message;
@@ -27,7 +33,7 @@ interface MessageBubbleProps {
   onToggleReaction?: (emoji: string) => void;
 }
 
-function StatusIcon({ status }: { status: Message["status"] }) {
+function StatusIcon({ status, errorInfo }: { status: Message["status"]; errorInfo?: string }) {
   switch (status) {
     case "sending":
       return <Clock className="h-3 w-3 text-slate-400" />;
@@ -38,6 +44,21 @@ function StatusIcon({ status }: { status: Message["status"] }) {
     case "read":
       return <CheckCheck className="h-3 w-3 text-blue-400" />;
     case "failed":
+      if (errorInfo) {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <XCircle className="h-3 w-3 text-red-400" />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-80">
+                <p className="text-sm font-medium text-red-400">Delivery Failed</p>
+                <p className="text-xs text-slate-300 mt-1">{errorInfo}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
       return <XCircle className="h-3 w-3 text-red-400" />;
     default:
       return null;
@@ -280,7 +301,7 @@ export function MessageBubble({
           )}
         >
           <span className="text-[10px] text-white/60">{time}</span>
-          {isAgent && <StatusIcon status={message.status} />}
+          {isAgent && <StatusIcon status={message.status} errorInfo={message.error_info} />}
         </div>
       </div>
       {reactions && reactions.length > 0 && onToggleReaction && (

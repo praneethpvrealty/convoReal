@@ -203,7 +203,7 @@ export function TemplatePicker({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-white">
             <LayoutTemplate className="h-4 w-4 text-primary" />
-            {selected ? selected.name : "Send template"}
+            {selected ? selected.name : "Send Message"}
           </DialogTitle>
           <DialogDescription className="text-slate-400">
             {selected
@@ -340,7 +340,7 @@ export function TemplatePicker({
                 onClick={confirm}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
               >
-                Send template
+                Send Message
               </Button>
             </>
           ) : (

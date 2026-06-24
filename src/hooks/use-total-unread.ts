@@ -23,9 +23,7 @@ export function useTotalUnread(): number {
     const supabase = createClient();
     let cancelled = false;
 
-    // Initial load. RLS scopes this to the signed-in user automatically —
-    // no explicit user_id filter needed here.
-    (async () => {
+    async function fetchCounts() {
       const { data, error } = await supabase
         .from("conversations")
         .select("id, unread_count");
@@ -40,7 +38,20 @@ export function useTotalUnread(): number {
       }
       countsRef.current = map;
       setTotal(sum);
-    })();
+    }
+
+    // Initial load. RLS scopes this to the signed-in user automatically —
+    // no explicit user_id filter needed here.
+    fetchCounts();
+
+    // Resync when the tab becomes visible again to catch any missed
+    // realtime events during background/throttled WebSocket.
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        fetchCounts();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const channel = supabase
       .channel("total-unread-realtime")
@@ -66,6 +77,7 @@ export function useTotalUnread(): number {
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       supabase.removeChannel(channel);
     };
   }, []);

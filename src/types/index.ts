@@ -205,6 +205,11 @@ export interface Message {
    * cue (renders with a "↩ button reply" affordance).
    */
   interactive_reply_id?: string;
+  /**
+   * Error information when message delivery fails.
+   * Contains user-friendly error details from Meta API.
+   */
+  error_info?: string;
 }
 
 export type ReactionActor = 'customer' | 'agent';

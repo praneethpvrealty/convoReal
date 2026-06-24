@@ -490,10 +490,25 @@ export function MessageThread({
 
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
+          const errorInfo = payload?.errorInfo;
           console.error("Failed to send message:", reason);
-          toast.error(`Failed to send: ${reason}`);
+          
+          // Build user-friendly error message
+          let userFriendlyError = reason;
+          if (errorInfo?.userMessage) {
+            userFriendlyError = errorInfo.userMessage;
+            if (errorInfo.suggestedActions?.length > 0) {
+              userFriendlyError += `\n\nSuggested actions:\n${errorInfo.suggestedActions.map((a: string) => `• ${a}`).join('\n')}`;
+            }
+          }
+          
+          toast.error(`Failed to send: ${errorInfo?.title || reason}`, {
+            description: errorInfo?.userMessage || undefined,
+            duration: 8000
+          });
+          
           // Mark the optimistic bubble as failed so the user sees what happened
-          onUpdateMessage(tempId, { status: "failed" });
+          onUpdateMessage(tempId, { status: "failed", error_info: userFriendlyError });
           return;
         }
 
@@ -505,7 +520,7 @@ export function MessageThread({
         console.error("Failed to send message:", err);
         const reason = err instanceof Error ? err.message : "network error";
         toast.error(`Failed to send: ${reason}`);
-        onUpdateMessage(tempId, { status: "failed" });
+        onUpdateMessage(tempId, { status: "failed", error_info: reason });
       }
     },
     [conversation, onNewMessage, onUpdateMessage]
@@ -583,9 +598,24 @@ export function MessageThread({
 
         if (!res.ok) {
           const reason = payload?.error || `HTTP ${res.status}`;
+          const errorInfo = payload?.errorInfo;
           console.error("Failed to send template:", reason);
-          toast.error(`Failed to send template: ${reason}`);
-          onUpdateMessage(tempId, { status: "failed" });
+          
+          // Build user-friendly error message
+          let userFriendlyError = reason;
+          if (errorInfo?.userMessage) {
+            userFriendlyError = errorInfo.userMessage;
+            if (errorInfo.suggestedActions?.length > 0) {
+              userFriendlyError += `\n\nSuggested actions:\n${errorInfo.suggestedActions.map((a: string) => `• ${a}`).join('\n')}`;
+            }
+          }
+          
+          toast.error(`Failed to send template: ${errorInfo?.title || reason}`, {
+            description: errorInfo?.userMessage || undefined,
+            duration: 8000
+          });
+          
+          onUpdateMessage(tempId, { status: "failed", error_info: userFriendlyError });
           return;
         }
 
@@ -594,7 +624,7 @@ export function MessageThread({
         console.error("Failed to send template:", err);
         const reason = err instanceof Error ? err.message : "network error";
         toast.error(`Failed to send template: ${reason}`);
-        onUpdateMessage(tempId, { status: "failed" });
+        onUpdateMessage(tempId, { status: "failed", error_info: reason });
       }
     },
     [conversation, onNewMessage, onUpdateMessage],

@@ -13,6 +13,7 @@ import {
 import type { MessageTemplate } from '@/types'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import { parseMetaErrorInfo } from '@/lib/whatsapp/meta-api'
 
 export async function POST(request: Request) {
   try {
@@ -266,8 +267,18 @@ export async function POST(request: Request) {
     })
 
     if (!result.success) {
+      const errorInfo = parseMetaErrorInfo(result.error);
       return NextResponse.json(
-        { error: result.error || 'Failed to send message via WhatsApp dispatcher' },
+        { 
+          error: result.error || 'Failed to send message via WhatsApp dispatcher',
+          errorInfo: {
+            code: errorInfo.code,
+            title: errorInfo.title,
+            userMessage: errorInfo.userMessage,
+            suggestedActions: errorInfo.suggestedActions,
+            isRetryable: errorInfo.isRetryable
+          }
+        },
         { status: 500 }
       )
     }
@@ -279,8 +290,18 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Error in WhatsApp send POST:', error)
+    const errorInfo = parseMetaErrorInfo(error);
     return NextResponse.json(
-      { error: 'Failed to send message' },
+      { 
+        error: 'Failed to send message',
+        errorInfo: {
+          code: errorInfo.code,
+          title: errorInfo.title,
+          userMessage: errorInfo.userMessage,
+          suggestedActions: errorInfo.suggestedActions,
+          isRetryable: errorInfo.isRetryable
+        }
+      },
       { status: 500 }
     )
   }

@@ -63,6 +63,194 @@ async function throwMetaError(response: Response, fallback: string): Promise<nev
 }
 
 // ============================================================
+// User-friendly error messages for Meta API errors
+// ============================================================
+
+export interface MetaErrorInfo {
+  code: number
+  title: string
+  message: string
+  userMessage: string
+  suggestedActions: string[]
+  isRetryable: boolean
+}
+
+/**
+ * Parse Meta API error codes and return user-friendly information
+ * with suggested actions for the user.
+ */
+export function parseMetaErrorInfo(error: unknown): MetaErrorInfo {
+  const errorMsg = error instanceof Error ? error.message : String(error);
+  
+  // Extract error code from message (e.g., "[Error 131026]" or "(#131026)")
+  const codeMatch = errorMsg.match(/(?:Error|error|#)\s*(\d{5,6})/);
+  const code = codeMatch ? parseInt(codeMatch[1]) : 0;
+  
+  // Default error info
+  const defaultInfo: MetaErrorInfo = {
+    code,
+    title: 'Message Delivery Failed',
+    message: errorMsg,
+    userMessage: 'Unable to deliver message. Please try again later.',
+    suggestedActions: [
+      'Check if the recipient is available on WhatsApp',
+      'Verify the phone number is correct',
+      'Try again in a few minutes'
+    ],
+    isRetryable: true
+  };
+  
+  // Map specific error codes to user-friendly messages
+  const errorMap: Record<number, Partial<MetaErrorInfo>> = {
+    // Message Undeliverable - broad bucket error
+    131026: {
+      title: 'Message Undeliverable',
+      userMessage: 'This message could not be delivered. This can happen if the recipient is not on WhatsApp, has blocked your number, or is using an outdated WhatsApp version.',
+      suggestedActions: [
+        'Verify the recipient has WhatsApp installed and is online',
+        'Check if the phone number is correct and includes country code',
+        'Ask the recipient to update WhatsApp to the latest version',
+        'Ensure the recipient has accepted WhatsApp Terms of Service',
+        'Try sending a simple text message to test connectivity',
+        'If issue persists, contact the recipient via another channel'
+      ],
+      isRetryable: false
+    },
+    
+    // Marketing frequency cap
+    131049: {
+      title: 'Message Blocked by Rate Limit',
+      userMessage: 'Meta has blocked this marketing message to protect users from excessive messages. This is part of WhatsApp\'s healthy ecosystem engagement policy.',
+      suggestedActions: [
+        'Wait before retrying (try increasing time intervals)',
+        'Use a Utility template instead of Marketing',
+        'Reduce message frequency to this contact',
+        'Ensure the recipient has opted in to receive messages'
+      ],
+      isRetryable: true
+    },
+    
+    // Template not found
+    132001: {
+      title: 'Template Not Found',
+      userMessage: 'The message template does not exist on Meta or has been disabled.',
+      suggestedActions: [
+        'Go to Settings > WhatsApp > Templates and click "Sync from Meta"',
+        'Verify the template name is spelled correctly',
+        'Check if the template was recently edited and needs re-sync',
+        'Create a new template if the old one was deleted'
+      ],
+      isRetryable: false
+    },
+    
+    // Template parameters mismatch
+    132000: {
+      title: 'Template Parameters Error',
+      userMessage: 'The template parameters do not match the template structure.',
+      suggestedActions: [
+        'Check that all required parameters are provided',
+        'Verify parameter count matches template placeholders',
+        'Ensure parameter values are within character limits'
+      ],
+      isRetryable: false
+    },
+    
+    // Recipient not allowed (business-initiated message to non-opted-in user)
+    131025: {
+      title: 'Recipient Not Opted In',
+      userMessage: 'The recipient has not opted in to receive messages from your business.',
+      suggestedActions: [
+        'Ensure the recipient has given explicit consent',
+        'The recipient should message your business first',
+        'Use an opt-in form or process before sending messages'
+      ],
+      isRetryable: false
+    },
+    
+    // Message failed to send
+    131047: {
+      title: 'Session Expired',
+      userMessage: 'The 24-hour customer service window has expired. You need to use a template message.',
+      suggestedActions: [
+        'Send a Utility or Marketing template message',
+        'Wait for the customer to send a message first',
+        'Use the Templates feature in the composer'
+      ],
+      isRetryable: false
+    },
+    
+    // Authentication template to India
+    131021: {
+      title: 'Authentication Not Supported in India',
+      userMessage: 'Authentication templates cannot be sent to Indian (+91) phone numbers.',
+      suggestedActions: [
+        'Use SMS or email for OTP/verification in India',
+        'Use a Utility template for non-authentication messages',
+        'Contact Meta support for India-specific guidance'
+      ],
+      isRetryable: false
+    },
+    
+    // Rate limit hit
+    130429: {
+      title: 'Rate Limit Exceeded',
+      userMessage: 'Too many requests sent. Please wait before retrying.',
+      suggestedActions: [
+        'Wait a few minutes before trying again',
+        'Reduce the frequency of messages',
+        'Implement exponential backoff for retries'
+      ],
+      isRetryable: true
+    },
+    
+    // Temporary ban
+    368: {
+      title: 'Account Temporarily Restricted',
+      userMessage: 'Your WhatsApp Business account has been temporarily restricted due to policy violations.',
+      suggestedActions: [
+        'Check your email for details from Meta',
+        'Review WhatsApp Business Policy',
+        'Wait for the restriction to be lifted',
+        'Contact Meta Business Support if needed'
+      ],
+      isRetryable: false
+    }
+  };
+  
+  // Look up error code in map
+  const mappedError = errorMap[code];
+  if (mappedError) {
+    return {
+      ...defaultInfo,
+      ...mappedError,
+      code,
+      message: errorMsg
+    };
+  }
+  
+  // Check for common error patterns in the message
+  if (errorMsg.includes('undeliverable') || errorMsg.includes('Undeliverable')) {
+    return {
+      ...defaultInfo,
+      ...errorMap[131026],
+      code: code || 131026,
+      message: errorMsg
+    };
+  }
+  
+  if (errorMsg.includes('rate limit') || errorMsg.includes('too many')) {
+    return {
+      ...defaultInfo,
+      ...errorMap[130429],
+      code: code || 130429,
+      message: errorMsg
+    };
+  }
+  
+  return defaultInfo;
+}
+
+// ============================================================
 // Phone number / account
 // ============================================================
 

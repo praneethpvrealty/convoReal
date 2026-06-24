@@ -176,8 +176,7 @@ export default function InboxPage() {
       if (event.eventType === "INSERT") {
         // Add to messages if it belongs to active conversation
         if (
-          activeConversation &&
-          newMsg.conversation_id === activeConversation.id
+          activeConversationIdRef.current === newMsg.conversation_id
         ) {
           setMessages((prev) => {
             // Avoid duplicates
@@ -204,7 +203,7 @@ export default function InboxPage() {
                     last_message_text: newMsg.content_text ?? "",
                     last_message_at: newMsg.created_at,
                     unread_count:
-                      activeConversation?.id === newMsg.conversation_id
+                      activeConversationIdRef.current === newMsg.conversation_id
                         ? 0
                         : c.unread_count + 1,
                   }
@@ -228,7 +227,7 @@ export default function InboxPage() {
         );
       }
     },
-    [activeConversation, hydrateConversation]
+    [hydrateConversation]
   );
 
   // Handle realtime conversation events
