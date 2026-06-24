@@ -50,6 +50,14 @@ export default function InboxPage() {
   // new conversation even when both events arrive within milliseconds.
   const hydratingConvIdsRef = useRef<Set<string>>(new Set());
 
+  // Ref to track active conversation ID for realtime event handlers
+  // This avoids stale closure issues where activeConversation might not
+  // be updated yet when a realtime UPDATE arrives
+  const activeConversationIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversation?.id ?? null;
+  }, [activeConversation]);
+
   /**
    * Synchronous mirror of the conversation ids currently in `conversations`
    * state. Event handlers need to know "do we already have this conv?"
@@ -254,7 +262,8 @@ export default function InboxPage() {
           // RIGHT NOW, so any positive value would just flicker the badge
           // back on for the ~100ms it takes for the reset effect's server
           // UPDATE to round-trip. Non-active convs take the value as-is.
-          const isActive = activeConversation?.id === conv.id;
+          // Use ref to avoid stale closure issues
+          const isActive = activeConversationIdRef.current === conv.id;
           setConversations((prev) =>
             prev.map((c) =>
               c.id === conv.id

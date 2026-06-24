@@ -187,6 +187,13 @@ function isValidContactName(name: string): boolean {
   if (/(?:specialist|manager|director|lead|senior|junior|associate|consultant)\s*\|/i.test(trimmed)) return false;
   if (/\|\s*(?:trial|demo|experience|intern)/i.test(trimmed)) return false;
   
+  // Property owner/developer/builder names (not buyer contacts)
+  if (/(?:^OWNER\s*:|^DEVELOPER\s*:|^BUILDER\s*:|^BROKER\s*:)/i.test(trimmed)) return false;
+  if (/(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA|ADBHI|MERLIN|CONFIDENT|EMERALD|PURI|SUNTECH|MAHESTRA|OBEROI|MESCAPE|VASCON|VIKRAM|RAVINDRA|SATTVAVIHAR)/i.test(trimmed)) return false;
+  
+  // All-caps company/developer names (likely not a person's name)
+  if (/^[A-Z\s]{3,}$/.test(trimmed) && !/^(?:KARTHIK|GANESH|SHARON|JOSEPH|FRANCIS|RAGHU|VIJAY|RAJESH|SURESH|KUMAR|REDDY|NAIR|IYER|AIYER)/i.test(trimmed)) return false;
+  
   // Addresses (contain state codes, zip codes)
   if (/\b[A-Z]{2}\s+\d{5,6}\b/.test(trimmed)) return false; // CA 94104, TN 600018
   if (/\d+\s+(?:Market|Street|St|Ave|Avenue|Blvd|Road|Rd)\s+(?:St|PMB|Suite|Ste|Apt)/i.test(trimmed)) return false;
@@ -588,7 +595,14 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
 
     // Name extraction: "Name - Jane Doe" or "Name: Jane Doe"
     const nameMatch = bodyText.match(/name\s*[:|-]\s*(.+)/i);
-    if (nameMatch) name = nameMatch[1].trim();
+    if (nameMatch) {
+      const extractedName = nameMatch[1].trim();
+      // Skip if it's a property owner/developer name
+      if (!/^(?:OWNER|DEVELOPER|BUILDER|BROKER)\s*:/i.test(extractedName) &&
+          !/(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA)/i.test(extractedName)) {
+        name = extractedName;
+      }
+    }
 
     // Phone extraction: "Phone - 9876543210" or "Mobile: 9876543210" or "Contact: 9876543210"
     const phoneMatch = bodyText.match(/(?:phone|mobile|contact)\s*[:|-]\s*([+\d\s()-]{7,})/i);
