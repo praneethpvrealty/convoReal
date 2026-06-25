@@ -3417,7 +3417,7 @@ export function PropertyForm({
                         </div>
                       )}
                       <p className="text-[10px] text-slate-500 font-medium leading-normal">
-                        Auto-detected based on selected contact's classification
+                        Auto-detected based on selected contact&apos;s classification
                       </p>
                     </div>
 

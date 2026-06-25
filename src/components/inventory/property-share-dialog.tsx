@@ -907,20 +907,43 @@ export function PropertyShareDialog({
                   <Label className="text-slate-300 text-[11px] font-semibold">
                     {messageStyle === 'custom' ? 'Your Message' : 'Message Preview'}
                   </Label>
-                  <span className="text-[10px] text-slate-500">
-                    {messageStyle === 'custom' ? 'Edit your message' : 'Auto-generated with property details'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {messageStyle === 'custom' && customMessage && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomMessage('')}
+                        className="text-[10px] text-slate-500 hover:text-white flex items-center gap-1"
+                      >
+                        <X className="size-3" />
+                        Clear
+                      </button>
+                    )}
+                    <span className="text-[10px] text-slate-500">
+                      {messageStyle === 'custom' ? 'Edit your message' : 'Auto-generated with property details'}
+                    </span>
+                  </div>
                 </div>
-                <textarea
-                  readOnly={messageStyle !== 'custom'}
-                  value={messageStyle === 'custom' ? customMessage : generateShareMessage()}
-                  onChange={(e) => setCustomMessage(e.target.value)}
-                  placeholder="Type your custom message here..."
-                  rows={6}
-                  className={`w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 ${
-                    messageStyle === 'custom' ? 'cursor-text' : 'cursor-default'
-                  }`}
-                />
+                <div className="relative">
+                  <textarea
+                    readOnly={messageStyle !== 'custom'}
+                    value={messageStyle === 'custom' ? customMessage : generateShareMessage()}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    placeholder="Type your custom message here..."
+                    rows={6}
+                    className={`w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 ${
+                      messageStyle === 'custom' ? 'cursor-text pr-8' : 'cursor-default'
+                    }`}
+                  />
+                  {messageStyle === 'custom' && customMessage && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomMessage('')}
+                      className="absolute right-2 top-2 p-1 rounded-md text-slate-500 hover:text-white hover:bg-slate-700 transition-colors"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Public Showcase Link */}
