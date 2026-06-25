@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
+import { DeploymentCheck } from "@/components/deployment-check";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -81,6 +82,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full bg-background text-foreground font-sans">
         <ThemeProvider>
+          <DeploymentCheck />
           {children}
           <Analytics />
           <Toaster
