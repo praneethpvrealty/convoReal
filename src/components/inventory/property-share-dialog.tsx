@@ -173,12 +173,16 @@ export function PropertyShareDialog({
     const type = property.type || '';
     const beds = property.bedrooms ? `${property.bedrooms} BHK` : '';
     const area = property.area_sqft ? `${property.area_sqft} ${property.area_unit || 'Sq.Ft.'}` : '';
+    const agentName = profile?.full_name || '';
+    const agentPhone = profile?.phone || '';
+    const signOff = agentName ? `Best regards, ${agentName}` : 'Best regards';
+    const signOffWithPhone = agentPhone ? `${signOff}\n${agentPhone}` : signOff;
     
     const details = [beds, type, area, location].filter(Boolean).join(' | ');
     
     switch (messageStyle) {
       case 'professional':
-        return `Hi,\n\nI wanted to share a property listing that might interest you:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nFor complete details, photos, and location map, please visit:\n${showcaseUrl}\n\nFeel free to reach out if you have any questions.\n\nBest regards`;
+        return `Hi,\n\nI wanted to share a property listing that might interest you:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nFor complete details, photos, and location map, please visit:\n${showcaseUrl}\n\nFeel free to reach out if you have any questions.\n\n${signOffWithPhone}`;
       
       case 'casual':
         return `Hey!\n\nCheck out this property I found:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nHere's the link with all the details:\n${showcaseUrl}\n\nLet me know what you think!`;
@@ -192,7 +196,7 @@ export function PropertyShareDialog({
       default:
         return `Hi,\n\n${title}\n${showcaseUrl}`;
     }
-  }, [property, formattedPrice, messageStyle, customMessage]);
+  }, [property, formattedPrice, messageStyle, customMessage, profile]);
 
   // Get showcase URL for copying
   const showcaseUrl = useMemo(() => {
@@ -978,10 +982,10 @@ export function PropertyShareDialog({
                     if (typeof navigator !== 'undefined' && navigator.share) {
                       try {
                         const message = messageStyle === 'custom' ? customMessage : generateShareMessage();
+                        // Don't include url separately - it's already in the message
                         await navigator.share({
                           title: property.title || 'Property Details',
                           text: message,
-                          url: showcaseUrl,
                         });
                         toast.success('Shared successfully!');
                       } catch (err) {
