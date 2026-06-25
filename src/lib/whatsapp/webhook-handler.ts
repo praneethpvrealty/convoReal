@@ -36,6 +36,7 @@ export interface WhatsAppMessage {
   sticker?: { id: string; mime_type: string }
   location?: { latitude: number; longitude: number; name?: string; address?: string }
   reaction?: { message_id: string; emoji: string }
+  button?: { text: string; payload: string }
   contacts?: Array<{
     name: { formatted_name: string; first_name?: string; last_name?: string }
     phones?: Array<{ phone: string; type?: string; wa_id?: string }>
@@ -898,6 +899,15 @@ async function parseMessageContent(
 
     case 'reaction':
       return { ...empty, contentText: message.reaction?.emoji || null }
+
+    case 'button':
+      if (message.button) {
+        return {
+          ...empty,
+          contentText: `🔘 Button: "${message.button.text}"`,
+        }
+      }
+      return { ...empty, contentText: '[Button message]' }
 
     case 'interactive': {
       const reply =
