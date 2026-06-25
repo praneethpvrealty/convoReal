@@ -64,9 +64,6 @@ export async function GET(
 
     const accessToken = decrypt(config.access_token)
 
-    // Log the request for debugging
-    console.log(`[media] Fetching media ${mediaId} for account ${accountId}`)
-
     // Get the download URL from Meta
     let mediaInfo
     try {
@@ -83,7 +80,9 @@ export async function GET(
       
       // Check if it's a "not found" error (expired/invalid media)
       if (errorMessage.includes('does not exist') || errorMessage.includes('missing permissions') || errorMessage.includes('GraphMethodException')) {
-        console.warn(`[media] Media ${mediaId} is not a valid media object`)
+        // Expected for forwarded messages — the forwarded media ID is not directly
+        // accessible via the Graph API. Show a graceful placeholder in the inbox.
+        console.warn(`[media] Media ${mediaId} unavailable (forwarded or expired)`)
         
         return NextResponse.json(
           { 

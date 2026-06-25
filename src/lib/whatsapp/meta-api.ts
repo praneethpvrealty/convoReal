@@ -1288,9 +1288,6 @@ export async function getMediaUrl(
 ): Promise<{ url: string; mimeType: string }> {
   const { mediaId, accessToken } = args
   
-  // Log the request for debugging
-  console.log(`[meta-api] Resolving media ${mediaId}`)
-  
   const response = await fetch(`${META_API_BASE}/${mediaId}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
@@ -1309,7 +1306,6 @@ export async function getMediaUrl(
   const data = await response.json()
   if (!data.url) throw new Error('Media URL not found in Meta response')
   
-  console.log(`[meta-api] Media ${mediaId} resolved successfully`)
   return { url: data.url, mimeType: data.mime_type || 'application/octet-stream' }
 }
 

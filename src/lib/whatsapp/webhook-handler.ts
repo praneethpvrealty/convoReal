@@ -846,28 +846,20 @@ async function processMessage(
 
 async function parseMessageContent(
   message: WhatsAppMessage,
-  accessToken: string
+  // accessToken no longer needed — media is proxied on demand
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _accessToken: string
 ): Promise<{
   contentText: string | null
   mediaUrl: string | null
   mediaType: string | null
   interactiveReplyId: string | null
 }> {
-  const verifyAndBuildUrl = async (
-    mediaId: string
-  ): Promise<string | null> => {
-    try {
-      // Log the media ID for debugging
-      console.log(`[webhook] Verifying media ${mediaId}`)
-      await getMediaUrl({ mediaId, accessToken })
-      return `/api/whatsapp/media/${mediaId}`
-    } catch (error) {
-      console.error(
-        `[webhook] Failed to verify media ${mediaId} with Meta:`,
-        error instanceof Error ? error.message : error
-      )
-      return null
-    }
+  const buildMediaUrl = (mediaId: string): string => {
+    // Build the proxy URL without pre-verifying with Meta.
+    // The /api/whatsapp/media/[mediaId] proxy already handles
+    // unavailable or expired media IDs gracefully with a 404.
+    return `/api/whatsapp/media/${mediaId}`
   }
 
   const empty = {
@@ -886,7 +878,7 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.image.caption || null,
-          mediaUrl: await verifyAndBuildUrl(message.image.id),
+          mediaUrl: buildMediaUrl(message.image.id),
           mediaType: message.image.mime_type,
         }
       }
@@ -897,7 +889,7 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: message.video.caption || null,
-          mediaUrl: await verifyAndBuildUrl(message.video.id),
+          mediaUrl: buildMediaUrl(message.video.id),
           mediaType: message.video.mime_type,
         }
       }
@@ -909,7 +901,7 @@ async function parseMessageContent(
           ...empty,
           contentText:
             message.document.caption || message.document.filename || null,
-          mediaUrl: await verifyAndBuildUrl(message.document.id),
+          mediaUrl: buildMediaUrl(message.document.id),
           mediaType: message.document.mime_type,
         }
       }
@@ -919,7 +911,7 @@ async function parseMessageContent(
       if (message.audio?.id) {
         return {
           ...empty,
-          mediaUrl: await verifyAndBuildUrl(message.audio.id),
+          mediaUrl: buildMediaUrl(message.audio.id),
           mediaType: message.audio.mime_type,
         }
       }
@@ -929,7 +921,7 @@ async function parseMessageContent(
       if (message.sticker?.id) {
         return {
           ...empty,
-          mediaUrl: await verifyAndBuildUrl(message.sticker.id),
+          mediaUrl: buildMediaUrl(message.sticker.id),
           mediaType: message.sticker.mime_type,
         }
       }
