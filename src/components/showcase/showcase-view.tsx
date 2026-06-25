@@ -71,6 +71,9 @@ export function ShowcaseView({
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
 
+  // Agent mode: ?mode=agent hides inquiry form, interest buttons and document request
+  const [isAgentMode, setIsAgentMode] = useState(false);
+
   // Form states
   const [inquiryName, setInquiryName] = useState('');
   const [inquiryPhone, setInquiryPhone] = useState('');
@@ -111,6 +114,11 @@ export function ShowcaseView({
     const urlMinBeds = urlParams.get('beds');
     const urlSortBy = urlParams.get('sort');
     const urlSearchQuery = urlParams.get('search');
+
+    // Agent mode: hide inquiry form, interest buttons, document request
+    if (urlParams.get('mode') === 'agent') {
+      setIsAgentMode(true);
+    }
 
     let categoryToSet = 'All';
     let listingTypeToSet: 'All' | 'Sale' | 'Rent' = 'All';
@@ -1196,7 +1204,8 @@ export function ShowcaseView({
                     </div>
 
                     <div>
-                      {/* Quick Feedback Bar */}
+                      {/* Quick Feedback Bar — hidden in agent mode */}
+                      {!isAgentMode && (
                       <div className="flex items-center justify-between border-b border-slate-900/60 pb-3 mb-3 text-xs">
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Are you interested?</span>
                         <div className="flex items-center gap-2">
@@ -1229,6 +1238,7 @@ export function ShowcaseView({
                           </button>
                         </div>
                       </div>
+                      )}
 
                       {/* Price & Primary CTA */}
                       <div className="flex items-center justify-between mt-2 pt-2 gap-2">
@@ -1374,6 +1384,14 @@ export function ShowcaseView({
             {/* Right Pane: Details & Form */}
             <div className="w-full lg:w-[50%] p-6 flex flex-col justify-between overflow-y-auto max-h-none lg:max-h-[90vh]">
               
+              {/* Agent Mode Banner */}
+              {isAgentMode && (
+                <div className="mb-4 flex items-center gap-2 bg-blue-500/10 border border-blue-500/30 rounded-lg px-3 py-2 text-xs text-blue-300">
+                  <svg className="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  <span><strong>Agent Preview</strong> — Inquiry form and interest buttons are hidden. Share this link with co-brokers.</span>
+                </div>
+              )}
+
               {/* Header Info */}
               <div className="space-y-4">
                 <div>
@@ -1560,7 +1578,8 @@ export function ShowcaseView({
                 )}
               </div>
 
-              {/* ─── Request Documents Block ─── */}
+              {/* ─── Request Documents Block — hidden in agent mode ─── */}
+              {!isAgentMode && (
               <div className="mt-4">
                 {docReqSuccess === selectedProperty.id ? (
                   <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-4 flex items-start gap-3">
@@ -1646,8 +1665,10 @@ export function ShowcaseView({
                   </button>
                 )}
               </div>
+              )}
 
-              {/* Inquiry Form Block */}
+              {/* Inquiry Form Block — hidden in agent mode */}
+              {!isAgentMode && (
               <div className="mt-6 pt-6 border-t border-slate-850 space-y-4">
                 {/* Agent Profile & Direct Message option */}
                 {selectedProperty.agent_details && (
@@ -1705,7 +1726,8 @@ export function ShowcaseView({
                   </div>
                 )}
 
-                {/* Quick Feedback Bar inside Modal */}
+                {/* Quick Feedback Bar inside Modal — hidden in agent mode */}
+                {!isAgentMode && (
                 <div className="bg-slate-950/30 border border-slate-850 p-4 rounded-xl flex items-center justify-between gap-4">
                   <div className="flex flex-col">
                     <h5 className="text-[11px] font-bold text-slate-350 uppercase tracking-wider">Are you interested?</h5>
@@ -1740,6 +1762,7 @@ export function ShowcaseView({
                     </button>
                   </div>
                 </div>
+                )}
                 {submitSuccess ? (
                   <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl text-center space-y-2 animate-zoom-in">
                     <CheckCircle className="size-10 text-green-400 mx-auto" />
@@ -1825,6 +1848,7 @@ export function ShowcaseView({
                   </form>
                 )}
               </div>
+              )}
 
             </div>
           </div>

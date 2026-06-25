@@ -93,6 +93,7 @@ export function PropertyShareDialog({
   const [messageStyle, setMessageStyle] = useState<'professional' | 'casual' | 'friendly' | 'custom'>('professional');
   const [customMessage, setCustomMessage] = useState('');
   const [copiedMessage, setCopiedMessage] = useState(false);
+  const [copiedAgent, setCopiedAgent] = useState(false);
 
   useEffect(() => {
     if (!metaCatalogSyncedAt) {
@@ -198,12 +199,42 @@ export function PropertyShareDialog({
     }
   }, [property, formattedPrice, messageStyle, customMessage, profile]);
 
+  // Generate co-broker / agent message with agent-mode URL
+  const generateAgentMessage = useCallback(() => {
+    if (!property) return '';
+    const title = property.title || 'this property';
+    const price = formattedPrice || 'Price on request';
+    const location = [property.sublocality, property.city, property.state].filter(Boolean).join(', ') || property.location || '';
+    const type = property.type || '';
+    const beds = property.bedrooms ? `${property.bedrooms} BHK` : '';
+    const area = property.area_sqft ? `${property.area_sqft} ${property.area_unit || 'Sq.Ft.'}` : '';
+    const agentName = profile?.full_name || '';
+    const agentPhone = profile?.phone || '';
+    const details = [beds, type, area, location].filter(Boolean).join(' | ');
+    const signOff = agentName ? `Regards, ${agentName}` : 'Regards';
+    const signOffWithPhone = agentPhone ? `${signOff}\n${agentPhone}` : signOff;
+
+    const agentUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/?property_id=${property.id}&mode=agent`
+      : `/?property_id=${property.id}&mode=agent`;
+
+    return `Hi,\n\nSharing a property listing for your client's reference:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nFull details, photos and location map:\n${agentUrl}\n\nNote: This link shows complete property details. Your client can contact us directly for documents or further discussion.\n\n${signOffWithPhone}`;
+  }, [property, formattedPrice, profile]);
+
   // Get showcase URL for copying
   const showcaseUrl = useMemo(() => {
     if (!property) return '';
     return typeof window !== 'undefined' 
       ? `${window.location.origin}/?property_id=${property.id}` 
       : `/?property_id=${property.id}`;
+  }, [property]);
+
+  // Agent showcase URL — same page but with ?mode=agent (no inquiry form / interest buttons)
+  const agentShowcaseUrl = useMemo(() => {
+    if (!property) return '';
+    return typeof window !== 'undefined'
+      ? `${window.location.origin}/?property_id=${property.id}&mode=agent`
+      : `/?property_id=${property.id}&mode=agent`;
   }, [property]);
 
   // Fetch all active contacts for matching
@@ -1039,6 +1070,81 @@ export function PropertyShareDialog({
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* ── Co-Broker / Agent Share ── */}
+            <div className="bg-slate-900/50 border border-blue-500/20 p-4 rounded-xl space-y-3">
+              <h3 className="text-xs font-bold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
+                🤝 Share with Co-Brokers / Agents
+              </h3>
+              <p className="text-xs text-slate-400">
+                Share full property details with other agents so they can present it to their clients independently.
+                This link hides the inquiry form and interest buttons — <span className="text-blue-400 font-medium">clients contact the agent directly</span>.
+              </p>
+
+              {/* Agent message preview */}
+              <textarea
+                readOnly
+                value={generateAgentMessage()}
+                rows={5}
+                className="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 resize-none cursor-default"
+              />
+
+              {/* Agent link */}
+              <div className="flex gap-2">
+                <input
+                  readOnly
+                  value={agentShowcaseUrl}
+                  className="flex-1 rounded-md border border-slate-700 bg-slate-800/50 px-3 h-9 text-xs text-slate-300 font-mono select-all"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  onClick={async () => {
+                    const msg = generateAgentMessage();
+                    await navigator.clipboard.writeText(msg);
+                    setCopiedAgent(true);
+                    toast.success('Agent message + link copied!');
+                    setTimeout(() => setCopiedAgent(false), 2000);
+                  }}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                >
+                  {copiedAgent ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                  {copiedAgent ? 'Copied!' : 'Copy Message + Link'}
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (typeof navigator !== 'undefined' && navigator.share) {
+                      try {
+                        await navigator.share({
+                          title: property.title || 'Property Details',
+                          text: generateAgentMessage(),
+                        });
+                      } catch (err) {
+                        if ((err as Error).name !== 'AbortError') {
+                          toast.error('Failed to share');
+                        }
+                      }
+                    } else {
+                      await navigator.clipboard.writeText(generateAgentMessage());
+                      toast.success('Copied to clipboard!');
+                    }
+                  }}
+                  className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                >
+                  <Share2 className="size-3.5" />
+                  Share
+                </Button>
+                <Button
+                  onClick={() => window.open(agentShowcaseUrl, '_blank')}
+                  variant="outline"
+                  className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                >
+                  <ExternalLink className="size-3.5" />
+                  Preview
+                </Button>
+              </div>
             </div>
 
             <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
