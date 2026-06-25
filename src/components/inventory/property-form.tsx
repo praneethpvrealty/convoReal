@@ -309,6 +309,22 @@ export function PropertyForm({
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(new Set());
   const [contactSearchInput, setContactSearchInput] = useState('');
   const [isContactDropdownOpen, setIsContactDropdownOpen] = useState(false);
+  const [ownerSearchInput, setOwnerSearchInput] = useState('');
+  const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
+
+  // Close owner dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-owner-dropdown]')) {
+        setIsOwnerDropdownOpen(false);
+      }
+    }
+    if (isOwnerDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOwnerDropdownOpen]);
 
   // Helper classifications based on selected type
   const hasBedsBaths = [
@@ -1023,6 +1039,13 @@ export function PropertyForm({
         setDefaultImageIndex(0); // Default image is always at index 0
         setDocuments(property.documents && property.documents.length > 0 ? property.documents : ['']);
         setOwnerContactId(property.owner_contact_id ?? null);
+        // Set owner search input to display the selected owner's name
+        if (property.owner_contact_id) {
+          const ownerContact = contacts?.find(c => c.id === property.owner_contact_id);
+          if (ownerContact) {
+            setOwnerSearchInput(ownerContact.name || ownerContact.phone || '');
+          }
+        }
         setListingSource(property.listing_source ?? 'owner');
         setGoogleMapLink(property.google_map_link ?? '');
         
@@ -1445,6 +1468,40 @@ export function PropertyForm({
       setImages((prev) => prev.filter((_, i) => i !== index));
     }
   }
+
+  // Handle owner selection with auto-detection of listing source
+  function handleOwnerSelect(contactId: string | null) {
+    setOwnerContactId(contactId);
+    setIsOwnerDropdownOpen(false);
+    
+    // Set search input to display the selected contact's name
+    if (contactId) {
+      const selectedContact = contacts.find(c => c.id === contactId);
+      if (selectedContact) {
+        setOwnerSearchInput(selectedContact.name || selectedContact.phone || '');
+        // Auto-detect listing source based on selected contact's classification
+        const classification = selectedContact.classification?.toLowerCase() || '';
+        if (classification === 'agent') {
+          setListingSource('agent');
+        } else {
+          setListingSource('owner');
+        }
+      }
+    } else {
+      setOwnerSearchInput('');
+    }
+  }
+
+  // Filter contacts for owner search
+  const filteredOwnerContacts = useMemo(() => {
+    if (!ownerSearchInput.trim()) return contacts;
+    const query = ownerSearchInput.toLowerCase();
+    return contacts.filter(c => 
+      (c.name?.toLowerCase().includes(query)) ||
+      (c.phone?.toLowerCase().includes(query)) ||
+      (c.email?.toLowerCase().includes(query))
+    );
+  }, [contacts, ownerSearchInput]);
 
   function handleImageUrlChange(index: number, value: string) {
     setImages((prev) => {
@@ -3277,38 +3334,91 @@ export function PropertyForm({
                   <h4 className="text-sm font-semibold text-white">Owner & Inquiries</h4>
                   
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5 col-span-2 md:col-span-1">
+                    <div className="space-y-1.5 col-span-2 md:col-span-1" data-owner-dropdown>
                       <Label htmlFor="prop-owner" className="text-slate-300">
-                        Property Owner
+                        Select Contact (Owner/Agent)
                       </Label>
-                      <select
-                        id="prop-owner"
-                        value={ownerContactId || ''}
-                        onChange={(e) => setOwnerContactId(e.target.value || null)}
-                        className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
-                      >
-                        <option value="">No Owner Selected</option>
-                        {contacts.map((contact) => (
-                          <option key={contact.id} value={contact.id}>
-                            {contact.name || 'Unnamed'} ({contact.phone}) - {contact.classification}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <Input
+                          type="text"
+                          placeholder="Search by name, phone or email..."
+                          value={ownerSearchInput}
+                          onChange={(e) => {
+                            setOwnerSearchInput(e.target.value);
+                            setIsOwnerDropdownOpen(true);
+                          }}
+                          onFocus={() => setIsOwnerDropdownOpen(true)}
+                          readOnly={!!ownerContactId}
+                          className={`bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 text-sm ${
+                            ownerContactId ? 'cursor-default' : ''
+                          }`}
+                        />
+                        {ownerContactId && (
+                          <button
+                            type="button"
+                            onClick={() => handleOwnerSelect(null)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                          >
+                            ×
+                          </button>
+                        )}
+                        {ownerContactId && (
+                          <div className="absolute right-8 top-1/2 -translate-y-1/2">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                              listingSource === 'agent' ? 'bg-blue-500/20 text-blue-400' : 'bg-amber-500/20 text-amber-400'
+                            }`}>
+                              {listingSource === 'agent' ? 'Agent' : 'Owner'}
+                            </span>
+                          </div>
+                        )}
+                        {isOwnerDropdownOpen && filteredOwnerContacts.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-md shadow-lg max-h-60 overflow-auto">
+                            {filteredOwnerContacts.map((contact) => (
+                              <button
+                                key={contact.id}
+                                type="button"
+                                onClick={() => handleOwnerSelect(contact.id)}
+                                className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-700 flex items-center justify-between ${
+                                  ownerContactId === contact.id ? 'bg-primary/20 text-primary' : 'text-white'
+                                }`}
+                              >
+                                <span className="truncate">
+                                  {contact.name || 'Unnamed'} ({contact.phone})
+                                </span>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                  contact.classification === 'Agent' ? 'bg-blue-500/20 text-blue-400' :
+                                  contact.classification === 'Owner' ? 'bg-amber-500/20 text-amber-400' :
+                                  'bg-slate-600 text-slate-300'
+                                }`}>
+                                  {contact.classification}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div className="space-y-1.5 col-span-2 md:col-span-1">
                       <Label htmlFor="prop-listing-source" className="text-slate-300">
                         Listing Source
                       </Label>
-                      <select
-                        id="prop-listing-source"
-                        value={listingSource}
-                        onChange={(e) => setListingSource(e.target.value as 'owner' | 'agent')}
-                        className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
-                      >
-                        <option value="owner">Direct (from Owner)</option>
-                        <option value="agent">Referred by Agent</option>
-                      </select>
+                      {ownerContactId ? (
+                        <div className="flex items-center h-9 px-3 rounded-md border border-slate-700 bg-slate-800">
+                          <span className={`text-sm font-medium ${
+                            listingSource === 'agent' ? 'text-blue-400' : 'text-amber-400'
+                          }`}>
+                            {listingSource === 'agent' ? 'Referred by Agent' : 'Direct (from Owner)'}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center h-9 px-3 rounded-md border border-slate-700 bg-slate-800/50">
+                          <span className="text-sm text-slate-500">Select a contact first</span>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-slate-500 font-medium leading-normal">
+                        Auto-detected based on selected contact's classification
+                      </p>
                     </div>
 
                     <div className="space-y-3 col-span-2" ref={contactSearchRef}>
