@@ -58,36 +58,58 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     return val;
   };
 
-  const rangeBothUnits = /(?:between\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
-  const rangeSingleUnit = /(?:between\s+)?(\d+(?:\.\d+)?)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
+  // New: `>`, `<`, `>=`, `<=` operators
+  // > 50 cr, >= 2 Cr, < 1.5 Cr, <= 80 lakhs
+  const operatorPattern = /([><]=?)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)?/i;
+  const opMatch = q.match(operatorPattern);
+  if (opMatch) {
+    const op = opMatch[1];
+    const val = opMatch[2];
+    const unit = opMatch[3] || '';
+    const parsed = unit ? parseValWithUnit(val, unit) : parseFloat(val);
+    if (parsed !== null && !isNaN(parsed)) {
+      if (op === '>' || op === '>=') {
+        minPrice = op === '>=' ? parsed : parsed + 1;
+      }
+      if (op === '<' || op === '<=') {
+        maxPrice = op === '<=' ? parsed : parsed - 1;
+      }
+    }
+  }
 
-  const mBoth = q.match(rangeBothUnits);
-  const mSingle = q.match(rangeSingleUnit);
+  // Only fall through to text-based price parsing if no operator was found
+  if (!opMatch) {
+    const rangeBothUnits = /(?:between\s+)?(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
+    const rangeSingleUnit = /(?:between\s+)?(\d+(?:\.\d+)?)\s*(?:to|and|-)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
 
-  if (mBoth) {
-    minPrice = parseValWithUnit(mBoth[1], mBoth[2]);
-    maxPrice = parseValWithUnit(mBoth[3], mBoth[4]);
-  } else if (mSingle) {
-    minPrice = parseValWithUnit(mSingle[1], mSingle[3]);
-    maxPrice = parseValWithUnit(mSingle[2], mSingle[3]);
-  } else {
-    const maxPattern = /(?:under|below|less\s+than|max|upto|up\s+to)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
-    const minPattern = /(?:above|more\s+than|greater\s+than|min|starting\s+from|starting|at\s+least)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
-    const singlePattern = /(?:around|about|approx|approximate)?\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
+    const mBoth = q.match(rangeBothUnits);
+    const mSingle = q.match(rangeSingleUnit);
 
-    const mMax = q.match(maxPattern);
-    const mMin = q.match(minPattern);
-    const mSingleVal = q.match(singlePattern);
+    if (mBoth) {
+      minPrice = parseValWithUnit(mBoth[1], mBoth[2]);
+      maxPrice = parseValWithUnit(mBoth[3], mBoth[4]);
+    } else if (mSingle) {
+      minPrice = parseValWithUnit(mSingle[1], mSingle[3]);
+      maxPrice = parseValWithUnit(mSingle[2], mSingle[3]);
+    } else {
+      const maxPattern = /(?:under|below|less\s+than|max|upto|up\s+to)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
+      const minPattern = /(?:above|more\s+than|greater\s+than|min|starting\s+from|starting|at\s+least)\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
+      const singlePattern = /(?:around|about|approx|approximate)?\s*(\d+(?:\.\d+)?)\s*(cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/i;
 
-    if (mMax) {
-      maxPrice = parseValWithUnit(mMax[1], mMax[2]);
-    } else if (mMin) {
-      minPrice = parseValWithUnit(mMin[1], mMin[2]);
-    } else if (mSingleVal) {
-      const target = parseValWithUnit(mSingleVal[1], mSingleVal[2]);
-      if (target !== null) {
-        minPrice = target * 0.85;
-        maxPrice = target * 1.15;
+      const mMax = q.match(maxPattern);
+      const mMin = q.match(minPattern);
+      const mSingleVal = q.match(singlePattern);
+
+      if (mMax) {
+        maxPrice = parseValWithUnit(mMax[1], mMax[2]);
+      } else if (mMin) {
+        minPrice = parseValWithUnit(mMin[1], mMin[2]);
+      } else if (mSingleVal) {
+        const target = parseValWithUnit(mSingleVal[1], mSingleVal[2]);
+        if (target !== null) {
+          minPrice = target * 0.85;
+          maxPrice = target * 1.15;
+        }
       }
     }
   }
@@ -161,6 +183,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   }
 
   let remainingSearch = q;
+  remainingSearch = remainingSearch.replace(/[><]=?\s*\d+(?:\.\d+)?\s*(?:cr|crore|crores|l|lakh|lakhs|lacs|lac|k)?/gi, '');
   remainingSearch = remainingSearch.replace(/(?:between\s+)?\d+(?:\.\d+)?\s*(?:cr|crore|crores|l|lakh|lakhs|lacs|lac|k)?\s*(?:to|and|-)\s*\d+(?:\.\d+)?\s*(?:cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/gi, '');
   remainingSearch = remainingSearch.replace(/(?:under|below|less\s+than|max|upto|up\s+to|above|more\s+than|greater\s+than|min|starting\s+from|starting|at\s+least)\s*\d+(?:\.\d+)?\s*(?:cr|crore|crores|l|lakh|lakhs|lacs|lac|k)/gi, '');
   remainingSearch = remainingSearch.replace(/\b\d+(?:\.\d+)?\s*(?:cr|crore|crores|l|lakh|lakhs|lacs|lac|k)\b/gi, '');

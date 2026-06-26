@@ -57,4 +57,37 @@ describe('parsePropertyQuery', () => {
     expect(res.types).toEqual([]);
     expect(res.remainingSearch).toBe('prestige blue waters');
   });
+
+  it('should parse > operator', () => {
+    const res = parsePropertyQuery('price > 50 cr');
+    expect(res.minPrice).toBe(500000001);
+    expect(res.maxPrice).toBeNull();
+    expect(res.types).toEqual([]);
+  });
+
+  it('should parse >= operator', () => {
+    const res = parsePropertyQuery('price >= 2 Cr');
+    expect(res.minPrice).toBe(20000000);
+    expect(res.maxPrice).toBeNull();
+  });
+
+  it('should parse < operator', () => {
+    const res = parsePropertyQuery('budget < 1.5 Cr');
+    expect(res.minPrice).toBeNull();
+    expect(res.maxPrice).toBe(14999999);
+  });
+
+  it('should parse <= operator', () => {
+    const res = parsePropertyQuery('<= 80 lakhs');
+    expect(res.minPrice).toBeNull();
+    expect(res.maxPrice).toBe(8000000);
+  });
+
+  it('should parse complex query with operator + type + location', () => {
+    const res = parsePropertyQuery('villa > 3 Cr in Whitefield');
+    expect(res.minPrice).toBe(30000001);
+    expect(res.maxPrice).toBeNull();
+    expect(res.types).toContain('Villa');
+    expect(res.remainingSearch).toBe('whitefield');
+  });
 });

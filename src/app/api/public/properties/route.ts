@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
-import { CATEGORY_SUBTYPES } from "@/lib/search-parser";
+import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
 
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 12;
@@ -43,6 +43,7 @@ export async function GET(request: Request) {
     const minPrice = searchParams.get("min_price");
     const maxPrice = searchParams.get("max_price");
     const location = searchParams.get("location")?.trim() || "";
+    const search = searchParams.get("search")?.trim() || "";
 
     // 4. Fetch properties bypassing RLS using supabaseAdmin client
     const client = supabaseAdmin();
@@ -84,6 +85,16 @@ export async function GET(request: Request) {
     if (maxPrice) {
       const max = Number(maxPrice);
       if (!isNaN(max)) query = query.lte("price", max);
+    }
+    if (search) {
+      const parsed = parsePropertyQuery(search);
+      if (parsed.minPrice !== null) query = query.gte("price", parsed.minPrice);
+      if (parsed.maxPrice !== null) query = query.lte("price", parsed.maxPrice);
+      if (parsed.types.length > 0) query = query.in("type", parsed.types);
+      if (parsed.remainingSearch) {
+        const term = `%${parsed.remainingSearch}%`;
+        query = query.or(`title.ilike.${term},location.ilike.${term},sublocality.ilike.${term},city.ilike.${term},project.ilike.${term},property_code.ilike.${term}`);
+      }
     }
 
     const { data, error, count } = await query;

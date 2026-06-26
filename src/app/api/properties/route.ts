@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
-import { CATEGORY_SUBTYPES } from "@/lib/search-parser";
+import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -42,8 +42,27 @@ export async function GET(request: Request) {
       .range(from, to);
 
     if (search) {
-      const term = `%${search}%`;
-      query = query.or(`title.ilike.${term},location.ilike.${term},project.ilike.${term},description.ilike.${term},property_code.ilike.${term}`);
+      // Parse natural language search: "2 BHK villa in Domlur under 2 Cr" or "price > 50 Cr"
+      const parsed = parsePropertyQuery(search);
+
+      // Apply extracted price range
+      if (parsed.minPrice !== null) {
+        query = query.gte("price", parsed.minPrice);
+      }
+      if (parsed.maxPrice !== null) {
+        query = query.lte("price", parsed.maxPrice);
+      }
+
+      // Apply extracted type filter
+      if (parsed.types.length > 0) {
+        query = query.in("type", parsed.types);
+      }
+
+      // Fall back to ILIKE text search on remaining search terms
+      if (parsed.remainingSearch) {
+        const term = `%${parsed.remainingSearch}%`;
+        query = query.or(`title.ilike.${term},location.ilike.${term},project.ilike.${term},description.ilike.${term},property_code.ilike.${term}`);
+      }
     }
 
     if (type) {

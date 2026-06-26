@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { CATEGORY_SUBTYPES } from '@/lib/search-parser';
+import { CATEGORY_SUBTYPES, parsePropertyQuery } from '@/lib/search-parser';
 import {
   Search,
   MapPin,
@@ -646,15 +646,37 @@ export function ShowcaseView({
       result = result.filter((p) => p.bedrooms && p.bedrooms >= beds);
     }
 
-    // Filter by search query
+    // Filter by search query — supports natural language
     if (searchQuery) {
+      const parsed = parsePropertyQuery(searchQuery);
       const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.location.toLowerCase().includes(q) ||
-          (p.project && p.project.toLowerCase().includes(q))
-      );
+
+      // Apply price range from parsed query
+      if (parsed.minPrice !== null) {
+        result = result.filter((p) => p.price >= parsed.minPrice!);
+      }
+      if (parsed.maxPrice !== null) {
+        result = result.filter((p) => p.price <= parsed.maxPrice!);
+      }
+
+      // Apply type filter from parsed query
+      if (parsed.types.length > 0) {
+        result = result.filter((p) => parsed.types.includes(p.type));
+      }
+
+      // Apply text search on remaining search terms
+      if (parsed.remainingSearch) {
+        const text = parsed.remainingSearch;
+        result = result.filter(
+          (p) =>
+            p.title.toLowerCase().includes(text) ||
+            p.location.toLowerCase().includes(text) ||
+            p.sublocality?.toLowerCase().includes(text) ||
+            p.city?.toLowerCase().includes(text) ||
+            (p.project && p.project.toLowerCase().includes(text)) ||
+            p.property_code?.toLowerCase().includes(text)
+        );
+      }
     }
 
     // Sort
@@ -954,7 +976,7 @@ export function ShowcaseView({
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search location, title, or project..."
+                placeholder='Search properties — "2 BHK villa in Domlur under 2 Cr" or "price > 50 Cr"'
                 className="pl-10 bg-slate-950 border-slate-800 text-white placeholder:text-slate-650 focus:border-primary focus:ring-1 focus:ring-primary w-full"
               />
             </div>
