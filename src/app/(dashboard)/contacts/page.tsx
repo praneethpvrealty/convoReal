@@ -65,6 +65,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { parsePropertyQuery } from '@/lib/search-parser';
 
 const PAGE_SIZE = 25;
 
@@ -387,22 +388,164 @@ export default function ContactsPage() {
     }
 
     if (search.trim()) {
-      const term = `%${search.trim()}%`;
-      const { data: matchedNotes } = await supabaseClient
-        .from('contact_notes')
-        .select('contact_id')
-        .eq('account_id', accountId)
-        .ilike('note_text', term);
-      
-      const noteContactIds = matchedNotes
-        ? Array.from(new Set(matchedNotes.map((n) => n.contact_id).filter(Boolean)))
-        : [];
-      
-      let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
-      if (noteContactIds.length > 0) {
-        orFilter += `,id.in.(${noteContactIds.join(',')})`;
+      const parsed = parsePropertyQuery(search.trim());
+      const isNlpQuery =
+        parsed.locations.length > 0 ||
+        parsed.types.length > 0 ||
+        parsed.bedrooms !== null ||
+        parsed.minPrice !== null ||
+        parsed.maxPrice !== null;
+
+      if (isNlpQuery) {
+        // 1. Fetch contact IDs from notes matching locations, types, and bedrooms in parallel
+        let locNotesPromise = Promise.resolve<any[]>([]);
+        if (parsed.locations.length > 0) {
+          const locFilters = parsed.locations.map(loc => `note_text.ilike.%${loc}%`).join(',');
+          locNotesPromise = supabaseClient
+            .from('contact_notes')
+            .select('contact_id')
+            .eq('account_id', accountId)
+            .or(locFilters)
+            .then(res => res.data || []);
+        }
+
+        let typeNotesPromise = Promise.resolve<any[]>([]);
+        if (parsed.types.length > 0) {
+          const typeFilters = parsed.types.map(type => `note_text.ilike.%${type}%`).join(',');
+          typeNotesPromise = supabaseClient
+            .from('contact_notes')
+            .select('contact_id')
+            .eq('account_id', accountId)
+            .or(typeFilters)
+            .then(res => res.data || []);
+        }
+
+        let bedNotesPromise = Promise.resolve<any[]>([]);
+        if (parsed.bedrooms !== null) {
+          const b = parsed.bedrooms;
+          const bedFilters = `note_text.ilike.%${b}%bhk%,note_text.ilike.%${b}%bedroom%,note_text.ilike.%${b}%bed%`;
+          bedNotesPromise = supabaseClient
+            .from('contact_notes')
+            .select('contact_id')
+            .eq('account_id', accountId)
+            .or(bedFilters)
+            .then(res => res.data || []);
+        }
+
+        // 2. Fetch contact IDs from tags matching types
+        let tagContactIdsPromise = Promise.resolve<string[]>([]);
+        if (parsed.types.length > 0) {
+          const tagFilters = parsed.types.map(t => `name.ilike.${t}`).join(',');
+          tagContactIdsPromise = supabaseClient
+            .from('tags')
+            .select('id')
+            .or(tagFilters)
+            .then(async (res) => {
+              const tagIds = (res.data || []).map(t => t.id);
+              if (tagIds.length === 0) return [];
+              const { data: ctData } = await supabaseClient
+                .from('contact_tags')
+                .select('contact_id')
+                .in('tag_id', tagIds);
+              return (ctData || []).map(ct => ct.contact_id).filter(Boolean);
+            });
+        }
+
+        const [locNotes, typeNotes, bedNotes, tagContactIds] = await Promise.all([
+          locNotesPromise,
+          typeNotesPromise,
+          bedNotesPromise,
+          tagContactIdsPromise,
+        ]);
+
+        const locNoteContactIds = Array.from(new Set(locNotes.map(n => n.contact_id).filter(Boolean)));
+        const typeNoteContactIds = Array.from(new Set(typeNotes.map(n => n.contact_id).filter(Boolean)));
+        const bedNoteContactIds = Array.from(new Set(bedNotes.map(n => n.contact_id).filter(Boolean)));
+
+        // Combine type note and tag IDs
+        const typeContactIds = Array.from(new Set([...typeNoteContactIds, ...tagContactIds]));
+
+        // Limit lists to prevent URL length limits (HTTP 414)
+        const safeLocIds = locNoteContactIds.slice(0, 150);
+        const safeTypeIds = typeContactIds.slice(0, 150);
+        const safeBedIds = bedNoteContactIds.slice(0, 150);
+
+        // 3. Apply location filters
+        if (parsed.locations.length > 0) {
+          let locOrs = parsed.locations.map(loc => `requirements.ilike.%${loc}%,areas_of_interest.cs.{"${loc}"}`).join(',');
+          if (safeLocIds.length > 0) {
+            locOrs += `,id.in.(${safeLocIds.join(',')})`;
+          }
+          query = query.or(locOrs);
+        }
+
+        // 4. Apply type filters
+        if (parsed.types.length > 0) {
+          let typeOrs = parsed.types.map(t => `requirements.ilike.%${t}%,property_interests.cs.{"${t}"}`).join(',');
+          if (safeTypeIds.length > 0) {
+            typeOrs += `,id.in.(${safeTypeIds.join(',')})`;
+          }
+          query = query.or(typeOrs);
+        }
+
+        // 5. Apply bedroom filters
+        if (parsed.bedrooms !== null) {
+          const b = parsed.bedrooms;
+          let bedOrs = `requirements.ilike.%${b}%bhk%,requirements.ilike.%${b}%bedroom%,requirements.ilike.%${b}%bed%`;
+          if (safeBedIds.length > 0) {
+            bedOrs += `,id.in.(${safeBedIds.join(',')})`;
+          }
+          query = query.or(bedOrs);
+        }
+
+        // 6. Apply budget filters (overlap logic)
+        if (parsed.maxPrice !== null) {
+          query = query.or(`min_budget.lte.${parsed.maxPrice},min_budget.is.null`);
+        }
+        if (parsed.minPrice !== null) {
+          query = query.or(`max_budget.gte.${parsed.minPrice},max_budget.is.null,no_budget.eq.true`);
+        }
+
+        // 7. Fallback for remaining search text
+        if (parsed.remainingSearch) {
+          const term = `%${parsed.remainingSearch}%`;
+          const { data: matchedNotes } = await supabaseClient
+            .from('contact_notes')
+            .select('contact_id')
+            .eq('account_id', accountId)
+            .ilike('note_text', term);
+
+          const remainingNoteContactIds = matchedNotes
+            ? Array.from(new Set(matchedNotes.map((n) => n.contact_id).filter(Boolean)))
+            : [];
+          const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
+
+          let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+          if (safeRemainingIds.length > 0) {
+            orFilter += `,id.in.(${safeRemainingIds.join(',')})`;
+          }
+          query = query.or(orFilter);
+        }
+      } else {
+        // Simple text-search query fallback
+        const term = `%${search.trim()}%`;
+        const { data: matchedNotes } = await supabaseClient
+          .from('contact_notes')
+          .select('contact_id')
+          .eq('account_id', accountId)
+          .ilike('note_text', term);
+
+        const noteContactIds = matchedNotes
+          ? Array.from(new Set(matchedNotes.map((n) => n.contact_id).filter(Boolean)))
+          : [];
+        const safeNoteIds = noteContactIds.slice(0, 150);
+
+        let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+        if (safeNoteIds.length > 0) {
+          orFilter += `,id.in.(${safeNoteIds.join(',')})`;
+        }
+        query = query.or(orFilter);
       }
-      query = query.or(orFilter);
     }
 
     query = query.range(from, to);
