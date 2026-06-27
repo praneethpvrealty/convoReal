@@ -154,6 +154,18 @@ const nextConfig: NextConfig = {
         destination: `https://${toDomain}/:path*`,
         permanent: false,
       },
+      // 1a. Redirect old crm subdomain to the new main apex domain
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: `crm\\.${escapedFrom}`,
+          },
+        ],
+        destination: `https://${toDomain}/:path*`,
+        permanent: false,
+      },
       // 2. Redirect all subdomains (retaining subdomain slug)
       {
         source: '/:path*',

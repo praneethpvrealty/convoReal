@@ -14,13 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { MessageSquare, UsersRound } from "lucide-react";
+import { MessageSquare, UsersRound, Phone, Key, ArrowLeft } from "lucide-react";
 
-// `useSearchParams` opts the component out of static prerendering
-// unless it sits under a Suspense boundary. We split the form into
-// a child component so the outer page can prerender the chrome
-// (background, card frame) while the form hydrates with the query
-// string on the client.
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
@@ -36,8 +31,13 @@ function LoginPageInner() {
   // page to accept rather than to /dashboard.
   const inviteToken = searchParams.get("invite");
 
+  const [activeTab, setActiveTab] = useState<'email' | 'phone'>('email');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const supabase = createClient();
@@ -81,6 +81,77 @@ function LoginPageInner() {
     }
   };
 
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+    setLoading(true);
+
+    let cleanPhone = phone.trim().replace(/\s+/g, "");
+    if (!cleanPhone.startsWith("+")) {
+      if (cleanPhone.length === 10) {
+        cleanPhone = `+91${cleanPhone}`;
+      } else {
+        setError("Please enter a valid phone number (e.g. 9900277111 or +919900277111)");
+        setLoading(false);
+        return;
+      }
+    }
+
+    console.log('[LOGIN] Requesting SMS OTP for phone:', cleanPhone);
+    const { error } = await supabase.auth.signInWithOtp({
+      phone: cleanPhone,
+    });
+
+    if (error) {
+      console.error('[LOGIN] SMS OTP request error:', error.message);
+      setError(error.message);
+      setLoading(false);
+    } else {
+      setSuccessMessage("Verification code sent to your WhatsApp!");
+      setOtpSent(true);
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    let cleanPhone = phone.trim().replace(/\s+/g, "");
+    if (!cleanPhone.startsWith("+") && cleanPhone.length === 10) {
+      cleanPhone = `+91${cleanPhone}`;
+    }
+
+    console.log('[LOGIN] Verifying OTP code for:', cleanPhone);
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone: cleanPhone,
+      token: otp.trim(),
+      type: "sms",
+    });
+
+    if (error) {
+      console.error('[LOGIN] OTP verification error:', error.message);
+      setError(error.message);
+      setLoading(false);
+      return;
+    }
+
+    if (!data.session) {
+      setError("Session establishment failed. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    console.log('[LOGIN] OTP Session established, navigating...');
+    if (inviteToken) {
+      window.location.href = `/join/${encodeURIComponent(inviteToken)}`;
+    } else {
+      window.location.href = '/dashboard';
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setError(null);
     setLoading(true);
@@ -103,99 +174,218 @@ function LoginPageInner() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <Card className="w-full max-w-md border-slate-800 bg-slate-900">
-        <CardHeader className="items-center text-center">
-          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+    <div className="relative flex min-h-screen items-center justify-center bg-slate-950 px-4 overflow-hidden">
+      {/* Ambient radial glows */}
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-[400px] h-[400px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+      
+      {/* Grid background pattern */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-50 pointer-events-none" />
+
+      <Card className="relative w-full max-w-md border border-slate-800/80 bg-slate-900/60 backdrop-blur-xl shadow-2xl hover:border-slate-700/50 transition-all duration-300 rounded-3xl overflow-hidden z-10 p-2">
+        <CardHeader className="items-center text-center pb-2">
+          <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 shadow-inner">
             {inviteToken ? (
               <UsersRound className="h-6 w-6 text-primary" />
             ) : (
               <MessageSquare className="h-6 w-6 text-primary" />
             )}
           </div>
-          <CardTitle className="text-xl text-white">
+          <CardTitle className="text-2xl font-black text-white tracking-tight">
             {inviteToken ? "Sign in to accept" : "Welcome back"}
           </CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardDescription className="text-slate-400 font-medium">
             {inviteToken
               ? "Sign in and we'll take you to the invitation."
               : "Sign in to your account"}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            {error && (
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {error}
-              </div>
-            )}
-
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email" className="text-slate-300">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-slate-300">
-                  Password
-                </Label>
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-primary hover:text-primary/80"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 focus-visible:border-primary focus-visible:ring-primary/20"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="mt-2 h-10 w-full bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        <CardContent className="pt-2">
+          
+          {/* Tab Selection */}
+          <div className="flex bg-slate-950/70 p-1 rounded-xl border border-slate-850 mb-6">
+            <button
+              type="button"
+              onClick={() => { setActiveTab('email'); setError(null); setSuccessMessage(null); }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                activeTab === 'email'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              {loading ? "Signing in..." : "Sign in"}
-            </Button>
-          </form>
+              Email Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveTab('phone'); setError(null); setSuccessMessage(null); }}
+              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                activeTab === 'phone'
+                  ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              WhatsApp OTP
+            </button>
+          </div>
 
+          {/* Status alerts */}
+          {error && (
+            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400 font-medium mb-4">
+              {error}
+            </div>
+          )}
+          {successMessage && (
+            <div className="rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400 font-medium mb-4">
+              {successMessage}
+            </div>
+          )}
+
+          {activeTab === 'email' ? (
+            /* Email Password Form */
+            <form onSubmit={handleLogin} className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="email" className="text-slate-300 font-bold text-xs">
+                  Email Address
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl"
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="text-slate-300 font-bold text-xs">
+                    Password
+                  </Label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs text-primary hover:text-primary/80 font-bold"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading}
+                className="mt-2 h-10 w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer hover:scale-101 hover:shadow-lg hover:shadow-primary/20 active:scale-99 transition-all disabled:opacity-50"
+              >
+                {loading ? "Signing in..." : "Sign in"}
+              </Button>
+            </form>
+          ) : (
+            /* WhatsApp / Phone OTP Form */
+            <div className="flex flex-col gap-4">
+              {!otpSent ? (
+                <form onSubmit={handleSendOtp} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="phone" className="text-slate-300 font-bold text-xs">
+                      Phone Number
+                    </Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="e.g. +91 99002 77111"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        required
+                        className="pl-10 border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      Enter with country code (e.g. +91 for India).
+                    </p>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="mt-2 h-10 w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer hover:scale-101 hover:shadow-lg hover:shadow-primary/20 active:scale-99 transition-all disabled:opacity-50"
+                  >
+                    {loading ? "Sending code..." : "Send Verification Code"}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp} className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="otp" className="text-slate-300 font-bold text-xs">
+                        Verification Code
+                      </Label>
+                      <button
+                        type="button"
+                        onClick={() => { setOtpSent(false); setSuccessMessage(null); setError(null); }}
+                        className="flex items-center gap-1 text-[11px] text-primary hover:underline font-bold cursor-pointer"
+                      >
+                        <ArrowLeft className="size-3" /> Change Number
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Key className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+                      <Input
+                        id="otp"
+                        type="text"
+                        placeholder="Enter 6-digit code"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        required
+                        maxLength={6}
+                        className="pl-10 border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl tracking-widest font-black text-center"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    disabled={loading}
+                    className="mt-2 h-10 w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-xl cursor-pointer hover:scale-101 hover:shadow-lg hover:shadow-primary/20 active:scale-99 transition-all disabled:opacity-50"
+                  >
+                    {loading ? "Verifying..." : "Verify & Sign In"}
+                  </Button>
+                </form>
+              )}
+            </div>
+          )}
+
+          {/* Social login divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-slate-900 px-2 text-slate-500 font-medium">
+              <span className="bg-slate-900/40 backdrop-blur-xl px-2 text-slate-500 font-bold">
                 or continue with
               </span>
             </div>
           </div>
 
+          {/* Google Login Button */}
           <Button
             type="button"
             variant="outline"
             disabled={loading}
             onClick={handleGoogleLogin}
-            className="flex h-10 w-full items-center justify-center gap-2 border-slate-850 bg-slate-950 text-slate-200 hover:bg-slate-900 hover:text-white disabled:opacity-50 transition-colors rounded-lg font-semibold"
+            className="flex h-10 w-full items-center justify-center gap-2 border border-slate-800 bg-slate-950/80 text-slate-200 hover:bg-slate-900 hover:text-white disabled:opacity-50 hover:border-slate-700/80 transition-all rounded-xl font-bold text-xs cursor-pointer active:scale-99"
           >
-            <svg className="h-4 w-4 mr-1" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
+            <svg className="h-4 w-4 mr-1 shrink-0" viewBox="0 0 24 24" width="24" height="24" xmlns="http://www.w3.org/2000/svg">
               <g transform="matrix(1, 0, 0, 1, 0, 0)">
                 <path d="M21.35,11.1H12v2.7h5.38c-0.24,1.28 -0.96,2.37 -2.04,3.1v2.6h3.29c1.92,-1.78 3.02,-4.4 3.02,-7.4C21.65,11.83 21.54,11.43 21.35,11.1z" fill="#4285F4" />
                 <path d="M12,20.5c2.3,0 4.23,-0.76 5.64,-2.08l-3.29,-2.6c-0.91,0.61 -2.07,0.98 -3.29,0.98 -2.25,0 -4.16,-1.52 -4.84,-3.57H2.88v2.7C4.29,18.73 7.89,20.5 12,20.5z" fill="#34A853" />
@@ -206,7 +396,7 @@ function LoginPageInner() {
             Sign in with Google
           </Button>
 
-          <p className="mt-6 text-center text-sm text-slate-400">
+          <p className="mt-6 text-center text-sm text-slate-400 font-medium">
             Don&apos;t have an account?{" "}
             <Link
               href={
@@ -214,7 +404,7 @@ function LoginPageInner() {
                   ? `/signup?invite=${encodeURIComponent(inviteToken)}`
                   : "/signup"
               }
-              className="text-primary hover:text-primary/80"
+              className="text-primary hover:text-primary/80 font-bold transition-all"
             >
               Create account
             </Link>
