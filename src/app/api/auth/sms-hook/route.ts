@@ -7,20 +7,20 @@ import { sendTextMessage } from '@/lib/whatsapp/meta-api';
 export async function POST(request: Request) {
   try {
     const rawSecret = process.env.SUPABASE_SMS_HOOK_SECRET;
-    // Strip surrounding quotes if present from configuration environment inputs
-    const secret = rawSecret?.replace(/^"|"$/g, '');
+    let secretStr = rawSecret?.replace(/^"|"$/g, '') || '';
+    secretStr = secretStr.replace(/^(v\d+,)?whsec_/, ''); // Strip version/Svix prefix if present
     const signatureHeader = request.headers.get('x-supabase-signature');
 
     console.log('[SMS Hook Debug]', {
       hasRawSecret: !!rawSecret,
       rawSecretLength: rawSecret?.length,
-      hasCleanSecret: !!secret,
-      cleanSecretLength: secret?.length,
+      hasCleanSecret: !!secretStr,
+      cleanSecretLength: secretStr.length,
       hasSignatureHeader: !!signatureHeader,
       signatureHeaderValue: signatureHeader,
     });
 
-    if (!secret || !signatureHeader) {
+    if (!secretStr || !signatureHeader) {
       console.error('[SMS Hook] Missing secret or signature header');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -43,26 +43,75 @@ export async function POST(request: Request) {
 
     // Recreate the expected signature
     const message = `${timestamp}.${bodyText}`;
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(message)
-      .digest('hex');
+    
+    // We support verification with both:
+    // A) The base64-decoded buffer of the secret (Svix/standardwebhooks specification)
+    // B) The raw secret string (UTF-8)
+    const secretKeys: Array<string | Buffer> = [secretStr];
+    try {
+      const decodedBuffer = Buffer.from(secretStr, 'base64');
+      if (decodedBuffer.length > 0) {
+        secretKeys.push(decodedBuffer);
+      }
+    } catch (e) {}
 
-    console.log('[SMS Hook Debug] Signature verification:', {
-      timestamp,
-      receivedSignature: signature,
-      expectedSignature,
-      isMatch: signature === expectedSignature,
-    });
+    let isMatch = false;
 
-    // Secure timing-safe signature comparison
-    const signatureBuffer = Buffer.from(signature, 'hex');
-    const expectedBuffer = Buffer.from(expectedSignature, 'hex');
+    for (const key of secretKeys) {
+      // 1. Calculate HMAC-SHA256 in hex
+      const expectedSignatureHex = crypto
+        .createHmac('sha256', key)
+        .update(message)
+        .digest('hex');
 
-    if (
-      signatureBuffer.length !== expectedBuffer.length ||
-      !crypto.timingSafeEqual(signatureBuffer, expectedBuffer)
-    ) {
+      // 2. Calculate HMAC-SHA256 in base64
+      const expectedSignatureBase64 = crypto
+        .createHmac('sha256', key)
+        .update(message)
+        .digest('base64');
+
+      console.log('[SMS Hook Debug] Key comparison:', {
+        keyType: typeof key,
+        keyLength: key.length,
+        receivedSignature: signature,
+        expectedHex: expectedSignatureHex,
+        expectedBase64: expectedSignatureBase64,
+      });
+
+      // Secure comparison for hex
+      try {
+        const sigBuf = Buffer.from(signature, 'hex');
+        const expHexBuf = Buffer.from(expectedSignatureHex, 'hex');
+        if (
+          sigBuf.length === expHexBuf.length &&
+          crypto.timingSafeEqual(sigBuf, expHexBuf)
+        ) {
+          isMatch = true;
+          break;
+        }
+      } catch (e) {}
+
+      // Secure comparison for base64
+      try {
+        const sigBuf = Buffer.from(signature, 'base64');
+        const expB64Buf = Buffer.from(expectedSignatureBase64, 'base64');
+        if (
+          sigBuf.length === expB64Buf.length &&
+          crypto.timingSafeEqual(sigBuf, expB64Buf)
+        ) {
+          isMatch = true;
+          break;
+        }
+      } catch (e) {}
+      
+      // Fallback plain comparison
+      if (signature === expectedSignatureHex || signature === expectedSignatureBase64) {
+        isMatch = true;
+        break;
+      }
+    }
+
+    if (!isMatch) {
       console.error('[SMS Hook] Webhook signature mismatch');
       return NextResponse.json({ error: 'Signature mismatch' }, { status: 401 });
     }
