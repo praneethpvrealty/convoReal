@@ -102,6 +102,12 @@ export async function POST(request: Request) {
         receivedSignature: signature,
         expectedHex: expectedSignatureHex,
         expectedBase64: expectedSignatureBase64,
+        webhookId,
+        timestamp,
+        bodyTextLength: bodyText?.length,
+        bodyTextPreview: bodyText?.substring(0, 100),
+        isSvixFormat,
+        messageSigned: message,
       });
 
       // Secure comparison for hex
