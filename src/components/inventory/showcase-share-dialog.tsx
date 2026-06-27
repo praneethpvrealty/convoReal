@@ -20,6 +20,7 @@ interface ShowcaseShareDialogProps {
   onOpenChange: (open: boolean) => void;
   accountId: string | null;
   showcaseSettings: ShowcaseSettings | null;
+  activeSearch?: string;
 }
 
 function getBaseHost() {
@@ -41,9 +42,11 @@ export function ShowcaseShareDialog({
   onOpenChange,
   accountId,
   showcaseSettings,
+  activeSearch,
 }: ShowcaseShareDialogProps) {
   const [shareCategory, setShareCategory] = useState<'All' | 'Residential' | 'Commercial' | 'Agricultural'>('All');
   const [copied, setCopied] = useState(false);
+  const [includeSearch, setIncludeSearch] = useState(true);
 
   const generatedLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -70,8 +73,12 @@ export function ShowcaseShareDialog({
       urlObj.searchParams.set('category', shareCategory);
     }
 
+    if (includeSearch && activeSearch?.trim()) {
+      urlObj.searchParams.set('search', activeSearch.trim());
+    }
+
     return urlObj.toString();
-  }, [accountId, shareCategory, showcaseSettings]);
+  }, [accountId, shareCategory, showcaseSettings, includeSearch, activeSearch]);
 
   const handleCopyLink = async () => {
     try {
@@ -128,6 +135,22 @@ export function ShowcaseShareDialog({
               Selecting a category will automatically apply the filter when the customer opens the link.
             </p>
           </div>
+
+          {/* Active Search Filter Checkbox */}
+          {activeSearch?.trim() && (
+            <div className="flex items-center gap-2.5 p-3 bg-slate-950/20 border border-slate-900 rounded-xl relative z-10">
+              <input
+                type="checkbox"
+                id="include-search"
+                checked={includeSearch}
+                onChange={(e) => setIncludeSearch(e.target.checked)}
+                className="size-4 border-slate-800 rounded text-primary focus:ring-primary/20 bg-slate-950 cursor-pointer"
+              />
+              <label htmlFor="include-search" className="text-xs font-bold text-slate-350 cursor-pointer select-none">
+                Include active search query: <span className="text-primary italic font-black">&quot;{activeSearch}&quot;</span>
+              </label>
+            </div>
+          )}
 
           {/* Generated Link Input */}
           <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">

@@ -100,7 +100,7 @@ const navItems: NavItem[] = [
   { href: "/inventory", label: "Inventory", icon: Home },
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
   { href: "/automations", label: "Automations", icon: Zap },
-  { href: "/flows", label: "Flows", icon: Workflow, beta: true },
+  { href: "/flows", label: "Flows", icon: Workflow },
 ];
 
 const bottomNavItems = [

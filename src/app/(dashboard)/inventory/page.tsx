@@ -548,6 +548,7 @@ export default function InventoryPage() {
         onOpenChange={setShowcaseShareOpen}
         accountId={accountId}
         showcaseSettings={showcaseSettings}
+        activeSearch={search}
       />
 
       {/* Delete Confirmation Modal */}
