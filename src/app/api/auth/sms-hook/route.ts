@@ -34,21 +34,41 @@ export async function POST(request: Request) {
     // Read raw body text for signature calculation
     const bodyText = await request.text();
 
-    // Parse the header (format: t=TIMESTAMP,v1=SIGNATURE)
-    const parts = signatureHeader.split(',');
-    const timestampPart = parts.find(p => p.startsWith('t='));
-    const signaturePart = parts.find(p => p.startsWith('v1='));
+    // Parse the header
+    let timestamp: string | null = null;
+    let signature: string | null = null;
+    let isSvixFormat = false;
+    const webhookId = request.headers.get('webhook-id') || request.headers.get('svix-id') || request.headers.get('x-webhook-id') || '';
 
-    if (!timestampPart || !signaturePart) {
-      console.error('[SMS Hook] Invalid signature header format');
+    // Check if the header contains v1,SIGNATURE (comma-separated, typical Svix/standardwebhooks)
+    // Supports multiple space-separated signatures
+    const signatureParts = signatureHeader.split(/\s+/);
+    const svixPart = signatureParts.find(p => /^v\d+,/.test(p));
+    if (svixPart) {
+      isSvixFormat = true;
+      signature = svixPart.replace(/^v\d+,/, '');
+      timestamp = request.headers.get('webhook-timestamp') || request.headers.get('svix-timestamp') || request.headers.get('x-webhook-timestamp');
+    } else {
+      // Parse the header (format: t=TIMESTAMP,v1=SIGNATURE)
+      const parts = signatureHeader.split(',');
+      const timestampPart = parts.find(p => p.startsWith('t='));
+      const signaturePart = parts.find(p => p.startsWith('v1='));
+
+      if (timestampPart && signaturePart) {
+        timestamp = timestampPart.split('=')[1];
+        signature = signaturePart.split('=')[1];
+      }
+    }
+
+    if (!timestamp || !signature) {
+      console.error('[SMS Hook] Invalid signature header format or missing timestamp/signature');
       return NextResponse.json({ error: 'Invalid signature format' }, { status: 401 });
     }
 
-    const timestamp = timestampPart.split('=')[1];
-    const signature = signaturePart.split('=')[1];
-
     // Recreate the expected signature
-    const message = `${timestamp}.${bodyText}`;
+    const message = isSvixFormat && webhookId
+      ? `${webhookId}.${timestamp}.${bodyText}`
+      : `${timestamp}.${bodyText}`;
     
     // We support verification with both:
     // A) The base64-decoded buffer of the secret (Svix/standardwebhooks specification)
