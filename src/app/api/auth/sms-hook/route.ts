@@ -9,7 +9,12 @@ export async function POST(request: Request) {
     const rawSecret = process.env.SUPABASE_SMS_HOOK_SECRET;
     let secretStr = rawSecret?.replace(/^"|"$/g, '') || '';
     secretStr = secretStr.replace(/^(v\d+,)?whsec_/, ''); // Strip version/Svix prefix if present
-    const signatureHeader = request.headers.get('x-supabase-signature');
+    const signatureHeader = 
+      request.headers.get('x-supabase-signature') || 
+      request.headers.get('webhook-signature') || 
+      request.headers.get('x-webhook-signature');
+
+    const headerKeys = Array.from(request.headers.keys());
 
     console.log('[SMS Hook Debug]', {
       hasRawSecret: !!rawSecret,
@@ -18,6 +23,7 @@ export async function POST(request: Request) {
       cleanSecretLength: secretStr.length,
       hasSignatureHeader: !!signatureHeader,
       signatureHeaderValue: signatureHeader,
+      receivedHeaders: headerKeys,
     });
 
     if (!secretStr || !signatureHeader) {
