@@ -35,6 +35,7 @@ import { PropertyList } from '@/components/inventory/property-list';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
+import { localCache } from '@/lib/cache-store';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
@@ -151,18 +152,29 @@ export default function InventoryPage() {
   }, [fetchGlobalStats]);
 
   const fetchProperties = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: '25',
-      });
-      if (search.trim()) params.set('search', search.trim());
-      if (typeFilter !== 'All') params.set('type', typeFilter);
-      if (statusFilter !== 'All') params.set('status', statusFilter);
-      if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
-      if (sourceFilter !== 'All') params.set('listing_source', sourceFilter === 'Owner' ? 'owner' : 'agent');
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: '25',
+    });
+    if (search.trim()) params.set('search', search.trim());
+    if (typeFilter !== 'All') params.set('type', typeFilter);
+    if (statusFilter !== 'All') params.set('status', statusFilter);
+    if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
+    if (sourceFilter !== 'All') params.set('listing_source', sourceFilter === 'Owner' ? 'owner' : 'agent');
 
+    const cacheKey = `properties-${params.toString()}`;
+    const cached = localCache.get<{ data: Property[]; pagination: { total: number; totalPages: number } }>(cacheKey);
+
+    if (cached) {
+      setProperties(cached.data || []);
+      setTotalCount(cached.pagination?.total || 0);
+      setTotalPages(cached.pagination?.totalPages || 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    try {
       const response = await fetch(`/api/properties?${params.toString()}&_t=${Date.now()}`, {
         cache: 'no-store',
       });
@@ -170,6 +182,7 @@ export default function InventoryPage() {
         throw new Error('Failed to fetch properties');
       }
       const result = await response.json();
+      localCache.set(cacheKey, result);
       setProperties(result.data || []);
       setTotalCount(result.pagination?.total || 0);
       setTotalPages(result.pagination?.totalPages || 0);
@@ -309,6 +322,7 @@ export default function InventoryPage() {
       toast.success('Property listing deleted successfully');
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
+      localCache.clear();
       fetchProperties();
       fetchGlobalStats();
     } catch (err: unknown) {
@@ -342,6 +356,7 @@ export default function InventoryPage() {
           ? 'Property hidden from showcase'
           : 'Property is now public on showcase'
       );
+      localCache.clear();
       fetchProperties();
       fetchGlobalStats();
     } catch (err: unknown) {
@@ -507,7 +522,7 @@ export default function InventoryPage() {
         open={formOpen}
         onOpenChange={setFormOpen}
         property={selectedProperty}
-        onSaved={() => { fetchProperties(); fetchGlobalStats(); }}
+        onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
         viewOnly={formViewOnly}
       />
 
@@ -516,7 +531,7 @@ export default function InventoryPage() {
         open={flyerOpen}
         onOpenChange={setFlyerOpen}
         property={flyerProperty}
-        onSaved={() => { fetchProperties(); fetchGlobalStats(); }}
+        onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
       />
 
       {/* Share Property Dialog */}
@@ -524,7 +539,7 @@ export default function InventoryPage() {
         open={shareOpen}
         onOpenChange={setShareOpen}
         property={shareProperty}
-        onSaved={() => { fetchProperties(); fetchGlobalStats(); }}
+        onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
       />
 
       {/* Share Showcase Portal Dialog */}

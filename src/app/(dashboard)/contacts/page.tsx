@@ -66,6 +66,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { parsePropertyQuery } from '@/lib/search-parser';
+import { localCache } from '@/lib/cache-store';
 
 const PAGE_SIZE = 25;
 
@@ -322,11 +323,23 @@ export default function ContactsPage() {
 
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
-    setLoading(true);
     const supabaseClient = createClient();
 
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
+
+    const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${search}`;
+    const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number }>(cacheKey);
+
+    if (cached) {
+      setContacts(cached.enriched || []);
+      setTotalCount(cached.totalCount || 0);
+      setActiveCount(cached.activeCount || 0);
+      setReviewCount(cached.reviewCount || 0);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
     let query = supabaseClient
       .from('contacts')
@@ -602,6 +615,13 @@ export default function ContactsPage() {
         .filter(Boolean),
     }));
 
+    localCache.set(cacheKey, {
+      enriched,
+      totalCount: count ?? 0,
+      activeCount: actCountRes.count ?? 0,
+      reviewCount: revCountRes.count ?? 0,
+    });
+
     setContacts(enriched);
     setLoading(false);
   }, [
@@ -617,6 +637,11 @@ export default function ContactsPage() {
     filterArea,
     sortBy,
   ]);
+
+  const fetchContactsWithInvalidate = useCallback(() => {
+    localCache.clear();
+    fetchContacts();
+  }, [fetchContacts]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -739,7 +764,7 @@ export default function ContactsPage() {
       if (error) throw error;
 
       toast.success(`Successfully imported ${records.length} contacts`);
-      fetchContacts();
+      fetchContactsWithInvalidate();
     } catch (err) {
       const error = err as Error;
       console.error('Bulk insert failed:', error);
@@ -781,7 +806,7 @@ export default function ContactsPage() {
       toast.error('Failed to delete contact');
     } else {
       toast.success('Contact deleted');
-      fetchContacts();
+      fetchContactsWithInvalidate();
     }
 
     setDeleting(false);
@@ -1375,7 +1400,7 @@ export default function ContactsPage() {
         contact={editContact}
         contactTags={editContactTags}
         onSaved={() => {
-          fetchContacts();
+          fetchContactsWithInvalidate();
           fetchTags();
         }}
       />
@@ -1385,14 +1410,14 @@ export default function ContactsPage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         contactId={detailContactId}
-        onUpdated={fetchContacts}
+        onUpdated={fetchContactsWithInvalidate}
       />
 
       {/* Import Modal */}
       <ImportModal
         open={importOpen}
         onOpenChange={setImportOpen}
-        onImported={fetchContacts}
+        onImported={fetchContactsWithInvalidate}
       />
 
       {/* Bulk Import Modal */}
