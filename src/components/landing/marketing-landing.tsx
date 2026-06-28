@@ -16,7 +16,6 @@ import {
   ChevronRight,
   Play, 
   Building,
-  UserCheck,
   Send,
   Bell,
   ShoppingCart
@@ -26,7 +25,6 @@ import { MARKETING_CONFIG } from '@/config/marketing';
 
 export function MarketingLanding() {
   // Demo states
-  const [activeDemoTab, setActiveDemoTab] = useState<'parser' | 'copywriter' | 'matching' | 'showcase'>('parser');
   const [demoStep, setDemoStep] = useState<'idle' | 'parsing' | 'completed'>('idle');
   const [copyStep, setCopyStep] = useState<'idle' | 'writing' | 'completed'>('idle');
   const [matchStep, setMatchStep] = useState<'idle' | 'matching' | 'completed'>('idle');
@@ -63,13 +61,6 @@ export function MarketingLanding() {
     setTimeout(() => {
       setShowcaseStep('completed');
     }, 1200);
-  };
-
-  const handleResetDemo = () => {
-    setDemoStep('idle');
-    setCopyStep('idle');
-    setMatchStep('idle');
-    setShowcaseStep('idle');
   };
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -411,7 +402,7 @@ export function MarketingLanding() {
                   <div className="h-[210px] rounded-xl border border-slate-850 bg-slate-950 p-4 overflow-y-auto leading-relaxed select-none text-[11px]">
                     {demoStep === 'idle' && (
                       <div className="font-mono text-slate-400 space-y-1">
-                        <span className="text-slate-500 font-bold block mb-1.5">// Messy chat message forwarded to CRM:</span>
+                        <span className="text-slate-500 font-bold block mb-1.5">{"// Messy chat message forwarded to CRM:"}</span>
                         &ldquo;{MARKETING_CONFIG.demo.mockMessage}&rdquo;
                       </div>
                     )}
@@ -494,7 +485,7 @@ export function MarketingLanding() {
                   <div className="h-[210px] rounded-xl border border-slate-850 bg-slate-950 p-4 overflow-y-auto leading-relaxed select-none text-[11px]">
                     {copyStep === 'idle' && (
                       <div className="space-y-2 text-slate-350">
-                        <span className="text-slate-500 font-bold block mb-1.5">// Basic specifications captured from agent:</span>
+                        <span className="text-slate-500 font-bold block mb-1.5">{"// Basic specifications captured from agent:"}</span>
                         {isRealEstate ? (
                           <>
                             <div className="flex justify-between border-b border-slate-900 pb-1">
@@ -613,7 +604,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                   <div className="h-[210px] rounded-xl border border-slate-850 bg-slate-950 p-4 overflow-y-auto leading-relaxed select-none text-[11px]">
                     {matchStep === 'idle' && (
                       <div className="space-y-2 text-slate-350">
-                        <span className="text-slate-500 font-bold block mb-1.5">// Buyer preferences mapped in CRM:</span>
+                        <span className="text-slate-500 font-bold block mb-1.5">{"// Buyer preferences mapped in CRM:"}</span>
                         <div className="flex justify-between border-b border-slate-900 pb-1">
                           <span className="text-slate-500">Client Profile</span>
                           <span className="font-semibold text-slate-200">Vikram Malhotra (Investor)</span>
@@ -658,7 +649,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                     
                     {matchStep === 'completed' && (
                       <div className="space-y-2.5 animate-fade-in text-[10px]">
-                        <span className="text-slate-500 font-bold block mb-1">// Matched catalog items (Sorted by score):</span>
+                        <span className="text-slate-500 font-bold block mb-1">{"// Matched catalog items (Sorted by score):"}</span>
                         
                         {isRealEstate ? (
                           <>
@@ -735,7 +726,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                   <div className="h-[210px] rounded-xl border border-slate-850 bg-slate-950 p-4 overflow-y-auto leading-relaxed select-none text-[11px] flex flex-col justify-center">
                     {showcaseStep === 'idle' && (
                       <div className="space-y-2 text-slate-350">
-                        <span className="text-slate-500 font-bold block mb-1.5">// Configure custom portal mapping:</span>
+                        <span className="text-slate-500 font-bold block mb-1.5">{"// Configure custom portal mapping:"}</span>
                         <div className="flex justify-between items-center border-b border-slate-900 pb-1.5">
                           <span className="text-slate-500">Showcase Brand</span>
                           <span className="font-semibold text-slate-200">{isRealEstate ? 'PV Realty' : 'Boutique Watch'}</span>

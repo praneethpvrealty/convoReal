@@ -61,10 +61,10 @@ export default function InventoryPage() {
   });
   
   // Filters
-  const [typeFilter, setTypeFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [showcaseFilter, setShowcaseFilter] = useState('All');
-  const [sourceFilter, setSourceFilter] = useState('All');
+  const [typeFilter] = useState('All');
+  const [statusFilter] = useState('All');
+  const [showcaseFilter] = useState('All');
+  const [sourceFilter] = useState('All');
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false);

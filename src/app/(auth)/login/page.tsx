@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -40,7 +40,16 @@ function LoginPageInner() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
   const supabase = createClient();
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,8 +90,8 @@ function LoginPageInner() {
     }
   };
 
-  const handleSendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     setError(null);
     setSuccessMessage(null);
     setLoading(true);
@@ -111,6 +120,7 @@ function LoginPageInner() {
       setSuccessMessage("Verification code sent to your WhatsApp!");
       setOtpSent(true);
       setLoading(false);
+      setCountdown(60);
     }
   };
 
@@ -351,6 +361,21 @@ function LoginPageInner() {
                         className="pl-10 border-slate-800 bg-slate-950 text-white placeholder:text-slate-600 focus-visible:border-primary focus-visible:ring-primary/20 h-10 rounded-xl tracking-widest font-black text-center"
                       />
                     </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs font-semibold px-1">
+                    <span className="text-slate-500">Didn&apos;t receive the code?</span>
+                    {countdown > 0 ? (
+                      <span className="text-slate-400 font-mono">Resend in {countdown}s</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSendOtp()}
+                        className="text-primary hover:underline font-bold cursor-pointer bg-transparent border-0 p-0"
+                      >
+                        Resend code
+                      </button>
+                    )}
                   </div>
 
                   <Button

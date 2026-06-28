@@ -48,6 +48,34 @@ To maximize code reuse, speed up time-to-market, and leverage the existing TypeS
 
 ---
 
+## 🛠️ Development & Tooling Strategy
+
+### **Zero-Install Development**
+*   **No Android Studio Required:** We do **not** need to install Android Studio or set up complex native environments on your machine.
+*   **Instant Testing:** Development is done via **Expo Go**. You scan a QR code from your terminal, and the app runs instantly on your physical Android phone.
+*   **Cloud Builds:** We use **EAS (Expo Application Services)** to build the app. You run a simple command in your terminal, and Expo's servers build the final Android App Bundle (`.aab`) for you.
+
+### **Hosting & Infrastructure**
+*   **Zero New Hosting:** The mobile app connects directly to your **existing Supabase** database, Storage Buckets, and API routes. No new servers or hosting costs are required.
+*   **Over-the-Air (OTA) Updates:** We can push instant updates (bug fixes, text changes) directly to users' phones without requiring them to download a new version from the store.
+
+### **Release Procedure (Android)**
+1.  **Google Play Console:** Create an account on the Google Play Console.
+    *   *Cost:* One-time **$25 fee** to Google.
+2.  **Build:** Run `eas build --platform android` to generate the store-ready file.
+3.  **Upload:** Upload the file to the Play Console.
+4.  **Review:** Google reviews the app (typically 2–5 days).
+5.  **Live:** Once approved, the app is live for download.
+
+### **iOS Portability**
+*   **100% Code Reuse:** The code written for Android is the same code used for iOS. We write the logic once, and it works on both platforms.
+*   **Future iOS Release:** When you are ready for iOS, you will need:
+    *   An **Apple Developer Account** ($99/year).
+    *   No Mac is strictly required, as we can also build iOS apps in the cloud using EAS.
+*   **Strategy:** We will start with **Android only**, but the code structure will be set up so that when you are ready for iOS, we simply flip a switch and generate the iOS build.
+
+---
+
 ## 📱 Core Features & Implementation Details
 
 ### 1. Inbuilt Real-time Messaging
@@ -97,31 +125,33 @@ sequenceDiagram
 ## 📋 Implementation Phases
 
 ### Phase 1: Foundation & Scaffold (Weeks 1-2)
-* Scaffold React Native project using **Expo Router** (file-based navigation matching Next.js).
-* Install `@supabase/supabase-js` and configure authentication store with secure keychain caching.
-* Build authentication screens (Email/OTP login) and enable local Biometric Unlock (FaceID).
-* Define unified style system (reusing Tailwind styles with `nativewind` or CSS vars).
+*   **Android-First Scaffold:** Initialize React Native project using **Expo Router** (file-based navigation).
+*   **Zero-Install Setup:** Configure **Expo Go** for instant testing on Android devices (no Android Studio needed).
+*   **Auth & Security:** Install `@supabase/supabase-js` and configure authentication store with secure keychain caching (`expo-secure-store`).
+*   **Biometrics:** Implement local Biometric Unlock (FaceID/Fingerprint) for quick access.
+*   **Style System:** Define unified style system (reusing Tailwind styles with `nativewind` or CSS vars).
 
 ### Phase 2: Offline Store & Real-time Chats (Weeks 3-5)
-* Configure local schema (SQLite/WatermelonDB) representing `contacts`, `conversations`, and `messages`.
-* Implement sync engine: pull pagination records from `/api/properties` and `/api/contacts` on initial launch.
-* Build the **Inbox View** and **Chat Console Window** with support for quick template insertions.
-* Connect Supabase Realtime sockets to keep chat threads synced live.
+*   **Local Schema:** Configure local schema (SQLite/WatermelonDB) representing `contacts`, `conversations`, and `messages`.
+*   **Sync Engine:** Implement sync engine: pull pagination records from `/api/properties` and `/api/contacts` on initial launch.
+*   **Inbox & Chat:** Build the **Inbox View** and **Chat Console Window** with support for quick template insertions.
+*   **Real-time Sockets:** Connect Supabase Realtime sockets to keep chat threads synced live.
 
 ### Phase 3: Push Notification Pipeline (Weeks 6-7)
-* Setup Apple Developer and Google Firebase projects to configure APNs and FCM certificates.
-* Write a database trigger (or add logic in the Node queue worker) to send a POST request to Expo Push Service (`https://exp.host/--/api/v2/push/send`) whenever a new message is inserted with a `direction === 'incoming'` attribute.
-* Integrate Expo Notifications listener in the mobile client to handle deep-linking into specific conversation IDs when a notification is clicked.
+*   **Firebase Setup:** Setup Google Firebase project to configure FCM certificates.
+*   **Trigger Logic:** Write a database trigger (or add logic in the Node queue worker) to send a POST request to Expo Push Service whenever a new message is inserted with `direction === 'incoming'`.
+*   **Deep Linking:** Integrate Expo Notifications listener to handle deep-linking into specific conversation IDs when a notification is clicked.
 
 ### Phase 4: Inventory Management & Polish (Weeks 8-9)
-* Create the mobile-optimized **Inventory Dashboard**: add/edit property listings (Sale/Rent, Commercial Beds/Baths rules).
-* Integrate camera access (`expo-image-picker`) to upload property photos directly from the phone into Supabase storage buckets.
-* Test layout responsiveness across multiple iOS and Android screen resolutions.
+*   **Mobile Inventory:** Create the mobile-optimized **Inventory Dashboard**: add/edit property listings.
+*   **Camera Integration:** Integrate camera access (`expo-image-picker`) to upload property photos directly from the phone into Supabase storage buckets.
+*   **Responsive Layout:** Test layout responsiveness across multiple Android screen resolutions.
 
 ### Phase 5: Testing & Store Submission (Weeks 10-12)
-* Run internal beta distributions using **Expo EAS (Expo Application Services)** and TestFlight (iOS) / Google Play Console Internal Testing (Android).
-* Optimize build sizes, fix memory leaks in image rendering lists, and final security audits.
-* Submit production builds to App Store and Google Play Store.
+*   **Beta Distribution:** Run internal beta distributions using **Expo EAS Build** (Cloud) and Google Play Console Internal Testing.
+*   **Optimization:** Optimize build sizes, fix memory leaks in image rendering lists, and final security audits.
+*   **Store Release:** Submit production build to Google Play Store (One-time $25 fee).
+*   **iOS Prep:** Verify code portability for future iOS release (Apple Developer Account $99/year required later).
 
 ## 🎙️ Native Voice Recording & WisprFlow Integration
 

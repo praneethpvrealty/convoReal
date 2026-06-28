@@ -142,6 +142,17 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       }
 
       const config = configRows[0]
+      
+      // Trial Expiration Check
+      if (config.integration_type !== 'official_api' && config.trial_ends_at) {
+        if (new Date() > new Date(config.trial_ends_at)) {
+          console.warn(`[webhook] Trial expired for account ${config.account_id} (${config.integration_type}). Dropping message.`);
+          // Optional: Send auto-response to user about trial expiration
+          // await sendTextMessage(..., "Your trial has expired...");
+          continue;
+        }
+      }
+
       const decryptedAccessToken = decrypt(config.access_token)
 
       for (let i = 0; i < value.messages.length; i++) {

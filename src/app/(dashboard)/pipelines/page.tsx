@@ -92,7 +92,10 @@ export default function PipelinesPage() {
   const searchParams = useSearchParams();
   useEffect(() => {
     if (searchParams.get("new") === "true") {
-      setDealFormOpen(true);
+      const timer = setTimeout(() => {
+        setDealFormOpen(true);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [searchParams]);
 

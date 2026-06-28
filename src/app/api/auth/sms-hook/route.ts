@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       if (decodedBuffer.length > 0) {
         secretKeys.push(decodedBuffer);
       }
-    } catch (e) {}
+    } catch {}
 
     let isMatch = false;
 
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
           isMatch = true;
           break;
         }
-      } catch (e) {}
+      } catch {}
 
       // Secure comparison for base64
       try {
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
           isMatch = true;
           break;
         }
-      } catch (e) {}
+      } catch {}
       
       // Fallback plain comparison
       if (signature === expectedSignatureHex || signature === expectedSignatureBase64) {

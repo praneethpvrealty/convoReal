@@ -53,14 +53,14 @@ export function ActiveUsers() {
     async function loadActiveUsers() {
       try {
         // 1. Fetch team members (profiles) in the current account
-        const { data: teamData, error: teamError } = await supabase
+        const { data: teamData } = await supabase
           .from("profiles")
           .select("id, full_name, avatar_url, account_role, role, updated_at")
           .eq("account_id", accountId || "")
           .limit(5)
 
         // 2. Fetch active clients (contacts) in the current account
-        const { data: clientData, error: clientError } = await supabase
+        const { data: clientData } = await supabase
           .from("contacts")
           .select("id, name, phone, classification, requirements, updated_at")
           .eq("account_id", accountId || "")
@@ -171,7 +171,7 @@ export function ActiveUsers() {
     return () => {
       active = false
     }
-  }, [accountId, currentUser])
+  }, [accountId, currentUser, supabase])
 
   if (loading) {
     return (

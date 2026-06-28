@@ -61,6 +61,7 @@ export function WhatsAppConfig() {
   const [catalogId, setCatalogId] = useState('');
   const [autoSyncCatalog, setAutoSyncCatalog] = useState(false);
   const [tokenEdited, setTokenEdited] = useState(false);
+  const [integrationType, setIntegrationType] = useState<'sandbox' | 'web_qr' | 'official_api'>('official_api');
 
   // True once /register has succeeded on Meta's side (timestamp set
   // in the row). When false, the saved config is metadata-only and
@@ -114,6 +115,7 @@ export function WhatsAppConfig() {
         setPin('');
         setCatalogId(data.catalog_id || '');
         setAutoSyncCatalog(data.auto_sync_catalog || false);
+        setIntegrationType((data.integration_type as 'sandbox' | 'web_qr' | 'official_api') || 'official_api');
         setTokenEdited(false);
       } else {
         setConfig(null);
@@ -124,6 +126,7 @@ export function WhatsAppConfig() {
         setPin('');
         setCatalogId('');
         setAutoSyncCatalog(false);
+        setIntegrationType('official_api');
         setTokenEdited(false);
       }
       // Clear any stale probe result when reloading the row.
@@ -201,6 +204,7 @@ export function WhatsAppConfig() {
         pin: pin.trim() || null,
         catalog_id: catalogId.trim() || null,
         auto_sync_catalog: autoSyncCatalog,
+        integration_type: integrationType,
       };
 
       if (tokenEdited && accessToken !== MASKED_TOKEN && accessToken.trim()) {
@@ -533,6 +537,76 @@ export function WhatsAppConfig() {
             )}
           </Alert>
         )}
+
+        {/* Integration Method Selection */}
+        <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+          <CardHeader>
+            <CardTitle className="text-white">Integration Method</CardTitle>
+            <CardDescription className="text-slate-400">
+              Choose how you want to connect WhatsApp. Trials apply to Sandbox and QR Scan methods.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Sandbox */}
+              <button
+                type="button"
+                onClick={() => setIntegrationType('sandbox')}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  integrationType === 'sandbox'
+                    ? 'bg-primary/10 border-primary ring-1 ring-primary'
+                    : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-white">Sandbox</span>
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">7-Day Trial</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Shared number for testing. Instant setup.
+                </p>
+              </button>
+
+              {/* QR Scan */}
+              <button
+                type="button"
+                onClick={() => setIntegrationType('web_qr')}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  integrationType === 'web_qr'
+                    ? 'bg-primary/10 border-primary ring-1 ring-primary'
+                    : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-white">QR Scan</span>
+                  <span className="text-xs font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">2-Day Trial</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Connect your personal number. Unstable.
+                </p>
+              </button>
+
+              {/* Official API */}
+              <button
+                type="button"
+                onClick={() => setIntegrationType('official_api')}
+                className={`p-4 rounded-xl border text-left transition-all ${
+                  integrationType === 'official_api'
+                    ? 'bg-primary/10 border-primary ring-1 ring-primary'
+                    : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold text-white">Official API</span>
+                  <span className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">Permanent</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Meta Cloud API. Best for production.
+                </p>
+              </button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* API Credentials */}
         <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">

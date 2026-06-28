@@ -68,13 +68,17 @@ export function ConversationList({
 
   useEffect(() => {
     const filterParam = searchParams.get("filter") as FilterValue;
-    if (filterParam && FILTER_OPTIONS.some((o) => o.value === filterParam)) {
-      setFilter(filterParam);
-    }
     const searchParam = searchParams.get("search");
-    if (searchParam !== null) {
-      setSearch(searchParam);
-    }
+
+    const timer = setTimeout(() => {
+      if (filterParam && FILTER_OPTIONS.some((o) => o.value === filterParam)) {
+        setFilter(filterParam);
+      }
+      if (searchParam !== null) {
+        setSearch(searchParam);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, [searchParams]);
 
   // Keep the latest callback in a ref so the fetch effect below can
