@@ -653,53 +653,57 @@ export async function processOwnerChatbotMessage(
 
       let ownerContactId = null;
       let listingSource = 'owner';
+      let extraNotesFromOwner = null;
 
       if (draft.owner_contact_name) {
         const ownerName = draft.owner_contact_name.trim();
         const ownerPhone = draft.owner_contact_phone;
-        let query = supabaseAdmin().from('contacts').select('id, name, classification').eq('account_id', accountId);
-        
-        if (ownerPhone) {
-          const normalized = normalizePhoneWithCountryCode(ownerPhone, '91');
-          const cleanPhone = normalized.replace(/\D/g, '');
-          query = query.or(`phone.eq.${ownerPhone},phone.eq.${normalized},phone.eq.${cleanPhone},name.ilike.${ownerName}`);
-        } else {
-          query = query.ilike('name', ownerName);
-        }
+        const normalizedPhone = ownerPhone ? (normalizePhoneWithCountryCode(ownerPhone, '91') || null) : null;
 
-        const { data: existingContacts } = await query;
-        if (existingContacts && existingContacts.length > 0) {
-          const contact = existingContacts[0];
-          ownerContactId = contact.id;
-          if (contact.classification === 'Agent') {
-            listingSource = 'agent';
-          } else {
-            listingSource = 'owner';
-          }
-        } else {
-          // Contact not found -> Create a new contact
-          const newClassification = draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
-          const normalizedPhone = ownerPhone ? (normalizePhoneWithCountryCode(ownerPhone, '91') || null) : null;
-          const { data: newContact, error: createErr } = await supabaseAdmin()
+        if (normalizedPhone) {
+          const cleanPhone = normalizedPhone.replace(/\D/g, '');
+          const { data: existingContacts } = await supabaseAdmin()
             .from('contacts')
-            .insert({
-              account_id: accountId,
-              user_id: userId,
-              name: ownerName,
-              phone: normalizedPhone || '',
-              classification: newClassification,
-              status: 'pending_review',
-              source: 'WhatsApp'
-            })
-            .select()
-            .single();
+            .select('id, name, classification')
+            .eq('account_id', accountId)
+            .or(`phone.eq.${ownerPhone},phone.eq.${normalizedPhone},phone.eq.${cleanPhone}`);
 
-          if (!createErr && newContact) {
-            ownerContactId = newContact.id;
-            listingSource = newClassification === 'Agent' ? 'agent' : 'owner';
+          if (existingContacts && existingContacts.length > 0) {
+            const contact = existingContacts[0];
+            ownerContactId = contact.id;
+            if (contact.classification === 'Agent') {
+              listingSource = 'agent';
+            } else {
+              listingSource = 'owner';
+            }
           } else {
-            console.error('[chatbot-engine] Error creating new contact for listing owner:', createErr);
+            // Contact not found -> Create a new contact with phone number
+            const newClassification = draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
+            const { data: newContact, error: createErr } = await supabaseAdmin()
+              .from('contacts')
+              .insert({
+                account_id: accountId,
+                user_id: userId,
+                name: ownerName,
+                phone: normalizedPhone,
+                classification: newClassification,
+                status: 'pending_review',
+                source: 'WhatsApp'
+              })
+              .select()
+              .single();
+
+            if (!createErr && newContact) {
+              ownerContactId = newContact.id;
+              listingSource = newClassification === 'Agent' ? 'agent' : 'owner';
+            } else {
+              console.error('[chatbot-engine] Error creating new contact for listing owner:', createErr);
+            }
           }
+        } else {
+          // No phone number provided -> Save owner details to internal notes field of the property
+          const roleLabel = draft.owner_contact_role === 'Agent' ? 'Agent' : 'Owner';
+          extraNotesFromOwner = `Owner Details: ${ownerName} (${roleLabel}, No contact number provided)`;
         }
       }
 
@@ -747,7 +751,8 @@ export async function processOwnerChatbotMessage(
           rent_per_month: draft.rent_per_month,
           maintenance: draft.maintenance,
           advance: draft.advance,
-          gst: draft.gst
+          gst: draft.gst,
+          notes: extraNotesFromOwner
         })
         .select()
         .single();
