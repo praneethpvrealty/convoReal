@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
+import { getSandboxSystemConfig } from '@/lib/system-settings';
 
 export async function POST(request: Request) {
   try {
@@ -204,17 +205,36 @@ export async function POST(request: Request) {
     // Fetch the account's WhatsApp API keys
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token')
+      .select('phone_number_id, access_token, integration_type')
       .eq('account_id', accountId)
       .maybeSingle();
 
-    if (configError || !config?.phone_number_id || !config?.access_token) {
-      console.error('[SMS Hook] Failed to load WhatsApp credentials:', configError);
+    if (configError) {
+      console.error('[SMS Hook] Failed to load WhatsApp config:', configError);
       return NextResponse.json({ error: 'Failed to load credentials' }, { status: 500 });
     }
 
-    // Decrypt the system access token
-    const decryptedToken = decrypt(config.access_token);
+    let phoneNumberId: string
+    let decryptedToken: string
+
+    // Sandbox mode: use system-wide shared credentials
+    if (config?.integration_type === 'sandbox') {
+      const sandboxSystem = await getSandboxSystemConfig();
+      if (!sandboxSystem.enabled || !sandboxSystem.access_token || !sandboxSystem.phone_number_id) {
+        console.error('[SMS Hook] Sandbox tenant but system sandbox is not configured');
+        return NextResponse.json({ error: 'Sandbox system not configured' }, { status: 500 });
+      }
+      phoneNumberId = sandboxSystem.phone_number_id;
+      decryptedToken = decrypt(sandboxSystem.access_token);
+    } else {
+      // Official API: use tenant's own credentials
+      if (!config?.phone_number_id || !config?.access_token) {
+        console.error('[SMS Hook] Failed to load WhatsApp credentials: missing phone_number_id or access_token');
+        return NextResponse.json({ error: 'Failed to load credentials' }, { status: 500 });
+      }
+      phoneNumberId = config.phone_number_id;
+      decryptedToken = decrypt(config.access_token);
+    }
 
     // Send the OTP via WhatsApp template message, with a free-form text fallback.
     // Production numbers require an approved template (e.g. 'whatsapp_otp') to send messages
@@ -224,7 +244,7 @@ export async function POST(request: Request) {
       try {
         console.log(`[SMS Hook] Attempting to send OTP template 'whatsapp_otp' with copy-code button parameter to: ${cleanPhone}`);
         await sendTemplateMessage({
-          phoneNumberId: config.phone_number_id,
+          phoneNumberId,
           accessToken: decryptedToken,
           to: cleanPhone,
           templateName: 'whatsapp_otp',
@@ -239,7 +259,7 @@ export async function POST(request: Request) {
       } catch (buttonError) {
         console.warn('[SMS Hook] Failed to send template with button parameter, retrying with body-only layout:', buttonError);
         await sendTemplateMessage({
-          phoneNumberId: config.phone_number_id,
+          phoneNumberId,
           accessToken: decryptedToken,
           to: cleanPhone,
           templateName: 'whatsapp_otp',
@@ -252,7 +272,7 @@ export async function POST(request: Request) {
       console.warn('[SMS Hook] Template sending failed, falling back to free-form text message:', templateError);
       try {
         await sendTextMessage({
-          phoneNumberId: config.phone_number_id,
+          phoneNumberId,
           accessToken: decryptedToken,
           to: cleanPhone,
           text: `Your convoReal CRM verification code is: *${otpCode}*\n\nIt is valid for 5 minutes.`,
