@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
@@ -12,7 +11,6 @@ import { Header } from "@/components/layout/header";
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const { user, loading, profile, profileLoading } = useAuth();
-  const router = useRouter();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
   // always visible and this stays at `false` (ignored by the component).
@@ -20,16 +18,32 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   useEffect(() => {
+    console.log('[SHELL GATE] evaluating profile:', {
+      loading,
+      profileLoading,
+      user: !!user,
+      profile: profile ? { full_name: profile.full_name, email: profile.email } : null,
+    });
+
     if (!loading && !user) {
-      router.push("/login");
-    } else if (!loading && !profileLoading && user && profile) {
-      const hasMissingName = !profile.full_name || profile.full_name.trim() === "";
-      const hasMissingEmail = !profile.email || profile.email.trim() === "";
-      if (hasMissingName || hasMissingEmail) {
-        router.push("/profile-setup");
+      window.location.href = "/login";
+    } else if (!loading && !profileLoading && user) {
+      if (!profile) {
+        console.warn('[SHELL GATE] profile not found, redirecting to setup...');
+        window.location.href = "/profile-setup";
+      } else {
+        const hasMissingName = !profile.full_name || profile.full_name.trim() === "";
+        const hasMissingEmail = !profile.email || profile.email.trim() === "";
+        if (hasMissingName || hasMissingEmail) {
+          console.warn('[SHELL GATE] profile incomplete, redirecting to setup...', {
+            hasMissingName,
+            hasMissingEmail,
+          });
+          window.location.href = "/profile-setup";
+        }
       }
     }
-  }, [user, loading, profile, profileLoading, router]);
+  }, [user, loading, profile, profileLoading]);
 
   if (loading) {
     return (

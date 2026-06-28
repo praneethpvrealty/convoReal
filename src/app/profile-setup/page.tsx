@@ -24,16 +24,24 @@ export default function ProfileSetupPage() {
 
   // Redirection checks: if already filled, send to dashboard.
   useEffect(() => {
+    console.log('[SETUP PAGE] checking state:', {
+      authLoading,
+      profileLoading,
+      user: !!user,
+      profile: profile ? { full_name: profile.full_name, email: profile.email } : null,
+    });
+
     if (!authLoading && !user) {
-      router.push('/login');
+      window.location.href = '/login';
     } else if (!authLoading && !profileLoading && user && profile) {
       const hasName = profile.full_name && profile.full_name.trim() !== '';
       const hasEmail = profile.email && profile.email.trim() !== '';
       if (hasName && hasEmail) {
-        router.push('/dashboard');
+        console.log('[SETUP PAGE] profile complete, redirecting to dashboard...');
+        window.location.href = '/dashboard';
       }
     }
-  }, [user, profile, authLoading, profileLoading, router]);
+  }, [user, profile, authLoading, profileLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
