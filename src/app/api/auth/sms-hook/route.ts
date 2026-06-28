@@ -221,14 +221,30 @@ export async function POST(request: Request) {
     // outside the 24-hour customer window.
     const cleanPhone = phone.replace('+', ''); // WhatsApp API prefers numbers without prefix symbol
     try {
-      console.log(`[SMS Hook] Attempting to send OTP template 'whatsapp_otp' to: ${cleanPhone}`);
-      await sendTemplateMessage({
-        phoneNumberId: config.phone_number_id,
-        accessToken: decryptedToken,
-        to: cleanPhone,
-        templateName: 'whatsapp_otp',
-        params: [otpCode],
-      });
+      try {
+        console.log(`[SMS Hook] Attempting to send OTP template 'whatsapp_otp' with copy-code button parameter to: ${cleanPhone}`);
+        await sendTemplateMessage({
+          phoneNumberId: config.phone_number_id,
+          accessToken: decryptedToken,
+          to: cleanPhone,
+          templateName: 'whatsapp_otp',
+          messageParams: {
+            body: [otpCode],
+            buttonParams: {
+              0: otpCode,
+            },
+          },
+        });
+      } catch (buttonError) {
+        console.warn('[SMS Hook] Failed to send template with button parameter, retrying with body-only layout:', buttonError);
+        await sendTemplateMessage({
+          phoneNumberId: config.phone_number_id,
+          accessToken: decryptedToken,
+          to: cleanPhone,
+          templateName: 'whatsapp_otp',
+          params: [otpCode],
+        });
+      }
       console.log(`[SMS Hook] Verification code ${otpCode} successfully sent via template to: ${cleanPhone}`);
     } catch (templateError) {
       console.warn('[SMS Hook] Template sending failed, falling back to free-form text message:', templateError);
@@ -238,7 +254,7 @@ export async function POST(request: Request) {
         phoneNumberId: config.phone_number_id,
         accessToken: decryptedToken,
         to: cleanPhone,
-        text: `Your waCRM verification code is: *${otpCode}*\n\nIt is valid for 5 minutes.`,
+        text: `Your convoReal CRM verification code is: *${otpCode}*\n\nIt is valid for 5 minutes.`,
       });
       console.log(`[SMS Hook] Verification code ${otpCode} successfully sent via fallback text message to: ${cleanPhone}`);
     }

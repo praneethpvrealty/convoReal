@@ -675,14 +675,33 @@ export async function sendTemplateMessage(
     if (components.length > 0) {
       templatePayload.components = components
     }
-  } else if (params && params.length > 0) {
-    // Legacy body-only path — no template row available.
-    templatePayload.components = [
-      {
+  } else if (messageParams || (params && params.length > 0)) {
+    const components: Record<string, unknown>[] = []
+    const bodyParams = messageParams?.body ?? params
+    if (bodyParams && bodyParams.length > 0) {
+      components.push({
         type: 'body',
-        parameters: params.map((p) => ({ type: 'text', text: sanitizeParamText(String(p)) })),
-      },
-    ]
+        parameters: bodyParams.map((p) => ({ type: 'text', text: sanitizeParamText(String(p)) })),
+      })
+    }
+    if (messageParams?.buttonParams) {
+      Object.entries(messageParams.buttonParams).forEach(([idxStr, btnText]) => {
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: idxStr,
+          parameters: [
+            {
+              type: 'text',
+              text: btnText,
+            },
+          ],
+        })
+      })
+    }
+    if (components.length > 0) {
+      templatePayload.components = components
+    }
   }
 
   const body: Record<string, unknown> = {
