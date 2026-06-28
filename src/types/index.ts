@@ -245,6 +245,8 @@ export interface WhatsAppConfig {
   last_registration_error?: string;
   catalog_id?: string;
   auto_sync_catalog?: boolean;
+  integration_type?: 'sandbox' | 'web_qr' | 'official_api';
+  trial_ends_at?: string | null;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)
