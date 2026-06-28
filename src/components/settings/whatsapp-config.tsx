@@ -510,49 +510,7 @@ export function WhatsAppConfig() {
       );
     }
 
-    if (integrationType === 'web_qr') {
-      return (
-        <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
-          <CardHeader>
-            <CardTitle className="text-white text-base">QR Scan Setup</CardTitle>
-            <CardDescription className="text-slate-400">
-              Connect your personal or standard business phone number instantly.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Accordion>
-              <AccordionItem className="border-slate-700">
-                <AccordionTrigger className="text-slate-300 hover:text-white hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                    Save Connection Type
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-slate-400">
-                  <p className="text-sm">
-                    Click the <strong>Save Configuration</strong> button below. This registers your choice and activates the QR Scan 2-day trial.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
 
-              <AccordionItem className="border-slate-700">
-                <AccordionTrigger className="text-slate-300 hover:text-white hover:no-underline">
-                  <span className="flex items-center gap-2">
-                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
-                    Scan QR Code
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent className="text-slate-400">
-                  <p className="text-sm">
-                    Once saved, go to <strong>Linked Devices</strong> inside your WhatsApp mobile application and scan the generated QR code to start sync.
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </CardContent>
-        </Card>
-      );
-    }
 
     // Default: Official API
     return (
@@ -692,32 +650,54 @@ export function WhatsAppConfig() {
           </Alert>
         )}
 
-        {/* Connection Status */}
-        <Alert className="bg-slate-900 border-slate-700">
-          <div className="flex items-center gap-2">
-            {connectionStatus === 'connected' ? (
-              <CheckCircle2 className="size-4 text-primary" />
-            ) : (
-              <XCircle className="size-4 text-red-500" />
-            )}
-            <AlertTitle className="text-white mb-0">
-              {connectionStatus === 'connected' ? 'Credentials valid' : 'Not Connected'}
-            </AlertTitle>
-          </div>
-          <AlertDescription className="text-slate-400">
-            {connectionStatus === 'connected'
-              ? 'Your access token authenticates with Meta. See Registration status below for whether webhooks are actually wired.'
-              : statusMessage ||
-                'Configure your Meta API credentials below to connect your WhatsApp Business account.'}
-          </AlertDescription>
-        </Alert>
+        {/* Connection Status — context-aware per integration type */}
+        {integrationType === 'sandbox' && config ? (
+          <Alert className="bg-emerald-950/30 border-emerald-700/50">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="size-4 text-emerald-400" />
+              <AlertTitle className="text-emerald-200 mb-0">
+                Sandbox Trial Active
+              </AlertTitle>
+            </div>
+            <AlertDescription className="text-slate-400">
+              Your shared sandbox number is ready to receive test messages. Share your unique code with leads to start testing.
+            </AlertDescription>
+          </Alert>
+        ) : integrationType === 'sandbox' && !config ? (
+          <Alert className="bg-amber-950/30 border-amber-700/50">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="size-4 text-amber-400" />
+              <AlertTitle className="text-amber-200 mb-0">
+                Sandbox Not Activated
+              </AlertTitle>
+            </div>
+            <AlertDescription className="text-slate-400">
+              Click <strong>Save Configuration</strong> to activate your 7-day sandbox trial and get your unique code.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert className="bg-slate-900 border-slate-700">
+            <div className="flex items-center gap-2">
+              {connectionStatus === 'connected' ? (
+                <CheckCircle2 className="size-4 text-primary" />
+              ) : (
+                <XCircle className="size-4 text-red-500" />
+              )}
+              <AlertTitle className="text-white mb-0">
+                {connectionStatus === 'connected' ? 'Credentials valid' : 'Not Connected'}
+              </AlertTitle>
+            </div>
+            <AlertDescription className="text-slate-400">
+              {connectionStatus === 'connected'
+                ? 'Your access token authenticates with Meta. See Registration status below for whether webhooks are actually wired.'
+                : statusMessage ||
+                  'Configure your Meta API credentials below to connect your WhatsApp Business account.'}
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Registration Status — the "is it actually live?" check.
-            Credentials being valid is necessary but not sufficient;
-            without a successful /register call the number won't
-            receive inbound events. Surface this dimension separately
-            so users don't trust a misleading green banner. */}
-        {config && (
+        {/* Registration Status — only for Official API */}
+        {config && integrationType !== 'sandbox' && (
           <Alert
             className={
               isRegistered
@@ -846,7 +826,7 @@ export function WhatsAppConfig() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Official API — First and Recommended */}
               <button
                 type="button"
@@ -887,25 +867,6 @@ export function WhatsAppConfig() {
                 </div>
                 <p className="text-xs text-slate-400">
                   Shared number for testing. Instant setup.
-                </p>
-              </button>
-
-              {/* QR Scan */}
-              <button
-                type="button"
-                onClick={() => setIntegrationType('web_qr')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  integrationType === 'web_qr'
-                    ? 'bg-primary/10 border-primary ring-1 ring-primary'
-                    : 'bg-slate-800 border-slate-700 hover:border-slate-600'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-white">QR Scan</span>
-                  <span className="text-xs font-bold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">2-Day Trial</span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Connect your personal number. Unstable.
                 </p>
               </button>
             </div>
@@ -1234,35 +1195,37 @@ export function WhatsAppConfig() {
           </Card>
         )}
 
-        {/* Webhook URL */}
-        <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
-          <CardHeader>
-            <CardTitle className="text-white">Webhook Configuration</CardTitle>
-            <CardDescription className="text-slate-400">
-              Use this URL as your webhook callback in the Meta App Dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label className="text-slate-300">Webhook Callback URL</Label>
-              <div className="flex gap-2">
-                <Input
-                  readOnly
-                  value={webhookUrl}
-                  className="bg-slate-800 border-slate-700 text-slate-300 font-mono text-sm"
-                />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleCopyWebhookUrl}
-                  className="shrink-0 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
-                >
-                  <Copy className="size-4" />
-                </Button>
+        {/* Webhook URL — only for Official API */}
+        {integrationType === 'official_api' && (
+          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <CardHeader>
+              <CardTitle className="text-white">Webhook Configuration</CardTitle>
+              <CardDescription className="text-slate-400">
+                Use this URL as your webhook callback in the Meta App Dashboard.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label className="text-slate-300">Webhook Callback URL</Label>
+                <div className="flex gap-2">
+                  <Input
+                    readOnly
+                    value={webhookUrl}
+                    className="bg-slate-800 border-slate-700 text-slate-300 font-mono text-sm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyWebhookUrl}
+                    className="shrink-0 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                  >
+                    <Copy className="size-4" />
+                  </Button>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3">
@@ -1280,24 +1243,26 @@ export function WhatsAppConfig() {
               'Save Configuration'
             )}
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleTestConnection}
-            disabled={testing || !config}
-            className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
-          >
-            {testing ? (
-              <>
-                <Loader2 className="size-4 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              <>
-                <Zap className="size-4" />
-                Test API Connection
-              </>
-            )}
-          </Button>
+          {integrationType === 'official_api' && (
+            <Button
+              variant="outline"
+              onClick={handleTestConnection}
+              disabled={testing || !config}
+              className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+            >
+              {testing ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Testing...
+                </>
+              ) : (
+                <>
+                  <Zap className="size-4" />
+                  Test API Connection
+                </>
+              )}
+            </Button>
+          )}
           {config && (
             <Button
               variant="outline"
