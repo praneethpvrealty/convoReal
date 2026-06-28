@@ -255,6 +255,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // (header, sidebar) can render from the user object alone,
           // profile enriches async. Callers that need to branch on
           // profile data gate on `profileLoading` instead.
+          setProfileLoading(true);
           fetchProfile(currentUser.id);
         } else {
           // No user → no profile to load. Flip profileLoading off so
@@ -280,6 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
 
       if (currentUser) {
+        setProfileLoading(true);
         fetchProfile(currentUser.id);
       } else {
         setProfile(null);

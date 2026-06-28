@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { User, Mail, Loader2, ArrowRight, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -15,7 +14,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ProfileSetupPage() {
   const { user, profile, loading: authLoading, profileLoading, refreshProfile } = useAuth();
-  const router = useRouter();
   const supabase = createClient();
 
   const [fullName, setFullName] = useState('');
@@ -63,18 +61,48 @@ export default function ProfileSetupPage() {
     try {
       setSaving(true);
 
-      // 1. Update the database profiles row directly to keep CRM synced immediately
+      // 1. Check if profile row exists in the database
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id, account_id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      let resolvedAccountId = existingProfile?.account_id;
+
+      // Self-healing: if no account is linked, create one dynamically
+      if (!resolvedAccountId) {
+        console.log('[SETUP] No account linked. Creating new tenant account...');
+        const { data: newAccount, error: accError } = await supabase
+          .from('accounts')
+          .insert({
+            name: `${nameVal}'s Account`,
+          })
+          .select('id')
+          .maybeSingle();
+
+        if (accError || !newAccount) {
+          throw new Error(`Failed to bootstrap account: ${accError?.message || 'Unknown error'}`);
+        }
+        resolvedAccountId = newAccount.id;
+      }
+
+      // 2. Upsert the database profiles row directly to keep CRM synced immediately
       const { error: profileError } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          user_id: user.id,
           full_name: nameVal,
           email: emailVal,
-        })
-        .eq('user_id', user.id);
+          account_id: resolvedAccountId,
+          account_role: existingProfile?.account_id ? undefined : 'owner',
+        }, {
+          onConflict: 'user_id',
+        });
 
       if (profileError) throw profileError;
 
-      // 2. Attempt to link/update the email address in Supabase Auth user metadata
+      // 3. Attempt to link/update the email address in Supabase Auth user metadata
       try {
         await supabase.auth.updateUser({ email: emailVal });
       } catch (authErr) {
@@ -83,7 +111,9 @@ export default function ProfileSetupPage() {
 
       await refreshProfile();
       toast.success('Welcome! Your profile has been created.');
-      router.push('/dashboard');
+      
+      // Perform a hard page reload redirection to force Next.js Layout gates to read the fresh DB profile state
+      window.location.href = '/dashboard';
     } catch (err) {
       console.error('Profile setup save error:', err);
       const errMsg = err instanceof Error ? err.message : 'Failed to save profile. Please try again.';
