@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, CalendarDays } from 'lucide-react';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 interface SimpleContact {
   id: string;
@@ -244,13 +245,10 @@ export function ScheduleDialog({
               <Label htmlFor="startTime" className="text-slate-400 text-xs">
                 Start Time *
               </Label>
-              <Input
+              <DateTimePicker
                 id="startTime"
-                type="datetime-local"
-                required
                 value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white h-9 text-sm"
+                onChange={(val) => setStartTime(val)}
               />
             </div>
 
@@ -258,13 +256,10 @@ export function ScheduleDialog({
               <Label htmlFor="endTime" className="text-slate-400 text-xs">
                 End Time *
               </Label>
-              <Input
+              <DateTimePicker
                 id="endTime"
-                type="datetime-local"
-                required
                 value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-white h-9 text-sm"
+                onChange={(val) => setEndTime(val)}
               />
             </div>
           </div>

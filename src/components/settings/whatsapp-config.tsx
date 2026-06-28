@@ -13,6 +13,8 @@ import {
   Zap,
   AlertTriangle,
   RotateCcw,
+  ArrowUpRight,
+  History,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -62,6 +64,16 @@ export function WhatsAppConfig() {
   const [autoSyncCatalog, setAutoSyncCatalog] = useState(false);
   const [tokenEdited, setTokenEdited] = useState(false);
   const [integrationType, setIntegrationType] = useState<'sandbox' | 'web_qr' | 'official_api'>('official_api');
+  const [sandboxSystemPhone, setSandboxSystemPhone] = useState<string | null>(null);
+
+  // Migration state
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+  const [migrationPin, setMigrationPin] = useState('');
+  const [migrationToken, setMigrationToken] = useState('');
+  const [migrationPhoneId, setMigrationPhoneId] = useState('');
+  const [migrationWabaId, setMigrationWabaId] = useState('');
+  const [migrationNotifyLeads, setMigrationNotifyLeads] = useState(true);
 
   // True once /register has succeeded on Meta's side (timestamp set
   // in the row). When false, the saved config is metadata-only and
@@ -142,8 +154,9 @@ export function WhatsAppConfig() {
             setConnectionStatus('connected');
             setResetReason(null);
             setStatusMessage('');
-            if (payload.catalog_id !== undefined) setCatalogId(payload.catalog_id || '');
-            if (payload.auto_sync_catalog !== undefined) setAutoSyncCatalog(payload.auto_sync_catalog || false);
+          if (payload.catalog_id !== undefined) setCatalogId(payload.catalog_id || '');
+          if (payload.auto_sync_catalog !== undefined) setAutoSyncCatalog(payload.auto_sync_catalog || false);
+          if (payload.sandbox_system_phone !== undefined) setSandboxSystemPhone(payload.sandbox_system_phone || null);
           } else {
             setConnectionStatus('disconnected');
             setResetReason(payload.needs_reset ? 'token_corrupted' : payload.reason === 'meta_api_error' ? 'meta_api_error' : null);
@@ -364,6 +377,61 @@ export function WhatsAppConfig() {
     }
   }
 
+  async function handleMigrateToOfficial() {
+    if (!migrationPhoneId.trim()) {
+      toast.error('Phone Number ID is required');
+      return;
+    }
+    if (!migrationToken.trim()) {
+      toast.error('Access Token is required');
+      return;
+    }
+
+    try {
+      setMigrating(true);
+      const res = await fetch('/api/whatsapp/migrate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number_id: migrationPhoneId.trim(),
+          waba_id: migrationWabaId.trim() || null,
+          access_token: migrationToken.trim(),
+          verify_token: verifyToken.trim() || null,
+          pin: migrationPin.trim() || null,
+          catalog_id: catalogId.trim() || null,
+          auto_sync_catalog: autoSyncCatalog,
+          notify_leads: migrationNotifyLeads,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || 'Migration failed');
+        setMigrating(false);
+        return;
+      }
+
+      toast.success(data.message || 'Successfully upgraded to Official API!');
+      if (data.leads_notified > 0) {
+        toast.info(`Notified ${data.leads_notified} active leads about your new number.`);
+      }
+
+      setShowMigrationModal(false);
+      setMigrationPhoneId('');
+      setMigrationToken('');
+      setMigrationPin('');
+      setMigrationWabaId('');
+
+      if (accountId) await fetchConfig(accountId);
+    } catch (err) {
+      console.error('Migration error:', err);
+      toast.error('Failed to migrate. Please try again.');
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   function handleCopyWebhookUrl() {
     navigator.clipboard.writeText(webhookUrl);
     toast.success('Webhook URL copied to clipboard');
@@ -376,7 +444,7 @@ export function WhatsAppConfig() {
           <CardHeader>
             <CardTitle className="text-white text-base">Sandbox Instructions</CardTitle>
             <CardDescription className="text-slate-400">
-              Follow these steps to test using the shared Sandbox environment.
+              Test with real WhatsApp using a shared sandbox number.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -385,12 +453,12 @@ export function WhatsAppConfig() {
                 <AccordionTrigger className="text-slate-300 hover:text-white hover:no-underline">
                   <span className="flex items-center gap-2">
                     <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">1</span>
-                    Activate Sandbox Mode
+                    Activate Your Trial
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="text-slate-400">
                   <p className="text-sm">
-                    Click the <strong>Save Configuration</strong> button to set the Sandbox connection method. This activates the Sandbox trial for 7 days.
+                    Click <strong>Save Configuration</strong> to activate your 7-day sandbox trial. A unique code (e.g., <code>#{config?.sandbox_code || 'convo123'}</code>) will be assigned to your account.
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -399,12 +467,12 @@ export function WhatsAppConfig() {
                 <AccordionTrigger className="text-slate-300 hover:text-white hover:no-underline">
                   <span className="flex items-center gap-2">
                     <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">2</span>
-                    Join Sandbox on WhatsApp
+                    Share Your Test Link
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="text-slate-400">
                   <p className="text-sm">
-                    Send the text message <code>join sandbox-code</code> to our shared Sandbox number (refer to your Meta dashboard for the sandbox code and number). This registers your number as a test recipient.
+                    Copy your <strong>Quick Test Link</strong> and share it with a lead. The link opens WhatsApp with your unique code pre-filled. This ensures messages route directly to your inbox.
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -413,12 +481,26 @@ export function WhatsAppConfig() {
                 <AccordionTrigger className="text-slate-300 hover:text-white hover:no-underline">
                   <span className="flex items-center gap-2">
                     <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">3</span>
-                    Send Test Messages
+                    First Message Must Include Code
                   </span>
                 </AccordionTrigger>
                 <AccordionContent className="text-slate-400">
                   <p className="text-sm">
-                    Send mock lead messages to the Sandbox number. The CRM parser will automatically ingest them and populate your inbox.
+                    The lead&apos;s first message must include your code (e.g., <code>#{config?.sandbox_code || 'convo123'} Hello, I&apos;m interested</code>). After that first contact, normal conversation works without the code.
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem className="border-slate-700">
+                <AccordionTrigger className="text-slate-300 hover:text-white hover:no-underline">
+                  <span className="flex items-center gap-2">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">4</span>
+                    Reply Within 24 Hours
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="text-slate-400">
+                  <p className="text-sm">
+                    You can reply freely within 24 hours of the lead&apos;s last message. After 24 hours, replies use pre-approved templates to ensure delivery.
                   </p>
                 </AccordionContent>
               </AccordionItem>
@@ -738,16 +820,57 @@ export function WhatsAppConfig() {
           </Alert>
         )}
 
+        {/* Migration History Banner */}
+        {config?.migrated_from_sandbox_at && (
+          <Alert className="bg-blue-950/30 border-blue-700/50">
+            <div className="flex items-center gap-2">
+              <History className="size-4 text-blue-400" />
+              <AlertTitle className="text-blue-200 mb-0">
+                Upgraded from Sandbox
+              </AlertTitle>
+            </div>
+            <AlertDescription className="text-slate-400 mt-2 text-xs">
+              You migrated from sandbox <strong className="text-slate-300">#{config.migrated_sandbox_code || config.sandbox_code}</strong> on{' '}
+              {new Date(config.migrated_from_sandbox_at).toLocaleDateString()}. 
+              All your conversations and contacts were preserved.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Integration Method Selection */}
         <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
           <CardHeader>
             <CardTitle className="text-white">Integration Method</CardTitle>
             <CardDescription className="text-slate-400">
-              Choose how you want to connect WhatsApp. Trials apply to Sandbox and QR Scan methods.
+              Choose how you want to connect WhatsApp. Official API is recommended for production.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Official API — First and Recommended */}
+              <button
+                type="button"
+                onClick={() => setIntegrationType('official_api')}
+                className={`p-4 rounded-xl border text-left transition-all relative ${
+                  integrationType === 'official_api'
+                    ? 'bg-primary/10 border-primary ring-1 ring-primary'
+                    : 'bg-slate-800 border-slate-700 hover:border-slate-600'
+                }`}
+              >
+                <div className="absolute -top-2 left-4">
+                  <span className="text-[10px] font-bold text-white bg-primary px-2 py-0.5 rounded-full">
+                    RECOMMENDED
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mb-2 mt-1">
+                  <span className="font-bold text-white">Official API</span>
+                  <span className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">Permanent</span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Meta Cloud API. Best for production.
+                </p>
+              </button>
+
               {/* Sandbox */}
               <button
                 type="button"
@@ -783,25 +906,6 @@ export function WhatsAppConfig() {
                 </div>
                 <p className="text-xs text-slate-400">
                   Connect your personal number. Unstable.
-                </p>
-              </button>
-
-              {/* Official API */}
-              <button
-                type="button"
-                onClick={() => setIntegrationType('official_api')}
-                className={`p-4 rounded-xl border text-left transition-all ${
-                  integrationType === 'official_api'
-                    ? 'bg-primary/10 border-primary ring-1 ring-primary'
-                    : 'bg-slate-800 border-slate-700 hover:border-slate-600'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-white">Official API</span>
-                  <span className="text-xs font-bold text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">Permanent</span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  Meta Cloud API. Best for production.
                 </p>
               </button>
             </div>
@@ -955,18 +1059,153 @@ export function WhatsAppConfig() {
             <CardHeader>
               <CardTitle className="text-white">Sandbox Connection</CardTitle>
               <CardDescription className="text-slate-400">
-                You are connecting using a shared Sandbox environment.
+                Your unique trial code and shared sandbox number.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 leading-relaxed text-slate-300 text-sm">
-                <p className="mb-2">
-                  No custom API credentials or Meta app creation are required to use the Sandbox.
+            <CardContent className="space-y-6">
+              {/* Unique Code Display */}
+              {config?.sandbox_code && (
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+                  <Label className="text-primary text-xs font-bold uppercase tracking-wider mb-2 block">
+                    Your Unique Sandbox Code
+                  </Label>
+                  <div className="flex items-center gap-3">
+                    <code className="text-2xl font-mono font-bold text-white bg-slate-950 px-3 py-2 rounded-lg border border-slate-800">
+                      #{config.sandbox_code}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(`#${config.sandbox_code}`)
+                        toast.success('Code copied to clipboard')
+                      }}
+                      className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                    >
+                      <Copy className="size-4" />
+                    </Button>
+                  </div>
+                  <p className="text-slate-400 text-xs mt-2">
+                    Leads must include this code in their first message to route to your inbox.
+                  </p>
+                </div>
+              )}
+
+              {/* wa.me Link */}
+              {config?.sandbox_code && (
+                <div className="space-y-2">
+                  <Label className="text-slate-300 text-sm">Quick Test Link</Label>
+                  <p className="text-slate-400 text-xs">
+                    Share this link with leads. It opens WhatsApp with your code pre-filled.
+                  </p>
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={sandboxSystemPhone 
+                        ? `https://wa.me/${sandboxSystemPhone}?text=%23${config.sandbox_code}%20Hi%2C%20I%27m%20interested`
+                        : 'Configure system sandbox number in admin panel first'
+                      }
+                      className="bg-slate-800 border-slate-700 text-slate-300 font-mono text-sm"
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      disabled={!sandboxSystemPhone}
+                      onClick={() => {
+                        if (sandboxSystemPhone) {
+                          navigator.clipboard.writeText(`https://wa.me/${sandboxSystemPhone}?text=%23${config.sandbox_code}%20Hi%2C%20I%27m%20interested`)
+                          toast.success('Link copied to clipboard')
+                        }
+                      }}
+                      className="shrink-0 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                    >
+                      <Copy className="size-4" />
+                    </Button>
+                  </div>
+                  {!sandboxSystemPhone && (
+                    <p className="text-amber-400 text-xs">
+                      Ask your admin to configure the shared sandbox number before sharing this link.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Trial Status */}
+              {config?.trial_ends_at && (
+                <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="size-4 text-amber-400" />
+                    <span className="text-amber-200 text-sm font-medium">
+                      Trial Active
+                    </span>
+                  </div>
+                  <span className="text-amber-400 text-xs">
+                    Expires {new Date(config.trial_ends_at).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
+
+              {/* Message Usage */}
+              {config?.sandbox_message_count !== undefined && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-slate-400">Messages Used</span>
+                    <span className="text-slate-300">
+                      {config.sandbox_message_count} / {config.sandbox_message_limit || 50}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{
+                        width: `${Math.min(100, ((config.sandbox_message_count || 0) / (config.sandbox_message_limit || 50)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Instructions */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+                <h4 className="text-sm font-semibold text-white">How Sandbox Works</h4>
+                <ol className="space-y-2 text-xs text-slate-400 list-decimal list-inside">
+                  <li>
+                    Save this configuration to activate your 7-day trial
+                  </li>
+                  <li>
+                    Share your test link with leads (includes your unique code)
+                  </li>
+                  <li>
+                    Lead sends message with code (e.g., <code className="text-slate-300">#{config?.sandbox_code || 'your-code'} Hello</code>)
+                  </li>
+                  <li>
+                    Message routes to your inbox automatically
+                  </li>
+                  <li>
+                    After first contact, normal chat works without the code
+                  </li>
+                  <li>
+                    You have {config?.sandbox_message_limit || 50} messages to test with
+                  </li>
+                </ol>
+              </div>
+
+              {/* Upgrade to Official API */}
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <ArrowUpRight className="size-5 text-emerald-400" />
+                  <h4 className="text-sm font-semibold text-emerald-200">Ready to Go Live?</h4>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Upgrade to Official API to get your own WhatsApp Business number, remove message limits, and keep all your conversations and contacts.
                 </p>
-                <p className="text-slate-400 text-xs">
-                  Simply save this configuration to initialize your 7-day sandbox trial. 
-                  Once active, you can send test messages to the shared sandbox phone number to test lead parsing.
-                </p>
+                <Button
+                  onClick={() => setShowMigrationModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
+                >
+                  <ArrowUpRight className="size-4 mr-2" />
+                  Upgrade to Official API
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -1086,6 +1325,158 @@ export function WhatsAppConfig() {
       <div>
         {renderSetupInstructions()}
       </div>
+
+      {/* Migration Modal */}
+      {showMigrationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">Upgrade to Official API</h2>
+                  <p className="text-sm text-slate-400 mt-1">
+                    Get your own WhatsApp Business number
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowMigrationModal(false)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <XCircle className="size-6" />
+                </button>
+              </div>
+
+              {/* Migration Benefits */}
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                <h3 className="text-sm font-semibold text-emerald-200">What You Get</h3>
+                <ul className="space-y-1.5 text-xs text-slate-400">
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
+                    Your own WhatsApp Business number
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
+                    No message limits
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
+                    All conversations and contacts preserved
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="size-3.5 text-emerald-400 shrink-0" />
+                    Custom templates and catalog support
+                  </li>
+                </ul>
+              </div>
+
+              {/* Warning */}
+              <Alert className="bg-amber-950/30 border-amber-700/50">
+                <AlertTriangle className="size-4 text-amber-400" />
+                <AlertDescription className="text-xs text-amber-200/80">
+                  Your leads will need to message your new number. We can optionally notify your active conversations about the change.
+                </AlertDescription>
+              </Alert>
+
+              {/* Migration Form */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Phone Number ID <span className="text-red-400">*</span></Label>
+                  <Input
+                    placeholder="e.g. 100234567890123"
+                    value={migrationPhoneId}
+                    onChange={(e) => setMigrationPhoneId(e.target.value)}
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300">WhatsApp Business Account ID</Label>
+                  <Input
+                    placeholder="e.g. 100234567890456"
+                    value={migrationWabaId}
+                    onChange={(e) => setMigrationWabaId(e.target.value)}
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Permanent Access Token <span className="text-red-400">*</span></Label>
+                  <div className="relative">
+                    <Input
+                      type={showToken ? 'text' : 'password'}
+                      placeholder="Enter your access token"
+                      value={migrationToken}
+                      onChange={(e) => setMigrationToken(e.target.value)}
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+                    >
+                      {showToken ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-slate-300">Two-step verification PIN</Label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6-digit PIN from Meta"
+                    value={migrationPin}
+                    onChange={(e) => setMigrationPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 tracking-widest"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="notify-leads"
+                    checked={migrationNotifyLeads}
+                    onChange={(e) => setMigrationNotifyLeads(e.target.checked)}
+                    className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
+                  />
+                  <Label htmlFor="notify-leads" className="text-slate-300 text-sm cursor-pointer select-none">
+                    Notify active leads about my new number
+                  </Label>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowMigrationModal(false)}
+                  className="flex-1 border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleMigrateToOfficial}
+                  disabled={migrating || !migrationPhoneId.trim() || !migrationToken.trim()}
+                  className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {migrating ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin mr-2" />
+                      Upgrading...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUpRight className="size-4 mr-2" />
+                      Upgrade Now
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

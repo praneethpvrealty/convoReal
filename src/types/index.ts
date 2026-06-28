@@ -247,6 +247,39 @@ export interface WhatsAppConfig {
   auto_sync_catalog?: boolean;
   integration_type?: 'sandbox' | 'web_qr' | 'official_api';
   trial_ends_at?: string | null;
+  sandbox_code?: string | null;
+  sandbox_message_count?: number;
+  sandbox_message_limit?: number;
+  migrated_from_sandbox_at?: string | null;
+  migrated_sandbox_code?: string | null;
+}
+
+export interface SandboxSenderMapping {
+  sender_phone: string;
+  account_id: string;
+  sandbox_code: string;
+  created_at?: string;
+  updated_at?: string;
+  last_message_at?: string | null;
+}
+
+export interface SandboxSystemTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category: string;
+  body: string;
+  header_type?: string | null;
+  header_text?: string | null;
+  footer?: string | null;
+  buttons?: unknown;
+  created_at?: string;
+}
+
+export interface SystemSetting {
+  key: string;
+  value: unknown;
+  updated_at?: string;
 }
 
 // Raw Meta status enum. We persist this verbatim from Meta (sync + webhook)

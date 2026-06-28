@@ -5,6 +5,7 @@ import {
   sanitizePhoneForMeta,
   isValidE164,
 } from '@/lib/whatsapp/phone-utils'
+
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -247,19 +248,89 @@ export async function POST(request: Request) {
       templateRow = (templateData as MessageTemplate) ?? null
     }
 
+    // ── Sandbox 24h Window Check ────────────────────────────────
+    let finalMessageType = message_type
+    let finalTemplateName = template_name
+    let finalTemplateRow = templateRow
+    let finalText = content_text
+
+    if (config.integration_type === 'sandbox' && message_type === 'text') {
+      // Check if last customer message was within 24 hours
+      const { data: lastCustomerMsg } = await supabase
+        .from('messages')
+        .select('created_at')
+        .eq('conversation_id', conversation.id)
+        .eq('sender_type', 'customer')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      const windowHours = 24
+      const isWithinWindow = lastCustomerMsg &&
+        (new Date().getTime() - new Date(lastCustomerMsg.created_at).getTime()) < windowHours * 60 * 60 * 1000
+
+      if (!isWithinWindow) {
+        // Outside 24h window — must use template
+        const { data: systemTemplate } = await supabase
+          .from('sandbox_system_templates')
+          .select('*')
+          .eq('name', 'sandbox_general_reply')
+          .maybeSingle()
+
+        if (systemTemplate) {
+          finalMessageType = 'template'
+          finalTemplateName = systemTemplate.name
+          finalTemplateRow = {
+            ...systemTemplate,
+            account_id: accountId,
+            meta_template_id: `sandbox-${systemTemplate.name}`,
+            status: 'APPROVED',
+            components: [
+              {
+                type: 'HEADER',
+                format: 'TEXT',
+                text: systemTemplate.header_text || '',
+              },
+              {
+                type: 'BODY',
+                text: systemTemplate.body,
+                example: { body_text: [[content_text || 'there']] },
+              },
+              {
+                type: 'FOOTER',
+                text: systemTemplate.footer || '',
+              },
+              {
+                type: 'BUTTONS',
+                buttons: (systemTemplate.buttons as Array<{ type: string; text: string }>)?.map((b) => ({
+                  type: b.type,
+                  text: b.text,
+                })) || [],
+              },
+            ],
+            language: systemTemplate.language,
+            name: systemTemplate.name,
+          }
+          finalTemplateRow = finalTemplateRow as unknown as MessageTemplate
+          // Pass the text as template param {{1}}
+          finalText = content_text || ''
+        }
+      }
+    }
+
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
       userId: user.id,
       contactId: contact.id,
       conversationId: conversation.id,
-      kind: message_type === 'template' ? 'template' : message_type === 'product' ? 'product' : 'text',
+      kind: finalMessageType === 'template' ? 'template' : finalMessageType === 'product' ? 'product' : 'text',
       senderType: 'agent',
-      text: content_text,
-      templateName: template_name,
+      text: finalText,
+      templateName: finalTemplateName,
       templateLanguage: template_language,
-      templateParams: template_params,
+      templateParams: finalMessageType === 'template' ? [finalText || 'there'] : template_params,
       messageParams: template_message_params ?? undefined,
-      templateRow: templateRow ?? undefined,
+      templateRow: finalTemplateRow ?? undefined,
       productCatalogId: product_catalog_id || config.catalog_id,
       productRetailerId: product_retailer_id,
       contextMessageId,

@@ -36,8 +36,8 @@ export async function GET() {
     }
 
     const parsedSettings: Record<string, unknown> = {};
-    settings?.forEach((s) => {
-      parsedSettings[s.key] = s.value;
+    settings?.forEach((s: Record<string, unknown>) => {
+      parsedSettings[s.key as string] = (s as { value?: unknown }).value;
     });
 
     // 2. Fetch overview metrics

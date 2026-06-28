@@ -88,7 +88,7 @@ export async function GET() {
 
     const { data: config, error: configError } = await supabase
       .from('whatsapp_config')
-      .select('phone_number_id, access_token, status, catalog_id, auto_sync_catalog, integration_type')
+      .select('phone_number_id, access_token, status, catalog_id, auto_sync_catalog, integration_type, sandbox_code, trial_ends_at, sandbox_message_count, sandbox_message_limit')
       .eq('account_id', accountId)
       .maybeSingle()
 
@@ -132,6 +132,20 @@ export async function GET() {
       }
     }
 
+    // Load sandbox system details if tenant is in sandbox mode
+    let sandboxSystemPhone: string | null = null
+    if (intType === 'sandbox') {
+      const { data: sandboxSetting } = await supabaseAdmin()
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'sandbox_config')
+        .maybeSingle()
+      const sandboxCfg = (sandboxSetting as unknown as { value?: Record<string, unknown> })?.value
+      if (sandboxCfg?.enabled && sandboxCfg?.phone_number_id) {
+        sandboxSystemPhone = sandboxCfg.phone_number_id as string
+      }
+    }
+
     // Return stored configuration
     return NextResponse.json({
       connected: config.status === 'connected',
@@ -139,6 +153,11 @@ export async function GET() {
       catalog_id: config.catalog_id || null,
       auto_sync_catalog: config.auto_sync_catalog || false,
       integration_type: intType,
+      sandbox_code: config.sandbox_code || null,
+      trial_ends_at: config.trial_ends_at || null,
+      sandbox_message_count: config.sandbox_message_count || 0,
+      sandbox_message_limit: config.sandbox_message_limit || 50,
+      sandbox_system_phone: sandboxSystemPhone,
     })
   } catch (error) {
     console.error('Error in WhatsApp config GET:', error)

@@ -18,6 +18,7 @@ import {
   isRecipientNotAllowedError,
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils'
+import { getSandboxSystemConfig } from '@/lib/system-settings'
 
 // Lazy initialize admin client fallback
 let _adminClient: ReturnType<typeof createClient> | null = null
@@ -179,8 +180,21 @@ export async function sendWhatsAppMessageAndPersist(
       throw new Error('WhatsApp not configured for this account')
     }
 
-    const accessToken = decrypt(config.access_token)
-    const phoneNumberId = config.phone_number_id
+    let accessToken: string
+    let phoneNumberId: string
+
+    // Sandbox mode: use system-wide shared credentials
+    if (config.integration_type === 'sandbox') {
+      const sandboxSystem = await getSandboxSystemConfig()
+      if (!sandboxSystem.enabled || !sandboxSystem.access_token || !sandboxSystem.phone_number_id) {
+        throw new Error('Sandbox is not enabled or not configured by the administrator.')
+      }
+      accessToken = decrypt(sandboxSystem.access_token)
+      phoneNumberId = sandboxSystem.phone_number_id
+    } else {
+      accessToken = decrypt(config.access_token)
+      phoneNumberId = config.phone_number_id
+    }
 
     // 4. Send Message with Variant Retry loop
     const attemptSend = async (phone: string): Promise<string> => {

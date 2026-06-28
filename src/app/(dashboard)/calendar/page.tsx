@@ -21,6 +21,7 @@ import {
   Pencil
 } from "lucide-react";
 import { toast } from "sonner";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 interface Appointment {
   id: string;
@@ -1159,12 +1160,9 @@ export default function CalendarPage() {
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Start Time *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
+                  <DateTimePicker
                     value={apptStartTime}
-                    onChange={(e) => setApptStartTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    onChange={(val) => setApptStartTime(val)}
                   />
                 </div>
 
@@ -1172,12 +1170,9 @@ export default function CalendarPage() {
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     End Time *
                   </label>
-                  <input
-                    type="datetime-local"
-                    required
+                  <DateTimePicker
                     value={apptEndTime}
-                    onChange={(e) => setApptEndTime(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    onChange={(val) => setApptEndTime(val)}
                   />
                 </div>
               </div>

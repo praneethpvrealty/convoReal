@@ -10,6 +10,8 @@ import {
 } from '@/lib/whatsapp/template-webhook'
 import { checkIsAccountOwner, processOwnerChatbotMessage } from '@/lib/ai/chatbot-engine'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import { getSandboxSystemConfig } from '@/lib/system-settings'
+import type { SandboxSenderMapping } from '@/types'
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 let _adminClient: SupabaseClient | null = null
@@ -84,6 +86,96 @@ export interface WhatsAppWebhookEntry {
   }>
 }
 
+// ── Sandbox Routing ───────────────────────────────────────────────
+
+const HASHTAG_REGEX = /^#([a-zA-Z0-9]+)\s*/
+
+interface SandboxRouteResult {
+  accountId: string
+  userId: string
+  sandboxCode: string
+  isNewMapping: boolean
+}
+
+async function resolveSandboxAccount(
+  message: WhatsAppMessage,
+  senderPhone: string
+): Promise<SandboxRouteResult | null> {
+  const textBody = message.text?.body?.trim() || ''
+  const hashtagMatch = textBody.match(HASHTAG_REGEX)
+
+  // 1. Try hashtag prefix match
+  if (hashtagMatch) {
+    const code = hashtagMatch[1].toLowerCase()
+    const { data: configRows } = await supabaseAdmin()
+      .from('whatsapp_config')
+      .select('account_id, user_id, sandbox_code')
+      .eq('integration_type', 'sandbox')
+      .ilike('sandbox_code', code)
+      .limit(1)
+
+    if (configRows && configRows.length > 0) {
+      const cfg = configRows[0]
+      // Create or update mapping
+      await supabaseAdmin()
+        .from('sandbox_sender_mappings')
+        .upsert(
+          {
+            sender_phone: senderPhone,
+            account_id: cfg.account_id,
+            sandbox_code: cfg.sandbox_code,
+            updated_at: new Date().toISOString(),
+            last_message_at: new Date().toISOString(),
+          } as unknown as never[],
+          { onConflict: 'sender_phone' }
+        )
+
+      return {
+        accountId: cfg.account_id,
+        userId: cfg.user_id,
+        sandboxCode: cfg.sandbox_code,
+        isNewMapping: true,
+      }
+    }
+  }
+
+  // 2. Fallback: query existing sender mapping
+  const { data: mapping } = await supabaseAdmin()
+    .from('sandbox_sender_mappings')
+    .select('*')
+    .eq('sender_phone', senderPhone)
+    .maybeSingle()
+
+  if (mapping) {
+    // Update last_message_at
+    await supabaseAdmin()
+      .from('sandbox_sender_mappings')
+      .update({ last_message_at: new Date().toISOString() })
+      .eq('sender_phone', senderPhone)
+
+    return {
+      accountId: (mapping as unknown as SandboxSenderMapping).account_id,
+      userId: '', // Will be resolved below
+      sandboxCode: (mapping as unknown as SandboxSenderMapping).sandbox_code,
+      isNewMapping: false,
+    }
+  }
+
+  return null
+}
+
+async function resolveSandboxOwnerUserId(accountId: string): Promise<string> {
+  const { data: profile } = await supabaseAdmin()
+    .from('profiles')
+    .select('user_id')
+    .eq('account_id', accountId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  return (profile?.user_id as string) || ''
+}
+
 export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
   if (!body.entry) return
 
@@ -111,6 +203,67 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const phoneNumberId = value.metadata.phone_number_id
 
+      // ── Check for system sandbox number first ──────────────────
+      const sandboxConfig = await getSandboxSystemConfig()
+      const isSystemSandboxNumber = sandboxConfig.enabled && sandboxConfig.phone_number_id === phoneNumberId
+
+      if (isSystemSandboxNumber) {
+        // Sandbox routing: each message may belong to a different tenant
+        for (let i = 0; i < value.messages.length; i++) {
+          const message = value.messages[i]
+          const contact = value.contacts[i] || value.contacts[0]
+          const senderPhone = normalizePhone(message.from)
+
+          const route = await resolveSandboxAccount(message, senderPhone)
+          if (!route) {
+            console.warn(`[webhook] Sandbox message from ${senderPhone} has no hashtag and no prior mapping. Dropping.`)
+            continue
+          }
+
+          // Resolve owner user_id if not cached in mapping
+          const ownerUserId = route.userId || await resolveSandboxOwnerUserId(route.accountId)
+
+          // Check trial expiration
+          const { data: tenantConfig } = await supabaseAdmin()
+            .from('whatsapp_config')
+            .select('trial_ends_at, sandbox_message_count, sandbox_message_limit')
+            .eq('account_id', route.accountId)
+            .maybeSingle()
+
+          if (tenantConfig?.trial_ends_at && new Date() > new Date(tenantConfig.trial_ends_at)) {
+            console.warn(`[webhook] Sandbox trial expired for account ${route.accountId}. Dropping message.`)
+            continue
+          }
+
+          // Rate limit check
+          const msgCount = tenantConfig?.sandbox_message_count ?? 0
+          const msgLimit = tenantConfig?.sandbox_message_limit ?? 50
+          if (msgCount >= msgLimit) {
+            console.warn(`[webhook] Sandbox message limit reached for account ${route.accountId} (${msgCount}/${msgLimit}). Dropping.`)
+            continue
+          }
+
+          // Increment message count
+          await supabaseAdmin()
+            .from('whatsapp_config')
+            .update({ sandbox_message_count: msgCount + 1 })
+            .eq('account_id', route.accountId)
+
+          // Process with system sandbox credentials
+          const decryptedSystemToken = sandboxConfig.access_token ? decrypt(sandboxConfig.access_token) : ''
+          await processMessage(
+            message,
+            contact,
+            route.accountId,
+            ownerUserId,
+            decryptedSystemToken,
+            sandboxConfig.phone_number_id!
+          )
+        }
+        continue
+      }
+
+      // ── Normal Official API flow ────────────────────────────────
       const { data: configRows, error: configError } = await supabaseAdmin()
         .from('whatsapp_config')
         .select('*')
