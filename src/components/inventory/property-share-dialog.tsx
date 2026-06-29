@@ -1075,7 +1075,7 @@ export function PropertyShareDialog({
             {/* ── Co-Broker / Agent Share ── */}
             <div className="bg-slate-900/50 border border-blue-500/20 p-4 rounded-xl space-y-3">
               <h3 className="text-xs font-bold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
-                🤝 Share with Co-Brokers / Agents
+                🤝 Share with Complete Details
               </h3>
               <p className="text-xs text-slate-400">
                 Share full property details with other agents so they can present it to their clients independently.
@@ -1115,12 +1115,29 @@ export function PropertyShareDialog({
                 </Button>
                 <Button
                   onClick={async () => {
+                    const shareData: Record<string, unknown> = {
+                      title: property.title || 'Property Details',
+                      text: generateAgentMessage(),
+                    };
+
+                    // Try to attach the property thumbnail image if available
+                    const imageUrl = property.images?.find((img) => img.trim().length > 0);
+                    if (imageUrl && typeof navigator !== 'undefined' && 'canShare' in navigator) {
+                      try {
+                        const response = await fetch(imageUrl);
+                        const blob = await response.blob();
+                        const file = new File([blob], `${property.title || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
+                        if (navigator.canShare({ files: [file] })) {
+                          shareData.files = [file];
+                        }
+                      } catch {
+                        // Image fetch failed — continue with text-only share
+                      }
+                    }
+
                     if (typeof navigator !== 'undefined' && navigator.share) {
                       try {
-                        await navigator.share({
-                          title: property.title || 'Property Details',
-                          text: generateAgentMessage(),
-                        });
+                        await navigator.share(shareData);
                       } catch (err) {
                         if ((err as Error).name !== 'AbortError') {
                           toast.error('Failed to share');
