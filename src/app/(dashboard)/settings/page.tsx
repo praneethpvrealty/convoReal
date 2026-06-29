@@ -11,6 +11,7 @@ import {
   Globe,
   Sparkles,
   Sliders,
+  CreditCard,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -25,6 +26,7 @@ import { ShowcaseSettingsPanel } from '@/components/settings/showcase-settings';
 import { AiSettingsPanel } from '@/components/settings/ai-settings';
 import { OtherSettingsPanel } from '@/components/settings/other-settings';
 import { useAuth } from '@/hooks/use-auth';
+import { BillingTab } from '@/components/settings/billing-tab';
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -35,6 +37,7 @@ const BASE_TAB_VALUES = [
   'showcase',
   'ai',
   'other',
+  'billing',
 ] as const;
 const FLAGGED_TAB_VALUES = ['members'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
@@ -150,6 +153,13 @@ export default function SettingsPage() {
             <Sliders className="size-4" />
             Other
           </TabsTrigger>
+          <TabsTrigger
+            value="billing"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <CreditCard className="size-4" />
+            Billing
+          </TabsTrigger>
           {/* Members tab is feature-flagged. We render the trigger
               only when the flag is enabled, so users without the
               flag see the original 5-tab layout. */}
@@ -196,6 +206,10 @@ export default function SettingsPage() {
 
         <TabsContent value="other">
           <OtherSettingsPanel />
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <BillingTab />
         </TabsContent>
 
         {accountSharingEnabled && (

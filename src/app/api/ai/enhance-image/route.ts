@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 
 // POST /api/ai/enhance-image
 // Calls Imagen or Hugging Face to generate/enhance listing images
 export async function POST(request: Request) {
   try {
     const ctx = await requireRole('agent'); // Require agent role or above
+
+    // Plan gate: AI requires Solo Pro or higher
+    const gate = await checkPlanLimit(ctx, 'ai');
+    if (!gate.allowed) return gateResponse(gate);
+
     const accountId = ctx.accountId;
     const supabase = ctx.supabase;
 

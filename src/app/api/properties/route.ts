@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
+import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -175,6 +176,10 @@ export async function POST(request: Request) {
       RATE_LIMITS.adminAction // Re-use standard admin rate limits
     );
     if (!limit.success) return rateLimitResponse(limit);
+
+    // Plan gate: Starter plan is limited to 10 properties
+    const gate = await checkPlanLimit(ctx, "properties");
+    if (!gate.allowed) return gateResponse(gate);
 
     const body = await request.json().catch(() => null);
     if (!body) {

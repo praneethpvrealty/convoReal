@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { generateText } from "@/lib/ai/gemini";
+import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 
 // POST /api/ai/generate-description
 // Generates property listing description using Gemini 2.5 Flash
 export async function POST(request: NextRequest) {
   try {
     // Security: Only logged-in agents or admins can perform AI generation tasks
-    await requireRole("agent");
+    const ctx = await requireRole("agent");
+
+    // Plan gate: AI requires Solo Pro or higher
+    const gate = await checkPlanLimit(ctx, "ai");
+    if (!gate.allowed) return gateResponse(gate);
 
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(

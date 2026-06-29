@@ -20,6 +20,7 @@
 import { NextResponse } from "next/server";
 
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
+import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 import {
   clampExpiryDays,
   generateInviteToken,
@@ -176,6 +177,10 @@ export async function POST(request: Request) {
       `admin:inviteCreate:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
+
+    // Plan gate: check user seat limit before issuing the invite
+    const gate = await checkPlanLimit(ctx, "users");
+    if (!gate.allowed) return gateResponse(gate);
     if (!limit.success) return rateLimitResponse(limit);
 
     const body = (await request.json().catch(() => null)) as
