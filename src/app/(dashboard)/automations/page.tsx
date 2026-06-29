@@ -1,5 +1,23 @@
 "use client"
 
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+
+export default function AutomationsPage() {
+  const router = useRouter()
+  useEffect(() => {
+    router.replace("/flows")
+  }, [router])
+  return null
+}
+
+/*
+── Legacy Automations surface (hidden from nav, code preserved) ──
+
+The full list/grid UI below is retained so the feature can be
+re-enabled later by uncommenting the sidebar nav item and
+restoring the original default export.
+
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -361,3 +379,4 @@ function AutomationCard({
     </li>
   )
 }
+*/

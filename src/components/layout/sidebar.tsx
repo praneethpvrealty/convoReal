@@ -99,7 +99,7 @@ const navItems: NavItem[] = [
   { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/inventory", label: "Inventory", icon: Home },
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
-  { href: "/automations", label: "Automations", icon: Zap },
+  // { href: "/automations", label: "Automations", icon: Zap }, // Hidden — using Flows instead
   { href: "/flows", label: "Flows", icon: Workflow },
 ];
 
