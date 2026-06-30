@@ -17,6 +17,7 @@
  */
 
 import {
+  Building,
   Flag,
   GitFork,
   Inbox,
@@ -44,6 +45,7 @@ export type NodeType =
   | "send_buttons"
   | "send_list"
   | "send_media"
+  | "send_property_listings"
   | "collect_input"
   | "condition"
   | "set_tag"
@@ -89,6 +91,11 @@ export const NODE_META: Record<
     label: "Send media",
     icon: Paperclip,
     color: "text-cyan-400",
+  },
+  send_property_listings: {
+    label: "Send property listings",
+    icon: Building,
+    color: "text-emerald-400",
   },
   collect_input: {
     label: "Collect input",
@@ -251,5 +258,14 @@ export function summarizeNode(node: BuilderNode): string | null {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;
     }
+    case "send_property_listings": {
+      const filterType = typeof cfg.filter_type === "string" ? cfg.filter_type : "";
+      const filterListing = typeof cfg.filter_listing_type === "string" ? cfg.filter_listing_type : "";
+      const parts: string[] = [];
+      if (filterType) parts.push(filterType);
+      if (filterListing) parts.push(filterListing);
+      return parts.length > 0 ? `Listings · ${parts.join(" / ")}` : "Property listings";
+    }
   }
+  return null;
 }

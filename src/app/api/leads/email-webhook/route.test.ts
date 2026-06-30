@@ -6,7 +6,8 @@ import {
   resolveHousingPhone,
   decodeQuotedPrintable,
   decodeMimeSubject,
-  parseMimeEmail
+  parseMimeEmail,
+  checkIsNonLeadEmail
 } from './route';
 
 describe('Email Webhook Lead Parsing', () => {
@@ -286,6 +287,40 @@ Content-Transfer-Encoding: quoted-printable
       const parsed = parseMimeEmail(rawEmail);
       expect(parsed.text.trim()).toBe('Hello plain text.');
       expect(parsed.html.trim()).toBe('<h1>Hello HTML</h1>');
+    });
+  });
+
+  describe('checkIsNonLeadEmail', () => {
+    it('should not filter out legitimate lead emails containing real estate keywords like sale, offer, or deal', () => {
+      const subject1 = 'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra';
+      const sender1 = 'MagicBricks <info@magicbricks.com>';
+      expect(checkIsNonLeadEmail(subject1, sender1)).toBe(false);
+
+      const subject2 = 'Buyer has contacted you for 3BHK flat resale';
+      const sender2 = '99acres <services@99acres.com>';
+      expect(checkIsNonLeadEmail(subject2, sender2)).toBe(false);
+
+      const subject3 = 'New offer received on Property ID 12345';
+      const sender3 = 'MagicBricks <info@magicbricks.com>';
+      expect(checkIsNonLeadEmail(subject3, sender3)).toBe(false);
+    });
+
+    it('should exempt legitimate portal senders from noreply/no-reply sender filtering', () => {
+      const subject = 'Housing - Lead interested in your property';
+      const sender = 'noreply@housing-mailer.com';
+      expect(checkIsNonLeadEmail(subject, sender)).toBe(false);
+
+      const subject2 = 'Fwd: Property Advertisement Response on 99acres';
+      const sender2 = 'noreply@99acres.com';
+      expect(checkIsNonLeadEmail(subject2, sender2)).toBe(false);
+    });
+
+    it('should correctly filter out actual system notifications and marketing blasts', () => {
+      expect(checkIsNonLeadEmail('Your password was updated', 'noreply@somebank.com')).toBe(true);
+      expect(checkIsNonLeadEmail('Account security notification', 'info@service.com')).toBe(true);
+      expect(checkIsNonLeadEmail('Magicbricks Weekly Digest', 'info@magicbricks.com')).toBe(true);
+      expect(checkIsNonLeadEmail('Flash Sale! Save 50% now', 'marketing@deals.com')).toBe(true);
+      expect(checkIsNonLeadEmail('Exclusive Offer for subscribers', 'promo@service.com')).toBe(true);
     });
   });
 });

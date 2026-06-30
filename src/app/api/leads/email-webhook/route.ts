@@ -43,6 +43,58 @@ interface PropertyForMatching {
   property_code: string | null;
 }
 
+export function checkIsNonLeadEmail(subject: string, sender: string): boolean {
+  // System/notification emails
+  if (/^noreply@|^no-reply@|^donotreply@|^mailer-daemon@/i.test(sender)) {
+    // Exempt known portal lead senders even if they use a noreply address
+    const isPortalSender = /housing-mailer\.com|99acres\.com|magicbricks\.com/i.test(sender);
+    if (!isPortalSender) {
+      return true;
+    }
+  }
+
+  // Account-related notifications
+  if (/account\s+(update|change|alert|notification|verify|security|suspension|deactivation)/i.test(subject)) return true;
+
+  // Payment/billing notifications
+  if (/(payment|billing|invoice|subscription|renewal|expiry|expir)/i.test(subject)) return true;
+
+  // Newsletter/marketing blasts (not individual leads)
+  if (/(newsletter|weekly\s+digest|daily\s+update|marketing|promotional|unsubscribe)/i.test(subject)) return true;
+
+  // Password reset / OTP
+  if (/(password|otp|one.time|reset.*password|forgot.*password)/i.test(subject)) return true;
+
+  // Property listing updates (not individual inquiries)
+  if (/(new\s+listings?\s+in|property\s+alert|price\s+drop|listing\s+update)/i.test(subject) && !/buyer\s+wants/i.test(subject)) return true;
+
+  // Auto-generated reports
+  if (/(weekly|monthly|daily)\s+report/i.test(subject)) return true;
+
+  // LinkedIn notifications
+  if (/linkedin/i.test(sender)) return true;
+  if (/linkedin.*(?:notification|alert|update|connection|message|invite)/i.test(subject)) return true;
+
+  // Social media notifications
+  if (/(?:facebook|twitter|instagram|youtube|tiktok).*notification/i.test(sender)) return true;
+
+  // Marketing/savings/promotional content in subject
+  // Exclude common real estate lead keywords like "sale", "offer", and "deal" unless they are explicitly marketing.
+  const isMarketing = 
+    /(exclusive|savings|discount|free|limited.time|act.now|buy.now)/i.test(subject) ||
+    /\b(clearance|flash|mega|big|super|promo|annual|holiday|seasonal)\s+sale\b/i.test(subject) ||
+    /\b(special|promo|limited|exclusive)\s+offer\b/i.test(subject) ||
+    /\b(special|promo|limited|exclusive)\s+deal\b/i.test(subject);
+
+  if (isMarketing) return true;
+
+  // Help/support articles
+  if (/^help\s*:/i.test(subject)) return true;
+  if (/help.*\.(com|org|net)/i.test(subject)) return true;
+
+  return false;
+}
+
 export async function POST(request: Request) {
   let accountId = '';
   let sender = '';
@@ -183,34 +235,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // ── Non-lead email filtering ──────────────────────────────────────────
-    // Reject common non-lead emails that slip through Gmail filters.
-    // These are notifications, account updates, marketing blasts, etc.
-    const isNonLeadEmail = 
-      // System/notification emails
-      /^noreply@|^no-reply@|^donotreply@|^mailer-daemon@/i.test(sender) ||
-      // Account-related notifications
-      /account\s+(update|change|alert|notification|verify|security|suspension|deactivation)/i.test(subject) ||
-      // Payment/billing notifications
-      /(payment|billing|invoice|subscription|renewal|expiry|expir)/i.test(subject) ||
-      // Newsletter/marketing blasts (not individual leads)
-      /(newsletter|weekly\s+digest|daily\s+update|marketing|promotional|unsubscribe)/i.test(subject) ||
-      // Password reset / OTP
-      /(password|otp|one.time|reset.*password|forgot.*password)/i.test(subject) ||
-      // Property listing updates (not individual inquiries)
-      /(new\s+listings?\s+in|property\s+alert|price\s+drop|listing\s+update)/i.test(subject) && !/buyer\s+wants/i.test(subject) ||
-      // Auto-generated reports
-      /(weekly|monthly|daily)\s+report/i.test(subject) ||
-      // LinkedIn notifications
-      /linkedin/i.test(sender) ||
-      /linkedin.*(?:notification|alert|update|connection|message|invite)/i.test(subject) ||
-      // Social media notifications
-      /(?:facebook|twitter|instagram|youtube|tiktok).*notification/i.test(sender) ||
-      // Marketing/savings/promotional content in subject
-      /(exclusive|savings|discount|offer|deal|sale|free|limited.time|act.now|buy.now)/i.test(subject) ||
-      // Help/support articles
-      /^help\s*:/i.test(subject) ||
-      /help.*\.(com|org|net)/i.test(subject);
+    const isNonLeadEmail = checkIsNonLeadEmail(subject, sender);
     
     if (isNonLeadEmail) {
       console.log(`[lead-webhook] Non-lead email filtered out. Subject: ${subject}, From: ${sender}`);

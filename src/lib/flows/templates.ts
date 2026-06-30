@@ -27,6 +27,7 @@ import type {
   SendButtonsNodeConfig,
   SendListNodeConfig,
   SendMessageNodeConfig,
+  SendPropertyListingsNodeConfig,
   StartNodeConfig,
 } from "./types";
 
@@ -35,6 +36,7 @@ export type FlowTemplateNodeType =
   | "send_message"
   | "send_buttons"
   | "send_list"
+  | "send_property_listings"
   | "collect_input"
   | "condition"
   | "set_tag"
@@ -296,7 +298,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
   icon: "MessageSquare",
   trigger_type: "keyword",
   trigger_config: {
-    keywords: ["invest", "buy", "rent", "properties", "homes", "listing", "show properties", "show properties"],
+    keywords: ["hi", "hello", "invest", "buy", "rent", "properties", "homes", "listing", "show properties"],
     match_type: "contains",
   },
   entry_node_id: "start",
@@ -395,51 +397,69 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
     },
     {
       node_key: "villas_showcase",
-      node_type: "send_message",
+      node_type: "send_property_listings",
       config: {
-        text: "🏡 *Luxury Villa Collection*\n\n1. **Swiss Town, Devanahalli**: 5 BHK, 8300 Sq.Ft., Private Pool. Price: ₹15 Cr.\n2. **Whitefield Gated Community**: 4 BHK, 4500 Sq.Ft., modern specs. Price: ₹8.5 Cr.\n\nLet's capture your contact details so our villa specialist can send layout plans.",
+        intro_text: "🏡 *Properties for Sale*\n\nHere are our current listings:",
+        empty_text: "🏡 *Properties for Sale*\n\nSorry, no sale properties are currently available. Our team will reach out when something suitable is listed.",
+        limit: 5,
+        filter_listing_type: "Sale",
         next_node_key: "collect_email",
-      } as SendMessageNodeConfig,
+      } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "apartments_showcase",
-      node_type: "send_message",
+      node_type: "send_property_listings",
       config: {
-        text: "🏢 *Premium Apartment Collection*\n\n1. **Sarjapur Road**: 3 BHK, 1800 Sq.Ft., Lake View, Club Amenities. Price: ₹2.2 Cr.\n2. **Koramangala Penthouse**: 4 BHK, 3200 Sq.Ft. Price: ₹4.8 Cr.\n\nLet's capture your contact details so we can send brochure links.",
+        intro_text: "🏢 *Properties for Sale*\n\nHere are our current listings:",
+        empty_text: "🏢 *Properties for Sale*\n\nSorry, no sale properties are currently available. Our team will reach out when something suitable is listed.",
+        limit: 5,
+        filter_listing_type: "Sale",
         next_node_key: "collect_email",
-      } as SendMessageNodeConfig,
+      } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "plots_showcase",
-      node_type: "send_message",
+      node_type: "send_property_listings",
       config: {
-        text: "🌾 *Land & Investment Plots*\n\n1. **Devanahalli Airport Road**: Gated layouts, ready for registration. Price: ₹75 Lakhs onwards.\n2. **Kanakapura Managed Farm**: 1/4 acre agro-farmlands. Price: ₹1.2 Cr.\n\nLet's capture your contact details so we can send location coordinates.",
+        intro_text: "🌾 *Properties for Sale*\n\nHere are our current listings:",
+        empty_text: "🌾 *Properties for Sale*\n\nSorry, no sale properties are currently available. Our team will reach out when something suitable is listed.",
+        limit: 5,
+        filter_listing_type: "Sale",
         next_node_key: "collect_email",
-      } as SendMessageNodeConfig,
+      } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "rent_2bhk_info",
-      node_type: "send_message",
+      node_type: "send_property_listings",
       config: {
-        text: "🔑 *2 BHK Rent Listings*\n\nSemi-furnished residences in Indiranagar, HSR Layout, and Whitefield starting from ₹35,000/month.\n\nLet's capture your contact details to schedule a physical/virtual walkthrough.",
+        intro_text: "🔑 *Properties for Rent*\n\nHere are our current rental listings:",
+        empty_text: "🔑 *Properties for Rent*\n\nSorry, no rental properties are currently available. Our team will reach out when something suitable is listed.",
+        limit: 5,
+        filter_listing_type: "Rent",
         next_node_key: "collect_email",
-      } as SendMessageNodeConfig,
+      } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "rent_3bhk_info",
-      node_type: "send_message",
+      node_type: "send_property_listings",
       config: {
-        text: "🔑 *3 BHK & Penthouse Rentals*\n\nHigh-rise configurations in Outer Ring Road and Koramangala starting from ₹65,000/month.\n\nLet's capture your contact details to schedule a walkthrough.",
+        intro_text: "🔑 *Properties for Rent*\n\nHere are our current rental listings:",
+        empty_text: "🔑 *Properties for Rent*\n\nSorry, no rental properties are currently available. Our team will reach out when something suitable is listed.",
+        limit: 5,
+        filter_listing_type: "Rent",
         next_node_key: "collect_email",
-      } as SendMessageNodeConfig,
+      } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "rent_commercial_info",
-      node_type: "send_message",
+      node_type: "send_property_listings",
       config: {
-        text: "🏢 *Commercial & Retail spaces*\n\nPrime spaces (500 - 5000 Sq.Ft.) in Indiranagar & HSR Layout.\n\nLet's capture your contact details so our commercial team can connect.",
+        intro_text: "🏢 *Properties for Rent*\n\nHere are our current rental listings:",
+        empty_text: "🏢 *Properties for Rent*\n\nSorry, no rental properties are currently available. Our team will reach out when something suitable is listed.",
+        limit: 5,
+        filter_listing_type: "Rent",
         next_node_key: "collect_email",
-      } as SendMessageNodeConfig,
+      } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "collect_email",

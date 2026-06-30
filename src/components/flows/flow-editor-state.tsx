@@ -162,6 +162,15 @@ export function defaultConfigFor(type: NodeType): Record<string, unknown> {
         filename: "",
         next_node_key: "",
       };
+    case "send_property_listings":
+      return {
+        intro_text: "",
+        empty_text: "",
+        limit: 5,
+        filter_type: "",
+        filter_listing_type: "",
+        next_node_key: "",
+      };
     case "collect_input":
       return {
         prompt_text: "",

@@ -173,6 +173,25 @@ export interface SetTagNodeConfig {
   next_node_key: string;
 }
 
+/**
+ * Queries the account's published properties and sends them as a
+ * formatted WhatsApp text message.  Auto-advances after send.
+ */
+export interface SendPropertyListingsNodeConfig {
+  /** Text shown before the listings (supports {{vars.X}} interpolation). */
+  intro_text?: string;
+  /** Text shown when no published properties are found. */
+  empty_text?: string;
+  /** Max listings to include (WhatsApp text cap ~4096 chars). */
+  limit?: number;
+  /** Optional property type filter, e.g. "Villa" or "Apartment". */
+  filter_type?: string;
+  /** Optional listing type filter: "Sale" or "Rent". */
+  filter_listing_type?: "Sale" | "Rent";
+  /** Auto-advance target after the message lands at Meta. */
+  next_node_key: string;
+}
+
 // Terminal nodes carry no config — they just stop the run.
 export type EndNodeConfig = Record<string, never>;
 
@@ -190,6 +209,7 @@ export type FlowNodeConfig =
   | { node_type: "send_buttons"; config: SendButtonsNodeConfig }
   | { node_type: "send_list"; config: SendListNodeConfig }
   | { node_type: "send_media"; config: SendMediaNodeConfig }
+  | { node_type: "send_property_listings"; config: SendPropertyListingsNodeConfig }
   | { node_type: "collect_input"; config: CollectInputNodeConfig }
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }

@@ -701,6 +701,40 @@ function validateNode(
       break;
     }
 
+    case "send_property_listings": {
+      const cfg = node.config as {
+        next_node_key?: string;
+        limit?: number;
+      };
+      if (!cfg.next_node_key) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: "Property-listings node must point to a next node.",
+        });
+      } else if (!knownKeys.has(cfg.next_node_key)) {
+        issues.push({
+          severity: "error",
+          scope: "node",
+          node_key: node.node_key,
+          field: "next_node_key",
+          message: `Property-listings points to non-existent node "${cfg.next_node_key}".`,
+        });
+      }
+      if (cfg.limit !== undefined && (cfg.limit < 1 || cfg.limit > 10)) {
+        issues.push({
+          severity: "warning",
+          scope: "node",
+          node_key: node.node_key,
+          field: "limit",
+          message: "Limit should be between 1 and 10 for WhatsApp text size.",
+        });
+      }
+      break;
+    }
+
     case "handoff":
     case "end":
       // Terminal nodes have no outgoing edges; nothing to validate
@@ -750,6 +784,7 @@ function outgoingEdges(node: NodeInput): string[] {
     case "start":
     case "send_message":
     case "send_media":
+    case "send_property_listings":
     case "collect_input":
     case "set_tag": {
       const cfg = node.config as { next_node_key?: string };

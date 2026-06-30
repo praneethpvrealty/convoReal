@@ -53,6 +53,7 @@ import {
   type SendListNodeConfig,
   type SendMediaNodeConfig,
   type SendMessageNodeConfig,
+  type SendPropertyListingsNodeConfig,
   type SetTagNodeConfig,
   type StartNodeConfig,
   type KeywordTriggerConfig,
@@ -115,6 +116,7 @@ export function isAutoAdvancing(node_type: string): boolean {
     node_type === "start" ||
     node_type === "send_message" ||
     node_type === "send_media" ||
+    node_type === "send_property_listings" ||
     node_type === "condition" ||
     node_type === "set_tag"
   );
@@ -242,6 +244,81 @@ async function loadAllNodes(
     map.set(row.node_key, row);
   }
   return map;
+}
+
+/**
+ * Query the account's published properties and format them into a
+ * WhatsApp-friendly text message.  Respects the node's optional
+ * type / listing_type filters and limit.
+ */
+async function fetchAndFormatPropertyListings(
+  db: AdminClient,
+  run: FlowRunRow,
+  cfg: SendPropertyListingsNodeConfig,
+): Promise<string> {
+  const limit = Math.max(1, Math.min(cfg.limit ?? 5, 10));
+  let query = db
+    .from("properties")
+    .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type")
+    .eq("account_id", run.account_id)
+    .eq("is_published", true)
+    .eq("status", "Available")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (cfg.filter_type) {
+    query = query.eq("type", cfg.filter_type);
+  }
+  if (cfg.filter_listing_type) {
+    query = query.eq("listing_type", cfg.filter_listing_type);
+  }
+
+  const { data: properties, error } = await query;
+  if (error) {
+    console.error("[flows] property listings query failed:", error.message);
+    throw new Error(`Property query failed: ${error.message}`);
+  }
+
+  const intro = cfg.intro_text
+    ? interpolateVars(cfg.intro_text, run.vars)
+    : "🏡 *Available Properties*\n";
+
+  if (!properties || properties.length === 0) {
+    return (
+      cfg.empty_text ??
+      `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`
+    );
+  }
+
+  const currency = "₹";
+  const lines: (string | null)[] = [intro, ""];
+
+  for (let i = 0; i < properties.length; i++) {
+    const p = properties[i];
+    const idx = i + 1;
+    const priceLabel =
+      p.listing_type === "Rent" && p.price
+        ? `${currency}${(p.price / 1000).toFixed(0)}K/month`
+        : p.price
+          ? `${currency}${(p.price / 100000).toFixed(1)}L`
+          : "Price on request";
+
+    const specs = [
+      p.type,
+      p.bedrooms ? `${p.bedrooms} BHK` : null,
+      p.area_sqft ? `${p.area_sqft} sqft` : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
+
+    lines.push(`${idx}. *${p.title}* — ${p.location}`);
+    if (specs) lines.push(`   ${specs}`);
+    lines.push(`   Price: ${priceLabel}`);
+    if (p.property_code) lines.push(`   Code: ${p.property_code}`);
+    lines.push("");
+  }
+
+  return lines.filter((l): l is string => l !== null).join("\n").slice(0, 4000);
 }
 
 async function logEvent(
@@ -639,6 +716,32 @@ async function advanceFromNodeKey(
           detail: err instanceof Error ? err.message : String(err),
         });
         await endRun(db, run.id, "failed", "send_media_failed");
+        return { outcome: "completed" };
+      }
+      currentKey = cfg.next_node_key;
+      continue;
+    }
+    if (node.node_type === "send_property_listings") {
+      const cfg = node.config as unknown as import("./types").SendPropertyListingsNodeConfig;
+      try {
+        const listingsText = await fetchAndFormatPropertyListings(db, run, cfg);
+        const { whatsapp_message_id } = await engineSendText({
+          accountId: run.account_id,
+          userId: run.user_id,
+          conversationId: run.conversation_id!,
+          contactId: run.contact_id!,
+          text: listingsText,
+        });
+        await logEvent(db, run.id, "message_sent", node.node_key, {
+          node_type: "send_property_listings",
+          whatsapp_message_id,
+        });
+      } catch (err) {
+        await logEvent(db, run.id, "error", node.node_key, {
+          reason: "send_property_listings_failed",
+          detail: err instanceof Error ? err.message : String(err),
+        });
+        await endRun(db, run.id, "failed", "send_property_listings_failed");
         return { outcome: "completed" };
       }
       currentKey = cfg.next_node_key;
