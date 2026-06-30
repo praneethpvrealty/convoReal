@@ -468,7 +468,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
         intro_text: "🏠 *PGs & Hostels*\n\nHere are our current listings:",
         empty_text: "🏠 *PGs & Hostels*\n\nSorry, no PG/hostel listings are currently available. Our team will reach out when something suitable is listed.",
         limit: 5,
-        filter_types: ["PG/ Hostel"],
+        filter_types: ["Residential PG building", "PG/ Hostel"],
         next_node_key: "collect_email",
       } as SendPropertyListingsNodeConfig,
     },

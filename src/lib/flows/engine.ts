@@ -259,7 +259,7 @@ async function fetchAndFormatPropertyListings(
   const limit = Math.max(1, Math.min(cfg.limit ?? 5, 10));
   let query = db
     .from("properties")
-    .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type, slug")
+    .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type")
     .eq("account_id", run.account_id)
     .eq("is_published", true)
     .eq("status", "Available")

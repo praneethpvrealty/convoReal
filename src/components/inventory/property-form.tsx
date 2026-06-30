@@ -2576,6 +2576,7 @@ export function PropertyForm({
                         <option value="Residential Land/ Plot">Residential Land/ Plot</option>
                         <option value="Penthouse">Penthouse</option>
                         <option value="Studio Apartment">Studio Apartment</option>
+                        <option value="Residential PG building">Residential PG building</option>
                         <option value="PG/ Hostel">PG/ Hostel</option>
                       </optgroup>
                       <optgroup label="ALL COMMERCIAL">
