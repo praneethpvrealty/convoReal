@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
 
   const admin = billingAdmin();
   const eventType: string = event.event;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload = event.payload as Record<string, Record<string, unknown>>;
   const sub = payload?.subscription?.entity as Record<string, unknown> | undefined;
 
