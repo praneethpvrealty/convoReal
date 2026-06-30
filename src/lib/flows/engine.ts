@@ -646,14 +646,17 @@ async function loadAccountMeta(
   db: AdminClient,
   accountId: string,
 ): Promise<Record<string, string>> {
-  const { data } = await db
+  const { data, error } = await db
     .from("showcase_settings")
-    .select("contact_phone, business_name")
+    .select("contact_phone, website_name")
     .eq("account_id", accountId)
     .maybeSingle();
+  if (error) {
+    console.error("[flows] loadAccountMeta error:", error.message);
+  }
   return {
     contact_phone: data?.contact_phone ?? "",
-    business_name: data?.business_name ?? "",
+    business_name: data?.website_name ?? "",
   };
 }
 
