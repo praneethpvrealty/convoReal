@@ -20,6 +20,9 @@ export function useOnboarding() {
   const [dismissed, setDismissed] = useState(false);
 
   const accountId = profile?.account_id as string | undefined;
+  // Only the account owner needs to complete setup. Agents, admins, and
+  // viewers who are added later should never see the onboarding wizard.
+  const isOwner = profile?.account_role === 'owner';
 
   // Check localStorage for dismissed state once account is known
   useEffect(() => {
@@ -42,8 +45,9 @@ export function useOnboarding() {
   }, []);
 
   useEffect(() => {
-    if (accountId) refresh();
-  }, [accountId, refresh]);
+    if (accountId && isOwner) refresh();
+    else setLoading(false); // non-owners: skip fetch, stay hidden
+  }, [accountId, isOwner, refresh]);
 
   function dismiss() {
     if (!accountId) return;
@@ -55,8 +59,8 @@ export function useOnboarding() {
     ? status.hasWhatsApp && status.hasProperties && status.hasContacts
     : false;
 
-  // Show wizard when: not dismissed, not loading, and at least one step incomplete
-  const shouldShow = !loading && !dismissed && !!status && !allDone;
+  // Show only for account owners who haven't dismissed and haven't completed all steps
+  const shouldShow = isOwner && !loading && !dismissed && !!status && !allDone;
 
   return { status, loading, dismissed, shouldShow, allDone, refresh, dismiss };
 }
