@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactNote, CustomField, Deal, Property } from '@/types';
+import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome } from '@/types';
 import { POPULAR_SUBLOCALITIES } from '@/lib/data/real-estate-data';
 import { PropertyForm } from '@/components/inventory/property-form';
 import {
@@ -38,6 +38,10 @@ import {
   Edit,
   CalendarDays,
   Share2,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneMissed,
+  Clock,
 } from 'lucide-react';
 import { getCurrencyIcon } from '@/lib/currency-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
@@ -187,6 +191,24 @@ export function ContactDetailView({
   // Deals tab
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
+
+  // Calls tab
+  const [calls, setCalls] = useState<CallLog[]>([]);
+  const [loadingCalls, setLoadingCalls] = useState(false);
+  const [callForm, setCallForm] = useState<{
+    direction: CallDirection;
+    outcome: CallOutcome;
+    duration_seconds: string;
+    notes: string;
+    called_at: string;
+  }>({
+    direction: 'outbound',
+    outcome: 'connected',
+    duration_seconds: '',
+    notes: '',
+    called_at: new Date().toISOString().slice(0, 16),
+  });
+  const [savingCall, setSavingCall] = useState(false);
 
   const fetchAllProperties = useCallback(async () => {
     const { data } = await supabase
@@ -523,6 +545,17 @@ export function ContactDetailView({
     setLoadingDeals(false);
   }, [contactId, supabase]);
 
+  const fetchCalls = useCallback(async () => {
+    if (!contactId) return;
+    setLoadingCalls(true);
+    const res = await fetch(`/api/contacts/${contactId}/calls`);
+    if (res.ok) {
+      const data = await res.json();
+      setCalls(data.calls ?? []);
+    }
+    setLoadingCalls(false);
+  }, [contactId]);
+
   useEffect(() => {
     if (open && contactId) {
       fetchCurrency();
@@ -531,10 +564,11 @@ export function ContactDetailView({
       fetchNotes();
       fetchCustomFields();
       fetchDeals();
+      fetchCalls();
       fetchAssociatedProperties();
       fetchAllProperties();
     }
-  }, [open, contactId, fetchCurrency, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchAssociatedProperties, fetchAllProperties]);
+  }, [open, contactId, fetchCurrency, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchCalls, fetchAssociatedProperties, fetchAllProperties]);
 
   useEffect(() => {
     if (open && contactId && allProperties.length > 0) {
@@ -1288,6 +1322,12 @@ export function ContactDetailView({
                   className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                 >
                   Deals
+                </TabsTrigger>
+                <TabsTrigger
+                  value="calls"
+                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
+                >
+                  Calls
                 </TabsTrigger>
               </TabsList>
 
@@ -2151,6 +2191,197 @@ export function ContactDetailView({
                     ))}
                   </div>
                 )}
+              </TabsContent>
+
+              {/* Calls Tab */}
+              <TabsContent value="calls" className="flex-1 flex flex-col min-h-0 px-4 py-3">
+                {/* Log a call form */}
+                <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-3 mb-3 space-y-3">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Log a call</p>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Direction */}
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400">Direction</label>
+                      <select
+                        value={callForm.direction}
+                        onChange={(e) => setCallForm((f) => ({ ...f, direction: e.target.value as CallDirection }))}
+                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="outbound">Outbound</option>
+                        <option value="inbound">Inbound</option>
+                      </select>
+                    </div>
+
+                    {/* Outcome */}
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400">Outcome</label>
+                      <select
+                        value={callForm.outcome}
+                        onChange={(e) => setCallForm((f) => ({ ...f, outcome: e.target.value as CallOutcome }))}
+                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="connected">Connected</option>
+                        <option value="no_answer">No Answer</option>
+                        <option value="busy">Busy</option>
+                        <option value="voicemail">Voicemail</option>
+                        <option value="wrong_number">Wrong Number</option>
+                        <option value="callback_requested">Callback Requested</option>
+                      </select>
+                    </div>
+
+                    {/* Date/time */}
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400">Date & time</label>
+                      <input
+                        type="datetime-local"
+                        value={callForm.called_at}
+                        onChange={(e) => setCallForm((f) => ({ ...f, called_at: e.target.value }))}
+                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+
+                    {/* Duration */}
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-400">Duration (mins)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 5"
+                        value={callForm.duration_seconds}
+                        onChange={(e) => setCallForm((f) => ({ ...f, duration_seconds: e.target.value }))}
+                        className="w-full rounded-md border border-slate-700 bg-slate-800 text-white text-sm px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-slate-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  <Textarea
+                    value={callForm.notes}
+                    onChange={(e) => setCallForm((f) => ({ ...f, notes: e.target.value }))}
+                    placeholder="Call notes (what was discussed, next steps…)"
+                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[50px] text-sm resize-none"
+                  />
+
+                  <Button
+                    size="sm"
+                    disabled={savingCall}
+                    onClick={async () => {
+                      if (!contactId) return;
+                      setSavingCall(true);
+                      try {
+                        const durationMins = callForm.duration_seconds
+                          ? parseFloat(callForm.duration_seconds)
+                          : null;
+                        const res = await fetch(`/api/contacts/${contactId}/calls`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            direction: callForm.direction,
+                            outcome: callForm.outcome,
+                            called_at: callForm.called_at
+                              ? new Date(callForm.called_at).toISOString()
+                              : new Date().toISOString(),
+                            duration_seconds: durationMins != null ? Math.round(durationMins * 60) : null,
+                            notes: callForm.notes || null,
+                          }),
+                        });
+                        if (!res.ok) {
+                          const err = await res.json();
+                          throw new Error(err.error || 'Failed to save');
+                        }
+                        toast.success('Call logged');
+                        setCallForm({
+                          direction: 'outbound',
+                          outcome: 'connected',
+                          duration_seconds: '',
+                          notes: '',
+                          called_at: new Date().toISOString().slice(0, 16),
+                        });
+                        fetchCalls();
+                      } catch (err) {
+                        toast.error(err instanceof Error ? err.message : 'Failed to log call');
+                      } finally {
+                        setSavingCall(false);
+                      }
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    {savingCall ? <Loader2 className="size-3.5 animate-spin" /> : <PhoneCall className="size-3.5" />}
+                    Log Call
+                  </Button>
+                </div>
+
+                {/* Call history list */}
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {loadingCalls ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="size-5 animate-spin text-slate-500" />
+                    </div>
+                  ) : calls.length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-8">No calls logged yet.</p>
+                  ) : (
+                    calls.map((call) => {
+                      const isConnected = call.outcome === 'connected';
+                      const isMissed = ['no_answer', 'busy', 'voicemail'].includes(call.outcome);
+                      const OutcomeIcon = call.direction === 'inbound' ? PhoneIncoming : isMissed ? PhoneMissed : PhoneCall;
+                      const iconColor = isConnected ? 'text-emerald-400' : isMissed ? 'text-red-400' : 'text-amber-400';
+                      const outcomeLabel: Record<string, string> = {
+                        connected: 'Connected',
+                        no_answer: 'No Answer',
+                        busy: 'Busy',
+                        voicemail: 'Voicemail',
+                        wrong_number: 'Wrong Number',
+                        callback_requested: 'Callback Requested',
+                      };
+
+                      return (
+                        <div key={call.id} className="rounded-lg bg-slate-800/50 border border-slate-700/50 p-3 group">
+                          <div className="flex items-start gap-2.5">
+                            <div className={`mt-0.5 shrink-0 ${iconColor}`}>
+                              <OutcomeIcon className="size-3.5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium text-white capitalize">
+                                  {call.direction} · {outcomeLabel[call.outcome]}
+                                </span>
+                                {call.duration_seconds != null && (
+                                  <span className="flex items-center gap-1 text-xs text-slate-400">
+                                    <Clock className="size-3" />
+                                    {call.duration_seconds < 60
+                                      ? `${call.duration_seconds}s`
+                                      : `${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s`}
+                                  </span>
+                                )}
+                              </div>
+                              {call.notes && (
+                                <p className="text-xs text-slate-400 mt-1 whitespace-pre-wrap">{call.notes}</p>
+                              )}
+                              <p className="text-xs text-slate-500 mt-1">
+                                {new Date(call.called_at).toLocaleDateString('en-IN', {
+                                  day: 'numeric', month: 'short', year: 'numeric',
+                                  hour: '2-digit', minute: '2-digit',
+                                })}
+                              </p>
+                            </div>
+                            <button
+                              onClick={async () => {
+                                if (!contactId) return;
+                                await fetch(`/api/contacts/${contactId}/calls/${call.id}`, { method: 'DELETE' });
+                                fetchCalls();
+                              }}
+                              className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition-all cursor-pointer shrink-0 mt-0.5"
+                              aria-label="Delete call log"
+                            >
+                              <Trash2 className="size-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </TabsContent>
             </Tabs>
 

@@ -155,6 +155,28 @@ export interface ContactNote {
   updated_at?: string;
 }
 
+export type CallDirection = 'outbound' | 'inbound';
+export type CallOutcome =
+  | 'connected'
+  | 'no_answer'
+  | 'busy'
+  | 'voicemail'
+  | 'wrong_number'
+  | 'callback_requested';
+
+export interface CallLog {
+  id: string;
+  account_id: string;
+  contact_id: string;
+  user_id: string;
+  called_at: string;
+  direction: CallDirection;
+  duration_seconds: number | null;
+  outcome: CallOutcome;
+  notes: string | null;
+  created_at: string;
+}
+
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
 export interface Conversation {
