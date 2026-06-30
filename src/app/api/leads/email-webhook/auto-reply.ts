@@ -12,6 +12,7 @@ export async function sendAutoReply({
   cleanPhone,
   leadName,
   leadSource,
+  forceSend = false,
 }: {
   supabase: SupabaseClient;
   accountId: string;
@@ -20,8 +21,11 @@ export async function sendAutoReply({
   cleanPhone: string;
   leadName: string;
   leadSource: string;
+  forceSend?: boolean;
 }) {
-  if (!syncConfig?.auto_reply_enabled) return;
+  // When forceSend is true (email-webhook lead collection), we always attempt
+  // to deliver a message regardless of the auto_reply_enabled setting.
+  if (!forceSend && !syncConfig?.auto_reply_enabled) return;
 
   const { data: waConfig } = await supabase
     .from('whatsapp_config')
@@ -30,7 +34,10 @@ export async function sendAutoReply({
     .eq('status', 'connected')
     .maybeSingle();
 
-  if (!waConfig) return;
+  if (!waConfig) {
+    console.warn(`[lead-webhook] Cannot send auto-reply: no connected WhatsApp config for account ${accountId}`);
+    return;
+  }
 
   try {
     let replyText = '';
@@ -38,7 +45,7 @@ export async function sendAutoReply({
     let usedTemplateName: string | null = null;
 
     let template: MessageTemplate | null = null;
-    if (syncConfig.auto_reply_template_name) {
+    if (syncConfig?.auto_reply_template_name) {
       const { data: foundTemplate } = await supabase
         .from('message_templates')
         .select('*')
@@ -124,7 +131,7 @@ export async function sendAutoReply({
         }
       }
 
-      if (isWithin24Hours && syncConfig.auto_reply_text) {
+      if (isWithin24Hours && syncConfig?.auto_reply_text) {
         // Within 24h window — send free-form text
         replyText = syncConfig.auto_reply_text
           .replace(/{name}/g, leadName || 'there')

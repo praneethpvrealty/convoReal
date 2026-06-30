@@ -651,7 +651,7 @@ export async function POST(request: Request) {
         bodyPreview: bodyText.slice(0, 200),
       });
 
-      // Trigger automatic WhatsApp reply if configured
+      // Trigger automatic WhatsApp reply — always send for email leads
       await sendAutoReply({
         supabase,
         accountId,
@@ -660,6 +660,7 @@ export async function POST(request: Request) {
         cleanPhone,
         leadName: existingContact.name || '',
         leadSource: parsed.source || '',
+        forceSend: true,
       });
 
       // Fire automations for existing contact getting a new lead
@@ -787,7 +788,7 @@ export async function POST(request: Request) {
       bodyPreview: bodyText.slice(0, 200),
     });
 
-    // Trigger automatic WhatsApp reply if configured
+    // Trigger automatic WhatsApp reply — always send for email leads
     await sendAutoReply({
       supabase,
       accountId,
@@ -796,6 +797,7 @@ export async function POST(request: Request) {
       cleanPhone,
       leadName: parsed.name || '',
       leadSource: parsed.source || '',
+      forceSend: true,
     });
 
     // Fire automations for the new contact (e.g. welcome message, property info)
