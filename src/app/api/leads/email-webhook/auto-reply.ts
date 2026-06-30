@@ -111,8 +111,8 @@ export async function sendAutoReply({
         messageId = sendRes.messageId;
         usedTemplateName = template.name;
         replyText = template.body_text
-          .replace(/{{1}}/g, leadName || 'there')
-          .replace(/{{2}}/g, leadSource || 'portal');
+          .replace(/\{\{1\}\}/g, leadName || 'there')
+          .replace(/\{\{2\}\}/g, leadSource || 'portal');
 
         console.log(`${logPrefix} Primary template SENT: ${template.name}, Meta messageId=${messageId}`);
       } catch (tplErr) {
@@ -226,8 +226,8 @@ export async function sendAutoReply({
               messageId = sendRes.messageId;
               usedTemplateName = tpl.name;
               replyText = (tpl.body_text || '')
-                .replace(/{{1}}/g, leadName || 'there')
-                .replace(/{{2}}/g, leadSource || 'portal');
+                .replace(/\{\{1\}\}/g, leadName || 'there')
+                .replace(/\{\{2\}\}/g, leadSource || 'portal');
               sent = true;
               console.log(`${logPrefix} Fallback template SENT: ${tpl.name} (lang: ${lang}), Meta messageId=${messageId}`);
               break;
