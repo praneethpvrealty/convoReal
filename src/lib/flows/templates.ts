@@ -591,8 +591,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
         prompt_text: "Please reply with your email address to receive files and contact from our specialist:",
         var_key: "email",
         validation: "email",
-        next_node_key: "handoff_onboarding",
+        next_node_key: "thank_you",
       } as CollectInputNodeConfig,
+    },
+    {
+      node_key: "thank_you",
+      node_type: "send_message",
+      config: {
+        text: "🙏 *Thank you!* We've received your details and will get back to you shortly.\n\nFor any urgent queries, feel free to call us: *{{account.contact_phone}}*\n\nWe look forward to helping you find your perfect property! 🏡",
+        next_node_key: "handoff_onboarding",
+      } as SendMessageNodeConfig,
     },
     {
       node_key: "handoff_onboarding",

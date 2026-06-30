@@ -624,12 +624,37 @@ async function evaluateConditionNode(
  * ("Thanks {{vars.name}}, what's your email?"). Missing vars render as
  * empty string — the same behavior as the automations engine.
  */
-function interpolateVars(template: string, vars: Record<string, unknown>): string {
+function interpolateVars(
+  template: string,
+  vars: Record<string, unknown>,
+  account?: Record<string, string>,
+): string {
   if (!template) return "";
-  return template.replace(/\{\{vars\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
+  let result = template.replace(/\{\{vars\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
     const v = vars[key];
     return v === undefined || v === null ? "" : String(v);
   });
+  if (account) {
+    result = result.replace(/\{\{account\.([a-zA-Z0-9_]+)\}\}/g, (_, key) => {
+      return account[key] ?? "";
+    });
+  }
+  return result;
+}
+
+async function loadAccountMeta(
+  db: AdminClient,
+  accountId: string,
+): Promise<Record<string, string>> {
+  const { data } = await db
+    .from("showcase_settings")
+    .select("contact_phone, business_name")
+    .eq("account_id", accountId)
+    .maybeSingle();
+  return {
+    contact_phone: data?.contact_phone ?? "",
+    business_name: data?.business_name ?? "",
+  };
 }
 
 async function endRun(
@@ -691,12 +716,13 @@ async function advanceFromNodeKey(
     if (node.node_type === "send_message") {
       const cfg = node.config as unknown as SendMessageNodeConfig;
       try {
+        const accountMeta = await loadAccountMeta(db, run.account_id);
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
-    userId: run.user_id,
+          userId: run.user_id,
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
-          text: interpolateVars(cfg.text, run.vars),
+          text: interpolateVars(cfg.text, run.vars, accountMeta),
         });
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_message",
