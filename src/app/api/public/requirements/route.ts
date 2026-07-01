@@ -1,6 +1,17 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
+import { assignTagsToContact } from "@/app/api/leads/email-webhook/db-utils";
+
+function resolveBudgetVal(val: number | null | undefined): number | null {
+  if (val === null || val === undefined) return null;
+  if (val < 100) {
+    return Math.round(val * 10000000); // Crores
+  } else if (val < 10000) {
+    return Math.round(val * 100000); // Lakhs
+  }
+  return val;
+}
 
 export async function POST(request: Request) {
   try {
@@ -100,13 +111,16 @@ export async function POST(request: Request) {
     const existingContact = existingContacts && existingContacts.length > 0 ? existingContacts[0] : null;
     let contactId: string;
 
+    const resolvedMinBudget = resolveBudgetVal(minBudget);
+    const resolvedMaxBudget = resolveBudgetVal(maxBudget);
+
     const contactFields = {
       name: (name || "Website Lead").trim(),
       email: email ? email.trim().toLowerCase() : null,
       classification: "Buyer" as const,
       status: "pending_review" as const,
-      min_budget: minBudget || null,
-      max_budget: maxBudget || null,
+      min_budget: resolvedMinBudget,
+      max_budget: resolvedMaxBudget,
       areas_of_interest: locations || [],
       property_interests: categories || [],
       min_roi: minRoi || null,
@@ -155,9 +169,55 @@ export async function POST(request: Request) {
       contactId = newContact.id;
     }
 
+    // Auto-assign tags based on categories and budget
+    const tagsToAssign: string[] = ["Website Lead"];
+    
+    // Add property type tags
+    if (categories && categories.length > 0) {
+      categories.forEach((cat: string) => {
+        const catLower = cat.toLowerCase();
+        if (catLower.includes('flat') || catLower.includes('apartment') || catLower.includes('bhk') || catLower.includes('penthouse') || catLower.includes('studio')) {
+          if (!tagsToAssign.includes('Residential')) tagsToAssign.push('Residential');
+          if (!tagsToAssign.includes('Flat/Apartment')) tagsToAssign.push('Flat/Apartment');
+        } else if (catLower.includes('plot') || catLower.includes('land') || catLower.includes('site') || catLower.includes('agricultural')) {
+          if (!tagsToAssign.includes('Plots/Land')) tagsToAssign.push('Plots/Land');
+        } else if (catLower.includes('house') || catLower.includes('villa') || catLower.includes('farm house')) {
+          if (!tagsToAssign.includes('Residential')) tagsToAssign.push('Residential');
+          if (!tagsToAssign.includes('Villa')) tagsToAssign.push('Villa');
+        } else if (catLower.includes('commercial') || catLower.includes('office') || catLower.includes('shop') || catLower.includes('showroom')) {
+          if (!tagsToAssign.includes('Commercial')) tagsToAssign.push('Commercial');
+        } else if (catLower.includes('industrial') || catLower.includes('industry') || catLower.includes('warehouse') || catLower.includes('factory') || catLower.includes('shed') || catLower.includes('godown')) {
+          if (!tagsToAssign.includes('Industrial')) tagsToAssign.push('Industrial');
+        }
+      });
+    }
+
+    // Add budget-based tags
+    if (resolvedMaxBudget) {
+      if (resolvedMaxBudget >= 1500000000) tagsToAssign.push('Budget 150Cr+');
+      else if (resolvedMaxBudget >= 1000000000) tagsToAssign.push('Budget 100-150Cr');
+      else if (resolvedMaxBudget >= 500000000) tagsToAssign.push('Budget 50-100Cr');
+      else if (resolvedMaxBudget >= 250000000) tagsToAssign.push('Budget 25-50Cr');
+      else if (resolvedMaxBudget >= 100000000) tagsToAssign.push('Budget 10-25Cr');
+      else if (resolvedMaxBudget >= 50000000) tagsToAssign.push('Budget 5-10Cr');
+      else if (resolvedMaxBudget >= 20000000) tagsToAssign.push('Budget 2-5Cr');
+      else if (resolvedMaxBudget >= 10000000) tagsToAssign.push('Budget 1-2Cr');
+      else if (resolvedMaxBudget >= 5000000) tagsToAssign.push('Budget 50L-1Cr');
+      else if (resolvedMaxBudget >= 2000000) tagsToAssign.push('Budget 20L-50L');
+      else tagsToAssign.push('Budget <20L');
+    }
+
+    if (tagsToAssign.length > 0) {
+      try {
+        await assignTagsToContact(admin, accountId, targetAgentUserId, contactId, tagsToAssign);
+      } catch (tagErr) {
+        console.error("[POST /api/public/requirements] Failed to assign tags to contact:", tagErr);
+      }
+    }
+
     // 3. Add details as a contact note
     let noteText = `Website Requirements Profile Submitted:\n` +
-      `• Budget: ${minBudget ? `₹${minBudget.toLocaleString('en-IN')}` : 'Any'} to ${maxBudget ? `₹${maxBudget.toLocaleString('en-IN')}` : 'Any'}\n` +
+      `• Budget: ${resolvedMinBudget ? `₹${resolvedMinBudget.toLocaleString('en-IN')}` : 'Any'} to ${resolvedMaxBudget ? `₹${resolvedMaxBudget.toLocaleString('en-IN')}` : 'Any'}\n` +
       `• Categories: ${(categories && categories.length > 0) ? categories.join(', ') : 'Any'}\n` +
       `• Locations: ${(locations && locations.length > 0) ? locations.join(', ') : 'Any'}\n`;
     if (minRoi) {
@@ -186,7 +246,7 @@ export async function POST(request: Request) {
           account_id: accountId,
           user_id: targetAgentUserId,
           title: `New Buyer Requirements - @${name || phone}`,
-          description: `Visitor ${name || ""} (${phone}) shared their requirements. Budget: ${minBudget || 'Any'}-${maxBudget || 'Any'}. Locations: ${locations ? locations.join(', ') : 'Any'}. Follow up.`,
+          description: `Visitor ${name || ""} (${phone}) shared their requirements. Budget: ${resolvedMinBudget ? `₹${resolvedMinBudget.toLocaleString('en-IN')}` : 'Any'}-${resolvedMaxBudget ? `₹${resolvedMaxBudget.toLocaleString('en-IN')}` : 'Any'}. Locations: ${locations ? locations.join(', ') : 'Any'}. Follow up.`,
           due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           priority: "high",
           completed: false,
@@ -225,7 +285,7 @@ export async function POST(request: Request) {
 
       if (conversationId) {
         const inboxText = `📋 *Property Requirements Submitted*\n\n` +
-          ResolvedRequirementsInboxText(name, normalizedPhone, email, categories, locations, minBudget, maxBudget, minRoi, notes);
+          ResolvedRequirementsInboxText(name, normalizedPhone, email, categories, locations, resolvedMinBudget || undefined, resolvedMaxBudget || undefined, minRoi, notes);
 
         const { error: msgInsertError } = await admin.from("messages").insert({
           conversation_id: conversationId,
