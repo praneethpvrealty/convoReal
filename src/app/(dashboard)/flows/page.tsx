@@ -16,9 +16,15 @@ import {
   HelpCircle,
   UserPlus,
   FileText,
+  Store,
+  Lock,
+  ShoppingCart,
+  Power,
+  CheckCircle2,
 } from "lucide-react";
 
 import { useCan } from "@/hooks/use-can";
+import { openRazorpayCheckout } from "@/lib/marketplace/checkout";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
 import {
@@ -75,6 +81,19 @@ interface TemplateSummary {
   node_count: number;
 }
 
+interface MarketplaceItemSummary {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+  trigger_type: string;
+  price_cents: number;
+  currency: string;
+  account_status: "provisioned" | "purchased" | "enabled" | null;
+  account_flow_id: string | null;
+  purchased_at: string | null;
+}
+
 const TEMPLATE_ICONS = {
   MessageSquare,
   HelpCircle,
@@ -90,14 +109,17 @@ export default function FlowsPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItemSummary[]>([]);
+  const [activatingId, setActivatingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [flowsRes, tmplRes] = await Promise.all([
+        const [flowsRes, tmplRes, marketRes] = await Promise.all([
           fetch("/api/flows"),
           fetch("/api/flows/templates"),
+          fetch("/api/marketplace/items"),
         ]);
         if (!flowsRes.ok) {
           throw new Error(`Failed to load flows: ${flowsRes.status}`);
@@ -111,6 +133,12 @@ export default function FlowsPage() {
             templates: TemplateSummary[];
           };
           if (!cancelled) setTemplates(tmplJson.templates ?? []);
+        }
+        if (marketRes.ok) {
+          const marketJson = (await marketRes.json()) as {
+            items: MarketplaceItemSummary[];
+          };
+          if (!cancelled) setMarketplaceItems(marketJson.items ?? []);
         }
       } catch (err) {
         if (!cancelled) {
@@ -191,6 +219,73 @@ export default function FlowsPage() {
     }
   }
 
+  async function handleActivateMarketplaceItem(item: MarketplaceItemSummary) {
+    setActivatingId(item.id);
+    try {
+      const res = await fetch(`/api/marketplace/items/${item.id}/activate`, {
+        method: "POST",
+      });
+      const json = (await res.json()) as { success?: boolean; flow_id?: string; error?: string };
+      if (!res.ok) throw new Error(json.error ?? `Activation failed: ${res.status}`);
+      setMarketplaceItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, account_status: "enabled" } : i)),
+      );
+      toast.success("Flow activated.");
+      if (json.flow_id) {
+        router.push(`/flows/${json.flow_id}`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Activation failed";
+      toast.error(msg);
+    } finally {
+      setActivatingId(null);
+    }
+  }
+
+  async function handleBuyMarketplaceItem(item: MarketplaceItemSummary) {
+    setActivatingId(item.id);
+    try {
+      const res = await fetch(`/api/marketplace/items/${item.id}/checkout`, {
+        method: "POST",
+      });
+      const json = (await res.json()) as {
+        orderId?: string;
+        amount?: number;
+        currency?: string;
+        keyId?: string;
+        itemName?: string;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error ?? `Checkout failed: ${res.status}`);
+      if (!json.orderId || !json.keyId) throw new Error("Missing checkout credentials");
+
+      const result = await openRazorpayCheckout({
+        keyId: json.keyId,
+        orderId: json.orderId,
+        amount: json.amount ?? item.price_cents,
+        currency: json.currency ?? item.currency,
+        name: json.itemName ?? item.name,
+        description: `Purchase ${item.name}`,
+      });
+
+      // Payment completed in the modal. Webhook will activate the flow;
+      // we also update local state so the UI feels instant.
+      setMarketplaceItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, account_status: "enabled" } : i)),
+      );
+      toast.success("Payment successful. Your flow is now active.");
+      if (item.account_flow_id) {
+        router.push(`/flows/${item.account_flow_id}`);
+      }
+      console.log("Razorpay marketplace payment:", result);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Checkout failed";
+      toast.error(msg);
+    } finally {
+      setActivatingId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -239,6 +334,32 @@ export default function FlowsPage() {
               onDelete={() => handleDelete(flow)}
             />
           ))}
+        </div>
+      )}
+
+      {marketplaceItems.length > 0 && (
+        <div className="space-y-4 pt-4 border-t border-slate-800">
+          <div className="flex items-center gap-2">
+            <Store className="h-4 w-4 text-primary" />
+            <h2 className="text-base font-semibold text-white">Marketplace</h2>
+            <span className="text-xs text-slate-500">
+              Pre-built flows from the admin team
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {marketplaceItems.map((item) => (
+              <MarketplaceCard
+                key={item.id}
+                item={item}
+                activating={activatingId === item.id}
+                onActivate={() => handleActivateMarketplaceItem(item)}
+                onBuy={() => handleBuyMarketplaceItem(item)}
+                onEdit={() =>
+                  item.account_flow_id && router.push(`/flows/${item.account_flow_id}`)
+                }
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -434,4 +555,84 @@ function describeTrigger(flow: FlowRow): string {
     return "Triggers on a contact's first-ever inbound message";
   }
   return "Manual trigger";
+}
+
+function MarketplaceCard({
+  item,
+  activating,
+  onActivate,
+  onBuy,
+  onEdit,
+}: {
+  item: MarketplaceItemSummary;
+  activating: boolean;
+  onActivate: () => void;
+  onBuy: () => void;
+  onEdit: () => void;
+}) {
+  const isFree = item.price_cents === 0;
+  const status = item.account_status;
+  const isEnabled = status === "enabled";
+  const isPurchased = status === "purchased";
+
+  return (
+    <div className="flex flex-col rounded-lg border border-slate-800 bg-slate-900 p-4 transition-colors hover:border-slate-700">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <Store className="h-4 w-4 shrink-0 text-primary" />
+          <h3 className="truncate text-sm font-semibold text-white">{item.name}</h3>
+        </div>
+        {isEnabled ? (
+          <Badge variant="outline" className="shrink-0 gap-1 text-[10px] border-emerald-600/40 bg-emerald-500/10 text-emerald-300">
+            <CheckCircle2 className="h-3 w-3" />
+            Active
+          </Badge>
+        ) : isPurchased ? (
+          <Badge variant="outline" className="shrink-0 gap-1 text-[10px] border-blue-600/40 bg-blue-500/10 text-blue-300">
+            <Lock className="h-3 w-3" />
+            Purchased
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="shrink-0 gap-1 text-[10px] border-slate-700 bg-slate-800 text-slate-400">
+            <PauseCircle className="h-3 w-3" />
+            Disabled
+          </Badge>
+        )}
+      </div>
+
+      <p className="mt-2 line-clamp-2 text-xs text-slate-400">
+        {item.description || describeTrigger({ trigger_type: item.trigger_type, trigger_config: {} } as FlowRow)}
+      </p>
+
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-800 pt-3">
+        <span className="text-xs font-medium text-slate-300">
+          {isFree ? "Free" : `${(item.price_cents / 100).toFixed(2)} ${item.currency}`}
+        </span>
+        {isEnabled ? (
+          <Button variant="ghost" size="sm" onClick={onEdit}>
+            <Pencil className="h-3.5 w-3.5" />
+            Edit
+          </Button>
+        ) : isFree ? (
+          <Button size="sm" onClick={onActivate} disabled={activating}>
+            {activating && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+            <Power className="h-3.5 w-3.5 mr-1" />
+            Activate
+          </Button>
+        ) : isPurchased ? (
+          <Button size="sm" onClick={onActivate} disabled={activating}>
+            {activating && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+            <Power className="h-3.5 w-3.5 mr-1" />
+            Enable
+          </Button>
+        ) : (
+          <Button size="sm" onClick={onBuy} disabled={activating}>
+            {activating && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
+            <ShoppingCart className="h-3.5 w-3.5 mr-1" />
+            Buy
+          </Button>
+        )}
+      </div>
+    </div>
+  );
 }

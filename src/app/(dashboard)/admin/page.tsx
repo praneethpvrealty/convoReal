@@ -14,8 +14,21 @@ import {
   Info,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+
+const MarketplaceTab = dynamic(() => import('./marketplace-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-slate-400">Loading Marketplace...</p>
+      </div>
+    </div>
+  ),
+});
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface WhatsappConfig {
@@ -39,7 +52,7 @@ interface Organization {
 
 export default function AdminDashboardPage() {
   const { user, profileLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace'>('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -358,6 +371,16 @@ export default function AdminDashboardPage() {
           }`}
         >
           Organizations
+        </button>
+        <button
+          onClick={() => setActiveTab('marketplace')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'marketplace'
+              ? 'border-primary text-white bg-primary/5'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Marketplace
         </button>
       </div>
 
@@ -971,6 +994,8 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {activeTab === 'marketplace' && <MarketplaceTab />}
     </div>
   );
 }

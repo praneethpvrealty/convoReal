@@ -4,7 +4,8 @@ import { billingAdmin } from '@/lib/billing/admin-client';
 import type { Plan } from '@/lib/billing/types';
 
 // POST /api/billing/razorpay-webhook
-// Receives Razorpay subscription events and updates our DB.
+// Receives Razorpay subscription events and one-time marketplace order
+// payments. Updates our DB accordingly.
 // No auth — verified via HMAC-SHA256 signature.
 // Register this URL in Razorpay Dashboard → Settings → Webhooks.
 
@@ -15,6 +16,43 @@ function verifyRazorpaySignature(body: string, signature: string, secret: string
 
 // Maps Razorpay plan IDs back to our internal plan name.
 // Built from the same env vars used in create-subscription.
+async function handleMarketplacePayment(
+  admin: ReturnType<typeof billingAdmin>,
+  orderId: string,
+  paymentId: string,
+): Promise<NextResponse> {
+  const { data: accountItem } = await admin
+    .from('account_marketplace_items')
+    .select('id, flow_id')
+    .eq('razorpay_order_id', orderId)
+    .maybeSingle();
+
+  if (!accountItem || !accountItem.flow_id) {
+    console.warn('[razorpay-webhook] Unknown marketplace order:', orderId);
+    return NextResponse.json({ received: true });
+  }
+
+  await admin.from('account_marketplace_items')
+    .update({
+      status: 'purchased',
+      purchased_at: new Date().toISOString(),
+      razorpay_payment_id: paymentId,
+    })
+    .eq('id', accountItem.id);
+
+  // Auto-activate the flow copy so the user doesn't need a second click.
+  await admin.from('flows')
+    .update({ status: 'active' })
+    .eq('id', accountItem.flow_id);
+
+  await admin.from('account_marketplace_items')
+    .update({ status: 'enabled' })
+    .eq('id', accountItem.id);
+
+  console.log('[razorpay-webhook] Marketplace item enabled for order:', orderId);
+  return NextResponse.json({ received: true });
+}
+
 function planFromRazorpayPlanId(rzPlanId: string): Plan | null {
   const plans: Plan[] = ['solo_pro', 'team', 'agency'];
   const cycles = ['monthly', 'annual'];
@@ -51,10 +89,26 @@ export async function POST(request: NextRequest) {
   const admin = billingAdmin();
   const eventType: string = event.event;
   const payload = event.payload as Record<string, Record<string, unknown>>;
-  const sub = payload?.subscription?.entity as Record<string, unknown> | undefined;
 
+  // Marketplace one-time payments are under payload.payment.entity and
+  // carry an order_id in their notes.
+  const payment = payload?.payment?.entity as Record<string, unknown> | undefined;
+  if (payment && (eventType === 'payment.captured' || eventType === 'order.paid')) {
+    const notes = (payment.notes ?? {}) as Record<string, unknown>;
+    if (notes?.type === 'marketplace_purchase') {
+      const orderId = String(payment.order_id ?? '');
+      if (!orderId) {
+        console.warn('[razorpay-webhook] Marketplace payment without order_id');
+        return NextResponse.json({ received: true });
+      }
+      return await handleMarketplacePayment(admin, orderId, String(payment.id ?? ''));
+    }
+  }
+
+  // Subscription events are under payload.subscription.entity.
+  const sub = payload?.subscription?.entity as Record<string, unknown> | undefined;
   if (!sub) {
-    // Not a subscription event — acknowledge and ignore
+    // Not a subscription event and not a marketplace payment — acknowledge.
     return NextResponse.json({ received: true });
   }
 
