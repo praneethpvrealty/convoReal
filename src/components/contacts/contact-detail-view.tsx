@@ -1745,7 +1745,8 @@ export function ContactDetailView({
 
               {/* Properties Tab (Owner / Seller / Agent / Buyer) */}
               {['Owner', 'Seller', 'Agent', 'Developer', 'Buyer'].includes(editClassification) && (
-                <TabsContent value="properties" className="flex-1 overflow-y-auto px-4 py-3 flex flex-col min-h-0">
+                <TabsContent value="properties" className="flex-1 min-h-0 h-full">
+                <div className="h-full flex flex-col px-4 py-3 min-h-0">
                   {['Buyer', 'Agent'].includes(editClassification) ? (
                     // Shown Interest Properties Layout
                     <div className="flex flex-col flex-1 min-h-0">
@@ -1964,6 +1965,7 @@ export function ContactDetailView({
                       </div>
                     </div>
                   )}
+                </div>
                 </TabsContent>
               )}
 
@@ -2008,7 +2010,8 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Notes Tab */}
-              <TabsContent value="notes" className="flex-1 flex flex-col min-h-0 px-4 py-3">
+              <TabsContent value="notes" className="flex-1 min-h-0 h-full">
+              <div className="h-full flex flex-col px-4 py-3 min-h-0">
                 <div className="space-y-2 mb-3">
                   <Textarea
                     value={newNote}
@@ -2070,6 +2073,7 @@ export function ContactDetailView({
                     ))
                   )}
                 </div>
+              </div>
               </TabsContent>
 
               {/* Custom Fields Tab */}
@@ -2194,7 +2198,8 @@ export function ContactDetailView({
               </TabsContent>
 
               {/* Calls Tab */}
-              <TabsContent value="calls" className="flex-1 flex flex-col min-h-0 px-4 py-3">
+              <TabsContent value="calls" className="flex-1 min-h-0 h-full">
+              <div className="h-full flex flex-col px-4 py-3 min-h-0">
                 {/* Log a call form */}
                 <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-3 mb-3 space-y-3">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Log a call</p>
@@ -2382,6 +2387,7 @@ export function ContactDetailView({
                     })
                   )}
                 </div>
+              </div>
               </TabsContent>
             </Tabs>
 
