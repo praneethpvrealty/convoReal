@@ -1,4 +1,100 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const mockDb = {
+  contacts: [] as any[],
+  contact_property_inquiries: [] as any[],
+  contact_tags: [] as any[],
+  email_sync_logs: [] as any[],
+  tags: [] as any[],
+  properties: [
+    {
+      id: 'prop-123',
+      title: 'Industrial Land in Bommasandra',
+      type: 'Industrial Land',
+      location: 'Bommasandra, Bangalore',
+      bedrooms: null,
+      area_sqft: 5000,
+      price: 25000000, // 2.5 Cr
+      property_code: 'IND123'
+    }
+  ] as any[],
+  profiles: { user_id: 'user-456' },
+  whatsapp_config: { account_id: 'acc-789' },
+  email_sync_configs: { account_id: 'acc-789', is_active: true }
+};
+
+vi.mock('./admin-client', () => {
+  const selectImpl = (table: string) => {
+    if (table === 'whatsapp_config') return { data: { account_id: 'acc-789' }, error: null };
+    if (table === 'email_sync_configs') return { data: { account_id: 'acc-789', is_active: true }, error: null };
+    if (table === 'profiles') return { data: { user_id: 'user-456' }, error: null };
+    if (table === 'properties') return { data: mockDb.properties, error: null };
+    if (table === 'contacts') return { data: null, error: null };
+    return { data: null, error: null };
+  };
+
+  const mockSupabase = {
+    from: vi.fn().mockImplementation((table) => {
+      const builder = {
+        then: (resolve: any) => Promise.resolve(selectImpl(table)).then(resolve),
+        select: vi.fn().mockImplementation(() => builder),
+        insert: vi.fn().mockImplementation((payload) => {
+          const records = Array.isArray(payload) ? payload : [payload];
+          const recordsWithId = records.map(r => {
+            const record = { id: `${table}-mock-id`, ...r };
+            if (table === 'contacts') mockDb.contacts.push(record);
+            if (table === 'email_sync_logs') mockDb.email_sync_logs.push(record);
+            if (table === 'tags') mockDb.tags.push(record);
+            return record;
+          });
+          const chain = {
+            select: vi.fn().mockImplementation(() => ({
+              single: vi.fn().mockResolvedValue({ data: recordsWithId[0], error: null })
+            }))
+          };
+          return chain;
+        }),
+        update: vi.fn().mockImplementation((payload) => builder),
+        upsert: vi.fn().mockImplementation((payload) => {
+          if (table === 'contact_property_inquiries') {
+            const records = Array.isArray(payload) ? payload : [payload];
+            mockDb.contact_property_inquiries.push(...records);
+          }
+          if (table === 'contact_tags') {
+            const records = Array.isArray(payload) ? payload : [payload];
+            mockDb.contact_tags.push(...records);
+          }
+          return { data: null, error: null };
+        }),
+        delete: vi.fn().mockImplementation(() => builder),
+        eq: vi.fn().mockImplementation(() => builder),
+        or: vi.fn().mockImplementation(() => builder),
+        in: vi.fn().mockImplementation(() => builder),
+        limit: vi.fn().mockImplementation(() => builder),
+        maybeSingle: vi.fn().mockImplementation(() => {
+          if (table === 'contacts') return Promise.resolve({ data: null, error: null });
+          return Promise.resolve({ data: selectImpl(table).data, error: null });
+        }),
+        single: vi.fn().mockImplementation(() => {
+          return Promise.resolve({ data: selectImpl(table).data, error: null });
+        })
+      };
+      return builder;
+    })
+  };
+  return {
+    getAdminClient: () => mockSupabase
+  };
+});
+
+vi.mock('./auto-reply', () => ({
+  sendAutoReply: vi.fn().mockResolvedValue({ success: true, messageId: 'auto-reply-msg-id' })
+}));
+
+vi.mock('@/lib/automations/engine', () => ({
+  runAutomationsForTrigger: vi.fn().mockResolvedValue(undefined)
+}));
+
 import {
   parsePortalLead,
   extractHousingUrls,
@@ -8,8 +104,10 @@ import {
   decodeMimeSubject,
   parseMimeEmail,
   checkIsNonLeadEmail,
-  stripOwnerSuffix
+  stripOwnerSuffix,
+  POST
 } from './route';
+
 
 describe('Email Webhook Lead Parsing', () => {
   describe('parsePortalLead', () => {
@@ -353,6 +451,125 @@ Content-Transfer-Encoding: quoted-printable
       expect(stripOwnerSuffix('Robert Smith (Agent)')).toBe('Robert Smith');
       expect(stripOwnerSuffix('John Doe (Buyer)')).toBe('John Doe');
       expect(stripOwnerSuffix('No Suffix')).toBe('No Suffix');
+    });
+  });
+
+  describe('POST Webhook Endpoint', () => {
+    beforeEach(() => {
+      mockDb.contacts = [];
+      mockDb.contact_property_inquiries = [];
+      mockDb.contact_tags = [];
+      mockDb.email_sync_logs = [];
+      // reset properties to initial state
+      mockDb.properties = [
+        {
+          id: 'prop-123',
+          title: 'Industrial Land in Bommasandra',
+          type: 'Industrial Land',
+          location: 'Bommasandra, Bangalore',
+          bedrooms: null,
+          area_sqft: 5000,
+          price: 25000000, // 2.5 Cr
+          property_code: 'IND123'
+        }
+      ];
+    });
+
+    it('should process a Magicbricks Industrial Land lead, match with properties, extract preferences and auto-tag', async () => {
+      const payload = {
+        subject: 'Hot Lead - Buyer has contacted you on Magicbricks for - Industrial Land for sale in Bommasandra',
+        from: 'MagicBricks <info@magicbricks.com>',
+        text: `
+          Dear Praneeth,
+          A user is interested in your Property, ID 79221031: Industrial Land in Bommasandra, Bangalore.
+          Details of Contact Made:
+          Sender's Name: Pushpa (Individual)
+          Mobile: 9740750397
+          Email: pushpa9876@gmail.com
+          Message: I am interested in your property.
+          Please get in touch with me
+        `
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+
+      // Verify contact was inserted
+      expect(mockDb.contacts.length).toBe(1);
+      const contact = mockDb.contacts[0];
+      expect(contact.name).toBe('Pushpa');
+      expect(contact.phone).toBe('+919740750397');
+      expect(contact.email).toBe('pushpa9876@gmail.com');
+      
+      // Verify preferences were populated via matched property
+      expect(contact.max_budget).toBe(25000000); // 2.5 Cr from property
+      expect(contact.areas_of_interest).toContain('Bommasandra');
+      expect(contact.property_interests).toContain('Industrial');
+
+      // Verify contact was associated with the property
+      expect(mockDb.contact_property_inquiries.length).toBe(1);
+      expect(mockDb.contact_property_inquiries[0].property_id).toBe('prop-123');
+
+      // Verify tags were assigned correctly
+      expect(mockDb.contact_tags.length).toBeGreaterThan(0);
+    });
+
+    it('should parse 99acres lead, match with HSR property and assign tags', async () => {
+      // Add a property in HSR Layout
+      mockDb.properties.push({
+        id: 'prop-456',
+        title: '4 BHK Villa in HSR Layout',
+        type: 'Villa',
+        location: 'HSR Layout, Bangalore',
+        bedrooms: 4,
+        area_sqft: 3500,
+        price: 45000000, // 4.5 Cr
+        property_code: 'VIL456'
+      });
+
+      const payload = {
+        subject: 'Property Advertisement Response',
+        from: '99acres <noreply@99acres.com>',
+        text: `
+          Dear PRANEETH KUMAR,
+          You have received a response on 99acres.
+          Details of the response:
+          Name: Syed Thanveer
+          Mobile: +91-6381139611
+          Email: thanveer@gmail.com
+          Requirements: 4 BHK Villa in HSR
+        `
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+
+      expect(mockDb.contacts.length).toBe(1);
+      const contact = mockDb.contacts[0];
+      expect(contact.name).toBe('Syed Thanveer');
+      expect(contact.phone).toBe('+916381139611');
+      expect(contact.max_budget).toBe(45000000); // 4.5 Cr from property
+      expect(contact.areas_of_interest).toContain('HSR');
+      expect(contact.property_interests).toContain('Vacant building'); // mapped from Villa
+
+      // Verify contact was associated with the property
+      expect(mockDb.contact_property_inquiries.length).toBe(1);
+      expect(mockDb.contact_property_inquiries[0].property_id).toBe('prop-456');
+
+      // Verify tags were assigned correctly
+      expect(mockDb.contact_tags.length).toBeGreaterThan(0);
     });
   });
 });

@@ -416,9 +416,49 @@ export async function POST(request: Request) {
       });
     }
 
+    // Enhance from parsed property details directly
+    if (parsed.propertyPrice && !maxBudget) {
+      maxBudget = parsed.propertyPrice;
+    }
+
+    if (parsed.propertyLocation) {
+      const mainArea = parsed.propertyLocation.split(',')[0]?.trim();
+      if (mainArea) {
+        const areaLower = mainArea.toLowerCase();
+        let formattedArea = mainArea;
+        if (areaLower === 'hsr' || areaLower === 'jp nagar') {
+          formattedArea = mainArea.toUpperCase();
+        } else {
+          formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
+        }
+        if (!areasOfInterest.includes(formattedArea)) {
+          areasOfInterest.push(formattedArea);
+        }
+      }
+    }
+
+    if (parsed.propertyType) {
+      const typeLower = parsed.propertyType.toLowerCase();
+      let interest = '';
+      if (typeLower.includes('industrial') || typeLower.includes('industry') || typeLower.includes('warehouse') || typeLower.includes('factory') || typeLower.includes('shed') || typeLower.includes('godown')) {
+        interest = 'Industrial';
+      } else if (typeLower.includes('commercial') || typeLower.includes('office') || typeLower.includes('shop') || typeLower.includes('showroom')) {
+        interest = 'Commercial';
+      } else if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
+        interest = 'Flat/ Apartment';
+      } else if (typeLower.includes('plot') || typeLower.includes('land') || typeLower.includes('site')) {
+        interest = 'Vacant plot';
+      } else if (typeLower.includes('house') || typeLower.includes('villa')) {
+        interest = 'Vacant building';
+      }
+      if (interest && !propertyInterests.includes(interest)) {
+        propertyInterests.push(interest);
+      }
+    }
+
     // Match properties from email against user's listings
     let matchedPropertyIds: string[] = [];
-    if (parsed.source === 'Housing' && (parsed.propertyType || parsed.propertyLocation || parsed.housingPropertyId)) {
+    if (parsed.propertyType || parsed.propertyLocation || parsed.housingPropertyId) {
       try {
         // Fetch user's published properties
         const { data: properties } = await supabase
@@ -492,7 +532,7 @@ export async function POST(request: Request) {
 
           if (matchedProperties.length > 0) {
             matchedPropertyIds = matchedProperties.map(p => p.id);
-            console.log(`[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.title).join(', ')} from Housing.com inquiry`);
+            console.log(`[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.title).join(', ')} from ${parsed.source} inquiry`);
 
             // Use matched property data to enhance budget, areas, and interests
             // Use the highest price from matched properties as budget if not already set
@@ -508,8 +548,17 @@ export async function POST(request: Request) {
               if (p.location) {
                 // Extract main area from location (e.g., "Kudlu, SJR Blue waters, Bangalore, Karnataka" -> "Kudlu")
                 const mainArea = p.location.split(',')[0]?.trim();
-                if (mainArea && !areasOfInterest.includes(mainArea)) {
-                  areasOfInterest.push(mainArea);
+                if (mainArea) {
+                  const areaLower = mainArea.toLowerCase();
+                  let formattedArea = mainArea;
+                  if (areaLower === 'hsr' || areaLower === 'jp nagar') {
+                    formattedArea = mainArea.toUpperCase();
+                  } else {
+                    formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
+                  }
+                  if (!areasOfInterest.includes(formattedArea)) {
+                    areasOfInterest.push(formattedArea);
+                  }
                 }
               }
             });
@@ -519,16 +568,16 @@ export async function POST(request: Request) {
               if (p.type) {
                 const typeLower = p.type.toLowerCase();
                 let interest = '';
-                if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
+                if (typeLower.includes('industrial') || typeLower.includes('industry') || typeLower.includes('warehouse') || typeLower.includes('factory') || typeLower.includes('shed') || typeLower.includes('godown')) {
+                  interest = 'Industrial';
+                } else if (typeLower.includes('commercial') || typeLower.includes('office') || typeLower.includes('shop') || typeLower.includes('showroom')) {
+                  interest = 'Commercial';
+                } else if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
                   interest = 'Flat/ Apartment';
-                } else if (typeLower.includes('plot') || typeLower.includes('land')) {
+                } else if (typeLower.includes('plot') || typeLower.includes('land') || typeLower.includes('site')) {
                   interest = 'Vacant plot';
                 } else if (typeLower.includes('house') || typeLower.includes('villa')) {
                   interest = 'Vacant building';
-                } else if (typeLower.includes('commercial') || typeLower.includes('office')) {
-                  interest = 'Commercial';
-                } else if (typeLower.includes('industrial') || typeLower.includes('industry')) {
-                  interest = 'Industrial';
                 }
                 if (interest && !propertyInterests.includes(interest)) {
                   propertyInterests.push(interest);
