@@ -140,6 +140,7 @@ export function deriveCanvasEdges(nodes: BuilderNode[]): CanvasEdge[] {
       }
 
       case "handoff":
+      case "start_property_intake":
       case "end":
         // Terminal nodes — no outgoing edges.
         break;
@@ -229,6 +230,7 @@ export function outgoingSlots(node: BuilderNode): OutgoingSlot[] {
     }
 
     case "handoff":
+    case "start_property_intake":
     case "end":
       return [];
   }
@@ -314,6 +316,7 @@ export function applyEdgeConnection(
     }
 
     case "handoff":
+    case "start_property_intake":
     case "end":
       return null;
   }
@@ -410,6 +413,7 @@ function patchedConfigWithoutKey(
     }
 
     case "handoff":
+    case "start_property_intake":
     case "end":
       return null;
   }

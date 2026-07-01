@@ -8,7 +8,7 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
-import { checkIsAccountOwner, processOwnerChatbotMessage } from '@/lib/ai/chatbot-engine'
+import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import type { SandboxSenderMapping } from '@/types'
@@ -796,6 +796,31 @@ async function processMessage(
     )
     if (handled) {
       return
+    }
+  }
+
+  if (!ownerCheck.isOwner) {
+    const { data: externalListingSession } = await supabaseAdmin()
+      .from('property_draft_sessions')
+      .select('id')
+      .eq('contact_id', contactRecord.id)
+      .eq('session_mode', 'external')
+      .maybeSingle()
+
+    if (externalListingSession) {
+      console.log(`[webhook] Intercepted message for active external listing session: ${senderPhone}`)
+      const handled = await processExternalListingMessage(
+        message,
+        contentText,
+        contactRecord,
+        conversation,
+        accountId,
+        accessToken,
+        phoneNumberId
+      )
+      if (handled) {
+        return
+      }
     }
   }
 

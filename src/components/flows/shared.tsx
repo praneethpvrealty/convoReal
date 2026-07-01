@@ -50,6 +50,7 @@ export type NodeType =
   | "condition"
   | "set_tag"
   | "handoff"
+  | "start_property_intake"
   | "end";
 
 export interface BuilderNode {
@@ -116,6 +117,11 @@ export const NODE_META: Record<
     label: "Handoff to agent",
     icon: UserPlus,
     color: "text-amber-400",
+  },
+  start_property_intake: {
+    label: "Start property intake",
+    icon: Building,
+    color: "text-emerald-400",
   },
   end: { label: "End", icon: Flag, color: "text-slate-400" },
 };
@@ -257,6 +263,10 @@ export function summarizeNode(node: BuilderNode): string | null {
     case "handoff": {
       const note = typeof cfg.note === "string" ? cfg.note : "";
       return note.length > 0 ? truncate(note) : null;
+    }
+    case "start_property_intake": {
+      const introText = typeof cfg.intro_text === "string" ? cfg.intro_text : "";
+      return introText.length > 0 ? truncate(introText) : null;
     }
     case "send_property_listings": {
       const filterType = typeof cfg.filter_type === "string" ? cfg.filter_type : "";

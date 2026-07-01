@@ -20,6 +20,7 @@ import {
 } from '@/lib/whatsapp/meta-api';
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
 import { extractImagesFromPdf } from '@/lib/pdf/image-extractor';
+import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 
 // Lazy initialize supabase admin client
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1633,4 +1634,371 @@ export async function processOwnerChatbotMessage(
   }
 
   return false;
+}
+
+/** Reply id for the "Talk to an Agent" button shown when the account's
+ *  property limit blocks a submission — mirrors the id used by
+ *  `executeStartPropertyIntake` (flows/engine.ts) at entry time. */
+const TALK_TO_AGENT_LIMIT_REPLY_ID = 'talk_to_agent_limit';
+
+async function loadAccountContactInfo(accountId: string): Promise<{ phone: string; businessName: string }> {
+  const { data } = await supabaseAdmin()
+    .from('showcase_settings')
+    .select('contact_phone, website_name')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  return {
+    phone: data?.contact_phone ?? '',
+    businessName: data?.website_name ?? '',
+  };
+}
+
+async function sendPropertyLimitReachedReply(
+  accountId: string,
+  contactRecord: { id: string; phone: string },
+  conversation: { id: string },
+  accessToken: string,
+  phoneNumberId: string
+): Promise<void> {
+  const { phone, businessName } = await loadAccountContactInfo(accountId);
+  const text =
+    `⚠️ *We're unable to accept new listings right now.*\n\n` +
+    `${businessName ? `*${businessName}*'s` : "The property owner's"} account has reached its listing capacity. ` +
+    `Please reach out to them directly to arrange your submission.` +
+    (phone ? `\n\n📞 Call or WhatsApp: ${phone}` : '');
+
+  const sendRes = await sendInteractiveButtons({
+    phoneNumberId,
+    accessToken,
+    to: contactRecord.phone,
+    bodyText: text,
+    buttons: [{ id: TALK_TO_AGENT_LIMIT_REPLY_ID, title: 'Talk to an Agent' }],
+  });
+  await saveBotMessage(conversation.id, text, sendRes.messageId);
+
+  // Flag the conversation for staff — same signal executeHandoff uses.
+  await supabaseAdmin()
+    .from('conversations')
+    .update({ status: 'pending', updated_at: new Date().toISOString() })
+    .eq('id', conversation.id);
+}
+
+/**
+ * Core processor for the "List My Property" WhatsApp intake — an
+ * external agent/property owner (NOT CRM staff) drafting a listing via
+ * the flow engine's `start_property_intake` node. Reuses the same
+ * AI-parsed draft/preview/Confirm-Cancel UX as `processOwnerChatbotMessage`,
+ * but every confirmed listing lands as `status: 'Pending Review'` /
+ * `is_published: false` for the account owner to approve on Inventory.
+ *
+ * Deliberately narrower than the owner flow: no `contact_draft_sessions`,
+ * no `classifyImageOrText` branching, no owner_contact_name-based contact
+ * lookup/creation. This function must never create or touch a `contacts`
+ * row beyond the one the webhook already resolved for the sender.
+ *
+ * Returns true if the message was handled/consumed, false otherwise.
+ */
+export async function processExternalListingMessage(
+  message: {
+    id: string;
+    type: string;
+    image?: { id: string; mime_type: string };
+    interactive?: {
+      type: 'button_reply' | 'list_reply';
+      button_reply?: { id: string; title: string };
+      list_reply?: { id: string; title: string; description?: string };
+    };
+  },
+  contentText: string | null,
+  contactRecord: { id: string; phone: string; name?: string },
+  conversation: { id: string; unread_count: number },
+  accountId: string,
+  accessToken: string,
+  phoneNumberId: string
+): Promise<boolean> {
+  const { data: propSessionData, error: propSessionErr } = await supabaseAdmin()
+    .from('property_draft_sessions')
+    .select('*')
+    .eq('contact_id', contactRecord.id)
+    .eq('session_mode', 'external')
+    .maybeSingle();
+
+  if (propSessionErr) {
+    console.error('[chatbot-engine] Error fetching external listing draft session:', propSessionErr);
+  }
+
+  const propSession = propSessionData;
+  if (!propSession) return false;
+
+  // Session Expiry Timeout (15 minutes of inactivity) — mirrors the owner flow.
+  const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+  const updatedAt = new Date(propSession.updated_at).getTime();
+  if (Date.now() - updatedAt > SESSION_TIMEOUT_MS) {
+    console.log(`[chatbot-engine] Expiring inactive external listing session ${propSession.id}`);
+    await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
+    const reply = "⌛ *Your listing draft expired due to inactivity.* Please tap \"List My Property\" again to start a new one.";
+    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    await saveBotMessage(conversation.id, reply, sendRes.messageId);
+    return true;
+  }
+
+  const cleanedText = contentText?.trim() || '';
+  const lowerText = cleanedText.toLowerCase();
+  const draft = propSession.draft_data as ParsedPropertyDraft;
+
+  const buttonId = message.type === 'interactive'
+    ? message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id
+    : null;
+
+  // The account hit its property limit earlier in this session (see the
+  // Confirm branch below) and we left the draft session alive so they
+  // could retry. Re-share the same contact info rather than re-parsing
+  // this tap as a draft correction.
+  if (buttonId === TALK_TO_AGENT_LIMIT_REPLY_ID) {
+    await sendPropertyLimitReachedReply(accountId, contactRecord, conversation, accessToken, phoneNumberId);
+    return true;
+  }
+
+  // Handle CANCEL instruction
+  if (buttonId === 'cancel_property' || lowerText === 'cancel') {
+    await supabaseAdmin()
+      .from('property_draft_sessions')
+      .delete()
+      .eq('id', propSession.id);
+
+    const reply = "❌ *Listing draft discarded.* Send another property details text or photo to start again, or tap \"List My Property\" from the menu.";
+    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    await saveBotMessage(conversation.id, reply, sendRes.messageId);
+    return true;
+  }
+
+  // Handle CONFIRM instruction
+  if (buttonId === 'confirm_property' || lowerText === 'confirm') {
+    const { isValid, missingFields } = validateDraft(draft);
+    if (!isValid) {
+      const reply = `⚠️ *Cannot confirm yet.* The following mandatory fields are missing:\n\n` +
+        missingFields.map(f => `• *${f}*`).join('\n') +
+        `\n\nPlease provide them first (e.g. 'price is 1.5 Cr', 'title is HSR 3BHK Apartment').`;
+      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      return true;
+    }
+
+    // Defensive re-check — executeStartPropertyIntake already checked
+    // this at entry, but the account's count can move while this lister
+    // was mid-draft (other submissions approved, etc). Leave the draft
+    // session alive so they can retry without re-typing everything.
+    const { limitReached } = await checkAccountPropertyLimit(supabaseAdmin(), accountId);
+    if (limitReached) {
+      await sendPropertyLimitReachedReply(accountId, contactRecord, conversation, accessToken, phoneNumberId);
+      return true;
+    }
+
+    // Self-listing: the WhatsApp sender IS the owner/agent of this
+    // property. Never look up or create another contact for it —
+    // that's what the "never invoke contact creation" rule is about.
+    const { data: prop, error: propErr } = await supabaseAdmin()
+      .from('properties')
+      .insert({
+        account_id: accountId,
+        user_id: null,
+        title: draft.title!.trim(),
+        description: draft.description || `Submitted via WhatsApp by an external lister, pending review.`,
+        price: draft.listing_type === 'Rent' ? (draft.rent_per_month || 0) : (draft.price || 0),
+        location: draft.location!.trim(),
+        type: draft.type || 'Others',
+        status: 'Pending Review',
+        bedrooms: draft.bedrooms,
+        bathrooms: draft.bathrooms,
+        area_sqft: draft.area_sqft,
+        sublocality: draft.sublocality,
+        city: draft.city || 'Bangalore',
+        state: draft.state || 'Karnataka',
+        dimensions: draft.dimensions,
+        facing_direction: draft.facing_direction,
+        is_published: false,
+        features: draft.features || [],
+        nearby_highlights: draft.nearby_highlights || [],
+        images: draft.images || [],
+        rental_income: draft.rental_income,
+        roi: draft.roi,
+        google_map_link: draft.google_map_link,
+        land_area: draft.land_area,
+        land_area_unit: draft.land_area_unit || 'Sq.Ft.',
+        owner_contact_id: contactRecord.id,
+        listing_source: 'whatsapp_lister',
+        listing_type: draft.listing_type || 'Sale',
+        rent_per_month: draft.rent_per_month,
+        maintenance: draft.maintenance,
+        advance: draft.advance,
+        gst: draft.gst,
+      })
+      .select()
+      .single();
+
+    if (propErr) {
+      console.error('[chatbot-engine] Failed to save external listing:', propErr);
+      const reply = "❌ *Error saving your listing.* Please try again later.";
+      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      return true;
+    }
+
+    await supabaseAdmin()
+      .from('property_draft_sessions')
+      .delete()
+      .eq('id', propSession.id);
+
+    // Deliberately no autoSyncPropertyCatalogIfNeeded call here — this
+    // listing is unpublished and pending review; it must not reach the
+    // public WhatsApp catalog until the account owner approves it.
+
+    let reply = `✅ *Thanks! Your property listing has been submitted.*\n\n` +
+      `*Code:* ${prop.property_code}\n` +
+      `*Title:* ${prop.title}\n` +
+      `*Price:* ₹${prop.price.toLocaleString('en-IN')}\n` +
+      `*Location:* ${prop.location}\n` +
+      `*Type:* ${prop.type}\n`;
+
+    if (prop.features && prop.features.length > 0) {
+      reply += `*Amenities:* ${prop.features.join(', ')}\n`;
+    }
+    if (prop.nearby_highlights && prop.nearby_highlights.length > 0) {
+      reply += `*Nearby Highlights:* ${prop.nearby_highlights.join(', ')}\n`;
+    }
+
+    reply += `\n🕐 *Pending review* — our team will verify the details and publish it shortly.`;
+
+    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    await saveBotMessage(conversation.id, reply, sendRes.messageId);
+    return true;
+  }
+
+  // Handle image upload inside active session
+  if (message.type === 'image' && message.image?.id) {
+    const uploadMsg = "⏳ _Uploading photo to draft listing... Please wait._";
+    const uploadSendRes = await sendTextMessage({
+      phoneNumberId,
+      accessToken,
+      to: contactRecord.phone,
+      text: uploadMsg
+    });
+    await saveBotMessage(conversation.id, uploadMsg, uploadSendRes.messageId);
+
+    try {
+      const mediaId = message.image.id;
+      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
+      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+
+      const publicUrl = await uploadPropertyImage(accountId, buffer, mimeType);
+
+      let updatedDraft = draft;
+      let success = false;
+      let retryCount = 0;
+      const maxRetries = 5;
+      let finalUpdateData: { updated_at: string }[] | null = null;
+
+      while (retryCount < maxRetries && !success) {
+        const { data: latestSession, error: fetchErr } = await supabaseAdmin()
+          .from('property_draft_sessions')
+          .select('*')
+          .eq('id', propSession.id)
+          .single();
+
+        if (fetchErr || !latestSession) {
+          if (fetchErr?.code === 'PGRST116') {
+            console.log('[chatbot-engine] Active external session was deleted concurrently. Exiting photo upload flow.');
+            return true;
+          }
+          throw fetchErr || new Error('Session not found during image append retry');
+        }
+
+        const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
+        const currentImages = currentDraft.images || [];
+        const updatedImages = currentImages.includes(publicUrl)
+          ? currentImages
+          : [...currentImages, publicUrl];
+
+        updatedDraft = { ...currentDraft, images: updatedImages };
+
+        const validation = validateDraft(updatedDraft);
+        const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+
+        const { data: updateData, error: updateErr } = await supabaseAdmin()
+          .from('property_draft_sessions')
+          .update({
+            draft_data: updatedDraft,
+            status: nextStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', propSession.id)
+          .eq('updated_at', latestSession.updated_at)
+          .select();
+
+        if (!updateErr && updateData && updateData.length > 0) {
+          success = true;
+          finalUpdateData = updateData;
+        } else {
+          retryCount++;
+          await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+        }
+      }
+
+      if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+        throw new Error('Failed to update external draft session due to concurrent modifications');
+      }
+
+      const savedTime = finalUpdateData[0].updated_at;
+
+      await sendPropertyDraftPreviewDebounced(
+        propSession.id,
+        savedTime,
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        `📸 *Photo added successfully!* Total photos attached: *${updatedDraft.images.length}*.`,
+        conversation.id
+      );
+      return true;
+    } catch (err) {
+      console.error('[chatbot-engine] Error processing external listing photo upload:', err);
+      const reply = "❌ *Failed to upload image.* Please verify the photo format and try again.";
+      const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+      await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      return true;
+    }
+  }
+
+  // Handle conversational update/correction text
+  if (cleanedText) {
+    const updatedDraft = await updateListingDraft(draft, cleanedText);
+    const { isValid } = validateDraft(updatedDraft);
+    const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+    const savedTime = new Date().toISOString();
+    const { data: updateData } = await supabaseAdmin()
+      .from('property_draft_sessions')
+      .update({
+        draft_data: updatedDraft,
+        status: nextStatus,
+        updated_at: savedTime
+      })
+      .eq('id', propSession.id)
+      .select();
+
+    const actualSavedTime = updateData?.[0]?.updated_at || savedTime;
+
+    await sendPropertyDraftPreviewDebounced(
+      propSession.id,
+      actualSavedTime,
+      phoneNumberId,
+      accessToken,
+      contactRecord.phone,
+      `📝 *Draft Listing Updated:*`,
+      conversation.id
+    );
+    return true;
+  }
+
+  return true;
 }

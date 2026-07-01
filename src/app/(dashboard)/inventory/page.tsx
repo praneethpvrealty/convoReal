@@ -58,11 +58,13 @@ export default function InventoryPage() {
     published: 0,
     available: 0,
     soldOrContract: 0,
+    pendingReview: 0,
   });
-  
+
   // Filters
   const [typeFilter] = useState('All');
-  const [statusFilter] = useState('All');
+  const [reviewTab, setReviewTab] = useState<'all' | 'review'>('all');
+  const statusFilter = reviewTab === 'review' ? 'Pending Review' : 'All';
   const [showcaseFilter] = useState('All');
   const [sourceFilter] = useState('All');
 
@@ -115,7 +117,7 @@ export default function InventoryPage() {
     if (!accountId) return;
     try {
       const supabase = createClient();
-      const [totalRes, publishedRes, availableRes, soldRes] = await Promise.all([
+      const [totalRes, publishedRes, availableRes, soldRes, pendingReviewRes] = await Promise.all([
         supabase
           .from('properties')
           .select('*', { count: 'exact', head: true })
@@ -135,12 +137,18 @@ export default function InventoryPage() {
           .select('*', { count: 'exact', head: true })
           .eq('account_id', accountId)
           .in('status', ['Sold', 'Under Contract']),
+        supabase
+          .from('properties')
+          .select('*', { count: 'exact', head: true })
+          .eq('account_id', accountId)
+          .eq('status', 'Pending Review'),
       ]);
       setGlobalStats({
         total: totalRes.count ?? 0,
         published: publishedRes.count ?? 0,
         available: availableRes.count ?? 0,
         soldOrContract: soldRes.count ?? 0,
+        pendingReview: pendingReviewRes.count ?? 0,
       });
     } catch (err) {
       console.error('Failed to load global stats:', err);
@@ -365,6 +373,51 @@ export default function InventoryPage() {
     }
   }
 
+  // Approve a "Pending Review" WhatsApp-submitted listing — publishes it
+  // and syncs to the WhatsApp catalog (PUT already handles catalog sync).
+  async function handleApprove(property: Property) {
+    try {
+      const response = await fetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Available', is_published: true }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to approve listing');
+      }
+      toast.success('Listing approved and published');
+      localCache.clear();
+      fetchProperties();
+      fetchGlobalStats();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to approve listing';
+      toast.error(message);
+    }
+  }
+
+  // Reject a "Pending Review" listing — kept for audit rather than deleted.
+  async function handleReject(property: Property) {
+    try {
+      const response = await fetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Rejected' }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to reject listing');
+      }
+      toast.success('Listing rejected');
+      localCache.clear();
+      fetchProperties();
+      fetchGlobalStats();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to reject listing';
+      toast.error(message);
+    }
+  }
+
   // stats is now sourced from the accurate global DB counts, not from the
   // current page slice. Aliased for minimal JSX diff below.
   const stats = globalStats;
@@ -444,6 +497,37 @@ export default function InventoryPage() {
         </div>
       </div>
 
+      {/* Review Tabs */}
+      <div className="flex items-center gap-1 border-b border-slate-800">
+        <button
+          type="button"
+          onClick={() => { setReviewTab('all'); setPage(0); }}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${
+            reviewTab === 'all'
+              ? 'border-primary text-white'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          All Listings
+        </button>
+        <button
+          type="button"
+          onClick={() => { setReviewTab('review'); setPage(0); }}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+            reviewTab === 'review'
+              ? 'border-primary text-white'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          Review
+          {stats.pendingReview > 0 && (
+            <span className="bg-purple-500/20 text-purple-300 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {stats.pendingReview}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Search Bar */}
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4">
         <div className="relative">
@@ -467,6 +551,8 @@ export default function InventoryPage() {
         canEdit={canEdit}
         onFlyer={handleFlyerClick}
         onShare={handleShareClick}
+        onApprove={handleApprove}
+        onReject={handleReject}
         currency={currency}
       />
 

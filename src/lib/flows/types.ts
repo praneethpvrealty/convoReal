@@ -108,6 +108,21 @@ export interface HandoffNodeConfig {
 }
 
 /**
+ * Terminal node: sends the listing-intake prompt to the customer and
+ * starts an external `property_draft_sessions` row (session_mode
+ * 'external'), then ends the run — same as `handoff`, except instead
+ * of flagging a human agent, the AI listing chatbot (chatbot-engine.ts's
+ * `processExternalListingMessage`) takes over the conversation from
+ * the next inbound message onward. Properties created through this
+ * path land as `status: 'Pending Review'` for the account owner to
+ * approve on the Inventory page.
+ */
+export interface StartPropertyIntakeNodeConfig {
+  /** Prompt text sent to kick off the intake. Falls back to a default if unset. */
+  intro_text?: string;
+}
+
+/**
  * Captures the customer's next free-text reply into
  * `flow_runs.vars[var_key]`, then advances.
  *
@@ -216,6 +231,7 @@ export type FlowNodeConfig =
   | { node_type: "condition"; config: ConditionNodeConfig }
   | { node_type: "set_tag"; config: SetTagNodeConfig }
   | { node_type: "handoff"; config: HandoffNodeConfig }
+  | { node_type: "start_property_intake"; config: StartPropertyIntakeNodeConfig }
   | { node_type: "end"; config: EndNodeConfig };
 
 export type FlowNodeType = FlowNodeConfig["node_type"];

@@ -1047,7 +1047,11 @@ export function PropertyForm({
             setOwnerSearchInput(ownerContact.name || ownerContact.phone || '');
           }
         }
-        setListingSource(property.listing_source ?? 'owner');
+        // The form's Owner/Agent toggle only models CRM-internal referral
+        // source; a WhatsApp self-listing is displayed as "Owner" here
+        // (the "Submitted via WhatsApp" badge in the list view already
+        // distinguishes it) rather than adding a third toggle state.
+        setListingSource(property.listing_source === 'agent' ? 'agent' : 'owner');
         setGoogleMapLink(property.google_map_link ?? '');
         setNotes(property.notes ?? '');
         
@@ -2612,6 +2616,8 @@ export function PropertyForm({
                         <option value="Under Contract">Under Contract</option>
                         <option value="Sold">Sold</option>
                         <option value="Off Market">Off Market</option>
+                        <option value="Pending Review">Pending Review</option>
+                        <option value="Rejected">Rejected</option>
                       </select>
                     </div>
                   )}

@@ -670,7 +670,7 @@ export interface Property {
   interested_contacts?: Contact[];
   rental_income?: number | null;
   roi?: number | null;
-  listing_source?: 'owner' | 'agent';
+  listing_source?: 'owner' | 'agent' | 'whatsapp_lister';
   agent_details?: {
     id: string;
     name: string;

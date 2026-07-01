@@ -12,6 +12,7 @@
 // for write operations.
 // ============================================================
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AccountContext } from '@/lib/auth/account';
 import type { GatedFeature, GateResult, Plan, PlanLimits } from './types';
 import { PLAN_CONFIG, upgradeRequiredFor } from './plan-config';
@@ -227,6 +228,35 @@ export async function checkPlanLimit(
       return { allowed: true, currentCount: current, limit };
     }
   }
+}
+
+/**
+ * Property-limit check for callers that don't have an `AccountContext`
+ * (webhook/background workers running under the service-role key —
+ * the WhatsApp "List My Property" intake, for one). Mirrors the
+ * 'properties' case of `checkPlanLimit` exactly, just parameterized on
+ * a raw client + accountId instead of a request-scoped ctx.
+ */
+export async function checkAccountPropertyLimit(
+  supabase: SupabaseClient,
+  accountId: string,
+): Promise<{ limitReached: boolean; limit: number; currentCount: number }> {
+  const { data: limits } = await supabase
+    .from('account_plan_limits')
+    .select('max_properties')
+    .eq('account_id', accountId)
+    .maybeSingle();
+
+  const limit = (limits as { max_properties: number } | null)?.max_properties ?? 10;
+  if (limit >= 999999) return { limitReached: false, limit, currentCount: 0 };
+
+  const { count } = await supabase
+    .from('properties')
+    .select('*', { count: 'exact', head: true })
+    .eq('account_id', accountId);
+
+  const currentCount = count ?? 0;
+  return { limitReached: currentCount >= limit, limit, currentCount };
 }
 
 /** Convenience: throw a 402 Response when a gate fails. */

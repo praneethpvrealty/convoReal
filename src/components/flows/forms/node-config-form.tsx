@@ -198,6 +198,16 @@ export function NodeConfigForm({
         />
       );
 
+    case "start_property_intake":
+      return (
+        <TextRow
+          label="Intake prompt (sent to kick off the listing draft)"
+          value={(cfg as { intro_text?: string }).intro_text ?? ""}
+          onChange={(v) => onUpdateConfig({ intro_text: v })}
+          rows={3}
+        />
+      );
+
     case "end":
       return (
         <p className="text-xs text-slate-500">

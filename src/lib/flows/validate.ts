@@ -736,6 +736,7 @@ function validateNode(
     }
 
     case "handoff":
+    case "start_property_intake":
     case "end":
       // Terminal nodes have no outgoing edges; nothing to validate
       // beyond their existence.
@@ -821,6 +822,7 @@ function outgoingEdges(node: NodeInput): string[] {
       return out;
     }
     case "handoff":
+    case "start_property_intake":
     case "end":
     default:
       return [];

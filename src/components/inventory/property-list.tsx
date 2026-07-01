@@ -42,6 +42,8 @@ interface PropertyListProps {
   canEdit: boolean;
   onFlyer?: (property: Property) => void;
   onShare?: (property: Property) => void;
+  onApprove?: (property: Property) => Promise<void>;
+  onReject?: (property: Property) => Promise<void>;
   currency?: string;
 }
 
@@ -54,8 +56,31 @@ export function PropertyList({
   canEdit,
   onFlyer,
   onShare,
+  onApprove,
+  onReject,
   currency = 'INR',
 }: PropertyListProps) {
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+
+  async function handleApprove(property: Property) {
+    if (!onApprove) return;
+    setDecidingId(property.id);
+    try {
+      await onApprove(property);
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  async function handleReject(property: Property) {
+    if (!onReject) return;
+    setDecidingId(property.id);
+    try {
+      await onReject(property);
+    } finally {
+      setDecidingId(null);
+    }
+  }
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
   // Format currency helper (Lakhs and Crores standard for real estate)
@@ -86,6 +111,8 @@ export function PropertyList({
     'Under Contract': 'bg-amber-500/10 text-amber-400 border-amber-500/30',
     Sold: 'bg-slate-800 text-slate-400 border-slate-700',
     'Off Market': 'bg-red-500/10 text-red-400 border-red-500/30',
+    'Pending Review': 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+    Rejected: 'bg-red-500/10 text-red-400 border-red-500/30',
   };
 
   function getTypeIcon(propType: string): ElementType {
@@ -197,6 +224,13 @@ export function PropertyList({
                     className="bg-sky-500/90 text-white border-sky-600 font-semibold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded-full"
                   >
                     Agent Referred
+                  </Badge>
+                )}
+                {property.listing_source === 'whatsapp_lister' && (
+                  <Badge
+                    className="bg-emerald-600/90 text-white border-emerald-700 font-semibold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded-full"
+                  >
+                    Submitted via WhatsApp
                   </Badge>
                 )}
               </div>
@@ -487,7 +521,31 @@ export function PropertyList({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/60 mt-auto">
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800/60 mt-auto flex-wrap">
+                {canEdit && property.status === 'Pending Review' && onApprove && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={decidingId === property.id}
+                    onClick={() => handleApprove(property)}
+                    className="h-8 bg-green-600 hover:bg-green-700 text-white font-medium"
+                  >
+                    {decidingId === property.id && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
+                    Approve
+                  </Button>
+                )}
+                {canEdit && property.status === 'Pending Review' && onReject && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={decidingId === property.id}
+                    onClick={() => handleReject(property)}
+                    className="h-8 border-red-900/50 hover:bg-red-950/20 hover:text-red-400 text-red-400"
+                  >
+                    Reject
+                  </Button>
+                )}
                 {onFlyer && (
                   <Button
                     type="button"

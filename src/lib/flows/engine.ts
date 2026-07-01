@@ -40,6 +40,7 @@ import {
   engineSendText,
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
+import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
@@ -56,6 +57,7 @@ import {
   type SendPropertyListingsNodeConfig,
   type SetTagNodeConfig,
   type StartNodeConfig,
+  type StartPropertyIntakeNodeConfig,
   type KeywordTriggerConfig,
 } from "./types";
 
@@ -133,7 +135,11 @@ export function isSuspending(node_type: string): boolean {
 
 /** Nodes that end the run. */
 export function isTerminal(node_type: string): boolean {
-  return node_type === "handoff" || node_type === "end";
+  return (
+    node_type === "handoff" ||
+    node_type === "start_property_intake" ||
+    node_type === "end"
+  );
 }
 
 /**
@@ -565,6 +571,132 @@ async function executeHandoff(
   await endRun(db, run.id, "handed_off", "handoff_node");
 }
 
+const DEFAULT_LISTING_INTAKE_PROMPT =
+  "📋 *List Your Property*\n\nSend photos and/or details of your property " +
+  "(location, price, BHK, etc.) as text or images, and we'll put together " +
+  "the listing for you.\n\nType *cancel* anytime to stop.";
+
+/** Reply id for the "Talk to an Agent" button shown when an account's
+ *  property limit blocks a new WhatsApp submission. Handled explicitly
+ *  by `processExternalListingMessage` when an active session exists. */
+const TALK_TO_AGENT_LIMIT_REPLY_ID = "talk_to_agent_limit";
+
+async function sendPropertyLimitReachedMessage(
+  db: AdminClient,
+  run: FlowRunRow,
+  node: FlowNodeRow,
+): Promise<void> {
+  const accountMeta = await loadAccountMeta(db, run.account_id);
+  const phone = accountMeta.contact_phone;
+  const businessName = accountMeta.business_name;
+  const text =
+    `⚠️ *We're unable to accept new listings right now.*\n\n` +
+    `${businessName ? `*${businessName}*'s` : "The property owner's"} account has reached its listing capacity. ` +
+    `Please reach out to them directly to arrange your submission.` +
+    (phone ? `\n\n📞 Call or WhatsApp: ${phone}` : "");
+
+  try {
+    const { whatsapp_message_id } = await engineSendInteractiveButtons({
+      accountId: run.account_id,
+      userId: run.user_id,
+      conversationId: run.conversation_id!,
+      contactId: run.contact_id!,
+      bodyText: text,
+      buttons: [{ id: TALK_TO_AGENT_LIMIT_REPLY_ID, title: "Talk to an Agent" }],
+    });
+    await logEvent(db, run.id, "message_sent", node.node_key, {
+      node_type: "start_property_intake",
+      reason: "property_limit_reached",
+      whatsapp_message_id,
+    });
+  } catch (err) {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "property_limit_message_failed",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Flag the conversation for staff — the lister can't self-serve past
+  // this point, so someone needs to reach out (or approve/reject a
+  // pending listing to free up a slot, or upgrade the plan).
+  if (run.conversation_id) {
+    await db
+      .from("conversations")
+      .update({ status: "pending", updated_at: new Date().toISOString() })
+      .eq("id", run.conversation_id);
+  }
+}
+
+/**
+ * Kicks off the WhatsApp AI listing intake for an external (non-staff)
+ * customer who tapped "List My Property". Sends the intro prompt, opens
+ * a `property_draft_sessions` row tagged `session_mode: 'external'`, and
+ * ends the run — `chatbot-engine.ts`'s `processExternalListingMessage`
+ * picks up every inbound message for this contact from here on, exactly
+ * mirroring the account owner's own AI listing flow. The resulting
+ * property lands as `status: 'Pending Review'` pending owner approval.
+ *
+ * Deliberately never touches `contact_draft_sessions` or any contact
+ * classification/creation logic — this path must never create a contact.
+ *
+ * Checks the account's plan property limit up front — no point walking
+ * someone through photos/details only to reject the submission at
+ * Confirm. `processExternalListingMessage` re-checks the same limit at
+ * Confirm time as a defensive fallback (the count can change while
+ * they're mid-draft).
+ */
+async function executeStartPropertyIntake(
+  db: AdminClient,
+  run: FlowRunRow,
+  node: FlowNodeRow,
+): Promise<void> {
+  const cfg = node.config as unknown as StartPropertyIntakeNodeConfig;
+
+  const { limitReached } = await checkAccountPropertyLimit(db, run.account_id);
+  if (limitReached) {
+    await sendPropertyLimitReachedMessage(db, run, node);
+    await endRun(db, run.id, "handed_off", "property_limit_reached");
+    return;
+  }
+
+  try {
+    const { whatsapp_message_id } = await engineSendText({
+      accountId: run.account_id,
+      userId: run.user_id,
+      conversationId: run.conversation_id!,
+      contactId: run.contact_id!,
+      text: cfg.intro_text || DEFAULT_LISTING_INTAKE_PROMPT,
+    });
+    await logEvent(db, run.id, "message_sent", node.node_key, {
+      node_type: "start_property_intake",
+      whatsapp_message_id,
+    });
+  } catch (err) {
+    await logEvent(db, run.id, "error", node.node_key, {
+      reason: "listing_intake_prompt_failed",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  // Idempotent — a retried webhook delivery for the same button tap
+  // would otherwise violate the UNIQUE(contact_id) constraint.
+  const { error: insertErr } = await db.from("property_draft_sessions").insert({
+    account_id: run.account_id,
+    contact_id: run.contact_id!,
+    draft_data: { images: [] },
+    status: "collecting",
+    session_mode: "external",
+  });
+  if (insertErr && !insertErr.message?.includes("23505") && !insertErr.message?.includes("duplicate key")) {
+    console.error("[flows] executeStartPropertyIntake insert error:", insertErr.message);
+  }
+
+  await logEvent(db, run.id, "handoff", node.node_key, {
+    note: "External WhatsApp lister started property intake.",
+  });
+  await endRun(db, run.id, "handed_off", "property_intake_started");
+}
+
 /**
  * Resolve a condition node's subject value from DB / run state, then
  * call the pure `evaluateConditionPredicate`. Splits out so the
@@ -931,6 +1063,10 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "handoff") {
       await executeHandoff(db, run, node);
+      return { outcome: "handed_off" };
+    }
+    if (node.node_type === "start_property_intake") {
+      await executeStartPropertyIntake(db, run, node);
       return { outcome: "handed_off" };
     }
     if (node.node_type === "end") {

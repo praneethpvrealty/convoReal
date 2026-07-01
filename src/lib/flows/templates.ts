@@ -29,6 +29,7 @@ import type {
   SendMessageNodeConfig,
   SendPropertyListingsNodeConfig,
   StartNodeConfig,
+  StartPropertyIntakeNodeConfig,
 } from "./types";
 
 export type FlowTemplateNodeType =
@@ -41,6 +42,7 @@ export type FlowTemplateNodeType =
   | "condition"
   | "set_tag"
   | "handoff"
+  | "start_property_intake"
   | "end";
 
 export interface FlowTemplateNode {
@@ -54,6 +56,7 @@ export interface FlowTemplateNode {
     | CollectInputNodeConfig
     | ConditionNodeConfig
     | HandoffNodeConfig
+    | StartPropertyIntakeNodeConfig
     | Record<string, unknown>;
 }
 
@@ -611,10 +614,11 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
     },
     {
       node_key: "seller_handoff",
-      node_type: "handoff",
+      node_type: "start_property_intake",
       config: {
-        note: "Onboarding lead wants to list their property. Please connect immediately.",
-      } as HandoffNodeConfig,
+        intro_text:
+          "📋 *List Your Property*\n\nSend photos and/or details of your property (location, price, BHK, etc.) as text or images, and we'll put together the listing for you.\n\nType *cancel* anytime to stop.",
+      } as StartPropertyIntakeNodeConfig,
     },
   ],
 };
