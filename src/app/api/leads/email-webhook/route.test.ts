@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+type MockRecord = Record<string, unknown>;
+
 const mockDb = {
-  contacts: [] as any[],
-  contact_property_inquiries: [] as any[],
-  contact_tags: [] as any[],
-  email_sync_logs: [] as any[],
-  tags: [] as any[],
+  contacts: [] as MockRecord[],
+  contact_property_inquiries: [] as MockRecord[],
+  contact_tags: [] as MockRecord[],
+  email_sync_logs: [] as MockRecord[],
+  tags: [] as MockRecord[],
   properties: [
     {
       id: 'prop-123',
@@ -17,7 +19,7 @@ const mockDb = {
       price: 25000000, // 2.5 Cr
       property_code: 'IND123'
     }
-  ] as any[],
+  ] as MockRecord[],
   profiles: { user_id: 'user-456' },
   whatsapp_config: { account_id: 'acc-789' },
   email_sync_configs: { account_id: 'acc-789', is_active: true }
@@ -36,7 +38,7 @@ vi.mock('./admin-client', () => {
   const mockSupabase = {
     from: vi.fn().mockImplementation((table) => {
       const builder = {
-        then: (resolve: any) => Promise.resolve(selectImpl(table)).then(resolve),
+        then: (resolve: (value: { data: MockRecord | MockRecord[] | null; error: null }) => unknown) => Promise.resolve(selectImpl(table)).then(resolve),
         select: vi.fn().mockImplementation(() => builder),
         insert: vi.fn().mockImplementation((payload) => {
           const records = Array.isArray(payload) ? payload : [payload];
@@ -54,7 +56,7 @@ vi.mock('./admin-client', () => {
           };
           return chain;
         }),
-        update: vi.fn().mockImplementation((payload) => builder),
+        update: vi.fn().mockImplementation((_payload) => builder),
         upsert: vi.fn().mockImplementation((payload) => {
           if (table === 'contact_property_inquiries') {
             const records = Array.isArray(payload) ? payload : [payload];
