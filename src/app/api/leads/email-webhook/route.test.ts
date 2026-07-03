@@ -56,7 +56,7 @@ vi.mock('./admin-client', () => {
           };
           return chain;
         }),
-        update: vi.fn().mockImplementation((_payload) => builder),
+        update: vi.fn().mockImplementation(() => builder),
         upsert: vi.fn().mockImplementation((payload) => {
           if (table === 'contact_property_inquiries') {
             const records = Array.isArray(payload) ? payload : [payload];
