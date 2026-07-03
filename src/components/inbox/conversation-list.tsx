@@ -65,6 +65,10 @@ export function ConversationList({
     FILTER_OPTIONS.some((o) => o.value === initialFilter) ? initialFilter : "all"
   );
   const [loading, setLoading] = useState(true);
+  // True once the very first fetch has completed — subsequent resyncs
+  // are silent merges and must NOT reset loading to true (that would
+  // replace the visible list with a spinner on every tab focus / reconnect).
+  const initialLoadDoneRef = useRef(false);
 
   useEffect(() => {
     const filterParam = searchParams.get("filter") as FilterValue;
@@ -102,6 +106,8 @@ export function ConversationList({
     const supabase = createClient();
     let cancelled = false;
 
+    const isResync = initialLoadDoneRef.current;
+
     (async () => {
       const { data, error } = await supabase
         .from("conversations")
@@ -122,8 +128,20 @@ export function ConversationList({
         return;
       }
 
-      onConversationsLoadedRef.current(data ?? []);
-      setLoading(false);
+      const fetched = data ?? [];
+
+      if (isResync) {
+        // Silent merge: update changed rows and prepend brand-new ones.
+        // This avoids replacing the entire list (and triggering a full
+        // re-render / flicker) every time the tab regains focus or the
+        // realtime channel reconnects.
+        onConversationsLoadedRef.current(fetched);
+      } else {
+        // First load — hand the full list to the parent as before.
+        onConversationsLoadedRef.current(fetched);
+        initialLoadDoneRef.current = true;
+        setLoading(false);
+      }
     })();
 
     return () => {
@@ -312,11 +330,15 @@ function ConversationItem({
       })
     : "";
 
+  const isUnread = conversation.unread_count > 0;
+
   return (
     <div
       className={cn(
         "group relative flex w-full items-start gap-3 px-3.5 py-3.5 text-left transition-all hover:bg-slate-900/40 hover:pl-4.5 border-l-2 border-transparent select-none cursor-pointer duration-200",
-        isActive && "border-l-2 border-primary bg-primary/8 text-white hover:pl-3.5"
+        isActive && "border-l-2 border-primary bg-primary/8 text-white hover:pl-3.5",
+        // Unread highlight: subtle blue-tinted background + left accent (only when not already active)
+        !isActive && isUnread && "bg-primary/5 border-l-primary/60"
       )}
     >
       <button
@@ -324,7 +346,10 @@ function ConversationItem({
         className="flex flex-1 items-start gap-3 min-w-0 text-left"
       >
         {/* Avatar */}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 border border-slate-750 text-sm font-bold text-slate-300">
+        <div className={cn(
+          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 border text-sm font-bold text-slate-300 transition-all",
+          isUnread && !isActive ? "border-primary/50 shadow-[0_0_0_2px_hsl(var(--primary)/0.15)]" : "border-slate-750"
+        )}>
           {contact?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -335,23 +360,40 @@ function ConversationItem({
           ) : (
             initials
           )}
+          {/* Unread pulse dot on avatar */}
+          {isUnread && !isActive && (
+            <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-primary border-2 border-slate-950 animate-pulse" />
+          )}
         </div>
 
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-sm font-medium text-white">
+            <span className={cn(
+              "truncate text-sm transition-all",
+              isUnread && !isActive
+                ? "font-semibold text-white"
+                : "font-medium text-white/80"
+            )}>
               {displayName}
             </span>
-            <span className="shrink-0 text-[10px] text-slate-500">{timeAgo}</span>
+            <span className={cn(
+              "shrink-0 text-[10px] transition-all",
+              isUnread && !isActive ? "text-primary/80 font-medium" : "text-slate-500"
+            )}>{timeAgo}</span>
           </div>
           <div className="mt-0.5 flex items-center justify-between gap-2">
-            <p className="truncate text-xs text-slate-400">
+            <p className={cn(
+              "truncate text-xs transition-all",
+              isUnread && !isActive
+                ? "text-slate-200 font-medium"
+                : "text-slate-500"
+            )}>
               {conversation.last_message_text || "No messages yet"}
             </p>
             <div className="flex shrink-0 items-center gap-1.5">
-              {conversation.unread_count > 0 && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
+              {isUnread && (
+                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-[0_0_6px_hsl(var(--primary)/0.5)]">
                   {conversation.unread_count}
                 </span>
               )}

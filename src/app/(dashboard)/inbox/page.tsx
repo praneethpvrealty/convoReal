@@ -358,18 +358,56 @@ export default function InboxPage() {
 
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
-      // When merging a refetch (resync / tab focus / reconnect) into state,
-      // preserve unread_count: 0 for the conversation the user is currently
-      // viewing. The DB update issued on select may not have round-tripped
-      // yet, so the fresh row can still carry a positive unread_count — which
-      // would restore the blue dot for a thread the user is already reading.
       const activeId = activeConversationIdRef.current;
-      const merged = activeId
-        ? loaded.map((c) =>
-            c.id === activeId ? { ...c, unread_count: 0 } : c,
-          )
-        : loaded;
-      setConversations(merged);
+
+      setConversations((prev) => {
+        // First load (prev is empty) — just set the full list.
+        if (prev.length === 0) {
+          return activeId
+            ? loaded.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c))
+            : loaded;
+        }
+
+        // Resync merge: patch existing rows in-place and prepend truly new
+        // conversations. This avoids replacing the entire array reference
+        // (which would cause the whole list to re-render) and preserves any
+        // optimistic state we applied since the last fetch.
+        const prevMap = new Map(prev.map((c) => [c.id, c]));
+        const loadedMap = new Map(loaded.map((c) => [c.id, c]));
+        const result: Conversation[] = [];
+
+        // Iterate the freshly-fetched order (sorted by last_message_at desc)
+        // so the list stays sorted after the merge.
+        for (const fresh of loaded) {
+          const existing = prevMap.get(fresh.id);
+          if (existing) {
+            // Preserve optimistic unread_count: 0 for the active conversation.
+            const unread = fresh.id === activeId ? 0 : fresh.unread_count;
+            // Only replace the object if something actually changed — avoids
+            // triggering needless React reconciliation for unchanged rows.
+            const unchanged =
+              existing.unread_count === unread &&
+              existing.last_message_at === fresh.last_message_at &&
+              existing.last_message_text === fresh.last_message_text &&
+              existing.status === fresh.status &&
+              existing.is_archived === fresh.is_archived;
+            result.push(unchanged ? existing : { ...existing, ...fresh, unread_count: unread });
+          } else {
+            // Brand-new conversation not yet in state.
+            result.push(fresh.id === activeId ? { ...fresh, unread_count: 0 } : fresh);
+          }
+        }
+
+        // Keep any local-only rows (e.g. optimistically prepended via hydrateConversation)
+        // that haven't appeared in the DB result yet.
+        for (const existing of prev) {
+          if (!loadedMap.has(existing.id)) {
+            result.push(existing);
+          }
+        }
+
+        return result;
+      });
       // Resolve a pending deep-link here rather than in an effect — this
       // is an event handler, so the setState calls below are allowed by
       // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value
