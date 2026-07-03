@@ -107,3 +107,56 @@ export function canDeleteAccount(role: AccountRole): boolean {
 export function canTransferOwnership(role: AccountRole): boolean {
   return role === "owner";
 }
+
+// ============================================================
+// Org role helpers — added by migration 082_org_hierarchy.sql.
+//
+// Mirrors `org_role_enum`, the new source of truth on `profiles`.
+// `AccountRole`/`roleRank()` above are kept unchanged and still
+// back every existing consumer (~50-100 components) during the
+// transition; new code (routing engine, Inbox tabs, Settings
+// Teams tab) should use these instead. `useAuth()`/`useCan()`
+// cut over to reading `org_role` in a later phase, at which point
+// the old predicates above become the deprecated path.
+// ============================================================
+
+export type OrgRole = "org_manager" | "org_leader" | "org_agent";
+
+/** Ordered list of every valid org role, lowest privilege first. */
+export const ORG_ROLES: readonly OrgRole[] = [
+  "org_agent",
+  "org_leader",
+  "org_manager",
+] as const;
+
+/**
+ * Numeric rank of an org role. Higher = more privileged. Mirrors
+ * the CASE expression in `is_account_member`'s rewritten body so
+ * JS/SQL stay aligned, same as the legacy `roleRank()` above.
+ */
+export function orgRoleRank(role: OrgRole): number {
+  switch (role) {
+    case "org_manager":
+      return 4;
+    case "org_leader":
+      return 3;
+    case "org_agent":
+      return 2;
+  }
+}
+
+/**
+ * True iff `role` is at least as privileged as `min`. Use this
+ * for any "user is at least a leader" / "at least an agent" checks
+ * against the org hierarchy.
+ */
+export function hasMinOrgRole(role: OrgRole, min: OrgRole): boolean {
+  return orgRoleRank(role) >= orgRoleRank(min);
+}
+
+/** Type-narrow an unknown string into a valid `OrgRole`. */
+export function isOrgRole(value: unknown): value is OrgRole {
+  return (
+    typeof value === "string" && (ORG_ROLES as readonly string[]).includes(value)
+  );
+}

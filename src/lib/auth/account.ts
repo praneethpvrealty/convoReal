@@ -29,7 +29,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
-import { hasMinRole, isAccountRole, type AccountRole } from "./roles";
+import { hasMinRole, isAccountRole, isOrgRole, type AccountRole, type OrgRole } from "./roles";
 
 // ------------------------------------------------------------
 // Errors
@@ -85,8 +85,16 @@ export interface AccountContext {
   userId: string;
   /** Caller's account_id from their profile row. */
   accountId: string;
-  /** Caller's role within their account. */
+  /** Caller's role within their account. Kept in sync with `orgRole` by a
+   *  DB trigger (migration 082) — safe for existing `requireRole()`
+   *  callers, but new code should prefer `orgRole`. */
   role: AccountRole;
+  /** Caller's org-hierarchy role (migration 082). Source of truth going
+   *  forward — `role` above is the deprecated mirror. */
+  orgRole: OrgRole;
+  /** Caller's team, if any. Null for Org Managers (account-wide) and for
+   *  any account still in Solo Mode (no teams created yet). */
+  teamId: string | null;
   /** Lightweight account meta — id + name. */
   account: { id: string; name: string };
 }
@@ -121,7 +129,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // rather than silently returning a half-populated profile.
   const { data, error } = await supabase
     .from("profiles")
-    .select("account_id, account_role, account:accounts!inner(id, name)")
+    .select("account_id, account_role, org_role, team_id, account:accounts!inner(id, name)")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -141,6 +149,11 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     // hit this — surface it rather than silently widening.
     throw new ForbiddenError(`Unknown account role: ${data.account_role}`);
   }
+  if (!isOrgRole(data.org_role)) {
+    // Every profile row gets org_role backfilled + NOT NULL by
+    // migration 082 — this should be unreachable post-migration.
+    throw new ForbiddenError(`Unknown org role: ${data.org_role}`);
+  }
 
   // Supabase's typed client returns related rows as an array even
   // for `!inner` single-record joins; normalise to a single object.
@@ -151,6 +164,8 @@ export async function getCurrentAccount(): Promise<AccountContext> {
     userId: user.id,
     accountId: data.account_id,
     role: data.account_role,
+    orgRole: data.org_role,
+    teamId: data.team_id ?? null,
     account: { id: accountRow.id, name: accountRow.name },
   };
 }

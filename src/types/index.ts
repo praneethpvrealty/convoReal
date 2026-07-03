@@ -1,4 +1,4 @@
-import type { AccountRole } from "@/lib/auth/roles";
+import type { AccountRole, OrgRole } from "@/lib/auth/roles";
 
 export interface Profile {
   id: string;
@@ -36,6 +36,23 @@ export interface Profile {
    * `@/lib/auth/roles` rather than comparing this string directly.
    */
   account_role?: AccountRole;
+  /**
+   * Org-hierarchy role (migration 082_org_hierarchy.sql) — source of
+   * truth going forward. `account_role` above is kept in sync by a DB
+   * trigger for as-yet-unmigrated readers, but new code should prefer
+   * this field and `hasMinOrgRole` from `@/lib/auth/roles`.
+   */
+  org_role?: OrgRole;
+  /** Team this profile belongs to. Null for Org Managers and for any
+   *  account still in Solo Mode (no teams created yet). */
+  team_id?: string | null;
+  /** Former 'viewer' role folds into org_agent + this flag. */
+  is_read_only?: boolean;
+  /** Locality keywords this agent covers, for routing rule 3. */
+  coverage_areas?: string[] | null;
+  /** Toggled by the agent themselves or their leader — used by the
+   *  routing engine's round-robin rule to skip unavailable agents. */
+  is_available?: boolean;
   created_at: string;
 }
 
@@ -111,6 +128,11 @@ export interface Contact {
   contact_notes?: { note_text: string }[] | null;
   last_inquired_property_id?: string | null;
   source?: string | null;
+  /** Org hierarchy (migration 082) — which agent/team this contact is
+   *  scoped to. Null = unassigned (visible to Org Manager/Leader via the
+   *  "unassigned queue" RLS branch; invisible to Org Agents). */
+  assigned_agent_id?: string | null;
+  assigned_team_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -184,7 +206,12 @@ export interface Conversation {
   user_id: string;
   contact_id: string;
   status: ConversationStatus;
-  assigned_agent_id?: string;
+  assigned_agent_id?: string | null;
+  /** Org hierarchy (migration 082) — routing-engine assignment fields. */
+  assigned_team_id?: string | null;
+  assigned_by?: string | null;
+  routing_rule_used?: string | null;
+  assigned_at?: string | null;
   last_message_text?: string;
   last_message_at?: string;
   unread_count: number;
@@ -192,6 +219,38 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   contact?: Contact;
+}
+
+// ============================================================
+// Org hierarchy (migration 082_org_hierarchy.sql)
+// ============================================================
+
+export interface Team {
+  id: string;
+  account_id: string;
+  name: string;
+  leader_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type RoutingRuleType =
+  | 'locality_match'
+  | 'source_match'
+  | 'keyword_match'
+  | 'round_robin'
+  | 'fallback';
+
+export interface RoutingRule {
+  id: string;
+  account_id: string;
+  rule_type: RoutingRuleType;
+  match_value: string | null;
+  target_team_id: string | null;
+  target_agent_id: string | null;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';
