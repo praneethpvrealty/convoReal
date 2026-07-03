@@ -976,11 +976,11 @@ export function ShowcaseView({
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-tight">
             Discover Your Dream{' '}
             <span className="bg-gradient-to-r from-primary via-indigo-400 to-primary/80 bg-clip-text text-transparent">
-              Inventory & Properties
+              Properties & Spaces
             </span>
           </h1>
           <p className="mt-4 text-sm sm:text-base text-slate-400 font-medium leading-relaxed">
-            Browse through our handpicked collection of premium villa plots, residential land, apartments, and commercial spaces. Handled directly by agents in our custom CRM.
+            Browse through our handpicked collection of premium villa plots, residential land, apartments, and commercial spaces. Managed directly by property owners and agents.
           </p>
         </div>
 

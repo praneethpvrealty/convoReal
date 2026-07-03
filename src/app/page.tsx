@@ -11,7 +11,7 @@ import { BRANDING } from '@/config/branding';
 export const metadata: Metadata = {
   title: `${BRANDING.name} — AI-Powered WhatsApp CRM & Property Portals`,
   description:
-    'ConvoReal is a premium WhatsApp-first CRM for real estate agents and agencies. Auto-capture leads, manage inventories, match properties, and run campaigns.',
+    'ConvoReal is a premium WhatsApp-first, AI-based real estate platform connecting buyers, property owners, and agents. Auto-capture leads, manage inventories, match properties, and run campaigns.',
   robots: {
     index: true,
     follow: true,
