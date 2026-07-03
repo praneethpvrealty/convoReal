@@ -10,13 +10,16 @@ import {
 
 import {
   loadActivity,
+  loadAgentLoad,
   loadConversationsSeries,
   loadMetrics,
   loadPipelineDonut,
   loadResponseTime,
+  loadUnassignedQueueDepth,
 } from '@/lib/dashboard/queries'
 import type {
   ActivityItem,
+  AgentLoadEntry,
   ConversationsSeriesPoint,
   MetricsBundle,
   PipelineDonutData,
@@ -31,14 +34,23 @@ import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { ActiveUsers } from '@/components/dashboard/active-users'
+import { TeamWorkload } from '@/components/dashboard/team-workload'
 import { getCurrencyIcon, formatCurrency } from '@/lib/currency-utils'
+import { useAuth } from '@/hooks/use-auth'
 
 type RangeDays = 7 | 30 | 90
 
 export default function DashboardPage() {
+  const { isOrgManager, isOrgLeader } = useAuth()
+  const showWorkload = isOrgManager || isOrgLeader
+
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [currency, setCurrency] = useState('INR')
+
+  const [unassignedCount, setUnassignedCount] = useState(0)
+  const [agentLoad, setAgentLoad] = useState<AgentLoadEntry[]>([])
+  const [workloadLoading, setWorkloadLoading] = useState(true)
 
   useEffect(() => {
     const db = createClient()
@@ -105,7 +117,23 @@ export default function DashboardPage() {
       .then((a) => setActivity(a))
       .catch((err) => console.error('[dashboard] activity failed:', err))
       .finally(() => setActivityLoading(false))
-  }, [])
+
+    // The `else` branch also defers its setState into a microtask
+    // (rather than calling it synchronously in the effect body) to
+    // stay consistent with every other branch here, all of which only
+    // ever setState from a promise callback.
+    if (showWorkload) {
+      void Promise.all([loadUnassignedQueueDepth(db), loadAgentLoad(db)])
+        .then(([count, load]) => {
+          setUnassignedCount(count)
+          setAgentLoad(load)
+        })
+        .catch((err) => console.error('[dashboard] workload failed:', err))
+        .finally(() => setWorkloadLoading(false))
+    } else {
+      void Promise.resolve().then(() => setWorkloadLoading(false))
+    }
+  }, [showWorkload])
 
   useEffect(() => {
     loadAll()
@@ -223,6 +251,13 @@ export default function DashboardPage() {
         {/* Right Columns (Active Roster & Activity Feed) */}
         <div className="lg:col-span-3 space-y-6">
           <ActiveUsers />
+          {showWorkload && (
+            <TeamWorkload
+              unassignedCount={unassignedCount}
+              agentLoad={agentLoad}
+              loading={workloadLoading}
+            />
+          )}
           <ActivityFeed items={activity} loading={activityLoading} />
         </div>
       </div>

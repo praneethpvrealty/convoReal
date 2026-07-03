@@ -65,3 +65,15 @@ export interface ActivityItem {
   /** Optional deep-link for the whole row (not all items have a target). */
   href?: string
 }
+
+// Org hierarchy (migration 082+) — Leader/Manager-only widgets. Both
+// read from `conversations.assigned_agent_id`/`assigned_team_id`,
+// which RLS already scopes per-caller, so a Leader querying these
+// only ever sees their own team's numbers even though the query
+// itself has no team filter.
+
+export interface AgentLoadEntry {
+  userId: string
+  fullName: string | null
+  openConversations: number
+}

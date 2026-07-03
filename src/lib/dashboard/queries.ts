@@ -9,6 +9,7 @@ import {
 } from './date-utils'
 import type {
   ActivityItem,
+  AgentLoadEntry,
   ConversationsSeriesPoint,
   MetricsBundle,
   PipelineDonutData,
@@ -271,7 +272,56 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
   }
 }
 
-// --- 5. Activity feed --------------------------------------------------
+// --- 5. Org hierarchy: unassigned queue + per-agent load ---------------
+//
+// Leader/Manager-only (gated in the UI, not here — RLS is the real
+// boundary: an Org Agent's `conversations` select only ever returns
+// their own rows, so these would just report their own single-row
+// "team" if called for an Agent). Deals/broadcasts/automation stay
+// account-wide by design (see ORG_HIERARCHY_DESIGN.md's deferred
+// scope) — only conversations/messages/contacts are team-isolated.
+
+export async function loadUnassignedQueueDepth(db: DB): Promise<number> {
+  const { count, error } = await db
+    .from('conversations')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'open')
+    .is('assigned_agent_id', null)
+    .is('assigned_team_id', null)
+  if (error) throw error
+  return count ?? 0
+}
+
+export async function loadAgentLoad(db: DB): Promise<AgentLoadEntry[]> {
+  const { data, error } = await db
+    .from('conversations')
+    .select('assigned_agent_id')
+    .eq('status', 'open')
+    .not('assigned_agent_id', 'is', null)
+  if (error) throw error
+
+  const counts = new Map<string, number>()
+  for (const row of (data ?? []) as { assigned_agent_id: string }[]) {
+    counts.set(row.assigned_agent_id, (counts.get(row.assigned_agent_id) ?? 0) + 1)
+  }
+  if (counts.size === 0) return []
+
+  const { data: profiles, error: profilesError } = await db
+    .from('profiles')
+    .select('user_id, full_name')
+    .in('user_id', Array.from(counts.keys()))
+  if (profilesError) throw profilesError
+
+  return ((profiles ?? []) as { user_id: string; full_name: string | null }[])
+    .map((p) => ({
+      userId: p.user_id,
+      fullName: p.full_name,
+      openConversations: counts.get(p.user_id) ?? 0,
+    }))
+    .sort((a, b) => b.openConversations - a.openConversations)
+}
+
+// --- 6. Activity feed --------------------------------------------------
 
 export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> {
   // Pull ~10 from each source (plenty of headroom after merge-sort),

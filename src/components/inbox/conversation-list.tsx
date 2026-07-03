@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import type { Conversation, ConversationStatus } from "@/types";
-import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
+import type { Conversation, ConversationStatus, Team } from "@/types";
+import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
 import {
@@ -48,6 +49,44 @@ const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
   { label: "Archived", value: "archived" },
 ];
 
+// ============================================================
+// Assignment-scope filter (migration 082/083 org hierarchy) — a
+// SECOND, independent filter dimension alongside status/search
+// above. RLS already restricts which rows this component ever
+// receives (an Org Agent's fetch physically cannot return another
+// agent's conversations), so these are convenience tabs on top of
+// an already-safe result set, not the security boundary itself —
+// same split as everywhere else in this codebase: RLS enforces,
+// the UI just narrows what's shown.
+// ============================================================
+
+/** "team:<id>" for a specific team (Manager only); otherwise a fixed tab. */
+type ScopeFilterValue = "all" | "unassigned" | "mine" | `team:${string}`;
+
+function scopeOptionsFor(
+  orgRole: "org_manager" | "org_leader" | "org_agent" | null,
+  teams: Team[],
+): { label: string; value: ScopeFilterValue; icon?: boolean }[] {
+  if (orgRole === "org_manager") {
+    return [
+      { label: "All", value: "all" },
+      { label: "Unassigned", value: "unassigned" },
+      { label: "Mine", value: "mine" },
+      ...teams.map((t) => ({ label: t.name, value: `team:${t.id}` as ScopeFilterValue, icon: true })),
+    ];
+  }
+  if (orgRole === "org_leader") {
+    return [
+      { label: "My Team", value: "all" },
+      { label: "Unassigned", value: "unassigned" },
+      { label: "Mine", value: "mine" },
+    ];
+  }
+  // org_agent, or role not yet loaded — RLS already scopes them to
+  // their own conversations, so "Mine" is the only meaningful tab.
+  return [{ label: "Mine", value: "mine" }];
+}
+
 export function ConversationList({
   activeConversationId,
   onSelect,
@@ -59,11 +98,14 @@ export function ConversationList({
   const searchParams = useSearchParams();
   const initialFilter = (searchParams.get("filter") as FilterValue) || "all";
   const initialSearch = searchParams.get("search") || "";
+  const { orgRole, accountId, user } = useAuth();
 
   const [search, setSearch] = useState(initialSearch);
   const [filter, setFilter] = useState<FilterValue>(
     FILTER_OPTIONS.some((o) => o.value === initialFilter) ? initialFilter : "all"
   );
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilterValue>("all");
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   // True once the very first fetch has completed — subsequent resyncs
   // are silent merges and must NOT reset loading to true (that would
@@ -84,6 +126,37 @@ export function ConversationList({
     }, 0);
     return () => clearTimeout(timer);
   }, [searchParams]);
+
+  // Manager-only: fetch teams for the "by team" scope tabs. Cheap and
+  // RLS-scoped like everything else here; skipped entirely for
+  // Leader/Agent since they never see this dropdown option.
+  useEffect(() => {
+    if (orgRole !== "org_manager" || !accountId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("teams")
+        .select("*")
+        .eq("account_id", accountId)
+        .order("name", { ascending: true });
+      if (!cancelled) setTeams((data as Team[] | null) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgRole, accountId]);
+
+  // Derived (not stored) — Org Agents only have one meaningful scope
+  // tab ("Mine"), and a Leader/Manager's stored selection could point
+  // at a team dropdown option that no longer applies if their role
+  // changes mid-session. Falling back to the first valid option here
+  // (render time) avoids an effect just to keep state "in sync" with
+  // itself — see https://react.dev/learn/you-might-not-need-an-effect.
+  const scopeOptions = useMemo(() => scopeOptionsFor(orgRole, teams), [orgRole, teams]);
+  const effectiveScope: ScopeFilterValue = scopeOptions.some((o) => o.value === scopeFilter)
+    ? scopeFilter
+    : scopeOptions[0].value;
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -165,6 +238,20 @@ export function ConversationList({
       }
     }
 
+    // Assignment-scope tab — convenience narrowing on top of the
+    // already-RLS-restricted result set (see scopeOptionsFor above).
+    if (effectiveScope === "unassigned") {
+      result = result.filter((c) => !c.assigned_agent_id && !c.assigned_team_id);
+    } else if (effectiveScope === "mine") {
+      result = result.filter((c) => c.assigned_agent_id === user?.id);
+    } else if (effectiveScope.startsWith("team:")) {
+      const scopedTeamId = effectiveScope.slice("team:".length);
+      result = result.filter((c) => c.assigned_team_id === scopedTeamId);
+    }
+    // effectiveScope === "all": no extra filter. For a Leader this is
+    // their "My Team" tab — RLS already excludes other teams'
+    // conversations, so "all [I can see]" IS "my team" for them.
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => {
@@ -176,7 +263,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search]);
+  }, [conversations, filter, search, effectiveScope, user?.id]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -226,6 +313,7 @@ export function ConversationList({
   );
 
   const activeFilter = FILTER_OPTIONS.find((o) => o.value === filter);
+  const activeScope = scopeOptions.find((o) => o.value === effectiveScope) ?? scopeOptions[0];
 
   return (
     // w-full on mobile so the list occupies the whole viewport when it's
@@ -244,32 +332,64 @@ export function ConversationList({
           />
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-350 hover:text-white rounded-xl border border-slate-900 bg-slate-950/20 hover:bg-slate-900/50 cursor-pointer transition-all">
-              {activeFilter?.label ?? "All"}
-              <ChevronDown className="h-3 w-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="border-slate-900 bg-slate-950/95 backdrop-blur-xl"
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                onClick={() => setFilter(opt.value)}
-                className={cn(
-                  "text-sm",
-                  filter === opt.value
-                    ? "text-primary"
-                    : opt.value === "archived" ? "text-slate-400" : "text-slate-300"
-                )}
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-350 hover:text-white rounded-xl border border-slate-900 bg-slate-950/20 hover:bg-slate-900/50 cursor-pointer transition-all">
+                {activeFilter?.label ?? "All"}
+                <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="border-slate-900 bg-slate-950/95 backdrop-blur-xl"
+            >
+              {FILTER_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => setFilter(opt.value)}
+                  className={cn(
+                    "text-sm",
+                    filter === opt.value
+                      ? "text-primary"
+                      : opt.value === "archived" ? "text-slate-400" : "text-slate-300"
+                  )}
+                >
+                  {opt.value === "archived" && <Archive className="mr-2 h-3 w-3" />}
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Assignment-scope tab (org hierarchy) — only rendered once
+              orgRole has loaded and offers more than the single "Mine"
+              option every role trivially has. */}
+          {scopeOptions.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="inline-flex items-center justify-center h-8 gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-350 hover:text-white rounded-xl border border-slate-900 bg-slate-950/20 hover:bg-slate-900/50 cursor-pointer transition-all">
+                <Users className="h-3 w-3" />
+                {activeScope?.label ?? "All"}
+                <ChevronDown className="h-3 w-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                className="border-slate-900 bg-slate-950/95 backdrop-blur-xl"
               >
-                {opt.value === "archived" && <Archive className="mr-2 h-3 w-3" />}
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                {scopeOptions.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => setScopeFilter(opt.value)}
+                    className={cn(
+                      "text-sm",
+                      effectiveScope === opt.value ? "text-primary" : "text-slate-300"
+                    )}
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
 
       {/* Conversation Items */}

@@ -554,18 +554,18 @@ export default function InboxPage() {
   );
 
   const handleAssignChange = useCallback(
-    (conversationId: string, assignedAgentId: string | null) => {
+    (conversationId: string, assignedAgentId: string | null, assignedTeamId: string | null) => {
       setConversations((prev) =>
         prev.map((c) =>
           c.id === conversationId
-            ? { ...c, assigned_agent_id: assignedAgentId ?? undefined }
+            ? { ...c, assigned_agent_id: assignedAgentId, assigned_team_id: assignedTeamId }
             : c
         )
       );
       if (activeConversation?.id === conversationId) {
         setActiveConversation((prev) =>
           prev
-            ? { ...prev, assigned_agent_id: assignedAgentId ?? undefined }
+            ? { ...prev, assigned_agent_id: assignedAgentId, assigned_team_id: assignedTeamId }
             : prev
         );
       }

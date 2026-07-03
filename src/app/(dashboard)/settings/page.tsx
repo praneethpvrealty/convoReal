@@ -12,6 +12,8 @@ import {
   Sparkles,
   Sliders,
   CreditCard,
+  Users,
+  Route,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -22,10 +24,13 @@ import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 import { MembersTab } from '@/components/settings/members-tab';
+import { TeamsTab } from '@/components/settings/teams-tab';
+import { RoutingRulesTab } from '@/components/settings/routing-rules-tab';
 import { ShowcaseSettingsPanel } from '@/components/settings/showcase-settings';
 import { AiSettingsPanel } from '@/components/settings/ai-settings';
 import { OtherSettingsPanel } from '@/components/settings/other-settings';
 import { useAuth } from '@/hooks/use-auth';
+import { usePlan } from '@/hooks/usePlan';
 import { BillingTab } from '@/components/settings/billing-tab';
 
 const BASE_TAB_VALUES = [
@@ -39,7 +44,7 @@ const BASE_TAB_VALUES = [
   'other',
   'billing',
 ] as const;
-const FLAGGED_TAB_VALUES = ['members'] as const;
+const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -57,11 +62,20 @@ const ACCOUNT_SHARING_FLAG = 'account_sharing';
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { profile, profileLoading } = useAuth();
+  const { profile, profileLoading, isOrgManager, isOrgLeader } = useAuth();
+  const { isAllowed, isLoading: planLoading } = usePlan();
 
   const accountSharingEnabled =
     !profileLoading &&
     !!profile?.beta_features?.includes(ACCOUNT_SHARING_FLAG);
+
+  // Teams/Routing Rules require both the plan flag (has_teams) and
+  // Org Leader+ (Agents don't manage teams, so no point showing an
+  // empty shell). Routing rules are further gated Manager-only inside
+  // the tab itself, but the trigger is shown to Leaders too since
+  // they can still view team structure via the Teams tab.
+  const teamsEnabled = !planLoading && isAllowed('teams') && (isOrgManager || isOrgLeader);
+  const routingEnabled = !planLoading && isAllowed('teams') && isOrgManager;
 
   // The URL is the single source of truth for the active tab — no
   // local state, no sync effect. A previous revision duplicated this
@@ -70,12 +84,14 @@ export default function SettingsPage() {
   const queryTab = searchParams.get('tab');
   const requestedTab: TabValue = isTabValue(queryTab) ? queryTab : 'profile';
 
-  // If a user lands on /settings?tab=members but the flag is off
-  // (e.g. their profile was reset, or they followed a stale link),
-  // fall back to the profile tab silently rather than rendering an
-  // empty TabsContent.
+  // If a user lands on a flagged tab that's currently disabled for
+  // them (feature flag off, plan doesn't include it, or insufficient
+  // role — e.g. a stale link or a downgraded plan), fall back to the
+  // profile tab silently rather than rendering an empty TabsContent.
   const tab: TabValue =
-    requestedTab === 'members' && !accountSharingEnabled
+    (requestedTab === 'members' && !accountSharingEnabled) ||
+    (requestedTab === 'teams' && !teamsEnabled) ||
+    (requestedTab === 'routing' && !routingEnabled)
       ? 'profile'
       : requestedTab;
 
@@ -172,6 +188,24 @@ export default function SettingsPage() {
               Members
             </TabsTrigger>
           )}
+          {teamsEnabled && (
+            <TabsTrigger
+              value="teams"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <Users className="size-4" />
+              Teams
+            </TabsTrigger>
+          )}
+          {routingEnabled && (
+            <TabsTrigger
+              value="routing"
+              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+            >
+              <Route className="size-4" />
+              Routing Rules
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile" className="space-y-6">
@@ -215,6 +249,18 @@ export default function SettingsPage() {
         {accountSharingEnabled && (
           <TabsContent value="members">
             <MembersTab />
+          </TabsContent>
+        )}
+
+        {teamsEnabled && (
+          <TabsContent value="teams">
+            <TeamsTab />
+          </TabsContent>
+        )}
+
+        {routingEnabled && (
+          <TabsContent value="routing">
+            <RoutingRulesTab />
           </TabsContent>
         )}
       </Tabs>

@@ -16,7 +16,10 @@ import {
   canManageMembers as canManageMembersFor,
   canSendMessages as canSendMessagesFor,
   isAccountRole,
+  isOrgRole,
+  hasMinOrgRole,
   type AccountRole,
+  type OrgRole,
 } from "@/lib/auth/roles";
 
 interface Profile {
@@ -34,6 +37,11 @@ interface Profile {
   beta_features: string[];
   account_id: string | null;
   account_role: AccountRole | null;
+  /** Org-hierarchy role (migration 082) — source of truth going forward. */
+  org_role: OrgRole | null;
+  team_id: string | null;
+  /** Former 'viewer' role folds into org_agent + this flag. */
+  is_read_only: boolean;
 }
 
 interface AccountSummary {
@@ -76,7 +84,8 @@ interface AuthContextValue {
 
   /** Account id the current user belongs to. Null while loading. */
   accountId: string | null;
-  /** Role within that account. Null while loading. */
+  /** Role within that account. Null while loading. Deprecated —
+   *  prefer `orgRole`, kept in sync by a DB trigger for legacy callers. */
   accountRole: AccountRole | null;
   /** Lightweight account meta — id + name. Null while loading. */
   account: AccountSummary | null;
@@ -94,6 +103,28 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+
+  // ----------------------------------------------------------
+  // Org hierarchy (migration 082_org_hierarchy.sql) — source of
+  // truth going forward. `accountRole` above stays populated (kept
+  // in sync by a DB trigger) for the ~50-100 existing consumers that
+  // haven't migrated yet; new code should prefer these instead.
+  // ----------------------------------------------------------
+
+  /** Caller's org-hierarchy role. Null while loading. */
+  orgRole: OrgRole | null;
+  /** Caller's team. Null for Org Managers and for any account still
+   *  in Solo Mode (no teams created yet). */
+  teamId: string | null;
+  /** Former 'viewer' role folds into org_agent + this flag — check this
+   *  instead of `isViewer` (dead post-082, see roles.ts). */
+  isReadOnly: boolean;
+  /** True if `orgRole === 'org_manager'`. */
+  isOrgManager: boolean;
+  /** True if `orgRole === 'org_leader'`. */
+  isOrgLeader: boolean;
+  /** True if `orgRole === 'org_agent'`. */
+  isOrgAgent: boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -129,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, account:accounts!inner(id, name)",
+          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, account:accounts!inner(id, name)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -168,6 +199,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               beta_features: legacyData.beta_features ?? [],
               account_id: null,
               account_role: null,
+              org_role: null,
+              team_id: null,
+              is_read_only: false,
             });
             setAccount(null);
           }
@@ -200,6 +234,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const accountRole = isAccountRole(data.account_role)
           ? data.account_role
           : null;
+        // Same defensive narrowing for org_role — null on forks that
+        // haven't applied migration 082 yet (data.org_role would be
+        // undefined from the select, isOrgRole rejects that too).
+        const orgRole = isOrgRole(data.org_role) ? data.org_role : null;
 
         setProfile({
           id: data.id,
@@ -215,6 +253,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           beta_features: data.beta_features ?? [],
           account_id: data.account_id ?? null,
           account_role: accountRole,
+          org_role: orgRole,
+          team_id: data.team_id ?? null,
+          is_read_only: data.is_read_only ?? false,
         });
         setAccount(accountRow);
       }
@@ -319,6 +360,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // dependencies downstream.
   const derived = useMemo(() => {
     const role = profile?.account_role ?? null;
+    const orgRole = profile?.org_role ?? null;
     return {
       accountRole: role,
       accountId: profile?.account_id ?? null,
@@ -326,11 +368,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: role === "admin",
       isAgent: role === "agent",
       isViewer: role === "viewer",
-      canManageMembers: role ? canManageMembersFor(role) : false,
-      canEditSettings: role ? canEditSettingsFor(role) : false,
-      canSendMessages: role ? canSendMessagesFor(role) : false,
+      orgRole,
+      teamId: profile?.team_id ?? null,
+      isReadOnly: profile?.is_read_only ?? false,
+      isOrgManager: orgRole === "org_manager",
+      isOrgLeader: orgRole === "org_leader",
+      isOrgAgent: orgRole === "org_agent",
+      // Capability predicates read orgRole when available (source of
+      // truth going forward), falling back to the legacy accountRole
+      // for any profile that somehow lacks it (shouldn't happen
+      // post-082, but fails closed rather than throwing).
+      canManageMembers: orgRole
+        ? hasMinOrgRole(orgRole, "org_leader")
+        : role
+          ? canManageMembersFor(role)
+          : false,
+      canEditSettings: orgRole
+        ? hasMinOrgRole(orgRole, "org_leader")
+        : role
+          ? canEditSettingsFor(role)
+          : false,
+      canSendMessages: orgRole
+        ? hasMinOrgRole(orgRole, "org_agent")
+        : role
+          ? canSendMessagesFor(role)
+          : false,
     };
-  }, [profile?.account_role, profile?.account_id]);
+  }, [profile?.account_role, profile?.account_id, profile?.org_role, profile?.team_id, profile?.is_read_only]);
 
   return (
     <AuthContext.Provider
@@ -380,6 +444,12 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      orgRole: null,
+      teamId: null,
+      isReadOnly: false,
+      isOrgManager: false,
+      isOrgLeader: false,
+      isOrgAgent: false,
     };
   }
   return ctx;

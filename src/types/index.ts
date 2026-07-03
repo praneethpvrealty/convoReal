@@ -83,6 +83,9 @@ export interface AccountMember {
   avatar_url: string | null;
   role: AccountRole;
   joined_at: string;
+  /** Org-hierarchy role (migration 082) — source of truth going forward. */
+  org_role?: OrgRole;
+  team_id?: string | null;
 }
 
 /**

@@ -15,7 +15,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentAccount, toErrorResponse } from "@/lib/auth/account";
-import { canManageMembers, isAccountRole } from "@/lib/auth/roles";
+import { canManageMembers, isAccountRole, isOrgRole } from "@/lib/auth/roles";
 import type { AccountMember } from "@/types";
 
 interface ProfileRow {
@@ -24,6 +24,8 @@ interface ProfileRow {
   email: string | null;
   avatar_url: string | null;
   account_role: string;
+  org_role: string | null;
+  team_id: string | null;
   created_at: string;
 }
 
@@ -35,7 +37,7 @@ export async function GET() {
     // the caller's, so this query is naturally account-scoped.
     const { data, error } = await ctx.supabase
       .from("profiles")
-      .select("user_id, full_name, email, avatar_url, account_role, created_at")
+      .select("user_id, full_name, email, avatar_url, account_role, org_role, team_id, created_at")
       .eq("account_id", ctx.accountId)
       .order("created_at", { ascending: true });
 
@@ -62,6 +64,8 @@ export async function GET() {
           avatar_url: row.avatar_url,
           role: row.account_role,
           joined_at: row.created_at,
+          org_role: isOrgRole(row.org_role) ? row.org_role : undefined,
+          team_id: row.team_id,
         },
       ];
     });

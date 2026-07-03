@@ -64,6 +64,7 @@ interface MessageThreadProps {
   onAssignChange: (
     conversationId: string,
     assignedAgentId: string | null,
+    assignedTeamId: string | null,
   ) => void;
   /**
    * On mobile, the thread is shown full-screen with the conversation list
@@ -741,10 +742,18 @@ export function MessageThread({
     async (agentId: string | null) => {
       if (!conversation) return;
 
+      // assigned_team_id must follow the new agent's own team — the
+      // org-hierarchy RLS policies (migration 082) grant a Leader
+      // visibility via assigned_team_id, not assigned_agent_id, so
+      // leaving it stale here would make a manually-assigned
+      // conversation invisible to the assignee's own Leader. Same
+      // sync handoff_contact does for contacts (migration 083).
+      const teamId = agentId ? profiles.find((p) => p.user_id === agentId)?.team_id ?? null : null;
+
       const supabase = createClient();
       const { error } = await supabase
         .from("conversations")
-        .update({ assigned_agent_id: agentId })
+        .update({ assigned_agent_id: agentId, assigned_team_id: teamId })
         .eq("id", conversation.id);
 
       if (error) {
@@ -753,9 +762,9 @@ export function MessageThread({
         return;
       }
 
-      onAssignChange(conversation.id, agentId);
+      onAssignChange(conversation.id, agentId, teamId);
     },
-    [conversation, onAssignChange],
+    [conversation, onAssignChange, profiles],
   );
 
   // Empty state — same WhatsApp-style doodle background as the active

@@ -9,6 +9,7 @@ import {
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
+import { resolveRouting } from '@/lib/whatsapp/routing-engine'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import type { SandboxSenderMapping } from '@/types'
@@ -680,6 +681,40 @@ async function processMessage(
   const { contentText, mediaUrl, mediaType, interactiveReplyId } =
     await parseMessageContent(message, accessToken)
 
+  // Org hierarchy routing (migration 082/083) — only for conversations
+  // that aren't already assigned, and only for accounts past Solo Mode
+  // (2+ members). Solo accounts skip this entirely: no query, no
+  // behavior change, conversation stays unassigned and every message
+  // continues to land in the sole user's inbox exactly as before.
+  let routingUpdate: {
+    assigned_agent_id?: string | null
+    assigned_team_id?: string | null
+    routing_rule_used?: string | null
+    assigned_at?: string | null
+  } = {}
+  if (!conversation.assigned_agent_id && !conversation.assigned_team_id) {
+    const { count: memberCount } = await supabaseAdmin()
+      .from('profiles')
+      .select('user_id', { count: 'exact', head: true })
+      .eq('account_id', accountId)
+    if ((memberCount ?? 0) >= 2) {
+      const routingResult = await resolveRouting({
+        accountId,
+        phone: senderPhone,
+        messageText: contentText || '',
+        contactId: contactRecord.id,
+        contactAssignedAgentId: (contactRecord as { assigned_agent_id?: string | null }).assigned_agent_id,
+        source: (contactRecord as { source?: string | null }).source,
+      })
+      routingUpdate = {
+        assigned_agent_id: routingResult.agentId,
+        assigned_team_id: routingResult.teamId,
+        routing_rule_used: routingResult.ruleUsed,
+        assigned_at: new Date().toISOString(),
+      }
+    }
+  }
+
   if (contentText) {
     try {
       const { data: properties } = await supabaseAdmin()
@@ -772,6 +807,7 @@ async function processMessage(
       last_message_at: new Date().toISOString(),
       unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
+      ...routingUpdate,
     })
     .eq('id', conversation.id)
 
