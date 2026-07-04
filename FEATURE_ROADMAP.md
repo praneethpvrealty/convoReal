@@ -11,13 +11,13 @@ To build the definitive, WhatsApp-first CRM for independent real estate agencies
 
 ## 🗺️ Product Roadmap
 
-### Milestone 1: Expected Yield Matching & Location-Agnostic Profiling (ACTIVE)
+### Milestone 1: Expected Yield Matching & Location-Agnostic Profiling (DONE)
 *Provide flexibility for investors who prioritize yields over location coordinates.*
-- [ ] **Database Expansion**: Add `min_roi` NUMERIC field to `contacts`.
-- [ ] **UI Preferences**: Create expected min ROI number controls in Contact Forms and Preference Drawers.
-- [ ] **Matching Logic**: Filter properties so `property.roi >= contact.min_roi`.
-- [ ] **Location Agnosticism**: Allow contacts with empty areas or areas containing `'any'` to match properties in any sublocality.
-- [ ] **Scoring Adjustments**: Weight the ROI yield component in matching scoring calculations.
+- [x] **Database Expansion**: Add `min_roi` NUMERIC field to `contacts`. (migration 048)
+- [x] **UI Preferences**: Create expected min ROI number controls in Contact Forms and Preference Drawers. (`contact-form.tsx`, `contact-detail-view.tsx`)
+- [x] **Matching Logic**: Filter properties so `property.roi >= contact.min_roi`. (`src/lib/matching.ts`)
+- [x] **Location Agnosticism**: Allow contacts with empty areas or areas containing `'any'` to match properties in any sublocality. (`src/lib/matching.ts`)
+- [x] **Scoring Adjustments**: Weight the ROI yield component in matching scoring calculations. (`src/lib/matching.ts`, covered by `matching.test.ts`)
 
 ---
 
