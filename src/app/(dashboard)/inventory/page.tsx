@@ -373,20 +373,27 @@ export default function InventoryPage() {
     }
   }
 
-  // Approve a "Pending Review" WhatsApp-submitted listing — publishes it
-  // and syncs to the WhatsApp catalog (PUT already handles catalog sync).
+  // Approve a "Pending Review" WhatsApp-submitted listing — publishes it,
+  // syncs to the WhatsApp catalog, and sends a WhatsApp notification to
+  // the tagged owner contact (if one is set on the property).
   async function handleApprove(property: Property) {
     try {
-      const response = await fetch(`/api/properties/${property.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'Available', is_published: true }),
+      const response = await fetch(`/api/properties/${property.id}/approve`, {
+        method: 'POST',
       });
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.error || 'Failed to approve listing');
       }
-      toast.success('Listing approved and published');
+      const { notificationSent, ownerName } = await response.json() as {
+        notificationSent: boolean;
+        ownerName: string | null;
+      };
+      if (notificationSent && ownerName) {
+        toast.success(`Listing approved — ${ownerName} has been notified via WhatsApp 📲`);
+      } else {
+        toast.success('Listing approved and published');
+      }
       localCache.clear();
       fetchProperties();
       fetchGlobalStats();
