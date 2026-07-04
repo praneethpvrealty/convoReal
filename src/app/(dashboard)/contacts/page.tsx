@@ -1306,7 +1306,7 @@ export default function ContactsPage() {
                         className="inline-flex items-center justify-center rounded-md size-6 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-all cursor-pointer"
                         title="Send pre-filled welcome message on WhatsApp"
                       >
-                        <MessageSquarePlus className="size-3.5 fill-current" />
+                        <MessageSquarePlus className="size-3.5 fill-current stroke-slate-950" />
                       </button>
                     </div>
                   </TableCell>

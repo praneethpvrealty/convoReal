@@ -1205,7 +1205,7 @@ export function ContactDetailView({
                       onClick={handlePrefilledWhatsAppClick}
                       className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
                     >
-                      <MessageSquarePlus className="size-3 text-emerald-400 fill-current" />
+                      <MessageSquarePlus className="size-3 text-emerald-400 fill-current stroke-slate-950" />
                       Send Welcome
                     </button>
                     <button
