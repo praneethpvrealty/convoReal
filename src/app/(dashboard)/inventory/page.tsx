@@ -36,6 +36,7 @@ import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog'
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { localCache } from '@/lib/cache-store';
+import { AnimatedCounter } from '@/components/ui/animated-counter';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
@@ -468,7 +469,9 @@ export default function InventoryPage() {
             <Building className="size-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white">{stats.total}</div>
+            <div className="text-2xl font-bold text-white">
+              <AnimatedCounter value={stats.total} />
+            </div>
             <div className="text-xs text-slate-400 font-medium">Total Listings</div>
           </div>
         </div>
@@ -478,7 +481,9 @@ export default function InventoryPage() {
             <Eye className="size-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white">{stats.published}</div>
+            <div className="text-2xl font-bold text-white">
+              <AnimatedCounter value={stats.published} />
+            </div>
             <div className="text-xs text-slate-400 font-medium">Showcased Publicly</div>
           </div>
         </div>
@@ -488,7 +493,9 @@ export default function InventoryPage() {
             <CheckCircle className="size-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white">{stats.available}</div>
+            <div className="text-2xl font-bold text-white">
+              <AnimatedCounter value={stats.available} />
+            </div>
             <div className="text-xs text-slate-400 font-medium">Available Units</div>
           </div>
         </div>
@@ -498,7 +505,9 @@ export default function InventoryPage() {
             <Tag className="size-5" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-white">{stats.soldOrContract}</div>
+            <div className="text-2xl font-bold text-white">
+              <AnimatedCounter value={stats.soldOrContract} />
+            </div>
             <div className="text-xs text-slate-400 font-medium">Sold / Under Contract</div>
           </div>
         </div>

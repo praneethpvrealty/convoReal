@@ -32,6 +32,7 @@ import {
   Trash2,
   Save,
   MessageSquare,
+  Send,
   Users,
   Building,
   Unlink,
@@ -88,7 +89,7 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const supabase = createClient();
-  const { user, accountId } = useAuth();
+  const { user, profile, accountId } = useAuth();
   const router = useRouter();
 
   const [currency, setCurrency] = useState('INR');
@@ -112,17 +113,22 @@ export function ContactDetailView({
   const [editCompany, setEditCompany] = useState('');
   const [editSource, setEditSource] = useState('');
 
-  const fetchCurrency = useCallback(async () => {
+  const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
+
+  const fetchShowcaseSettings = useCallback(async () => {
     try {
       const { data } = await supabase
         .from('showcase_settings')
-        .select('currency')
-        .single();
-      if (data?.currency) {
-        setCurrency(data.currency);
+        .select('*')
+        .maybeSingle();
+      if (data) {
+        setShowcaseSettings(data);
+        if (data.currency) {
+          setCurrency(data.currency);
+        }
       }
     } catch (err) {
-      console.error('Failed to load showcase settings currency:', err);
+      console.error('Failed to load showcase settings:', err);
     }
   }, [supabase]);
   const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Others'>('Others');
@@ -558,7 +564,7 @@ export function ContactDetailView({
 
   useEffect(() => {
     if (open && contactId) {
-      fetchCurrency();
+      fetchShowcaseSettings();
       fetchContact();
       fetchTags();
       fetchNotes();
@@ -568,7 +574,7 @@ export function ContactDetailView({
       fetchAssociatedProperties();
       fetchAllProperties();
     }
-  }, [open, contactId, fetchCurrency, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchCalls, fetchAssociatedProperties, fetchAllProperties]);
+  }, [open, contactId, fetchShowcaseSettings, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchCalls, fetchAssociatedProperties, fetchAllProperties]);
 
   useEffect(() => {
     if (open && contactId && allProperties.length > 0) {
@@ -742,6 +748,47 @@ export function ContactDetailView({
       }
     }, 1500);
   }
+
+  const getPrefilledWhatsAppLink = () => {
+    if (!contact) return '';
+    const cleanPhone = contact.phone.replace(/\D/g, '');
+    if (!cleanPhone) return '';
+
+    const agentName = profile?.full_name || '';
+    const displayName = contact.name || 'there';
+    
+    // Resolve showcase URL
+    let finalShowcaseUrl = '';
+    if (typeof window !== 'undefined') {
+      const baseDomain = window.location.host;
+      const parts = baseDomain.split('.');
+      let hostDomain = baseDomain;
+      if (parts.length > 2 && !baseDomain.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)) {
+        hostDomain = parts.slice(1).join('.');
+      }
+      const targetDomain = showcaseSettings?.subdomain 
+        ? `${showcaseSettings.subdomain}.${hostDomain}` 
+        : baseDomain;
+      const showcaseUrl = new URL(`${window.location.protocol}//${targetDomain}`);
+      if (!showcaseSettings?.subdomain && accountId) {
+        showcaseUrl.searchParams.set('ref', accountId);
+      }
+      finalShowcaseUrl = showcaseUrl.toString();
+    }
+
+    const message = `Hi ${displayName}, Greetings from ${agentName} , your real estate buddy!. Thanks for your property enquiry. Kindly let me know your requirements and budget. We will share the suitable property from our inventory matching your requirements and budget. For any other queries you can ask me here. Also you can explore our inventories here - ${finalShowcaseUrl}`;
+
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const handlePrefilledWhatsAppClick = () => {
+    const link = getPrefilledWhatsAppLink();
+    if (link) {
+      window.open(link, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.error('Invalid phone number or showcase settings not loaded');
+    }
+  };
 
   async function saveDetails() {
     if (!contactId || !editPhone.trim()) {
@@ -1153,6 +1200,13 @@ export function ContactDetailView({
                     >
                       <MessageSquare className="size-3 text-emerald-400 fill-current" />
                       WhatsApp Chat
+                    </button>
+                    <button
+                      onClick={handlePrefilledWhatsAppClick}
+                      className="flex items-center gap-1.5 text-sky-400 hover:text-sky-355 hover:bg-sky-500/10 border border-sky-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                    >
+                      <Send className="size-3 text-sky-400" />
+                      Send Welcome
                     </button>
                     <button
                       onClick={() => setScheduleOpen(true)}

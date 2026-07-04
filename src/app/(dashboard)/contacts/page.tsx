@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag } from '@/types';
+import type { Contact, Tag, ContactTag, ShowcaseSettings } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -43,6 +43,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
+  Send,
   Smartphone,
   X,
   ArrowUp,
@@ -104,7 +105,7 @@ interface ContactWithTags extends Contact {
 export default function ContactsPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { user, accountId } = useAuth();
+  const { user, profile, accountId } = useAuth();
   const canEdit = useCan('send-messages');
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
@@ -250,6 +251,62 @@ export default function ContactsPage() {
         }
       }
     }, 1500);
+  };
+
+  const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
+
+  const fetchShowcaseSettings = useCallback(async () => {
+    if (!accountId) return;
+    const supabaseClient = createClient();
+    const { data } = await supabaseClient
+      .from('showcase_settings')
+      .select('*')
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (data) {
+      setShowcaseSettings(data);
+    }
+  }, [accountId]);
+
+  const getPrefilledWhatsAppLink = (contact: Contact) => {
+    const cleanPhone = contact.phone.replace(/\D/g, '');
+    if (!cleanPhone) return '';
+
+    const agentName = profile?.full_name || '';
+    const displayName = contact.name || 'there';
+    
+    // Resolve showcase URL
+    let finalShowcaseUrl = '';
+    if (typeof window !== 'undefined') {
+      const baseDomain = window.location.host;
+      const parts = baseDomain.split('.');
+      let hostDomain = baseDomain;
+      if (parts.length > 2 && !baseDomain.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)) {
+        hostDomain = parts.slice(1).join('.');
+      }
+      const targetDomain = showcaseSettings?.subdomain 
+        ? `${showcaseSettings.subdomain}.${hostDomain}` 
+        : baseDomain;
+      const showcaseUrl = new URL(`${window.location.protocol}//${targetDomain}`);
+      if (!showcaseSettings?.subdomain && accountId) {
+        showcaseUrl.searchParams.set('ref', accountId);
+      }
+      finalShowcaseUrl = showcaseUrl.toString();
+    }
+
+    const message = `Hi ${displayName}, Greetings from ${agentName} , your real estate buddy!. Thanks for your property enquiry. Kindly let me know your requirements and budget. We will share the suitable property from our inventory matching your requirements and budget. For any other queries you can ask me here. Also you can explore our inventories here - ${finalShowcaseUrl}`;
+
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
+
+  const handlePrefilledWhatsAppClick = (e: React.MouseEvent, contact: Contact) => {
+    e.stopPropagation();
+    const link = getPrefilledWhatsAppLink(contact);
+    if (link) {
+      window.open(link, '_blank', 'noopener,noreferrer');
+    } else {
+      toast.error('Invalid phone number or showcase settings not loaded');
+    }
   };
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
@@ -666,7 +723,8 @@ export default function ContactsPage() {
   useEffect(() => {
     fetchTags();
     fetchAreas();
-  }, [fetchTags, fetchAreas]);
+    fetchShowcaseSettings();
+  }, [fetchTags, fetchAreas, fetchShowcaseSettings]);
 
 
   useEffect(() => {
@@ -1242,6 +1300,13 @@ export default function ContactsPage() {
                         title="Chat on WhatsApp"
                       >
                         <MessageSquare className="size-3.5 fill-current" />
+                      </button>
+                      <button
+                        onClick={(e) => handlePrefilledWhatsAppClick(e, contact)}
+                        className="inline-flex items-center justify-center rounded-md size-6 text-sky-500 hover:text-sky-400 hover:bg-sky-500/10 border border-sky-500/20 transition-all cursor-pointer"
+                        title="Send pre-filled welcome message on WhatsApp"
+                      >
+                        <Send className="size-3" />
                       </button>
                     </div>
                   </TableCell>
