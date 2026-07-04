@@ -109,7 +109,8 @@ export async function POST(
     let notificationSent = false;
     let ownerName: string | null = null;
 
-    const owner = property.owner as { id: string; name: string | null; phone: string | null } | null;
+    const ownerData = property.owner;
+    const owner = (Array.isArray(ownerData) ? ownerData[0] : ownerData) as unknown as { id: string; name: string | null; phone: string | null; } | null;
 
     if (owner?.id && owner?.phone) {
       ownerName = owner.name ?? owner.phone;
