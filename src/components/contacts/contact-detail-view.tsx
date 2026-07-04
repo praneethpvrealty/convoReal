@@ -32,7 +32,7 @@ import {
   Trash2,
   Save,
   MessageSquare,
-  Send,
+  MessageSquarePlus,
   Users,
   Building,
   Unlink,
@@ -1203,9 +1203,9 @@ export function ContactDetailView({
                     </button>
                     <button
                       onClick={handlePrefilledWhatsAppClick}
-                      className="flex items-center gap-1.5 text-sky-400 hover:text-sky-355 hover:bg-sky-500/10 border border-sky-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
                     >
-                      <Send className="size-3 text-sky-400" />
+                      <MessageSquarePlus className="size-3 text-emerald-400 fill-current" />
                       Send Welcome
                     </button>
                     <button

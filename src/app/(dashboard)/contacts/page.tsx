@@ -43,7 +43,7 @@ import {
   ChevronLeft,
   ChevronRight,
   MessageSquare,
-  Send,
+  MessageSquarePlus,
   Smartphone,
   X,
   ArrowUp,
@@ -1303,10 +1303,10 @@ export default function ContactsPage() {
                       </button>
                       <button
                         onClick={(e) => handlePrefilledWhatsAppClick(e, contact)}
-                        className="inline-flex items-center justify-center rounded-md size-6 text-sky-500 hover:text-sky-400 hover:bg-sky-500/10 border border-sky-500/20 transition-all cursor-pointer"
+                        className="inline-flex items-center justify-center rounded-md size-6 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-all cursor-pointer"
                         title="Send pre-filled welcome message on WhatsApp"
                       >
-                        <Send className="size-3" />
+                        <MessageSquarePlus className="size-3.5 fill-current" />
                       </button>
                     </div>
                   </TableCell>
