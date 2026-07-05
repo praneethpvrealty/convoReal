@@ -315,6 +315,12 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
+  // `search` drives the controlled input for instant typing feedback;
+  // `debouncedSearch` is what actually triggers fetchContacts (via its
+  // dependency array below). Without this split, every keystroke fired a
+  // full network round-trip (plus, for NLP-style queries, several extra
+  // parallel note/tag lookups) — see the debounce effect further down.
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [activeTab, setActiveTab] = useState<'active' | 'pending_review'>('active');
@@ -329,6 +335,16 @@ export default function ContactsPage() {
   // All unique areas across all contacts for the area filter dropdown
   const [allAreas, setAllAreas] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>('created_desc');
+
+  // Debounce the search box: only commit to `debouncedSearch` (and reset to
+  // page 0) 350ms after the user stops typing, instead of on every keystroke.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(0);
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [search]);
 
   useEffect(() => {
     const searchParam = searchParams?.get('search');
@@ -377,8 +393,19 @@ export default function ContactsPage() {
     }
   }, []);
 
+  // Populates the "Area" filter dropdown. This has to scan every contact's
+  // areas_of_interest column (no cheap indexed DISTINCT-unnest available),
+  // so it's cached for 5 minutes and — unlike fetchTags/fetchContacts — only
+  // triggered lazily when the user actually opens the Filters panel, instead
+  // of unconditionally on every Contacts page mount.
   const fetchAreas = useCallback(async () => {
     if (!accountId) return;
+    const cacheKey = `contacts-areas-${accountId}`;
+    const cached = localCache.get<string[]>(cacheKey, 5 * 60 * 1000);
+    if (cached) {
+      setAllAreas(cached);
+      return;
+    }
     const supabaseClient = createClient();
     const { data } = await supabaseClient
       .from('contacts')
@@ -394,6 +421,7 @@ export default function ContactsPage() {
         )
       ).sort();
       setAllAreas(unique);
+      localCache.set(cacheKey, unique);
     }
   }, [accountId]);
 
@@ -404,7 +432,7 @@ export default function ContactsPage() {
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${search}`;
+    const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${debouncedSearch}`;
     const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number }>(cacheKey);
 
     if (cached) {
@@ -417,9 +445,17 @@ export default function ContactsPage() {
       setLoading(true);
     }
 
+    // Scoped to what the table row, edit form, and delete/WhatsApp actions
+    // actually read — dropping `requirements` (free text) and other unused
+    // columns cuts payload size meaningfully at 25 rows/page. `.or()` search
+    // filters below reference DB columns directly, so they still work even
+    // though `requirements` isn't in the returned shape.
     let query = supabaseClient
       .from('contacts')
-      .select('*', { count: 'exact' })
+      .select(
+        'id, user_id, name, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, min_roi, source, status, created_at, updated_at',
+        { count: 'exact' },
+      )
       .eq('account_id', accountId)
       .eq('status', activeTab);
 
@@ -476,8 +512,8 @@ export default function ContactsPage() {
       query = query.contains('areas_of_interest', [filterArea]);
     }
 
-    if (search.trim()) {
-      const parsed = parsePropertyQuery(search.trim());
+    if (debouncedSearch.trim()) {
+      const parsed = parsePropertyQuery(debouncedSearch.trim());
       const isNlpQuery =
         parsed.locations.length > 0 ||
         parsed.types.length > 0 ||
@@ -616,7 +652,7 @@ export default function ContactsPage() {
         }
       } else {
         // Simple text-search query fallback
-        const term = `%${search.trim()}%`;
+        const term = `%${debouncedSearch.trim()}%`;
         const { data: matchedNotes } = await supabaseClient
           .from('contact_notes')
           .select('contact_id')
@@ -702,7 +738,7 @@ export default function ContactsPage() {
     setLoading(false);
   }, [
     page,
-    search,
+    debouncedSearch,
     tagsMap,
     activeTab,
     accountId,
@@ -723,11 +759,21 @@ export default function ContactsPage() {
   // inside an async promise completion (Supabase await), not
   // synchronously in the effect body, so the cascade the lint rule
   // warns about doesn't apply here.
+  // Note: fetchAreas is intentionally NOT called here — it's a full-table
+  // scan just to populate the Area filter dropdown, so it's deferred until
+  // the user actually opens the Filters panel (see the isFiltersOpen effect
+  // below).
   useEffect(() => {
     fetchTags();
-    fetchAreas();
     fetchShowcaseSettings();
-  }, [fetchTags, fetchAreas, fetchShowcaseSettings]);
+  }, [fetchTags, fetchShowcaseSettings]);
+
+  // Lazily load the Area filter options only when the Filters panel opens.
+  useEffect(() => {
+    if (isFiltersOpen) {
+      fetchAreas();
+    }
+  }, [isFiltersOpen, fetchAreas]);
 
 
   useEffect(() => {
@@ -951,10 +997,7 @@ export default function ContactsPage() {
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(0);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, phone, or email..."
               className="pl-8.5 pr-10 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-1 h-9.5 rounded-xl"
             />
@@ -962,7 +1005,10 @@ export default function ContactsPage() {
               <button
                 type="button"
                 onClick={() => {
+                  // Explicit clear — apply instantly instead of waiting for
+                  // the debounce timeout typing goes through.
                   setSearch('');
+                  setDebouncedSearch('');
                   setPage(0);
                 }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white hover:bg-slate-800 p-1 rounded-md transition-all cursor-pointer"

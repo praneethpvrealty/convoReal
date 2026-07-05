@@ -47,10 +47,24 @@ export default function InventoryPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(initialPage);
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
+
+  // Debounce search to avoid per-keystroke NLP parse + Supabase round-trip.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Reset to first page when the debounced search actually changes.
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch]);
 
   // Global stats — counts across ALL properties, independent of the
   // current page/filters so the summary cards always show accurate totals.
@@ -165,7 +179,7 @@ export default function InventoryPage() {
       page: String(page),
       limit: '25',
     });
-    if (search.trim()) params.set('search', search.trim());
+    if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
     if (typeFilter !== 'All') params.set('type', typeFilter);
     if (statusFilter !== 'All') params.set('status', statusFilter);
     if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
@@ -201,7 +215,7 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, typeFilter, statusFilter, showcaseFilter, sourceFilter]);
+  }, [page, debouncedSearch, typeFilter, statusFilter, showcaseFilter, sourceFilter]);
 
   useEffect(() => {
     fetchProperties();
@@ -548,12 +562,12 @@ export default function InventoryPage() {
       <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
-          <Input
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            placeholder='e.g. residential properties > 10 Cr in Koramangala, 3 BHK villa in JP Nagar'
-            className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
-          />
+            <Input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); }}
+              placeholder='e.g. residential properties > 10 Cr in Koramangala, 3 BHK villa in JP Nagar'
+              className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+            />
         </div>
       </div>
 

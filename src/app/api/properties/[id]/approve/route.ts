@@ -81,7 +81,7 @@ export async function POST(
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .select(
-        "*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)"
+        "*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)"
       )
       .single();
 

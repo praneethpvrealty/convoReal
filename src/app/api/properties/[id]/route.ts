@@ -22,7 +22,7 @@ export async function GET(
 
     const { data, error } = await ctx.supabase
       .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -335,7 +335,7 @@ export async function PUT(
       .update(updateData)
       .eq("id", id)
       .eq("account_id", ctx.accountId)
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
       .single();
 
     if (error) {

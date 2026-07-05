@@ -37,7 +37,7 @@ export async function GET(request: Request) {
 
     let query = ctx.supabase
       .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(*)", { count: "exact" })
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)", { count: "exact" })
       .eq("account_id", ctx.accountId)
       .order(sort, { ascending: order === "asc" })
       .range(from, to);
@@ -314,7 +314,7 @@ export async function POST(request: Request) {
     const { data, error } = await ctx.supabase
       .from("properties")
       .insert(insertData)
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(*), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(*)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
       .single();
 
     if (error) {
