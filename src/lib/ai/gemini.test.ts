@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 
@@ -23,10 +23,117 @@ if (existsSync(envPath)) {
 
 import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft } from './gemini';
 
-const hasApiKey = !!process.env.GEMINI_API_KEY;
+describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(init.body as string) : {};
+      const userMessage = body.contents?.[0]?.parts?.find((p: any) => p.text)?.text || '';
+      const systemInstruction = body.systemInstruction?.parts?.[0]?.text || '';
 
-// Only run these tests if GEMINI_API_KEY is configured (will be skipped gracefully in CI/CD environments without keys)
-describe.runIf(hasApiKey)('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
+      let mockText = '';
+
+      if (systemInstruction.includes('real estate data parser') || systemInstruction.includes('real estate data updater')) {
+        // Property Listing Parsing / Updating
+        if (userMessage.includes('Ramesh Sajepa')) {
+          mockText = JSON.stringify({
+            title: '3 BHK House in HSR Layout, 2nd Sector',
+            price: 82000000,
+            location: 'HSR Layout 2nd Sector',
+            type: 'Residential House',
+            sublocality: 'HSR Layout 2nd Sector',
+            city: 'Bangalore',
+            state: 'Karnataka',
+            bedrooms: 3,
+            bathrooms: 3,
+            area_sqft: 2400,
+            features: ['Basement', 'Library', 'Mezzanine', 'Puja Room', 'Two Kitchens', 'Burma Teak Doors and Windows', 'Italian Marble Flooring', 'Wood Flooring'],
+            nearby_highlights: [],
+            owner_contact_name: 'Ramesh Sajepa',
+            owner_contact_role: 'Agent',
+            owner_contact_phone: '9876543210'
+          });
+        } else {
+          // handles property updates with landmarks and amenities
+          mockText = JSON.stringify({
+            title: '3 BHK Villa',
+            price: 50000000,
+            location: 'Sarjapur Road',
+            type: 'Villa',
+            sublocality: 'Sarjapur',
+            city: 'Bangalore',
+            state: 'Karnataka',
+            bedrooms: 3,
+            bathrooms: 3,
+            area_sqft: 3000,
+            features: ['Power Backup', 'Swimming Pool'],
+            nearby_highlights: ['Wipro Office'],
+            owner_contact_name: 'Amit',
+            owner_contact_role: 'Agent',
+            owner_contact_phone: '919876543210'
+          });
+        }
+      } else {
+        // Contact Parsing / Updating
+        if (userMessage.includes('Shreenath') && userMessage.includes('LAKSHMAN')) {
+          mockText = JSON.stringify({
+            contacts: [
+              { name: 'Shreenath', phone: '91789344713', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
+              { name: 'LAKSHMAN', phone: '917502598759', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
+              { name: 'Praveen', phone: '919686194933', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
+              { name: 'Omi NA', phone: '919986033197', classification: 'Buyer', notes: 'SJR Blue Waters, Sarjapur Road Magicbricks' },
+            ]
+          });
+        } else if (userMessage.includes('VaishaliGaur') && !userMessage.includes('referred by Suresh Babu')) {
+          mockText = JSON.stringify({
+            contacts: [{
+              name: 'VaishaliGaur',
+              phone: '917737932199',
+              email: null,
+              company: null,
+              classification: 'Buyer',
+              notes: 'Interested in SJR Blue Waters',
+              referrer_name: 'Suresh Babu',
+              referrer_phone: null
+            }]
+          });
+        } else {
+          mockText = JSON.stringify({
+            contacts: [{
+              name: 'VaishaliGaur',
+              phone: '917737932199',
+              email: null,
+              company: null,
+              classification: 'Buyer',
+              notes: 'Interested in SJR Blue Waters',
+              referrer_name: 'Suresh Babu',
+              referrer_phone: '918888888888'
+            }]
+          });
+        }
+      }
+
+      return {
+        ok: true,
+        json: async () => ({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: mockText
+                  }
+                ]
+              }
+            }
+          ]
+        })
+      };
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
   describe('Property Listing Parsing', () => {
     it('correctly parses amenities, landmarks, and listing owner details', async () => {
       const message = `Hi Swami,
