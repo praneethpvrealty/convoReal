@@ -165,64 +165,71 @@ export async function POST(request: Request) {
     // whether the recipient tenant is in Sandbox or Official API mode.
     // ─────────────────────────────────────────────────────────────
 
-    let otpSenderAccountId: string | null = null;
-
-    // 1. Find the super_admin account (the designated OTP sender)
-    const { data: adminProfiles } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('role', 'super_admin')
-      .order('created_at', { ascending: true })
-      .limit(1);
-
-    if (adminProfiles && adminProfiles.length > 0) {
-      otpSenderAccountId = (adminProfiles[0] as { account_id: string }).account_id;
-    }
-
-    // 2. Fallback: read explicit fallback_whatsapp_account_id from system_settings
-    if (!otpSenderAccountId) {
-      const { data: settings } = await supabase
+    // ─────────────────────────────────────────────────────────────
+    // OTP Sender Resolution: Fetch all settings and configs in parallel
+    // to minimize DB latency and avoid webhook cold-start timeouts.
+    // ─────────────────────────────────────────────────────────────
+    const [adminProfilesRes, settingsRes, configsRes] = await Promise.all([
+      // Fetch super_admin profile to identify designated sender
+      supabase
+        .from('profiles')
+        .select('account_id')
+        .eq('role', 'super_admin')
+        .order('created_at', { ascending: true })
+        .limit(1),
+      // Fetch fallback whatsapp account setting
+      supabase
         .from('system_settings')
         .select('value')
         .eq('key', 'fallback_whatsapp_account_id')
-        .maybeSingle();
-
-      const fallbackId = (settings as unknown as { value?: string | null })?.value;
-      if (fallbackId && typeof fallbackId === 'string') {
-        otpSenderAccountId = fallbackId;
-      }
-    }
-
-    // 3. Last resort: the first Official API config in the database
-    if (!otpSenderAccountId) {
-      const { data: officialConfigs } = await supabase
+        .maybeSingle(),
+      // Fetch all configs to locate match in-memory
+      supabase
         .from('whatsapp_config')
-        .select('account_id')
-        .eq('integration_type', 'official_api')
-        .not('phone_number_id', 'is', null)
-        .not('access_token', 'is', null)
-        .limit(1);
+        .select('account_id, phone_number_id, access_token, integration_type')
+    ]);
 
-      if (officialConfigs && officialConfigs.length > 0) {
-        otpSenderAccountId = (officialConfigs[0] as { account_id: string }).account_id;
+    if (adminProfilesRes.error || settingsRes.error || configsRes.error) {
+      console.error('[SMS Hook] Error pre-fetching sender config values:', {
+        adminProfilesError: adminProfilesRes.error,
+        settingsError: settingsRes.error,
+        configsError: configsRes.error,
+      });
+      return NextResponse.json({ error: 'Failed to load sender credentials' }, { status: 500 });
+    }
+
+    const configs = configsRes.data || [];
+    
+    // 1. Check super_admin profile
+    let otpSenderAccountId: string | null = null;
+    if (adminProfilesRes.data && adminProfilesRes.data.length > 0) {
+      otpSenderAccountId = (adminProfilesRes.data[0] as { account_id: string }).account_id;
+    }
+
+    // 2. Check fallback setting
+    let fallbackAccountId: string | null = null;
+    if (settingsRes.data) {
+      const fallbackId = (settingsRes.data as unknown as { value?: string | null })?.value;
+      if (fallbackId && typeof fallbackId === 'string') {
+        fallbackAccountId = fallbackId;
       }
     }
 
-    if (!otpSenderAccountId) {
-      console.error('[SMS Hook] No admin or fallback Official API WhatsApp config found. Cannot send OTP.');
-      return NextResponse.json({ error: 'No OTP sender configured' }, { status: 500 });
+    // 3. Resolve the config in-memory
+    let senderConfig = configs.find(c => c.account_id === otpSenderAccountId);
+    if (!senderConfig && fallbackAccountId) {
+      senderConfig = configs.find(c => c.account_id === fallbackAccountId);
+    }
+    if (!senderConfig) {
+      senderConfig = configs.find(c => c.integration_type === 'official_api' && c.phone_number_id && c.access_token);
+    }
+    if (!senderConfig) {
+      senderConfig = configs.find(c => c.integration_type === 'sandbox' && c.phone_number_id && c.access_token);
     }
 
-    // Load the admin/sender account's WhatsApp credentials
-    const { data: senderConfig, error: senderConfigError } = await supabase
-      .from('whatsapp_config')
-      .select('phone_number_id, access_token, integration_type')
-      .eq('account_id', otpSenderAccountId)
-      .maybeSingle();
-
-    if (senderConfigError) {
-      console.error('[SMS Hook] Failed to load sender WhatsApp config:', senderConfigError);
-      return NextResponse.json({ error: 'Failed to load sender credentials' }, { status: 500 });
+    if (!senderConfig) {
+      console.error('[SMS Hook] No valid admin or fallback WhatsApp config found. Cannot send OTP.');
+      return NextResponse.json({ error: 'No OTP sender configured' }, { status: 500 });
     }
 
     let phoneNumberId: string;
