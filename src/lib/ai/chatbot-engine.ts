@@ -266,50 +266,54 @@ async function sendPropertyDraftPreviewDebounced(
   header: string,
   conversationId: string
 ): Promise<void> {
-  // Wait 4 seconds for concurrent uploads/messages to settle
-  await new Promise((resolve) => setTimeout(resolve, 4000));
+  try {
+    // Wait 4 seconds for concurrent uploads/messages to settle
+    await new Promise((resolve) => setTimeout(resolve, 4000));
 
-  // Query database to see if a newer update was made
-  const { data: currentSession } = await supabaseAdmin()
-    .from('property_draft_sessions')
-    .select('*')
-    .eq('id', sessionId)
-    .maybeSingle();
+    // Query database to see if a newer update was made
+    const { data: currentSession } = await supabaseAdmin()
+      .from('property_draft_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .maybeSingle();
 
-  // If session was deleted (confirmed/cancelled) or has a newer timestamp, exit silently
-  if (!currentSession) return;
-  
-  const dbTime = new Date(currentSession.updated_at).getTime();
-  const ourTime = new Date(updatedAtString).getTime();
+    // If session was deleted (confirmed/cancelled) or has a newer timestamp, exit silently
+    if (!currentSession) return;
+    
+    const dbTime = new Date(currentSession.updated_at).getTime();
+    const ourTime = new Date(updatedAtString).getTime();
 
-  // Allow a tiny tolerance (e.g. 50ms) for clock drift, but generally dbTime > ourTime means newer update exists
-  if (dbTime > ourTime + 50) {
-    console.log(`[chatbot-engine] Newer update detected (DB: ${currentSession.updated_at}, Ours: ${updatedAtString}). Skipping preview in this thread.`);
-    return;
+    // Allow a tiny tolerance (e.g. 50ms) for clock drift, but generally dbTime > ourTime means newer update exists
+    if (dbTime > ourTime + 50) {
+      console.log(`[chatbot-engine] Newer update detected (DB: ${currentSession.updated_at}, Ours: ${updatedAtString}). Skipping preview in this thread.`);
+      return;
+    }
+
+    // We are the latest thread! Send the preview with the latest data from the DB
+    const latestDraft = currentSession.draft_data as ParsedPropertyDraft;
+    const validation = validateDraft(latestDraft);
+    const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+    const missingFields = validation.missingFields;
+
+    // Customize header count of images
+    let finalHeader = header;
+    if (header.includes('Photo added successfully') || header.includes('Photos added successfully')) {
+      finalHeader = `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.`;
+    }
+
+    await sendPropertyDraftPreview(
+      phoneNumberId,
+      accessToken,
+      to,
+      finalHeader,
+      latestDraft,
+      nextStatus,
+      missingFields,
+      conversationId
+    );
+  } catch (err) {
+    console.error('[chatbot-engine] Error in sendPropertyDraftPreviewDebounced:', err);
   }
-
-  // We are the latest thread! Send the preview with the latest data from the DB
-  const latestDraft = currentSession.draft_data as ParsedPropertyDraft;
-  const validation = validateDraft(latestDraft);
-  const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
-  const missingFields = validation.missingFields;
-
-  // Customize header count of images
-  let finalHeader = header;
-  if (header.includes('Photo added successfully') || header.includes('Photos added successfully')) {
-    finalHeader = `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.`;
-  }
-
-  await sendPropertyDraftPreview(
-    phoneNumberId,
-    accessToken,
-    to,
-    finalHeader,
-    latestDraft,
-    nextStatus,
-    missingFields,
-    conversationId
-  );
 }
 
 function validateContactDraftsContainer(container: ParsedContactDraftsContainer): { 
@@ -927,7 +931,7 @@ export async function processOwnerChatbotMessage(
 
         const savedTime = finalUpdateData[0].updated_at;
 
-        await sendPropertyDraftPreviewDebounced(
+        sendPropertyDraftPreviewDebounced(
           propSession.id,
           savedTime,
           phoneNumberId,
@@ -1014,7 +1018,7 @@ export async function processOwnerChatbotMessage(
 
       const actualSavedTime = finalUpdateData[0].updated_at;
 
-      await sendPropertyDraftPreviewDebounced(
+      sendPropertyDraftPreviewDebounced(
         propSession.id,
         actualSavedTime,
         phoneNumberId,
@@ -1589,7 +1593,7 @@ export async function processOwnerChatbotMessage(
 
               if (success && finalUpdateData && finalUpdateData.length > 0) {
                 const savedTime = finalUpdateData[0].updated_at;
-                await sendPropertyDraftPreviewDebounced(
+                sendPropertyDraftPreviewDebounced(
                   existingSession.id,
                   savedTime,
                   phoneNumberId,
@@ -1607,7 +1611,7 @@ export async function processOwnerChatbotMessage(
 
         if (!insertErr && insertedData && insertedData.length > 0) {
           const savedTime = insertedData[0].updated_at;
-          await sendPropertyDraftPreviewDebounced(
+          sendPropertyDraftPreviewDebounced(
             insertedData[0].id,
             savedTime,
             phoneNumberId,
@@ -2015,7 +2019,7 @@ export async function processExternalListingMessage(
 
       const savedTime = finalUpdateData[0].updated_at;
 
-      await sendPropertyDraftPreviewDebounced(
+      sendPropertyDraftPreviewDebounced(
         propSession.id,
         savedTime,
         phoneNumberId,
@@ -2101,7 +2105,7 @@ export async function processExternalListingMessage(
 
     const actualSavedTime = finalUpdateData[0].updated_at;
 
-    await sendPropertyDraftPreviewDebounced(
+    sendPropertyDraftPreviewDebounced(
       propSession.id,
       actualSavedTime,
       phoneNumberId,
