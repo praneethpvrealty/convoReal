@@ -372,9 +372,14 @@ export function PropertyShareDialog({
       });
     }
 
+    // Search spans every classification (Owner/Seller/Developer/Others too) —
+    // unlike the no-search "matched" view, an explicit name/phone search means
+    // the user already knows who they're looking for, so we shouldn't hide
+    // them just because the property doesn't match their stored preferences
+    // or their classification isn't Buyer/Agent. Only the Agent visibility
+    // toggle still applies, to keep behaviour predictable.
     const q = searchQuery.toLowerCase().trim();
     const filtered = contacts.filter((c) => {
-      if (c.classification !== 'Buyer' && c.classification !== 'Agent') return false;
       if (c.classification === 'Agent' && !showAgentsInMatches) return false;
       return (
         (c.name && c.name.toLowerCase().includes(q)) ||
@@ -1498,10 +1503,23 @@ export function PropertyShareDialog({
               ) : displayedContacts.length === 0 ? (
                 <div className="text-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
                   <Users className="size-8 mx-auto text-slate-600 mb-2" />
-                  <p className="text-sm text-slate-400 font-semibold">No matching profiles found</p>
-                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                    This inventory listing doesn&apos;t align with client budget or location preferences. You can add a fresh contact inline to share.
-                  </p>
+                  {searchQuery.trim() ? (
+                    <>
+                      <p className="text-sm text-slate-400 font-semibold">
+                        No contacts match &ldquo;{searchQuery.trim()}&rdquo;
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        Try a different name or phone number{!showAgentsInMatches ? ', enable "Show Agents" above,' : ''} or add a fresh contact inline to share.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-400 font-semibold">No matching profiles found</p>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        This inventory listing doesn&apos;t align with any client&apos;s budget or location preferences. Search by name or phone to find a specific contact, or add a fresh contact inline to share.
+                      </p>
+                    </>
+                  )}
                 </div>
               ) : (
                 displayedContacts.map(({ contact: c, score, matchedFields }) => {

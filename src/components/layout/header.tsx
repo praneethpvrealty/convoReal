@@ -56,9 +56,9 @@ export function Header({ onOpenSidebar }: HeaderProps) {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [contactsResults, setContactsResults] = useState<any[]>([]);
-  const [dealsResults, setDealsResults] = useState<any[]>([]);
-  const [propertiesResults, setPropertiesResults] = useState<any[]>([]);
+  const [contactsResults, setContactsResults] = useState<{ id: string; name: string | null; phone: string; email: string | null }[]>([]);
+  const [dealsResults, setDealsResults] = useState<{ id: string; title: string; value: number | null; currency: string }[]>([]);
+  const [propertiesResults, setPropertiesResults] = useState<{ id: string; title: string; location: string | null; status: string }[]>([]);
   const [searching, setSearching] = useState(false);
 
   useEffect(() => {
@@ -238,7 +238,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                           {d.title}
                         </p>
                         <p className="text-xs text-slate-400 truncate mt-0.5">
-                          Value: {formatCurrency(d.value, d.currency || "INR")}
+                          Value: {formatCurrency(d.value ?? 0, d.currency || "INR")}
                         </p>
                       </div>
                     </Link>

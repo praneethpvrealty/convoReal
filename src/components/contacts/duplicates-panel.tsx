@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { GitMerge, Phone, Mail, ChevronDown, ChevronUp, Loader2, Check } from 'lucide-react';
+import { GitMerge, Phone, Mail, ChevronDown, ChevronUp, Loader2, Check, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -34,9 +34,19 @@ interface Props {
   onMergeComplete?: () => void;
 }
 
+// Duplicate detection scans every non-merged contact on the account to
+// group by normalised phone/email — there's no cheap indexed way to do
+// this in SQL, so it's a full-table read. Running it unconditionally on
+// every Contacts page mount was the single biggest load-time cost for
+// accounts with large contact lists. Instead we run it once per browser
+// session (cached in sessionStorage) and let the user manually re-check
+// on demand, so the check still runs automatically the first time in a
+// session but never blocks/duplicates work on every navigation.
+const SESSION_CACHE_KEY = 'convoreal_duplicate_groups_v1';
+
 export function DuplicatesPanel({ onMergeComplete }: Props) {
   const [groups, setGroups] = useState<DuplicateGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   // Merge dialog state
@@ -51,6 +61,14 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
       if (!res.ok) return;
       const data = await res.json() as { groups: DuplicateGroup[] };
       setGroups(data.groups ?? []);
+      setHasChecked(true);
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(data.groups ?? []));
+        } catch {
+          // sessionStorage can throw in private-browsing contexts; non-critical
+        }
+      }
     } catch {
       // non-critical
     } finally {
@@ -58,7 +76,22 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
     }
   }, []);
 
+  // On mount, reuse a same-session result if we have one instead of
+  // re-fetching the whole contacts table; otherwise run the check once.
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let cached: DuplicateGroup[] | null = null;
+    try {
+      const raw = sessionStorage.getItem(SESSION_CACHE_KEY);
+      if (raw) cached = JSON.parse(raw) as DuplicateGroup[];
+    } catch {
+      cached = null;
+    }
+    if (cached) {
+      setGroups(cached);
+      setHasChecked(true);
+      return;
+    }
     fetchDuplicates();
   }, [fetchDuplicates]);
 
@@ -125,11 +158,31 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
               {totalDuplicates} extra
             </Badge>
           </div>
-          {expanded ? (
-            <ChevronUp className="h-4 w-4 text-amber-400" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-amber-400" />
-          )}
+          <div className="flex items-center gap-1">
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchDuplicates();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation();
+                  fetchDuplicates();
+                }
+              }}
+              title="Re-check for duplicates"
+              className="p-1 rounded hover:bg-amber-500/10 text-amber-400/70 hover:text-amber-300 cursor-pointer"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+            </span>
+            {expanded ? (
+              <ChevronUp className="h-4 w-4 text-amber-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-amber-400" />
+            )}
+          </div>
         </button>
 
         {/* Groups list */}

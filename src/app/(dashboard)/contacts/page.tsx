@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import type { Contact, Tag, ContactTag, ShowcaseSettings } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,6 +50,7 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
@@ -109,6 +111,7 @@ export default function ContactsPage() {
   const canEdit = useCan('send-messages');
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
 
   const renderClassificationBadge = (classification?: string) => {
     if (!classification) return null;
@@ -942,9 +945,9 @@ export default function ContactsPage() {
 
       {/* Search and Filters */}
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3 w-full">
           {/* Search bar */}
-          <div className="relative w-full sm:max-w-xs md:max-w-sm">
+          <div className="relative flex-1 max-w-sm sm:max-w-xs md:max-w-sm">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
             <Input
               value={search}
@@ -953,7 +956,7 @@ export default function ContactsPage() {
                 setPage(0);
               }}
               placeholder="Search by name, phone, or email..."
-              className="pl-8 pr-10 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-1"
+              className="pl-8.5 pr-10 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-1 h-9.5 rounded-xl"
             />
             {search && (
               <button
@@ -970,160 +973,267 @@ export default function ContactsPage() {
             )}
           </div>
 
-          {/* Classification Filter */}
-          <Select
-            value={filterClassification}
-            onValueChange={(val) => {
-              setFilterClassification(val ?? 'All');
-              setPage(0);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[160px] bg-slate-900 border-slate-700 text-white">
-              <SelectValue placeholder="Classification" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
-              <SelectItem value="All">All Classifications</SelectItem>
-              <SelectItem value="Owner">Owner</SelectItem>
-              <SelectItem value="Seller">Seller</SelectItem>
-              <SelectItem value="Buyer">Buyer</SelectItem>
-              <SelectItem value="Agent">Agent</SelectItem>
-              <SelectItem value="Developer">Developer</SelectItem>
-              <SelectItem value="Others">Others</SelectItem>
-            </SelectContent>
-          </Select>
+          {/* Filters Toggle Button */}
+          {(() => {
+            const activeCount = [
+              filterClassification !== 'All',
+              filterTag !== 'All',
+              filterMinBudget !== 'All',
+              filterMaxBudget !== 'All',
+              filterArea !== 'All',
+            ].filter(Boolean).length;
 
-          {/* Tag Filter */}
-          <Select
-            value={filterTag}
-            onValueChange={(val) => {
-              setFilterTag(val ?? 'All');
-              setPage(0);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[150px] bg-slate-900 border-slate-700 text-white">
-              <SelectValue placeholder="Tag" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
-              <SelectItem value="All">All Tags</SelectItem>
-              {Object.values(tagsMap).map((tag) => (
-                <SelectItem key={tag.id} value={tag.id}>
-                  <span className="flex items-center gap-2">
-                    <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
-                    <span className="truncate">{tag.name}</span>
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFiltersOpen(true)}
+                className={cn(
+                  "h-9.5 rounded-xl border-slate-700 bg-slate-900 text-slate-350 hover:text-white hover:bg-slate-800 flex items-center gap-2 px-3.5 font-bold transition-all relative shrink-0",
+                  activeCount > 0 && "border-primary/40 text-white bg-primary/5 hover:bg-primary/10"
+                )}
+              >
+                <SlidersHorizontal className="size-4 text-slate-400 group-hover:text-white" />
+                <span>Filters</span>
+                {activeCount > 0 && (
+                  <span className="flex items-center justify-center bg-primary text-primary-foreground font-black text-[9px] size-4.5 rounded-full shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
+                    {activeCount}
                   </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                )}
+              </Button>
+            );
+          })()}
 
-          {/* Min Budget Filter */}
-          <Select
-            value={filterMinBudget}
-            onValueChange={(val) => {
-              setFilterMinBudget(val ?? 'All');
-              setPage(0);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[140px] bg-slate-900 border-slate-700 text-white">
-              <SelectValue placeholder="Min Budget" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
-              <SelectItem value="All">Min Budget: All</SelectItem>
-              {BUDGET_OPTIONS.map((opt) => (
-                <SelectItem key={`min-${opt.value}`} value={opt.value}>
-                  ≥ {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Max Budget Filter */}
-          <Select
-            value={filterMaxBudget}
-            onValueChange={(val) => {
-              setFilterMaxBudget(val ?? 'All');
-              setPage(0);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[140px] bg-slate-900 border-slate-700 text-white">
-              <SelectValue placeholder="Max Budget" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
-              <SelectItem value="All">Max Budget: All</SelectItem>
-              {BUDGET_OPTIONS.map((opt) => (
-                <SelectItem key={`max-${opt.value}`} value={opt.value}>
-                  ≤ {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Areas of Preference Filter */}
-          {allAreas.length > 0 && (
+          {/* Quick Sort Selector (Desktop Only) */}
+          <div className="hidden sm:block shrink-0">
             <Select
-              value={filterArea}
+              value={sortBy}
               onValueChange={(val) => {
-                setFilterArea(val ?? 'All');
+                setSortBy(val ?? 'created_desc');
                 setPage(0);
               }}
             >
-              <SelectTrigger className="w-full sm:w-[170px] bg-slate-900 border-slate-700 text-white">
-                <SelectValue placeholder="Area" />
+              <SelectTrigger className="h-9.5 w-[160px] bg-slate-900 border-slate-700 text-white rounded-xl text-xs font-bold">
+                <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
-                <SelectItem value="All">All Areas</SelectItem>
-                {allAreas.map((area) => (
-                  <SelectItem key={area} value={area}>
-                    {area}
-                  </SelectItem>
-                ))}
+                <SelectItem value="created_desc">Newest Created</SelectItem>
+                <SelectItem value="name_asc">Name (A - Z)</SelectItem>
+                <SelectItem value="name_desc">Name (Z - A)</SelectItem>
+                <SelectItem value="last_contacted_desc">Last Contacted</SelectItem>
+                <SelectItem value="max_budget_desc">Budget (Highest)</SelectItem>
+                <SelectItem value="max_budget_asc">Budget (Lowest)</SelectItem>
               </SelectContent>
             </Select>
-          )}
-
-          {/* Sort By Dropdown */}
-          <Select
-            value={sortBy}
-            onValueChange={(val) => {
-              setSortBy(val ?? 'created_desc');
-              setPage(0);
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[160px] bg-slate-900 border-slate-700 text-white">
-              <SelectValue placeholder="Sort By" />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
-              <SelectItem value="created_desc">Newest Created</SelectItem>
-              <SelectItem value="name_asc">Name (A - Z)</SelectItem>
-              <SelectItem value="name_desc">Name (Z - A)</SelectItem>
-              <SelectItem value="last_contacted_desc">Last Contacted (Recent)</SelectItem>
-              <SelectItem value="last_contacted_asc">Last Contacted (Oldest)</SelectItem>
-              <SelectItem value="max_budget_desc">Max Budget (Highest)</SelectItem>
-              <SelectItem value="max_budget_asc">Max Budget (Lowest)</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Clear Filters Button */}
-          {(filterClassification !== 'All' || filterTag !== 'All' || filterMinBudget !== 'All' || filterMaxBudget !== 'All' || filterArea !== 'All' || search.trim() !== '' || sortBy !== 'created_desc') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setFilterClassification('All');
-                setFilterTag('All');
-                setFilterMinBudget('All');
-                setFilterMaxBudget('All');
-                setFilterArea('All');
-                setSearch('');
-                setSortBy('created_desc');
-                setPage(0);
-              }}
-              className="text-slate-400 hover:text-white text-xs border border-dashed border-slate-700 hover:border-slate-500 rounded-md px-2.5"
-            >
-              Clear Filters
-            </Button>
-          )}
+          </div>
         </div>
+
+        {/* Filters Dialog Drawer */}
+        <Dialog open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+          <DialogContent className="bg-slate-950 border-slate-850 text-white max-w-md rounded-2xl p-6">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-bold flex items-center gap-2 text-white">
+                <SlidersHorizontal className="size-5 text-primary" />
+                Filter Contacts
+              </DialogTitle>
+              <DialogDescription className="text-slate-450 text-xs mt-0.5">
+                Narrow down your contact list by classification, tag, budget, or preferred location.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4.5 my-4">
+              {/* Classification */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Classification</label>
+                <Select
+                  value={filterClassification}
+                  onValueChange={(val) => {
+                    setFilterClassification(val ?? 'All');
+                    setPage(0);
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                    <SelectValue placeholder="Classification" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                    <SelectItem value="All">All Classifications</SelectItem>
+                    <SelectItem value="Owner">Owner</SelectItem>
+                    <SelectItem value="Seller">Seller</SelectItem>
+                    <SelectItem value="Buyer">Buyer</SelectItem>
+                    <SelectItem value="Agent">Agent</SelectItem>
+                    <SelectItem value="Developer">Developer</SelectItem>
+                    <SelectItem value="Others">Others</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Tag */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tag</label>
+                <Select
+                  value={filterTag}
+                  onValueChange={(val) => {
+                    setFilterTag(val ?? 'All');
+                    setPage(0);
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                    <SelectValue placeholder="Tag" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                    <SelectItem value="All">All Tags</SelectItem>
+                    {Object.values(tagsMap).map((tag) => (
+                      <SelectItem key={tag.id} value={tag.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                          <span className="truncate">{tag.name}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Budget Range */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Min Budget</label>
+                  <Select
+                    value={filterMinBudget}
+                    onValueChange={(val) => {
+                      setFilterMinBudget(val ?? 'All');
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                      <SelectValue placeholder="Min Budget" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                      <SelectItem value="All">Min Budget: All</SelectItem>
+                      {BUDGET_OPTIONS.map((opt) => (
+                        <SelectItem key={`min-${opt.value}`} value={opt.value}>
+                          ≥ {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Max Budget</label>
+                  <Select
+                    value={filterMaxBudget}
+                    onValueChange={(val) => {
+                      setFilterMaxBudget(val ?? 'All');
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                      <SelectValue placeholder="Max Budget" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                      <SelectItem value="All">Max Budget: All</SelectItem>
+                      {BUDGET_OPTIONS.map((opt) => (
+                        <SelectItem key={`max-${opt.value}`} value={opt.value}>
+                          ≤ {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Area Preference */}
+              {allAreas.length > 0 && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Area Preference</label>
+                  <Select
+                    value={filterArea}
+                    onValueChange={(val) => {
+                      setFilterArea(val ?? 'All');
+                      setPage(0);
+                    }}
+                  >
+                    <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                      <SelectValue placeholder="Area" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                      <SelectItem value="All">All Areas</SelectItem>
+                      {allAreas.map((area) => (
+                        <SelectItem key={area} value={area}>
+                          {area}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Sort By (Mobile Only inside drawer) */}
+              <div className="space-y-1.5 sm:hidden">
+                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sort By</label>
+                <Select
+                  value={sortBy}
+                  onValueChange={(val) => {
+                    setSortBy(val ?? 'created_desc');
+                    setPage(0);
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                    <SelectValue placeholder="Sort By" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                    <SelectItem value="created_desc">Newest Created</SelectItem>
+                    <SelectItem value="name_asc">Name (A - Z)</SelectItem>
+                    <SelectItem value="name_desc">Name (Z - A)</SelectItem>
+                    <SelectItem value="last_contacted_desc">Last Contacted</SelectItem>
+                    <SelectItem value="max_budget_desc">Budget (Highest)</SelectItem>
+                    <SelectItem value="max_budget_asc">Budget (Lowest)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="flex flex-row items-center justify-between gap-4 mt-6">
+              {(() => {
+                const activeCount = [
+                  filterClassification !== 'All',
+                  filterTag !== 'All',
+                  filterMinBudget !== 'All',
+                  filterMaxBudget !== 'All',
+                  filterArea !== 'All',
+                ].filter(Boolean).length;
+
+                return (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setFilterClassification('All');
+                      setFilterTag('All');
+                      setFilterMinBudget('All');
+                      setFilterMaxBudget('All');
+                      setFilterArea('All');
+                      setSortBy('created_desc');
+                      setPage(0);
+                    }}
+                    disabled={activeCount === 0 && sortBy === 'created_desc'}
+                    className="text-xs text-slate-400 hover:text-white"
+                  >
+                    Clear All
+                  </Button>
+                );
+              })()}
+              <Button
+                type="button"
+                onClick={() => setIsFiltersOpen(false)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 rounded-xl"
+              >
+                Apply Filters
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
 
         {/* Tab Switcher */}
