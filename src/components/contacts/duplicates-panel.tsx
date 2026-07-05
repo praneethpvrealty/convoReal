@@ -61,7 +61,6 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
       if (!res.ok) return;
       const data = await res.json() as { groups: DuplicateGroup[] };
       setGroups(data.groups ?? []);
-      setHasChecked(true);
       if (typeof window !== 'undefined') {
         try {
           sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(data.groups ?? []));
@@ -89,7 +88,6 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
     }
     if (cached) {
       setGroups(cached);
-      setHasChecked(true);
       return;
     }
     fetchDuplicates();
