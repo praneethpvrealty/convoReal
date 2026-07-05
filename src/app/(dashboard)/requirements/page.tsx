@@ -18,6 +18,7 @@ import {
   Building,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { AnimatedCounter } from "@/components/ui/animated-counter"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
@@ -242,37 +243,89 @@ export default function RequirementsPage() {
 
       {/* Stats Board */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative z-10">
-        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/45 p-5 backdrop-blur-sm shadow hover:border-primary/20 transition-all duration-300">
+        <button
+          type="button"
+          onClick={() => {
+            setClassificationFilter("All");
+            setPriorityFilter("All");
+          }}
+          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
+            classificationFilter === "All" && priorityFilter === "All"
+              ? "border-primary bg-slate-900/70 shadow shadow-primary/10 ring-1 ring-primary/25"
+              : "border-slate-800/80 bg-slate-900/45 hover:border-primary/25 hover:bg-slate-900/60"
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-450 font-bold uppercase tracking-wider">Total Demands</span>
+            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Demands</span>
             <Sparkles className="size-4 text-primary" />
           </div>
-          <div className="mt-2.5 text-2xl font-black text-white">{stats.total}</div>
-        </div>
+          <div className="mt-2.5 text-2xl font-black text-white">
+            <AnimatedCounter value={stats.total} />
+          </div>
+        </button>
 
-        <div className="rounded-2xl border border-primary/20 bg-slate-900/60 p-5 backdrop-blur-sm shadow shadow-primary/5 hover:border-primary/40 ring-1 ring-primary/10 transition-all duration-300">
+        <button
+          type="button"
+          onClick={() => {
+            setClassificationFilter("All");
+            setPriorityFilter("High");
+          }}
+          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
+            priorityFilter === "High"
+              ? "border-rose-500 bg-rose-950/10 shadow shadow-rose-500/10 ring-1 ring-rose-500/25"
+              : "border-slate-800/80 bg-slate-900/45 hover:border-rose-500/30 hover:bg-slate-900/60"
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-450 font-bold uppercase tracking-wider">High Priority</span>
+            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">High Priority</span>
             <span className="h-2 w-2 rounded-full bg-rose-500 animate-ping" />
           </div>
-          <div className="mt-2.5 text-2xl font-black text-rose-400">{stats.hot}</div>
-        </div>
+          <div className="mt-2.5 text-2xl font-black text-rose-400">
+            <AnimatedCounter value={stats.hot} />
+          </div>
+        </button>
 
-        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/45 p-5 backdrop-blur-sm shadow hover:border-primary/20 transition-all duration-300">
+        <button
+          type="button"
+          onClick={() => {
+            setClassificationFilter("Buyer");
+            setPriorityFilter("All");
+          }}
+          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
+            classificationFilter === "Buyer"
+              ? "border-emerald-500 bg-emerald-950/10 shadow shadow-emerald-500/10 ring-1 ring-emerald-500/25"
+              : "border-slate-800/80 bg-slate-900/45 hover:border-emerald-500/30 hover:bg-slate-900/60"
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-450 font-bold uppercase tracking-wider">Buyer Demands</span>
+            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Buyer Demands</span>
             <Users className="size-4 text-emerald-400" />
           </div>
-          <div className="mt-2.5 text-2xl font-black text-white">{stats.buyers}</div>
-        </div>
+          <div className="mt-2.5 text-2xl font-black text-white">
+            <AnimatedCounter value={stats.buyers} />
+          </div>
+        </button>
 
-        <div className="rounded-2xl border border-slate-800/80 bg-slate-900/45 p-5 backdrop-blur-sm shadow hover:border-primary/20 transition-all duration-300">
+        <button
+          type="button"
+          onClick={() => {
+            setClassificationFilter("Agent");
+            setPriorityFilter("All");
+          }}
+          className={`rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 cursor-pointer text-left focus:outline-none ${
+            classificationFilter === "Agent"
+              ? "border-sky-500 bg-sky-950/10 shadow shadow-sky-500/10 ring-1 ring-sky-500/25"
+              : "border-slate-800/80 bg-slate-900/45 hover:border-sky-500/30 hover:bg-slate-900/60"
+          }`}
+        >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-450 font-bold uppercase tracking-wider">Agent Demands</span>
+            <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Agent Demands</span>
             <Building className="size-4 text-sky-400" />
           </div>
-          <div className="mt-2.5 text-2xl font-black text-white">{stats.agents}</div>
-        </div>
+          <div className="mt-2.5 text-2xl font-black text-white">
+            <AnimatedCounter value={stats.agents} />
+          </div>
+        </button>
       </div>
 
       {/* Filter toolbar */}

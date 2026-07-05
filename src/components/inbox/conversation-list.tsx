@@ -455,10 +455,12 @@ function ConversationItem({
   return (
     <div
       className={cn(
-        "group relative flex w-full items-start gap-3 px-3.5 py-3.5 text-left transition-all hover:bg-slate-900/40 hover:pl-4.5 border-l-2 border-transparent select-none cursor-pointer duration-200",
-        isActive && "border-l-2 border-primary bg-primary/8 text-white hover:pl-3.5",
-        // Unread highlight: subtle blue-tinted background + left accent (only when not already active)
-        !isActive && isUnread && "bg-primary/5 border-l-primary/60"
+        "group relative flex w-full items-start gap-3 px-3.5 py-3.5 text-left transition-all hover:pl-4.5 border-l-2 select-none cursor-pointer duration-200",
+        isActive
+          ? "border-l-primary bg-primary/10 text-white hover:pl-3.5"
+          : isUnread
+          ? "border-l-primary bg-slate-900/60 text-white hover:bg-slate-900/85 hover:pl-4.5"
+          : "border-l-transparent text-slate-400 hover:bg-slate-900/30 hover:pl-4.5"
       )}
     >
       <button
@@ -467,8 +469,12 @@ function ConversationItem({
       >
         {/* Avatar */}
         <div className={cn(
-          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 border text-sm font-bold text-slate-300 transition-all",
-          isUnread && !isActive ? "border-primary/50 shadow-[0_0_0_2px_hsl(var(--primary)/0.15)]" : "border-slate-750"
+          "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800 border text-sm font-bold transition-all",
+          isActive
+            ? "border-primary text-primary-foreground"
+            : isUnread
+            ? "border-primary/60 text-white shadow-[0_0_8px_hsl(var(--primary)/0.25)]"
+            : "border-slate-750 text-slate-400"
         )}>
           {contact?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -491,29 +497,37 @@ function ConversationItem({
           <div className="flex items-center justify-between gap-2">
             <span className={cn(
               "truncate text-sm transition-all",
-              isUnread && !isActive
+              isActive
                 ? "font-semibold text-white"
-                : "font-medium text-white/80"
+                : isUnread
+                ? "font-bold text-white text-md tracking-wide"
+                : "font-normal text-slate-400"
             )}>
               {displayName}
             </span>
             <span className={cn(
               "shrink-0 text-[10px] transition-all",
-              isUnread && !isActive ? "text-primary/80 font-medium" : "text-slate-500"
+              isActive
+                ? "text-primary-foreground/70"
+                : isUnread
+                ? "text-primary font-bold"
+                : "text-slate-500"
             )}>{timeAgo}</span>
           </div>
-          <div className="mt-0.5 flex items-center justify-between gap-2">
+          <div className="mt-1 flex items-center justify-between gap-2">
             <p className={cn(
               "truncate text-xs transition-all",
-              isUnread && !isActive
-                ? "text-slate-200 font-medium"
-                : "text-slate-500"
+              isActive
+                ? "text-slate-200"
+                : isUnread
+                ? "text-slate-100 font-semibold"
+                : "text-slate-500 font-normal"
             )}>
               {conversation.last_message_text || "No messages yet"}
             </p>
             <div className="flex shrink-0 items-center gap-1.5">
               {isUnread && (
-                <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-[0_0_6px_hsl(var(--primary)/0.5)]">
+                <span className="flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-primary px-1.5 text-[9px] font-black text-primary-foreground shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
                   {conversation.unread_count}
                 </span>
               )}
