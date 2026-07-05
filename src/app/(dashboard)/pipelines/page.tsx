@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import type { Pipeline, PipelineStage, Deal } from "@/types";
+import type { Pipeline, PipelineStage, Deal, DealStatus } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
@@ -44,6 +44,7 @@ const SPEC_DEFAULT_STAGES = [
   { name: "Negotiation/Token", color: "#8b5cf6", position: 3 },        // purple
   { name: "Due Diligence/Contract", color: "#06b6d4", position: 4 },   // cyan
   { name: "Closed Won", color: "#22c55e", position: 5 },              // green
+  { name: "Closed Lost", color: "#ef4444", position: 6 },             // red
 ];
 
 export default function PipelinesPage() {
@@ -99,6 +100,27 @@ export default function PipelinesPage() {
     }
   }, [searchParams]);
 
+  // Automatically open deal form if dealId is specified in query parameters
+  const [hasAutoOpenedDeal, setHasAutoOpenedDeal] = useState(false);
+  useEffect(() => {
+    const did = searchParams?.get("dealId");
+    if (did && !hasAutoOpenedDeal) {
+      (async () => {
+        const { data: deal } = await supabase
+          .from("deals")
+          .select("*, contact:contacts(*), assignee:profiles!deals_assigned_to_fkey(*), property:properties(*)")
+          .eq("id", did)
+          .maybeSingle();
+        if (deal) {
+          setSelectedPipelineId(deal.pipeline_id);
+          setEditingDeal(deal as Deal);
+          setDealFormOpen(true);
+          setHasAutoOpenedDeal(true);
+        }
+      })();
+    }
+  }, [searchParams, hasAutoOpenedDeal, supabase]);
+
   // Brokerage prompt on drag/move state
   const [brokeragePromptDeal, setBrokeragePromptDeal] = useState<Deal | null>(null);
   const [pendingStageId, setPendingStageId] = useState<string>("");
@@ -127,7 +149,26 @@ export default function PipelinesPage() {
         .select("*")
         .eq("pipeline_id", pipelineId)
         .order("position");
-      return data ?? [];
+      
+      const loaded = data ?? [];
+      const hasLost = loaded.some((s) => s.name.toLowerCase().includes("lost"));
+      if (!hasLost && loaded.length > 0) {
+        const maxPosition = loaded.reduce((max, s) => Math.max(max, s.position), 0);
+        const { data: newStage, error } = await supabase
+          .from("pipeline_stages")
+          .insert({
+            pipeline_id: pipelineId,
+            name: "Closed Lost",
+            color: "#ef4444",
+            position: maxPosition + 1,
+          })
+          .select()
+          .single();
+        if (!error && newStage) {
+          loaded.push(newStage);
+        }
+      }
+      return loaded;
     },
     [supabase],
   );
@@ -258,14 +299,23 @@ export default function PipelinesPage() {
         return;
       }
 
+      let dealStatus: DealStatus = "open";
+      if (targetStage) {
+        if (targetStage.name.toLowerCase().includes("lost")) {
+          dealStatus = "lost";
+        } else if (targetStage.name.toLowerCase().includes("won")) {
+          dealStatus = "won";
+        }
+      }
+
       // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
-        prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d)),
+        prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId, status: dealStatus } : d)),
       );
       
       const { error } = await supabase
         .from("deals")
-        .update({ stage_id: newStageId })
+        .update({ stage_id: newStageId, status: dealStatus })
         .eq("id", dealId);
 
       if (error) {
@@ -281,8 +331,10 @@ export default function PipelinesPage() {
             let nextStatus = "Available";
             if (targetStage.name === "Negotiation/Token") {
               nextStatus = "Under Contract";
-            } else if (targetStage.name === "Closed Won") {
+            } else if (targetStage.name === "Closed Won" || targetStage.name.toLowerCase().includes("won")) {
               nextStatus = "Sold";
+            } else if (targetStage.name.toLowerCase().includes("lost")) {
+              nextStatus = "Available";
             }
 
             const { error: propErr } = await supabase
@@ -312,6 +364,16 @@ export default function PipelinesPage() {
       ? (dealValue * brokVal) / 100
       : brokVal;
 
+    const targetStage = stages.find((s) => s.id === pendingStageId);
+    let dealStatus: DealStatus = "open";
+    if (targetStage) {
+      if (targetStage.name.toLowerCase().includes("lost")) {
+        dealStatus = "lost";
+      } else if (targetStage.name.toLowerCase().includes("won")) {
+        dealStatus = "won";
+      }
+    }
+
     // Optimistically update
     setDeals((prev) =>
       prev.map((d) =>
@@ -322,6 +384,7 @@ export default function PipelinesPage() {
               brokerage_type: modalBrokerageType,
               brokerage_value: brokVal,
               brokerage_amount: brokerageAmt,
+              status: dealStatus,
             }
           : d
       )
@@ -334,6 +397,7 @@ export default function PipelinesPage() {
         brokerage_type: modalBrokerageType,
         brokerage_value: brokVal,
         brokerage_amount: brokerageAmt,
+        status: dealStatus,
       })
       .eq("id", dealId);
 
@@ -348,13 +412,14 @@ export default function PipelinesPage() {
     // Sync property status based on new stage
     try {
       if (brokeragePromptDeal.property_id) {
-        const targetStage = stages.find((s) => s.id === pendingStageId);
         if (targetStage) {
           let nextStatus = "Available";
           if (targetStage.name === "Negotiation/Token") {
             nextStatus = "Under Contract";
-          } else if (targetStage.name === "Closed Won") {
+          } else if (targetStage.name === "Closed Won" || targetStage.name.toLowerCase().includes("won")) {
             nextStatus = "Sold";
+          } else if (targetStage.name.toLowerCase().includes("lost")) {
+            nextStatus = "Available";
           }
 
           const { error: propErr } = await supabase

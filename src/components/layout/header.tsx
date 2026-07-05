@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User, Search } from "lucide-react";
+import { LogOut, Menu, Settings as SettingsIcon, User, Search, Loader2 } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -16,6 +17,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
+import { formatCurrency } from "@/lib/currency-utils";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -45,6 +52,80 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const title = getPageTitle(pathname);
+  const supabase = createClient();
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contactsResults, setContactsResults] = useState<any[]>([]);
+  const [dealsResults, setDealsResults] = useState<any[]>([]);
+  const [propertiesResults, setPropertiesResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!searchOpen) {
+      setSearchQuery("");
+      setContactsResults([]);
+      setDealsResults([]);
+      setPropertiesResults([]);
+      return;
+    }
+
+    if (!searchQuery.trim()) {
+      setContactsResults([]);
+      setDealsResults([]);
+      setPropertiesResults([]);
+      return;
+    }
+
+    const handler = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const query = searchQuery.trim();
+        const [contactsRes, dealsRes, propertiesRes] = await Promise.all([
+          supabase
+            .from("contacts")
+            .select("id, name, phone, email")
+            .eq("account_id", profile?.account_id)
+            .eq("is_merged", false)
+            .or(`name.ilike.%${query}%,phone.ilike.%${query}%,email.ilike.%${query}%`)
+            .limit(5),
+          supabase
+            .from("deals")
+            .select("id, title, value, currency")
+            .eq("account_id", profile?.account_id)
+            .ilike("title", `%${query}%`)
+            .limit(5),
+          supabase
+            .from("properties")
+            .select("id, title, location, status")
+            .eq("account_id", profile?.account_id)
+            .or(`title.ilike.%${query}%,location.ilike.%${query}%`)
+            .limit(5),
+        ]);
+
+        setContactsResults(contactsRes.data ?? []);
+        setDealsResults(dealsRes.data ?? []);
+        setPropertiesResults(propertiesRes.data ?? []);
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(handler);
+  }, [searchQuery, searchOpen, supabase, profile?.account_id]);
 
   const initial =
     profile?.full_name?.charAt(0)?.toUpperCase() ??
@@ -68,18 +149,133 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         </h1>
       </div>
 
-      {/* Global Search Bar mockup */}
-      <div className="relative hidden md:block w-72 lg:w-96">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-500" />
-        <input
-          type="text"
-          placeholder="Search deals, contacts, or tasks..."
-          className="w-full bg-slate-900/40 border border-slate-900 rounded-lg pl-9 pr-12 py-1.5 text-xs text-slate-200 placeholder:text-slate-650 focus:outline-none focus:border-primary transition-all focus:bg-slate-950"
-        />
+      {/* Global Search Bar input trigger */}
+      <div 
+        onClick={() => setSearchOpen(true)}
+        className="relative hidden md:block w-72 lg:w-96 cursor-pointer group"
+      >
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-slate-500 group-hover:text-slate-400 transition-colors" />
+        <div className="w-full bg-slate-900/40 border border-slate-900 rounded-lg pl-9 pr-12 py-1.5 text-xs text-slate-400 transition-all select-none hover:bg-slate-950 hover:border-slate-800 flex items-center h-[28px]">
+          Search deals, contacts, or properties...
+        </div>
         <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none inline-flex h-5 select-none items-center gap-0.5 rounded border border-slate-800 bg-slate-950 px-1.5 font-mono text-[9px] font-medium text-slate-500">
           <span className="text-[10px]">⌘</span>K
         </kbd>
       </div>
+
+      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <DialogContent className="max-w-xl bg-slate-900/95 backdrop-blur-md border-slate-800 text-white p-0 overflow-hidden shadow-2xl rounded-2xl">
+          <div className="flex items-center border-b border-slate-800 px-4 py-3">
+            <Search className="mr-3 h-4 w-4 text-slate-500 shrink-0" />
+            <input
+              type="text"
+              autoFocus
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search deals, contacts, or properties..."
+              className="w-full bg-transparent border-0 outline-none placeholder:text-slate-500 text-sm py-1 font-medium"
+            />
+            {searching && (
+              <Loader2 className="h-4 w-4 animate-spin text-slate-500 shrink-0" />
+            )}
+          </div>
+
+          <div className="max-h-[380px] overflow-y-auto p-4 space-y-4">
+            {!searchQuery.trim() && (
+              <div className="text-center text-xs text-slate-400 py-10">
+                Type something to start searching...
+              </div>
+            )}
+
+            {searchQuery.trim() && !searching && contactsResults.length === 0 && dealsResults.length === 0 && propertiesResults.length === 0 && (
+              <div className="text-center text-xs text-slate-400 py-10">
+                No results found for &ldquo;{searchQuery}&rdquo;
+              </div>
+            )}
+
+            {contactsResults.length > 0 && (
+              <div className="space-y-1.5">
+                <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 px-2">
+                  👤 Contacts
+                </h4>
+                <div className="grid gap-1">
+                  {contactsResults.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={`/contacts?contactId=${c.id}`}
+                      onClick={() => setSearchOpen(false)}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">
+                          {c.name || "(No Name)"}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate mt-0.5">
+                          {c.phone} {c.email ? `· ${c.email}` : ""}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {dealsResults.length > 0 && (
+              <div className="space-y-1.5">
+                <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 px-2">
+                  💼 Deals
+                </h4>
+                <div className="grid gap-1">
+                  {dealsResults.map((d) => (
+                    <Link
+                      key={d.id}
+                      href={`/pipelines?dealId=${d.id}`}
+                      onClick={() => setSearchOpen(false)}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white truncate">
+                          {d.title}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate mt-0.5">
+                          Value: {formatCurrency(d.value, d.currency || "INR")}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {propertiesResults.length > 0 && (
+              <div className="space-y-1.5">
+                <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1 px-2">
+                  🏡 Properties
+                </h4>
+                <div className="grid gap-1">
+                  {propertiesResults.map((p) => (
+                    <Link
+                      key={p.id}
+                      href={`/inventory?propertyId=${p.id}`}
+                      onClick={() => setSearchOpen(false)}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-white truncate">
+                          {p.title}
+                        </p>
+                        <p className="text-xs text-slate-400 truncate mt-0.5">
+                          {p.location} · <span className="text-primary font-medium">{p.status}</span>
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <DropdownMenu>
         <DropdownMenuTrigger

@@ -192,6 +192,17 @@ export function DealForm({
       ? (brokerageType === "percentage" ? (dealValue * (brokValue || 0)) / 100 : (brokValue || 0))
       : null;
 
+    let dealStatus: DealStatus = deal?.status || "open";
+    if (selectedStage) {
+      if (selectedStage.name.toLowerCase().includes("lost")) {
+        dealStatus = "lost";
+      } else if (selectedStage.name.toLowerCase().includes("won")) {
+        dealStatus = "won";
+      } else {
+        dealStatus = "open";
+      }
+    }
+
     const payload = {
       title: title.trim(),
       value: dealValue,
@@ -206,6 +217,7 @@ export function DealForm({
       brokerage_type: isNegotiationOrLater ? brokerageType : null,
       brokerage_value: brokValue,
       brokerage_amount: brokerageAmt,
+      status: dealStatus,
     };
 
     if (deal) {
@@ -226,7 +238,7 @@ export function DealForm({
       }
       const { error } = await supabase
         .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
+        .insert({ ...payload, user_id: user.id, account_id: accountId });
       if (error) {
         toast.error("Failed to create deal");
         setSaving(false);
@@ -260,9 +272,23 @@ export function DealForm({
   async function handleStatusChange(status: DealStatus) {
     if (!deal) return;
     setStatusAction(status);
+
+    let targetStageId = deal.stage_id;
+    if (status === "lost") {
+      const lostStage = stages.find((s) => s.name.toLowerCase().includes("lost"));
+      if (lostStage) {
+        targetStageId = lostStage.id;
+      }
+    } else if (status === "won") {
+      const wonStage = stages.find((s) => s.name.toLowerCase().includes("won"));
+      if (wonStage) {
+        targetStageId = wonStage.id;
+      }
+    }
+
     const { error } = await supabase
       .from("deals")
-      .update({ status })
+      .update({ status, stage_id: targetStageId })
       .eq("id", deal.id);
     setStatusAction(null);
     if (error) {
@@ -279,7 +305,7 @@ export function DealForm({
       } else if (status === "lost") {
         propertyStatus = "Available";
       } else { // reopened
-        const targetStage = stages.find((s) => s.id === (deal.stage_id || stageId));
+        const targetStage = stages.find((s) => s.id === (targetStageId || stageId));
         if (targetStage?.name === "Negotiation/Token") {
           propertyStatus = "Under Contract";
         }
