@@ -27,7 +27,7 @@ describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
       const body = init?.body ? JSON.parse(init.body as string) : {};
-      const userMessage = body.contents?.[0]?.parts?.find((p: any) => p.text)?.text || '';
+      const userMessage = body.contents?.[0]?.parts?.find((p: { text?: string }) => p.text)?.text || '';
       const systemInstruction = body.systemInstruction?.parts?.[0]?.text || '';
 
       let mockText = '';
