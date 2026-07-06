@@ -21,6 +21,10 @@ if (existsSync(envPath)) {
   }
 }
 
+if (!process.env.GEMINI_API_KEY) {
+  process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
+}
+
 import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
