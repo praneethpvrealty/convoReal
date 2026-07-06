@@ -22,6 +22,9 @@ import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-hel
 import { extractImagesFromPdf } from '@/lib/pdf/image-extractor';
 import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { resolveLocationFromGoogleMapLink } from '@/lib/maps/resolve-location';
+import { burnCredits } from '@/lib/credits/burn';
+import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
+import { notifyManagerLowBalance } from '@/lib/credits/notify';
 
 // Lazy initialize supabase admin client
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -34,6 +37,49 @@ function supabaseAdmin() {
     );
   }
   return _adminClient;
+}
+
+// Debounces the low-balance WhatsApp ping per account so a Manager
+// isn't paged on every single inbound message once their balance
+// settles under a threshold — one notice per threshold band per
+// 6-hour window is enough to be actionable without being noisy.
+const lowBalanceNotifiedAt = new Map<string, number>();
+const LOW_BALANCE_NOTIFY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Soft-block credit burn for inbound WhatsApp AI calls — never
+ * throws, never blocks. This webhook must keep processing messages
+ * regardless of credit balance (there's no user watching to show an
+ * "upgrade" prompt to); a deficit is only logged for ops visibility.
+ * Contrast with the hard-block burnCredits() calls in the
+ * user-facing generate-description/enhance-image routes.
+ */
+async function softBurn(accountId: string, feature: AiFeatureKey): Promise<void> {
+  try {
+    const result = await burnCredits(accountId, feature, AI_FEATURE_COSTS[feature], { hardBlock: false });
+    if (result.deficit > 0) {
+      console.warn(`[chatbot-engine] credit deficit for account ${accountId}: ${result.deficit} short on '${feature}'`);
+    }
+
+    const threshold: 'zero' | 'critical' | 'low' | null =
+      result.deficit > 0 || result.balanceAfter <= 0
+        ? 'zero'
+        : result.balanceAfter <= 20
+          ? 'critical'
+          : result.balanceAfter <= 100
+            ? 'low'
+            : null;
+
+    if (threshold) {
+      const lastNotified = lowBalanceNotifiedAt.get(accountId) ?? 0;
+      if (Date.now() - lastNotified > LOW_BALANCE_NOTIFY_COOLDOWN_MS) {
+        lowBalanceNotifiedAt.set(accountId, Date.now());
+        void notifyManagerLowBalance(accountId, result.balanceAfter, threshold);
+      }
+    }
+  } catch (err) {
+    console.error(`[chatbot-engine] softBurn failed (non-fatal) for '${feature}':`, err);
+  }
 }
 
 /**
@@ -607,6 +653,7 @@ export async function processOwnerChatbotMessage(
   );
 
   if (propSession && hasContactKeywords) {
+    await softBurn(accountId, 'chatbot_classify');
     const classification = await classifyImageOrText(cleanedText, undefined, undefined);
     if (classification === 'contact') {
       console.log(`[chatbot-engine] Discarding active property session ${propSession.id} to start contact flow`);
@@ -624,6 +671,7 @@ export async function processOwnerChatbotMessage(
     const isPropertyListing = /\b(bhk|sqft|flat|plot|villa|crore|lakh|price)\b/i.test(cleanedText) && cleanedText.length > 50;
     
     if (isNewContactForward || isPropertyListing) {
+      await softBurn(accountId, 'chatbot_classify');
       const classification = await classifyImageOrText(cleanedText, undefined, undefined);
       if (classification === 'property') {
         console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
@@ -983,6 +1031,7 @@ export async function processOwnerChatbotMessage(
         }
 
         const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
+        await softBurn(accountId, 'chatbot_classify');
         updatedDraft = await updateListingDraft(currentDraft, cleanedText);
         updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 
@@ -1358,6 +1407,7 @@ export async function processOwnerChatbotMessage(
 
     // Handle conversational updates to contact drafts
     if (cleanedText) {
+      await softBurn(accountId, 'chatbot_classify');
       const updatedContainer = await updateContactDraft(container, cleanedText);
       const { isValid, missingFields } = validateContactDraftsContainer(updatedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
@@ -1407,6 +1457,7 @@ export async function processOwnerChatbotMessage(
       mediaMimeType = mimeType;
     }
 
+    await softBurn(accountId, 'chatbot_classify');
     const classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
 
     // --- PROPERTY INGESTION FLOW ---
@@ -1427,6 +1478,7 @@ export async function processOwnerChatbotMessage(
         if (isMediaMsg && mediaBuffer && mediaMimeType) {
           if (isImageMsg) {
             // Parallel parse and upload to save latency
+            await softBurn(accountId, 'listing_parse');
             const [parsed, publicUrl] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
               uploadPropertyImage(accountId, mediaBuffer, mediaMimeType)
@@ -1437,6 +1489,7 @@ export async function processOwnerChatbotMessage(
             parsedDraft.images = uploadedImages;
           } else if (mediaMimeType === 'application/pdf') {
             // Parallel parse text details and extract images
+            await softBurn(accountId, 'listing_parse');
             const [parsed, extractedImgBuffers] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
               extractImagesFromPdf(mediaBuffer)
@@ -1467,10 +1520,12 @@ export async function processOwnerChatbotMessage(
             }
           } else {
             // Other document types fallback
+            await softBurn(accountId, 'listing_parse');
             parsedDraft = await parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
             parsedDraft.images = [];
           }
         } else {
+          await softBurn(accountId, 'listing_parse');
           parsedDraft = await parseListingFromImageOrText(cleanedText);
           parsedDraft.images = [];
         }
@@ -1645,6 +1700,7 @@ export async function processOwnerChatbotMessage(
       try {
         let parsedContainer: ParsedContactDraftsContainer;
 
+        await softBurn(accountId, 'contact_parse');
         if (isMediaMsg && mediaBuffer && mediaMimeType) {
           parsedContainer = await parseContactFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
         } else {
@@ -2070,6 +2126,7 @@ export async function processExternalListingMessage(
       }
 
       const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
+      await softBurn(accountId, 'chatbot_classify');
       updatedDraft = await updateListingDraft(currentDraft, cleanedText);
       updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 

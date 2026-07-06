@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { billingAdmin } from '@/lib/billing/admin-client';
 import type { Plan } from '@/lib/billing/types';
+import { creditPurchase, grantSubscriptionCredits } from '@/lib/credits/grant';
+import { processReferralConversion } from '@/lib/credits/referral';
+import type { SubscriptionPlanForCredits } from '@/lib/credits/types';
 
 // POST /api/billing/razorpay-webhook
 // Receives Razorpay subscription events and one-time marketplace order
@@ -53,6 +56,34 @@ async function handleMarketplacePayment(
   return NextResponse.json({ received: true });
 }
 
+async function handleCreditTopupPayment(
+  orderId: string,
+  paymentId: string,
+  accountId: string,
+  packageKey: string,
+): Promise<NextResponse> {
+  try {
+    // creditPurchase() is idempotent on gateway_order_id — safe on
+    // webhook redelivery.
+    const result = await creditPurchase({
+      accountId,
+      packageKey,
+      gateway: 'razorpay',
+      gatewayOrderId: orderId,
+      gatewayPaymentId: paymentId,
+      currency: 'INR',
+    });
+    console.log('[razorpay-webhook] credit top-up:', { orderId, ...result });
+  } catch (err) {
+    console.error('[razorpay-webhook] credit top-up processing failed:', err);
+  }
+  return NextResponse.json({ received: true });
+}
+
+function isPaidPlan(plan: string): plan is SubscriptionPlanForCredits {
+  return plan === 'solo_pro' || plan === 'team' || plan === 'agency';
+}
+
 function planFromRazorpayPlanId(rzPlanId: string): Plan | null {
   const plans: Plan[] = ['solo_pro', 'team', 'agency'];
   const cycles = ['monthly', 'annual'];
@@ -63,6 +94,23 @@ function planFromRazorpayPlanId(rzPlanId: string): Plan | null {
     }
   }
   return null;
+}
+
+// Same env-var convention as planFromRazorpayPlanId — the billing
+// cycle isn't a field on the Razorpay subscription entity itself,
+// it's implied by which RAZORPAY_PLAN_*_{MONTHLY|ANNUAL} env var
+// matches this plan_id. Defaults to 'monthly' (0% commitment bonus)
+// when unmatched, so an unrecognized plan_id never over-grants.
+function cycleFromRazorpayPlanId(rzPlanId: string): 'monthly' | 'annual' {
+  const plans: Plan[] = ['solo_pro', 'team', 'agency'];
+  const cycles: ('monthly' | 'annual')[] = ['monthly', 'annual'];
+  for (const plan of plans) {
+    for (const cycle of cycles) {
+      const key = `RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`;
+      if (process.env[key] === rzPlanId) return cycle;
+    }
+  }
+  return 'monthly';
 }
 
 export async function POST(request: NextRequest) {
@@ -103,6 +151,16 @@ export async function POST(request: NextRequest) {
       }
       return await handleMarketplacePayment(admin, orderId, String(payment.id ?? ''));
     }
+    if (notes?.type === 'credit_topup') {
+      const orderId = String(payment.order_id ?? '');
+      const accountId = String(notes.account_id ?? '');
+      const packageKey = String(notes.package_key ?? '');
+      if (!orderId || !accountId || !packageKey) {
+        console.warn('[razorpay-webhook] Credit top-up payment missing required fields');
+        return NextResponse.json({ received: true });
+      }
+      return await handleCreditTopupPayment(orderId, String(payment.id ?? ''), accountId, packageKey);
+    }
   }
 
   // Subscription events are under payload.subscription.entity.
@@ -132,11 +190,12 @@ export async function POST(request: NextRequest) {
     case 'subscription.activated': {
       const rzPlanId = String(sub.plan_id ?? '');
       const newPlan = planFromRazorpayPlanId(rzPlanId) ?? currentPlan;
+      const periodEnd = new Date(Number(sub.current_end) * 1000).toISOString();
       await admin.from('subscriptions').update({
         status: 'active',
         plan: newPlan,
         current_period_start: new Date(Number(sub.current_start) * 1000).toISOString(),
-        current_period_end: new Date(Number(sub.current_end) * 1000).toISOString(),
+        current_period_end: periodEnd,
         razorpay_plan_id: rzPlanId,
       }).eq('account_id', account_id);
 
@@ -148,15 +207,31 @@ export async function POST(request: NextRequest) {
         razorpay_event_id: rzSubId,
         metadata: { razorpay_event: eventType },
       });
+
+      // Every activation represents entering a (new or renewed)
+      // committed term — Razorpay only bills once per chosen cycle
+      // length, so there's no "plain renewal within a term" case to
+      // distinguish here, unlike a naive month-by-month reading of
+      // the design doc might suggest.
+      if (isPaidPlan(newPlan)) {
+        const cycle = cycleFromRazorpayPlanId(rzPlanId);
+        await grantSubscriptionCredits(account_id, newPlan, cycle, { isNewCycle: true, periodEnd }).catch((err) =>
+          console.error('[razorpay-webhook] grantSubscriptionCredits failed:', err),
+        );
+        await processReferralConversion(account_id, newPlan).catch((err) =>
+          console.error('[razorpay-webhook] processReferralConversion failed:', err),
+        );
+      }
       break;
     }
 
     case 'subscription.charged': {
       const chargeEntity = (payload?.payment?.entity ?? {}) as Record<string, unknown>;
+      const periodEnd = new Date(Number(sub.current_end) * 1000).toISOString();
       await admin.from('subscriptions').update({
         status: 'active',
         current_period_start: new Date(Number(sub.current_start) * 1000).toISOString(),
-        current_period_end: new Date(Number(sub.current_end) * 1000).toISOString(),
+        current_period_end: periodEnd,
       }).eq('account_id', account_id);
 
       await admin.from('subscription_events').insert({
@@ -167,6 +242,13 @@ export async function POST(request: NextRequest) {
         razorpay_event_id: String(chargeEntity.id ?? rzSubId),
         metadata: { amount: chargeEntity.amount, razorpay_event: eventType },
       });
+
+      if (isPaidPlan(currentPlan)) {
+        const cycle = cycleFromRazorpayPlanId(String(sub.plan_id ?? ''));
+        await grantSubscriptionCredits(account_id, currentPlan, cycle, { isNewCycle: true, periodEnd }).catch((err) =>
+          console.error('[razorpay-webhook] grantSubscriptionCredits failed:', err),
+        );
+      }
       break;
     }
 

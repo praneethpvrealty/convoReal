@@ -18,6 +18,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDING } from '@/config/branding';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { useTopupModal } from '@/components/layout/topup-modal-context';
 import {
   Sparkles,
   Download,
@@ -43,6 +45,7 @@ export function FlyerCreatorDialog({
 }: FlyerCreatorDialogProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { user, accountId } = useAuth();
+  const { openTopupModal } = useTopupModal();
 
   // Settings states
   const [imageSource, setImageSource] = useState<'original' | 'ai'>('original');
@@ -125,6 +128,12 @@ export function FlyerCreatorDialog({
 
       if (!response.ok) {
         const errData = await response.json();
+        if (response.status === 402) {
+          toast.error(`You've used all your credits for this month.`, {
+            action: { label: 'Buy credits', onClick: openTopupModal },
+          });
+          return;
+        }
         throw new Error(errData.error || 'Failed to generate AI image');
       }
 
@@ -746,6 +755,9 @@ export function FlyerCreatorDialog({
                 >
                   <Sparkles className="size-3 text-primary" />
                   {aiImageUrl ? 'AI Generated' : 'Generate with AI'}
+                  {!aiImageUrl && (
+                    <span className="text-[9px] text-slate-500 font-normal">({AI_FEATURE_COSTS.image_enhance} cr)</span>
+                  )}
                 </button>
               </div>
             </div>
@@ -764,7 +776,7 @@ export function FlyerCreatorDialog({
                     className="bg-primary hover:bg-primary/90 text-primary-foreground h-6 text-[10px] font-bold py-0 cursor-pointer flex items-center gap-1"
                   >
                     {generatingAiImage ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-                    Regenerate
+                    Regenerate ({AI_FEATURE_COSTS.image_enhance} cr)
                   </Button>
                 </div>
                 <Textarea

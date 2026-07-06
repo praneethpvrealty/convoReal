@@ -6,6 +6,7 @@
 
 import { billingAdmin } from '@/lib/billing/admin-client';
 import { getOrCreateWallet } from './wallet';
+import { notifyManagerCreditsAdded } from './notify';
 import {
   MONTHLY_GRANT,
   COMMITMENT_BONUS_PCT,
@@ -145,6 +146,10 @@ export async function creditPurchase(
   if (txErr) {
     throw new Error(`[creditPurchase] ledger insert failed: ${txErr.message}`);
   }
+
+  // Fire-and-forget — a failed notification must never fail the
+  // purchase, which has already been committed above.
+  void notifyManagerCreditsAdded(input.accountId, creditPackage.credits, creditPackage.name);
 
   return { credited: true, credits: creditPackage.credits };
 }

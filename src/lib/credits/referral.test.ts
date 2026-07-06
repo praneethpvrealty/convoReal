@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
     walletsByAccount: {} as Record<string, Record<string, unknown>>,
     insertedReferrals: [] as Record<string, unknown>[],
     rpcCalls: [] as { fn: string; args: Record<string, unknown> }[],
+    accountsWithReferredByCode: [] as { id: string; referred_by_code: string }[],
   },
 }));
 
@@ -23,6 +24,7 @@ vi.mock('@/lib/billing/admin-client', () => {
         return b;
       },
       in: () => b,
+      not: () => b,
       insert: (payload: Record<string, unknown>) => {
         if (table === 'referrals') state.insertedReferrals.push(payload);
         return { error: null };
@@ -50,6 +52,12 @@ vi.mock('@/lib/billing/admin-client', () => {
         }
         return Promise.resolve({ data: null, error: null });
       },
+      then: (resolve: (v: { data: unknown; error: unknown }) => unknown) => {
+        if (table === 'accounts') {
+          return Promise.resolve({ data: state.accountsWithReferredByCode, error: null }).then(resolve);
+        }
+        return Promise.resolve({ data: null, error: null }).then(resolve);
+      },
     };
     return b;
   }
@@ -74,7 +82,7 @@ vi.mock('./notify', () => ({
   notifyReferrerPendingVoided: vi.fn(() => Promise.resolve()),
 }));
 
-const { processReferralSignup, payoutPassiveEarn } = await import('./referral');
+const { processReferralSignup, payoutPassiveEarn, processUnclaimedReferralSignups } = await import('./referral');
 
 describe('processReferralSignup', () => {
   beforeEach(() => {
@@ -123,6 +131,41 @@ describe('processReferralSignup', () => {
 
     const referrerPending = h.state.rpcCalls.find((c) => c.fn === 'grant_pending_referral_tx');
     expect(referrerPending?.args).toMatchObject({ p_account_id: 'referrer-acct', p_amount: 200 });
+  });
+});
+
+describe('processUnclaimedReferralSignups', () => {
+  beforeEach(() => {
+    h.state.walletsByCode = { REF123: { account_id: 'referrer-acct' } };
+    h.state.existingReferralByReferee = {};
+    h.state.profilesByAccount = { 'referee-acct': { phone: '+919876543210' } };
+    h.state.insertedReferrals = [];
+    h.state.rpcCalls = [];
+    h.state.accountsWithReferredByCode = [];
+  });
+
+  it('processes an account with a captured referred_by_code and no existing referral row', async () => {
+    h.state.accountsWithReferredByCode = [{ id: 'referee-acct', referred_by_code: 'REF123' }];
+
+    const result = await processUnclaimedReferralSignups();
+
+    expect(result).toEqual({ processed: 1, checked: 1 });
+    expect(h.state.insertedReferrals).toHaveLength(1);
+  });
+
+  it('skips accounts that already have a referrals row (idempotent)', async () => {
+    h.state.accountsWithReferredByCode = [{ id: 'referee-acct', referred_by_code: 'REF123' }];
+    h.state.existingReferralByReferee['referee-acct'] = { id: 'already-processed' };
+
+    const result = await processUnclaimedReferralSignups();
+
+    expect(result).toEqual({ processed: 0, checked: 1 });
+    expect(h.state.insertedReferrals).toHaveLength(0);
+  });
+
+  it('does nothing when no accounts have a captured referral code', async () => {
+    const result = await processUnclaimedReferralSignups();
+    expect(result).toEqual({ processed: 0, checked: 0 });
   });
 });
 

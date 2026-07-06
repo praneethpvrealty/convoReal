@@ -4,6 +4,13 @@ import { billingAdmin } from '@/lib/billing/admin-client';
 import { getPlanLimits } from '@/lib/billing/gates';
 import { isUpgrade } from '@/lib/billing/plan-config';
 import type { Plan } from '@/lib/billing/types';
+import { grantSubscriptionCredits } from '@/lib/credits/grant';
+import { processReferralConversion } from '@/lib/credits/referral';
+import type { SubscriptionPlanForCredits } from '@/lib/credits/types';
+
+function isPaidPlan(plan: string): plan is SubscriptionPlanForCredits {
+  return plan === 'solo_pro' || plan === 'team' || plan === 'agency';
+}
 
 // POST /api/billing/upgrade
 // Switches an active Razorpay subscription to a higher plan immediately.
@@ -28,7 +35,7 @@ export async function POST(request: NextRequest) {
 
     const { data: sub } = await ctx.supabase
       .from('subscriptions')
-      .select('razorpay_subscription_id, razorpay_plan_id')
+      .select('razorpay_subscription_id, razorpay_plan_id, current_period_end')
       .eq('account_id', ctx.accountId)
       .maybeSingle();
 
@@ -85,6 +92,20 @@ export async function POST(request: NextRequest) {
       to_plan: newPlan,
       metadata: { immediate: true },
     });
+
+    // Immediate upgrade — grant the new plan's monthly credits right
+    // away (not a new committed term, so no commitment bonus here;
+    // that's reserved for the webhook's subscription.activated/
+    // charged path where a fresh cycle is actually being purchased).
+    if (isPaidPlan(newPlan)) {
+      await grantSubscriptionCredits(ctx.accountId, newPlan, 'monthly', {
+        isNewCycle: false,
+        periodEnd: sub.current_period_end ?? new Date().toISOString(),
+      }).catch((err) => console.error('[billing/upgrade] grantSubscriptionCredits failed:', err));
+      await processReferralConversion(ctx.accountId, newPlan).catch((err) =>
+        console.error('[billing/upgrade] processReferralConversion failed:', err),
+      );
+    }
 
     return NextResponse.json({ success: true, plan: newPlan });
   } catch (err) {

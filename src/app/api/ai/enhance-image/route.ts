@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
+import { burnCredits } from '@/lib/credits/burn';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
 // POST /api/ai/enhance-image
 // Calls Imagen or Hugging Face to generate/enhance listing images
@@ -30,6 +32,21 @@ export async function POST(request: Request) {
     }
 
     const { prompt, aspectRatio = '1:1', image } = body;
+
+    // Burn before the external call. Single flat cost regardless of
+    // provider (Imagen vs HuggingFace) — no separate "full generation"
+    // endpoint exists to justify pricing them differently.
+    const burn = await burnCredits(accountId, 'image_enhance', AI_FEATURE_COSTS.image_enhance, { client: supabase });
+    if (!burn.success) {
+      return NextResponse.json(
+        {
+          error: 'Insufficient credits for AI image enhancement.',
+          creditsNeeded: AI_FEATURE_COSTS.image_enhance,
+          upgradeRequired: true,
+        },
+        { status: 402 },
+      );
+    }
 
     if (provider === 'google') {
       const apiKey = process.env.GEMINI_API_KEY;

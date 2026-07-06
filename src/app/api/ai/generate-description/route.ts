@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { generateText } from "@/lib/ai/gemini";
 import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
+import { burnCredits } from "@/lib/credits/burn";
+import { AI_FEATURE_COSTS } from "@/lib/credits/types";
 
 // POST /api/ai/generate-description
 // Generates property listing description using Gemini 2.5 Flash
@@ -49,14 +51,31 @@ export async function POST(request: NextRequest) {
       detailsStr += `Key Features & Amenities: ${features.join(", ")}\n`;
     }
 
-    const systemInstruction = 
+    const systemInstruction =
       "You are a professional real estate marketing copywriter. Create compelling, engaging, and professional property descriptions that highlight key selling points. Keep the tone sophisticated, inviting, and clear.";
 
-    const prompt = 
+    const prompt =
       `Write an elegant and attractive marketing description for a real estate listing based on the following details:\n\n` +
       `Title: ${title}\n` +
       `${detailsStr}\n` +
       `The description should be around 100-150 words. Focus on the benefits of the space, design quality, features, and location. Do not include placeholders like '[Insert Name]'.`;
+
+    // Burn before the external call, per credit engine convention —
+    // never charge for a call that didn't happen, never skip
+    // charging one that did.
+    const burn = await burnCredits(ctx.accountId, "property_description", AI_FEATURE_COSTS.property_description, {
+      client: ctx.supabase,
+    });
+    if (!burn.success) {
+      return NextResponse.json(
+        {
+          error: "Insufficient credits for AI description generation.",
+          creditsNeeded: AI_FEATURE_COSTS.property_description,
+          upgradeRequired: true,
+        },
+        { status: 402 },
+      );
+    }
 
     const description = await generateText(prompt, systemInstruction);
 

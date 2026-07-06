@@ -55,6 +55,8 @@ import {
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { formatCurrency } from '@/lib/currency-utils';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { useTopupModal } from '@/components/layout/topup-modal-context';
 import type { Contact, MessageTemplate } from '@/types';
 import {
   POPULAR_PROJECTS,
@@ -152,6 +154,7 @@ export function PropertyForm({
   const supabase = createClient();
   const { user, accountId, profile } = useAuth();
   const canEdit = useCan('send-messages');
+  const { openTopupModal } = useTopupModal();
   const isEdit = !!property;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
@@ -928,6 +931,12 @@ export function PropertyForm({
 
       if (!response.ok) {
         const errData = await response.json();
+        if (response.status === 402) {
+          toast.error(`You've used all your credits for this month.`, {
+            action: { label: 'Buy credits', onClick: openTopupModal },
+          });
+          return;
+        }
         throw new Error(errData.error || 'Failed to generate description');
       }
 
@@ -3357,6 +3366,9 @@ export function PropertyForm({
                       ) : (
                         <>
                           <span>✨</span> Generate with AI
+                          <Badge variant="outline" className="ml-1 h-4 px-1 text-[9px] font-medium border-primary/30 text-primary/80">
+                            {AI_FEATURE_COSTS.property_description} cr
+                          </Badge>
                         </>
                       )}
                     </Button>

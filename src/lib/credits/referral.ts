@@ -114,6 +114,41 @@ export async function processReferralSignup(
   return { created: true };
 }
 
+/**
+ * Reconciliation step: signup only captures `accounts.referred_by_code`
+ * (via the handle_new_user() trigger, migration 088) — there's no
+ * active session yet at signup time to call an authed API route and
+ * create the actual `referrals` row. This finds any account with a
+ * captured code that hasn't been processed into a referrals row yet
+ * and processes it. Called at the start of the activation cron.
+ */
+export async function processUnclaimedReferralSignups(): Promise<{ processed: number; checked: number }> {
+  const supabase = billingAdmin();
+
+  const { data: candidates, error } = await supabase
+    .from('accounts')
+    .select('id, referred_by_code')
+    .not('referred_by_code', 'is', null);
+
+  if (error) throw new Error(`[processUnclaimedReferralSignups] fetch failed: ${error.message}`);
+  if (!candidates || candidates.length === 0) return { processed: 0, checked: 0 };
+
+  let processed = 0;
+  for (const account of candidates) {
+    const { data: existing } = await supabase
+      .from('referrals')
+      .select('id')
+      .eq('referee_account_id', account.id)
+      .maybeSingle();
+    if (existing) continue;
+
+    const result = await processReferralSignup(account.id, account.referred_by_code as string);
+    if (result.created) processed += 1;
+  }
+
+  return { processed, checked: candidates.length };
+}
+
 /** Promotes one referral's pending reward to spendable after its
  *  7-day activation window is confirmed. */
 export async function activateReferral(referral: Referral): Promise<void> {

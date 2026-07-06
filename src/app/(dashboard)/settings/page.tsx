@@ -14,6 +14,7 @@ import {
   CreditCard,
   Users,
   Route,
+  Coins,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -32,6 +33,7 @@ import { OtherSettingsPanel } from '@/components/settings/other-settings';
 import { useAuth } from '@/hooks/use-auth';
 import { usePlan } from '@/hooks/usePlan';
 import { BillingTab } from '@/components/settings/billing-tab';
+import { CreditsTab } from '@/components/settings/credits-tab';
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -43,6 +45,7 @@ const BASE_TAB_VALUES = [
   'ai',
   'other',
   'billing',
+  'credits',
 ] as const;
 const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
@@ -176,6 +179,13 @@ export default function SettingsPage() {
             <CreditCard className="size-4" />
             Billing
           </TabsTrigger>
+          <TabsTrigger
+            value="credits"
+            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
+          >
+            <Coins className="size-4" />
+            Credits
+          </TabsTrigger>
           {/* Members tab is feature-flagged. We render the trigger
               only when the flag is enabled, so users without the
               flag see the original 5-tab layout. */}
@@ -244,6 +254,10 @@ export default function SettingsPage() {
 
         <TabsContent value="billing">
           <BillingTab />
+        </TabsContent>
+
+        <TabsContent value="credits">
+          <CreditsTab />
         </TabsContent>
 
         {accountSharingEnabled && (

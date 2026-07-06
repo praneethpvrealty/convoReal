@@ -34,6 +34,14 @@ function SignupPageInner() {
   // points back at /join/<token> so the user lands on the redeem
   // step after verifying instead of being dropped on /dashboard.
   const inviteToken = searchParams.get("invite");
+  // Referral code from a shared `?ref=CODE` link (see /join route
+  // collision note — referral codes use `?ref=` on /signup rather
+  // than reusing the /join/[token] path, which is team-invite only).
+  // Captured onto accounts.referred_by_code by handle_new_user()
+  // (migration 088); a reconciliation cron later turns this into a
+  // `referrals` row via processReferralSignup(), since there's no
+  // active session yet to call an authed API route from here.
+  const referredByCode = searchParams.get("ref");
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -74,6 +82,7 @@ function SignupPageInner() {
       options: {
         data: {
           full_name: fullName,
+          ...(referredByCode ? { referred_by_code: referredByCode } : {}),
         },
         ...(emailRedirectTo ? { emailRedirectTo } : {}),
       },

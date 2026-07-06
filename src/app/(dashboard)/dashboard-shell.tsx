@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/header";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { TopupModalProvider } from "@/components/layout/topup-modal-context";
+import { CreditTopup } from "@/components/settings/CreditTopup";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -84,6 +85,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           onRefresh={refresh}
         />
       )}
+
+      <CreditTopup />
     </div>
   );
 }
