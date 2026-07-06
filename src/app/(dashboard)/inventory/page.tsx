@@ -223,9 +223,12 @@ export default function InventoryPage() {
 
   // Sync page with URL
   useEffect(() => {
-    const params = new URLSearchParams(searchParams?.toString());
-    params.set('page', String(page));
-    router.replace(`/inventory?${params.toString()}`, { scroll: false });
+    const urlPage = parseInt(searchParams?.get('page') || '0', 10);
+    if (urlPage !== page) {
+      const params = new URLSearchParams(searchParams?.toString());
+      params.set('page', String(page));
+      router.replace(`/inventory?${params.toString()}`, { scroll: false });
+    }
   }, [page, searchParams, router]);
 
   // Automatically open property form modal if propertyId is specified in query parameters
