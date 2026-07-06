@@ -4,7 +4,7 @@ import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit
 import { getOrDetectBillingGateway } from '@/lib/credits/currency';
 import { getPackagePrice } from '@/lib/credits/grant';
 import { createRazorpayOrder } from '@/lib/marketplace/razorpay';
-import { createStripeCheckoutSession } from '@/lib/credits/stripe';
+import { createStripeCheckoutSession, getStripeClient } from '@/lib/credits/stripe';
 
 function getBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -62,6 +62,14 @@ export async function POST(request: Request) {
 
     // Stripe: hosted Checkout Session, redirect flow (no Stripe.js/Elements
     // needed client-side).
+    if (!getStripeClient()) {
+      console.error(`[billing/credits/buy] Stripe gateway resolved for account ${ctx.accountId} but STRIPE_SECRET_KEY is not set`);
+      return NextResponse.json(
+        { error: 'International payments are not yet available for your account. Please contact support.' },
+        { status: 503 },
+      );
+    }
+
     const baseUrl = getBaseUrl();
     const session = await createStripeCheckoutSession({
       amountMinor: price.amount_minor,

@@ -26,9 +26,9 @@ describe('resolveBillingFromPhone', () => {
     expect(resolveBillingFromPhone('+491512345678')).toEqual({ currency: 'EUR', gateway: 'stripe' });
   });
 
-  it('defaults to USD/stripe for unrecognized or missing phone numbers', () => {
-    expect(resolveBillingFromPhone('+998901234567')).toEqual({ currency: 'USD', gateway: 'stripe' });
-    expect(resolveBillingFromPhone(null)).toEqual({ currency: 'USD', gateway: 'stripe' });
-    expect(resolveBillingFromPhone(undefined)).toEqual({ currency: 'USD', gateway: 'stripe' });
+  it('defaults to INR/razorpay for unrecognized or missing phone numbers (India-first product)', () => {
+    expect(resolveBillingFromPhone('+998901234567')).toEqual({ currency: 'INR', gateway: 'razorpay' });
+    expect(resolveBillingFromPhone(null)).toEqual({ currency: 'INR', gateway: 'razorpay' });
+    expect(resolveBillingFromPhone(undefined)).toEqual({ currency: 'INR', gateway: 'razorpay' });
   });
 });

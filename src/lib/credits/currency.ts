@@ -36,13 +36,20 @@ const COUNTRY_CODE_BILLING: [prefix: string, billing: CountryBilling][] = [
   ['+1', { currency: 'USD', gateway: 'stripe' }], // US/Canada
 ];
 
-const DEFAULT_BILLING: CountryBilling = { currency: 'USD', gateway: 'stripe' };
+// ConvoReal is an India-first WhatsApp CRM (per project scope) — the
+// default, when there's no phone signal at all (e.g. Google OAuth
+// signup with no phone captured) or an unrecognized country code,
+// must be INR/Razorpay, not USD/Stripe. Routing to Stripe/another
+// currency requires a *confirmed* non-Indian country code match
+// below; ambiguity should never silently push a domestic user onto
+// the wrong gateway and currency.
+const DEFAULT_BILLING: CountryBilling = { currency: 'INR', gateway: 'razorpay' };
 
 /**
  * Detects billing currency + gateway from a phone number's country
- * code. India (+91) is the primary case for this WhatsApp-first CRM
- * — everything else falls back to Stripe with a best-guess currency,
- * defaulting to USD when the prefix isn't recognized.
+ * code. India (+91) is both the primary case for this WhatsApp-first
+ * CRM and the fallback default — everything else routes to Stripe
+ * only on a confirmed non-Indian country code match.
  */
 export function resolveBillingFromPhone(phone: string | null | undefined): CountryBilling {
   if (!phone) return DEFAULT_BILLING;
