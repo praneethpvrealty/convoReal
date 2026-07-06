@@ -26,6 +26,7 @@ export function SearchablePropertySelect({
   const [search, setSearch] = useState('');
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Find the selected property
@@ -56,10 +57,17 @@ export function SearchablePropertySelect({
     });
   }, [search, properties]);
 
-  // Close dropdown on click outside
+  // Close dropdown on click outside — excludes both the trigger container
+  // and the portal-rendered dropdown content.
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     }
@@ -100,6 +108,7 @@ export function SearchablePropertySelect({
 
   const dropdownContent = isOpen && dropdownPosition ? (
     <div
+      ref={dropdownRef}
       className="fixed z-[100] rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150 max-h-[360px] flex flex-col"
       style={{
         top: dropdownPosition.top,

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/currency-utils";
+import { CreditMeter } from "@/components/layout/CreditMeter";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -277,74 +278,78 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         </DialogContent>
       </Dialog>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-slate-800/70 focus:bg-slate-800/70 focus:outline-none data-popup-open:bg-slate-800/70 sm:gap-3 sm:pl-1 sm:pr-3"
-          aria-label="Open account menu"
-        >
-          <Avatar className="size-8">
-            {profile?.avatar_url ? (
-              <AvatarImage
-                src={profile.avatar_url}
-                alt={profile.full_name ?? "Avatar"}
-              />
-            ) : null}
-            <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
-              {initial}
-            </AvatarFallback>
-          </Avatar>
-          <span className="hidden text-sm font-medium text-white sm:inline">
-            {profile?.full_name ?? "User"}
-          </span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent
-          align="end"
-          sideOffset={6}
-          className="min-w-56 bg-slate-900 text-slate-100 ring-slate-700"
-        >
-          <div className="px-2 py-1.5">
-            <p className="truncate text-sm font-medium text-white">
+      <div className="flex items-center gap-3">
+        <CreditMeter />
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="flex items-center gap-2 rounded-md px-1 py-1 transition-colors hover:bg-slate-800/70 focus:bg-slate-800/70 focus:outline-none data-popup-open:bg-slate-800/70 sm:gap-3 sm:pl-1 sm:pr-3"
+            aria-label="Open account menu"
+          >
+            <Avatar className="size-8">
+              {profile?.avatar_url ? (
+                <AvatarImage
+                  src={profile.avatar_url}
+                  alt={profile.full_name ?? "Avatar"}
+                />
+              ) : null}
+              <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
+                {initial}
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden text-sm font-medium text-white sm:inline">
               {profile?.full_name ?? "User"}
-            </p>
-            <p className="truncate text-xs text-slate-400">
-              {profile?.email ?? ""}
-            </p>
-          </div>
-          <DropdownMenuSeparator className="bg-slate-800" />
-          <DropdownMenuItem
-            render={
-              <Link
-                href="/settings?tab=profile"
-                prefetch={false}
-                className="text-slate-200 focus:bg-slate-800 focus:text-white"
-              />
-            }
+            </span>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            sideOffset={6}
+            className="min-w-56 bg-slate-900 text-slate-100 ring-slate-700"
           >
-            <User className="size-4" />
-            Profile
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            render={
-              <Link
-                href="/settings?tab=whatsapp"
-                prefetch={false}
-                className="text-slate-200 focus:bg-slate-800 focus:text-white"
-              />
-            }
-          >
-            <SettingsIcon className="size-4" />
-            Settings
-          </DropdownMenuItem>
-          <DropdownMenuSeparator className="bg-slate-800" />
-          <DropdownMenuItem
-            onClick={signOut}
-            className="text-slate-200 focus:bg-slate-800 focus:text-white"
-          >
-            <LogOut className="size-4" />
-            Sign out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <div className="px-2 py-1.5">
+              <p className="truncate text-sm font-medium text-white">
+                {profile?.full_name ?? "User"}
+              </p>
+              <p className="truncate text-xs text-slate-400">
+                {profile?.email ?? ""}
+              </p>
+            </div>
+            <DropdownMenuSeparator className="bg-slate-800" />
+            <DropdownMenuItem
+              render={
+                <Link
+                  href="/settings?tab=profile"
+                  prefetch={false}
+                  className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                />
+              }
+            >
+              <User className="size-4" />
+              Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              render={
+                <Link
+                  href="/settings?tab=whatsapp"
+                  prefetch={false}
+                  className="text-slate-200 focus:bg-slate-800 focus:text-white"
+                />
+              }
+            >
+              <SettingsIcon className="size-4" />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="bg-slate-800" />
+            <DropdownMenuItem
+              onClick={signOut}
+              className="text-slate-200 focus:bg-slate-800 focus:text-white"
+            >
+              <LogOut className="size-4" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

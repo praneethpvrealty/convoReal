@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
+import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
 import {
   Crown,
   GitBranch,
@@ -309,6 +310,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             </div>
           </div>
         </nav>
+
+        <SidebarCreditWidget />
 
         {/* User section */}
         <div className="shrink-0 border-t border-slate-900/60 p-3 bg-slate-950/10 backdrop-blur-sm relative z-10">

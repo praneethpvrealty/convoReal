@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
+import { TopupModalProvider } from "@/components/layout/topup-modal-context";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -90,7 +91,9 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <DashboardShellInner>{children}</DashboardShellInner>
+      <TopupModalProvider>
+        <DashboardShellInner>{children}</DashboardShellInner>
+      </TopupModalProvider>
     </AuthProvider>
   );
 }
