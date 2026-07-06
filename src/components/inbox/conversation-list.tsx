@@ -18,6 +18,12 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
+/** Strip WhatsApp formatting markers (*bold*, _italic_, ~strike~) for plain-text previews. */
+function stripWhatsAppFormatting(text: string | null | undefined): string {
+  if (!text) return '';
+  return text.replace(/[*_~`]/g, '').trim();
+}
+
 interface ConversationListProps {
   activeConversationId: string | null;
   onSelect: (conversation: Conversation) => void;
@@ -523,7 +529,7 @@ function ConversationItem({
                 ? "text-slate-100 font-semibold"
                 : "text-slate-500 font-normal"
             )}>
-              {conversation.last_message_text || "No messages yet"}
+              {stripWhatsAppFormatting(conversation.last_message_text) || "No messages yet"}
             </p>
             <div className="flex shrink-0 items-center gap-1.5">
               {isUnread && (

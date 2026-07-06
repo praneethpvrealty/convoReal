@@ -1246,12 +1246,12 @@ export function ContactDetailView({
             {/* Review Status Banner */}
             {contact.status === 'pending_review' && (
               <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-3 flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-2">
+                    <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse shrink-0 mt-0.5">
                       Needs Review
                     </span>
-                    <span className="text-xs text-amber-300">
+                    <span className="text-xs text-amber-300 leading-relaxed">
                       Inquiry request from {contact.referrer || 'External Source'}. Please verify details.
                     </span>
                   </div>
