@@ -202,6 +202,38 @@ export function stripOwnerSuffix(name: string): string {
   return name.replace(/\s*\((?:Owner|Developer|Builder|Broker|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)\)\s*$/i, '').trim();
 }
 
+const ROLE_SUFFIX_TO_CLASSIFICATION: Record<string, 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer'> = {
+  owner: 'Owner',
+  developer: 'Developer',
+  builder: 'Developer',
+  broker: 'Agent',
+  agent: 'Agent',
+  landlord: 'Owner',
+  seller: 'Seller',
+  // "Individual" distinguishes a private owner from an agent/builder
+  // in portal parlance (e.g. Housing.com's "Owner: Individual" tag).
+  individual: 'Owner',
+  buyer: 'Buyer',
+  tenant: 'Buyer',
+  customer: 'Buyer',
+};
+
+/**
+ * Reads the same "(Role)" suffix stripOwnerSuffix() removes, and maps
+ * it to a contact classification. Must be called on the *raw* parsed
+ * name, before stripOwnerSuffix() — once stripped, the role signal is
+ * gone. Returns null when no suffix is present (the common case for
+ * portal leads), so the caller can fall back to its own default.
+ */
+export function classificationFromNameSuffix(
+  name: string,
+): 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | null {
+  if (!name) return null;
+  const match = name.match(/\((Owner|Developer|Builder|Broker|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)\)\s*$/i);
+  if (!match) return null;
+  return ROLE_SUFFIX_TO_CLASSIFICATION[match[1].toLowerCase()] ?? null;
+}
+
 // Extractor rules for different portals
 export function parsePortalLead(subject: string, bodyText: string, html: string) {
   // If the body text contains HTML tags, convert it to clean plain text first

@@ -1513,7 +1513,7 @@ export default function ContactsPage() {
                   <TableCell className="text-slate-400 text-xs py-3">
                     <div className="flex flex-wrap gap-1 max-w-[150px]">
                       {contact.areas_of_interest && contact.areas_of_interest.length > 0 ? (
-                        contact.areas_of_interest.map((area) => (
+                        contact.areas_of_interest.slice(0, 3).map((area) => (
                           <span
                             key={area}
                             className="inline-flex items-center rounded bg-slate-800 text-slate-300 px-1.5 py-0.5 text-[9px] font-medium border border-slate-700"
@@ -1524,12 +1524,17 @@ export default function ContactsPage() {
                       ) : (
                         <span className="text-slate-600 text-xs">-</span>
                       )}
+                      {contact.areas_of_interest && contact.areas_of_interest.length > 3 && (
+                        <span className="text-[10px] text-slate-500">
+                          +{contact.areas_of_interest.length - 3}
+                        </span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="text-slate-400 text-xs py-3">
                     <div className="flex flex-wrap gap-1 max-w-[150px]">
                       {contact.property_interests && contact.property_interests.length > 0 ? (
-                        contact.property_interests.map((interest) => (
+                        contact.property_interests.slice(0, 3).map((interest) => (
                           <span
                             key={interest}
                             className="inline-flex items-center rounded bg-slate-800 text-slate-300 px-1.5 py-0.5 text-[9px] font-medium border border-slate-700"
@@ -1539,6 +1544,11 @@ export default function ContactsPage() {
                         ))
                       ) : (
                         <span className="text-slate-600 text-xs">-</span>
+                      )}
+                      {contact.property_interests && contact.property_interests.length > 3 && (
+                        <span className="text-[10px] text-slate-500">
+                          +{contact.property_interests.length - 3}
+                        </span>
                       )}
                     </div>
                   </TableCell>

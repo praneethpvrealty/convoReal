@@ -7,6 +7,7 @@ import {
   decodeQuotedPrintable,
   isValidContactName,
   stripOwnerSuffix,
+  classificationFromNameSuffix,
   parseBudgetToINR,
   parsePortalLead,
 } from './email-parser';
@@ -22,6 +23,7 @@ export {
   parseMimeEmail,
   stripHtmlToText,
   stripOwnerSuffix,
+  classificationFromNameSuffix,
   parsePortalLead,
 } from './email-parser';
 
@@ -368,6 +370,11 @@ export async function POST(request: Request) {
         reason: 'Name appears to be junk, marketing content, or system notification'
       }, { status: 422 });
     }
+
+    // Read the role suffix (e.g. "Jaffar (Broker)") before stripping it —
+    // it's the only signal we have for classifying the contact correctly
+    // instead of defaulting every email lead to 'Buyer'.
+    const classificationFromSuffix = classificationFromNameSuffix(parsed.name);
 
     // Strip owner/developer/builder suffixes from name
     // e.g. "Kg Subramanian (Owner)" -> "Kg Subramanian"
@@ -784,7 +791,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // 4. Insert new buyer contact
+    // 4. Insert new contact — 'Buyer' is the correct default for most
+    // portal leads, but a "(Broker)"/"(Owner)"/etc. suffix on the
+    // sender's name overrides it when present.
     const { data: newContact, error: insertErr } = await supabase
       .from('contacts')
       .insert({
@@ -793,7 +802,7 @@ export async function POST(request: Request) {
         name: parsed.name,
         phone: normalizedPhoneNum,
         email: parsed.email || null,
-        classification: 'Buyer',
+        classification: classificationFromSuffix ?? 'Buyer',
         company: parsed.source, // Stashing the lead portal name in company field
         source: parsed.source, // Storing lead portal name in dedicated source field
         max_budget: maxBudget,

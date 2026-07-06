@@ -107,6 +107,7 @@ import {
   parseMimeEmail,
   checkIsNonLeadEmail,
   stripOwnerSuffix,
+  classificationFromNameSuffix,
   POST
 } from './route';
 
@@ -453,6 +454,30 @@ Content-Transfer-Encoding: quoted-printable
       expect(stripOwnerSuffix('Robert Smith (Agent)')).toBe('Robert Smith');
       expect(stripOwnerSuffix('John Doe (Buyer)')).toBe('John Doe');
       expect(stripOwnerSuffix('No Suffix')).toBe('No Suffix');
+    });
+  });
+
+  describe('classificationFromNameSuffix', () => {
+    it('maps a "(Broker)" suffix to Agent classification', () => {
+      expect(classificationFromNameSuffix('Jaffar (Broker)')).toBe('Agent');
+    });
+
+    it('maps each recognized role suffix to its classification', () => {
+      expect(classificationFromNameSuffix('Kg Subramanian (Owner)')).toBe('Owner');
+      expect(classificationFromNameSuffix('Acme Builders (Developer)')).toBe('Developer');
+      expect(classificationFromNameSuffix('Acme Builders (Builder)')).toBe('Developer');
+      expect(classificationFromNameSuffix('Robert Smith (Agent)')).toBe('Agent');
+      expect(classificationFromNameSuffix('Some Landlord (Landlord)')).toBe('Owner');
+      expect(classificationFromNameSuffix('A Seller (Seller)')).toBe('Seller');
+      expect(classificationFromNameSuffix('Pushpa (Individual)')).toBe('Owner');
+      expect(classificationFromNameSuffix('John Doe (Buyer)')).toBe('Buyer');
+      expect(classificationFromNameSuffix('A Tenant (Tenant)')).toBe('Buyer');
+      expect(classificationFromNameSuffix('A Customer (Customer)')).toBe('Buyer');
+    });
+
+    it('returns null when there is no role suffix, so the caller can apply its own default', () => {
+      expect(classificationFromNameSuffix('No Suffix')).toBeNull();
+      expect(classificationFromNameSuffix('')).toBeNull();
     });
   });
 
