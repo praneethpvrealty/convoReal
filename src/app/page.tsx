@@ -316,8 +316,10 @@ export default async function RootPage({ searchParams }: PageProps) {
   if (subdomainAccount) accountId = subdomainAccount;
   if (targetProperty) accountId = targetProperty.account_id;
 
-  // ── Fast path: Agent mode shares don't need referrer/contacts/profiles ─
-  const isAgentMode = resolvedParams.mode === 'agent';
+  // ── Fast path: clean-view shares don't need referrer/contacts/profiles ─
+  // 'view' is the public value ('agent' kept for previously shared links —
+  // it read as an internal role name to buyers, so links now say mode=view).
+  const isAgentMode = resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
 
   let filterContactId: string | null = null;
   let filterUserId: string | null = null;

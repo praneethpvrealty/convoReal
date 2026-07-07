@@ -54,7 +54,7 @@ interface ShowcaseViewProps {
   referrerPhone?: string;
   initialPropertyId?: string;
   initialCategory?: string;
-  /** ?mode=agent resolved on the server so the first paint is already in agent mode. */
+  /** ?mode=view (legacy: agent) resolved on the server so the first paint is already the clean listing view. */
   initialAgentMode?: boolean;
 }
 
@@ -107,7 +107,7 @@ export function ShowcaseView({
   );
   const [activeImageIdx, setActiveImageIdx] = useState(0);
 
-  // ?mode=agent: clean listing detail view (no forms, buttons, or document requests)
+  // ?mode=view (legacy: agent): clean listing detail view (no forms, buttons, or document requests)
   const [isAgentMode, setIsAgentMode] = useState(initialAgentMode);
 
   // Start fetching the share target's hero image from the document head,
@@ -161,7 +161,9 @@ export function ShowcaseView({
     const urlSearchQuery = urlParams.get('search');
 
     // Clean listing mode: hide inquiry form, buttons, document requests
-    if (urlParams.get('mode') === 'agent') {
+    // ('agent' is the legacy value for links shared before the rename)
+    const urlMode = urlParams.get('mode');
+    if (urlMode === 'view' || urlMode === 'agent') {
       setIsAgentMode(true);
     }
 

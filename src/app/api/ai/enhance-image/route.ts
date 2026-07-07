@@ -4,6 +4,10 @@ import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
+interface StatusError extends Error {
+  status?: number;
+}
+
 // POST /api/ai/enhance-image
 // Calls Imagen or Hugging Face to generate/enhance listing images
 export async function POST(request: Request) {
@@ -100,7 +104,7 @@ export async function POST(request: Request) {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           const errMessage = errorData.error?.message || `Imagen API error: ${response.statusText}`;
-          const err = new Error(errMessage) as any;
+          const err = new Error(errMessage) as StatusError;
           err.status = response.status;
           throw err;
         }
@@ -149,11 +153,11 @@ export async function POST(request: Request) {
             }
           } catch {}
           if (isWarmup) {
-            const err = new Error(`Hugging Face AI model is warming up. Please try again in ${Math.round(estimatedTime)} seconds.`) as any;
+            const err = new Error(`Hugging Face AI model is warming up. Please try again in ${Math.round(estimatedTime)} seconds.`) as StatusError;
             err.status = 503;
             throw err;
           }
-          const err = new Error(errMessage) as any;
+          const err = new Error(errMessage) as StatusError;
           err.status = response.status;
           throw err;
         }
@@ -162,12 +166,13 @@ export async function POST(request: Request) {
         const base64Bytes = Buffer.from(buffer).toString('base64');
         imageResult = `data:image/jpeg;base64,${base64Bytes}`;
       }
-    } catch (apiErr: any) {
+    } catch (apiErr: unknown) {
       // API or network failure: refund the credits
       await refundCredits(accountId, 'image_enhance', cost, { client: supabase });
-      console.error('[AI Enhance] API call failed, refunded credits. Error:', apiErr.message);
-      const status = apiErr.status || 500;
-      return NextResponse.json({ error: apiErr.message || 'AI generation failed' }, { status });
+      const err = apiErr as StatusError;
+      console.error('[AI Enhance] API call failed, refunded credits. Error:', err.message);
+      const status = err.status || 500;
+      return NextResponse.json({ error: err.message || 'AI generation failed' }, { status });
     }
 
     return NextResponse.json({

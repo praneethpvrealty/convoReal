@@ -1,4 +1,3 @@
-import { billingAdmin } from '@/lib/billing/admin-client';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
@@ -401,14 +400,15 @@ export async function sendBroadcastRecipients(
             })
             .eq('id', recipient.id);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : 'Internal Send Error';
         await supabase
           .from('broadcast_recipients')
           .update({
             status: 'failed',
             retry_count: newCount,
             retry_after: null,
-            error_message: err.message || 'Internal Send Error',
+            error_message: errMsg,
           })
           .eq('id', recipient.id);
       }

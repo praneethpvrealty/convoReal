@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { CreditCard, Loader2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { CreditCard, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { openRazorpayCheckout } from "@/lib/marketplace/checkout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,8 +79,9 @@ export default function CheckoutDemoPage() {
             contact: prefillPhone,
           },
         });
-      } catch (modalErr: any) {
-        addLog(`Payment cancelled or modal dismissed: ${modalErr.message}`, "error");
+      } catch (modalErr: unknown) {
+        const msg = modalErr instanceof Error ? modalErr.message : String(modalErr);
+        addLog(`Payment cancelled or modal dismissed: ${msg}`, "error");
         setPaymentStatus("error");
         setLoading(false);
         return;
@@ -104,10 +105,11 @@ export default function CheckoutDemoPage() {
       addLog("Payment signature verified successfully! Order is paid.", "success");
       setPaymentStatus("success");
       toast.success("Payment successful and verified!");
-    } catch (err: any) {
-      addLog(`Error: ${err.message}`, "error");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Payment processing failed";
+      addLog(`Error: ${msg}`, "error");
       setPaymentStatus("error");
-      toast.error(err.message || "Payment processing failed");
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

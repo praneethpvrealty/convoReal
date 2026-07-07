@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { PostgrestError } from '@supabase/supabase-js';
 
 // Shared mock state for the service-role client, following the
 // hoisted-state convention used in src/lib/automations/engine.test.ts.
@@ -68,7 +69,7 @@ vi.mock('@/lib/billing/admin-client', () => {
           if (args.p_gateway_order_id === 'order_duplicate') {
             return Promise.resolve({
               data: null,
-              error: { code: '23505', message: 'duplicate key value violates unique constraint' } as any,
+              error: { code: '23505', message: 'duplicate key value violates unique constraint', details: '', hint: '' } as unknown as PostgrestError,
             });
           }
           return Promise.resolve({ data: [{ balance_after: 2650, success: true }], error: null });

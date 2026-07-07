@@ -45,10 +45,11 @@ export async function POST(request: Request) {
       currency: order.currency,
       keyId: order.keyId,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[create-order] failed:', error);
+    const message = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json(
-      { error: error.message || 'Internal Server Error' },
+      { error: message },
       { status: 500 }
     );
   }

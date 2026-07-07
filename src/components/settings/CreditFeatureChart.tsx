@@ -28,7 +28,6 @@ export function CreditFeatureChart() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     fetch(`/api/billing/credits/summary?range=${range}`)
       .then((res) => res.json())
       .then((json) => setRows(json.features ?? []))
@@ -49,7 +48,10 @@ export function CreditFeatureChart() {
             <button
               key={r}
               type="button"
-              onClick={() => setRange(r)}
+              onClick={() => {
+                setLoading(true);
+                setRange(r);
+              }}
               className={`rounded-md px-2 py-1 text-[11px] font-medium transition-colors ${
                 range === r ? "bg-primary/20 text-primary" : "text-slate-500 hover:text-slate-300"
               }`}

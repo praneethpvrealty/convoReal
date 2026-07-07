@@ -42,7 +42,6 @@ export function CreditLedger() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
     fetch(`/api/billing/credits/history?filter=${filter}&page=${page}`)
       .then((res) => res.json())
       .then(setData)
@@ -50,8 +49,14 @@ export function CreditLedger() {
   }, [filter, page]);
 
   function handleFilterChange(next: FilterValue) {
+    setLoading(true);
     setFilter(next);
     setPage(1);
+  }
+
+  function handlePageChange(next: number) {
+    setLoading(true);
+    setPage(next);
   }
 
   function exportCsv() {
@@ -135,7 +140,7 @@ export function CreditLedger() {
               <button
                 type="button"
                 disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
+                onClick={() => handlePageChange(page - 1)}
                 className="text-xs text-slate-400 disabled:opacity-30 hover:text-white"
               >
                 Previous
@@ -146,7 +151,7 @@ export function CreditLedger() {
               <button
                 type="button"
                 disabled={page >= data.totalPages}
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => handlePageChange(page + 1)}
                 className="text-xs text-slate-400 disabled:opacity-30 hover:text-white"
               >
                 Next

@@ -81,9 +81,10 @@ export async function POST(request: NextRequest) {
     let description: string;
     try {
       description = await generateText(prompt, systemInstruction);
-    } catch (apiErr: any) {
+    } catch (apiErr: unknown) {
       await refundCredits(ctx.accountId, "property_description", cost, { client: ctx.supabase });
-      console.error('[AI Description] generateText failed, refunded credits. Error:', apiErr.message || apiErr);
+      const msg = apiErr instanceof Error ? apiErr.message : String(apiErr);
+      console.error('[AI Description] generateText failed, refunded credits. Error:', msg);
       throw apiErr;
     }
 

@@ -103,9 +103,12 @@ export function useCredits(): CreditState & { refresh: () => Promise<void> } {
   }, []);
 
   useEffect(() => {
-    refresh();
-    const timer = setInterval(refresh, 60_000);
-    return () => clearInterval(timer);
+    const timer = setTimeout(refresh, 0);
+    const interval = setInterval(refresh, 60_000);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [refresh]);
 
   useEffect(() => {

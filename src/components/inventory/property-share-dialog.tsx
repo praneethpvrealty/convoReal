@@ -216,8 +216,8 @@ export function PropertyShareDialog({
     const signOffWithPhone = agentPhone ? `${signOff}\n${agentPhone}` : signOff;
 
     const agentUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/?property_id=${property.id}&mode=agent`
-      : `/?property_id=${property.id}&mode=agent`;
+      ? `${window.location.origin}/?property_id=${property.id}&mode=view`
+      : `/?property_id=${property.id}&mode=view`;
 
     return `Hi,\n\nThis property is handpicked matching your requirements — check out all the details, photos, and location map:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\n${agentUrl}\n\n${signOffWithPhone}`;
   }, [property, formattedPrice, profile]);
@@ -234,8 +234,8 @@ export function PropertyShareDialog({
   const agentShowcaseUrl = useMemo(() => {
     if (!property) return '';
     return typeof window !== 'undefined'
-      ? `${window.location.origin}/?property_id=${property.id}&mode=agent`
-      : `/?property_id=${property.id}&mode=agent`;
+      ? `${window.location.origin}/?property_id=${property.id}&mode=view`
+      : `/?property_id=${property.id}&mode=view`;
   }, [property]);
 
   // Fetch all active contacts for matching

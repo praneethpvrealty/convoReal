@@ -92,8 +92,9 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Trigger background dispatch in fire-and-forget style or via waitUntil
-    if (typeof (request as any).waitUntil === 'function') {
-      (request as any).waitUntil(
+    const reqWithWaitUntil = request as Request & { waitUntil?: (promise: Promise<unknown>) => void };
+    if (typeof reqWithWaitUntil.waitUntil === 'function') {
+      reqWithWaitUntil.waitUntil(
         sendBroadcastRecipients(broadcast.id, ctx.accountId, ctx.userId)
           .catch((err) => console.error('[Broadcast Background Send] error:', err))
       );
