@@ -276,23 +276,32 @@ export default function InventoryPage() {
     }
   }, [searchParams, properties, hasAutoOpened]);
 
-  // Keep active modal property states in sync with the fetched properties list
+  // Keep active modal property states in sync with the fetched properties list.
+  // Compares by `updated_at`, not object identity — every fetchProperties()
+  // call returns a brand-new array with brand-new object references even
+  // when nothing about a given property actually changed, so a reference
+  // check (`updated !== selectedProperty`) reassigned a new object on
+  // every single refetch. That churned the `property` prop into
+  // PropertyForm, whose effect depends on it — re-running fetchContacts()
+  // and resetting the Matching Contacts tab's selection/active-tab state
+  // out from under anyone using it, and re-triggering its loading spinner
+  // over an already-loaded, otherwise-untouched contact list.
   useEffect(() => {
     if (selectedProperty) {
       const updated = properties.find((p) => p.id === selectedProperty.id);
-      if (updated && updated !== selectedProperty) {
+      if (updated && updated.updated_at !== selectedProperty.updated_at) {
         setSelectedProperty(updated);
       }
     }
     if (flyerProperty) {
       const updated = properties.find((p) => p.id === flyerProperty.id);
-      if (updated && updated !== flyerProperty) {
+      if (updated && updated.updated_at !== flyerProperty.updated_at) {
         setFlyerProperty(updated);
       }
     }
     if (shareProperty) {
       const updated = properties.find((p) => p.id === shareProperty.id);
-      if (updated && updated !== shareProperty) {
+      if (updated && updated.updated_at !== shareProperty.updated_at) {
         setShareProperty(updated);
       }
     }
