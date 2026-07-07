@@ -75,3 +75,36 @@ export async function burnCredits(
     deficit: Number(row?.deficit ?? 0),
   };
 }
+
+/**
+ * Refunds `cost` credits for `feature` using refund_credits_tx.
+ * Reverses the burn across the original buckets.
+ */
+export async function refundCredits(
+  accountId: string,
+  feature: AiFeatureKey,
+  cost: number,
+  opts: { client?: SupabaseClient; description?: string } = {},
+): Promise<{ success: boolean; balanceAfter: number }> {
+  const supabase = opts.client ?? billingAdmin();
+  const description = opts.description ?? `${feature} refund`;
+
+  const { data, error } = await supabase.rpc('refund_credits_tx', {
+    p_account_id: accountId,
+    p_feature: feature,
+    p_cost: cost,
+    p_description: description,
+  });
+
+  if (error) {
+    throw new Error(`[refundCredits] RPC failed: ${error.message}`);
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  const balanceAfter = typeof row === 'number' ? row : Number(row?.balance_after ?? 0);
+
+  return {
+    success: true,
+    balanceAfter,
+  };
+}

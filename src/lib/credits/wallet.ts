@@ -25,7 +25,7 @@ export async function getOrCreateWallet(
   accountId: string,
   client?: SupabaseClient,
 ): Promise<CreditWallet> {
-  const supabase = client ?? billingAdmin();
+  const supabase = billingAdmin();
 
   const { data: existing, error: fetchErr } = await supabase
     .from('credit_wallets')

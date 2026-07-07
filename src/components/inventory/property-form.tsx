@@ -932,9 +932,15 @@ export function PropertyForm({
       if (!response.ok) {
         const errData = await response.json();
         if (response.status === 402) {
-          toast.error(`You've used all your credits for this month.`, {
-            action: { label: 'Buy credits', onClick: openTopupModal },
-          });
+          if (errData.upgradeRequired && typeof errData.upgradeRequired === 'string') {
+            toast.error(errData.error || 'AI features require a plan upgrade.', {
+              action: { label: 'Upgrade plan', onClick: () => window.location.href = '/settings?tab=billing' },
+            });
+          } else {
+            toast.error(errData.error || `You've used all your credits for this month.`, {
+              action: { label: 'Buy credits', onClick: openTopupModal },
+            });
+          }
           return;
         }
         throw new Error(errData.error || 'Failed to generate description');

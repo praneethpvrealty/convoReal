@@ -106,52 +106,36 @@ export async function creditPurchase(
   }
 
   const creditPackage = pkg as CreditPackage;
-  await getOrCreateWallet(input.accountId, supabase);
+  await getOrCreateWallet(input.accountId);
 
-  const { data: wallet, error: walletErr } = await supabase
-    .from('credit_wallets')
-    .select('purchased_credits, monthly_credits, bonus_credits, referral_credits, promo_credits')
-    .eq('account_id', input.accountId)
-    .single();
+  const description = `${creditPackage.name} top-up (${creditPackage.credits.toLocaleString()} cr)`;
 
-  if (walletErr || !wallet) {
-    throw new Error(`[creditPurchase] wallet not found for account ${input.accountId}`);
-  }
-
-  const newPurchased = wallet.purchased_credits + creditPackage.credits;
-  const newTotal =
-    wallet.monthly_credits + wallet.bonus_credits + wallet.referral_credits + newPurchased + wallet.promo_credits;
-
-  const { error: updateErr } = await supabase
-    .from('credit_wallets')
-    .update({ purchased_credits: newPurchased, total_credits: newTotal })
-    .eq('account_id', input.accountId);
-
-  if (updateErr) {
-    throw new Error(`[creditPurchase] wallet update failed: ${updateErr.message}`);
-  }
-
-  const { error: txErr } = await supabase.from('credit_transactions').insert({
-    account_id: input.accountId,
-    type: 'purchase',
-    bucket: 'purchased',
-    amount: creditPackage.credits,
-    balance_after: newTotal,
-    description: `${creditPackage.name} top-up (${creditPackage.credits.toLocaleString()} cr)`,
-    payment_gateway: input.gateway,
-    gateway_payment_id: input.gatewayPaymentId,
-    gateway_order_id: input.gatewayOrderId,
+  const { data, error: rpcErr } = await supabase.rpc('purchase_credits_tx', {
+    p_account_id: input.accountId,
+    p_amount: creditPackage.credits,
+    p_description: description,
+    p_gateway: input.gateway,
+    p_gateway_payment_id: input.gatewayPaymentId,
+    p_gateway_order_id: input.gatewayOrderId,
   });
 
-  if (txErr) {
-    throw new Error(`[creditPurchase] ledger insert failed: ${txErr.message}`);
+  if (rpcErr) {
+    if (rpcErr.code === '23505' || rpcErr.message?.includes('23505') || rpcErr.message?.includes('unique constraint')) {
+      return { credited: false, credits: 0 };
+    }
+    throw new Error(`[creditPurchase] wallet update failed: ${rpcErr.message}`);
   }
 
-  // Fire-and-forget — a failed notification must never fail the
-  // purchase, which has already been committed above.
-  void notifyManagerCreditsAdded(input.accountId, creditPackage.credits, creditPackage.name);
+  const row = Array.isArray(data) ? data[0] : data;
+  const wasCredited = Boolean(row?.success);
 
-  return { credited: true, credits: creditPackage.credits };
+  if (wasCredited) {
+    // Fire-and-forget — a failed notification must never fail the
+    // purchase, which has already been committed above.
+    void notifyManagerCreditsAdded(input.accountId, creditPackage.credits, creditPackage.name);
+  }
+
+  return { credited: wasCredited, credits: wasCredited ? creditPackage.credits : 0 };
 }
 
 /** Looks up the package price row for a given package + currency —

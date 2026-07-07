@@ -64,6 +64,15 @@ vi.mock('@/lib/billing/admin-client', () => {
       from: (table: string) => builder(table),
       rpc: (fn: string, args: Record<string, unknown>) => {
         state.rpcCalls.push({ fn, args });
+        if (fn === 'purchase_credits_tx') {
+          if (args.p_gateway_order_id === 'order_duplicate') {
+            return Promise.resolve({
+              data: null,
+              error: { code: '23505', message: 'duplicate key value violates unique constraint' } as any,
+            });
+          }
+          return Promise.resolve({ data: [{ balance_after: 2650, success: true }], error: null });
+        }
         return Promise.resolve({ data: null, error: null });
       },
     }),
@@ -120,8 +129,7 @@ describe('grantSubscriptionCredits', () => {
 describe('creditPurchase', () => {
   beforeEach(() => {
     h.state.existingTxOrderIds = new Set();
-    h.state.insertedTx = [];
-    h.state.walletUpdates = [];
+    h.state.rpcCalls = [];
     h.state.packages = [{ id: 'pkg-1', key: 'standard', name: 'Standard Pack', credits: 2500 }];
     h.state.wallet = {
       purchased_credits: 100,
@@ -132,7 +140,7 @@ describe('creditPurchase', () => {
     };
   });
 
-  it('credits the purchased bucket and inserts a ledger row on first delivery', async () => {
+  it('calls the purchase_credits_tx RPC and returns success on first delivery', async () => {
     const result = await creditPurchase({
       accountId: 'acct-1',
       packageKey: 'standard',
@@ -143,18 +151,21 @@ describe('creditPurchase', () => {
     });
 
     expect(result).toEqual({ credited: true, credits: 2500 });
-    expect(h.state.walletUpdates).toHaveLength(1);
-    expect(h.state.walletUpdates[0].purchased_credits).toBe(2600);
-    expect(h.state.insertedTx).toHaveLength(1);
-    expect(h.state.insertedTx[0]).toMatchObject({
-      type: 'purchase',
-      bucket: 'purchased',
-      amount: 2500,
-      gateway_order_id: 'order_123',
+    expect(h.state.rpcCalls).toHaveLength(1);
+    expect(h.state.rpcCalls[0]).toEqual({
+      fn: 'purchase_credits_tx',
+      args: {
+        p_account_id: 'acct-1',
+        p_amount: 2500,
+        p_description: 'Standard Pack top-up (2,500 cr)',
+        p_gateway: 'razorpay',
+        p_gateway_payment_id: 'pay_123',
+        p_gateway_order_id: 'order_123',
+      },
     });
   });
 
-  it('is idempotent — a webhook redelivery with the same gateway_order_id does not double-credit', async () => {
+  it('is idempotent — a webhook redelivery with the same gateway_order_id is caught by fast path', async () => {
     h.state.existingTxOrderIds.add('order_123');
 
     const result = await creditPurchase({
@@ -167,7 +178,21 @@ describe('creditPurchase', () => {
     });
 
     expect(result).toEqual({ credited: false, credits: 0 });
-    expect(h.state.walletUpdates).toHaveLength(0);
-    expect(h.state.insertedTx).toHaveLength(0);
+    expect(h.state.rpcCalls).toHaveLength(0);
+  });
+
+  it('is idempotent — a webhook redelivery caught by DB unique violation returns false without throwing', async () => {
+    const result = await creditPurchase({
+      accountId: 'acct-1',
+      packageKey: 'standard',
+      gateway: 'razorpay',
+      gatewayOrderId: 'order_duplicate',
+      gatewayPaymentId: 'pay_123',
+      currency: 'INR',
+    });
+
+    expect(result).toEqual({ credited: false, credits: 0 });
+    expect(h.state.rpcCalls).toHaveLength(1);
+    expect(h.state.rpcCalls[0].fn).toBe('purchase_credits_tx');
   });
 });

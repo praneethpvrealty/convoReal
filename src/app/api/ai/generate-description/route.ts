@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { generateText } from "@/lib/ai/gemini";
 import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
-import { burnCredits } from "@/lib/credits/burn";
+import { burnCredits, refundCredits } from "@/lib/credits/burn";
 import { AI_FEATURE_COSTS } from "@/lib/credits/types";
 
 // POST /api/ai/generate-description
@@ -60,24 +60,32 @@ export async function POST(request: NextRequest) {
       `${detailsStr}\n` +
       `The description should be around 100-150 words. Focus on the benefits of the space, design quality, features, and location. Do not include placeholders like '[Insert Name]'.`;
 
+    const cost = AI_FEATURE_COSTS.property_description;
     // Burn before the external call, per credit engine convention —
     // never charge for a call that didn't happen, never skip
     // charging one that did.
-    const burn = await burnCredits(ctx.accountId, "property_description", AI_FEATURE_COSTS.property_description, {
+    const burn = await burnCredits(ctx.accountId, "property_description", cost, {
       client: ctx.supabase,
     });
     if (!burn.success) {
       return NextResponse.json(
         {
           error: "Insufficient credits for AI description generation.",
-          creditsNeeded: AI_FEATURE_COSTS.property_description,
+          creditsNeeded: cost,
           upgradeRequired: true,
         },
         { status: 402 },
       );
     }
 
-    const description = await generateText(prompt, systemInstruction);
+    let description: string;
+    try {
+      description = await generateText(prompt, systemInstruction);
+    } catch (apiErr: any) {
+      await refundCredits(ctx.accountId, "property_description", cost, { client: ctx.supabase });
+      console.error('[AI Description] generateText failed, refunded credits. Error:', apiErr.message || apiErr);
+      throw apiErr;
+    }
 
     return NextResponse.json({ description });
   } catch (err) {

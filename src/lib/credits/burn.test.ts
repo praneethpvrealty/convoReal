@@ -26,7 +26,7 @@ vi.mock('./wallet', () => ({
   getOrCreateWallet: vi.fn(() => Promise.resolve({})),
 }));
 
-const { burnCredits } = await import('./burn');
+const { burnCredits, refundCredits } = await import('./burn');
 
 describe('burnCredits', () => {
   beforeEach(() => {
@@ -71,5 +71,35 @@ describe('burnCredits', () => {
     await burnCredits('acct-1', 'listing_parse', 5, { retryKey: 'wamid.123' });
 
     expect(h.state.rpcCalls[0].args.p_retry_key).toBe('wamid.123');
+  });
+});
+
+describe('refundCredits', () => {
+  beforeEach(() => {
+    h.state.rpcCalls = [];
+  });
+
+  it('calls the refund_credits_tx RPC with correct arguments', async () => {
+    h.state.rpcResponse = { balance_after: 125 };
+    const result = await refundCredits('acct-1', 'image_enhance', 25);
+
+    expect(h.state.rpcCalls).toHaveLength(1);
+    expect(h.state.rpcCalls[0]).toEqual({
+      fn: 'refund_credits_tx',
+      args: {
+        p_account_id: 'acct-1',
+        p_feature: 'image_enhance',
+        p_cost: 25,
+        p_description: 'image_enhance refund',
+      },
+    });
+    expect(result).toEqual({ success: true, balanceAfter: 125 });
+  });
+
+  it('supports custom description', async () => {
+    h.state.rpcResponse = { balance_after: 100 };
+    await refundCredits('acct-1', 'property_description', 10, { description: 'failed AI description' });
+
+    expect(h.state.rpcCalls[0].args.p_description).toBe('failed AI description');
   });
 });
