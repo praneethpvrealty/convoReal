@@ -129,27 +129,23 @@ export default function SettingsPage() {
       ],
     },
     {
-      label: 'Public',
-      items: [
-        { value: 'showcase', label: 'Showcase', icon: Globe },
-      ],
-    },
-    {
-      label: 'AI',
-      items: [
-        { value: 'ai', label: 'AI Config', icon: Sparkles },
-      ],
-    },
-    {
       label: 'Billing',
       items: [
         { value: 'billing', label: 'Billing', icon: CreditCard },
         { value: 'credits', label: 'Credits', icon: Coins },
       ],
     },
+    // "Public", "AI", and "Advanced" used to be three separate groups that
+    // each rendered a full-width uppercase header over exactly one link
+    // (Showcase / AI Config / Other) — three lines of label noise for
+    // three lines of content. Combined into one group so every section
+    // header earns its place with 2+ items; still grows cleanly as
+    // Members/Teams/Routing flags turn on.
     {
-      label: 'Advanced',
+      label: 'Workspace',
       items: [
+        { value: 'showcase', label: 'Showcase', icon: Globe },
+        { value: 'ai', label: 'AI Config', icon: Sparkles },
         { value: 'other', label: 'Other', icon: Sliders },
         ...(accountSharingEnabled ? [{ value: 'members' as TabValue, label: 'Members', icon: UsersRound }] : []),
         ...(teamsEnabled ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }] : []),

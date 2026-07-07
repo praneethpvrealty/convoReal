@@ -98,6 +98,14 @@ const nextConfig: NextConfig = {
    * below — Next.js merges headers from every matching rule, so
    * they apply to every response regardless of which cache rule
    * matched.
+   *
+   * IMPORTANT — rule order matters: when multiple rules match the
+   * same path and set the same header key, Next.js applies the
+   * *last* matching rule (see headers() docs). The "/api/:path*"
+   * no-store rule must therefore be declared AFTER the general
+   * "/:path*" catch-all below, or the catch-all's cacheable
+   * Cache-Control silently wins on every API route — which is
+   * exactly what happened here previously (2026-07-07 incident).
    */
   async headers() {
     return [
@@ -109,10 +117,6 @@ const nextConfig: NextConfig = {
             value: "public, max-age=31536000, immutable",
           },
         ],
-      },
-      {
-        source: "/api/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
         // Showcase root path (property listings).
@@ -140,6 +144,21 @@ const nextConfig: NextConfig = {
               "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
           },
         ],
+      },
+      {
+        // /api/* MUST be the last rule that sets Cache-Control. Next.js
+        // merges header rules by matching path, and "if two headers match
+        // the same path and set the same key, the last one wins" — this
+        // rule previously sat *before* the "/:path*" catch-all above, so
+        // the catch-all's cacheable Cache-Control silently overrode this
+        // no-store on every API route. Confirmed in prod: GET
+        // /api/onboarding/status was served `s-maxage=300,
+        // stale-while-revalidate=86400` instead of `no-store`, which is
+        // how a stale "no properties yet" snapshot kept being served to
+        // an account that already had properties. API responses are
+        // per-user and must never be shared across requests at the edge.
+        source: "/api/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
       },
       {
         // Security headers on every response, including /_next/static
