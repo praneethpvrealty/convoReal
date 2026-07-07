@@ -397,6 +397,17 @@ export function ContactForm({
         }
       }
  
+      // Fire-and-forget: refresh the AI-extracted matching preferences from
+      // the (possibly changed) requirements/notes text. The server skips the
+      // Gemini call when the source text is unchanged.
+      if (contactId) {
+        fetch('/api/contacts/extract-preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactIds: [contactId] }),
+        }).catch(() => {});
+      }
+
       toast.success(isEdit ? 'Contact updated' : 'Contact created');
       onOpenChange(false);
       onSaved();

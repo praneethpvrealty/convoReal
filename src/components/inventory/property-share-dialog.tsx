@@ -33,7 +33,8 @@ import {
   ExternalLink,
   Search,
 } from 'lucide-react';
-import { getMatchingContacts } from '@/lib/matching';
+import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 
 interface PropertyShareDialogProps {
@@ -250,6 +251,38 @@ export function PropertyShareDialog({
         .order('name');
       if (error) throw error;
       setContacts(data || []);
+
+      // Refresh AI-extracted matching preferences for contacts whose
+      // requirements/notes changed since the last extraction (the server
+      // hash-skips unchanged ones), then re-pull so matches use fresh data.
+      const stale = (data || [])
+        .filter(
+          (c) =>
+            (c.classification === 'Buyer' || c.classification === 'Agent') &&
+            ((c.requirements || '').trim() || (c.contact_notes || []).length > 0) &&
+            (!c.pref_extracted_at || c.updated_at > c.pref_extracted_at)
+        )
+        .slice(0, 25)
+        .map((c) => c.id);
+      if (stale.length > 0) {
+        const res = await fetch('/api/contacts/extract-preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactIds: stale }),
+        });
+        if (res.ok) {
+          const { updated } = (await res.json()) as { updated: number };
+          if (updated > 0) {
+            const { data: refreshed } = await supabase
+              .from('contacts')
+              .select('*, contact_notes(note_text)')
+              .eq('account_id', accountId)
+              .eq('status', 'active')
+              .order('name');
+            if (refreshed) setContacts(refreshed);
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to load contacts for sharing:', err);
       toast.error('Failed to load contacts');
@@ -390,9 +423,17 @@ export function PropertyShareDialog({
     return filtered.map((c) => {
       const match = matchedContacts.find((m) => m.contact.id === c.id);
       if (match) return match;
+      const unknownDetails: MatchDetails = {
+        type: 'unknown',
+        location: 'unknown',
+        budget: 'unknown',
+        bhk: 'unknown',
+        roi: 'unknown',
+      };
       return {
         contact: c,
         score: 0,
+        details: unknownDetails,
         matchedFields: { budget: false, area: false, interest: false },
       };
     });
@@ -1526,7 +1567,7 @@ export function PropertyShareDialog({
                   )}
                 </div>
               ) : (
-                displayedContacts.map(({ contact: c, score, matchedFields }) => {
+                displayedContacts.map(({ contact: c, score, details }) => {
                   const isSelected = selectedContactIds.includes(c.id);
                   return (
                     <div
@@ -1569,23 +1610,7 @@ export function PropertyShareDialog({
                         </div>
                         <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.phone}</p>
 
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {matchedFields.budget && (
-                            <Badge className="bg-emerald-550/5 text-emerald-450 border border-emerald-500/10 text-[8px] px-1.5 py-0 font-medium">
-                              Budget matched
-                            </Badge>
-                          )}
-                          {matchedFields.area && (
-                            <Badge className="bg-sky-550/5 text-sky-450 border border-sky-500/10 text-[8px] px-1.5 py-0 font-medium">
-                              Location matched
-                            </Badge>
-                          )}
-                          {matchedFields.interest && (
-                            <Badge className="bg-indigo-550/5 text-indigo-400 border border-indigo-500/10 text-[8px] px-1.5 py-0 font-medium">
-                              Preferences matched
-                            </Badge>
-                          )}
-                        </div>
+                        {score > 0 && <MatchDetailChips details={details} />}
                       </div>
                     </div>
                   );

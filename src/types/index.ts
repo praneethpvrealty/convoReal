@@ -128,6 +128,20 @@ export interface Contact {
   referrer_contact_id?: string | null;
   requirements?: string | null;
   min_roi?: number | null;
+  /** AI-extracted structured preferences (migration 092) — populated by
+   *  /api/contacts/extract-preferences from requirements + notes text.
+   *  Explicit fields above always win; these fill the gaps. */
+  pref_property_types?: string[] | null;
+  pref_property_categories?: string[] | null;
+  pref_bhk_min?: number | null;
+  pref_bhk_max?: number | null;
+  pref_budget_min?: number | null;
+  pref_budget_max?: number | null;
+  pref_areas?: string[] | null;
+  pref_excluded_areas?: string[] | null;
+  pref_min_roi?: number | null;
+  pref_source_hash?: string | null;
+  pref_extracted_at?: string | null;
   contact_notes?: { note_text: string }[] | null;
   last_inquired_property_id?: string | null;
   source?: string | null;

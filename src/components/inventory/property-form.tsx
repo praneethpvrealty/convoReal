@@ -54,6 +54,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
+import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { formatCurrency } from '@/lib/currency-utils';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
@@ -602,13 +603,14 @@ export function PropertyForm({
       city,
       state: stateVal,
       project,
+      bedrooms: bedrooms ? Number(bedrooms) : undefined,
       features,
       nearby_highlights: nearbyHighlights,
     };
     // Only match agents and Buyers
     const targetContacts = contacts.filter((c) => c.classification === 'Buyer' || c.classification === 'Agent');
     return getMatchingContacts(currentProp, targetContacts);
-  }, [contacts, title, description, price, address, type, sublocality, city, stateVal, project, features, nearbyHighlights]);
+  }, [contacts, title, description, price, address, type, sublocality, city, stateVal, project, bedrooms, features, nearbyHighlights]);
 
   const displayedMatches = useMemo(() => {
     return matchedContacts.filter(({ contact: c }) => {
@@ -3764,7 +3766,7 @@ export function PropertyForm({
                             <p className="text-xs text-slate-550 mt-1">Adjust preferences or add budget tags to contacts.</p>
                           </div>
                         ) : (
-                          displayedMatches.map(({ contact: c, score, matchedFields }) => {
+                          displayedMatches.map(({ contact: c, score, details }) => {
                             const isSelected = selectedContactIds.includes(c.id);
                             return (
                               <div
@@ -3808,23 +3810,7 @@ export function PropertyForm({
                                   </div>
                                   <p className="text-xs text-slate-450 font-mono mt-0.5">{c.phone}</p>
 
-                                  <div className="flex flex-wrap gap-1.5 mt-2">
-                                    {matchedFields.budget && (
-                                      <Badge className="bg-emerald-500/5 text-emerald-400 border border-emerald-500/10 text-[9px] px-1.5 py-0">
-                                        Budget matches
-                                      </Badge>
-                                    )}
-                                    {matchedFields.area && (
-                                      <Badge className="bg-sky-500/5 text-sky-450 border border-sky-500/10 text-[9px] px-1.5 py-0">
-                                        Location matches
-                                      </Badge>
-                                    )}
-                                    {matchedFields.interest && (
-                                      <Badge className="bg-indigo-500/5 text-indigo-400 border border-indigo-500/10 text-[9px] px-1.5 py-0">
-                                        Interest matches
-                                      </Badge>
-                                    )}
-                                  </div>
+                                  <MatchDetailChips details={details} />
                                 </div>
                               </div>
                             );

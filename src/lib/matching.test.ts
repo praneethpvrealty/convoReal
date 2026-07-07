@@ -37,111 +37,56 @@ const createTestProperty = (overrides: Partial<Property>): Property => {
 };
 
 describe('getMatchingContacts', () => {
-  describe('ROI Yield Matching', () => {
-    it('matches property when ROI exceeds min_roi preference', () => {
-      const contact = createTestContact({ min_roi: 4 });
-      const property = createTestProperty({ roi: 5 });
-      const results = getMatchingContacts(property, [contact]);
+  describe('Property type gate (subtype-level)', () => {
+    it('matches when the contact prefers the exact subtype group', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const apartment = createTestProperty({ type: 'Flat/ Apartment' });
+      const results = getMatchingContacts(apartment, [contact]);
       expect(results.length).toBe(1);
-      expect(results[0].contact.id).toBe(contact.id);
+      expect(results[0].details.type).toBe('match');
     });
 
-    it('excludes property when ROI is less than min_roi preference', () => {
-      const contact = createTestContact({ min_roi: 5 });
-      const property = createTestProperty({ roi: 4 });
-      const results = getMatchingContacts(property, [contact]);
-      expect(results.length).toBe(0);
-    });
-
-    it('matches when contact has no min_roi set', () => {
-      const contact = createTestContact({ min_roi: null, no_budget: true });
-      const property = createTestProperty({ roi: 4 });
-      const results = getMatchingContacts(property, [contact]);
-      expect(results.length).toBe(1);
-    });
-
-    it('parses yield requirements from notes text dynamically when min_roi field is null', () => {
+    it('excludes an apartment seeker from an independent house even though both are residential', () => {
       const contact = createTestContact({
-        min_roi: null,
-        contact_notes: [{ note_text: 'looking for yield > 5% on commercial spaces' }],
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
       });
-      const lowYieldProp = createTestProperty({ roi: 4 });
-      const highYieldProp = createTestProperty({ roi: 6 });
-
-      expect(getMatchingContacts(lowYieldProp, [contact]).length).toBe(0);
-      expect(getMatchingContacts(highYieldProp, [contact]).length).toBe(1);
-    });
-  });
-
-  describe('Location-Agnostic Yield Matching', () => {
-    it('bypasses location requirements for commercial properties matching yield preferences', () => {
-      const contact = createTestContact({
-        min_roi: 4.5,
-        areas_of_interest: ['Indiranagar'], // Specific area
-      });
-      // Property is Commercial and yields 5.0%, but is in Whitefield (not Indiranagar)
-      const property = createTestProperty({
-        location: 'Whitefield, Bangalore',
-        sublocality: 'Whitefield',
-        type: 'Commercial Office',
-        roi: 5.0,
-      });
-
-      const results = getMatchingContacts(property, [contact]);
-      expect(results.length).toBe(1); // Matches location-agnostically!
+      const house = createTestProperty({ type: 'Residential House' });
+      expect(getMatchingContacts(house, [contact]).length).toBe(0);
     });
 
-    it('does NOT bypass location requirements for residential properties matching yield preferences', () => {
+    it('excludes a residential buyer from commercial and industrial properties', () => {
       const contact = createTestContact({
-        min_roi: 4.5,
-        areas_of_interest: ['Indiranagar'],
+        pref_property_categories: ['residential'],
+        pref_extracted_at: new Date().toISOString(),
       });
-      // Property is Residential (Apartment) and yields 5.0%, but is in Whitefield
-      const property = createTestProperty({
-        location: 'Whitefield, Bangalore',
-        sublocality: 'Whitefield',
-        type: 'Residential Apartment',
-        roi: 5.0,
-      });
+      const commercial = createTestProperty({ type: 'Commercial Office Space' });
+      const industrial = createTestProperty({ type: 'Industrial Shed' });
+      const apartment = createTestProperty({ type: 'Flat/ Apartment' });
 
-      const results = getMatchingContacts(property, [contact]);
-      expect(results.length).toBe(0); // Fails location check!
-    });
-  });
-
-  describe('Notes/Requirements Negation constraints', () => {
-    it('respects negated location constraints (e.g. "not Jayanagar")', () => {
-      const contact = createTestContact({
-        areas_of_interest: ['Jayanagar', 'HSR Layout'],
-        requirements: 'Interested in Jayanagar or HSR, but not Jayanagar due to high price',
-      });
-      
-      const jayanagarProp = createTestProperty({ sublocality: 'Jayanagar' });
-      const hsrProp = createTestProperty({ sublocality: 'HSR Layout' });
-
-      // Jayanagar matches area array but is explicitly negated in text
-      expect(getMatchingContacts(jayanagarProp, [contact]).length).toBe(0);
-      expect(getMatchingContacts(hsrProp, [contact]).length).toBe(1);
+      expect(getMatchingContacts(commercial, [contact]).length).toBe(0);
+      expect(getMatchingContacts(industrial, [contact]).length).toBe(0);
+      expect(getMatchingContacts(apartment, [contact]).length).toBe(1);
     });
 
-    it('respects negated category constraints (e.g. "no commercial")', () => {
+    it('allows a category-level preference to match any subtype in that category', () => {
       const contact = createTestContact({
-        property_interests: ['Vacant plot'],
-        requirements: 'looking for vacant plots, but no commercial please',
+        pref_property_categories: ['commercial'],
+        pref_extracted_at: new Date().toISOString(),
       });
+      const office = createTestProperty({ type: 'Commercial Office Space' });
+      const shop = createTestProperty({ type: 'Commercial Shop' });
 
-      const commercialProp = createTestProperty({ type: 'Commercial Land', title: 'Commercial Plot' });
-      const residentialProp = createTestProperty({ type: 'Residential Land', title: 'Residential Plot' });
-
-      expect(getMatchingContacts(commercialProp, [contact]).length).toBe(0); // Fails due to "no commercial" negation
-      expect(getMatchingContacts(residentialProp, [contact]).length).toBe(1);
+      expect(getMatchingContacts(office, [contact]).length).toBe(1);
+      expect(getMatchingContacts(shop, [contact]).length).toBe(1);
     });
-  });
 
-  describe('Notes/Requirements Keyword and Landmark matching', () => {
-    it('infers category match from notes keywords (e.g. "luxury apartment")', () => {
+    it('infers type preferences from free text when no extraction has run (e.g. "luxury apartment")', () => {
       const contact = createTestContact({
-        property_interests: [], // empty selection
+        property_interests: [],
         requirements: 'need a luxury apartment in South Bangalore',
       });
 
@@ -152,9 +97,82 @@ describe('getMatchingContacts', () => {
       expect(getMatchingContacts(commercialOffice, [contact]).length).toBe(0);
     });
 
-    it('matches property if notes explicitly mention project name (e.g. "SJR Blue Waters")', () => {
+    it('respects negated category constraints in text (e.g. "no commercial")', () => {
       const contact = createTestContact({
-        areas_of_interest: ['Whitefield'], // areas list does not contain JP Nagar
+        property_interests: ['Vacant plot'],
+        requirements: 'looking for vacant plots, but no commercial please',
+      });
+
+      const commercialProp = createTestProperty({ type: 'Commercial Land', title: 'Commercial Plot' });
+      const residentialProp = createTestProperty({ type: 'Residential Land', title: 'Residential Plot' });
+
+      expect(getMatchingContacts(commercialProp, [contact]).length).toBe(0);
+      expect(getMatchingContacts(residentialProp, [contact]).length).toBe(1);
+    });
+  });
+
+  describe('Location refinement', () => {
+    it('excludes contacts whose stated areas do not cover the property', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        areas_of_interest: ['Indiranagar'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'Whitefield, Bangalore',
+        sublocality: 'Whitefield',
+      });
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
+
+    it('ranks a location match above a contact with no stated areas', () => {
+      const withArea = createTestContact({
+        id: 'c-area',
+        pref_property_types: ['Flat/ Apartment'],
+        areas_of_interest: ['HSR Layout'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const noArea = createTestContact({
+        id: 'c-noarea',
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Flat/ Apartment', sublocality: 'HSR Layout' });
+
+      const results = getMatchingContacts(property, [withArea, noArea]);
+      expect(results.length).toBe(2);
+      expect(results[0].contact.id).toBe('c-area');
+      expect(results[0].score).toBeGreaterThan(results[1].score);
+    });
+
+    it('respects negated location constraints in text (e.g. "not Jayanagar")', () => {
+      const contact = createTestContact({
+        areas_of_interest: ['Jayanagar', 'HSR Layout'],
+        requirements: 'Interested in Jayanagar or HSR, but not Jayanagar due to high price',
+      });
+
+      const jayanagarProp = createTestProperty({ sublocality: 'Jayanagar' });
+      const hsrProp = createTestProperty({ sublocality: 'HSR Layout' });
+
+      expect(getMatchingContacts(jayanagarProp, [contact]).length).toBe(0);
+      expect(getMatchingContacts(hsrProp, [contact]).length).toBe(1);
+    });
+
+    it('respects AI-extracted excluded areas', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_areas: ['HSR Layout'],
+        pref_excluded_areas: ['Whitefield'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const excluded = createTestProperty({ type: 'Flat/ Apartment', sublocality: 'Whitefield', location: 'Whitefield' });
+      expect(getMatchingContacts(excluded, [contact]).length).toBe(0);
+    });
+
+    it('matches when notes explicitly mention the project name (e.g. "SJR Blue Waters")', () => {
+      const contact = createTestContact({
+        areas_of_interest: ['Whitefield'],
         requirements: 'looking for properties specifically in SJR Blue Waters',
       });
 
@@ -163,23 +181,182 @@ describe('getMatchingContacts', () => {
         sublocality: 'JP Nagar',
       });
 
-      expect(getMatchingContacts(matchedProp, [contact]).length).toBe(1);
+      const results = getMatchingContacts(matchedProp, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.location).toBe('match');
     });
   });
 
-  describe('Text Budget Heuristics Parsing', () => {
-    it('extracts budget limits from notes text if budget fields are empty', () => {
+  describe('Budget applied last', () => {
+    it('never matches a contact on budget alone', () => {
       const contact = createTestContact({
-        min_budget: undefined,
-        max_budget: undefined,
-        requirements: 'looking for spaces under 1.5 Cr',
+        min_budget: 5000000,
+        max_budget: 15000000,
+      });
+      const property = createTestProperty({ price: 10000000 });
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
+
+    it('excludes a type match whose stated budget is far below the price', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        max_budget: 8000000, // 80L
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Flat/ Apartment', price: 15000000 }); // 1.5 Cr
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
+
+    it('keeps near-miss budgets (within 10%) with a lower score', () => {
+      const within = createTestContact({
+        id: 'c-within',
+        pref_property_types: ['Flat/ Apartment'],
+        max_budget: 10000000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const nearMiss = createTestContact({
+        id: 'c-near',
+        pref_property_types: ['Flat/ Apartment'],
+        max_budget: 9500000, // price is ~5% over
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Flat/ Apartment', price: 10000000 });
+
+      const results = getMatchingContacts(property, [within, nearMiss]);
+      expect(results.length).toBe(2);
+      expect(results[0].contact.id).toBe('c-within');
+      expect(results.find((r) => r.contact.id === 'c-near')?.details.budget).toBe('partial');
+    });
+
+    it('extracts budget limits from notes text when no structured budget exists', () => {
+      const contact = createTestContact({
+        requirements: 'looking for office spaces under 1.5 Cr',
       });
 
-      const cheapProp = createTestProperty({ price: 12000000 }); // 1.2 Cr
-      const expensiveProp = createTestProperty({ price: 18000000 }); // 1.8 Cr
+      const cheapProp = createTestProperty({ type: 'Commercial Office', price: 12000000 }); // 1.2 Cr
+      const expensiveProp = createTestProperty({ type: 'Commercial Office', price: 18000000 }); // 1.8 Cr
 
       expect(getMatchingContacts(cheapProp, [contact]).length).toBe(1);
       expect(getMatchingContacts(expensiveProp, [contact]).length).toBe(0);
+    });
+  });
+
+  describe('BHK fit', () => {
+    it('scores a BHK match above a BHK mismatch', () => {
+      const wants3 = createTestContact({
+        id: 'c-3bhk',
+        pref_property_types: ['Flat/ Apartment'],
+        pref_bhk_min: 3,
+        pref_bhk_max: 3,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const wants1 = createTestContact({
+        id: 'c-1bhk',
+        pref_property_types: ['Flat/ Apartment'],
+        pref_bhk_min: 1,
+        pref_bhk_max: 1,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Flat/ Apartment', bedrooms: 3 });
+
+      const results = getMatchingContacts(property, [wants1, wants3]);
+      expect(results[0].contact.id).toBe('c-3bhk');
+      expect(results[0].details.bhk).toBe('match');
+      expect(results.find((r) => r.contact.id === 'c-1bhk')?.details.bhk).toBe('mismatch');
+    });
+  });
+
+  describe('ROI yield matching', () => {
+    it('matches an ROI-only investor when property yield meets the expectation', () => {
+      const contact = createTestContact({ min_roi: 4 });
+      const property = createTestProperty({ roi: 5 });
+      const results = getMatchingContacts(property, [contact]);
+      expect(results.length).toBe(1);
+    });
+
+    it('excludes when property ROI is below min_roi', () => {
+      const contact = createTestContact({ min_roi: 5 });
+      const property = createTestProperty({ roi: 4 });
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
+
+    it('does not match a contact whose only signal is the no_budget flag', () => {
+      const contact = createTestContact({ min_roi: null, no_budget: true });
+      const property = createTestProperty({ roi: 4 });
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
+
+    it('parses yield requirements from notes when no structured ROI exists', () => {
+      const contact = createTestContact({
+        min_roi: null,
+        contact_notes: [{ note_text: 'looking for yield > 5% on commercial spaces' }],
+      });
+      const lowYieldProp = createTestProperty({ roi: 4 });
+      const highYieldProp = createTestProperty({ roi: 6 });
+
+      expect(getMatchingContacts(lowYieldProp, [contact]).length).toBe(0);
+      expect(getMatchingContacts(highYieldProp, [contact]).length).toBe(1);
+    });
+
+    it('bypasses location for yield-matching commercial properties', () => {
+      const contact = createTestContact({
+        min_roi: 4.5,
+        areas_of_interest: ['Indiranagar'],
+      });
+      const property = createTestProperty({
+        location: 'Whitefield, Bangalore',
+        sublocality: 'Whitefield',
+        type: 'Commercial Office',
+        roi: 5.0,
+      });
+
+      expect(getMatchingContacts(property, [contact]).length).toBe(1);
+    });
+
+    it('does NOT bypass location for residential properties matching yield', () => {
+      const contact = createTestContact({
+        min_roi: 4.5,
+        areas_of_interest: ['Indiranagar'],
+      });
+      const property = createTestProperty({
+        location: 'Whitefield, Bangalore',
+        sublocality: 'Whitefield',
+        type: 'Residential Apartment',
+        roi: 5.0,
+      });
+
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
+  });
+
+  describe('Ranking', () => {
+    it('ranks type+location+budget above type+budget above type-only', () => {
+      const full = createTestContact({
+        id: 'c-full',
+        pref_property_types: ['Flat/ Apartment'],
+        pref_areas: ['HSR Layout'],
+        max_budget: 12000000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const typeBudget = createTestContact({
+        id: 'c-type-budget',
+        pref_property_types: ['Flat/ Apartment'],
+        max_budget: 12000000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const typeOnly = createTestContact({
+        id: 'c-type',
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        sublocality: 'HSR Layout',
+        price: 10000000,
+      });
+
+      const results = getMatchingContacts(property, [typeOnly, typeBudget, full]);
+      expect(results.map((r) => r.contact.id)).toEqual(['c-full', 'c-type-budget', 'c-type']);
     });
   });
 });

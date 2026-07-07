@@ -1,4 +1,7 @@
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { PROPERTY_TYPE_VALUES, normalizePropertyType } from '@/lib/property-types';
+
+export { PROPERTY_TYPE_VALUES, normalizePropertyType };
 
 /**
  * Centralized Gemini AI client helper.
@@ -123,6 +126,14 @@ export async function generateText(prompt: string, systemInstruction?: string): 
 }
 
 /**
+ * Same as generateText but with JSON response mode enabled.
+ */
+export async function generateJson(prompt: string, systemInstruction?: string): Promise<string> {
+  const contents = [{ parts: [{ text: prompt }] }];
+  return generateContentRaw(contents, systemInstruction, true);
+}
+
+/**
  * Classifies if a message text is a real estate listing / advertisement.
  */
 export async function isListingMessage(text: string): Promise<boolean> {
@@ -198,55 +209,6 @@ export async function classifyImageOrText(
 }
 
 
-const PROPERTY_TYPE_VALUES = [
-  "Flat/ Apartment", "Residential House", "Villa", "Builder Floor Apartment",
-  "Residential Land/ Plot", "Penthouse", "Studio Apartment", "Residential PG building",
-  "PG/ Hostel", "Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop",
-  "Commercial Showroom", "Commercial Land", "Warehouse/ Godown", "Industrial Land",
-  "Industrial Building", "Industrial Shed", "Agricultural Land", "Farm House", "Others",
-] as const;
-
-/**
- * Deterministic backstop for the 'type' field, same idea as the location
- * fallback below: the model is instructed to map free text onto the
- * canonical enum, but isn't always reliable about it (e.g. "Residential
- * old house" was seen coming back null instead of "Residential House").
- * Keyword-matches common phrasing so a real answer survives even when
- * the model's own mapping doesn't land exactly.
- */
-function normalizePropertyType(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const trimmed = raw.trim();
-  const exact = PROPERTY_TYPE_VALUES.find((v) => v.toLowerCase() === trimmed.toLowerCase());
-  if (exact) return exact;
-
-  const lower = trimmed.toLowerCase();
-  if (lower.includes("hostel")) return "PG/ Hostel";
-  if (/\bpg\b/i.test(trimmed) || lower.includes("paying guest")) {
-    return lower.includes("building") ? "Residential PG building" : "PG/ Hostel";
-  }
-  if (lower.includes("penthouse")) return "Penthouse";
-  if (lower.includes("studio")) return "Studio Apartment";
-  if (lower.includes("villa")) return "Villa";
-  if (lower.includes("builder floor")) return "Builder Floor Apartment";
-  if (lower.includes("farm house") || lower.includes("farmhouse")) return "Farm House";
-  if (lower.includes("agricultural") || lower.includes("farmland") || lower.includes("farm land")) return "Agricultural Land";
-  if (lower.includes("warehouse") || lower.includes("godown")) return "Warehouse/ Godown";
-  if (lower.includes("industrial") && lower.includes("shed")) return "Industrial Shed";
-  if (lower.includes("industrial") && lower.includes("building")) return "Industrial Building";
-  if (lower.includes("industrial") && lower.includes("land")) return "Industrial Land";
-  if (lower.includes("sez") || lower.includes("it park")) return "Office in IT Park/ SEZ";
-  if (lower.includes("office")) return "Commercial Office Space";
-  if (lower.includes("showroom")) return "Commercial Showroom";
-  if (lower.includes("shop")) return "Commercial Shop";
-  if (lower.includes("commercial") && lower.includes("land")) return "Commercial Land";
-  if (lower.includes("plot") || (lower.includes("land") && !/industrial|commercial|agricultural/.test(lower))) return "Residential Land/ Plot";
-  if (lower.includes("flat") || lower.includes("apartment")) return "Flat/ Apartment";
-  if (lower.includes("house") || lower.includes("bungalow") || lower.includes("independent")) return "Residential House";
-  // Preserve whatever was said rather than silently discarding it — an
-  // account owner can still correct it later in the manual edit form.
-  return trimmed;
-}
 
 /**
  * Deterministic backstop for 'bedrooms': extracts an "X BHK" / "X bhk"
