@@ -72,6 +72,7 @@ export default function RootLayout({
       lang="en"
       data-theme={DEFAULT_THEME}
       className={`${inter.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <head>
         <Script

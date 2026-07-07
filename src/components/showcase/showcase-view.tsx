@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { toast } from 'sonner';
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from '@/lib/search-parser';
 import {
@@ -52,6 +54,20 @@ interface ShowcaseViewProps {
   referrerPhone?: string;
   initialPropertyId?: string;
   initialCategory?: string;
+  /** ?mode=agent resolved on the server so the first paint is already in agent mode. */
+  initialAgentMode?: boolean;
+}
+
+/** Resolve the share-link target so the detail modal is part of the server render. */
+function findInitialProperty(properties: Property[], initialPropertyId?: string): Property | null {
+  if (!initialPropertyId) return null;
+  return (
+    properties.find(
+      (p) =>
+        p.id === initialPropertyId ||
+        (p.property_code && p.property_code.toLowerCase() === initialPropertyId.toLowerCase())
+    ) || null
+  );
 }
 
 export function ShowcaseView({ 
@@ -61,7 +77,8 @@ export function ShowcaseView({
   referrerContactId,
   referrerPhone,
   initialPropertyId,
-  initialCategory
+  initialCategory,
+  initialAgentMode = false
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -82,11 +99,25 @@ export function ShowcaseView({
   const [selectedListingType, setSelectedListingType] = useState<'All' | 'Sale' | 'Rent'>('All');
   const [minBeds, setMinBeds] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  // Share links (?property_id=...) render with the detail modal already open —
+  // it's part of the server HTML, so the visitor never sees the grid flash
+  // before the property appears.
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(() =>
+    findInitialProperty(properties, initialPropertyId)
+  );
   const [activeImageIdx, setActiveImageIdx] = useState(0);
 
   // ?mode=agent: clean listing detail view (no forms, buttons, or document requests)
-  const [isAgentMode, setIsAgentMode] = useState(false);
+  const [isAgentMode, setIsAgentMode] = useState(initialAgentMode);
+
+  // Start fetching the share target's hero image from the document head,
+  // before hydration and ahead of the grid's card images.
+  const initialHeroUrl = selectedProperty?.images?.[0]
+    ? showcaseImageUrl(selectedProperty.images[0], SHOWCASE_IMAGE_WIDTHS.hero)
+    : null;
+  if (initialHeroUrl) {
+    ReactDOM.preload(initialHeroUrl, { as: 'image', fetchPriority: 'high' });
+  }
 
   // Form states
   const [inquiryName, setInquiryName] = useState('');
@@ -1131,8 +1162,14 @@ export function ShowcaseView({
                     {mainImage ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={mainImage}
+                        src={showcaseImageUrl(mainImage, SHOWCASE_IMAGE_WIDTHS.card)}
                         alt={property.title}
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          // Resize endpoint unavailable → fall back to the original file
+                          if (e.currentTarget.src !== mainImage) e.currentTarget.src = mainImage;
+                        }}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                       />
                     ) : (
@@ -1373,8 +1410,14 @@ export function ShowcaseView({
                   <div className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={selectedProperty.images[activeImageIdx]}
+                      src={showcaseImageUrl(selectedProperty.images[activeImageIdx], SHOWCASE_IMAGE_WIDTHS.hero)}
                       alt={selectedProperty.title}
+                      fetchPriority="high"
+                      onError={(e) => {
+                        // Resize endpoint unavailable → fall back to the original file
+                        const original = selectedProperty.images[activeImageIdx];
+                        if (e.currentTarget.src !== original) e.currentTarget.src = original;
+                      }}
                       className="w-full h-full object-contain"
                     />
                     
@@ -1409,7 +1452,16 @@ export function ShowcaseView({
                           }`}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                          <img
+                            src={showcaseImageUrl(imgUrl, SHOWCASE_IMAGE_WIDTHS.thumb)}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            onError={(e) => {
+                              if (e.currentTarget.src !== imgUrl) e.currentTarget.src = imgUrl;
+                            }}
+                            className="w-full h-full object-cover"
+                          />
                         </button>
                       ))}
                     </div>

@@ -7,8 +7,9 @@ import { ShowcaseView } from '@/components/showcase/showcase-view';
 import { MarketingLanding } from '@/components/landing/marketing-landing';
 import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
+import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 
-export const metadata: Metadata = {
+const DEFAULT_METADATA: Metadata = {
   title: `${BRANDING.name} — AI-Powered WhatsApp CRM & Property Portals`,
   description:
     'ConvoReal is a premium WhatsApp-first, AI-based real estate platform connecting buyers, property owners, and agents. Auto-capture leads, manage inventories, match properties, and run campaigns.',
@@ -29,6 +30,42 @@ interface PageProps {
     invite?: string;
     mode?: string;
   }>;
+}
+
+/**
+ * Property share links get per-property Open Graph tags so WhatsApp
+ * (and other messengers) render a rich preview — title, price context,
+ * and hero photo — instead of the generic marketing card. The property
+ * lookup shares the unstable_cache entry with the page render below,
+ * so this costs nothing extra per request.
+ */
+export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+  const resolvedParams = await searchParams;
+  const propertyId = resolvedParams.property_id;
+  if (!propertyId) return DEFAULT_METADATA;
+
+  const accountId = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
+  const property = await cachedResolvePropertyById(propertyId, accountId);
+  if (!property) return DEFAULT_METADATA;
+
+  const description =
+    (property.description || '').slice(0, 160) ||
+    [property.type, property.location].filter(Boolean).join(' · ');
+  const heroImage = property.images?.[0]
+    ? showcaseImageUrl(property.images[0], SHOWCASE_IMAGE_WIDTHS.hero)
+    : null;
+
+  return {
+    title: property.title,
+    description,
+    openGraph: {
+      title: property.title,
+      description,
+      type: 'website',
+      ...(heroImage ? { images: [{ url: heroImage }] } : {}),
+    },
+    robots: { index: true, follow: true },
+  };
 }
 
 // ── Cached data fetchers ─────────────────────────────────────────
@@ -400,6 +437,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       referrerPhone={referrerPhone || undefined}
       initialPropertyId={initialPropertyId}
       initialCategory={resolvedParams.category}
+      initialAgentMode={isAgentMode}
     />
   );
 }
