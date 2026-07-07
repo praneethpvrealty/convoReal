@@ -16,7 +16,7 @@ import {
   Route,
   Coins,
 } from 'lucide-react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
@@ -34,6 +34,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { usePlan } from '@/hooks/usePlan';
 import { BillingTab } from '@/components/settings/billing-tab';
 import { CreditsTab } from '@/components/settings/credits-tab';
+import { cn } from '@/lib/utils';
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -61,6 +62,12 @@ function isTabValue(v: string | null): v is TabValue {
 //   UPDATE profiles SET beta_features = beta_features || ARRAY['account_sharing']
 //   WHERE user_id = '<theirs>';
 const ACCOUNT_SHARING_FLAG = 'account_sharing';
+
+// Grouped sidebar items for compact navigation
+interface NavGroup {
+  label: string;
+  items: { value: TabValue; label: string; icon: React.ComponentType<{ className?: string }> }[];
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -104,6 +111,53 @@ export default function SettingsPage() {
     router.replace(`/settings?${params.toString()}`, { scroll: false });
   };
 
+  // Build navigation groups dynamically based on feature flags
+  const navGroups: NavGroup[] = [
+    {
+      label: 'Account',
+      items: [
+        { value: 'profile', label: 'Profile', icon: User },
+        { value: 'appearance', label: 'Appearance', icon: Palette },
+      ],
+    },
+    {
+      label: 'Messaging',
+      items: [
+        { value: 'whatsapp', label: 'WhatsApp', icon: Settings },
+        { value: 'templates', label: 'Templates', icon: MessageSquare },
+        { value: 'tags', label: 'Tags', icon: Tag },
+      ],
+    },
+    {
+      label: 'Public',
+      items: [
+        { value: 'showcase', label: 'Showcase', icon: Globe },
+      ],
+    },
+    {
+      label: 'AI',
+      items: [
+        { value: 'ai', label: 'AI Config', icon: Sparkles },
+      ],
+    },
+    {
+      label: 'Billing',
+      items: [
+        { value: 'billing', label: 'Billing', icon: CreditCard },
+        { value: 'credits', label: 'Credits', icon: Coins },
+      ],
+    },
+    {
+      label: 'Advanced',
+      items: [
+        { value: 'other', label: 'Other', icon: Sliders },
+        ...(accountSharingEnabled ? [{ value: 'members' as TabValue, label: 'Members', icon: UsersRound }] : []),
+        ...(teamsEnabled ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }] : []),
+        ...(routingEnabled ? [{ value: 'routing' as TabValue, label: 'Routing', icon: Route }] : []),
+      ],
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -114,169 +168,97 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>
-        <TabsList className="bg-slate-900 border border-slate-700">
-          <TabsTrigger
-            value="profile"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <User className="size-4" />
-            Profile
-          </TabsTrigger>
-          <TabsTrigger
-            value="whatsapp"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Settings className="size-4" />
-            WhatsApp Config
-          </TabsTrigger>
-          <TabsTrigger
-            value="templates"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <MessageSquare className="size-4" />
-            Templates
-          </TabsTrigger>
-          <TabsTrigger
-            value="tags"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Tag className="size-4" />
-            Tags
-          </TabsTrigger>
-          <TabsTrigger
-            value="appearance"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Palette className="size-4" />
-            Appearance
-          </TabsTrigger>
-          <TabsTrigger
-            value="showcase"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Globe className="size-4" />
-            Public Showcase
-          </TabsTrigger>
-          <TabsTrigger
-            value="ai"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Sparkles className="size-4" />
-            AI Config
-          </TabsTrigger>
-          <TabsTrigger
-            value="other"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Sliders className="size-4" />
-            Other
-          </TabsTrigger>
-          <TabsTrigger
-            value="billing"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <CreditCard className="size-4" />
-            Billing
-          </TabsTrigger>
-          <TabsTrigger
-            value="credits"
-            className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-          >
-            <Coins className="size-4" />
-            Credits
-          </TabsTrigger>
-          {/* Members tab is feature-flagged. We render the trigger
-              only when the flag is enabled, so users without the
-              flag see the original 5-tab layout. */}
+      <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)} className="flex gap-4">
+        {/* Sidebar Navigation */}
+        <div className="w-48 shrink-0 space-y-4">
+          {navGroups.map((group) => (
+            <div key={group.label}>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 px-2">
+                {group.label}
+              </div>
+              <div className="space-y-0.5">
+                {group.items.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => onChange(value)}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors',
+                      tab === value
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    )}
+                  >
+                    <Icon className="size-3.5 shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 min-w-0">
+          <TabsContent value="profile" className="space-y-6 mt-0">
+            <ProfileForm />
+            <PasswordForm />
+            <SessionsCard />
+          </TabsContent>
+
+          <TabsContent value="whatsapp" className="mt-0">
+            <WhatsAppConfig />
+          </TabsContent>
+
+          <TabsContent value="templates" className="mt-0">
+            <TemplateManager />
+          </TabsContent>
+
+          <TabsContent value="tags" className="mt-0">
+            <TagManager />
+          </TabsContent>
+
+          <TabsContent value="appearance" className="mt-0">
+            <AppearancePanel />
+          </TabsContent>
+
+          <TabsContent value="showcase" className="mt-0">
+            <ShowcaseSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="ai" className="mt-0">
+            <AiSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="other" className="mt-0">
+            <OtherSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="billing" className="mt-0">
+            <BillingTab />
+          </TabsContent>
+
+          <TabsContent value="credits" className="mt-0">
+            <CreditsTab />
+          </TabsContent>
+
           {accountSharingEnabled && (
-            <TabsTrigger
-              value="members"
-              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-            >
-              <UsersRound className="size-4" />
-              Members
-            </TabsTrigger>
+            <TabsContent value="members" className="mt-0">
+              <MembersTab />
+            </TabsContent>
           )}
+
           {teamsEnabled && (
-            <TabsTrigger
-              value="teams"
-              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-            >
-              <Users className="size-4" />
-              Teams
-            </TabsTrigger>
+            <TabsContent value="teams" className="mt-0">
+              <TeamsTab />
+            </TabsContent>
           )}
+
           {routingEnabled && (
-            <TabsTrigger
-              value="routing"
-              className="data-active:bg-slate-800 data-active:text-primary text-slate-400"
-            >
-              <Route className="size-4" />
-              Routing Rules
-            </TabsTrigger>
+            <TabsContent value="routing" className="mt-0">
+              <RoutingRulesTab />
+            </TabsContent>
           )}
-        </TabsList>
-
-        <TabsContent value="profile" className="space-y-6">
-          <ProfileForm />
-          <PasswordForm />
-          <SessionsCard />
-        </TabsContent>
-
-        <TabsContent value="whatsapp">
-          <WhatsAppConfig />
-        </TabsContent>
-
-        <TabsContent value="templates">
-          <TemplateManager />
-        </TabsContent>
-
-        <TabsContent value="tags">
-          <TagManager />
-        </TabsContent>
-
-        <TabsContent value="appearance">
-          <AppearancePanel />
-        </TabsContent>
-
-        <TabsContent value="showcase">
-          <ShowcaseSettingsPanel />
-        </TabsContent>
-
-        <TabsContent value="ai">
-          <AiSettingsPanel />
-        </TabsContent>
-
-        <TabsContent value="other">
-          <OtherSettingsPanel />
-        </TabsContent>
-
-        <TabsContent value="billing">
-          <BillingTab />
-        </TabsContent>
-
-        <TabsContent value="credits">
-          <CreditsTab />
-        </TabsContent>
-
-        {accountSharingEnabled && (
-          <TabsContent value="members">
-            <MembersTab />
-          </TabsContent>
-        )}
-
-        {teamsEnabled && (
-          <TabsContent value="teams">
-            <TeamsTab />
-          </TabsContent>
-        )}
-
-        {routingEnabled && (
-          <TabsContent value="routing">
-            <RoutingRulesTab />
-          </TabsContent>
-        )}
+        </div>
       </Tabs>
     </div>
   );

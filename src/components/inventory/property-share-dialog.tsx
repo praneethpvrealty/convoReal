@@ -1359,37 +1359,41 @@ export function PropertyShareDialog({
             {/* Action Bar / Matching Status */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-950/20 border border-slate-850 p-3.5 rounded-xl">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="text-xs font-semibold text-slate-400">
-                  {loadingContacts ? (
-                    'Searching matching contacts...'
-                  ) : searchQuery.trim() ? (
-                    `Found ${displayedContacts.length} search result${displayedContacts.length === 1 ? '' : 's'}`
-                  ) : displayedContacts.length === 0 ? (
-                    '0 matching contacts found'
-                  ) : (
-                    `Found ${displayedContacts.length} matching contact${displayedContacts.length === 1 ? '' : 's'}`
+                <div className="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                  <span>
+                    {searchQuery.trim() ? (
+                      `Found ${displayedContacts.length} search result${displayedContacts.length === 1 ? '' : 's'}`
+                    ) : displayedContacts.length === 0 ? (
+                      '0 matching contacts found'
+                    ) : (
+                      `Found ${displayedContacts.length} matching contact${displayedContacts.length === 1 ? '' : 's'}`
+                    )}
+                  </span>
+                  {loadingContacts && (
+                    <span className="text-slate-500 font-normal flex items-center gap-1">
+                      <Loader2 className="size-3 animate-spin text-primary" />
+                      updating...
+                    </span>
                   )}
                 </div>
-                {!loadingContacts && (
-                  <label className="inline-flex items-center gap-1.5 text-xs text-slate-450 cursor-pointer select-none bg-slate-900 border border-slate-800 px-2 py-0.5 rounded hover:text-white transition-all">
-                    <input
-                      type="checkbox"
-                      checked={showAgentsInMatches}
-                      onChange={(e) => {
-                        setShowAgentsInMatches(e.target.checked);
-                        if (!e.target.checked) {
-                          // Deselect any selected agents to keep select state consistent
-                          const agentIds = matchedContacts
-                            .filter(({ contact: c }) => c.classification === 'Agent')
-                            .map(({ contact: c }) => c.id);
-                          setSelectedContactIds((prev) => prev.filter((id) => !agentIds.includes(id)));
-                        }
-                      }}
-                      className="rounded border-slate-700 bg-slate-850 text-primary focus:ring-0 focus:ring-offset-0 h-3 w-3 cursor-pointer"
-                    />
-                    Show Agents
-                  </label>
-                )}
+                <label className="inline-flex items-center gap-1.5 text-xs text-slate-450 cursor-pointer select-none bg-slate-900 border border-slate-800 px-2 py-0.5 rounded hover:text-white transition-all">
+                  <input
+                    type="checkbox"
+                    checked={showAgentsInMatches}
+                    onChange={(e) => {
+                      setShowAgentsInMatches(e.target.checked);
+                      if (!e.target.checked) {
+                        // Deselect any selected agents to keep select state consistent
+                        const agentIds = matchedContacts
+                          .filter(({ contact: c }) => c.classification === 'Agent')
+                          .map(({ contact: c }) => c.id);
+                        setSelectedContactIds((prev) => prev.filter((id) => !agentIds.includes(id)));
+                      }
+                    }}
+                    className="rounded border-slate-700 bg-slate-850 text-primary focus:ring-0 focus:ring-offset-0 h-3 w-3 cursor-pointer"
+                  />
+                  Show Agents
+                </label>
               </div>
 
               <div className="flex items-center gap-3">
@@ -1495,7 +1499,7 @@ export function PropertyShareDialog({
 
             {/* Matching Contacts List */}
             <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-              {loadingContacts ? (
+              {loadingContacts && contacts.length === 0 && !searchQuery.trim() ? (
                 <div className="flex justify-center items-center py-16 text-slate-500 text-sm">
                   <Loader2 className="size-6 animate-spin text-primary mr-2" />
                   Scanning database & applying matching logic...
