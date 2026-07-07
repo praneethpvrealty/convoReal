@@ -726,6 +726,16 @@ export interface Property {
   city?: string;
   state?: string;
   project?: string;
+  /** Locality coordinates (migration 093) — from the form's Places
+   *  autocomplete pick or the server-side geocode fallback. */
+  latitude?: number | null;
+  longitude?: number | null;
+  locality_place_id?: string | null;
+  locality_canonical?: string | null;
+  /** Transient fields attached by the tiered location search
+   *  (GET /api/properties?near_lat=...), not stored columns. */
+  distance_km?: number | null;
+  location_tier?: 'exact' | 'nearby';
   land_zone?: string;
   ideal_for?: string;
   dimensions?: string;

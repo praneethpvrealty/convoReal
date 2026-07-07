@@ -963,6 +963,85 @@ export function PropertyForm({
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const autocompleteRef = useRef<HTMLDivElement>(null);
+
+  // Google Places suggestions (third group in the location dropdown).
+  // A picked place carries coordinates; typing again invalidates the pick
+  // and the server geocodes the free text on save instead.
+  const [googleSuggestions, setGoogleSuggestions] = useState<
+    { place_id: string; main_text: string; secondary_text: string }[]
+  >([]);
+  const [geoPick, setGeoPick] = useState<{
+    latitude: number;
+    longitude: number;
+    place_id: string;
+    canonical: string;
+  } | null>(null);
+  const googleSessionRef = useRef<string | null>(null);
+  const googleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const googleSeqRef = useRef(0);
+  const mapsUnavailableRef = useRef(false);
+
+  function fetchGoogleSuggestions(input: string) {
+    if (mapsUnavailableRef.current) return;
+    if (!googleSessionRef.current) googleSessionRef.current = crypto.randomUUID();
+    const seq = ++googleSeqRef.current;
+    fetch(`/api/maps/autocomplete?input=${encodeURIComponent(input)}&session=${googleSessionRef.current}`)
+      .then(async (res) => {
+        if (res.status === 501) {
+          mapsUnavailableRef.current = true;
+          return { suggestions: [] };
+        }
+        if (!res.ok) return { suggestions: [] };
+        return (await res.json()) as { suggestions: typeof googleSuggestions };
+      })
+      .then(({ suggestions }) => {
+        if (seq === googleSeqRef.current) setGoogleSuggestions(suggestions);
+      })
+      .catch(() => {
+        if (seq === googleSeqRef.current) setGoogleSuggestions([]);
+      });
+  }
+
+  async function handleGooglePick(s: { place_id: string; main_text: string }) {
+    setShowSuggestions(false);
+    setGoogleSuggestions([]);
+    setSearchQuery(s.main_text);
+    setProject('');
+    try {
+      const session = googleSessionRef.current;
+      googleSessionRef.current = null; // details pick closes the billing session
+      const res = await fetch(
+        `/api/maps/place-details?place_id=${encodeURIComponent(s.place_id)}${session ? `&session=${session}` : ''}`
+      );
+      if (!res.ok) {
+        setSublocality(s.main_text);
+        return;
+      }
+      const { place } = (await res.json()) as {
+        place: {
+          place_id: string;
+          name: string;
+          latitude: number;
+          longitude: number;
+          sublocality: string | null;
+          city: string | null;
+          state: string | null;
+        };
+      };
+      setSublocality(place.sublocality || place.name);
+      if (place.city) setCity(place.city);
+      if (place.state) setStateVal(place.state);
+      setGeoPick({
+        latitude: place.latitude,
+        longitude: place.longitude,
+        place_id: place.place_id,
+        canonical: place.name,
+      });
+    } catch {
+      // Keep the typed text; server-side geocode fallback resolves it on save
+      setSublocality(s.main_text);
+    }
+  }
   const contactSearchRef = useRef<HTMLDivElement>(null);
 
   // Close autocomplete and contact dropdown on click outside
@@ -1071,6 +1150,17 @@ export function PropertyForm({
         setListingSource(property.listing_source === 'agent' ? 'agent' : 'owner');
         setGoogleMapLink(property.google_map_link ?? '');
         setNotes(property.notes ?? '');
+        // Preserve saved coordinates unless the agent re-touches the location
+        setGeoPick(
+          property.latitude != null && property.longitude != null
+            ? {
+                latitude: Number(property.latitude),
+                longitude: Number(property.longitude),
+                place_id: property.locality_place_id || '',
+                canonical: property.locality_canonical || '',
+              }
+            : null
+        );
         
         if (contacts && contacts.length > 0) {
           const interested = contacts
@@ -1147,6 +1237,8 @@ export function PropertyForm({
         setSearchQuery('');
         setGoogleMapLink('');
         setNotes('');
+        setGeoPick(null);
+        setGoogleSuggestions([]);
         setOwnerContactId(defaultOwnerId ?? null);
         setListingSource('owner');
       }
@@ -1196,7 +1288,16 @@ export function PropertyForm({
   function handleSearchQueryChange(val: string) {
     setSearchQuery(val);
     setShowSuggestions(true);
-    
+    // Typed text invalidates a previous Google pick — the server geocode
+    // fallback re-resolves coordinates for the new text on save.
+    setGeoPick(null);
+    if (googleDebounceRef.current) clearTimeout(googleDebounceRef.current);
+    if (val.trim().length >= 2) {
+      googleDebounceRef.current = setTimeout(() => fetchGoogleSuggestions(val.trim()), 300);
+    } else {
+      setGoogleSuggestions([]);
+    }
+
     // Check if the query matches a project exactly (case-insensitive)
     const exactProj = [...POPULAR_PROJECTS, ...fetchedProjects].find(
       (p) => p.name.toLowerCase() === val.trim().toLowerCase()
@@ -1671,6 +1772,12 @@ export function PropertyForm({
         rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
         roi: hasCommercialFields && roiValue !== null ? roiValue : null,
         notes: notes.trim() || null,
+        // Coordinates from the Google Maps pick; nulls tell the server to
+        // geocode the (possibly changed) location text instead.
+        latitude: geoPick?.latitude ?? null,
+        longitude: geoPick?.longitude ?? null,
+        locality_place_id: geoPick?.place_id || null,
+        locality_canonical: geoPick?.canonical || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -2672,7 +2779,7 @@ export function PropertyForm({
                             <Loader2 className="size-3 animate-spin text-primary" />
                             <span>Searching project registry...</span>
                           </div>
-                        ) : filteredProjects.length === 0 && filteredSublocalities.length === 0 ? (
+                        ) : filteredProjects.length === 0 && filteredSublocalities.length === 0 && googleSuggestions.length === 0 ? (
                           <div className="p-3 text-xs text-slate-500 text-center">
                             No matching projects or areas. Keep typing to enter a custom value.
                           </div>
@@ -2694,6 +2801,7 @@ export function PropertyForm({
                                       setStateVal(p.state);
                                       setAddress(p.address);
                                       setSearchQuery(p.name);
+                                      setGeoPick(null); // registry pick has no coords; server geocodes on save
                                       setShowSuggestions(false);
                                     }}
                                     className="w-full text-left px-3 py-1.5 text-xs rounded hover:bg-slate-700 text-slate-200 hover:text-white transition-colors"
@@ -2727,6 +2835,7 @@ export function PropertyForm({
                                       setCity('Bangalore');
                                       setStateVal('Karnataka');
                                       setSearchQuery(sub);
+                                      setGeoPick(null); // registry pick has no coords; server geocodes on save
                                       setShowSuggestions(false);
                                     }}
                                     className="w-full text-left px-3 py-1.5 text-xs rounded hover:bg-slate-700 text-slate-200 hover:text-white transition-colors"
@@ -2737,9 +2846,35 @@ export function PropertyForm({
                                 ))}
                               </div>
                             )}
+
+                            {googleSuggestions.length > 0 && (
+                              <div className="p-1 border-t border-slate-700">
+                                <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold px-2 py-1">
+                                  🌐 Google Maps
+                                </div>
+                                {googleSuggestions.map((s) => (
+                                  <button
+                                    key={s.place_id}
+                                    type="button"
+                                    onClick={() => handleGooglePick(s)}
+                                    className="w-full text-left px-3 py-1.5 text-xs rounded hover:bg-slate-700 text-slate-200 hover:text-white transition-colors"
+                                  >
+                                    <span className="font-medium text-slate-200">{s.main_text}</span>
+                                    {s.secondary_text && (
+                                      <span className="text-slate-400"> - {s.secondary_text}</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
+                    )}
+                    {geoPick && (
+                      <p className="text-[10px] text-sky-400 font-medium mt-0.5">
+                        📍 Pinned to Google Maps locality &quot;{geoPick.canonical}&quot; — enables radius search.
+                      </p>
                     )}
                     
                     {isProjectMatched && (

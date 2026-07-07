@@ -284,6 +284,16 @@ export function PropertyList({
                 <div className="flex items-center text-xs text-slate-400 gap-1 mb-3">
                   <MapPin className="size-3.5 shrink-0 text-slate-500" />
                   <span className="truncate" title={property.location}>{property.location}</span>
+                  {property.location_tier === 'exact' && (
+                    <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
+                      In area
+                    </span>
+                  )}
+                  {property.location_tier === 'nearby' && property.distance_km !== null && property.distance_km !== undefined && (
+                    <span className="shrink-0 text-[9px] font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded-full">
+                      {property.distance_km} km away
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between mb-4">

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
+import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 
 // GET /api/properties/[id]
 // Returns a single property with full relations (owner + interested_contacts)
@@ -120,10 +121,32 @@ export async function PUT(
       advance,
       gst,
       notes,
+      // locality coordinates (from the form's Places autocomplete pick)
+      latitude,
+      longitude,
+      locality_place_id,
+      locality_canonical,
     } = body;
 
     // Validate only if passed
     const updateData: Record<string, unknown> = {};
+
+    if (latitude !== undefined) {
+      updateData.latitude =
+        typeof latitude === "number" && Number.isFinite(latitude) ? latitude : null;
+    }
+    if (longitude !== undefined) {
+      updateData.longitude =
+        typeof longitude === "number" && Number.isFinite(longitude) ? longitude : null;
+    }
+    if (locality_place_id !== undefined) {
+      updateData.locality_place_id =
+        typeof locality_place_id === "string" ? locality_place_id.trim() || null : null;
+    }
+    if (locality_canonical !== undefined) {
+      updateData.locality_canonical =
+        typeof locality_canonical === "string" ? locality_canonical.trim() || null : null;
+    }
 
     if (title !== undefined) {
       if (typeof title !== "string" || title.trim().length === 0) {
@@ -328,6 +351,33 @@ export async function PUT(
         { error: "Property not found or access denied" },
         { status: 404 }
       );
+    }
+
+    // Best-effort geocode when the location text changed but this update
+    // carries no coordinates (typed edit, WhatsApp-intake correction, etc.)
+    // so radius search keeps covering the property. Never blocks the save.
+    if (
+      typeof updateData.location === "string" &&
+      latitude == null &&
+      longitude == null &&
+      hasGoogleMapsKey()
+    ) {
+      try {
+        const geo = await geocodeAddress(
+          [updateData.location, updateData.city, updateData.state]
+            .filter((v): v is string => typeof v === "string" && v.length > 0)
+            .join(", ")
+        );
+        if (geo) {
+          updateData.latitude = geo.latitude;
+          updateData.longitude = geo.longitude;
+          if (updateData.locality_place_id === undefined) {
+            updateData.locality_place_id = geo.place_id;
+          }
+        }
+      } catch (geoErr) {
+        console.warn("[PUT /api/properties/[id]] Geocode fallback failed:", geoErr);
+      }
     }
 
     const { data, error } = await ctx.supabase

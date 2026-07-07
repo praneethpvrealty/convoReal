@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
+import { LocalityAutocomplete, type PickedLocality } from '@/components/ui/locality-autocomplete';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
@@ -53,6 +54,12 @@ export default function InventoryPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
+  // Tiered location search: picking a locality shows exact matches first,
+  // then properties within radiusKm sorted by distance.
+  const [locationText, setLocationText] = useState('');
+  const [pickedPlace, setPickedPlace] = useState<PickedLocality | null>(null);
+  const [radiusKm, setRadiusKm] = useState(5);
+
   // Debounce search to avoid per-keystroke NLP parse + Supabase round-trip.
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -61,10 +68,10 @@ export default function InventoryPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Reset to first page when the debounced search actually changes.
+  // Reset to first page when the debounced search or location filter changes.
   useEffect(() => {
     setPage(0);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, pickedPlace, radiusKm]);
 
   // Global stats — counts across ALL properties, independent of the
   // current page/filters so the summary cards always show accurate totals.
@@ -180,6 +187,13 @@ export default function InventoryPage() {
       limit: '25',
     });
     if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+    if (pickedPlace) {
+      params.set('near_lat', String(pickedPlace.latitude));
+      params.set('near_lng', String(pickedPlace.longitude));
+      params.set('near_place_id', pickedPlace.place_id);
+      params.set('near_label', pickedPlace.name);
+      params.set('radius_km', String(radiusKm));
+    }
     if (typeFilter !== 'All') params.set('type', typeFilter);
     if (statusFilter !== 'All') params.set('status', statusFilter);
     if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
@@ -215,7 +229,7 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, typeFilter, statusFilter, showcaseFilter, sourceFilter]);
+  }, [page, debouncedSearch, pickedPlace, radiusKm, typeFilter, statusFilter, showcaseFilter, sourceFilter]);
 
   useEffect(() => {
     fetchProperties();
@@ -562,16 +576,62 @@ export default function InventoryPage() {
       </div>
 
       {/* Search Bar */}
-      <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+      <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-3">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
             <Input
               value={search}
               onChange={(e) => { setSearch(e.target.value); }}
-              placeholder='e.g. residential properties > 10 Cr in Koramangala, 3 BHK villa in JP Nagar'
+              placeholder='e.g. residential properties > 10 Cr, 3 BHK villa'
               className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
             />
+          </div>
+          <div className="w-full md:w-80">
+            <LocalityAutocomplete
+              value={locationText}
+              onChange={(text) => {
+                setLocationText(text);
+                // Clearing/retyping the text drops the active place filter
+                if (pickedPlace && text !== pickedPlace.name) setPickedPlace(null);
+              }}
+              onPick={(place) => {
+                setPickedPlace(place);
+                setLocationText(place.name);
+              }}
+              placeholder="Filter by locality (Google Maps)"
+            />
+          </div>
         </div>
+
+        {pickedPlace && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-400">
+              Showing matches in <span className="text-white font-semibold">{pickedPlace.name}</span> first, then within
+            </span>
+            {[2, 5, 10, 25].map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRadiusKm(r)}
+                className={`px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                  radiusKm === r
+                    ? 'bg-primary/15 border-primary/50 text-primary'
+                    : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {r} km
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => { setPickedPlace(null); setLocationText(''); }}
+              className="ml-1 px-2 py-0.5 rounded-full border border-slate-700 bg-slate-800 text-slate-400 hover:text-white font-semibold"
+            >
+              Clear ✕
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Grid View */}
