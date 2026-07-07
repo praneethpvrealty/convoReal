@@ -164,37 +164,36 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)} className="flex gap-4">
-        {/* Sidebar Navigation */}
-        <div className="w-48 shrink-0 space-y-4">
-          {navGroups.map((group) => (
-            <div key={group.label}>
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5 px-2">
-                {group.label}
-              </div>
-              <div className="space-y-0.5">
-                {group.items.map(({ value, label, icon: Icon }) => (
-                  <button
-                    key={value}
-                    onClick={() => onChange(value)}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md transition-colors',
-                      tab === value
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                    )}
-                  >
-                    <Icon className="size-3.5 shrink-0" />
-                    <span className="truncate">{label}</span>
-                  </button>
-                ))}
-              </div>
+      <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)} className="flex flex-col gap-5">
+        {/* Horizontal Tab Navigation — group labels dropped in favor of a
+            thin divider between clusters; a header line reads fine stacked
+            above a column but wastes space and looks noisy repeated across
+            a horizontal row. */}
+        <div className="flex flex-wrap items-center gap-1 border-b border-slate-800 pb-3">
+          {navGroups.map((group, groupIdx) => (
+            <div key={group.label} className="flex items-center gap-1">
+              {groupIdx > 0 && <div className="h-4 w-px bg-slate-800 mx-2" aria-hidden="true" />}
+              {group.items.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => onChange(value)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                    tab === value
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  )}
+                >
+                  <Icon className="size-3.5 shrink-0" />
+                  <span>{label}</span>
+                </button>
+              ))}
             </div>
           ))}
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 min-w-0">
+        {/* Content Area — now spans the full page width */}
+        <div className="w-full min-w-0">
           <TabsContent value="profile" className="space-y-6 mt-0">
             <ProfileForm />
             <PasswordForm />
