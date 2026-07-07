@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { resumePendingExecution } from '@/lib/automations/engine'
 import type { AutomationContext } from '@/lib/automations/engine'
 import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder'
+import { sweepAndSendBroadcasts } from '@/lib/broadcasts/sender'
 
 /**
  * Drain due `automation_pending_executions` rows. Meant to be hit
@@ -30,6 +31,21 @@ export async function GET(request: Request) {
     await checkAndSendAppointmentReminders()
   } catch (reminderErr) {
     console.error('[Automation Cron] Appointment reminders check failed:', reminderErr)
+  }
+
+  // Trigger background billing reconciliation
+  try {
+    const admin = supabaseAdmin()
+    await admin.rpc('reconcile_subscriptions')
+  } catch (reconcileErr) {
+    console.error('[Automation Cron] Billing reconciliation failed:', reconcileErr)
+  }
+
+  // Trigger background broadcast sending & retry sweep
+  try {
+    await sweepAndSendBroadcasts()
+  } catch (broadcastErr) {
+    console.error('[Automation Cron] Broadcast sweep failed:', broadcastErr)
   }
 
   const admin = supabaseAdmin()

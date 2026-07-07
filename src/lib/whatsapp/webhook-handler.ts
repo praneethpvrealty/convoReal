@@ -238,19 +238,18 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
               continue
             }
 
-            // Rate limit check
-            const msgCount = tenantConfig?.sandbox_message_count ?? 0
+            // Rate limit check & atomic increment
             const msgLimit = tenantConfig?.sandbox_message_limit ?? 50
-            if (msgCount >= msgLimit) {
-              console.warn(`[webhook] Sandbox message limit reached for account ${route.accountId} (${msgCount}/${msgLimit}). Dropping.`)
-              continue
-            }
+            const { data: allowed, error: rpcErr } = await supabaseAdmin()
+              .rpc('increment_sandbox_message_count', {
+                p_account_id: route.accountId,
+                p_limit: msgLimit,
+              });
 
-            // Increment message count
-            await supabaseAdmin()
-              .from('whatsapp_config')
-              .update({ sandbox_message_count: msgCount + 1 })
-              .eq('account_id', route.accountId)
+            if (rpcErr || !allowed) {
+              console.warn(`[webhook] Sandbox message limit reached or error for account ${route.accountId} (limit: ${msgLimit}). Dropping.`);
+              continue;
+            }
 
             // Strip the sandbox hashtag from the message text before storing
             // so the UI shows "hi" instead of "#convo870 hi"
@@ -397,19 +396,18 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           continue
         }
 
-        // Rate limit check
-        const msgCount = tenantConfig?.sandbox_message_count ?? 0
+        // Rate limit check & atomic increment
         const msgLimit = tenantConfig?.sandbox_message_limit ?? 50
-        if (msgCount >= msgLimit) {
-          console.warn(`[webhook] Sandbox message limit reached for account ${route.accountId} (${msgCount}/${msgLimit}). Dropping.`)
-          continue
-        }
+        const { data: allowed, error: rpcErr } = await supabaseAdmin()
+          .rpc('increment_sandbox_message_count', {
+            p_account_id: route.accountId,
+            p_limit: msgLimit,
+          });
 
-        // Increment message count
-        await supabaseAdmin()
-          .from('whatsapp_config')
-          .update({ sandbox_message_count: msgCount + 1 })
-          .eq('account_id', route.accountId)
+        if (rpcErr || !allowed) {
+          console.warn(`[webhook] Sandbox message limit reached or error for account ${route.accountId} (limit: ${msgLimit}). Dropping.`);
+          continue;
+        }
 
         // Use system sandbox credentials if available; otherwise empty (text-only processing)
         let decryptedSystemToken = ''
@@ -500,7 +498,9 @@ async function handleStatusUpdate(status: {
 
       if (existingMsg) {
         const originalText = existingMsg.content_text || ''
-        updatePayload.content_text = `${originalText}\n\n❌ Delivery Failed:\n${errorDetails}`.trim()
+        if (!originalText.includes('❌ Delivery Failed:')) {
+          updatePayload.content_text = `${originalText}\n\n❌ Delivery Failed:\n${errorDetails}`.trim()
+        }
       }
     } catch (err) {
       console.error('Failed to append error message to content_text:', err)
@@ -796,8 +796,12 @@ async function processMessage(
   })
 
   if (msgError) {
+    if (msgError.code === '23505') {
+      console.log(`[webhook] Message with ID ${message.id} has already been processed (deduplicated).`);
+      return;
+    }
     console.error('Error inserting message:', msgError)
-    return
+    return;
   }
 
   const { error: convError } = await supabaseAdmin()

@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
-  let event: { event: string; payload: Record<string, unknown> };
+  let event: { event: string; id?: string; payload: Record<string, unknown> };
   try {
     event = JSON.parse(rawBody);
   } catch {
@@ -172,6 +172,21 @@ export async function POST(request: NextRequest) {
 
   const rzSubId: string = String(sub.id);
 
+  // Deduplicate using the unique Razorpay event ID if present
+  const eventId = event.id;
+  if (eventId) {
+    const { data: existingEvent } = await admin
+      .from('subscription_events')
+      .select('id')
+      .eq('razorpay_event_id', eventId)
+      .maybeSingle();
+
+    if (existingEvent) {
+      console.log(`[razorpay-webhook] Subscription event ${eventId} already processed.`);
+      return NextResponse.json({ received: true });
+    }
+  }
+
   // Look up our account by the Razorpay subscription ID
   const { data: ourSub } = await admin
     .from('subscriptions')
@@ -204,7 +219,7 @@ export async function POST(request: NextRequest) {
         event_type: 'payment_succeeded',
         from_plan: currentPlan,
         to_plan: newPlan,
-        razorpay_event_id: rzSubId,
+        razorpay_event_id: event.id || rzSubId,
         metadata: { razorpay_event: eventType },
       });
 
@@ -239,7 +254,7 @@ export async function POST(request: NextRequest) {
         event_type: 'payment_succeeded',
         from_plan: currentPlan,
         to_plan: currentPlan,
-        razorpay_event_id: String(chargeEntity.id ?? rzSubId),
+        razorpay_event_id: event.id || String(chargeEntity.id ?? rzSubId),
         metadata: { amount: chargeEntity.amount, razorpay_event: eventType },
       });
 
@@ -261,7 +276,7 @@ export async function POST(request: NextRequest) {
         event_type: 'payment_failed',
         from_plan: currentPlan,
         to_plan: currentPlan,
-        razorpay_event_id: rzSubId,
+        razorpay_event_id: event.id || rzSubId,
         metadata: { razorpay_event: eventType },
       });
       break;
@@ -279,7 +294,7 @@ export async function POST(request: NextRequest) {
         event_type: 'canceled',
         from_plan: currentPlan,
         to_plan: 'starter',
-        razorpay_event_id: rzSubId,
+        razorpay_event_id: event.id || rzSubId,
         metadata: { razorpay_event: eventType },
       });
       break;
