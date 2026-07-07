@@ -54,6 +54,15 @@ export class ForbiddenError extends Error {
   }
 }
 
+export class UserFacingError extends Error {
+  readonly status: number;
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "UserFacingError";
+    this.status = status;
+  }
+}
+
 /**
  * Convert one of the typed errors above (or anything else) into a
  * `NextResponse`. Routes can do:
@@ -67,9 +76,18 @@ export class ForbiddenError extends Error {
  * server internals out of the wire.
  */
 export function toErrorResponse(err: unknown): NextResponse {
-  if (err instanceof UnauthorizedError || err instanceof ForbiddenError) {
+  if (err instanceof UnauthorizedError || err instanceof ForbiddenError || err instanceof UserFacingError) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
+
+  // Handle common configuration/user-facing errors thrown as standard Error objects
+  if (err instanceof Error && (
+    err.message.includes("Razorpay is not configured") ||
+    err.message.includes("Stripe is not configured")
+  )) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
+
   console.error("[toErrorResponse] uncategorized error:", err);
   return NextResponse.json({ error: "Internal server error" }, { status: 500 });
 }
