@@ -781,7 +781,7 @@ export async function processOwnerChatbotMessage(
           account_id: accountId,
           user_id: userId,
           title: draft.title!.trim(),
-          description: draft.description || `Ingested automatically via WhatsApp chatbot.`,
+          description: draft.description || '',
           price: draft.listing_type === 'Rent' ? (draft.rent_per_month || 0) : (draft.price || 0),
           location: draft.location!.trim(),
           type: draft.type || 'Others',
@@ -845,7 +845,10 @@ export async function processOwnerChatbotMessage(
           maintenance: draft.maintenance,
           advance: draft.advance,
           gst: draft.gst,
-          notes: extraNotesFromOwner
+          notes: [
+            `Ingested automatically via WhatsApp chatbot.`,
+            extraNotesFromOwner
+          ].filter(Boolean).join('\n')
         })
         .select()
         .single();
