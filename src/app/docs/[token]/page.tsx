@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { FileText, Download, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
+import { DocAccessGate } from '@/components/documents/doc-access-gate';
 
 export const metadata: Metadata = {
   title: 'Property Documents',
@@ -49,6 +50,27 @@ export default async function DocumentsPage({ params }: PageProps) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const property = docRequest.property as any;
+
+  const formattedExpiry = expiresAt
+    ? expiresAt.toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })
+    : null;
+
+  // Render access gate if password protected
+  if (docRequest.access_password && docRequest.access_password.trim().length > 0) {
+    return (
+      <DocAccessGate
+        token={token}
+        requesterName={docRequest.requester_name}
+        propertyTitle={property?.title || 'Property'}
+        propertyCode={property?.property_code}
+        formattedExpiry={formattedExpiry}
+      />
+    );
+  }
+
   const dbDocs: string[] = Array.isArray(property?.documents)
     ? property.documents.filter((d: string) => d?.trim())
     : [];
@@ -64,13 +86,6 @@ export default async function DocumentsPage({ params }: PageProps) {
     }
     return { url: doc, title: '' };
   }).filter(d => d.url.length > 0);
-
-  const formattedExpiry = expiresAt
-    ? expiresAt.toLocaleString('en-IN', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      })
-    : null;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center px-4 py-16 font-sans">

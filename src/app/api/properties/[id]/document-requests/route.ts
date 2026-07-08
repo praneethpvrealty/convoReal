@@ -60,7 +60,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     }
 
-    const { request_id, action } = body; // action: 'approve' | 'reject'
+    const { request_id, action, access_password } = body; // action: 'approve' | 'reject'
 
     if (!request_id || !["approve", "reject"].includes(action)) {
       return NextResponse.json({ error: "request_id and action ('approve'|'reject') are required" }, { status: 400 });
@@ -132,6 +132,7 @@ export async function PATCH(
         status: "approved",
         share_token: shareToken,
         share_token_expires_at: expiresAt,
+        access_password: access_password || null,
       })
       .eq("id", request_id)
       .select()
@@ -153,10 +154,12 @@ export async function PATCH(
           property.documents.filter((d: string) => d?.trim()).length > 0;
 
         const waText = hasDocuments
-          ? `Hi ${docRequest.requester_name},\n\nYour request for property documents has been approved! 🎉\n\n` +
-            `📋 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
-            `📂 *Download Documents*: ${shareLink}\n\n` +
-            `_This link will expire in 48 hours._`
+          ? (access_password
+              ? `Hi ${docRequest.requester_name},\n\nHere is the link for the documents of the property *${property.title}* asked. Please use the password - *${access_password}* to open it.\n\n📂 *Download Link*: ${shareLink}\n\n_This link will expire in 48 hours._`
+              : `Hi ${docRequest.requester_name},\n\nYour request for property documents has been approved! 🎉\n\n` +
+                `📋 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
+                `📂 *Download Documents*: ${shareLink}\n\n` +
+                `_This link will expire in 48 hours._`)
           : `Hi ${docRequest.requester_name},\n\nThank you for your interest in ${property.title}.\n\n` +
             `The documents for this property are being prepared. Our agent will share them with you shortly.\n\n` +
             `Feel free to reach out for any queries.`;
@@ -205,7 +208,7 @@ export async function POST(
       return NextResponse.json({ error: "Invalid body" }, { status: 400 });
     }
 
-    const { requester_name, requester_phone, requester_email } = body;
+    const { requester_name, requester_phone, requester_email, access_password } = body;
 
     if (!requester_name || !requester_phone) {
       return NextResponse.json({ error: "requester_name and requester_phone are required" }, { status: 400 });
@@ -241,6 +244,7 @@ export async function POST(
         status: "approved",
         share_token: shareToken,
         share_token_expires_at: expiresAt,
+        access_password: access_password || null,
       })
       .select()
       .single();
@@ -268,10 +272,12 @@ export async function POST(
           property.documents.filter((d: string) => d?.trim()).length > 0;
 
         const waText = hasDocuments
-          ? `Hi ${requester_name},\n\nHere are the property documents you requested! 🎉\n\n` +
-            `📋 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
-            `📂 *Download Documents*: ${shareLink}\n\n` +
-            `_This link will expire in 48 hours._`
+          ? (access_password
+              ? `Hi ${requester_name},\n\nHere is the link for the documents of the property *${property.title}* asked. Please use the password - *${access_password}* to open it.\n\n📂 *Download Link*: ${shareLink}\n\n_This link will expire in 48 hours._`
+              : `Hi ${requester_name},\n\nHere are the property documents you requested! 🎉\n\n` +
+                `📋 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
+                `📂 *Download Documents*: ${shareLink}\n\n` +
+                `_This link will expire in 48 hours._`)
           : `Hi ${requester_name},\n\nThank you for your interest in ${property.title}.\n\n` +
             `The documents for this property are being prepared. Our agent will share them with you shortly.\n\n` +
             `Feel free to reach out for any queries.`;

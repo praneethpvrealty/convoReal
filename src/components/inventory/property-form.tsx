@@ -391,6 +391,22 @@ export function PropertyForm({
   const [customSharePhone, setCustomSharePhone] = useState('');
   const [customShareEmail, setCustomShareEmail] = useState('');
   const [isSharingDoc, setIsSharingDoc] = useState(false);
+  const [shareWithPassword, setShareWithPassword] = useState(true);
+  const [sharePassword, setSharePassword] = useState('');
+  const [shareSuccessData, setShareSuccessData] = useState<{
+    shareLink: string;
+    password?: string;
+    propertyTitle: string;
+    requesterName: string;
+  } | null>(null);
+
+  // Auto-generate 4-digit passcode when document share dialog opens
+  useEffect(() => {
+    if (shareDocDialogOpen) {
+      setSharePassword(String(Math.floor(1000 + Math.random() * 9000)));
+      setShareSuccessData(null);
+    }
+  }, [shareDocDialogOpen]);
 
   // Close share contact dropdown on click outside
   useEffect(() => {
@@ -447,26 +463,30 @@ export function PropertyForm({
         body: JSON.stringify({
           requester_name: reqName,
           requester_phone: reqPhone,
-          requester_email: reqEmail || null
+          requester_email: reqEmail || null,
+          access_password: shareWithPassword && sharePassword.trim() ? sharePassword.trim() : null,
         }),
       });
 
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Failed');
 
-      toast.success('Documents secure link generated and sent via WhatsApp! 🎉');
+      toast.success('Documents secure link generated! 🎉');
       
       if (json.share_link) {
-        navigator.clipboard.writeText(json.share_link).catch(() => {});
-        toast.info('Share link copied to clipboard.');
-      }
+        setShareSuccessData({
+          shareLink: json.share_link,
+          password: shareWithPassword ? sharePassword.trim() : undefined,
+          propertyTitle: property?.title || 'Property',
+          requesterName: reqName,
+        });
 
-      setShareDocDialogOpen(false);
-      setSelectedShareContact(null);
-      setShareContactSearchInput('');
-      setCustomShareName('');
-      setCustomSharePhone('');
-      setCustomShareEmail('');
+        // Copy nice preformatted message to clipboard
+        const niceMsg = `Here is the link for the documents of the property "${property?.title || 'Property'}" asked. Please use the password - ${shareWithPassword ? sharePassword.trim() : 'None'} to open it.\n\n📂 Link: ${json.share_link}`;
+        navigator.clipboard.writeText(niceMsg).catch(() => {});
+      } else {
+        setShareDocDialogOpen(false);
+      }
       
       await fetchDocRequests();
     } catch (err) {
@@ -4470,139 +4490,219 @@ export function PropertyForm({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4 flex-1">
-            {/* Recipient Contact Selection */}
-            <div className="space-y-1.5" data-share-contact-dropdown>
-              <Label className="text-xs font-semibold text-slate-300">
-                Select Existing Contact
-              </Label>
-              <div className="relative">
-                <Input
-                  type="text"
-                  placeholder="Search contacts by name or phone..."
-                  value={shareContactSearchInput}
-                  onChange={(e) => {
-                    setShareContactSearchInput(e.target.value);
-                    setIsShareContactDropdownOpen(true);
-                  }}
-                  onFocus={() => setIsShareContactDropdownOpen(true)}
-                  readOnly={!!selectedShareContact}
-                  className="bg-slate-850 border-slate-700 text-white placeholder:text-slate-500 h-9 text-xs"
-                />
-                {selectedShareContact && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedShareContact(null);
-                      setShareContactSearchInput('');
-                    }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
-                  >
-                    ×
-                  </button>
-                )}
+         {shareSuccessData ? (
+           <div className="space-y-4 py-4 text-center">
+             <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mb-2">
+               <CheckCircle className="size-6 animate-pulse" />
+             </div>
+             <h3 className="text-sm font-bold text-white">Share Link Generated</h3>
+             
+             <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 text-left space-y-3">
+               <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">WhatsApp Message Preview</p>
+               <p className="text-xs text-slate-355 leading-relaxed bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 font-mono whitespace-pre-wrap select-all max-h-40 overflow-y-auto">
+                 {`Here is the link for the documents of the property "${shareSuccessData.propertyTitle}" asked. Please use the password - ${shareSuccessData.password || 'None'} to open it.\n\n📂 Link: ${shareSuccessData.shareLink}`}
+               </p>
+             </div>
 
-                {/* Dropdown Menu */}
-                {isShareContactDropdownOpen && !selectedShareContact && (
-                  <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1">
-                    {filteredShareContacts.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-slate-500 italic">No contacts found</div>
-                    ) : (
-                      filteredShareContacts.map((contact) => (
-                        <button
-                          key={contact.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedShareContact(contact);
-                            setShareContactSearchInput(contact.name || contact.phone || '');
-                            setIsShareContactDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs text-slate-200 truncate flex items-center justify-between"
-                        >
-                          <span className="font-semibold">{contact.name || 'Unnamed'}</span>
-                          <span className="text-[10px] text-slate-400 font-mono">{contact.phone}</span>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+             <div className="flex gap-2 border-t border-slate-800 pt-3">
+               <Button
+                 type="button"
+                 variant="ghost"
+                 onClick={() => {
+                   const msg = `Here is the link for the documents of the property "${shareSuccessData.propertyTitle}" asked. Please use the password - ${shareSuccessData.password || 'None'} to open it.\n\n📂 Link: ${shareSuccessData.shareLink}`;
+                   navigator.clipboard.writeText(msg).then(() => {
+                     toast.success('Message copied to clipboard!');
+                   });
+                 }}
+                 className="flex-1 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 rounded-lg h-9"
+               >
+                 Copy Message
+               </Button>
+               <Button
+                 type="button"
+                 onClick={() => {
+                   setShareDocDialogOpen(false);
+                   setShareSuccessData(null);
+                   setSelectedShareContact(null);
+                   setShareContactSearchInput('');
+                   setCustomShareName('');
+                   setCustomSharePhone('');
+                   setCustomShareEmail('');
+                 }}
+                 className="flex-1 bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold h-9 rounded-lg"
+               >
+                 Done
+               </Button>
+             </div>
+           </div>
+         ) : (
+           <>
+             <div className="space-y-4 py-4 flex-1">
+               {/* Recipient Contact Selection */}
+               <div className="space-y-1.5" data-share-contact-dropdown>
+                 <Label className="text-xs font-semibold text-slate-300">
+                   Select Existing Contact
+                 </Label>
+                 <div className="relative">
+                   <Input
+                     type="text"
+                     placeholder="Search contacts by name or phone..."
+                     value={shareContactSearchInput}
+                     onChange={(e) => {
+                       setShareContactSearchInput(e.target.value);
+                       setIsShareContactDropdownOpen(true);
+                     }}
+                     onFocus={() => setIsShareContactDropdownOpen(true)}
+                     readOnly={!!selectedShareContact}
+                     className="bg-slate-850 border-slate-700 text-white placeholder:text-slate-500 h-9 text-xs"
+                   />
+                   {selectedShareContact && (
+                     <button
+                       type="button"
+                       onClick={() => {
+                         setSelectedShareContact(null);
+                         setShareContactSearchInput('');
+                       }}
+                       className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                     >
+                       ×
+                     </button>
+                   )}
 
-            {/* Custom Contact Form (if no contact is selected) */}
-            {!selectedShareContact && (
-              <div className="space-y-3 pt-2 border-t border-slate-850">
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Or Enter Custom Recipient</p>
-                <div className="space-y-1">
-                  <Label htmlFor="custom-share-name" className="text-[11px] text-slate-400">Recipient Name</Label>
-                  <Input
-                    id="custom-share-name"
-                    type="text"
-                    placeholder="Enter recipient's name"
-                    value={customShareName}
-                    onChange={(e) => setCustomShareName(e.target.value)}
-                    className="bg-slate-850 border-slate-700 text-white text-xs h-8"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="custom-share-phone" className="text-[11px] text-slate-400">WhatsApp Phone Number</Label>
-                  <Input
-                    id="custom-share-phone"
-                    type="text"
-                    placeholder="e.g. 919876543210"
-                    value={customSharePhone}
-                    onChange={(e) => setCustomSharePhone(e.target.value)}
-                    className="bg-slate-850 border-slate-700 text-white text-xs h-8"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="custom-share-email" className="text-[11px] text-slate-400">Email Address (Optional)</Label>
-                  <Input
-                    id="custom-share-email"
-                    type="email"
-                    placeholder="e.g. guest@example.com"
-                    value={customShareEmail}
-                    onChange={(e) => setCustomShareEmail(e.target.value)}
-                    className="bg-slate-850 border-slate-700 text-white text-xs h-8"
-                  />
-                </div>
-              </div>
-            )}
+                   {/* Dropdown Menu */}
+                   {isShareContactDropdownOpen && !selectedShareContact && (
+                     <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1">
+                       {filteredShareContacts.length === 0 ? (
+                         <div className="px-3 py-2 text-xs text-slate-500 italic">No contacts found</div>
+                       ) : (
+                         filteredShareContacts.map((contact) => (
+                           <button
+                             key={contact.id}
+                             type="button"
+                             onClick={() => {
+                               setSelectedShareContact(contact);
+                               setShareContactSearchInput(contact.name || contact.phone || '');
+                               setIsShareContactDropdownOpen(false);
+                             }}
+                             className="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs text-slate-200 truncate flex items-center justify-between"
+                           >
+                             <span className="font-semibold">{contact.name || 'Unnamed'}</span>
+                             <span className="text-[10px] text-slate-400 font-mono">{contact.phone}</span>
+                           </button>
+                         ))
+                       )}
+                     </div>
+                   )}
+                 </div>
+               </div>
 
-            {selectedShareContact && (
-              <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-3.5 space-y-1 text-xs">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected Recipient Info</p>
-                <p className="text-white font-bold">{selectedShareContact.name || 'Unnamed'}</p>
-                <p className="text-slate-400 font-mono text-[11px]">WhatsApp: {selectedShareContact.phone}</p>
-                {selectedShareContact.email && (
-                  <p className="text-slate-400 text-[11px]">Email: {selectedShareContact.email}</p>
-                )}
-              </div>
-            )}
-          </div>
+               {/* Custom Contact Form (if no contact is selected) */}
+               {!selectedShareContact && (
+                 <div className="space-y-3 pt-2 border-t border-slate-850">
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Or Enter Custom Recipient</p>
+                   <div className="space-y-1">
+                     <Label htmlFor="custom-share-name" className="text-[11px] text-slate-400">Recipient Name</Label>
+                     <Input
+                       id="custom-share-name"
+                       type="text"
+                       placeholder="Enter recipient's name"
+                       value={customShareName}
+                       onChange={(e) => setCustomShareName(e.target.value)}
+                       className="bg-slate-850 border-slate-700 text-white text-xs h-8"
+                     />
+                   </div>
+                   <div className="space-y-1">
+                     <Label htmlFor="custom-share-phone" className="text-[11px] text-slate-400">WhatsApp Phone Number</Label>
+                     <Input
+                       id="custom-share-phone"
+                       type="text"
+                       placeholder="e.g. 919876543210"
+                       value={customSharePhone}
+                       onChange={(e) => setCustomSharePhone(e.target.value)}
+                       className="bg-slate-850 border-slate-700 text-white text-xs h-8"
+                     />
+                   </div>
+                   <div className="space-y-1">
+                     <Label htmlFor="custom-share-email" className="text-[11px] text-slate-400">Email Address (Optional)</Label>
+                     <Input
+                       id="custom-share-email"
+                       type="email"
+                       placeholder="e.g. guest@example.com"
+                       value={customShareEmail}
+                       onChange={(e) => setCustomShareEmail(e.target.value)}
+                       className="bg-slate-850 border-slate-700 text-white text-xs h-8"
+                     />
+                   </div>
+                 </div>
+               )}
 
-          <div className="flex justify-end gap-2 border-t border-slate-800 pt-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setShareDocDialogOpen(false);
-                setSelectedShareContact(null);
-                setShareContactSearchInput('');
-              }}
-              className="text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg h-9 px-3 cursor-pointer"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleShareDoc}
-              disabled={isSharingDoc}
-              className="bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold h-9 px-4 rounded-lg cursor-pointer"
-            >
-              {isSharingDoc ? 'Sharing...' : 'Generate & Share Link'}
-            </Button>
-          </div>
+               {selectedShareContact && (
+                 <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-3.5 space-y-1 text-xs">
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected Recipient Info</p>
+                   <p className="text-white font-bold">{selectedShareContact.name || 'Unnamed'}</p>
+                   <p className="text-slate-400 font-mono text-[11px]">WhatsApp: {selectedShareContact.phone}</p>
+                   {selectedShareContact.email && (
+                     <p className="text-slate-400 text-[11px]">Email: {selectedShareContact.email}</p>
+                   )}
+                 </div>
+               )}
+
+               {/* Password Protection Option */}
+               <div className="space-y-3 pt-3 border-t border-slate-850">
+                 <div className="flex items-center justify-between">
+                   <Label htmlFor="share-with-password" className="text-xs font-semibold text-slate-300">
+                     Protect Share with Password
+                   </Label>
+                   <input
+                     id="share-with-password"
+                     type="checkbox"
+                     checked={shareWithPassword}
+                     onChange={(e) => setShareWithPassword(e.target.checked)}
+                     className="rounded border-slate-700 text-primary focus:ring-primary bg-slate-850 h-4 w-4"
+                   />
+                 </div>
+                 
+                 {shareWithPassword && (
+                   <div className="space-y-1">
+                     <Label htmlFor="share-password" className="text-[11px] text-slate-400">4-Digit Passcode (Auto-generated or custom)</Label>
+                     <Input
+                       id="share-password"
+                       type="text"
+                       placeholder="e.g. 4839"
+                       value={sharePassword}
+                       onChange={(e) => setSharePassword(e.target.value)}
+                       maxLength={10}
+                       className="bg-slate-850 border-slate-700 text-white text-xs h-8 font-mono tracking-widest text-center"
+                     />
+                   </div>
+                 )}
+               </div>
+             </div>
+
+             <div className="flex justify-end gap-2 border-t border-slate-800 pt-3">
+               <Button
+                 type="button"
+                 variant="ghost"
+                 onClick={() => {
+                   setShareDocDialogOpen(false);
+                   setSelectedShareContact(null);
+                   setShareContactSearchInput('');
+                 }}
+                 className="text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg h-9 px-3 cursor-pointer"
+               >
+                 Cancel
+               </Button>
+               <Button
+                 type="button"
+                 onClick={handleShareDoc}
+                 disabled={isSharingDoc}
+                 className="bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold h-9 px-4 rounded-lg cursor-pointer"
+               >
+                 {isSharingDoc ? 'Sharing...' : 'Generate & Share Link'}
+               </Button>
+             </div>
+           </>
+         )}
         </DialogContent>
       </Dialog>
     </DialogContent>
