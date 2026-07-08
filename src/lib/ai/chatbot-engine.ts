@@ -46,13 +46,30 @@ function supabaseAdmin() {
 const lowBalanceNotifiedAt = new Map<string, number>();
 const LOW_BALANCE_NOTIFY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
+function notifyBalanceThreshold(accountId: string, result: { deficit: number; balanceAfter: number }): void {
+  const threshold: 'zero' | 'critical' | 'low' | null =
+    result.deficit > 0 || result.balanceAfter <= 0
+      ? 'zero'
+      : result.balanceAfter <= 20
+        ? 'critical'
+        : result.balanceAfter <= 100
+          ? 'low'
+          : null;
+
+  if (threshold) {
+    const lastNotified = lowBalanceNotifiedAt.get(accountId) ?? 0;
+    if (Date.now() - lastNotified > LOW_BALANCE_NOTIFY_COOLDOWN_MS) {
+      lowBalanceNotifiedAt.set(accountId, Date.now());
+      void notifyManagerLowBalance(accountId, result.balanceAfter, threshold);
+    }
+  }
+}
+
 /**
- * Soft-block credit burn for inbound WhatsApp AI calls — never
- * throws, never blocks. This webhook must keep processing messages
- * regardless of credit balance (there's no user watching to show an
- * "upgrade" prompt to); a deficit is only logged for ops visibility.
- * Contrast with the hard-block burnCredits() calls in the
- * user-facing generate-description/enhance-image routes.
+ * Soft-block credit burn — never throws, never blocks. Only for the
+ * external-contact engine (processExternalListingMessage): those
+ * inbound messages come from prospects, so a credit shortfall must
+ * not silently kill lead automation; a deficit is only logged.
  */
 async function softBurn(accountId: string, feature: AiFeatureKey): Promise<void> {
   try {
@@ -60,26 +77,45 @@ async function softBurn(accountId: string, feature: AiFeatureKey): Promise<void>
     if (result.deficit > 0) {
       console.warn(`[chatbot-engine] credit deficit for account ${accountId}: ${result.deficit} short on '${feature}'`);
     }
-
-    const threshold: 'zero' | 'critical' | 'low' | null =
-      result.deficit > 0 || result.balanceAfter <= 0
-        ? 'zero'
-        : result.balanceAfter <= 20
-          ? 'critical'
-          : result.balanceAfter <= 100
-            ? 'low'
-            : null;
-
-    if (threshold) {
-      const lastNotified = lowBalanceNotifiedAt.get(accountId) ?? 0;
-      if (Date.now() - lastNotified > LOW_BALANCE_NOTIFY_COOLDOWN_MS) {
-        lowBalanceNotifiedAt.set(accountId, Date.now());
-        void notifyManagerLowBalance(accountId, result.balanceAfter, threshold);
-      }
-    }
+    notifyBalanceThreshold(accountId, result);
   } catch (err) {
     console.error(`[chatbot-engine] softBurn failed (non-fatal) for '${feature}':`, err);
   }
+}
+
+/**
+ * Hard-block credit burn for the owner chatbot. The account owner is
+ * watching this chat and is told "AI features are now locked" at zero
+ * balance, so the lock has to be real: returns false when the AI call
+ * must be skipped (nothing was deducted). Billing-infra errors fail
+ * open — the bot must not go down because billing did.
+ */
+async function gatedBurn(accountId: string, feature: AiFeatureKey): Promise<boolean> {
+  try {
+    const result = await burnCredits(accountId, feature, AI_FEATURE_COSTS[feature], { hardBlock: true });
+    notifyBalanceThreshold(accountId, result);
+    if (!result.success) {
+      console.warn(`[chatbot-engine] blocked '${feature}' for account ${accountId}: ${result.deficit} credits short`);
+    }
+    return result.success;
+  } catch (err) {
+    console.error(`[chatbot-engine] gatedBurn failed (fail-open) for '${feature}':`, err);
+    return true;
+  }
+}
+
+const CREDITS_LOCKED_REPLY =
+  "🔒 *Out of AI credits — this message wasn't processed.* Buy more credits or upgrade your plan from the dashboard to unlock AI features.";
+
+async function sendCreditsLockedReply(
+  phoneNumberId: string,
+  accessToken: string,
+  toPhone: string,
+  conversationId: string
+): Promise<true> {
+  const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: toPhone, text: CREDITS_LOCKED_REPLY });
+  await saveBotMessage(conversationId, CREDITS_LOCKED_REPLY, sendRes.messageId);
+  return true;
 }
 
 /**

@@ -1532,7 +1532,7 @@ export async function handlePropertyShareYesReply(
     if (typedProperty.google_map_link) {
       detailsText += `\n🗺️ *Google Maps:* ${typedProperty.google_map_link}\n`
     }
-    detailsText += `\n🔗 *View full listing showcase here:*\n${showcaseUrl}`
+    detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`
 
     const firstImage = typedProperty.images?.find((img: string) => img.trim().length > 0)
     if (firstImage) {
@@ -2247,7 +2247,7 @@ export async function handleShowMoreProperties(
       if (locationParts) detailsText += `📍 *Location:* ${locationParts}\n`
       if (areaStr) detailsText += `📐 *Area:* ${areaStr}\n`
       if (typedProp.bedrooms) detailsText += `🛏️ *BHK:* ${typedProp.bedrooms} BHK\n`
-      detailsText += `\n🔗 *View Details:*\n${showcaseUrl}`
+      detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`
 
       await sendWhatsAppMessageAndPersist({
         accountId,

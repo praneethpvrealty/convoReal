@@ -219,7 +219,7 @@ export function PropertyShareDialog({
       ? `${window.location.origin}/?property_id=${property.id}&mode=view`
       : `/?property_id=${property.id}&mode=view`;
 
-    return `Hi,\n\nThis property is handpicked matching your requirements — check out all the details, photos, and location map:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\n${agentUrl}\n\n${signOffWithPhone}`;
+    return `Hi,\n\nThis property is handpicked matching your requirements — check out all the details, photos, and location map:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\n👇 *Click the link below to view photos, location map, and full details:*\n${agentUrl}\n\n${signOffWithPhone}`;
   }, [property, formattedPrice, profile]);
 
   // Get showcase URL for copying

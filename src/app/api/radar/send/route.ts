@@ -46,7 +46,7 @@ function propertyMessage(p: Property, baseUrl: string, visitorContactId: string)
   if (p.bedrooms) lines.push(`🛏️ *BHK:* ${p.bedrooms} BHK`);
   if (p.area_sqft) lines.push(`📐 *Area:* ${p.area_sqft} ${p.area_unit || 'Sq.Ft.'}`);
   // v= attributes Showcase Pulse engagement to this contact (never filters)
-  lines.push('', `🔗 *Full details, photos & map:*`, `${baseUrl}/?property_id=${p.id}&v=${visitorContactId}`);
+  lines.push('', `👇 *Click the link below to view photos, location map, and full details:*`, `${baseUrl}/?property_id=${p.id}&v=${visitorContactId}`);
   return lines.join('\n');
 }
 
