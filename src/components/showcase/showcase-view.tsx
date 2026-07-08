@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
+import { createShowcaseTracker } from '@/lib/pulse/tracker';
 import { toast } from 'sonner';
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from '@/lib/search-parser';
 import {
@@ -56,6 +57,9 @@ interface ShowcaseViewProps {
   initialCategory?: string;
   /** ?mode=view (legacy: agent) resolved on the server so the first paint is already the clean listing view. */
   initialAgentMode?: boolean;
+  /** Contact id from per-contact share links (?v=…) — Showcase Pulse
+   *  attribution only, never filters the catalog. */
+  visitorRef?: string;
 }
 
 /** Resolve the share-link target so the detail modal is part of the server render. */
@@ -70,17 +74,34 @@ function findInitialProperty(properties: Property[], initialPropertyId?: string)
   );
 }
 
-export function ShowcaseView({ 
-  properties, 
-  settings, 
-  accountId, 
+export function ShowcaseView({
+  properties,
+  settings,
+  accountId,
   referrerContactId,
   referrerPhone,
   initialPropertyId,
   initialCategory,
-  initialAgentMode = false
+  initialAgentMode = false,
+  visitorRef
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
+
+  // ── Showcase Pulse tracking (fire-and-forget beacons) ──────────
+  // One tracker per page load; 'open' fires once on mount, property
+  // views are tracked with dwell time when the detail modal closes or
+  // switches. Failures are swallowed inside the tracker — engagement
+  // analytics must never affect the visitor experience.
+  const trackerRef = useRef<ReturnType<typeof createShowcaseTracker> | null>(null);
+  const viewStartRef = useRef<{ propertyId: string; at: number } | null>(null);
+  useEffect(() => {
+    trackerRef.current = createShowcaseTracker(accountId, visitorRef);
+    trackerRef.current.track('open');
+    const tracker = trackerRef.current;
+    return () => tracker.flush();
+    // Mount-only by design: accountId/visitorRef are fixed per page load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Dynamic Theme Resolver
   useEffect(() => {
@@ -106,6 +127,24 @@ export function ShowcaseView({
     findInitialProperty(properties, initialPropertyId)
   );
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+
+  // Pulse: record property views with dwell time. Runs on every
+  // selectedProperty transition — closing or switching the modal emits the
+  // previous property's view with its duration; unmount flushes via the
+  // tracker's pagehide handler.
+  const selectedPropertyId = selectedProperty?.id ?? null;
+  useEffect(() => {
+    const prev = viewStartRef.current;
+    if (prev && prev.propertyId !== selectedPropertyId) {
+      trackerRef.current?.track('view_property', prev.propertyId, {
+        duration_ms: Math.min(Date.now() - prev.at, 30 * 60 * 1000),
+      });
+      viewStartRef.current = null;
+    }
+    if (selectedPropertyId && (!prev || prev.propertyId !== selectedPropertyId)) {
+      viewStartRef.current = { propertyId: selectedPropertyId, at: Date.now() };
+    }
+  }, [selectedPropertyId]);
 
   // ?mode=view (legacy: agent): clean listing detail view (no forms, buttons, or document requests)
   const [isAgentMode, setIsAgentMode] = useState(initialAgentMode);

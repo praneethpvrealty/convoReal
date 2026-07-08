@@ -1518,7 +1518,8 @@ export async function handlePropertyShareYesReply(
     ].filter(Boolean).join(', ') || typedProperty.location
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-    const showcaseUrl = `${baseUrl}/?property_id=${typedProperty.id}`
+    // v= attributes Showcase Pulse engagement to this contact (never filters)
+    const showcaseUrl = `${baseUrl}/?property_id=${typedProperty.id}&v=${contactId}`
 
     let detailsText = `🏠 *${typedProperty.title}*\n`
     if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`
@@ -2220,7 +2221,8 @@ export async function handleShowMoreProperties(
       ].filter(Boolean).join(', ') || typedProp.location
 
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
-      const showcaseUrl = `${baseUrl}/?property_id=${typedProp.id}`
+      // v= attributes Showcase Pulse engagement to this contact (never filters)
+      const showcaseUrl = `${baseUrl}/?property_id=${typedProp.id}&v=${contactId}`
 
       // Send image first
       const firstImage = typedProp.images?.find((img: string) => img.trim().length > 0)

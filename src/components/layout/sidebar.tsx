@@ -25,6 +25,9 @@ import {
   Home,
   Calendar,
   ClipboardList,
+  Sun,
+  Radar,
+  Activity,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
 
@@ -90,8 +93,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { href: "/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/inbox", label: "Inbox", icon: MessageSquare },
+  { href: "/radar", label: "Match Radar", icon: Radar, beta: true },
+  { href: "/pulse", label: "Pulse", icon: Activity, beta: true },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/requirements", label: "Requirements", icon: ClipboardList },
   { href: "/agents", label: "Agents", icon: UsersRound },

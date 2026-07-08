@@ -154,6 +154,50 @@ export interface Contact {
   updated_at: string;
 }
 
+// ── Match Radar (migration 094) ─────────────────────────────
+
+/** One matched target inside a match_events row — a contact match for
+ *  'new_property' events, a property match for 'buyer_updated' events. */
+export interface MatchEventTarget {
+  id: string;
+  name: string;
+  /** Phone for contact targets; property_code for property targets. */
+  detail: string | null;
+  score: number;
+  /** Honest chips from the matching engine's MatchDetails. */
+  chips: string[];
+}
+
+export interface MatchEvent {
+  id: string;
+  account_id: string;
+  kind: 'new_property' | 'buyer_updated';
+  property_id: string | null;
+  contact_id: string | null;
+  matches: MatchEventTarget[];
+  status: 'new' | 'sent' | 'dismissed';
+  sent_count: number;
+  sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Hydrated by page queries, not stored columns. */
+  property?: Property | null;
+  contact?: Contact | null;
+}
+
+// ── Showcase Pulse (migration 095) ──────────────────────────
+
+export interface ShowcaseEvent {
+  id: string;
+  account_id: string;
+  contact_id: string | null;
+  property_id: string | null;
+  session_key: string;
+  event_type: 'open' | 'view_property' | 'map_click' | 'gallery';
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 export interface Tag {
   id: string;
   user_id: string;

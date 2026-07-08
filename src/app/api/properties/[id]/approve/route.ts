@@ -103,6 +103,16 @@ export async function POST(
       }
     );
 
+    // Match Radar: an approved listing just went live — surface matching
+    // buyers (fire-and-forget).
+    import("@/lib/radar/engine")
+      .then(({ generateMatchEventForProperty, radarAdminClient }) =>
+        generateMatchEventForProperty(radarAdminClient(), ctx.accountId, id)
+      )
+      .catch((err) => {
+        console.error("[POST /api/properties/[id]/approve] Radar error:", err);
+      });
+
     // Send WhatsApp notification to the tagged owner contact (if any).
     // senderType 'bot' so it shows in the conversation thread without
     // claiming an agent sent it manually.

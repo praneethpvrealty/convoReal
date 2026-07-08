@@ -29,6 +29,10 @@ interface PageProps {
     code?: string;
     invite?: string;
     mode?: string;
+    /** Visitor identity for Showcase Pulse tracking (per-contact share
+     *  links append v=<contact_id>). Unlike ref=, it never filters the
+     *  catalog — it only attributes engagement events. */
+    v?: string;
   }>;
 }
 
@@ -440,6 +444,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       initialPropertyId={initialPropertyId}
       initialCategory={resolvedParams.category}
       initialAgentMode={isAgentMode}
+      visitorRef={resolvedParams.v}
     />
   );
 }

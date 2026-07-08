@@ -474,6 +474,15 @@ export async function POST(request: Request) {
       autoSyncPropertyCatalogIfNeeded(ctx.supabase, data.id, ctx.accountId).catch((err) => {
         console.error("[POST /api/properties] Auto-sync background error:", err);
       });
+      // Match Radar: surface matching buyers for the new listing
+      // (fire-and-forget; match_events INSERT needs the service role).
+      import("@/lib/radar/engine")
+        .then(({ generateMatchEventForProperty, radarAdminClient }) =>
+          generateMatchEventForProperty(radarAdminClient(), ctx.accountId, data.id)
+        )
+        .catch((err) => {
+          console.error("[POST /api/properties] Radar background error:", err);
+        });
     }
 
     return NextResponse.json(data, { status: 201 });

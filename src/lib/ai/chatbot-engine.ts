@@ -868,6 +868,15 @@ export async function processOwnerChatbotMessage(
         autoSyncPropertyCatalogIfNeeded(supabaseAdmin(), prop.id, accountId).catch((err) => {
           console.error('[chatbot-engine] Auto-sync background error:', err);
         });
+        // Match Radar: surface matching buyers for the just-ingested
+        // listing (fire-and-forget — must never delay the WhatsApp reply).
+        import('@/lib/radar/engine')
+          .then(({ generateMatchEventForProperty }) =>
+            generateMatchEventForProperty(supabaseAdmin(), accountId, prop.id)
+          )
+          .catch((err) => {
+            console.error('[chatbot-engine] Radar background error:', err);
+          });
       }
 
       let reply = `✅ *Property listing created successfully!*\n\n` +

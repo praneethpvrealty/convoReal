@@ -84,6 +84,17 @@ export async function POST(request: NextRequest) {
 
           if (updateErr) throw updateErr;
           updated++;
+
+          // Match Radar: this contact's stated preferences just changed —
+          // surface matching inventory (fire-and-forget; a radar failure
+          // must never fail the extraction response).
+          import('@/lib/radar/engine')
+            .then(({ generateMatchEventForContact, radarAdminClient }) =>
+              generateMatchEventForContact(radarAdminClient(), ctx.accountId, contact.id)
+            )
+            .catch((radarErr) => {
+              console.error(`[extract-preferences] Radar error for ${contact.id}:`, radarErr);
+            });
         } catch (err) {
           console.error(`[extract-preferences] Failed for contact ${contact.id}:`, err);
           failed++;
