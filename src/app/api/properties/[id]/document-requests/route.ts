@@ -188,3 +188,119 @@ export async function PATCH(
     return toErrorResponse(err);
   }
 }
+
+// POST /api/properties/[id]/document-requests
+// Create a new approved document request directly (agent/admin only).
+// On insertion, generate a share token and automatically send it to the requester via WhatsApp.
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const ctx = await requireRole("agent");
+    const { id: propertyId } = await params;
+
+    const body = await request.json().catch(() => null);
+    if (!body) {
+      return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+    }
+
+    const { requester_name, requester_phone, requester_email } = body;
+
+    if (!requester_name || !requester_phone) {
+      return NextResponse.json({ error: "requester_name and requester_phone are required" }, { status: 400 });
+    }
+
+    // 1. Fetch property to check ownership/existence
+    const admin = supabaseAdmin();
+    const { data: property } = await admin
+      .from("properties")
+      .select("id, title, property_code, documents")
+      .eq("id", propertyId)
+      .eq("account_id", ctx.accountId)
+      .maybeSingle();
+
+    if (!property) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+    }
+
+    // 2. Generate a cryptographically secure share token
+    const rawToken = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+    const shareToken = rawToken.substring(0, 48);
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(); // 48h
+
+    // 3. Insert approved document request
+    const { data: docRequest, error: insertErr } = await admin
+      .from("property_document_requests")
+      .insert({
+        property_id: propertyId,
+        account_id: ctx.accountId,
+        requester_name,
+        requester_phone,
+        requester_email: requester_email || null,
+        status: "approved",
+        share_token: shareToken,
+        share_token_expires_at: expiresAt,
+      })
+      .select()
+      .single();
+
+    if (insertErr) {
+      console.error("[POST doc-request] Insert error:", insertErr);
+      return NextResponse.json({ error: "Failed to create share link" }, { status: 500 });
+    }
+
+    // 4. Build the shareable link
+    const appBaseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      "https://app.convoreal.com";
+    const shareLink = `${appBaseUrl}/docs/${shareToken}`;
+
+    // 5. Send WhatsApp message (fire-and-forget)
+    (async () => {
+      try {
+        const normalizedPhone = normalizePhoneWithCountryCode(requester_phone, "91");
+        if (!normalizedPhone) return;
+
+        const hasDocuments =
+          Array.isArray(property.documents) &&
+          property.documents.filter((d: string) => d?.trim()).length > 0;
+
+        const waText = hasDocuments
+          ? `Hi ${requester_name},\n\nHere are the property documents you requested! 🎉\n\n` +
+            `📋 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
+            `📂 *Download Documents*: ${shareLink}\n\n` +
+            `_This link will expire in 48 hours._`
+          : `Hi ${requester_name},\n\nThank you for your interest in ${property.title}.\n\n` +
+            `The documents for this property are being prepared. Our agent will share them with you shortly.\n\n` +
+            `Feel free to reach out for any queries.`;
+
+        await sendWhatsAppMessageAndPersist({
+          accountId: ctx.accountId,
+          userId: ctx.userId,
+          toPhone: normalizedPhone,
+          kind: "text",
+          senderType: "agent",
+          text: waText,
+        });
+
+        // Mark share_sent_at
+        await admin
+          .from("property_document_requests")
+          .update({ share_sent_at: new Date().toISOString() })
+          .eq("id", docRequest.id);
+      } catch (err) {
+        console.error("[POST doc-request] WA send to requester failed:", err);
+      }
+    })();
+
+    return NextResponse.json({
+      success: true,
+      share_link: shareLink,
+      data: docRequest,
+    });
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}

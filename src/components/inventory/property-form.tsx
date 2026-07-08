@@ -381,6 +381,101 @@ export function PropertyForm({
   const [activeTab, setActiveTab] = useState('details');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+
+  // Contact document sharing modal states
+  const [shareDocDialogOpen, setShareDocDialogOpen] = useState(false);
+  const [shareContactSearchInput, setShareContactSearchInput] = useState('');
+  const [isShareContactDropdownOpen, setIsShareContactDropdownOpen] = useState(false);
+  const [selectedShareContact, setSelectedShareContact] = useState<Contact | null>(null);
+  const [customShareName, setCustomShareName] = useState('');
+  const [customSharePhone, setCustomSharePhone] = useState('');
+  const [customShareEmail, setCustomShareEmail] = useState('');
+  const [isSharingDoc, setIsSharingDoc] = useState(false);
+
+  // Close share contact dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-share-contact-dropdown]')) {
+        setIsShareContactDropdownOpen(false);
+      }
+    }
+    if (isShareContactDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isShareContactDropdownOpen]);
+
+  const filteredShareContacts = useMemo(() => {
+    if (!shareContactSearchInput.trim()) return contacts;
+    const query = shareContactSearchInput.toLowerCase();
+    return contacts.filter((c) => {
+      const nameMatch = c.name?.toLowerCase().includes(query);
+      const phoneMatch = c.phone?.toLowerCase().includes(query);
+      const emailMatch = c.email?.toLowerCase().includes(query);
+      return nameMatch || phoneMatch || emailMatch;
+    });
+  }, [contacts, shareContactSearchInput]);
+
+  const handleShareDoc = async () => {
+    if (!property?.id) return;
+    
+    let reqName = '';
+    let reqPhone = '';
+    let reqEmail = '';
+
+    if (selectedShareContact) {
+      reqName = selectedShareContact.name || selectedShareContact.phone;
+      reqPhone = selectedShareContact.phone;
+      reqEmail = selectedShareContact.email || '';
+    } else {
+      reqName = customShareName.trim();
+      reqPhone = customSharePhone.trim();
+      reqEmail = customShareEmail.trim();
+    }
+
+    if (!reqName || !reqPhone) {
+      toast.error('Recipient name and phone number are required');
+      return;
+    }
+
+    setIsSharingDoc(true);
+    try {
+      const res = await fetch(`/api/properties/${property.id}/document-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requester_name: reqName,
+          requester_phone: reqPhone,
+          requester_email: reqEmail || null
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed');
+
+      toast.success('Documents secure link generated and sent via WhatsApp! 🎉');
+      
+      if (json.share_link) {
+        navigator.clipboard.writeText(json.share_link).catch(() => {});
+        toast.info('Share link copied to clipboard.');
+      }
+
+      setShareDocDialogOpen(false);
+      setSelectedShareContact(null);
+      setShareContactSearchInput('');
+      setCustomShareName('');
+      setCustomSharePhone('');
+      setCustomShareEmail('');
+      
+      await fetchDocRequests();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Sharing failed';
+      toast.error(msg);
+    } finally {
+      setIsSharingDoc(false);
+    }
+  };
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [showAgentsInMatches, setShowAgentsInMatches] = useState(false);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -2332,7 +2427,19 @@ export function PropertyForm({
                   {/* Property Documents */}
                   {documents && documents.filter(doc => doc && doc.trim().length > 0).length > 0 && (
                     <div className="space-y-2">
-                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Property Documents</h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Property Documents</h4>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => setShareDocDialogOpen(true)}
+                          className="text-[10px] font-bold text-primary hover:text-primary/80 hover:bg-slate-800/40 flex items-center gap-1 shrink-0 h-6 px-2 cursor-pointer border border-primary/25 rounded-md"
+                        >
+                          <Send className="size-3" />
+                          Share Documents Link
+                        </Button>
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950/15 p-4 rounded-xl border border-slate-850">
                         {documents.filter(doc => doc && doc.trim().length > 0).map((docUrl, idx) => {
                           const filename = docUrl.split('/').pop()?.split('?')[0] || `document-${idx + 1}`;
@@ -4277,7 +4384,155 @@ export function PropertyForm({
             </TabsContent>
           </div>
         </Tabs>
-      </DialogContent>
-    </Dialog>
-  );
+        {/* Share Document Portal Modal */}
+      <Dialog open={shareDocDialogOpen} onOpenChange={setShareDocDialogOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-md max-h-[85vh] flex flex-col p-6 overflow-y-auto">
+          <DialogHeader className="pb-3 border-b border-slate-800">
+            <DialogTitle className="text-white flex items-center gap-2">
+              <Send className="size-5 text-primary" />
+              <span>Share Property Documents</span>
+            </DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs">
+              Generate a secure 48-hour access token for this property&apos;s documents and send it directly via WhatsApp.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 flex-1">
+            {/* Recipient Contact Selection */}
+            <div className="space-y-1.5" data-share-contact-dropdown>
+              <Label className="text-xs font-semibold text-slate-300">
+                Select Existing Contact
+              </Label>
+              <div className="relative">
+                <Input
+                  type="text"
+                  placeholder="Search contacts by name or phone..."
+                  value={shareContactSearchInput}
+                  onChange={(e) => {
+                    setShareContactSearchInput(e.target.value);
+                    setIsShareContactDropdownOpen(true);
+                  }}
+                  onFocus={() => setIsShareContactDropdownOpen(true)}
+                  readOnly={!!selectedShareContact}
+                  className="bg-slate-850 border-slate-700 text-white placeholder:text-slate-500 h-9 text-xs"
+                />
+                {selectedShareContact && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedShareContact(null);
+                      setShareContactSearchInput('');
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white"
+                  >
+                    ×
+                  </button>
+                )}
+
+                {/* Dropdown Menu */}
+                {isShareContactDropdownOpen && !selectedShareContact && (
+                  <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1">
+                    {filteredShareContacts.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-slate-500 italic">No contacts found</div>
+                    ) : (
+                      filteredShareContacts.map((contact) => (
+                        <button
+                          key={contact.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedShareContact(contact);
+                            setShareContactSearchInput(contact.name || contact.phone || '');
+                            setIsShareContactDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs text-slate-200 truncate flex items-center justify-between"
+                        >
+                          <span className="font-semibold">{contact.name || 'Unnamed'}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{contact.phone}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Custom Contact Form (if no contact is selected) */}
+            {!selectedShareContact && (
+              <div className="space-y-3 pt-2 border-t border-slate-850">
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Or Enter Custom Recipient</p>
+                <div className="space-y-1">
+                  <Label htmlFor="custom-share-name" className="text-[11px] text-slate-400">Recipient Name</Label>
+                  <Input
+                    id="custom-share-name"
+                    type="text"
+                    placeholder="Enter recipient's name"
+                    value={customShareName}
+                    onChange={(e) => setCustomShareName(e.target.value)}
+                    className="bg-slate-850 border-slate-700 text-white text-xs h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="custom-share-phone" className="text-[11px] text-slate-400">WhatsApp Phone Number</Label>
+                  <Input
+                    id="custom-share-phone"
+                    type="text"
+                    placeholder="e.g. 919876543210"
+                    value={customSharePhone}
+                    onChange={(e) => setCustomSharePhone(e.target.value)}
+                    className="bg-slate-850 border-slate-700 text-white text-xs h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="custom-share-email" className="text-[11px] text-slate-400">Email Address (Optional)</Label>
+                  <Input
+                    id="custom-share-email"
+                    type="email"
+                    placeholder="e.g. guest@example.com"
+                    value={customShareEmail}
+                    onChange={(e) => setCustomShareEmail(e.target.value)}
+                    className="bg-slate-850 border-slate-700 text-white text-xs h-8"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedShareContact && (
+              <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-3.5 space-y-1 text-xs">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected Recipient Info</p>
+                <p className="text-white font-bold">{selectedShareContact.name || 'Unnamed'}</p>
+                <p className="text-slate-400 font-mono text-[11px]">WhatsApp: {selectedShareContact.phone}</p>
+                {selectedShareContact.email && (
+                  <p className="text-slate-400 text-[11px]">Email: {selectedShareContact.email}</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-slate-800 pt-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setShareDocDialogOpen(false);
+                setSelectedShareContact(null);
+                setShareContactSearchInput('');
+              }}
+              className="text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg h-9 px-3 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleShareDoc}
+              disabled={isSharingDoc}
+              className="bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold h-9 px-4 rounded-lg cursor-pointer"
+            >
+              {isSharingDoc ? 'Sharing...' : 'Generate & Share Link'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </DialogContent>
+  </Dialog>
+);
 }
