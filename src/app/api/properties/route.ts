@@ -96,14 +96,17 @@ export async function GET(request: Request) {
         // picked from autocomplete (the tiered search owns location then).
         if (!hasNear && parsed.locations.length > 0 && !parsed.remainingSearch) {
           const locFilters = parsed.locations
-            .map(loc => `location.ilike.%${loc}%,sublocality.ilike.%${loc}%,city.ilike.%${loc}%`)
+            .map(loc => {
+              const clean = loc.replace(/"/g, '\\"');
+              return `location.ilike."%${clean}%",sublocality.ilike."%${clean}%",city.ilike."%${clean}%"`;
+            })
             .join(",");
           query = query.or(locFilters);
         }
 
         // Full-text fallback on remaining terms after stripping structured intent
         if (parsed.remainingSearch) {
-          const term = `%${parsed.remainingSearch}%`;
+          const term = `"%${parsed.remainingSearch.replace(/"/g, '\\"')}%"`;
           query = query.or(
             `title.ilike.${term},` +
             `location.ilike.${term},` +

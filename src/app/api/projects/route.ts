@@ -27,11 +27,12 @@ export async function GET(request: Request) {
     let dbProjects: DbProject[] = [];
 
     if (search.trim()) {
-      // Query rera_projects from Supabase
+      const cleanSearch = search.trim().replace(/"/g, '\\"');
+      const pattern = `"%${cleanSearch}%"`;
       const { data, error } = await ctx.supabase
         .from("rera_projects")
         .select("name, sublocality, city, state, address, project_type")
-        .or(`name.ilike.%${search.trim()}%,sublocality.ilike.%${search.trim()}%`)
+        .or(`name.ilike.${pattern},sublocality.ilike.${pattern}`)
         .limit(limit);
 
       if (error) {

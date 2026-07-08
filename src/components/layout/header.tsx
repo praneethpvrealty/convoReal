@@ -93,13 +93,16 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       setSearching(true);
       try {
         const query = searchQuery.trim();
+        const cleanQuery = query.replace(/"/g, '\\"');
+        const pattern = `"%${cleanQuery}%"`;
+
         const [contactsRes, dealsRes, propertiesRes] = await Promise.all([
           supabase
             .from("contacts")
             .select("id, name, phone, email")
             .eq("account_id", profile?.account_id)
             .eq("is_merged", false)
-            .or(`name.ilike.%${query}%,phone.ilike.%${query}%,email.ilike.%${query}%`)
+            .or(`name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`)
             .limit(5),
           supabase
             .from("deals")
@@ -111,7 +114,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             .from("properties")
             .select("id, title, location, status")
             .eq("account_id", profile?.account_id)
-            .or(`title.ilike.%${query}%,location.ilike.%${query}%`)
+            .or(`title.ilike.${pattern},location.ilike.${pattern}`)
             .limit(5),
         ]);
 

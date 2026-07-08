@@ -1206,7 +1206,8 @@ export async function processOwnerChatbotMessage(
             if (refPhone) {
               const refNormalized = normalizePhoneWithCountryCode(refPhone, '91');
               const refCleanPhone = refNormalized.replace(/\D/g, '');
-              refQuery = refQuery.or(`phone.eq.${refPhone},phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike.${refName}`);
+              const escapedRefName = refName.replace(/"/g, '\\"');
+              refQuery = refQuery.or(`phone.eq.${refPhone},phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike."${escapedRefName}"`);
             } else {
               refQuery = refQuery.ilike('name', refName);
             }
