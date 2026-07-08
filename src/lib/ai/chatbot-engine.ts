@@ -689,7 +689,9 @@ export async function processOwnerChatbotMessage(
   );
 
   if (propSession && hasContactKeywords) {
-    await softBurn(accountId, 'chatbot_classify');
+    if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+    }
     const classification = await classifyImageOrText(cleanedText, undefined, undefined);
     if (classification === 'contact') {
       console.log(`[chatbot-engine] Discarding active property session ${propSession.id} to start contact flow`);
@@ -707,7 +709,9 @@ export async function processOwnerChatbotMessage(
     const isPropertyListing = /\b(bhk|sqft|flat|plot|villa|crore|lakh|price)\b/i.test(cleanedText) && cleanedText.length > 50;
     
     if (isNewContactForward || isPropertyListing) {
-      await softBurn(accountId, 'chatbot_classify');
+      if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
       const classification = await classifyImageOrText(cleanedText, undefined, undefined);
       if (classification === 'property') {
         console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
@@ -1063,6 +1067,12 @@ export async function processOwnerChatbotMessage(
       const maxRetries = 5;
       let finalUpdateData: { updated_at: string }[] | null = null;
 
+      // Burn once, before the optimistic-lock retry loop — retries
+      // re-run the AI merge but must not re-charge the account.
+      if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
+
       while (retryCount < maxRetries && !success) {
         const { data: latestSession, error: fetchErr } = await supabaseAdmin()
           .from('property_draft_sessions')
@@ -1079,7 +1089,6 @@ export async function processOwnerChatbotMessage(
         }
 
         const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
-        await softBurn(accountId, 'chatbot_classify');
         updatedDraft = await updateListingDraft(currentDraft, cleanedText);
         updatedDraft = await backfillLocationFromMapLink(updatedDraft);
 
@@ -1455,7 +1464,9 @@ export async function processOwnerChatbotMessage(
 
     // Handle conversational updates to contact drafts
     if (cleanedText) {
-      await softBurn(accountId, 'chatbot_classify');
+      if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
       const updatedContainer = await updateContactDraft(container, cleanedText);
       const { isValid, missingFields } = validateContactDraftsContainer(updatedContainer);
       const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
@@ -1505,11 +1516,18 @@ export async function processOwnerChatbotMessage(
       mediaMimeType = mimeType;
     }
 
-    await softBurn(accountId, 'chatbot_classify');
+    if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+    }
     const classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
 
     // --- PROPERTY INGESTION FLOW ---
     if (classification === 'property') {
+      // Gate the parse burn before announcing "Analyzing…" so a
+      // drained balance produces the lock reply, not a dead promise.
+      if (!(await gatedBurn(accountId, 'listing_parse'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
       const analyzingMsg = "⏳ _Analyzing listing details... Please wait._";
       const analyzingSendRes = await sendTextMessage({
         phoneNumberId,
@@ -1526,7 +1544,6 @@ export async function processOwnerChatbotMessage(
         if (isMediaMsg && mediaBuffer && mediaMimeType) {
           if (isImageMsg) {
             // Parallel parse and upload to save latency
-            await softBurn(accountId, 'listing_parse');
             const [parsed, publicUrl] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
               uploadPropertyImage(accountId, mediaBuffer, mediaMimeType)
@@ -1537,7 +1554,6 @@ export async function processOwnerChatbotMessage(
             parsedDraft.images = uploadedImages;
           } else if (mediaMimeType === 'application/pdf') {
             // Parallel parse text details and extract images
-            await softBurn(accountId, 'listing_parse');
             const [parsed, extractedImgBuffers] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
               extractImagesFromPdf(mediaBuffer)
@@ -1568,12 +1584,10 @@ export async function processOwnerChatbotMessage(
             }
           } else {
             // Other document types fallback
-            await softBurn(accountId, 'listing_parse');
             parsedDraft = await parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
             parsedDraft.images = [];
           }
         } else {
-          await softBurn(accountId, 'listing_parse');
           parsedDraft = await parseListingFromImageOrText(cleanedText);
           parsedDraft.images = [];
         }
@@ -1736,6 +1750,11 @@ export async function processOwnerChatbotMessage(
 
     // --- CONTACT INGESTION FLOW ---
     if (classification === 'contact') {
+      // Gate the parse burn before announcing "Analyzing…" so a
+      // drained balance produces the lock reply, not a dead promise.
+      if (!(await gatedBurn(accountId, 'contact_parse'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
       const analyzingContactMsg = "⏳ _Analyzing contact details... Please wait._";
       const analyzingContactSendRes = await sendTextMessage({
         phoneNumberId,
@@ -1748,7 +1767,6 @@ export async function processOwnerChatbotMessage(
       try {
         let parsedContainer: ParsedContactDraftsContainer;
 
-        await softBurn(accountId, 'contact_parse');
         if (isMediaMsg && mediaBuffer && mediaMimeType) {
           parsedContainer = await parseContactFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
         } else {
