@@ -205,7 +205,7 @@ export function PropertyForm({
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>(['']);
   const [defaultImageIndex, setDefaultImageIndex] = useState(0);
-  const [documents, setDocuments] = useState<string[]>(['']);
+  const [documents, setDocuments] = useState<Array<{ url: string; title: string }>>([{ url: '', title: '' }]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [googleMapLink, setGoogleMapLink] = useState('');
   const [notes, setNotes] = useState('');
@@ -1229,7 +1229,23 @@ export function PropertyForm({
         setNearbyHighlights(property.nearby_highlights || []);
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
         setDefaultImageIndex(0); // Default image is always at index 0
-        setDocuments(property.documents && property.documents.length > 0 ? property.documents : ['']);
+        const dbDocs = property.documents && property.documents.length > 0 ? property.documents : [];
+        const parsed = dbDocs.map((doc: unknown) => {
+          if (typeof doc === 'string') {
+            if (doc.trim().startsWith('{')) {
+              try {
+                const parsedDoc = JSON.parse(doc);
+                return { url: (parsedDoc?.url as string) || '', title: (parsedDoc?.title as string) || '' };
+              } catch {
+                // fall through
+              }
+            }
+            return { url: doc, title: '' };
+          }
+          const typedDoc = doc as { url?: string; title?: string } | null;
+          return { url: typedDoc?.url || '', title: typedDoc?.title || '' };
+        });
+        setDocuments(parsed.length > 0 ? parsed : [{ url: '', title: '' }]);
         setOwnerContactId(property.owner_contact_id ?? null);
         // Set owner search input to display the selected owner's name
         if (property.owner_contact_id) {
@@ -1328,7 +1344,7 @@ export function PropertyForm({
         setFeatures([]);
         setNearbyHighlights([]);
         setImages(['']);
-        setDocuments(['']);
+        setDocuments([{ url: '', title: '' }]);
         setSearchQuery('');
         setGoogleMapLink('');
         setNotes('');
@@ -1642,9 +1658,27 @@ export function PropertyForm({
       }
 
       if (uploadedUrls.length > 0) {
+        const newDocs = uploadedUrls.map(url => {
+          const filename = url.split('/').pop()?.split('?')[0] || '';
+          const decoded = decodeURIComponent(filename);
+          const cleanName = decoded
+            .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-[a-zA-Z0-9]+-/, '')
+            .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-/, '')
+            .split('.')
+            .slice(0, -1)
+            .join('.');
+          return { url, title: cleanName };
+        });
+
         setDocuments((prev) => {
-          const filteredPrev = prev.filter(url => url.trim().length > 0);
-          return [...filteredPrev, ...uploadedUrls];
+          const filteredPrev = prev.filter(doc => {
+            const url = typeof doc === 'string' ? doc : doc?.url;
+            return url && url.trim().length > 0;
+          }).map(doc => {
+            if (typeof doc === 'string') return { url: doc, title: '' };
+            return doc;
+          });
+          return [...filteredPrev, ...newDocs];
         });
         toast.success(`Uploaded ${uploadedUrls.length} document(s)`);
       }
@@ -1658,12 +1692,14 @@ export function PropertyForm({
   }
 
   function handleAddDocumentUrl() {
-    setDocuments((prev) => [...prev, '']);
+    setDocuments((prev) => [...prev, { url: '', title: '' }]);
   }
+
+  // Close owner dropdown on click outside helper
 
   function handleRemoveDocumentUrl(index: number) {
     if (documents.length === 1) {
-      setDocuments(['']);
+      setDocuments([{ url: '', title: '' }]);
     } else {
       setDocuments((prev) => prev.filter((_, i) => i !== index));
     }
@@ -1672,7 +1708,25 @@ export function PropertyForm({
   function handleDocumentUrlChange(index: number, value: string) {
     setDocuments((prev) => {
       const copy = [...prev];
-      copy[index] = value;
+      const target = copy[index];
+      if (typeof target === 'string') {
+        copy[index] = { url: value, title: '' };
+      } else {
+        copy[index] = { ...target, url: value };
+      }
+      return copy;
+    });
+  }
+
+  function handleDocumentTitleChange(index: number, value: string) {
+    setDocuments((prev) => {
+      const copy = [...prev];
+      const target = copy[index];
+      if (typeof target === 'string') {
+        copy[index] = { url: '', title: value };
+      } else {
+        copy[index] = { ...target, title: value };
+      }
       return copy;
     });
   }
@@ -1809,7 +1863,14 @@ export function PropertyForm({
       const parsedImages = filteredImages.length > 0 && defaultImageIndex > 0 && defaultImageIndex < filteredImages.length
         ? [filteredImages[defaultImageIndex], ...filteredImages.filter((_, i) => i !== defaultImageIndex)]
         : filteredImages;
-      const parsedDocuments = documents.map((doc) => doc.trim()).filter((doc) => doc.length > 0);
+      const parsedDocuments = documents
+        .filter((doc) => doc.url.trim().length > 0)
+        .map((doc) => {
+          return JSON.stringify({
+            url: doc.url.trim(),
+            title: doc.title?.trim() || ''
+          });
+        });
 
       // Construct formatted complete location string
       const fullLocation = [address.trim(), finalSublocality, city.trim(), stateVal.trim()]
@@ -2425,7 +2486,7 @@ export function PropertyForm({
                   })()}
 
                   {/* Property Documents */}
-                  {documents && documents.filter(doc => doc && doc.trim().length > 0).length > 0 && (
+                  {documents && documents.filter(doc => doc && doc.url && doc.url.trim().length > 0).length > 0 && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Property Documents</h4>
@@ -2441,11 +2502,13 @@ export function PropertyForm({
                         </Button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950/15 p-4 rounded-xl border border-slate-850">
-                        {documents.filter(doc => doc && doc.trim().length > 0).map((docUrl, idx) => {
+                        {documents.filter(doc => doc && doc.url && doc.url.trim().length > 0).map((doc, idx) => {
+                          const docUrl = doc.url;
                           const filename = docUrl.split('/').pop()?.split('?')[0] || `document-${idx + 1}`;
                           const decodedFilename = decodeURIComponent(filename);
                           const cleanName = decodedFilename.replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-[a-zA-Z0-9]+-/, '')
                             .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-/, '');
+                          const displayTitle = doc.title?.trim() || cleanName || `Document ${idx + 1}`;
                           return (
                             <a
                               key={idx}
@@ -2456,8 +2519,8 @@ export function PropertyForm({
                             >
                               <div className="flex items-center gap-2 truncate">
                                 <span className="text-lg shrink-0">📄</span>
-                                <span className="truncate text-slate-300 font-semibold" title={cleanName}>
-                                  {cleanName || `Document ${idx + 1}`}
+                                <span className="truncate text-slate-300 font-semibold" title={displayTitle}>
+                                  {displayTitle}
                                 </span>
                               </div>
                               <ExternalLink className="size-3.5 text-slate-500 hover:text-white shrink-0" />
@@ -3547,37 +3610,47 @@ export function PropertyForm({
                         />
                       </div>
 
-                      <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        {documents.map((docUrl, idx) => (
-                          <div key={idx} className="flex gap-2 items-center">
-                            <Input
-                              value={docUrl}
-                              onChange={(e) => handleDocumentUrlChange(idx, e.target.value)}
-                              placeholder="Document URL (e.g. https://...)"
-                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs flex-1"
-                            />
-                            {docUrl.trim().length > 0 && (
-                              <a
-                                href={docUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="h-8 w-8 flex items-center justify-center shrink-0 border border-slate-700 rounded bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
-                                title="Open Document"
-                              >
-                                <ExternalLink className="size-3.5" />
-                              </a>
-                            )}
-                            {documents.length > 1 && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveDocumentUrl(idx)}
-                                className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
-                              >
-                                <Trash2 className="size-3.5" />
-                              </Button>
-                            )}
+                      <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                        {documents.map((doc, idx) => (
+                          <div key={idx} className="flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-slate-950/30 p-2.5 rounded-lg border border-slate-850">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 flex-1 w-full">
+                              <Input
+                                value={doc.title}
+                                onChange={(e) => handleDocumentTitleChange(idx, e.target.value)}
+                                placeholder="Document Title (e.g. Layout Sketch)"
+                                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full"
+                              />
+                              <Input
+                                value={doc.url}
+                                onChange={(e) => handleDocumentUrlChange(idx, e.target.value)}
+                                placeholder="Document URL (e.g. https://...)"
+                                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full font-mono"
+                              />
+                            </div>
+                            <div className="flex gap-1.5 shrink-0 self-end sm:self-auto">
+                              {doc.url.trim().length > 0 && (
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="h-8 w-8 flex items-center justify-center shrink-0 border border-slate-700 rounded bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
+                                  title="Open Document"
+                                >
+                                  <ExternalLink className="size-3.5" />
+                                </a>
+                              )}
+                              {documents.length > 1 && (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRemoveDocumentUrl(idx)}
+                                  className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
+                                >
+                                  <Trash2 className="size-3.5" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         ))}
                         <Button

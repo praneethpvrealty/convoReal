@@ -49,9 +49,21 @@ export default async function DocumentsPage({ params }: PageProps) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const property = docRequest.property as any;
-  const documents: string[] = Array.isArray(property?.documents)
+  const dbDocs: string[] = Array.isArray(property?.documents)
     ? property.documents.filter((d: string) => d?.trim())
     : [];
+
+  const parsedDocuments = dbDocs.map((doc: string) => {
+    if (doc.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(doc);
+        return { url: parsed.url || '', title: parsed.title || '' };
+      } catch {
+        // Fall back to plain string
+      }
+    }
+    return { url: doc, title: '' };
+  }).filter(d => d.url.length > 0);
 
   const formattedExpiry = expiresAt
     ? expiresAt.toLocaleString('en-IN', {
@@ -96,19 +108,22 @@ export default async function DocumentsPage({ params }: PageProps) {
         )}
 
         {/* Documents List */}
-        {documents.length > 0 ? (
+        {parsedDocuments.length > 0 ? (
           <div className="space-y-3">
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Available Documents ({documents.length})
+              Available Documents ({parsedDocuments.length})
             </h2>
             <div className="space-y-2">
-              {documents.map((docUrl, idx) => {
+              {parsedDocuments.map((doc, idx) => {
+                const docUrl = doc.url;
                 const filename =
                   docUrl.split('/').pop()?.split('?')[0] || `document-${idx + 1}`;
                 const decodedFilename = decodeURIComponent(filename);
                 const cleanName = decodedFilename
                   .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-[a-zA-Z0-9]+-/, '')
                   .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-/, '');
+
+                const displayTitle = doc.title?.trim() || cleanName || `Document ${idx + 1}`;
 
                 return (
                   <a
@@ -124,7 +139,7 @@ export default async function DocumentsPage({ params }: PageProps) {
                       </div>
                       <div className="truncate">
                         <p className="text-sm font-semibold text-white truncate group-hover:text-primary transition-colors">
-                          {cleanName || `Document ${idx + 1}`}
+                          {displayTitle}
                         </p>
                         <p className="text-[10px] text-slate-500 mt-0.5">Click to open</p>
                       </div>
