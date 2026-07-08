@@ -348,6 +348,7 @@ export async function POST(request: Request) {
       advance,
       gst,
       notes,
+      documents,
       // locality coordinates (from the form's Places autocomplete pick)
       latitude,
       longitude,
@@ -423,6 +424,7 @@ export async function POST(request: Request) {
       is_published: typeof is_published === "boolean" ? is_published : false,
       features: Array.isArray(features) ? features.filter(f => typeof f === "string") : [],
       images: Array.isArray(images) ? images.filter(img => typeof img === "string") : [],
+      documents: Array.isArray(documents) ? documents.filter(d => typeof d === "string") : [],
       google_map_link: typeof google_map_link === "string" ? google_map_link.trim() : null,
       rental_income: typeof rental_income === "number" ? rental_income : null,
       roi: typeof roi === "number" ? roi : null,

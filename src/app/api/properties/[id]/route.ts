@@ -121,6 +121,7 @@ export async function PUT(
       advance,
       gst,
       notes,
+      documents,
       // locality coordinates (from the form's Places autocomplete pick)
       latitude,
       longitude,
@@ -256,6 +257,10 @@ export async function PUT(
 
     if (images !== undefined) {
       updateData.images = Array.isArray(images) ? images.filter(img => typeof img === "string") : [];
+    }
+
+    if (documents !== undefined) {
+      updateData.documents = Array.isArray(documents) ? documents.filter(d => typeof d === "string") : [];
     }
 
     if (land_zone !== undefined) {

@@ -51,6 +51,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   SlidersHorizontal,
+  Eye,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
@@ -1556,7 +1557,32 @@ export default function ContactsPage() {
                     {formatBudget(contact)}
                   </TableCell>
                   <TableCell className="py-3">
-                    <DropdownMenu>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDetail(contact.id);
+                        }}
+                        className="text-slate-400 hover:text-primary"
+                        title="View Details"
+                      >
+                        <Eye className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditForm(contact);
+                        }}
+                        className="text-slate-400 hover:text-blue-400"
+                        title="Edit Contact"
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                      <DropdownMenu>
                       <DropdownMenuTrigger
                         render={
                           <Button
@@ -1608,6 +1634,7 @@ export default function ContactsPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
