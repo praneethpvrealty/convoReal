@@ -21,10 +21,16 @@ import {
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
 import { extractImagesFromPdf } from '@/lib/pdf/image-extractor';
 import { checkAccountPropertyLimit } from '@/lib/billing/gates';
-import { resolveLocationFromGoogleMapLink } from '@/lib/maps/resolve-location';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
+import {
+  validateDraft,
+  validateContactDraftsContainer,
+  formatDraftPreviewMessage,
+  formatContactDraftsPreview,
+  backfillLocationFromMapLink,
+} from '@/lib/ai/intake-core';
 
 // Lazy initialize supabase admin client
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -197,116 +203,6 @@ async function saveBotMessage(
   }
 }
 
-/**
- * If the draft is still missing a location but has a Google Maps link
- * (common when a lister shares a pin instead of typing an address),
- * best-effort resolve the link into a usable location string. Never
- * throws — a failed/timed-out resolution just leaves the draft as-is so
- * it doesn't block the WhatsApp reply.
- */
-async function backfillLocationFromMapLink(draft: ParsedPropertyDraft): Promise<ParsedPropertyDraft> {
-  if (draft.location || !draft.google_map_link) return draft;
-  const derived = await resolveLocationFromGoogleMapLink(draft.google_map_link);
-  return derived ? { ...draft, location: derived } : draft;
-}
-
-/**
- * Validates the parsed draft to check for missing mandatory details.
- */
-function validateDraft(draft: ParsedPropertyDraft): {
-  isValid: boolean; 
-  missingFields: string[] 
-} {
-  const missingFields: string[] = [];
-  if (!draft.title || draft.title.trim().length === 0) {
-    missingFields.push('Title');
-  }
-  
-  if (draft.listing_type === 'Rent') {
-    if (!draft.rent_per_month || draft.rent_per_month <= 0) {
-      missingFields.push('Rent');
-    }
-  } else {
-    if (!draft.price || draft.price <= 0) {
-      missingFields.push('Price');
-    }
-  }
-  
-  if (!draft.location || draft.location.trim().length === 0) {
-    missingFields.push('Location');
-  }
-
-  return {
-    isValid: missingFields.length === 0,
-    missingFields
-  };
-}
-
-function formatDraftPreviewMessage(
-  header: string,
-  draft: ParsedPropertyDraft,
-  nextStatus: string,
-  missingFields: string[]
-): string {
-  const isCommOrLand = draft.type ? (
-    draft.type.toLowerCase().includes('commercial') ||
-    draft.type.toLowerCase().includes('industrial') ||
-    draft.type.toLowerCase().includes('warehouse') ||
-    draft.type.toLowerCase().includes('godown') ||
-    draft.type.toLowerCase().includes('agricultural') ||
-    draft.type.toLowerCase().includes('land') ||
-    draft.type.toLowerCase().includes('plot')
-  ) : false;
-
-  const isRent = draft.listing_type === 'Rent';
-
-  let reply = `${header}\n\n` +
-    `*Title:* ${draft.title || '❓ _Missing_'}\n`;
-
-  if (isRent) {
-    reply += `*Rent:* ${draft.rent_per_month ? '₹' + draft.rent_per_month.toLocaleString('en-IN') + '/month' : '❓ _Missing_'}\n` +
-             `*Maintenance:* ${draft.maintenance ? '₹' + draft.maintenance.toLocaleString('en-IN') + '/month' : '_Not specified_'}\n` +
-             `*Advance:* ${draft.advance ? '₹' + draft.advance.toLocaleString('en-IN') : '_Not specified_'}\n` +
-             `*GST:* ${draft.gst ? (draft.gst <= 100 ? draft.gst + '%' : '₹' + draft.gst.toLocaleString('en-IN')) : '_Not specified_'}\n`;
-  } else {
-    reply += `*Price:* ${draft.price ? '₹' + draft.price.toLocaleString('en-IN') : '❓ _Missing_'}\n`;
-  }
-
-  reply += `*Location:* ${draft.location || '❓ _Missing_'}\n` +
-    `*Type:* ${draft.type || '❓ _Missing_'}\n` +
-    `*Area:* ${draft.area_sqft ? draft.area_sqft + ' Sq.Ft.' : '_Not specified_'}\n` +
-    (draft.land_area ? `*Land Area:* ${draft.land_area} ${draft.land_area_unit || 'Sq.Ft.'}\n` : '') +
-    (isCommOrLand ? '' : `*Beds/Baths:* ${draft.bedrooms ? draft.bedrooms + ' BHK' : '_Not specified_'} / ${draft.bathrooms ? draft.bathrooms + ' Bath' : '_Not specified_'}\n`);
-
-  if (!isRent && draft.rental_income) {
-    reply += `*Rent:* ₹${draft.rental_income.toLocaleString('en-IN')}/month\n`;
-  }
-  if (!isRent && draft.roi) {
-    reply += `*ROI (Yield):* ${draft.roi}%\n`;
-  }
-  if (draft.google_map_link) {
-    reply += `*Google Map Link:* ${draft.google_map_link}\n`;
-  }
-  if (draft.features && draft.features.length > 0) {
-    reply += `*Amenities:* ${draft.features.join(', ')}\n`;
-  }
-  if (draft.nearby_highlights && draft.nearby_highlights.length > 0) {
-    reply += `*Nearby Highlights:* ${draft.nearby_highlights.join(', ')}\n`;
-  }
-  if (draft.owner_contact_name) {
-    const rolePart = draft.owner_contact_role ? ` [${draft.owner_contact_role}]` : '';
-    const phonePart = draft.owner_contact_phone ? ` (${draft.owner_contact_phone})` : '';
-    reply += `*Listing Owner/Agent:* ${draft.owner_contact_name}${phonePart}${rolePart}\n`;
-  }
-
-  reply += `*Images:* ${draft.images.length} attached\n\n` +
-    (nextStatus === 'awaiting_confirmation'
-      ? "✅ All mandatory fields populated!\n• Use the buttons below to Confirm or Cancel.\n• Send more updates to correct details."
-      : `⚠️ *Still missing:* ${missingFields.join(', ')}.\n• Use the Cancel button below to discard.\n• Reply with details to complete.`);
-
-  return reply;
-}
-
 async function sendPropertyDraftPreview(
   phoneNumberId: string,
   accessToken: string,
@@ -398,38 +294,67 @@ async function sendPropertyDraftPreviewDebounced(
   }
 }
 
-function validateContactDraftsContainer(container: ParsedContactDraftsContainer): { 
-  isValid: boolean; 
-  missingFields: string[];
-  invalidCount: number;
-} {
-  const missingFields: string[] = [];
-  let invalidCount = 0;
-  
-  if (!container.contacts || container.contacts.length === 0) {
-    missingFields.push('No contacts found');
-    return { isValid: false, missingFields, invalidCount: 0 };
-  }
+/**
+ * Data concern kept out of the pure formatter: for each parsed contact
+ * draft, look up whether a contact with the same phone (or, failing
+ * that, name) already exists in this account. Returns an index-aligned
+ * array of WhatsApp-markdown warning strings (`null` when no
+ * duplicate). Per-contact errors are swallowed (logged, treated as no
+ * duplicate) so a lookup failure never blocks the preview.
+ */
+async function computeContactDuplicateWarnings(
+  container: ParsedContactDraftsContainer,
+  accountId: string
+): Promise<(string | null)[]> {
+  const contacts = container.contacts ?? [];
+  return Promise.all(
+    contacts.map(async (draft) => {
+      if (!draft.phone && !draft.name) return null;
+      try {
+        let existingContact = null;
+        let matchType = '';
 
-  container.contacts.forEach((contact, idx) => {
-    const contactMissing: string[] = [];
-    if (!contact.name || contact.name.trim().length === 0) {
-      contactMissing.push(`Contact #${idx + 1} Name`);
-    }
-    if (!contact.phone || contact.phone.trim().length === 0) {
-      contactMissing.push(`Contact #${idx + 1} Phone`);
-    }
-    if (contactMissing.length > 0) {
-      invalidCount++;
-      missingFields.push(...contactMissing);
-    }
-  });
+        if (draft.phone) {
+          const normalized = normalizePhoneWithCountryCode(draft.phone, '91');
+          const cleanPhone = normalized.replace(/\D/g, '');
+          const { data: byPhone } = await supabaseAdmin()
+            .from('contacts')
+            .select('id, name')
+            .eq('account_id', accountId)
+            .or(`phone.eq.${draft.phone},phone.eq.${normalized},phone.eq.${cleanPhone}`)
+            .maybeSingle();
 
-  return {
-    isValid: invalidCount === 0,
-    missingFields,
-    invalidCount
-  };
+          if (byPhone) {
+            existingContact = byPhone;
+            matchType = 'phone';
+          }
+        }
+
+        if (!existingContact && draft.name) {
+          const { data: byName } = await supabaseAdmin()
+            .from('contacts')
+            .select('id, name')
+            .eq('account_id', accountId)
+            .ilike('name', draft.name.trim())
+            .maybeSingle();
+
+          if (byName) {
+            existingContact = byName;
+            matchType = 'name';
+          }
+        }
+
+        if (existingContact) {
+          return matchType === 'phone'
+            ? `\n⚠️ *The contact with phone number ${draft.phone} already exists as "${existingContact.name}". Please type different number and try again.*`
+            : `\n⚠️ *The contact with Name "${draft.name}" already exists. Please type different name and try again.*`;
+        }
+      } catch (err) {
+        console.error('[chatbot-engine] Error checking duplicate contacts:', err);
+      }
+      return null;
+    })
+  );
 }
 
 async function formatContactDraftsContainerPreview(
@@ -439,81 +364,8 @@ async function formatContactDraftsContainerPreview(
   missingFields: string[],
   accountId: string
 ): Promise<string> {
-  let reply = `${header}\n\n`;
-  
-  if (container.contacts && container.contacts.length > 0) {
-    for (let idx = 0; idx < container.contacts.length; idx++) {
-      const draft = container.contacts[idx];
-      let duplicateWarning = '';
-      if (draft.phone || draft.name) {
-        try {
-          let existingContact = null;
-          let matchType = '';
-          
-          if (draft.phone) {
-            const normalized = normalizePhoneWithCountryCode(draft.phone, '91');
-            const cleanPhone = normalized.replace(/\D/g, '');
-            const { data: byPhone } = await supabaseAdmin()
-              .from('contacts')
-              .select('id, name')
-              .eq('account_id', accountId)
-              .or(`phone.eq.${draft.phone},phone.eq.${normalized},phone.eq.${cleanPhone}`)
-              .maybeSingle();
-            
-            if (byPhone) {
-              existingContact = byPhone;
-              matchType = 'phone';
-            }
-          }
-          
-          if (!existingContact && draft.name) {
-            const { data: byName } = await supabaseAdmin()
-              .from('contacts')
-              .select('id, name')
-              .eq('account_id', accountId)
-              .ilike('name', draft.name.trim())
-              .maybeSingle();
-              
-            if (byName) {
-              existingContact = byName;
-              matchType = 'name';
-            }
-          }
-            
-          if (existingContact) {
-            if (matchType === 'phone') {
-              duplicateWarning = `\n⚠️ *The contact with phone number ${draft.phone} already exists as "${existingContact.name}". Please type different number and try again.*`;
-            } else {
-              duplicateWarning = `\n⚠️ *The contact with Name "${draft.name}" already exists. Please type different name and try again.*`;
-            }
-          }
-        } catch (err) {
-          console.error('[chatbot-engine] Error checking duplicate contacts:', err);
-        }
-      }
-
-      reply += `*Contact #${idx + 1}:*\n` +
-        `• *Name:* ${draft.name || '❓ _Missing_'}\n` +
-        `• *Phone:* ${draft.phone || '❓ _Missing_'}\n` +
-        `• *Email:* ${draft.email || '_Not specified_'}\n` +
-        `• *Company:* ${draft.company || '_Not specified_'}\n` +
-        `• *Role/Classification:* ${draft.classification || 'Others'}\n` +
-        (draft.referrer_name ? `• *Referrer:* ${draft.referrer_name}${draft.referrer_phone ? ' (' + draft.referrer_phone + ')' : ''}\n` : '') +
-        `• *Notes:* ${draft.notes || '_No notes_'}\n` +
-        (duplicateWarning ? `${duplicateWarning}\n` : '') +
-        `\n`;
-    }
-  } else {
-    reply += `_No contacts parsed._\n\n`;
-  }
-
-  if (nextStatus === 'awaiting_confirmation') {
-    reply += `✅ All mandatory fields populated for *${container.contacts.length}* contact(s)!\n• Use the buttons below to Confirm or Cancel.\n• Send updates to correct details.`;
-  } else {
-    reply += `⚠️ *Still missing:* ${missingFields.join(', ')}.\n• Use the Cancel button below to discard.\n• Reply with details to complete.`;
-  }
-
-  return reply;
+  const duplicateWarnings = await computeContactDuplicateWarnings(container, accountId);
+  return formatContactDraftsPreview(header, container, nextStatus, missingFields, duplicateWarnings);
 }
 
 async function sendContactDraftPreview(
