@@ -585,8 +585,19 @@ export function PropertyList({
                   onClick={() => onEdit(property)}
                   className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
                 >
-                  <Edit className="size-3.5 mr-1.5" /> Details
+                  <Eye className="size-3.5 mr-1.5" /> Details
                 </Button>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEdit(property)}
+                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                  >
+                    <Edit className="size-3.5 mr-1.5" /> Edit
+                  </Button>
+                )}
                 {canEdit && (
                   <Button
                     type="button"
