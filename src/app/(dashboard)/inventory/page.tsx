@@ -308,7 +308,7 @@ export default function InventoryPage() {
   }, [properties, selectedProperty, flyerProperty, shareProperty]);
 
   // Handle edit click - fetch full property with interested_contacts
-  async function handleEditClick(property: Property) {
+  async function handleViewClick(property: Property) {
     try {
       const response = await fetch(`/api/properties/${property.id}`, {
         cache: 'no-store',
@@ -325,6 +325,27 @@ export default function InventoryPage() {
       // Fallback to list property if detail fetch fails
       setSelectedProperty(property);
       setFormViewOnly(true);
+      setFormOpen(true);
+    }
+  }
+
+  async function handleEditClick(property: Property) {
+    try {
+      const response = await fetch(`/api/properties/${property.id}`, {
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch property details');
+      }
+      const fullProperty = await response.json();
+      setSelectedProperty(fullProperty);
+      setFormViewOnly(false);
+      setFormOpen(true);
+    } catch (err) {
+      console.error('Failed to load property details:', err);
+      // Fallback to list property if detail fetch fails
+      setSelectedProperty(property);
+      setFormViewOnly(false);
       setFormOpen(true);
     }
   }
@@ -647,6 +668,7 @@ export default function InventoryPage() {
       <PropertyList
         properties={properties}
         loading={loading}
+        onView={handleViewClick}
         onEdit={handleEditClick}
         onDelete={handleDeleteClick}
         onTogglePublish={handleTogglePublish}

@@ -36,6 +36,7 @@ const highlightIcons: Record<string, string> = {
 interface PropertyListProps {
   properties: Property[];
   loading: boolean;
+  onView: (property: Property) => void;
   onEdit: (property: Property) => void;
   onDelete: (property: Property) => void;
   onTogglePublish: (property: Property) => Promise<void>;
@@ -50,6 +51,7 @@ interface PropertyListProps {
 export function PropertyList({
   properties,
   loading,
+  onView,
   onEdit,
   onDelete,
   onTogglePublish,
@@ -582,7 +584,7 @@ export function PropertyList({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => onEdit(property)}
+                  onClick={() => onView(property)}
                   className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
                 >
                   <Eye className="size-3.5 mr-1.5" /> Details
