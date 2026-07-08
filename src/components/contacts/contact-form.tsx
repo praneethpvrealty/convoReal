@@ -69,7 +69,7 @@ export function ContactForm({
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
-  const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Others'>('Others');
+  const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
   const [leadTemp, setLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
   const [lastInquiredPropertyId, setLastInquiredPropertyId] = useState<string | null>(null);
   const [referrer, setReferrer] = useState('');
@@ -382,7 +382,7 @@ export function ContactForm({
       }
 
       // Sync properties (only if classification is Buyer/Seller/Agent/Owner)
-      if (contactId && ['Buyer', 'Seller', 'Agent', 'Developer', 'Owner'].includes(classification)) {
+      if (contactId && ['Buyer', 'Seller', 'Agent', 'Developer', 'Owner', 'Owner & Buyer'].includes(classification)) {
         await supabase
           .from('properties')
           .update({ owner_contact_id: null })
@@ -554,7 +554,7 @@ export function ContactForm({
             <select
               id="cf-classification"
               value={classification}
-              onChange={(e) => setClassification(e.target.value as 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Others')}
+              onChange={(e) => setClassification(e.target.value as 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others')}
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
             >
               <option value="Others">Others</option>
@@ -563,6 +563,7 @@ export function ContactForm({
               <option value="Buyer">Buyer</option>
               <option value="Agent">Agent</option>
               <option value="Developer">Developer</option>
+              <option value="Owner & Buyer">Owner & Buyer</option>
             </select>
           </div>
 
@@ -853,7 +854,7 @@ export function ContactForm({
           </div>
 
           {/* Properties Association checklist */}
-          {['Buyer', 'Seller', 'Agent', 'Developer', 'Owner'].includes(classification) && (
+          {['Buyer', 'Seller', 'Agent', 'Developer', 'Owner', 'Owner & Buyer'].includes(classification) && (
             <div className="space-y-2 border-t border-slate-800 pt-4">
               <Label className="text-slate-350">Associated Properties</Label>
               <div className="relative">

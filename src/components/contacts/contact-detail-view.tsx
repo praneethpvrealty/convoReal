@@ -36,6 +36,7 @@ import {
   Users,
   Building,
   Unlink,
+  Link,
   Edit,
   CalendarDays,
   Share2,
@@ -131,7 +132,7 @@ export function ContactDetailView({
       console.error('Failed to load showcase settings:', err);
     }
   }, [supabase]);
-  const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Others'>('Others');
+  const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
   const [editLeadTemp, setEditLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
   const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<string | null>(null);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
@@ -153,6 +154,7 @@ export function ContactDetailView({
   const [loadingProperties, setLoadingProperties] = useState(false);
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
   const [selectedPropertyForEdit, setSelectedPropertyForEdit] = useState<Property | null>(null);
+  const [linkExistingOpen, setLinkExistingOpen] = useState(false);
 
   // Shared properties via WhatsApp
   const [sharedProperties, setSharedProperties] = useState<Array<Property & { sharedAt: string }>>([]);
@@ -385,6 +387,25 @@ export function ContactDetailView({
     } catch (err) {
       console.error('Failed to unlink property:', err);
       toast.error('Failed to unlink property');
+    }
+  }
+
+  async function handleLinkExistingProperty(propertyId: string | null) {
+    if (!propertyId || !contactId) return;
+    try {
+      const { error } = await supabase
+        .from('properties')
+        .update({ owner_contact_id: contactId })
+        .eq('id', propertyId);
+
+      if (error) throw error;
+      toast.success('Property linked to contact');
+      setLinkExistingOpen(false);
+      fetchAssociatedProperties();
+      onUpdated();
+    } catch (err) {
+      console.error('Failed to link existing property:', err);
+      toast.error('Failed to link property');
     }
   }
 
@@ -1345,7 +1366,7 @@ export function ContactDetailView({
                     Preferences
                   </TabsTrigger>
                 )}
-                {['Owner', 'Seller', 'Agent', 'Developer', 'Buyer'].includes(editClassification) && (
+                {['Owner', 'Seller', 'Agent', 'Developer', 'Buyer', 'Owner & Buyer'].includes(editClassification) && (
                   <TabsTrigger
                     value="properties"
                     className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
@@ -1478,7 +1499,7 @@ export function ContactDetailView({
                     <Label className="text-slate-400 text-xs">Classification</Label>
                     <select
                       value={editClassification}
-                      onChange={(e) => setEditClassification(e.target.value as 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Others')}
+                      onChange={(e) => setEditClassification(e.target.value as 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others')}
                       className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none"
                     >
                       <option value="Others">Others</option>
@@ -1487,6 +1508,7 @@ export function ContactDetailView({
                       <option value="Buyer">Buyer</option>
                       <option value="Agent">Agent</option>
                       <option value="Developer">Developer</option>
+                      <option value="Owner & Buyer">Owner & Buyer</option>
                     </select>
                   </div>
 
@@ -1524,15 +1546,17 @@ export function ContactDetailView({
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Shown Interest / Inquired Property</Label>
-                    <SearchablePropertySelect
-                      properties={allProperties}
-                      value={editLastInquiredPropertyId}
-                      onChange={setEditLastInquiredPropertyId}
-                      placeholder="Select inquired property..."
-                    />
-                  </div>
+                  {editClassification !== 'Owner' && (
+                    <div className="space-y-1.5">
+                      <Label className="text-slate-400 text-xs">Shown Interest / Inquired Property</Label>
+                      <SearchablePropertySelect
+                        properties={allProperties}
+                        value={editLastInquiredPropertyId}
+                        onChange={setEditLastInquiredPropertyId}
+                        placeholder="Select inquired property..."
+                      />
+                    </div>
+                  )}
                   {editClassification === 'Agent' && (
                     <div className="space-y-1.5">
                       <Label className="text-slate-400 text-xs">Agent Requirements</Label>
@@ -1797,12 +1821,12 @@ export function ContactDetailView({
                 </TabsContent>
               )}
 
-              {/* Properties Tab (Owner / Seller / Agent / Buyer) */}
-              {['Owner', 'Seller', 'Agent', 'Developer', 'Buyer'].includes(editClassification) && (
+              {/* Properties Tab (Owner / Seller / Agent / Buyer / Owner & Buyer) */}
+              {['Owner', 'Seller', 'Agent', 'Developer', 'Buyer', 'Owner & Buyer'].includes(editClassification) && (
                 <TabsContent value="properties" className="flex-1 min-h-0 h-full">
                 <div className="h-full flex flex-col px-4 py-3 min-h-0">
-                  {['Buyer', 'Agent'].includes(editClassification) ? (
-                    // Shown Interest Properties Layout
+                  {['Buyer', 'Agent', 'Owner & Buyer'].includes(editClassification) ? (
+                    // Shown Interest Properties Layout (also shown for Owner & Buyer)
                     <div className="flex flex-col flex-1 min-h-0">
                       <div className="flex flex-col gap-1.5 shrink-0 mb-4 bg-slate-900/40 border border-slate-800 rounded-lg p-3">
                         <Label htmlFor="detail-interest-property" className="text-xs font-semibold text-slate-350">
@@ -1937,23 +1961,51 @@ export function ContactDetailView({
                         </div>
                       </div>
                     </div>
-                  ) : (
-                    // Managed Properties Layout (for Owner / Seller)
+                  ) : null}
+                  {['Owner', 'Seller', 'Developer', 'Owner & Buyer'].includes(editClassification) && (
+                    // Managed Properties Layout (for Owner / Seller / Developer / Owner & Buyer)
                     <div className="flex flex-col flex-1 min-h-0">
                       <div className="flex items-center justify-between mb-3 shrink-0">
                         <h4 className="text-xs font-semibold text-slate-300">Managed Properties</h4>
-                        <Button
-                          size="sm"
-                          onClick={() => {
-                            setSelectedPropertyForEdit(null);
-                            setPropertyFormOpen(true);
-                          }}
-                          className="bg-primary hover:bg-primary/90 text-primary-foreground h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="size-3" />
-                          Add Property
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setLinkExistingOpen(!linkExistingOpen)}
+                            className="border-slate-700 text-slate-300 hover:bg-slate-800 h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Link className="size-3" />
+                            Link Existing
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setSelectedPropertyForEdit(null);
+                              setPropertyFormOpen(true);
+                            }}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground h-7 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="size-3" />
+                            Add Property
+                          </Button>
+                        </div>
                       </div>
+
+                      {linkExistingOpen && (
+                        <div className="mb-3 bg-slate-900/40 border border-slate-800 rounded-lg p-3 space-y-1.5 shrink-0">
+                          <Label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                            Link an existing property to this contact
+                          </Label>
+                          <SearchablePropertySelect
+                            properties={allProperties.filter(
+                              (p) => !associatedProperties.some((ap) => ap.id === p.id)
+                            )}
+                            value={null}
+                            onChange={handleLinkExistingProperty}
+                            placeholder="Search properties to link..."
+                          />
+                        </div>
+                      )}
 
                       <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
                         {loadingProperties ? (

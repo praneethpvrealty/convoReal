@@ -1723,7 +1723,7 @@ const PROPERTY_UPDATABLE_FIELDS: UpdateField[] = [
 const CONTACT_UPDATABLE_FIELDS: UpdateField[] = [
   { name: 'name', label: 'Name', type: 'text' },
   { name: 'email', label: 'Email', type: 'text' },
-  { name: 'classification', label: 'Classification', type: 'select', options: ['Buyer', 'Seller', 'Agent', 'Owner', 'Tenant'] },
+  { name: 'classification', label: 'Classification', type: 'select', options: ['Buyer', 'Seller', 'Agent', 'Owner', 'Owner & Buyer', 'Developer', 'Others'] },
   { name: 'budget_min', label: 'Budget Min (INR)', type: 'number' },
   { name: 'budget_max', label: 'Budget Max (INR)', type: 'number' },
   { name: 'preferred_location', label: 'Preferred Location', type: 'text' },

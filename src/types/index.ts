@@ -114,7 +114,7 @@ export interface Contact {
   name?: string;
   email?: string;
   company?: string;
-  classification?: 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Others';
+  classification?: 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others';
   avatar_url?: string;
   min_budget?: number;
   max_budget?: number;

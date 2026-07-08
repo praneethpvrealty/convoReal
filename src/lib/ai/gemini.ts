@@ -617,7 +617,7 @@ export interface ParsedContactDraft {
   phone: string | null;
   email: string | null;
   company: string | null;
-  classification: "Owner" | "Seller" | "Buyer" | "Agent" | "Developer" | "Others";
+  classification: "Owner" | "Seller" | "Buyer" | "Agent" | "Developer" | "Owner & Buyer" | "Others";
   notes: string | null;
   referrer_name: string | null;
   referrer_phone: string | null;
@@ -627,7 +627,7 @@ export interface ParsedContactDraftsContainer {
   contacts: ParsedContactDraft[];
 }
 
-export function normalizeClassification(val?: string | null): "Owner" | "Seller" | "Buyer" | "Agent" | "Developer" | "Others" {
+export function normalizeClassification(val?: string | null): "Owner" | "Seller" | "Buyer" | "Agent" | "Developer" | "Owner & Buyer" | "Others" {
   if (!val) return "Others";
   const norm = val.trim().toLowerCase();
   if (norm === "owner") return "Owner";
@@ -635,6 +635,7 @@ export function normalizeClassification(val?: string | null): "Owner" | "Seller"
   if (norm === "buyer") return "Buyer";
   if (norm === "agent") return "Agent";
   if (norm === "developer") return "Developer";
+  if (norm === "owner & buyer" || norm === "owner and buyer" || norm === "ownerbuyer") return "Owner & Buyer";
   return "Others";
 }
 
