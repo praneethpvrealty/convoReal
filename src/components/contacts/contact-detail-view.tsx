@@ -145,6 +145,7 @@ export function ContactDetailView({
   const [inquiredProperty, setInquiredProperty] = useState<Property | null>(null);
   const [inquiredProperties, setInquiredProperties] = useState<Property[]>([]);
   const [sendDetailsOnApprove, setSendDetailsOnApprove] = useState(true);
+  const [propertyMessageStatus, setPropertyMessageStatus] = useState<Record<string, { sent: boolean; responded: boolean; lastSentAt: string | null }>>({});
 
   // Requirements for Agent/Owner/Seller/etc
   const [editRequirements, setEditRequirements] = useState('');
@@ -307,6 +308,72 @@ export function ContactDetailView({
     }
     setLoadingProperties(false);
   }, [contactId, supabase]);
+
+  const fetchPropertyMessageStatus = useCallback(async () => {
+    if (!contactId || inquiredProperties.length === 0) return;
+
+    // Fetch all messages in conversations with this contact
+    const { data: conversations } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', contactId);
+
+    if (!conversations || conversations.length === 0) {
+      setPropertyMessageStatus({});
+      return;
+    }
+
+    const conversationIds = conversations.map(c => c.id);
+    const { data: messages } = await supabase
+      .from('messages')
+      .select('content_text, sender_type, created_at')
+      .in('conversation_id', conversationIds)
+      .order('created_at', { ascending: true });
+
+    if (!messages || messages.length === 0) {
+      setPropertyMessageStatus({});
+      return;
+    }
+
+    // Build status map for each property
+    const statusMap: Record<string, { sent: boolean; responded: boolean; lastSentAt: string | null }> = {};
+
+    inquiredProperties.forEach(prop => {
+      const searchTerms = [
+        prop.title?.toLowerCase(),
+        prop.property_code?.toLowerCase(),
+        prop.location?.toLowerCase()
+      ].filter(Boolean);
+
+      let lastSentAt: string | null = null;
+      let hasResponse = false;
+
+      messages.forEach((msg, idx) => {
+        const content = (msg.content_text || '').toLowerCase();
+        const isPropertyMentioned = searchTerms.some(term => term && content.includes(term));
+
+        if (isPropertyMentioned && msg.sender_type === 'agent') {
+          lastSentAt = msg.created_at;
+          // Check if there's any inbound message after this outbound message
+          const laterMessages = messages.slice(idx + 1);
+          hasResponse = laterMessages.some(m => m.sender_type === 'customer');
+        }
+      });
+
+      statusMap[prop.id] = {
+        sent: lastSentAt !== null,
+        responded: hasResponse,
+        lastSentAt
+      };
+    });
+
+    setPropertyMessageStatus(statusMap);
+  }, [contactId, inquiredProperties, supabase]);
+
+  // Fetch message status when inquired properties change
+  useEffect(() => {
+    fetchPropertyMessageStatus();
+  }, [fetchPropertyMessageStatus]);
 
   const fetchSharedProperties = useCallback(async () => {
     if (!contactId || allProperties.length === 0) return;
@@ -1882,6 +1949,16 @@ export function ContactDetailView({
                                       <span className="text-[9px] px-1.5 py-0.2 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase font-semibold">
                                         {prop.status}
                                       </span>
+                                      {propertyMessageStatus[prop.id]?.sent && (
+                                        <span className="text-[9px] px-1.5 py-0.2 bg-blue-500/10 border border-blue-500/25 text-blue-400 rounded font-semibold">
+                                          Sent {propertyMessageStatus[prop.id].lastSentAt && new Date(propertyMessageStatus[prop.id].lastSentAt!).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                        </span>
+                                      )}
+                                      {propertyMessageStatus[prop.id]?.responded && (
+                                        <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded font-semibold">
+                                          Responded
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
