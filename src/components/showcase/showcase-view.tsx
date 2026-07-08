@@ -33,6 +33,7 @@ import { BRANDING } from '@/config/branding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
 
 const trackPixelEvent = (
   eventName: string,
@@ -1893,6 +1894,17 @@ export function ShowcaseView({
                     </div>
                   </div>
                 )}
+
+                {/* Ask about this property — AI Q&A funnel */}
+                <AskPropertyChat
+                  accountId={accountId}
+                  propertyId={selectedProperty.id}
+                  propertyTitle={selectedProperty.title}
+                  whatsappLink={getWhatsAppLink(selectedProperty)}
+                  prefillName={inquiryName}
+                  prefillPhone={inquiryPhone}
+                  onWhatsAppClick={() => trackWhatsAppInquiry(selectedProperty)}
+                />
 
                 {/* Quick Feedback Bar inside Modal — hidden in agent mode */}
                 {!isAgentMode && (
