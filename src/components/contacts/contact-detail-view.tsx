@@ -48,6 +48,7 @@ import {
 import { getCurrencyIcon } from '@/lib/currency-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
+import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
@@ -106,6 +107,7 @@ export function ContactDetailView({
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [logShareOpen, setLogShareOpen] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -1302,6 +1304,13 @@ export function ContactDetailView({
                     >
                       <CalendarDays className="size-3 text-primary" />
                       Schedule
+                    </button>
+                    <button
+                      onClick={() => setLogShareOpen(true)}
+                      className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                    >
+                      <Share2 className="size-3 text-amber-400" />
+                      Log Share
                     </button>
                     {contact.email && (
                       <span className="flex items-center gap-1">
@@ -2600,6 +2609,23 @@ export function ContactDetailView({
                 onOpenChange={setShareOpen}
                 property={inquiredProperty}
                 preSelectedContactId={contactId || undefined}
+              />
+            )}
+
+            {/* Log External Share Dialog */}
+            {contactId && contact && (
+              <LogExternalShareDialog
+                open={logShareOpen}
+                onOpenChange={setLogShareOpen}
+                contactId={contactId}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
+                properties={allProperties}
+                onSaved={() => {
+                  fetchContact();
+                  fetchNotes();
+                  onUpdated();
+                }}
               />
             )}
           </div>

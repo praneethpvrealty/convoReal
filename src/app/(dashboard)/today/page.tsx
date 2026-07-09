@@ -12,6 +12,7 @@ import {
   MessageSquare,
   MessagesSquare,
   RefreshCw,
+  Smartphone,
   Timer,
 } from 'lucide-react'
 
@@ -106,7 +107,7 @@ function classificationBadge(c: Contact | null) {
 
 export default function TodayPage() {
   const router = useRouter()
-  const { accountId } = useAuth()
+  const { user, accountId } = useAuth()
 
   const [expiring, setExpiring] = useState<ExpiringSessionItem[] | null>(null)
   const [expiringLoading, setExpiringLoading] = useState(true)
@@ -220,6 +221,41 @@ export default function TodayPage() {
       // No thread yet — fall back to WhatsApp directly.
       window.open(`https://wa.me/${contact.phone.replace(/\D/g, '')}`, '_blank')
     }
+  }
+
+  /** Open native WhatsApp, mark contacted, and log a note in one click. */
+  const handleWhatsAppDirect = async (contact: Contact) => {
+    // 1. Open WhatsApp immediately (must be synchronous for popup blocker)
+    window.open(`https://wa.me/${contact.phone.replace(/\D/g, '')}`, '_blank')
+
+    // 2. Mark contacted + log note in the background
+    const db = createClient()
+    const now = new Date().toISOString()
+
+    const [contactRes, noteRes] = await Promise.allSettled([
+      db
+        .from('contacts')
+        .update({ last_contacted_at: now })
+        .eq('id', contact.id),
+      db
+        .from('contact_notes')
+        .insert({
+          contact_id: contact.id,
+          user_id: user?.id,
+          account_id: accountId,
+          note_text: '📱 Contacted via personal WhatsApp',
+        }),
+    ])
+
+    const contactErr = contactRes.status === 'fulfilled' ? contactRes.value.error : contactRes.reason
+    const noteErr = noteRes.status === 'fulfilled' ? noteRes.value.error : noteRes.reason
+
+    if (contactErr) console.error('[today] whatsapp mark contacted failed:', contactErr)
+    if (noteErr) console.error('[today] whatsapp note insert failed:', noteErr)
+
+    // 3. Optimistically remove the card
+    setHotLeads((prev) => (prev ? prev.filter((l) => l.contact.id !== contact.id) : prev))
+    toast.success(`Opened WhatsApp for ${contact.name || contact.phone}`)
   }
 
   const completeAgendaItem = (kind: 'appointment' | 'todo', item: AgendaAppointment | AgendaTodo) => {
@@ -436,6 +472,14 @@ export default function TodayPage() {
                     >
                       <MessageSquare className="size-3.5" />
                       Open chat
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => void handleWhatsAppDirect(contact)}
+                      className="text-xs font-bold rounded-xl cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      <Smartphone className="size-3.5" />
+                      WhatsApp
                     </Button>
                     <Button
                       variant="ghost"
