@@ -12,8 +12,10 @@ export interface PlanConfig {
   name: string;
   tagline: string;
   monthlyPrice: number;   // INR, monthly billing
+  quarterlyPrice: number;  // INR, quarterly billing (total for 3 months)
   annualPrice: number;    // INR, annual billing (total for 12 months)
   annualMonthlyEquiv: number; // annual / 12 for display
+  quarterlyMonthlyEquiv: number; // quarterly / 3 for display
   maxUsers: number;
   maxContacts: number;
   maxProperties: number;
@@ -29,25 +31,28 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     name: 'Starter',
     tagline: 'Try it free',
     monthlyPrice: 0,
+    quarterlyPrice: 0,
     annualPrice: 0,
     annualMonthlyEquiv: 0,
+    quarterlyMonthlyEquiv: 0,
     maxUsers: 1,
-    maxContacts: 50,
-    maxProperties: 10,
+    maxContacts: 150,
+    maxProperties: 50,
     maxBroadcastsPerMonth: 0,
     features: [
       '1 user',
-      '50 contacts',
-      '10 properties',
+      '150 contacts',
+      '50 properties',
       'WhatsApp inbox',
       'Basic showcase page',
+      '100 monthly AI credits',
     ],
     notIncluded: [
-      'AI features',
       'Broadcasts',
       'Automations & Flows',
       'Team features',
       'Branded showcase',
+      'Custom subdomain',
     ],
     highlighted: false,
   },
@@ -56,16 +61,17 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     name: 'Solo Pro',
     tagline: 'For individual agents',
     monthlyPrice: 799,
+    quarterlyPrice: 2199,
     annualPrice: 7990,
     annualMonthlyEquiv: 666,
+    quarterlyMonthlyEquiv: 733,
     maxUsers: 1,
     maxContacts: 999999,
     maxProperties: 999999,
     maxBroadcastsPerMonth: 500,
     features: [
       '1 user',
-      'Unlimited contacts',
-      'Unlimited properties',
+      'Unlimited contacts & properties',
       'WhatsApp inbox',
       'Branded showcase (logo & colors)',
       'AI description, chatbot & images',
@@ -79,6 +85,7 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
       'Smart inbound routing',
       'Multi-number WhatsApp',
       'API access',
+      'Custom subdomain',
     ],
     highlighted: false,
   },
@@ -87,8 +94,10 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     name: 'Team',
     tagline: 'For small brokerages',
     monthlyPrice: 2499,
+    quarterlyPrice: 6899,
     annualPrice: 24990,
     annualMonthlyEquiv: 2083,
+    quarterlyMonthlyEquiv: 2300,
     maxUsers: 10,
     maxContacts: 999999,
     maxProperties: 999999,
@@ -107,6 +116,7 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
       'Multi-number WhatsApp',
       'Org-wide analytics',
       'API access',
+      'Custom subdomain',
     ],
     highlighted: true,
   },
@@ -115,21 +125,24 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     name: 'Agency',
     tagline: 'For established agencies',
     monthlyPrice: 5999,
+    quarterlyPrice: 16499,
     annualPrice: 59990,
     annualMonthlyEquiv: 4999,
+    quarterlyMonthlyEquiv: 5500,
     maxUsers: 999999,
     maxContacts: 999999,
     maxProperties: 999999,
-    maxBroadcastsPerMonth: 999999,
+    maxBroadcastsPerMonth: 5000,
     features: [
       'Unlimited users',
-      'Unlimited everything',
+      'Unlimited contacts & properties',
       'Everything in Team',
       'Multi-number WhatsApp (per team)',
       'Full routing rules',
       'Org-wide analytics',
       'API access & outbound webhooks',
       'Custom subdomain showcase',
+      '5,000 broadcasts/month',
       'Priority support (24h SLA)',
       'White-label add-on available',
     ],
@@ -154,7 +167,9 @@ export function isDowngrade(from: Plan, to: Plan): boolean {
 
 export function getPlanPrice(plan: Plan, cycle: BillingCycle): number {
   const config = PLAN_CONFIG[plan];
-  return cycle === 'annual' ? config.annualPrice : config.monthlyPrice * (cycle === 'monthly' ? 1 : 1);
+  if (cycle === 'annual') return config.annualPrice;
+  if (cycle === 'quarterly') return config.quarterlyPrice;
+  return config.monthlyPrice;
 }
 
 /** Upgrade required to unlock a feature, starting from current plan */

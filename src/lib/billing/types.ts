@@ -4,7 +4,7 @@
 // ============================================================
 
 export type Plan = 'starter' | 'solo_pro' | 'team' | 'agency';
-export type BillingCycle = 'monthly' | 'annual';
+export type BillingCycle = 'monthly' | 'quarterly' | 'annual';
 export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled' | 'grace_period';
 export type BillingGateway = 'razorpay' | 'stripe';
 

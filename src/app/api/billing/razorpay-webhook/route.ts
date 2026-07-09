@@ -86,7 +86,7 @@ function isPaidPlan(plan: string): plan is SubscriptionPlanForCredits {
 
 function planFromRazorpayPlanId(rzPlanId: string): Plan | null {
   const plans: Plan[] = ['solo_pro', 'team', 'agency'];
-  const cycles = ['monthly', 'annual'];
+  const cycles = ['monthly', 'quarterly', 'annual'];
   for (const plan of plans) {
     for (const cycle of cycles) {
       const key = `RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`;
@@ -98,12 +98,12 @@ function planFromRazorpayPlanId(rzPlanId: string): Plan | null {
 
 // Same env-var convention as planFromRazorpayPlanId — the billing
 // cycle isn't a field on the Razorpay subscription entity itself,
-// it's implied by which RAZORPAY_PLAN_*_{MONTHLY|ANNUAL} env var
+// it's implied by which RAZORPAY_PLAN_*_{MONTHLY|QUARTERLY|ANNUAL} env var
 // matches this plan_id. Defaults to 'monthly' (0% commitment bonus)
 // when unmatched, so an unrecognized plan_id never over-grants.
-function cycleFromRazorpayPlanId(rzPlanId: string): 'monthly' | 'annual' {
+function cycleFromRazorpayPlanId(rzPlanId: string): 'monthly' | 'quarterly' | 'annual' {
   const plans: Plan[] = ['solo_pro', 'team', 'agency'];
-  const cycles: ('monthly' | 'annual')[] = ['monthly', 'annual'];
+  const cycles: ('monthly' | 'quarterly' | 'annual')[] = ['monthly', 'quarterly', 'annual'];
   for (const plan of plans) {
     for (const cycle of cycles) {
       const key = `RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`;
@@ -230,7 +230,8 @@ export async function POST(request: NextRequest) {
       // the design doc might suggest.
       if (isPaidPlan(newPlan)) {
         const cycle = cycleFromRazorpayPlanId(rzPlanId);
-        await grantSubscriptionCredits(account_id, newPlan, cycle, { isNewCycle: true, periodEnd }).catch((err) =>
+        const creditCycle = cycle === 'quarterly' ? '3month' : cycle;
+        await grantSubscriptionCredits(account_id, newPlan, creditCycle, { isNewCycle: true, periodEnd }).catch((err) =>
           console.error('[razorpay-webhook] grantSubscriptionCredits failed:', err),
         );
         await processReferralConversion(account_id, newPlan).catch((err) =>
@@ -260,7 +261,8 @@ export async function POST(request: NextRequest) {
 
       if (isPaidPlan(currentPlan)) {
         const cycle = cycleFromRazorpayPlanId(String(sub.plan_id ?? ''));
-        await grantSubscriptionCredits(account_id, currentPlan, cycle, { isNewCycle: true, periodEnd }).catch((err) =>
+        const creditCycle = cycle === 'quarterly' ? '3month' : cycle;
+        await grantSubscriptionCredits(account_id, currentPlan, creditCycle, { isNewCycle: true, periodEnd }).catch((err) =>
           console.error('[razorpay-webhook] grantSubscriptionCredits failed:', err),
         );
       }

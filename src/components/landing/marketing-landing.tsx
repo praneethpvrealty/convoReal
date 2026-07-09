@@ -863,11 +863,11 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
               {MARKETING_CONFIG.pricing.map((plan, idx) => (
                 <div 
                   key={idx} 
-                  className={`bg-slate-950 rounded-2xl p-8 flex flex-col gap-6 relative shadow-lg ${
+                  className={`bg-slate-950 rounded-2xl p-6 flex flex-col gap-6 relative shadow-lg ${
                     plan.isPopular ? 'border-2 border-indigo-600 shadow-2xl shadow-indigo-600/5' : 'border border-slate-900'
                   }`}
                 >
@@ -885,14 +885,14 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                     <span className="text-xs text-slate-400">/ {plan.period}</span>
                   </div>
                   <Button
-                    onClick={() => window.location.href = plan.name === 'Enterprise' ? 'mailto:hello@convoreal.com' : '/signup'}
+                    onClick={() => window.location.href = '/signup'}
                     className={`w-full font-bold py-3.5 rounded-xl transition-all cursor-pointer ${
                       plan.isPopular 
                         ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/25'
                         : 'border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200'
                     }`}
                   >
-                    {plan.name === 'Enterprise' ? 'Contact Sales' : 'Start Free Trial'}
+                    {plan.price === '₹0' ? 'Get Started' : 'Start Free Trial'}
                   </Button>
                   <ul className="space-y-3.5 text-xs text-slate-350 border-t border-slate-900 pt-6">
                     {plan.features.map((feat, fidx) => (

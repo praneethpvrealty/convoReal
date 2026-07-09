@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     }
 
     const priceConfig = PLAN_CONFIG[plan];
-    const totalCount = cycle === 'annual' ? 1 : 120; // 120 months max (10 years)
+    const totalCount = cycle === 'annual' ? 10 : cycle === 'quarterly' ? 40 : 120; // Up to 10 years of renewals
 
     // Create Razorpay subscription via REST API
     const credentials = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');

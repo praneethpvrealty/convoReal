@@ -75,7 +75,11 @@ function PlanCard({
   const config = PLAN_CONFIG[plan];
   const isCurrent = plan === currentPlan;
   const upgrading = isUpgrade(currentPlan, plan);
-  const price = cycle === 'annual' ? config.annualMonthlyEquiv : config.monthlyPrice;
+  const price = cycle === 'annual'
+    ? config.annualMonthlyEquiv
+    : cycle === 'quarterly'
+    ? config.quarterlyMonthlyEquiv
+    : config.monthlyPrice;
 
   return (
     <div
@@ -111,8 +115,12 @@ function PlanCard({
             <>
               <span className="text-2xl font-bold">{formatINR(price)}</span>
               <span className="text-xs text-muted-foreground">/mo</span>
+              <div className="text-[10px] text-muted-foreground mt-0.5">+ 18% GST</div>
               {cycle === 'annual' && (
                 <div className="text-xs text-emerald-600 font-medium">Billed annually</div>
+              )}
+              {cycle === 'quarterly' && (
+                <div className="text-xs text-emerald-600 font-medium">Billed quarterly</div>
               )}
             </>
           )}
@@ -333,6 +341,17 @@ export function BillingTab() {
           Monthly
         </button>
         <button
+          onClick={() => setCycle('quarterly')}
+          className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
+            cycle === 'quarterly' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Quarterly
+          <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded">
+            Save 8%
+          </span>
+        </button>
+        <button
           onClick={() => setCycle('annual')}
           className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
             cycle === 'annual' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
@@ -340,7 +359,7 @@ export function BillingTab() {
         >
           Annual
           <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded">
-            Save 17%
+            2 months free
           </span>
         </button>
       </div>
@@ -454,7 +473,13 @@ export function BillingTab() {
               {isProcessing
                 ? 'Processing…'
                 : selectedIsUpgrade
-                ? `Upgrade — ${formatINR(cycle === 'annual' ? (selectedConfig?.annualPrice ?? 0) : (selectedConfig?.monthlyPrice ?? 0))}`
+                ? `Upgrade — ${formatINR(
+                    cycle === 'annual'
+                      ? (selectedConfig?.annualPrice ?? 0)
+                      : cycle === 'quarterly'
+                      ? (selectedConfig?.quarterlyPrice ?? 0)
+                      : (selectedConfig?.monthlyPrice ?? 0)
+                  )}`
                 : 'Confirm change'}
             </Button>
           </DialogFooter>
