@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -38,17 +38,19 @@ export function LogExternalShareDialog({
   onSaved,
 }: LogExternalShareDialogProps) {
   const supabase = createClient();
-  const { user, accountId } = useAuth();
+  const { user, accountId, profile } = useAuth();
 
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  const [sharingMedia, setSharingMedia] = useState(false);
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
       setSelectedPropertyId(null);
       setNote('');
+      setSharingMedia(false);
     }
   }, [open]);
 
@@ -57,7 +59,50 @@ export function LogExternalShareDialog({
     return properties.find((p) => p.id === selectedPropertyId) || null;
   }, [selectedPropertyId, properties]);
 
-  async function handleSubmit() {
+  // Generate shareable message based on property details
+  const generateShareMessage = useCallback(() => {
+    if (!selectedProperty) return '';
+
+    const showcaseUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/?property_id=${selectedProperty.id}`
+      : `/?property_id=${selectedProperty.id}`;
+
+    const title = selectedProperty.title || 'this property';
+
+    // Price Formatter
+    const amount = Number(selectedProperty.price);
+    let price = 'Price on request';
+    if (!isNaN(amount) && amount > 0) {
+      if (amount >= 10000000) {
+        const cr = amount / 10000000;
+        price = `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
+      } else if (amount >= 100000) {
+        const lakhs = amount / 100000;
+        price = `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
+      } else {
+        price = new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          maximumFractionDigits: 0,
+        }).format(amount);
+      }
+    }
+
+    const location = [selectedProperty.sublocality, selectedProperty.city, selectedProperty.state].filter(Boolean).join(', ') || selectedProperty.location || '';
+    const type = selectedProperty.type || '';
+    const beds = selectedProperty.bedrooms ? `${selectedProperty.bedrooms} BHK` : '';
+    const area = selectedProperty.area_sqft ? `${selectedProperty.area_sqft} ${selectedProperty.area_unit || 'Sq.Ft.'}` : '';
+    const agentName = profile?.full_name || '';
+    const agentPhone = profile?.phone || '';
+    const signOff = agentName ? `Best regards, ${agentName}` : 'Best regards';
+    const signOffWithPhone = agentPhone ? `${signOff}\n${agentPhone}` : signOff;
+
+    const details = [beds, type, area, location].filter(Boolean).join(' | ');
+
+    return `Hi,\n\nI wanted to share a property listing that might interest you:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nFor complete details, photos, and location map, please visit:\n${showcaseUrl}\n\nFeel free to reach out if you have any questions.\n\n${signOffWithPhone}`;
+  }, [selectedProperty, profile]);
+
+  async function handleSubmit(shareMethod?: 'whatsapp' | 'device') {
     if (!contactId || !user || !accountId) {
       toast.error('Auth context missing');
       return;
@@ -71,8 +116,15 @@ export function LogExternalShareDialog({
       const propertyLabel = selectedProperty
         ? `${selectedProperty.property_code ? `[${selectedProperty.property_code}] ` : ''}${selectedProperty.title}`
         : null;
+
+      const methodLabel = shareMethod === 'device'
+        ? '📱 Shared via device sharing (with image)'
+        : shareMethod === 'whatsapp'
+        ? '📱 Shared via personal WhatsApp'
+        : '📱 Shared via external channel';
+
       const noteLines = [
-        '📱 Shared via personal WhatsApp',
+        methodLabel,
         propertyLabel ? `🏠 Property: ${propertyLabel}` : null,
         note.trim() ? `📝 ${note.trim()}` : null,
       ]
@@ -130,14 +182,67 @@ export function LogExternalShareDialog({
     }
   }
 
-  /** Open + log in one shot: opens wa.me, then saves the log. */
+  /** Open + log in one shot: opens wa.me with prefilled message if selected, then saves the log. */
   async function handleOpenAndLog() {
+    let url = `https://wa.me/${contactPhone.replace(/\D/g, '')}`;
+    if (selectedProperty) {
+      const message = generateShareMessage();
+      url += `?text=${encodeURIComponent(message)}`;
+    }
+
     // Open WhatsApp immediately (synchronous for popup-blocker safety)
-    window.open(
-      `https://wa.me/${contactPhone.replace(/\D/g, '')}`,
-      '_blank',
-    );
-    await handleSubmit();
+    window.open(url, '_blank');
+    await handleSubmit('whatsapp');
+  }
+
+  /** Shares the property details with images and showcase link using navigator.share and logs it. */
+  async function handleNativeShareAndLog() {
+    if (!selectedProperty) return;
+    setSharingMedia(true);
+
+    try {
+      const message = generateShareMessage();
+      const shareData: ShareData = {
+        title: selectedProperty.title || 'Property Details',
+        text: message,
+      };
+
+      // Try to attach the property thumbnail image if available
+      const imageUrl = selectedProperty.images?.find((img) => img.trim().length > 0);
+      if (imageUrl && typeof navigator !== 'undefined' && 'canShare' in navigator) {
+        try {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const sanitizedTitle = (selectedProperty.title || 'property')
+            .replace(/[^a-zA-Z0-9\s_-]/g, '')
+            .trim()
+            .replace(/\s+/g, '_')
+            .slice(0, 50);
+          const file = new File([blob], `${sanitizedTitle || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
+          if (navigator.canShare({ files: [file] })) {
+            shareData.files = [file];
+          }
+        } catch (e) {
+          console.error('Failed to load sharing image, using text only', e);
+        }
+      }
+
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback: copy to clipboard
+        await navigator.clipboard.writeText(message);
+        toast.success('Message + Link copied to clipboard!');
+      }
+
+      await handleSubmit('device');
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        toast.error(err.message || 'Failed to share');
+      }
+    } finally {
+      setSharingMedia(false);
+    }
   }
 
   return (
@@ -146,7 +251,7 @@ export function LogExternalShareDialog({
         <DialogHeader className="border-b border-slate-800 pb-3 mb-1">
           <DialogTitle className="text-white flex items-center gap-2 text-base font-black tracking-tight">
             <Share2 className="size-4 text-primary" />
-            Log External Share
+            Share Property Listing
           </DialogTitle>
           <DialogDescription className="text-slate-400 text-xs">
             Record that you shared a property with{' '}
@@ -218,7 +323,11 @@ export function LogExternalShareDialog({
               <li className="flex items-center gap-1.5">
                 <span className="size-1 rounded-full bg-amber-400 shrink-0" />
                 <span>
-                  Add note: <span className="text-white font-medium">&quot;Shared via personal WhatsApp&quot;</span>
+                  Add note: <span className="text-white font-medium">
+                    {selectedProperty
+                      ? '"Shared via device sharing / WhatsApp"'
+                      : '"Shared via personal WhatsApp"'}
+                  </span>
                 </span>
               </li>
             </ul>
@@ -226,32 +335,48 @@ export function LogExternalShareDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-1 border-t border-slate-800">
-          <Button
-            onClick={handleOpenAndLog}
-            disabled={saving}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 rounded-xl"
-          >
-            {saving ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <ExternalLink className="size-3.5" />
-            )}
-            Open WhatsApp &amp; Log
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={saving}
-            variant="outline"
-            className="flex-1 border-slate-700 text-white hover:bg-slate-800 font-bold text-xs h-9 rounded-xl"
-          >
-            {saving ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              <Smartphone className="size-3.5" />
-            )}
-            Log Only
-          </Button>
+        <div className="flex flex-col gap-2 pt-2 border-t border-slate-800">
+          {selectedProperty && (
+            <Button
+              onClick={handleNativeShareAndLog}
+              disabled={saving || sharingMedia}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs h-9 rounded-xl flex items-center justify-center gap-1.5"
+            >
+              {sharingMedia ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Share2 className="size-3.5" />
+              )}
+              Share Listing &amp; Log
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button
+              onClick={handleOpenAndLog}
+              disabled={saving || sharingMedia}
+              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 rounded-xl flex items-center justify-center gap-1.5"
+            >
+              {saving && !sharingMedia ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <ExternalLink className="size-3.5" />
+              )}
+              {selectedProperty ? 'WhatsApp &amp; Log' : 'Open WhatsApp &amp; Log'}
+            </Button>
+            <Button
+              onClick={() => handleSubmit()}
+              disabled={saving || sharingMedia}
+              variant="outline"
+              className="flex-1 border-slate-700 text-white hover:bg-slate-800 font-bold text-xs h-9 rounded-xl flex items-center justify-center gap-1.5"
+            >
+              {saving ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Smartphone className="size-3.5" />
+              )}
+              Log Only
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

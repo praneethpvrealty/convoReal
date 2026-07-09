@@ -1310,7 +1310,7 @@ export function ContactDetailView({
                       className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
                     >
                       <Share2 className="size-3 text-amber-400" />
-                      Log Share
+                      Share Listing
                     </button>
                     {contact.email && (
                       <span className="flex items-center gap-1">
