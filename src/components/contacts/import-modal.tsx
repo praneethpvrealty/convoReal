@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -13,7 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Upload, FileText, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
 interface ImportModalProps {
   open: boolean;
@@ -26,6 +24,15 @@ interface ParsedRow {
   name?: string;
   email?: string;
   company?: string;
+}
+
+interface PreflightResult {
+  canImport: boolean;
+  maxImportable: number;
+  totalRequested: number;
+  currentCount: number;
+  limit: number;
+  willExceedLimit: boolean;
 }
 
 function parseCSV(text: string): ParsedRow[] {
@@ -79,19 +86,20 @@ function parseCSV(text: string): ParsedRow[] {
 }
 
 export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps) {
-  const supabase = createClient();
-  const { user, accountId } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ imported: number; failed: number } | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<{ imported: number; failed: number; skipped?: number } | null>(null);
+  const [limitWarning, setLimitWarning] = useState<PreflightResult | null>(null);
 
   function reset() {
     setFile(null);
     setParsedRows([]);
     setResult(null);
+    setLimitWarning(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -106,6 +114,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
     setFile(selected);
     setResult(null);
+    setLimitWarning(null);
 
     const text = await selected.text();
     const rows = parseCSV(text);
@@ -119,60 +128,84 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     setParsedRows(rows);
   }
 
-  async function handleImport() {
+  // Phase 1: Preflight check — ask the server how many we can import
+  async function handleImportClick() {
     if (parsedRows.length === 0) return;
-    setImporting(true);
+    setChecking(true);
 
     try {
-      if (!user || !accountId) throw new Error('Not authenticated or account not loaded');
+      const res = await fetch('/api/contacts/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsedRows, preflight: true }),
+      });
 
-      let imported = 0;
-      let failed = 0;
-
-      // Batch insert in chunks of 50
-      const chunkSize = 50;
-      for (let i = 0; i < parsedRows.length; i += chunkSize) {
-        const chunk = parsedRows.slice(i, i + chunkSize);
-        const rows = chunk.map((row) => ({
-          user_id: user.id,
-          account_id: accountId,
-          phone: row.phone,
-          name: row.name || null,
-          email: row.email || null,
-          company: row.company || null,
-        }));
-
-        const { data, error } = await supabase
-          .from('contacts')
-          .insert(rows)
-          .select('id');
-
-        if (error) {
-          // Try individual inserts for this chunk
-          for (const row of rows) {
-            const { error: singleErr } = await supabase.from('contacts').insert(row);
-            if (singleErr) {
-              failed++;
-            } else {
-              imported++;
-            }
-          }
-        } else {
-          imported += data?.length ?? chunk.length;
-        }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Failed to check import limits' }));
+        toast.error(data.error || 'Failed to check import limits');
+        setChecking(false);
+        return;
       }
 
-      setResult({ imported, failed });
-      if (imported > 0) {
-        toast.success(`${imported} contact${imported !== 1 ? 's' : ''} imported`);
+      const preflight: PreflightResult = await res.json();
+
+      if (!preflight.canImport) {
+        toast.error(`You've reached the ${preflight.limit} contact limit on your plan. Upgrade to import more.`);
+        setChecking(false);
+        return;
+      }
+
+      if (preflight.willExceedLimit) {
+        // Show the warning dialog — user must confirm
+        setLimitWarning(preflight);
+        setChecking(false);
+        return;
+      }
+
+      // No limit issue — proceed directly
+      setChecking(false);
+      await doImport();
+    } catch {
+      toast.error('Failed to check import limits');
+      setChecking(false);
+    }
+  }
+
+  // Phase 2: Actually import
+  async function doImport() {
+    setImporting(true);
+    setLimitWarning(null);
+
+    try {
+      const res = await fetch('/api/contacts/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows: parsedRows }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        toast.error(data?.error || 'Import failed');
+        setImporting(false);
+        return;
+      }
+
+      setResult({
+        imported: data.imported ?? 0,
+        failed: data.failed ?? 0,
+        skipped: data.skipped ?? 0,
+      });
+
+      if (data.imported > 0) {
+        toast.success(`${data.imported} contact${data.imported !== 1 ? 's' : ''} imported`);
         onImported();
       }
-      if (failed > 0) {
-        toast.error(`${failed} contact${failed !== 1 ? 's' : ''} failed to import`);
+      if (data.failed > 0) {
+        toast.error(`${data.failed} contact${data.failed !== 1 ? 's' : ''} failed to import`);
       }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Import failed';
-      toast.error(message);
+    } catch {
+      toast.error('Import failed');
     } finally {
       setImporting(false);
     }
@@ -226,8 +259,51 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
             className="hidden"
           />
 
+          {/* Limit warning dialog */}
+          {limitWarning && (
+            <div className="rounded-lg border border-amber-600/50 bg-amber-950/30 p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="size-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-amber-200">
+                    Contact limit will be exceeded
+                  </p>
+                  <p className="text-xs text-amber-300/80">
+                    Your plan allows {limitWarning.limit} contacts. You currently
+                    have {limitWarning.currentCount}. Importing all {limitWarning.totalRequested} contacts
+                    would exceed your limit.
+                  </p>
+                  <p className="text-sm text-white font-medium mt-2">
+                    Do you want to import the first {limitWarning.maxImportable} contacts?
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLimitWarning(null)}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-800 h-8 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={doImport}
+                  disabled={importing}
+                  className="bg-amber-600 hover:bg-amber-700 text-white h-8 text-xs"
+                >
+                  {importing && <Loader2 className="size-3 animate-spin" />}
+                  Import {limitWarning.maxImportable} Contacts
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Preview table */}
-          {preview.length > 0 && !result && (
+          {preview.length > 0 && !result && !limitWarning && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                 Preview (first {preview.length} rows)
@@ -266,17 +342,23 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {result && (
             <div className="rounded-lg border border-slate-700 p-4 space-y-2">
               <p className="text-sm font-medium text-white">Import Complete</p>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
                 {result.imported > 0 && (
                   <div className="flex items-center gap-1.5 text-primary text-sm">
                     <CheckCircle className="size-4" />
                     {result.imported} imported
                   </div>
                 )}
-                {result.failed > 0 && (
+                {(result.failed ?? 0) > 0 && (
                   <div className="flex items-center gap-1.5 text-red-400 text-sm">
                     <XCircle className="size-4" />
                     {result.failed} failed
+                  </div>
+                )}
+                {(result.skipped ?? 0) > 0 && (
+                  <div className="flex items-center gap-1.5 text-amber-400 text-sm">
+                    <AlertTriangle className="size-4" />
+                    {result.skipped} skipped (plan limit)
                   </div>
                 )}
               </div>
@@ -293,14 +375,14 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           >
             {result ? 'Close' : 'Cancel'}
           </Button>
-          {!result && (
+          {!result && !limitWarning && (
             <Button
               type="button"
-              disabled={parsedRows.length === 0 || importing}
-              onClick={handleImport}
+              disabled={parsedRows.length === 0 || importing || checking}
+              onClick={handleImportClick}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              {importing && <Loader2 className="size-4 animate-spin" />}
+              {(importing || checking) && <Loader2 className="size-4 animate-spin" />}
               Import {parsedRows.length > 0 ? `${parsedRows.length} Contacts` : ''}
             </Button>
           )}

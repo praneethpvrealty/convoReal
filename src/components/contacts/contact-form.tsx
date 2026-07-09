@@ -291,9 +291,10 @@ export function ContactForm({
     try {
       if (!user || !accountId) throw new Error('Not authenticated or account not loaded');
 
-      let contactId = contact?.id;
+      const isEdit = !!contact?.id;
+      const contactId = contact?.id;
 
-      const fieldsToSave = {
+      const payload = {
         name: name.trim() || null,
         phone: phone.trim(),
         email: email.trim() || null,
@@ -310,102 +311,25 @@ export function ContactForm({
         property_interests: propertyInterests,
         min_roi: minRoi ? Number(minRoi) : null,
         source: source.trim() || null,
-        updated_at: new Date().toISOString(),
+        // Related entities — server handles these atomically
+        tag_ids: selectedTagIds,
+        note_text: notesText,
+        recent_note_id: recentNoteId || null,
+        property_ids: selectedPropertyIds,
       };
 
-      if (isEdit && contactId) {
-        const { error } = await supabase
-          .from('contacts')
-          .update(fieldsToSave)
-          .eq('id', contactId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from('contacts')
-          .insert({
-            user_id: user.id,
-            account_id: accountId,
-            ...fieldsToSave,
-            updated_at: undefined, // Let database use its default/trigger for updated_at on insert
-          })
-          .select('id')
-          .single();
-        if (error) throw error;
-        contactId = data.id;
-      }
+      const url = isEdit ? `/api/contacts/${contactId}` : '/api/contacts';
+      const method = isEdit ? 'PUT' : 'POST';
 
-      // Sync tags
-      if (contactId) {
-        await supabase
-          .from('contact_tags')
-          .delete()
-          .eq('contact_id', contactId);
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
-        if (selectedTagIds.length > 0) {
-          const tagRows = selectedTagIds.map((tag_id) => ({
-            contact_id: contactId!,
-            tag_id,
-          }));
-          const { error: tagError } = await supabase
-            .from('contact_tags')
-            .insert(tagRows);
-          if (tagError) throw tagError;
-        }
-      }
-
-      // Save Notes
-      if (contactId) {
-        if (recentNoteId) {
-          if (notesText.trim()) {
-            const { error: noteErr } = await supabase
-              .from('contact_notes')
-              .update({ note_text: notesText.trim() })
-              .eq('id', recentNoteId);
-            if (noteErr) throw noteErr;
-          } else {
-            await supabase
-              .from('contact_notes')
-              .delete()
-              .eq('id', recentNoteId);
-          }
-        } else if (notesText.trim()) {
-          const { error: noteErr } = await supabase
-            .from('contact_notes')
-            .insert({
-              contact_id: contactId,
-              user_id: user.id,
-              account_id: accountId,
-              note_text: notesText.trim(),
-            });
-          if (noteErr) throw noteErr;
-        }
-      }
-
-      // Sync properties (only if classification is Buyer/Seller/Agent/Owner)
-      if (contactId && ['Buyer', 'Seller', 'Agent', 'Developer', 'Owner', 'Owner & Buyer'].includes(classification)) {
-        await supabase
-          .from('properties')
-          .update({ owner_contact_id: null })
-          .eq('owner_contact_id', contactId);
-
-        if (selectedPropertyIds.length > 0) {
-          const { error: propErr } = await supabase
-            .from('properties')
-            .update({ owner_contact_id: contactId })
-            .in('id', selectedPropertyIds);
-          if (propErr) throw propErr;
-        }
-      }
- 
-      // Fire-and-forget: refresh the AI-extracted matching preferences from
-      // the (possibly changed) requirements/notes text. The server skips the
-      // Gemini call when the source text is unchanged.
-      if (contactId) {
-        fetch('/api/contacts/extract-preferences', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contactIds: [contactId] }),
-        }).catch(() => {});
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Failed to save contact' }));
+        throw new Error(data.error || 'Failed to save contact');
       }
 
       toast.success(isEdit ? 'Contact updated' : 'Contact created');

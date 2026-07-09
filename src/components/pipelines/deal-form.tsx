@@ -218,49 +218,30 @@ export function DealForm({
       brokerage_value: brokValue,
       brokerage_amount: brokerageAmt,
       status: dealStatus,
+      // Server uses this to atomically sync property status
+      stage_name: selectedStage?.name ?? null,
     };
 
-    if (deal) {
-      const { error } = await supabase
-        .from("deals")
-        .update(payload)
-        .eq("id", deal.id);
-      if (error) {
-        toast.error("Failed to save deal");
-        setSaving(false);
-        return;
-      }
-    } else {
-      if (!user || !accountId) {
-        toast.error("Not signed in or account not loaded");
-        setSaving(false);
-        return;
-      }
-      const { error } = await supabase
-        .from("deals")
-        .insert({ ...payload, user_id: user.id, account_id: accountId });
-      if (error) {
-        toast.error("Failed to create deal");
-        setSaving(false);
-        return;
-      }
-    }
+    try {
+      const url = deal ? `/api/deals/${deal.id}` : '/api/deals';
+      const method = deal ? 'PUT' : 'POST';
 
-    // Sync property status based on deal stage/status
-    if (propertyId) {
-      const targetStage = stages.find((s) => s.id === stageId);
-      if (targetStage) {
-        let propertyStatus = "Available";
-        if (targetStage.name === "Negotiation/Token") {
-          propertyStatus = "Under Contract";
-        } else if (targetStage.name === "Closed Won") {
-          propertyStatus = "Sold";
-        }
-        await supabase
-          .from("properties")
-          .update({ status: propertyStatus })
-          .eq("id", propertyId);
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Failed to save deal' }));
+        toast.error(data.error || 'Failed to save deal');
+        setSaving(false);
+        return;
       }
+    } catch {
+      toast.error("Failed to save deal");
+      setSaving(false);
+      return;
     }
 
     setSaving(false);
@@ -286,34 +267,31 @@ export function DealForm({
       }
     }
 
-    const { error } = await supabase
-      .from("deals")
-      .update({ status, stage_id: targetStageId })
-      .eq("id", deal.id);
-    setStatusAction(null);
-    if (error) {
+    const activePropId = deal.property_id || propertyId;
+    const targetStage = stages.find((s) => s.id === (targetStageId || stageId));
+
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status,
+          target_stage_id: targetStageId,
+          property_id: activePropId || null,
+          current_stage_name: targetStage?.name ?? null,
+        }),
+      });
+
+      setStatusAction(null);
+
+      if (!res.ok) {
+        toast.error("Failed to update deal status");
+        return;
+      }
+    } catch {
+      setStatusAction(null);
       toast.error("Failed to update deal status");
       return;
-    }
-
-    // Sync property status on status change
-    const activePropId = deal.property_id || propertyId;
-    if (activePropId) {
-      let propertyStatus = "Available";
-      if (status === "won") {
-        propertyStatus = "Sold";
-      } else if (status === "lost") {
-        propertyStatus = "Available";
-      } else { // reopened
-        const targetStage = stages.find((s) => s.id === (targetStageId || stageId));
-        if (targetStage?.name === "Negotiation/Token") {
-          propertyStatus = "Under Contract";
-        }
-      }
-      await supabase
-        .from("properties")
-        .update({ status: propertyStatus })
-        .eq("id", activePropId);
     }
 
     toast.success(
@@ -326,12 +304,20 @@ export function DealForm({
   async function handleDelete() {
     if (!deal) return;
     setDeleting(true);
-    const { error } = await supabase.from("deals").delete().eq("id", deal.id);
-    setDeleting(false);
-    if (error) {
+
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, { method: 'DELETE' });
+      setDeleting(false);
+      if (!res.ok) {
+        toast.error("Failed to delete deal");
+        return;
+      }
+    } catch {
+      setDeleting(false);
       toast.error("Failed to delete deal");
       return;
     }
+
     toast.success("Deal deleted");
     setConfirmDelete(false);
     onOpenChange(false);
