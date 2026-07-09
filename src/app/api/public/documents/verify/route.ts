@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { trackDocumentView } from "@/lib/documents/track-view";
 
 export async function POST(request: Request) {
   try {
@@ -62,6 +63,16 @@ export async function POST(request: Request) {
       }
       return { url: doc, title: "" };
     }).filter(d => d.url.length > 0);
+
+    // Best-effort: never let view tracking block the recipient's access.
+    void trackDocumentView(admin, {
+      id: docRequest.id,
+      account_id: docRequest.account_id,
+      requester_phone: docRequest.requester_phone,
+      viewed_at: docRequest.viewed_at,
+      view_count: docRequest.view_count ?? 0,
+      last_viewed_at: docRequest.last_viewed_at,
+    });
 
     return NextResponse.json({
       success: true,

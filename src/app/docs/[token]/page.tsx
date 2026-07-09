@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { FileText, Download, AlertTriangle, Clock, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { DocAccessGate } from '@/components/documents/doc-access-gate';
+import { trackDocumentView } from '@/lib/documents/track-view';
 
 export const metadata: Metadata = {
   title: 'Property Documents',
@@ -70,6 +71,19 @@ export default async function DocumentsPage({ params }: PageProps) {
       />
     );
   }
+
+  // No password gate on this path — the documents render immediately
+  // below, so this render IS the view. (The password-protected path
+  // tracks the view in the verify route instead, once they actually
+  // get past the gate.)
+  await trackDocumentView(admin, {
+    id: docRequest.id,
+    account_id: docRequest.account_id,
+    requester_phone: docRequest.requester_phone,
+    viewed_at: docRequest.viewed_at,
+    view_count: docRequest.view_count ?? 0,
+    last_viewed_at: docRequest.last_viewed_at,
+  });
 
   const dbDocs: string[] = Array.isArray(property?.documents)
     ? property.documents.filter((d: string) => d?.trim())

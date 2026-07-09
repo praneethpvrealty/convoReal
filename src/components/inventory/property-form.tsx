@@ -52,6 +52,7 @@ import {
   Clock,
   CheckCircle,
   XCircle,
+  Eye,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
@@ -220,6 +221,9 @@ export function PropertyForm({
     share_token: string | null;
     share_token_expires_at: string | null;
     share_sent_at: string | null;
+    viewed_at: string | null;
+    view_count: number;
+    last_viewed_at: string | null;
     created_at: string;
   }
   const [docRequests, setDocRequests] = useState<DocRequest[]>([]);
@@ -2696,6 +2700,20 @@ export function PropertyForm({
                                     <span className="text-[10px] text-emerald-500 flex items-center gap-1 ml-1">
                                       <CheckCircle className="size-3" />
                                       Sent via WA
+                                    </span>
+                                  )}
+                                  {req.viewed_at && (
+                                    <span
+                                      className="text-[10px] text-primary flex items-center gap-1 ml-1"
+                                      title={[
+                                        `First opened ${new Date(req.viewed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+                                        req.view_count > 1 && req.last_viewed_at
+                                          ? `Last opened ${new Date(req.last_viewed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} — may include a forwarded open`
+                                          : null,
+                                      ].filter(Boolean).join(' · ')}
+                                    >
+                                      <Eye className="size-3" />
+                                      {req.view_count > 1 ? `Viewed ${req.view_count}×` : 'Viewed'}
                                     </span>
                                   )}
                                 </div>
