@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
     const limit = checkRateLimit(
       `agent:importContacts:${ctx.userId}`,
-      { limit: 10, windowMs: 60_000 }, // 10 imports/minute — generous for batch ops
+      { limit: 10, windowMs: 60_000 },
     );
     if (!limit.success) return rateLimitResponse(limit);
 
@@ -32,7 +32,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const rows: Array<{ phone?: string; name?: string; email?: string; company?: string }> = body.rows;
+    interface ImportRow {
+      phone?: string;
+      name?: string;
+      email?: string;
+      company?: string;
+      tags?: string;
+      areas_of_interest?: string;
+      min_budget?: number;
+      max_budget?: number;
+      notes?: string;
+    }
+
+    const rows: ImportRow[] = body.rows;
     const isPreflight = body.preflight === true;
 
     // Check plan limits
@@ -48,7 +60,7 @@ export async function POST(request: Request) {
     const slotsAvailable = Math.max(0, maxContacts - currentCount);
     const maxImportable = maxContacts >= 999999 ? rows.length : Math.min(rows.length, slotsAvailable);
 
-    // Phase 1: Preflight — return capacity info for the warning dialog
+    // Phase 1: Preflight
     if (isPreflight) {
       return NextResponse.json({
         canImport: maxImportable > 0,
@@ -60,7 +72,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // Phase 2: Commit — actually import the rows
+    // Phase 2: Commit
     if (maxImportable === 0) {
       return NextResponse.json(
         {
@@ -77,43 +89,110 @@ export async function POST(request: Request) {
 
     let imported = 0;
     let failed = 0;
-    const CHUNK_SIZE = 100;
+    const importedIds: string[] = [];
 
-    for (let i = 0; i < rowsToImport.length; i += CHUNK_SIZE) {
-      const chunk = rowsToImport.slice(i, i + CHUNK_SIZE);
-      const insertRows = chunk
-        .filter((row) => typeof row.phone === 'string' && row.phone.trim().length > 0)
-        .map((row) => ({
-          user_id: ctx.userId,
-          account_id: ctx.accountId,
-          phone: row.phone!.trim(),
-          name: typeof row.name === 'string' ? row.name.trim() || null : null,
-          email: typeof row.email === 'string' ? row.email.trim() || null : null,
-          company: typeof row.company === 'string' ? row.company.trim() || null : null,
-        }));
+    for (const row of rowsToImport) {
+      if (typeof row.phone !== 'string' || row.phone.trim().length === 0) {
+        failed++;
+        continue;
+      }
 
-      if (insertRows.length === 0) continue;
+      // Parse areas of interest
+      let areas: string[] = [];
+      if (typeof row.areas_of_interest === 'string' && row.areas_of_interest.trim()) {
+        areas = row.areas_of_interest.split(',').map((a) => a.trim()).filter(Boolean);
+      }
 
-      const { data, error } = await ctx.supabase
+      const contactData = {
+        user_id: ctx.userId,
+        account_id: ctx.accountId,
+        phone: row.phone.trim(),
+        name: typeof row.name === 'string' ? row.name.trim() || null : null,
+        email: typeof row.email === 'string' ? row.email.trim() || null : null,
+        company: typeof row.company === 'string' ? row.company.trim() || null : null,
+        classification: 'Buyer' as const, // Default to Buyer
+        min_budget: typeof row.min_budget === 'number' ? row.min_budget : null,
+        max_budget: typeof row.max_budget === 'number' ? row.max_budget : null,
+        areas_of_interest: areas,
+      };
+
+      const { data: created, error: insertErr } = await ctx.supabase
         .from('contacts')
-        .insert(insertRows)
-        .select('id');
+        .insert(contactData)
+        .select('id')
+        .single();
 
-      if (error) {
-        // Batch failed — try individual inserts to salvage what we can
-        for (const row of insertRows) {
-          const { error: singleErr } = await ctx.supabase
-            .from('contacts')
-            .insert(row);
-          if (singleErr) {
-            failed++;
+      if (insertErr || !created) {
+        console.error('[POST /api/contacts/import] Insert error for row:', row.phone, insertErr);
+        failed++;
+        continue;
+      }
+
+      const contactId = created.id;
+      importedIds.push(contactId);
+      imported++;
+
+      // Process tags
+      if (typeof row.tags === 'string' && row.tags.trim()) {
+        const tagNames = row.tags.split(',').map((t) => t.trim()).filter(Boolean);
+        for (const tagName of tagNames) {
+          let tagId: string | null = null;
+
+          // Find existing tag scoped to account_id (case-insensitive)
+          const { data: existingTag } = await ctx.supabase
+            .from('tags')
+            .select('id')
+            .eq('account_id', ctx.accountId)
+            .ilike('name', tagName)
+            .maybeSingle();
+
+          if (existingTag) {
+            tagId = existingTag.id;
           } else {
-            imported++;
+            // Create tag
+            const { data: newTag } = await ctx.supabase
+              .from('tags')
+              .insert({
+                account_id: ctx.accountId,
+                user_id: ctx.userId,
+                name: tagName,
+              })
+              .select('id')
+              .single();
+            if (newTag) tagId = newTag.id;
+          }
+
+          if (tagId) {
+            await ctx.supabase
+              .from('contact_tags')
+              .insert({
+                contact_id: contactId,
+                tag_id: tagId,
+              });
           }
         }
-      } else {
-        imported += data?.length ?? insertRows.length;
       }
+
+      // Process notes/preferences
+      if (typeof row.notes === 'string' && row.notes.trim()) {
+        await ctx.supabase
+          .from('contact_notes')
+          .insert({
+            contact_id: contactId,
+            user_id: ctx.userId,
+            account_id: ctx.accountId,
+            note_text: row.notes.trim(),
+          });
+      }
+    }
+
+    // Fire-and-forget: extract AI matching preferences in background
+    if (importedIds.length > 0) {
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/contacts/extract-preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactIds: importedIds }),
+      }).catch(() => {});
     }
 
     return NextResponse.json({

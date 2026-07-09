@@ -24,6 +24,11 @@ interface ParsedRow {
   name?: string;
   email?: string;
   company?: string;
+  tags?: string;
+  areas_of_interest?: string;
+  min_budget?: number;
+  max_budget?: number;
+  notes?: string;
 }
 
 interface PreflightResult {
@@ -48,6 +53,25 @@ function parseCSV(text: string): ParsedRow[] {
   const nameIdx = headers.indexOf('name');
   const emailIdx = headers.indexOf('email');
   const companyIdx = headers.indexOf('company');
+  const tagsIdx = headers.indexOf('tags');
+  
+  const areasIdx = headers.indexOf('areas of interest') >= 0 
+    ? headers.indexOf('areas of interest') 
+    : headers.indexOf('areas_of_interest');
+    
+  const minBudgetIdx = headers.indexOf('min budget') >= 0 
+    ? headers.indexOf('min budget') 
+    : headers.indexOf('min_budget');
+    
+  const maxBudgetIdx = headers.indexOf('max budget') >= 0 
+    ? headers.indexOf('max budget') 
+    : headers.indexOf('max_budget');
+    
+  const notesIdx = headers.indexOf('notes') >= 0 
+    ? headers.indexOf('notes') 
+    : (headers.indexOf('preferences') >= 0 
+      ? headers.indexOf('preferences') 
+      : headers.indexOf('requirements'));
 
   const rows: ParsedRow[] = [];
   for (let i = 1; i < lines.length; i++) {
@@ -73,12 +97,19 @@ function parseCSV(text: string): ParsedRow[] {
     const phone = values[phoneIdx]?.replace(/["']/g, '').trim();
     if (!phone) continue;
 
+    const minBudgetRaw = minBudgetIdx >= 0 ? values[minBudgetIdx]?.replace(/["']/g, '').trim() : undefined;
+    const maxBudgetRaw = maxBudgetIdx >= 0 ? values[maxBudgetIdx]?.replace(/["']/g, '').trim() : undefined;
+
     rows.push({
       phone,
       name: nameIdx >= 0 ? values[nameIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
       email: emailIdx >= 0 ? values[emailIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
-      company:
-        companyIdx >= 0 ? values[companyIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
+      company: companyIdx >= 0 ? values[companyIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
+      tags: tagsIdx >= 0 ? values[tagsIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
+      areas_of_interest: areasIdx >= 0 ? values[areasIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
+      min_budget: minBudgetRaw && !isNaN(Number(minBudgetRaw)) ? Number(minBudgetRaw) : undefined,
+      max_budget: maxBudgetRaw && !isNaN(Number(maxBudgetRaw)) ? Number(maxBudgetRaw) : undefined,
+      notes: notesIdx >= 0 ? values[notesIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
     });
   }
 
@@ -106,6 +137,23 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
   function handleOpenChange(open: boolean) {
     if (!open) reset();
     onOpenChange(open);
+  }
+
+  function handleDownloadSample() {
+    const headers = 'phone,name,email,company,tags,areas_of_interest,min_budget,max_budget,preferences\n';
+    const sampleRow1 = '+919876543210,John Doe,john@example.com,Acme Corp,"Hot, Buyer",Whitefield,10000000,15000000,Looking for a 3 BHK premium apartment in Whitefield\n';
+    const sampleRow2 = '+918765432109,Jane Smith,jane@example.com,Global Realty,"Warm, Agent",HSR Layout,20000000,25000000,Has clients looking for villas in HSR Layout\n';
+    const csvContent = headers + sampleRow1 + sampleRow2;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'convoreal_contacts_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -220,7 +268,14 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           <DialogTitle className="text-white">Import Contacts</DialogTitle>
           <DialogDescription className="text-slate-400">
             Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
-            name, email, company.
+            name, email, company.{" "}
+            <button
+              type="button"
+              onClick={handleDownloadSample}
+              className="text-primary hover:underline font-semibold"
+            >
+              Download sample template
+            </button>
           </DialogDescription>
         </DialogHeader>
 
@@ -308,25 +363,34 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
                 Preview (first {preview.length} rows)
               </p>
-              <div className="rounded-lg border border-slate-700 overflow-hidden">
-                <table className="w-full text-xs">
+              <div className="rounded-lg border border-slate-700 overflow-x-auto">
+                <table className="w-full text-xs min-w-[700px]">
                   <thead>
                     <tr className="bg-slate-800">
                       <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Phone</th>
                       <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Name</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Email</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Company</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Tags</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Areas</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Budget</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Preferences</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {preview.map((row, i) => (
-                      <tr key={i} className="border-t border-slate-700/50">
-                        <td className="px-3 py-1.5 text-slate-300">{row.phone}</td>
-                        <td className="px-3 py-1.5 text-slate-300">{row.name || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-300">{row.email || '-'}</td>
-                        <td className="px-3 py-1.5 text-slate-300">{row.company || '-'}</td>
-                      </tr>
-                    ))}
+                    {preview.map((row, i) => {
+                      const budgetLabel = row.min_budget || row.max_budget
+                        ? `${row.min_budget ? `₹${(row.min_budget / 100000).toFixed(0)}L` : '0'} - ${row.max_budget ? `₹${(row.max_budget / 100000).toFixed(0)}L` : 'Any'}`
+                        : '-';
+                      return (
+                        <tr key={i} className="border-t border-slate-700/50">
+                          <td className="px-3 py-1.5 text-slate-300">{row.phone}</td>
+                          <td className="px-3 py-1.5 text-slate-300 font-medium">{row.name || '-'}</td>
+                          <td className="px-3 py-1.5 text-slate-400">{row.tags || '-'}</td>
+                          <td className="px-3 py-1.5 text-slate-400 font-mono text-[10px]">{row.areas_of_interest || '-'}</td>
+                          <td className="px-3 py-1.5 text-slate-350">{budgetLabel}</td>
+                          <td className="px-3 py-1.5 text-slate-400 max-w-[200px] truncate">{row.notes || '-'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

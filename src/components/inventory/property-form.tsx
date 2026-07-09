@@ -2058,7 +2058,7 @@ export function PropertyForm({
                 Property Details
               </TabsTrigger>
               <TabsTrigger value="matches" className="data-[state=active]:bg-slate-800 data-[state=active]:text-primary text-slate-400 px-4 py-1.5 text-xs font-semibold">
-                Matching Contacts ({displayedMatches.length})
+                Matching Contacts ({isEdit ? displayedMatches.length : 0})
               </TabsTrigger>
             </TabsList>
           </div>
