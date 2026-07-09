@@ -354,6 +354,7 @@ export async function POST(request: Request) {
       longitude,
       locality_place_id,
       locality_canonical,
+      interested_contact_ids,
     } = body;
 
     // Validation
@@ -461,36 +462,63 @@ export async function POST(request: Request) {
       }
     }
 
-    const { data, error } = await ctx.supabase
+    const { data: rawData, error: insertError } = await ctx.supabase
       .from("properties")
       .insert(insertData)
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
+      .select("id")
       .single();
 
-    if (error) {
-      console.error("[POST /api/properties] Insert error:", error);
+    if (insertError || !rawData) {
+      console.error("[POST /api/properties] Insert error:", insertError);
       return NextResponse.json(
         { error: "Failed to create property" },
         { status: 500 }
       );
     }
 
-    if (data && data.id) {
-      autoSyncPropertyCatalogIfNeeded(ctx.supabase, data.id, ctx.accountId).catch((err) => {
-        console.error("[POST /api/properties] Auto-sync background error:", err);
-      });
-      // Match Radar: surface matching buyers for the new listing
-      // (fire-and-forget; match_events INSERT needs the service role).
-      import("@/lib/radar/engine")
-        .then(({ generateMatchEventForProperty, radarAdminClient }) =>
-          generateMatchEventForProperty(radarAdminClient(), ctx.accountId, data.id)
-        )
-        .catch((err) => {
-          console.error("[POST /api/properties] Radar background error:", err);
-        });
+    if (interested_contact_ids !== undefined) {
+      const interestedContactIds = Array.isArray(interested_contact_ids) ? interested_contact_ids : [];
+
+      // Link the new ones
+      if (interestedContactIds.length > 0) {
+        await ctx.supabase
+          .from("contacts")
+          .update({ last_inquired_property_id: rawData.id })
+          .in("id", interestedContactIds);
+      }
     }
 
-    return NextResponse.json(data, { status: 201 });
+    // Fetch the final created property with relations
+    const { data: finalData, error: fetchError } = await ctx.supabase
+      .from("properties")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
+      .eq("id", rawData.id)
+      .eq("account_id", ctx.accountId)
+      .single();
+
+    if (fetchError || !finalData) {
+      console.error("[POST /api/properties] Fetch final error:", fetchError);
+      return NextResponse.json(
+        { error: "Failed to retrieve created property" },
+        { status: 500 }
+      );
+    }
+
+    autoSyncPropertyCatalogIfNeeded(ctx.supabase, finalData.id, ctx.accountId).catch((err) => {
+      console.error("[POST /api/properties] Auto-sync background error:", err);
+    });
+
+    // Match Radar: surface matching buyers for the new listing
+    // (fire-and-forget; match_events INSERT needs the service role).
+    import("@/lib/radar/engine")
+      .then(({ generateMatchEventForProperty, radarAdminClient }) =>
+        generateMatchEventForProperty(radarAdminClient(), ctx.accountId, finalData.id)
+      )
+      .catch((err) => {
+        console.error("[POST /api/properties] Radar background error:", err);
+      });
+
+    return NextResponse.json(finalData, { status: 201 });
   } catch (err) {
     return toErrorResponse(err);
   }

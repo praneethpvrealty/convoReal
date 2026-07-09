@@ -127,6 +127,7 @@ export async function PUT(
       longitude,
       locality_place_id,
       locality_canonical,
+      interested_contact_ids,
     } = body;
 
     // Validate only if passed
@@ -385,29 +386,71 @@ export async function PUT(
       }
     }
 
-    const { data, error } = await ctx.supabase
+    const { error: updateError } = await ctx.supabase
       .from("properties")
       .update(updateData)
       .eq("id", id)
-      .eq("account_id", ctx.accountId)
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
-      .single();
+      .eq("account_id", ctx.accountId);
 
-    if (error) {
-      console.error("[PUT /api/properties/[id]] Update error:", error);
+    if (updateError) {
+      console.error("[PUT /api/properties/[id]] Update error:", updateError);
       return NextResponse.json(
         { error: "Failed to update property" },
         { status: 500 }
       );
     }
 
-    if (data && data.id) {
-      autoSyncPropertyCatalogIfNeeded(ctx.supabase, data.id, ctx.accountId).catch((err) => {
-        console.error("[PUT /api/properties/[id]] Auto-sync background error:", err);
-      });
+    if (interested_contact_ids !== undefined) {
+      const interestedContactIds = Array.isArray(interested_contact_ids) ? interested_contact_ids : [];
+
+      // Clear contacts that were pointing to this property but are not in the new checked list
+      const { data: previouslyLinked } = await ctx.supabase
+        .from("contacts")
+        .select("id")
+        .eq("last_inquired_property_id", id);
+
+      if (previouslyLinked) {
+        const previouslyLinkedIds = previouslyLinked.map((c) => c.id);
+        const toRemove = previouslyLinkedIds.filter((id) => !interestedContactIds.includes(id));
+
+        if (toRemove.length > 0) {
+          await ctx.supabase
+            .from("contacts")
+            .update({ last_inquired_property_id: null })
+            .in("id", toRemove);
+        }
+      }
+
+      // Link the new ones
+      if (interestedContactIds.length > 0) {
+        await ctx.supabase
+          .from("contacts")
+          .update({ last_inquired_property_id: id })
+          .in("id", interestedContactIds);
+      }
     }
 
-    return NextResponse.json(data);
+    // Fetch the updated property with relations
+    const { data: finalData, error: fetchErr } = await ctx.supabase
+      .from("properties")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
+      .eq("id", id)
+      .eq("account_id", ctx.accountId)
+      .single();
+
+    if (fetchErr || !finalData) {
+      console.error("[PUT /api/properties/[id]] Fetch final error:", fetchErr);
+      return NextResponse.json(
+        { error: "Failed to retrieve updated property" },
+        { status: 500 }
+      );
+    }
+
+    autoSyncPropertyCatalogIfNeeded(ctx.supabase, finalData.id, ctx.accountId).catch((err) => {
+      console.error("[PUT /api/properties/[id]] Auto-sync background error:", err);
+    });
+
+    return NextResponse.json(finalData);
   } catch (err) {
     return toErrorResponse(err);
   }

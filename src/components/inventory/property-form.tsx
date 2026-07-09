@@ -1958,10 +1958,9 @@ export function PropertyForm({
         longitude: geoPick?.longitude ?? null,
         locality_place_id: geoPick?.place_id || null,
         locality_canonical: geoPick?.canonical || null,
+        interested_contact_ids: interestedContactIds,
         updated_at: new Date().toISOString(),
       };
-
-      let savedPropertyId = property?.id;
 
       if (isEdit && property) {
         const response = await fetch(`/api/properties/${property.id}`, {
@@ -1992,37 +1991,6 @@ export function PropertyForm({
         if (!response.ok) {
           const errData = await response.json();
           throw new Error(errData.error || 'Failed to create property');
-        }
-
-        const resData = await response.json();
-        savedPropertyId = resData.id;
-      }
-
-      if (savedPropertyId) {
-        // Clear contacts that were pointing to this property but are not in the new checked list
-        const { data: previouslyLinked } = await supabase
-          .from('contacts')
-          .select('id')
-          .eq('last_inquired_property_id', savedPropertyId);
-          
-        if (previouslyLinked) {
-          const previouslyLinkedIds = previouslyLinked.map((c) => c.id);
-          const toRemove = previouslyLinkedIds.filter((id) => !interestedContactIds.includes(id));
-          
-          if (toRemove.length > 0) {
-            await supabase
-              .from('contacts')
-              .update({ last_inquired_property_id: null })
-              .in('id', toRemove);
-          }
-        }
-        
-        // Link the new ones
-        if (interestedContactIds.length > 0) {
-          await supabase
-            .from('contacts')
-            .update({ last_inquired_property_id: savedPropertyId })
-            .in('id', interestedContactIds);
         }
       }
 
