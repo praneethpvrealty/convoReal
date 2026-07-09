@@ -100,6 +100,14 @@ export function CreditTopup() {
             ))}
           </div>
         )}
+
+        <p className="text-xs text-slate-500 mt-4">
+          Consumed credits are non-refundable. An unused pack can be refunded within 7 days —{' '}
+          <a href="/refund-policy" target="_blank" rel="noreferrer" className="underline hover:text-slate-300">
+            refund policy
+          </a>
+          .
+        </p>
       </DialogContent>
     </Dialog>
   );

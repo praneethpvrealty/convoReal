@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePlan } from '@/hooks/usePlan';
 import { PLAN_CONFIG, PLAN_ORDER, isUpgrade, isDowngrade } from '@/lib/billing/plan-config';
 import type { Plan, BillingCycle } from '@/lib/billing/types';
+import { REFUND_GUARANTEE_BLURB } from '@/config/refund-policy';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -327,6 +328,12 @@ export function BillingTab() {
             current={usage?.users ?? 1}
             limit={limits?.max_users ?? 1}
           />
+          <p className="text-xs text-muted-foreground pt-1">
+            {REFUND_GUARANTEE_BLURB}.{' '}
+            <a href="/refund-policy" target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+              Refund policy
+            </a>
+          </p>
         </CardContent>
       </Card>
 
@@ -463,6 +470,16 @@ export function BillingTab() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-sm text-red-500">{error}</AlertDescription>
             </Alert>
+          )}
+
+          {selectedIsUpgrade && (
+            <p className="text-xs text-muted-foreground">
+              By upgrading you agree to our{' '}
+              <a href="/terms" target="_blank" rel="noreferrer" className="underline hover:text-foreground">Terms</a>{' '}
+              and{' '}
+              <a href="/refund-policy" target="_blank" rel="noreferrer" className="underline hover:text-foreground">Refund Policy</a>.
+              {' '}Cancel anytime — no lock-in.
+            </p>
           )}
 
           <DialogFooter>

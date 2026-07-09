@@ -1011,6 +1011,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
           <div className="flex items-center gap-6 font-semibold">
             <a href="/privacy" className="hover:text-slate-300">Privacy Policy</a>
             <a href="/terms" className="hover:text-slate-300">Terms of Service</a>
+            <a href="/refund-policy" className="hover:text-slate-300">Refund Policy</a>
           </div>
         </div>
       </footer>
