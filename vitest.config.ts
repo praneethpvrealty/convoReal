@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, configDefaults } from "vitest/config";
 
 export default defineConfig({
   resolve: {
@@ -7,6 +7,13 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    // *.integration.test.ts files hit the real, shared Supabase project
+    // over the network (service_role client, no mocking) — they must
+    // never run as part of the fast default suite (`npm test`), which
+    // has to pass with zero network access and no secrets configured
+    // (e.g. CI without SUPABASE_SERVICE_ROLE_KEY). Run them explicitly
+    // via `npm run test:integration` (vitest.integration.config.ts).
+    exclude: [...configDefaults.exclude, "**/*.integration.test.ts"],
     // Dummy secrets — encryption.ts / webhook-signature.ts read these
     // at module load. Tests never hit a real Meta/Supabase service, so
     // any 32-byte hex / non-empty string will do; keep them lexically

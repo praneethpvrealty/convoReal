@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
+import { SimilarProperties } from '@/components/showcase/similar-properties';
 
 const trackPixelEvent = (
   eventName: string,
@@ -1904,6 +1905,13 @@ export function ShowcaseView({
                   prefillName={inquiryName}
                   prefillPhone={inquiryPhone}
                   onWhatsAppClick={() => trackWhatsAppInquiry(selectedProperty)}
+                />
+
+                {/* Similar properties — browse-more growth loop */}
+                <SimilarProperties
+                  accountId={accountId}
+                  currentProperty={selectedProperty}
+                  onSelect={openPropertyModal}
                 />
 
                 {/* Quick Feedback Bar inside Modal — hidden in agent mode */}

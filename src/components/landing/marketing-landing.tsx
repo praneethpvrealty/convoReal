@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MARKETING_CONFIG } from '@/config/marketing';
+import { CrmLeadForm } from '@/components/landing/crm-lead-form';
+import { BRANDING } from '@/config/branding';
 
 export function MarketingLanding() {
   // Demo states
@@ -129,6 +131,7 @@ export function MarketingLanding() {
             <a href="#demo" className="hover:text-white transition-colors">Interactive Demo</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
             <a href="#faq" className="hover:text-white transition-colors">FAQ</a>
+            <a href="#get-started" className="hover:text-white transition-colors">Talk to us</a>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -902,6 +905,22 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        {/* Talk to us — prospect qualification funnel */}
+        <section id="get-started" className="py-20 bg-slate-900/30 border-t border-slate-900">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-10">
+              <span className="text-xs font-black uppercase text-indigo-400 tracking-wider">Get Started</span>
+              <h2 className="text-3xl sm:text-4xl font-black text-white mt-2 tracking-tight">
+                See {BRANDING.name} on your listings
+              </h2>
+              <p className="text-slate-400 mt-3 max-w-xl mx-auto">
+                Tell us a bit about your business and we&apos;ll get you set up on WhatsApp — no credit card, no software to install.
+              </p>
+            </div>
+            <CrmLeadForm />
           </div>
         </section>
 

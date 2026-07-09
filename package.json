@@ -37,6 +37,7 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "prepare": "husky install",
     "worker": "tsx src/scripts/queue-worker.ts",
     "queue:replay-dlq": "tsx src/scripts/replay-dlq.ts",
