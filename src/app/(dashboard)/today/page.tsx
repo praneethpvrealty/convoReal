@@ -21,6 +21,7 @@ import { useAuth } from '@/hooks/use-auth'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { InfoHint } from '@/components/ui/info-hint'
 import {
   loadExpiringSessions,
   loadHotGoingQuiet,
@@ -344,6 +345,7 @@ export default function TodayPage() {
           loading={expiringLoading}
           icon={<Timer className="size-4 text-rose-400" />}
           valueClass="text-rose-400"
+          hint="WhatsApp reply windows expire 24h after the customer's last message. Cards here have < 6h left — reply before the window shuts."
         />
         <StatCard
           label="Hot going quiet"
@@ -351,6 +353,7 @@ export default function TodayPage() {
           loading={hotLoading}
           icon={<Flame className="size-4 text-amber-400" />}
           valueClass="text-amber-400"
+          hint="Leads tagged as 'Hot' who haven't been contacted in several days. Reach out before they lose interest."
         />
         <StatCard
           label="Awaiting reply"
@@ -358,6 +361,7 @@ export default function TodayPage() {
           loading={expiringLoading}
           icon={<MessagesSquare className="size-4 text-sky-400" />}
           valueClass="text-sky-400"
+          hint="Active WhatsApp threads where the customer messaged you but you haven't responded in over 2 hours."
         />
         <StatCard
           label="Today's agenda"
@@ -365,6 +369,7 @@ export default function TodayPage() {
           loading={agendaLoading}
           icon={<CalendarDays className="size-4 text-emerald-400" />}
           valueClass="text-emerald-400"
+          hint="Your appointments and to-do items due today. Complete or reschedule them from here."
         />
       </div>
 
@@ -388,7 +393,11 @@ export default function TodayPage() {
 
       {/* a) Windows closing */}
       {show('windows') && (
-        <Section title="⏳ WhatsApp windows closing" count={windowsClosing.length}>
+        <Section
+          title="⏳ WhatsApp windows closing"
+          count={windowsClosing.length}
+          hint="WhatsApp only lets you reply within 24h of the customer's last message. These conversations are about to expire — reply now or lose the window."
+        >
           {expiringLoading ? (
             <SkeletonRows />
           ) : windowsClosing.length === 0 ? (
@@ -411,7 +420,11 @@ export default function TodayPage() {
 
       {/* b) Hot leads going quiet */}
       {show('hot') && (
-        <Section title="🔥 Hot leads going quiet" count={hotLeads?.length ?? 0}>
+        <Section
+          title="🔥 Hot leads going quiet"
+          count={hotLeads?.length ?? 0}
+          hint="Contacts marked as 'Hot' in your pipeline who haven't heard from you recently. A quick WhatsApp or call can re-engage them."
+        >
           {hotLoading ? (
             <SkeletonRows />
           ) : !hotLeads || hotLeads.length === 0 ? (
@@ -500,7 +513,11 @@ export default function TodayPage() {
 
       {/* c) Awaiting your reply */}
       {show('replies') && (
-        <Section title="💬 Awaiting your reply" count={awaitingReply.length}>
+        <Section
+          title="💬 Awaiting your reply"
+          count={awaitingReply.length}
+          hint="Conversations where the customer sent a message and is waiting for your response. Older unanswered threads appear first."
+        >
           {expiringLoading ? (
             <SkeletonRows />
           ) : awaitingReply.length === 0 ? (
@@ -523,7 +540,11 @@ export default function TodayPage() {
 
       {/* d) Today's agenda */}
       {show('agenda') && (
-        <Section title="📅 Today's agenda" count={agendaCount}>
+        <Section
+          title="📅 Today's agenda"
+          count={agendaCount}
+          hint="Site visits, follow-up calls, and to-do items scheduled for today. Check them off as you go."
+        >
           {agendaLoading ? (
             <SkeletonRows />
           ) : agendaCount === 0 ? (
@@ -631,17 +652,22 @@ function StatCard({
   loading,
   icon,
   valueClass,
+  hint,
 }: {
   label: string
   value: number
   loading: boolean
   icon: React.ReactNode
   valueClass: string
+  hint?: string
 }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">{label}</span>
+        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center">
+          {label}
+          {hint && <InfoHint text={hint} />}
+        </span>
         {icon}
       </div>
       <div className={`mt-2.5 text-2xl font-black ${valueClass}`}>
@@ -655,15 +681,20 @@ function Section({
   title,
   count,
   children,
+  hint,
 }: {
   title: string
   count: number
   children: React.ReactNode
+  hint?: string
 }) {
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-black text-white flex items-center gap-2">
-        {title}
+        <span className="flex items-center">
+          {title}
+          {hint && <InfoHint text={hint} />}
+        </span>
         <span className="inline-flex items-center rounded-full border border-slate-700 bg-slate-800/60 px-2 py-0.5 text-[10px] font-bold text-slate-300">
           {count}
         </span>

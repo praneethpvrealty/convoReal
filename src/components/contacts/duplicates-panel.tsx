@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { GitMerge, Phone, Mail, ChevronDown, ChevronUp, Loader2, Check, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InfoHint } from '@/components/ui/info-hint';
 import {
   Dialog,
   DialogContent,
@@ -149,8 +150,9 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
         >
           <div className="flex items-center gap-2">
             <GitMerge className="h-4 w-4 text-amber-400 shrink-0" />
-            <span className="text-sm font-semibold text-amber-300">
+            <span className="text-sm font-semibold text-amber-300 flex items-center">
               {groups.length} duplicate group{groups.length !== 1 ? 's' : ''} detected
+              <InfoHint text="Duplicate check looks for contacts with the exact same phone number or email address, allowing you to merge them into a single record." />
             </span>
             <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs">
               {totalDuplicates} extra

@@ -35,6 +35,7 @@ import { usePlan } from '@/hooks/usePlan';
 import { BillingTab } from '@/components/settings/billing-tab';
 import { CreditsTab } from '@/components/settings/credits-tab';
 import { cn } from '@/lib/utils';
+import { InfoHint } from '@/components/ui/info-hint';
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -157,7 +158,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
+        <h1 className="text-2xl font-bold text-white flex items-center">
+          Settings
+          <InfoHint text="Configure your WhatsApp integration, message templates, team members, custom tags, and Showcase branding." />
+        </h1>
         <p className="text-sm text-slate-400 mt-1">
           Manage your profile, WhatsApp® integration, message templates, and
           tags.

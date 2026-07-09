@@ -17,6 +17,7 @@ import { Radio, Plus, Loader2 } from 'lucide-react';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
+import { InfoHint } from '@/components/ui/info-hint';
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -179,7 +180,10 @@ export default function BroadcastsPage() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Broadcasts</h1>
+          <h1 className="text-2xl font-bold text-white flex items-center">
+            Broadcasts
+            <InfoHint text="Broadcast campaigns allow you to reach multiple contacts at once using pre-approved WhatsApp templates." />
+          </h1>
           <p className="mt-1 text-sm text-slate-400">
             Send bulk messages to your contacts using approved templates.
           </p>
@@ -222,8 +226,18 @@ export default function BroadcastsPage() {
                 <TableHead className="hidden text-right text-slate-400 sm:table-cell">
                   Recipients
                 </TableHead>
-                <TableHead className="hidden text-slate-400 lg:table-cell">Delivery</TableHead>
-                <TableHead className="hidden text-slate-400 lg:table-cell">Read</TableHead>
+                <TableHead className="hidden text-slate-400 lg:table-cell">
+                  <span className="flex items-center">
+                    Delivery
+                    <InfoHint text="Percentage of messages successfully delivered to recipient devices." />
+                  </span>
+                </TableHead>
+                <TableHead className="hidden text-slate-400 lg:table-cell">
+                  <span className="flex items-center">
+                    Read
+                    <InfoHint text="Percentage of delivered messages that have been opened/read by recipients." />
+                  </span>
+                </TableHead>
                 <TableHead className="text-slate-400">Status</TableHead>
                 <TableHead className="hidden text-slate-400 sm:table-cell">Date</TableHead>
               </TableRow>

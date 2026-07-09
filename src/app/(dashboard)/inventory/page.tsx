@@ -38,6 +38,7 @@ import { PropertyShareDialog } from '@/components/inventory/property-share-dialo
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { localCache } from '@/lib/cache-store';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
+import { InfoHint } from '@/components/ui/info-hint';
 
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
@@ -499,6 +500,7 @@ export default function InventoryPage() {
           <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
             <Building className="size-6 text-primary" />
             Property Inventory
+            <InfoHint text="Your central inventory of all properties, listings, and units available for sale or rent." />
           </h1>
           <p className="text-slate-400 text-sm mt-0.5">
             Manage your real estate listings and publish properties to showcase on the main portal.
@@ -533,7 +535,10 @@ export default function InventoryPage() {
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.total} />
             </div>
-            <div className="text-xs text-slate-400 font-medium">Total Listings</div>
+            <div className="text-xs text-slate-400 font-medium flex items-center">
+              Total Listings
+              <InfoHint text="Total number of properties registered in your database." />
+            </div>
           </div>
         </div>
 
@@ -545,7 +550,10 @@ export default function InventoryPage() {
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.published} />
             </div>
-            <div className="text-xs text-slate-400 font-medium">Showcased Publicly</div>
+            <div className="text-xs text-slate-400 font-medium flex items-center">
+              Showcased Publicly
+              <InfoHint text="Properties currently visible to clients on your public Showcase portal." />
+            </div>
           </div>
         </div>
 
@@ -557,7 +565,10 @@ export default function InventoryPage() {
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.available} />
             </div>
-            <div className="text-xs text-slate-400 font-medium">Available Units</div>
+            <div className="text-xs text-slate-400 font-medium flex items-center">
+              Available Units
+              <InfoHint text="Active property listings that are currently available for purchase or lease." />
+            </div>
           </div>
         </div>
 
@@ -569,7 +580,10 @@ export default function InventoryPage() {
             <div className="text-2xl font-bold text-white">
               <AnimatedCounter value={stats.soldOrContract} />
             </div>
-            <div className="text-xs text-slate-400 font-medium">Sold / Under Contract</div>
+            <div className="text-xs text-slate-400 font-medium flex items-center">
+              Sold / Under Contract
+              <InfoHint text="Properties that have been sold or are currently locked under a contract." />
+            </div>
           </div>
         </div>
       </div>

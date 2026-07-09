@@ -21,6 +21,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { InfoHint } from "@/components/ui/info-hint";
 import {
   loadPulseStats,
   loadPulseFeed,
@@ -217,7 +218,10 @@ export default function PulsePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Total Link Opens</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center">
+                  Total Link Opens
+                  <InfoHint text="Every time a client opens a Showcase link you shared over WhatsApp, it counts as one open." />
+                </p>
                 <h3 className="text-2xl font-black text-white mt-1.5">{stats?.totalViews ?? 0}</h3>
               </div>
               <div className="size-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-400 shrink-0">
@@ -227,7 +231,10 @@ export default function PulsePage() {
 
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Unique Sessions</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center">
+                  Unique Sessions
+                  <InfoHint text="Distinct browsing sessions across all shared links — one session per client per link visit." />
+                </p>
                 <h3 className="text-2xl font-black text-white mt-1.5">{stats?.uniqueSessions ?? 0}</h3>
               </div>
               <div className="size-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 shrink-0">
@@ -237,7 +244,10 @@ export default function PulsePage() {
 
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Avg Property Dwell</p>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center">
+                  Avg Property Dwell
+                  <InfoHint text="Average time clients spend viewing a single property listing inside your Showcase." />
+                </p>
                 <h3 className="text-2xl font-black text-white mt-1.5">
                   {stats?.avgDwellTimeSec ? `${stats.avgDwellTimeSec}s` : "0s"}
                 </h3>
@@ -255,6 +265,7 @@ export default function PulsePage() {
                 <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
                   <TrendingUp className="size-4 text-primary" />
                   Live Event Timeline
+                  <InfoHint text="Real-time feed of clicks, swipes, map taps, and page views from your shared Showcase links." />
                 </h2>
                 <p className="text-[11px] text-slate-500 mt-0.5">Chronological clickstream of shared link activity.</p>
               </div>
@@ -319,6 +330,7 @@ export default function PulsePage() {
                 <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
                   <Building className="size-4 text-primary" />
                   Top Listings
+                  <InfoHint text="Properties that received the most client views across all shared Showcase links." />
                 </h2>
                 <p className="text-[11px] text-slate-500 mt-0.5">Most viewed properties on client showcases.</p>
               </div>

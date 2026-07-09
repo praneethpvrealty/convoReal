@@ -30,6 +30,7 @@ import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { GatedButton } from "@/components/ui/gated-button";
+import { InfoHint } from "@/components/ui/info-hint";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -576,7 +577,7 @@ export default function PipelinesPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Pipeline selector dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -623,6 +624,7 @@ export default function PipelinesPage() {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          <InfoHint text="A kanban board representing your sales pipelines, showing deal cards moving through custom defined stages." />
         </div>
 
         <div className="flex items-center gap-2">

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { InfoHint } from "@/components/ui/info-hint";
 
 interface Appointment {
   id: string;
@@ -776,8 +777,9 @@ export default function CalendarPage() {
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
             <CalendarIcon className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold text-white sm:text-2xl">
+            <h1 className="text-xl font-bold text-white sm:text-2xl flex items-center">
               {monthNames[month]} {year}
+              <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls." />
             </h1>
           </div>
           <div className="flex items-center gap-2">
@@ -893,7 +895,10 @@ export default function CalendarPage() {
           <div className="mb-4 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <ListTodo className="h-5 w-5 text-primary" />
-              <h2 className="text-sm font-bold text-white">To-Do Task List</h2>
+              <h2 className="text-sm font-bold text-white flex items-center">
+                To-Do Task List
+                <InfoHint text="A checklist of operational tasks. You can tag contacts using '@' or properties using '#' directly in task titles." />
+              </h2>
             </div>
             <select
               value={todoFilter}

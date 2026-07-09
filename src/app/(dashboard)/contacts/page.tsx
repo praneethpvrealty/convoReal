@@ -63,6 +63,7 @@ import { BulkImportModal, type BulkImportContact } from '@/components/contacts/b
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { CalendarDays } from 'lucide-react';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
+import { InfoHint } from '@/components/ui/info-hint';
 import {
   Select,
   SelectContent,
@@ -953,7 +954,10 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Contacts</h1>
+          <h1 className="text-2xl font-bold text-white flex items-center">
+            Contacts
+            <InfoHint text="Your address book containing all clients, agents, and other contacts, where you can log budgets, locations of interest, and custom notes." />
+          </h1>
           <p className="text-sm text-slate-400 mt-1">
             Manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
           </p>

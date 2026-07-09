@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { PropertyShareDialog } from "@/components/inventory/property-share-dialog";
 import { loadMatchEvents } from "@/lib/radar/queries";
 import type { MatchEvent, Property } from "@/types";
+import { InfoHint } from "@/components/ui/info-hint";
 
 interface CheckedState {
   /** Event ID -> Set of target IDs. */
@@ -284,7 +285,10 @@ export default function RadarPage() {
                 <div className="p-5 grid grid-cols-1 md:grid-cols-12 gap-5 flex-1">
                   {/* Left Column: The Triggering Subject */}
                   <div className="md:col-span-4 border-b md:border-b-0 md:border-r border-slate-800 pb-4 md:pb-0 md:pr-5 space-y-3">
-                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Subject</h3>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
+                      Subject
+                      <InfoHint text="The item that triggered this radar alert — either a newly created property listing, or a contact whose buying criteria were updated." />
+                    </h3>
 
                     {evt.kind === "new_property" && evt.property ? (
                       <div className="space-y-2">
@@ -352,8 +356,9 @@ export default function RadarPage() {
                   <div className="md:col-span-8 flex flex-col justify-between space-y-4">
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
                           Matching Targets ({evt.matches.length})
+                          <InfoHint text="The corresponding items that match the Subject's criteria. For a new property, these are buyers whose budgets and preferred areas match. For a buyer update, these are properties that match their preferences." />
                         </h3>
                         <button
                           type="button"

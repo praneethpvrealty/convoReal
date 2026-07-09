@@ -1,6 +1,7 @@
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react'
 import type { ComponentType } from 'react'
 import { cn } from '@/lib/utils'
+import { InfoHint } from '@/components/ui/info-hint'
 
 interface MetricCardProps {
   title: string
@@ -20,9 +21,10 @@ interface MetricCardProps {
   /** Used instead of `delta` when the metric has a static subtitle. */
   subtitle?: string
   highlight?: boolean
+  hint?: string
 }
 
-export function MetricCard({ title, value, icon: Icon, delta, subtitle, highlight }: MetricCardProps) {
+export function MetricCard({ title, value, icon: Icon, delta, subtitle, highlight, hint }: MetricCardProps) {
   return (
     <div className={cn(
       "rounded-2xl border p-5 backdrop-blur-sm shadow-md transition-all duration-300 relative group overflow-hidden",
@@ -34,7 +36,10 @@ export function MetricCard({ title, value, icon: Icon, delta, subtitle, highligh
       <div className="absolute top-0 right-0 w-28 h-28 bg-primary/5 rounded-full blur-[28px] pointer-events-none group-hover:bg-primary/10 transition-all duration-300" />
       
       <div className="flex items-start justify-between relative z-10">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{title}</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center">
+          {title}
+          {hint && <InfoHint text={hint} />}
+        </p>
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-sm shadow-primary/5 transition-all duration-300 group-hover:scale-105 group-hover:bg-primary/20 shrink-0">
           <Icon className="h-4 w-4" />
         </div>

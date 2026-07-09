@@ -188,6 +188,7 @@ export default function DashboardPage() {
                 sign: metrics.activeConversations.previous,
                 label: deltaLabel(metrics.activeConversations.previous, 'new today vs yesterday'),
               }}
+              hint="Open WhatsApp threads with at least one message in the last 24 hours."
             />
             <MetricCard
               title="New Contacts Today"
@@ -201,12 +202,14 @@ export default function DashboardPage() {
                   'vs yesterday',
                 ),
               }}
+              hint="Contacts added to your CRM today — from incoming messages or manual creation."
             />
             <MetricCard
               title="Expected Revenue (Brokerage)"
               value={formatCurrency(metrics.openDealsValue, currency)}
               icon={getCurrencyIcon(currency)}
               subtitle={`${metrics.openDealsCount} open deal${metrics.openDealsCount === 1 ? '' : 's'}`}
+              hint="Total deal value across all open pipeline stages, representing potential brokerage earnings."
             />
             <MetricCard
               title="Messages Sent Today"
@@ -220,6 +223,7 @@ export default function DashboardPage() {
                   'vs yesterday',
                 ),
               }}
+              hint="WhatsApp messages (template + session) sent by you and your team since midnight."
             />
           </>
         )}
