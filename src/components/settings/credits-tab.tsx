@@ -6,6 +6,7 @@ import { CreditFeatureChart } from "./CreditFeatureChart";
 import { CreditLedger } from "./CreditLedger";
 import { ReferralHub } from "./ReferralHub";
 import { useTopupModal } from "@/components/layout/topup-modal-context";
+import { VerifyPaymentsButton } from "./VerifyPaymentsButton";
 
 export function CreditsTab() {
   const { openTopupModal } = useTopupModal();
@@ -17,14 +18,17 @@ export function CreditsTab() {
           <h2 className="text-lg font-bold text-white">Credits</h2>
           <p className="text-sm text-slate-400">Manage your AI credit balance, usage, and referrals.</p>
         </div>
-        <button
-          type="button"
-          onClick={openTopupModal}
-          className="flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-semibold hover:bg-primary/90 transition-colors"
-        >
-          <Coins className="size-4" />
-          Buy Credits
-        </button>
+        <div className="flex items-center gap-2">
+          <VerifyPaymentsButton />
+          <button
+            type="button"
+            onClick={openTopupModal}
+            className="flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-semibold hover:bg-primary/90 transition-colors"
+          >
+            <Coins className="size-4" />
+            Buy Credits
+          </button>
+        </div>
       </div>
 
       <CreditBreakdown />

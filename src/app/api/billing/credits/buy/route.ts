@@ -48,6 +48,16 @@ export async function POST(request: Request) {
         },
       });
 
+      // Track the order in our database for the "Verify Payments" feature
+      await ctx.supabase.from('razorpay_orders').insert({
+        account_id: ctx.accountId,
+        order_id: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        status: 'created',
+        package_key: pkg.key,
+      });
+
       return NextResponse.json({
         gateway: 'razorpay',
         orderId: order.id,

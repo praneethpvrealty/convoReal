@@ -268,19 +268,48 @@ export default function FlowsPage() {
         description: `Purchase ${item.name}`,
       });
 
-      // Payment completed in the modal. Webhook will activate the flow;
-      // we also update local state so the UI feels instant.
-      setMarketplaceItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, account_status: "enabled" } : i)),
-      );
-      toast.success("Payment successful. Your flow is now active.");
-      if (item.account_flow_id) {
-        router.push(`/flows/${item.account_flow_id}`);
+      // Payment completed in the modal. Now poll for webhook confirmation.
+      toast.loading("Processing payment...", { id: "payment-processing" });
+      
+      // Poll for up to 10 seconds for the webhook to arrive
+      let confirmed = false;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        
+        const statusRes = await fetch("/api/marketplace/items");
+        if (statusRes.ok) {
+          const statusJson = (await statusRes.json()) as { items: MarketplaceItemSummary[] };
+          const updatedItem = statusJson.items.find((i) => i.id === item.id);
+          
+          if (updatedItem?.account_status === "enabled" || updatedItem?.account_status === "purchased") {
+            confirmed = true;
+            // Update local state with the confirmed status
+            setMarketplaceItems((prev) =>
+              prev.map((i) => (i.id === item.id ? updatedItem : i)),
+            );
+            break;
+          }
+        }
       }
+
+      if (confirmed) {
+        toast.success("Payment successful. Your flow is now active.", { id: "payment-processing" });
+        if (item.account_flow_id) {
+          router.push(`/flows/${item.account_flow_id}`);
+        }
+      } else {
+        // Webhook hasn't arrived yet, but payment was successful
+        // Optimistically update and let the user refresh if needed
+        setMarketplaceItems((prev) =>
+          prev.map((i) => (i.id === item.id ? { ...i, account_status: "enabled" } : i)),
+        );
+        toast.success("Payment successful. Activating your flow...", { id: "payment-processing" });
+      }
+      
       console.log("Razorpay marketplace payment:", result);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Checkout failed";
-      toast.error(msg);
+      toast.error(msg, { id: "payment-processing" });
     } finally {
       setActivatingId(null);
     }
