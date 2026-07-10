@@ -15,9 +15,11 @@ import {
   Users,
   Route,
   Coins,
+  Megaphone,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
+import { MetaAdsTab } from '@/components/settings/meta-ads-tab';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
@@ -49,7 +51,7 @@ const BASE_TAB_VALUES = [
   'billing',
   'credits',
 ] as const;
-const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing'] as const;
+const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -88,6 +90,12 @@ export default function SettingsPage() {
   const teamsEnabled = !planLoading && isAllowed('teams') && (isOrgManager || isOrgLeader);
   const routingEnabled = !planLoading && isAllowed('teams') && isOrgManager;
 
+  // Kill switch for the whole Meta Ads feature while Meta app review is
+  // pending (see docs/meta-ads-integration-plan.md §2) — the tab itself
+  // handles the Starter-plan upsell, so this only gates whether the
+  // feature exists on this deployment at all.
+  const metaAdsEnabled = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
+
   // The URL is the single source of truth for the active tab — no
   // local state, no sync effect. A previous revision duplicated this
   // into `useState` + a sync effect, which tripped React 19's
@@ -102,7 +110,8 @@ export default function SettingsPage() {
   const tab: TabValue =
     (requestedTab === 'members' && !accountSharingEnabled) ||
     (requestedTab === 'teams' && !teamsEnabled) ||
-    (requestedTab === 'routing' && !routingEnabled)
+    (requestedTab === 'routing' && !routingEnabled) ||
+    (requestedTab === 'ads' && !metaAdsEnabled)
       ? 'profile'
       : requestedTab;
 
@@ -125,6 +134,7 @@ export default function SettingsPage() {
       label: 'Messaging',
       items: [
         { value: 'whatsapp', label: 'WhatsApp', icon: Settings },
+        ...(metaAdsEnabled ? [{ value: 'ads' as TabValue, label: 'Ads', icon: Megaphone }] : []),
         { value: 'templates', label: 'Templates', icon: MessageSquare },
         { value: 'tags', label: 'Tags', icon: Tag },
       ],
@@ -207,6 +217,12 @@ export default function SettingsPage() {
           <TabsContent value="whatsapp" className="mt-0">
             <WhatsAppConfig />
           </TabsContent>
+
+          {metaAdsEnabled && (
+            <TabsContent value="ads" className="mt-0">
+              <MetaAdsTab />
+            </TabsContent>
+          )}
 
           <TabsContent value="templates" className="mt-0">
             <TemplateManager />

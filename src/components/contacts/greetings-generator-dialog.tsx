@@ -273,6 +273,7 @@ export function GreetingsGeneratorDialog({
               <div className="space-y-2">
                 <Label className="text-slate-300 text-xs font-semibold">Graphic Card Card</Label>
                 <div className="relative group border border-slate-800 rounded-xl overflow-hidden bg-slate-950 aspect-video flex items-center justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={generatedImageUrl}
                     alt="Festive greeting card"

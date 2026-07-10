@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getPlanLimits } from '@/lib/billing/gates';
 
 // POST /api/contacts/import — bulk import contacts from a CSV payload.

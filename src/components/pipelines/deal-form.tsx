@@ -53,7 +53,7 @@ export function DealForm({
   onSaved,
 }: DealFormProps) {
   const supabase = createClient();
-  const { user, accountId } = useAuth();
+  const { accountId } = useAuth();
 
   const [title, setTitle] = useState("");
   const [value, setValue] = useState("");
