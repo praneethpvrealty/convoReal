@@ -34,6 +34,11 @@ import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
 import { LocalityAutocomplete, type PickedLocality } from '@/components/ui/locality-autocomplete';
 import { FlyerCreatorDialog } from '@/components/inventory/flyer-creator-dialog';
+import { PromotePropertyDialog } from '@/components/inventory/promote-property-dialog';
+
+// Kill switch — the Promote button/dialog only exist where Meta Ads is
+// configured on the deployment (see docs/meta-ads-integration-plan.md §2).
+const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { localCache } from '@/lib/cache-store';
@@ -100,6 +105,8 @@ export default function InventoryPage() {
   const [deleting, setDeleting] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
   const [flyerProperty, setFlyerProperty] = useState<Property | null>(null);
+  const [promoteOpen, setPromoteOpen] = useState(false);
+  const [promoteProperty, setPromoteProperty] = useState<Property | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
   const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
@@ -362,6 +369,11 @@ export default function InventoryPage() {
   function handleFlyerClick(property: Property) {
     setFlyerProperty(property);
     setFlyerOpen(true);
+  }
+
+  function handlePromoteClick(property: Property) {
+    setPromoteProperty(property);
+    setPromoteOpen(true);
   }
 
   // Handle share click
@@ -688,6 +700,7 @@ export default function InventoryPage() {
         onTogglePublish={handleTogglePublish}
         canEdit={canEdit}
         onFlyer={handleFlyerClick}
+        onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
         onShare={handleShareClick}
         onApprove={handleApprove}
         onReject={handleReject}
@@ -710,6 +723,15 @@ export default function InventoryPage() {
         property={flyerProperty}
         onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
       />
+
+      {/* Promote (Meta Ads) Dialog */}
+      {META_ADS_ENABLED && (
+        <PromotePropertyDialog
+          open={promoteOpen}
+          onOpenChange={setPromoteOpen}
+          property={promoteProperty}
+        />
+      )}
 
       {/* Share Property Dialog */}
       <PropertyShareDialog

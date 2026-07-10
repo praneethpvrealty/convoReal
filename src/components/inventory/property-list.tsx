@@ -18,6 +18,7 @@ import {
   Loader2,
   Sparkles,
   Share2,
+  Megaphone,
 } from 'lucide-react';
 
 const highlightIcons: Record<string, string> = {
@@ -42,6 +43,7 @@ interface PropertyListProps {
   onTogglePublish: (property: Property) => Promise<void>;
   canEdit: boolean;
   onFlyer?: (property: Property) => void;
+  onPromote?: (property: Property) => void;
   onShare?: (property: Property) => void;
   onApprove?: (property: Property) => Promise<void>;
   onReject?: (property: Property) => Promise<void>;
@@ -57,6 +59,7 @@ export function PropertyList({
   onTogglePublish,
   canEdit,
   onFlyer,
+  onPromote,
   onShare,
   onApprove,
   onReject,
@@ -567,6 +570,17 @@ export function PropertyList({
                     className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
                   >
                     <Sparkles className="size-3.5 mr-1.5 text-primary" /> Flyer
+                  </Button>
+                )}
+                {onPromote && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onPromote(property)}
+                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                  >
+                    <Megaphone className="size-3.5 mr-1.5 text-primary" /> Promote
                   </Button>
                 )}
                 {onShare && (

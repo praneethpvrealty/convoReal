@@ -119,6 +119,21 @@ export async function checkPlanLimit(
       return { allowed: true };
     }
 
+    case 'meta_ads': {
+      // Meta Ads (Click-to-WhatsApp campaigns) is a paid-plan feature.
+      // Reuses the same underlying "paid plan" flag as AI (has_ai =
+      // plan is not Starter) — no separate DB column needed — with an
+      // ads-specific message.
+      if (!limits.has_ai) {
+        return {
+          allowed: false,
+          reason: 'Meta Ads requires Solo Pro or higher',
+          upgradeRequired: upgradeRequiredFor('ai', plan) ?? 'solo_pro',
+        };
+      }
+      return { allowed: true };
+    }
+
     case 'contacts': {
       const limit = limits.max_contacts;
       if (limit >= 999999) return { allowed: true };

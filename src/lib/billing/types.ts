@@ -58,7 +58,8 @@ export type GatedFeature =
   | 'teams'
   | 'multi_number'
   | 'api_access'
-  | 'branded_showcase';
+  | 'branded_showcase'
+  | 'meta_ads';
 
 export interface GateResult {
   allowed: boolean;

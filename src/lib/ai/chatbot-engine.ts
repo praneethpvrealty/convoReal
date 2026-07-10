@@ -666,6 +666,9 @@ export async function processOwnerChatbotMessage(
         }
       }
 
+      const parsedRent = parseNumeric(draft.rent_per_month) || 0;
+      const parsedPriceVal = parseNumeric(draft.price) || 0;
+
       // Create new property in inventory
       const { data: prop, error: propErr } = await supabaseAdmin()
         .from('properties')
@@ -674,13 +677,13 @@ export async function processOwnerChatbotMessage(
           user_id: userId,
           title: draft.title!.trim(),
           description: draft.description || '',
-          price: draft.listing_type === 'Rent' ? (draft.rent_per_month || 0) : (draft.price || 0),
+          price: draft.listing_type === 'Rent' ? parsedRent : parsedPriceVal,
           location: draft.location!.trim(),
           type: draft.type || 'Others',
           status: 'Available',
-          bedrooms: draft.bedrooms,
-          bathrooms: draft.bathrooms,
-          area_sqft: draft.area_sqft,
+          bedrooms: parseNumeric(draft.bedrooms),
+          bathrooms: parseNumeric(draft.bathrooms),
+          area_sqft: parseNumeric(draft.area_sqft),
           sublocality: draft.sublocality,
           city: draft.city || 'Bangalore',
           state: draft.state || 'Karnataka',
@@ -690,10 +693,10 @@ export async function processOwnerChatbotMessage(
           features: draft.features || [],
           nearby_highlights: draft.nearby_highlights || [],
           images: draft.images || [],
-          rental_income: draft.rental_income,
-          roi: draft.roi,
+          rental_income: parseNumeric(draft.rental_income),
+          roi: parseNumeric(draft.roi),
           google_map_link: draft.google_map_link,
-          land_area: draft.land_area,
+          land_area: parseNumeric(draft.land_area),
           land_area_unit: draft.land_area_unit || 'Sq.Ft.',
           land_zone: (() => {
             if (!draft.type) return null;
@@ -733,10 +736,10 @@ export async function processOwnerChatbotMessage(
           owner_contact_id: ownerContactId,
           listing_source: listingSource,
           listing_type: draft.listing_type || 'Sale',
-          rent_per_month: draft.rent_per_month,
-          maintenance: draft.maintenance,
-          advance: draft.advance,
-          gst: draft.gst,
+          rent_per_month: parseNumeric(draft.rent_per_month),
+          maintenance: parseNumeric(draft.maintenance),
+          advance: parseNumeric(draft.advance),
+          gst: parseNumeric(draft.gst),
           notes: [
             `Ingested automatically via WhatsApp chatbot.`,
             extraNotesFromOwner
@@ -2094,4 +2097,15 @@ export async function processExternalListingMessage(
   }
 
   return true;
+}
+
+function parseNumeric(val: any): number | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  if (typeof val === 'string') {
+    const cleaned = val.replace(/[^\d.]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? null : parsed;
+  }
+  return null;
 }
