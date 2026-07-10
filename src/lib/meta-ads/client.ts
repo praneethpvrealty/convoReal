@@ -330,6 +330,19 @@ export async function setObjectStatus(opts: {
   })
 }
 
+/** Updates an ad set's daily budget (minor currency units). */
+export async function setAdSetDailyBudget(opts: {
+  accessToken: string
+  adsetId: string
+  dailyBudgetMinor: number
+}): Promise<void> {
+  await graphRequest(`${opts.adsetId}`, {
+    accessToken: opts.accessToken,
+    method: 'POST',
+    params: { daily_budget: opts.dailyBudgetMinor },
+  })
+}
+
 /**
  * Resolves a city name to a Meta geo `key` for ad-set targeting, used
  * when a property has no coordinates. Returns null when Meta finds no
@@ -350,5 +363,45 @@ export async function deleteObject(accessToken: string, objectId: string): Promi
     await graphRequest(`${objectId}`, { accessToken, method: 'DELETE' })
   } catch (err) {
     console.error(`[meta-ads] cleanup delete of ${objectId} failed (non-fatal):`, err)
+  }
+}
+
+// ── Insights (Phase D) ────────────────────────────────────────────────
+
+interface RawInsightsRow {
+  spend?: string
+  impressions?: string
+  reach?: string
+  actions?: Array<{ action_type: string; value: string }>
+}
+
+export interface CampaignInsights {
+  spendInr: number
+  impressions: number
+  reach: number
+  /** "Chats started" per Meta's own attribution — a Meta-side metric,
+   *  distinct from (and not to be confused with) real CRM leads. */
+  conversationsStarted: number
+}
+
+const CONVERSATIONS_ACTION_TYPE = 'onsite_conversion.messaging_conversation_started_7d'
+
+/** Lifetime insights for one campaign. Null if Meta has no data yet
+ *  (e.g. a campaign that just went live). */
+export async function getCampaignInsights(accessToken: string, campaignId: string): Promise<CampaignInsights | null> {
+  const data = await graphRequest<{ data: RawInsightsRow[] }>(`${campaignId}/insights`, {
+    accessToken,
+    params: { fields: 'spend,impressions,reach,actions' },
+  })
+  const row = data.data?.[0]
+  if (!row) return null
+
+  const conversations = row.actions?.find((a) => a.action_type === CONVERSATIONS_ACTION_TYPE)
+
+  return {
+    spendInr: Number(row.spend ?? 0),
+    impressions: Number(row.impressions ?? 0),
+    reach: Number(row.reach ?? 0),
+    conversationsStarted: conversations ? Number(conversations.value) : 0,
   }
 }

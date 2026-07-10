@@ -12,6 +12,7 @@ import {
   setObjectStatus,
   deleteObject,
   resolveCityGeoKey,
+  getCampaignInsights,
   isTokenError,
   MetaAdsApiError,
 } from '@/lib/meta-ads/client';
@@ -238,9 +239,14 @@ export async function POST(request: NextRequest) {
         .single();
       if (insErr || !row) throw insErr || new Error('Failed to record campaign');
 
-      // Final step: go live.
+      // Final step: go live. Meta only delivers when campaign AND ad set
+      // AND ad are all ACTIVE — every level was created PAUSED, so all
+      // three must be explicitly flipped here (activating the campaign
+      // alone does NOT resume children that started paused).
       try {
         await setObjectStatus({ accessToken, objectId: created.campaignId, status: 'ACTIVE' });
+        await setObjectStatus({ accessToken, objectId: created.adsetId, status: 'ACTIVE' });
+        await setObjectStatus({ accessToken, objectId: created.adId, status: 'ACTIVE' });
         await db.from('ad_campaigns').update({ status: 'ACTIVE', updated_at: new Date().toISOString() }).eq('id', row.id);
       } catch (activateErr) {
         // Objects exist and are recorded but couldn't go live — mark
@@ -270,6 +276,161 @@ export async function POST(request: NextRequest) {
       console.error('[POST /api/meta-ads/campaigns] create sequence failed:', seqErr);
       return NextResponse.json({ error: msg }, { status: 502 });
     }
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
+
+// GET /api/meta-ads/campaigns
+// Lists this account's campaigns for the Ads dashboard. Refreshes
+// cached insights for any campaign whose data is older than 15
+// minutes (or has never been fetched); on a Meta failure for an
+// individual campaign, serves its last cached numbers with
+// `stale: true` rather than failing the whole list. "Leads in CRM" is
+// computed from OUR OWN ctwa_referrals table (real contacts created),
+// never from Meta's numbers — the two are deliberately kept distinct
+// (see docs/meta-ads-integration-plan.md §6).
+const INSIGHTS_STALE_MS = 15 * 60 * 1000;
+
+export async function GET() {
+  try {
+    const ctx = await requireRole('viewer');
+    const db = supabaseAdmin();
+
+    const { data: campaigns, error } = await db
+      .from('ad_campaigns')
+      .select('*')
+      .eq('account_id', ctx.accountId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[GET /api/meta-ads/campaigns] fetch error:', error);
+      return NextResponse.json({ error: 'Failed to load campaigns' }, { status: 500 });
+    }
+    if (!campaigns || campaigns.length === 0) {
+      return NextResponse.json({ campaigns: [], connectionStatus: null });
+    }
+
+    // Hydrate property thumbnail/title for each campaign row.
+    const propertyIds = [...new Set(campaigns.map((c) => c.property_id))];
+    const { data: properties } = await db
+      .from('properties')
+      .select('id, title, property_code, images')
+      .in('id', propertyIds);
+    const propertyById = new Map((properties ?? []).map((p) => [p.id, p]));
+
+    // Leads in CRM per ad_id — count of distinct contacts whose first
+    // touch was this ad, from our own attribution table.
+    const adIds = campaigns.map((c) => c.ad_id).filter((id): id is string => !!id);
+    const leadCountByAdId = new Map<string, number>();
+    if (adIds.length > 0) {
+      const { data: referrals } = await db
+        .from('ctwa_referrals')
+        .select('source_id, contact_id')
+        .eq('account_id', ctx.accountId)
+        .in('source_id', adIds);
+      for (const r of referrals ?? []) {
+        if (!r.source_id) continue;
+        leadCountByAdId.set(r.source_id, (leadCountByAdId.get(r.source_id) ?? 0) + 1);
+      }
+    }
+
+    // Refresh stale insights for live campaigns only — no point
+    // spending a Meta call on an already-archived/errored row.
+    const now = Date.now();
+    const needsRefresh = campaigns.filter(
+      (c) =>
+        ['ACTIVE', 'PAUSED'].includes(c.status) &&
+        c.campaign_id &&
+        (!c.last_insights_at || now - new Date(c.last_insights_at).getTime() > INSIGHTS_STALE_MS),
+    );
+
+    let connectionStatus: string | null = null;
+    const refreshedById = new Map<string, { insights: Record<string, unknown>; fetchedAt: string }>();
+
+    if (needsRefresh.length > 0) {
+      const { data: config } = await db
+        .from('meta_ads_config')
+        .select('access_token, status')
+        .eq('account_id', ctx.accountId)
+        .maybeSingle();
+
+      if (config?.status === 'connected' && config.access_token) {
+        const accessToken = decrypt(config.access_token as string);
+        let tokenExpired = false;
+
+        for (const c of needsRefresh) {
+          if (tokenExpired) break;
+          try {
+            const insights = await getCampaignInsights(accessToken, c.campaign_id as string);
+            const fetchedAt = new Date().toISOString();
+            const payload = {
+              spend: insights?.spendInr ?? 0,
+              impressions: insights?.impressions ?? 0,
+              reach: insights?.reach ?? 0,
+              conversations: insights?.conversationsStarted ?? 0,
+              fetched_at: fetchedAt,
+            };
+            refreshedById.set(c.id, { insights: payload, fetchedAt });
+            await db
+              .from('ad_campaigns')
+              .update({ last_insights: payload, last_insights_at: fetchedAt })
+              .eq('id', c.id);
+          } catch (err) {
+            if (isTokenError(err)) {
+              tokenExpired = true;
+              await db.from('meta_ads_config').update({ status: 'token_expired' }).eq('account_id', ctx.accountId);
+            }
+            // Non-token errors: leave this campaign's cached insights as-is
+            // (served below with stale: true); keep refreshing the rest.
+          }
+        }
+        connectionStatus = tokenExpired ? 'token_expired' : 'connected';
+      } else {
+        connectionStatus = config?.status ?? 'not_connected';
+      }
+    }
+
+    const result = campaigns.map((c) => {
+      const property = propertyById.get(c.property_id);
+      const fresh = refreshedById.get(c.id);
+      const insights = fresh?.insights ?? c.last_insights ?? null;
+      const leads = c.ad_id ? leadCountByAdId.get(c.ad_id) ?? 0 : 0;
+      const spend = (insights?.spend as number | undefined) ?? 0;
+      // Staleness reflects actual data AGE (fetched_at vs. now), not
+      // whether THIS request happened to be the one that fetched it —
+      // a campaign refreshed 2 minutes ago via an earlier request is
+      // fresh even though `fresh` (this request's refresh map) is unset.
+      const fetchedAt = insights?.fetched_at as string | undefined;
+      const isStale = !fetchedAt || now - new Date(fetchedAt).getTime() > INSIGHTS_STALE_MS;
+
+      return {
+        id: c.id,
+        propertyId: c.property_id,
+        propertyTitle: property?.title ?? 'Property',
+        propertyCode: property?.property_code ?? null,
+        propertyImage: property?.images?.[0] ?? null,
+        status: c.status,
+        dailyBudgetInr: Math.round((c.daily_budget_minor as number) / 100),
+        currency: c.currency,
+        headline: c.headline,
+        createdAt: c.created_at,
+        insights: insights
+          ? {
+              spend,
+              impressions: insights.impressions ?? 0,
+              reach: insights.reach ?? 0,
+              conversationsStarted: insights.conversations ?? 0,
+              fetchedAt: fetchedAt ?? null,
+              stale: isStale,
+            }
+          : null,
+        leadsInCrm: leads,
+        costPerLeadInr: leads > 0 ? Math.round((spend / leads) * 100) / 100 : null,
+      };
+    });
+
+    return NextResponse.json({ campaigns: result, connectionStatus });
   } catch (err) {
     return toErrorResponse(err);
   }

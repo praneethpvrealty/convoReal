@@ -28,8 +28,13 @@ import {
   Sun,
   Radar,
   Activity,
+  Megaphone,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
+
+// Kill switch — the Ads nav item only exists where Meta Ads is
+// configured on this deployment (see docs/meta-ads-integration-plan.md §2).
+const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -104,6 +109,7 @@ const navItems: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/inventory", label: "Inventory", icon: Home },
+  ...(META_ADS_ENABLED ? [{ href: "/ads", label: "Ads", icon: Megaphone }] : []),
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
   // { href: "/automations", label: "Automations", icon: Zap }, // Hidden — using Flows instead
   { href: "/flows", label: "Flows", icon: Workflow },
