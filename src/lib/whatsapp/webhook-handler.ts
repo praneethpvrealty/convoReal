@@ -10,6 +10,7 @@ import {
 } from '@/lib/whatsapp/template-webhook'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
+import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
@@ -53,6 +54,10 @@ export interface WhatsAppMessage {
     list_reply?: { id: string; title: string; description?: string }
   }
   context?: { id: string }
+  // Present only on the FIRST inbound message of a thread the buyer
+  // started from a Click-to-WhatsApp ad (Instagram/Facebook). See
+  // ctwa-attribution.ts.
+  referral?: WhatsAppReferral
 }
 
 export interface WhatsAppWebhookEntry {
@@ -716,7 +721,27 @@ async function processMessage(
     }
   }
 
-  if (contentText) {
+  // Click-to-WhatsApp ad attribution: if this message came from an
+  // Instagram/Facebook ad, record the referral and stamp the contact.
+  // Runs after routing (so routing still sees the pre-existing source)
+  // and before the text matcher below — a property linked from the
+  // actual ad we created is authoritative, so we skip text matching
+  // when it succeeds. No-op for every non-ad message.
+  let ctwaLinkedPropertyId: string | null = null
+  if (message.referral) {
+    const ctwaResult = await processCtwaReferral({
+      admin: supabaseAdmin(),
+      accountId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      messageId: message.id,
+      referral: message.referral,
+      contact: contactRecord,
+    })
+    ctwaLinkedPropertyId = ctwaResult.linkedPropertyId
+  }
+
+  if (contentText && !ctwaLinkedPropertyId) {
     try {
       const { data: properties } = await supabaseAdmin()
         .from('properties')

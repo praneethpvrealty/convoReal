@@ -106,6 +106,7 @@ export const AI_FEATURE_COSTS = {
   chatbot_auto_reply: 2,
   contact_parse: 5,
   listing_parse: 5,
+  greetings_generate: 10,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;

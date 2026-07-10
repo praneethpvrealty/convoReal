@@ -123,6 +123,8 @@ export interface Contact {
   property_interests?: string[];
   status?: 'active' | 'pending_review';
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
+  dob?: string | null;
+  feedback_status?: 'not_requested' | 'requested' | 'collected';
   last_contacted_at?: string | null;
   referrer?: string;
   referrer_contact_id?: string | null;

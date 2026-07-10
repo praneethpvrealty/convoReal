@@ -325,9 +325,11 @@ export default function ContactsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'active' | 'pending_review'>('active');
+  const [activeTab, setActiveTab] = useState<'active' | 'pending_review' | 'transacted' | 'market_active'>('active');
   const [activeCount, setActiveCount] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  const [transactedCount, setTransactedCount] = useState(0);
+  const [marketActiveCount, setMarketActiveCount] = useState(0);
 
   const [filterClassification, setFilterClassification] = useState<string>('All');
   const [filterTag, setFilterTag] = useState<string>('All');
@@ -435,13 +437,15 @@ export default function ContactsPage() {
     const to = from + PAGE_SIZE - 1;
 
     const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${debouncedSearch}`;
-    const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number }>(cacheKey);
+    const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number; transactedCount: number; marketActiveCount: number }>(cacheKey);
 
     if (cached) {
       setContacts(cached.enriched || []);
       setTotalCount(cached.totalCount || 0);
       setActiveCount(cached.activeCount || 0);
       setReviewCount(cached.reviewCount || 0);
+      setTransactedCount(cached.transactedCount || 0);
+      setMarketActiveCount(cached.marketActiveCount || 0);
       setLoading(false);
     } else {
       setLoading(true);
@@ -459,8 +463,29 @@ export default function ContactsPage() {
           'id, user_id, name, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, min_roi, source, status, created_at, updated_at',
           { count: 'exact' },
         )
-        .eq('account_id', accountId)
-        .eq('status', activeTab);
+        .eq('account_id', accountId);
+
+      if (activeTab === 'active' || activeTab === 'pending_review') {
+        query = query.eq('status', activeTab);
+      } else {
+        // transacted and market_active are active contacts
+        query = query.eq('status', 'active');
+
+        if (activeTab === 'transacted') {
+          const { data: wonDeals } = await supabaseClient
+            .from('deals')
+            .select('contact_id')
+            .eq('status', 'won');
+          const transactedContactIds = Array.from(new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || []));
+          if (transactedContactIds.length > 0) {
+            query = query.in('id', transactedContactIds);
+          } else {
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+          }
+        } else if (activeTab === 'market_active') {
+          query = query.or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
+        }
+      }
 
       // Apply sorting logic
       if (sortBy === 'name_asc') {
@@ -687,8 +712,15 @@ export default function ContactsPage() {
 
       setTotalCount(count ?? 0);
 
+      // Fetch won deals first
+      const { data: wonDeals } = await supabaseClient
+        .from('deals')
+        .select('contact_id')
+        .eq('status', 'won');
+      const transactedIds = Array.from(new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || []));
+
       // Fetch tab totals in the background
-      const [actCountRes, revCountRes] = await Promise.all([
+      const [actCountRes, revCountRes, transactedCountRes, marketActiveCountRes] = await Promise.all([
         supabaseClient
           .from('contacts')
           .select('id', { count: 'exact', head: true })
@@ -699,10 +731,24 @@ export default function ContactsPage() {
           .select('id', { count: 'exact', head: true })
           .eq('account_id', accountId)
           .eq('status', 'pending_review'),
+        supabaseClient
+          .from('contacts')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', accountId)
+          .eq('status', 'active')
+          .in('id', transactedIds.length > 0 ? transactedIds : ['00000000-0000-0000-0000-000000000000']),
+        supabaseClient
+          .from('contacts')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', accountId)
+          .eq('status', 'active')
+          .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null'),
       ]);
 
       setActiveCount(actCountRes.count ?? 0);
       setReviewCount(revCountRes.count ?? 0);
+      setTransactedCount(transactedCountRes.count ?? 0);
+      setMarketActiveCount(marketActiveCountRes.count ?? 0);
 
       if (!data || data.length === 0) {
         setContacts([]);
@@ -735,6 +781,8 @@ export default function ContactsPage() {
         totalCount: count ?? 0,
         activeCount: actCountRes.count ?? 0,
         reviewCount: revCountRes.count ?? 0,
+        transactedCount: transactedCountRes.count ?? 0,
+        marketActiveCount: marketActiveCountRes.count ?? 0,
       });
 
       setContacts(enriched);
@@ -1294,7 +1342,7 @@ export default function ContactsPage() {
 
 
         {/* Tab Switcher */}
-        <div className="flex bg-slate-900/60 p-1 border border-slate-800 rounded-lg self-start">
+        <div className="flex bg-slate-900/60 p-1 border border-slate-800 rounded-lg self-start gap-1 flex-wrap">
           <button
             onClick={() => {
               setActiveTab('active');
@@ -1325,6 +1373,32 @@ export default function ContactsPage() {
                 {reviewCount}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('transacted');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+              activeTab === 'transacted'
+                ? 'bg-slate-800 text-emerald-400 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Transacted ({transactedCount})
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('market_active');
+              setPage(0);
+            }}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+              activeTab === 'market_active'
+                ? 'bg-slate-800 text-blue-400 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Active Buyers ({marketActiveCount})
           </button>
         </div>
       </div>
@@ -1416,6 +1490,10 @@ export default function ContactsPage() {
                         ? 'No contacts match your search.'
                         : activeTab === 'pending_review'
                         ? 'No contacts pending review.'
+                        : activeTab === 'transacted'
+                        ? 'No transacted contacts found.'
+                        : activeTab === 'market_active'
+                        ? 'No active buyers found.'
                         : 'No contacts yet.'}
                     </p>
                     {!search && activeTab === 'active' && (
@@ -1441,7 +1519,14 @@ export default function ContactsPage() {
                 >
                   <TableCell className="text-white font-medium py-3">
                     <div className="flex flex-col gap-1">
-                      <span>{contact.name || <span className="text-slate-500 italic text-xs">Unnamed</span>}</span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{contact.name || <span className="text-slate-500 italic text-xs">Unnamed</span>}</span>
+                        {contact.tags?.some((t) => t.name.toUpperCase() === 'VIP') && (
+                          <span className="inline-flex items-center gap-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider select-none">
+                            ⭐ VIP
+                          </span>
+                        )}
+                      </div>
                       {contact.lead_temp && (
                         <div className="mt-0.5">
                           {renderLeadTempBadge(contact.lead_temp)}

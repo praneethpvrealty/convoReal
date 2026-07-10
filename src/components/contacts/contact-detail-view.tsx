@@ -49,6 +49,7 @@ import { getCurrencyIcon } from '@/lib/currency-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
+import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
@@ -108,6 +109,7 @@ export function ContactDetailView({
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [logShareOpen, setLogShareOpen] = useState(false);
+  const [greetingsOpen, setGreetingsOpen] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -151,6 +153,8 @@ export function ContactDetailView({
 
   // Requirements for Agent/Owner/Seller/etc
   const [editRequirements, setEditRequirements] = useState('');
+  const [editDob, setEditDob] = useState('');
+  const [editFeedbackStatus, setEditFeedbackStatus] = useState<'not_requested' | 'requested' | 'collected'>('not_requested');
 
   // Associated Properties for Owner/Seller/Agent
   const [associatedProperties, setAssociatedProperties] = useState<Property[]>([]);
@@ -261,6 +265,8 @@ export function ContactDetailView({
       setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
       setEditPropertyInterests(data.property_interests ?? []);
       setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
+      setEditDob(data.dob ?? '');
+      setEditFeedbackStatus((data as Contact).feedback_status ?? 'not_requested');
 
       // Fetch last inquired property details (for backward compatibility)
       if (data.last_inquired_property_id) {
@@ -901,6 +907,8 @@ export function ContactDetailView({
         referrer: editReferrer.trim() || null,
         referrer_contact_id: editReferrerContactId,
         requirements: editRequirements.trim() || null,
+        dob: editDob || null,
+        feedback_status: editFeedbackStatus,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contactId);
@@ -1312,6 +1320,13 @@ export function ContactDetailView({
                       <Share2 className="size-3 text-amber-400" />
                       Share Listing
                     </button>
+                    <button
+                      onClick={() => setGreetingsOpen(true)}
+                      className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                    >
+                      <span className="size-3 flex items-center justify-center text-[10px]">🎉</span>
+                      Send Greeting
+                    </button>
                     {contact.email && (
                       <span className="flex items-center gap-1">
                         <Mail className="size-3" />
@@ -1621,6 +1636,49 @@ export function ContactDetailView({
                       <option value="Dead">💀 Dead</option>
                     </select>
                   </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-slate-400 text-xs">Date of Birth</Label>
+                    <div className="space-y-1">
+                      <Input
+                        type="date"
+                        value={editDob}
+                        onChange={(e) => setEditDob(e.target.value)}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none h-9"
+                      />
+                      {editDob && (() => {
+                        const today = new Date();
+                        const dobDate = new Date(editDob);
+                        const isBirthdayToday = today.getDate() === dobDate.getDate() && today.getMonth() === dobDate.getMonth();
+                        if (isBirthdayToday) {
+                          return (
+                            <p className="text-[10px] text-amber-400 font-semibold flex items-center gap-1 mt-1">
+                              🎂 Today is their birthday!
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+                  </div>
+
+                  {deals.some((d) => d.status === 'won') && (
+                    <div className="space-y-1.5 bg-slate-950/40 border border-slate-800 rounded-lg p-2.5">
+                      <Label className="text-slate-400 text-xs font-semibold">Feedback &amp; Review</Label>
+                      <select
+                        value={editFeedbackStatus}
+                        onChange={(e) => setEditFeedbackStatus(e.target.value as 'not_requested' | 'requested' | 'collected')}
+                        className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white focus:border-primary focus:outline-none h-8 mt-1"
+                      >
+                        <option value="not_requested">Not Requested</option>
+                        <option value="requested">Requested</option>
+                        <option value="collected">Collected</option>
+                      </select>
+                      <p className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+                        This contact has transacted successfully. Collect feedback or review to post on your showcase page.
+                      </p>
+                    </div>
+                  )}
 
                   {editClassification !== 'Owner' && (
                     <div className="space-y-1.5">
@@ -2626,6 +2684,16 @@ export function ContactDetailView({
                   fetchNotes();
                   onUpdated();
                 }}
+              />
+            )}
+            {/* Greetings Generator Dialog */}
+            {contactId && contact && (
+              <GreetingsGeneratorDialog
+                open={greetingsOpen}
+                onOpenChange={setGreetingsOpen}
+                contactId={contactId}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
               />
             )}
           </div>

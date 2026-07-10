@@ -27,7 +27,7 @@ export async function PUT(
       name, phone, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest,
-      property_interests, min_roi, source,
+      property_interests, min_roi, source, dob, feedback_status,
       // Related entities
       tag_ids,
       note_text,
@@ -60,6 +60,8 @@ export async function PUT(
       property_interests: Array.isArray(property_interests) ? property_interests : [],
       min_roi: typeof min_roi === 'number' ? min_roi : null,
       source: typeof source === 'string' ? source.trim() || null : null,
+      dob: typeof dob === 'string' && dob.trim() ? dob.trim() : null,
+      feedback_status: typeof feedback_status === 'string' ? feedback_status : 'not_requested',
       updated_at: new Date().toISOString(),
     };
 

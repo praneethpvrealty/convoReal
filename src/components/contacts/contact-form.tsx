@@ -78,6 +78,8 @@ export function ContactForm({
   const [showReferrerSuggestions, setShowReferrerSuggestions] = useState(false);
   const [source, setSource] = useState('');
   const [saving, setSaving] = useState(false);
+  const [dob, setDob] = useState('');
+  const [feedbackStatus, setFeedbackStatus] = useState<'not_requested' | 'requested' | 'collected'>('not_requested');
 
   // Notes state
   const [notesText, setNotesText] = useState('');
@@ -189,6 +191,8 @@ export function ContactForm({
       setPropertyInterests(contact?.property_interests ?? []);
       setMinRoi(contact?.min_roi ? String(contact.min_roi) : '');
       setSource(contact?.source ?? '');
+      setDob(contact?.dob ?? '');
+      setFeedbackStatus(contact?.feedback_status ?? 'not_requested');
       setSelectedTagIds(contactTags.map((ct) => ct.tag_id));
       fetchTags();
       fetchContacts();
@@ -311,6 +315,8 @@ export function ContactForm({
         property_interests: propertyInterests,
         min_roi: minRoi ? Number(minRoi) : null,
         source: source.trim() || null,
+        dob: dob || null,
+        feedback_status: feedbackStatus,
         // Related entities — server handles these atomically
         tag_ids: selectedTagIds,
         note_text: notesText,
@@ -511,6 +517,19 @@ export function ContactForm({
               <option value="WhatsApp">WhatsApp</option>
               <option value="Others">Others</option>
             </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="cf-dob" className="text-slate-300">
+              Date of Birth
+            </Label>
+            <Input
+              id="cf-dob"
+              type="date"
+              value={dob}
+              onChange={(e) => setDob(e.target.value)}
+              className="w-full bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-10 text-sm focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary"
+            />
           </div>
 
           <div className="space-y-2">
