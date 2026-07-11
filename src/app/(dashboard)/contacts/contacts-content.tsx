@@ -536,6 +536,30 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
 
     try {
+      // Fetch profile phone numbers for this account to exclude them
+      const { data: profilesData } = await supabaseClient
+        .from('profiles')
+        .select('phone')
+        .eq('account_id', accountId);
+
+      const profilePhones = (profilesData || [])
+        .map((p) => p.phone ? p.phone.replace(/\D/g, '') : '')
+        .filter((p) => p.length >= 8);
+
+      let internalContactIds: string[] = [];
+      if (profilePhones.length > 0) {
+        const orConditions = profilePhones.map(p => `phone.like.%${p.slice(-8)}`).join(',');
+        const { data: matchingContacts } = await supabaseClient
+          .from('contacts')
+          .select('id')
+          .eq('account_id', accountId)
+          .or(orConditions);
+
+        if (matchingContacts) {
+          internalContactIds = matchingContacts.map((c) => c.id);
+        }
+      }
+
       // Scoped to what the table row, edit form, and delete/WhatsApp actions
       // actually read — dropping `requirements` (free text) and other unused
       // columns cuts payload size meaningfully at 25 rows/page. `.or()` search
@@ -548,6 +572,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           { count: 'exact' },
         )
         .eq('account_id', accountId);
+
+      if (internalContactIds.length > 0) {
+        query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
+      }
 
       if (activeTab === 'active' || activeTab === 'pending_review') {
         query = query.eq('status', activeTab);
@@ -812,29 +840,45 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       const transactedIds = Array.from(new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || []));
 
       // Fetch tab totals in the background
+      let actQuery = supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'active');
+      
+      let revQuery = supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'pending_review');
+
+      let transactedQuery = supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'active')
+        .in('id', transactedIds.length > 0 ? transactedIds : ['00000000-0000-0000-0000-000000000000']);
+
+      let marketActiveQuery = supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('status', 'active')
+        .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
+
+      if (internalContactIds.length > 0) {
+        const notInString = `(${internalContactIds.join(',')})`;
+        actQuery = actQuery.not('id', 'in', notInString);
+        revQuery = revQuery.not('id', 'in', notInString);
+        transactedQuery = transactedQuery.not('id', 'in', notInString);
+        marketActiveQuery = marketActiveQuery.not('id', 'in', notInString);
+      }
+
       const [actCountRes, revCountRes, transactedCountRes, marketActiveCountRes] = await Promise.all([
-        supabaseClient
-          .from('contacts')
-          .select('id', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'active'),
-        supabaseClient
-          .from('contacts')
-          .select('id', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'pending_review'),
-        supabaseClient
-          .from('contacts')
-          .select('id', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'active')
-          .in('id', transactedIds.length > 0 ? transactedIds : ['00000000-0000-0000-0000-000000000000']),
-        supabaseClient
-          .from('contacts')
-          .select('id', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'active')
-          .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null'),
+        actQuery,
+        revQuery,
+        transactedQuery,
+        marketActiveQuery,
       ]);
 
       setActiveCount(actCountRes.count ?? 0);
