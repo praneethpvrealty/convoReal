@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { FavoriteButton } from "@/components/layout/favorite-button";
 
 /** Strip WhatsApp formatting markers (*bold*, _italic_, ~strike~) for plain-text previews. */
 function stripWhatsAppFormatting(text: string | null | undefined): string {
@@ -104,7 +105,7 @@ export function ConversationList({
   const searchParams = useSearchParams();
   const initialFilter = (searchParams.get("filter") as FilterValue) || "all";
   const initialSearch = searchParams.get("search") || "";
-  const { orgRole, accountId, user } = useAuth();
+  const { orgRole, accountId, user, profile } = useAuth();
 
   const [search, setSearch] = useState(initialSearch);
   const [filter, setFilter] = useState<FilterValue>(
@@ -207,7 +208,14 @@ export function ConversationList({
         return;
       }
 
-      const fetched = data ?? [];
+      let fetched = data ?? [];
+
+      if (profile?.phone) {
+        const userPhoneDigits = profile.phone.replace(/\D/g, "");
+        fetched = fetched.filter(
+          (c) => !c.contact?.phone || c.contact.phone.replace(/\D/g, "") !== userPhoneDigits
+        );
+      }
 
       if (isResync) {
         // Silent merge: update changed rows and prepend brand-new ones.
@@ -229,10 +237,17 @@ export function ConversationList({
     // `resyncToken` is included so the parent can force a refetch when
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
-  }, [resyncToken]);
+  }, [resyncToken, profile?.phone]);
 
   const filtered = useMemo(() => {
     let result = conversations;
+
+    if (profile?.phone) {
+      const userPhoneDigits = profile.phone.replace(/\D/g, "");
+      result = result.filter(
+        (c) => !c.contact?.phone || c.contact.phone.replace(/\D/g, "") !== userPhoneDigits
+      );
+    }
 
     if (filter === "archived") {
       result = result.filter((c) => c.is_archived);
@@ -269,7 +284,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, effectiveScope, user?.id]);
+  }, [conversations, filter, search, effectiveScope, user?.id, profile?.phone]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -328,14 +343,17 @@ export function ConversationList({
     <div className="flex h-full w-full flex-col border-r border-slate-900/60 bg-slate-950/45 backdrop-blur-xl lg:w-80 min-h-0 overflow-hidden">
       {/* Search + Filter */}
       <div className="space-y-2.5 border-b border-slate-900/60 p-3.5">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-          <Input
-            value={search}
-            onChange={handleSearchChange}
-            placeholder="Search conversations..."
-            className="border-slate-850 bg-slate-950/40 pl-9 text-sm text-white placeholder-slate-550 focus:border-primary/50 rounded-xl transition-all"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <Input
+              value={search}
+              onChange={handleSearchChange}
+              placeholder="Search conversations..."
+              className="border-slate-850 bg-slate-950/40 pl-9 text-sm text-white placeholder-slate-550 focus:border-primary/50 rounded-xl transition-all"
+            />
+          </div>
+          <FavoriteButton label="Inbox" href="/inbox" icon="MessageSquare" />
         </div>
 
         <div className="flex items-center gap-2">

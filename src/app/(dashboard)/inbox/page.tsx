@@ -10,10 +10,12 @@ import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function InboxPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { profile } = useAuth();
   /**
    * `?c=<id>` deep-link support. Used when landing here from the
    * dashboard's recent-conversations list so the right thread opens
@@ -107,6 +109,14 @@ export default function InboxPage() {
       }
       if (!data) return;
       const fetched = data as Conversation;
+
+      if (profile?.phone) {
+        const userPhoneDigits = profile.phone.replace(/\D/g, "");
+        if (fetched.contact?.phone && fetched.contact.phone.replace(/\D/g, "") === userPhoneDigits) {
+          return;
+        }
+      }
+
       setConversations((prev) => {
         const existing = prev.find((c) => c.id === fetched.id);
         if (existing) {
@@ -126,7 +136,7 @@ export default function InboxPage() {
     } finally {
       hydratingConvIdsRef.current.delete(convId);
     }
-  }, []);
+  }, [profile?.phone]);
 
   // Check WhatsApp connection status on mount
   useEffect(() => {
@@ -359,13 +369,17 @@ export default function InboxPage() {
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       const activeId = activeConversationIdRef.current;
+      const userPhoneDigits = profile?.phone ? profile.phone.replace(/\D/g, "") : "";
+      const loadedFiltered = userPhoneDigits
+        ? loaded.filter(c => !c.contact?.phone || c.contact.phone.replace(/\D/g, "") !== userPhoneDigits)
+        : loaded;
 
       setConversations((prev) => {
         // First load (prev is empty) — just set the full list.
         if (prev.length === 0) {
           return activeId
-            ? loaded.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c))
-            : loaded;
+            ? loadedFiltered.map((c) => (c.id === activeId ? { ...c, unread_count: 0 } : c))
+            : loadedFiltered;
         }
 
         // Resync merge: patch existing rows in-place and prepend truly new
@@ -373,12 +387,12 @@ export default function InboxPage() {
         // (which would cause the whole list to re-render) and preserves any
         // optimistic state we applied since the last fetch.
         const prevMap = new Map(prev.map((c) => [c.id, c]));
-        const loadedMap = new Map(loaded.map((c) => [c.id, c]));
+        const loadedMap = new Map(loadedFiltered.map((c) => [c.id, c]));
         const result: Conversation[] = [];
 
         // Iterate the freshly-fetched order (sorted by last_message_at desc)
         // so the list stays sorted after the merge.
-        for (const fresh of loaded) {
+        for (const fresh of loadedFiltered) {
           const existing = prevMap.get(fresh.id);
           if (existing) {
             // Preserve optimistic unread_count: 0 for the active conversation.
@@ -416,7 +430,7 @@ export default function InboxPage() {
       if (
         deepLinkConvId &&
         autoSelectedForDeepLinkRef.current !== deepLinkConvId &&
-        loaded.length > 0
+        loadedFiltered.length > 0
       ) {
         autoSelectedForDeepLinkRef.current = deepLinkConvId;
         // If the deep-linked conversation is already the active one
@@ -429,7 +443,7 @@ export default function InboxPage() {
         // refetch. The thread would read "No messages yet" until a
         // full page reload rehydrated state from scratch.
         if (activeConversation?.id === deepLinkConvId) return;
-        const match = loaded.find((c) => c.id === deepLinkConvId);
+        const match = loadedFiltered.find((c) => c.id === deepLinkConvId);
         if (match) {
           setActiveConversation(match);
           setActiveContact(match.contact ?? null);
@@ -456,7 +470,7 @@ export default function InboxPage() {
         }
       }
     },
-    [deepLinkConvId, activeConversation?.id]
+    [deepLinkConvId, activeConversation?.id, profile?.phone]
   );
 
   const handleSelectConversation = useCallback(

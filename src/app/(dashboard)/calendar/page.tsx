@@ -25,6 +25,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SearchableContactSelect } from "@/components/ui/searchable-contact-select";
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
 import { InfoHint } from "@/components/ui/info-hint";
+import { FavoriteButton } from "@/components/layout/favorite-button";
 
 interface Appointment {
   id: string;
@@ -831,9 +832,23 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 lg:h-full lg:flex-row overflow-hidden">
-      {/* ── Left Side: Interactive Calendar Monthly View ────────────────── */}
-      <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
+    <div className="space-y-6 relative overflow-hidden h-full flex flex-col">
+      {/* Header */}
+      <div className="relative z-10 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+            Calendar
+          </h1>
+          <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
+            Manage site visits, follow-up callbacks, and track operational deadlines.
+          </p>
+        </div>
+        <FavoriteButton label="Calendar" href="/calendar" icon="Calendar" />
+      </div>
+
+      <div className="flex flex-col gap-6 lg:h-full lg:flex-row overflow-hidden flex-1">
+        {/* ── Left Side: Interactive Calendar Monthly View ────────────────── */}
+        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
         {/* Calendar Header Nav */}
         <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3">
@@ -1423,6 +1438,7 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

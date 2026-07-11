@@ -38,6 +38,7 @@ import { BillingTab } from '@/components/settings/billing-tab';
 import { CreditsTab } from '@/components/settings/credits-tab';
 import { cn } from '@/lib/utils';
 import { InfoHint } from '@/components/ui/info-hint';
+import { FavoriteButton } from "@/components/layout/favorite-button";
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -167,15 +168,21 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white flex items-center">
-          Settings
-          <InfoHint text="Configure your WhatsApp integration, message templates, team members, custom tags, and Showcase branding." />
-        </h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Manage your profile, WhatsApp® integration, message templates, and
-          tags.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white flex items-center">
+            Settings
+            <InfoHint text="Configure your WhatsApp integration, message templates, team members, custom tags, and Showcase branding." />
+          </h1>
+          <p className="text-sm text-slate-400 mt-1">
+            Manage your profile, WhatsApp® integration, message templates, and tags.
+          </p>
+        </div>
+        <FavoriteButton
+          label={`Settings: ${tab.charAt(0).toUpperCase() + tab.slice(1)}`}
+          href={`/settings?tab=${tab}`}
+          icon="Settings"
+        />
       </div>
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)} className="flex flex-col gap-5">

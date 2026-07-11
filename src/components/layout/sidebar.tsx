@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
+import { FavoritesCard } from "@/components/layout/favorites-card";
 import {
   Crown,
   GitBranch,
@@ -98,21 +99,13 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/today", label: "Today", icon: Sun },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/inbox", label: "Inbox", icon: MessageSquare },
-  { href: "/radar", label: "Match Radar", icon: Radar, beta: true },
-  { href: "/pulse", label: "Pulse", icon: Activity, beta: true },
   { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/requirements", label: "Requirements", icon: ClipboardList },
-  { href: "/agents", label: "Agents", icon: UsersRound },
-  { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/pipelines", label: "Pipelines", icon: GitBranch },
   { href: "/inventory", label: "Inventory", icon: Home },
-  ...(META_ADS_ENABLED ? [{ href: "/ads", label: "Ads", icon: Megaphone }] : []),
+  { href: "/calendar", label: "Calendar", icon: Calendar },
+  { href: "/inbox", label: "Inbox", icon: MessageSquare },
+  { href: "/automations", label: "Automations", icon: Workflow },
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
-  // { href: "/automations", label: "Automations", icon: Zap }, // Hidden — using Flows instead
-  { href: "/flows", label: "Flows", icon: Workflow },
 ];
 
 const bottomNavItems = [
@@ -323,6 +316,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           </div>
         </nav>
 
+        <FavoritesCard />
         <SidebarCreditWidget />
 
         {/* User section */}

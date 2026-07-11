@@ -18,6 +18,7 @@ import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
 import { InfoHint } from '@/components/ui/info-hint';
+import { FavoriteButton } from "@/components/layout/favorite-button";
 
 /**
  * Poll cadence while any broadcast is sending. Kept modest so we don't
@@ -178,7 +179,7 @@ export default function BroadcastsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white flex items-center">
             Broadcasts
@@ -188,15 +189,18 @@ export default function BroadcastsPage() {
             Send bulk messages to your contacts using approved templates.
           </p>
         </div>
-        <GatedButton
-          canAct={canCreate}
-          gateReason="create broadcasts"
-          onClick={() => router.push('/broadcasts/new')}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          New Broadcast
-        </GatedButton>
+        <div className="flex items-center gap-2.5">
+          <FavoriteButton label="Broadcasts" href="/broadcasts" icon="Radio" />
+          <GatedButton
+            canAct={canCreate}
+            gateReason="create broadcasts"
+            onClick={() => router.push('/broadcasts/new')}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            New Broadcast
+          </GatedButton>
+        </div>
       </div>
 
       {broadcasts.length === 0 ? (
