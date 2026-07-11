@@ -855,6 +855,7 @@ export function ContactDetailView({
     
     // Resolve showcase URL
     let finalShowcaseUrl = '';
+    let showcaseUrlObj: URL | null = null;
     if (typeof window !== 'undefined') {
       const baseDomain = window.location.host;
       const parts = baseDomain.split('.');
@@ -865,14 +866,78 @@ export function ContactDetailView({
       const targetDomain = showcaseSettings?.subdomain 
         ? `${showcaseSettings.subdomain}.${hostDomain}` 
         : baseDomain;
-      const showcaseUrl = new URL(`${window.location.protocol}//${targetDomain}`);
+      showcaseUrlObj = new URL(`${window.location.protocol}//${targetDomain}`);
       if (!showcaseSettings?.subdomain && accountId) {
-        showcaseUrl.searchParams.set('ref', accountId);
+        showcaseUrlObj.searchParams.set('ref', accountId);
       }
-      finalShowcaseUrl = showcaseUrl.toString();
+      finalShowcaseUrl = showcaseUrlObj.toString();
     }
 
-    const message = `Hi ${displayName}, Greetings from ${agentName} , your real estate buddy!. Thanks for your property enquiry. Kindly let me know your requirements and budget. We will share the suitable property from our inventory matching your requirements and budget. For any other queries you can ask me here. Also you can explore our inventories here - ${finalShowcaseUrl}`;
+    let linkSection = '';
+    if (showcaseUrlObj) {
+      if (inquiredProperty) {
+        const singlePropUrl = new URL(showcaseUrlObj.toString());
+        singlePropUrl.searchParams.set('property_id', inquiredProperty.property_code || inquiredProperty.id);
+        
+        const matchingUrl = new URL(showcaseUrlObj.toString());
+        if (inquiredProperty.listing_type) {
+          matchingUrl.searchParams.set('listing_type', inquiredProperty.listing_type);
+        }
+        if (inquiredProperty.type) {
+          matchingUrl.searchParams.set('category', inquiredProperty.type);
+        }
+        const searchLocation = inquiredProperty.sublocality || inquiredProperty.city || '';
+        if (searchLocation) {
+          matchingUrl.searchParams.set('search', searchLocation);
+        }
+        
+        linkSection = `Meanwhile, you can view details for the property you enquired about here:
+${singlePropUrl.toString()}
+
+Or browse other matching verified properties here:
+${matchingUrl.toString()}`;
+      } else {
+        const hasInterestFilters = (contact.areas_of_interest && contact.areas_of_interest.length > 0) || 
+                                   (contact.property_interests && contact.property_interests.length > 0);
+        
+        if (hasInterestFilters) {
+          const matchingUrl = new URL(showcaseUrlObj.toString());
+          if (contact.areas_of_interest && contact.areas_of_interest.length > 0) {
+            matchingUrl.searchParams.set('search', contact.areas_of_interest[0]);
+          }
+          if (contact.property_interests && contact.property_interests.length > 0) {
+            matchingUrl.searchParams.set('category', contact.property_interests[0]);
+          }
+          
+          const filterDesc = [
+            contact.property_interests?.[0],
+            contact.areas_of_interest?.[0] ? `in ${contact.areas_of_interest[0]}` : ''
+          ].filter(Boolean).join(' ');
+          
+          linkSection = `Meanwhile, you can browse verified ${filterDesc || 'matching'} properties here:
+${matchingUrl.toString()}`;
+        } else {
+          linkSection = `Meanwhile, you can browse 500+ verified properties matching different budgets here:
+${finalShowcaseUrl}`;
+        }
+      }
+    } else {
+      linkSection = `Meanwhile, you can browse 500+ verified properties matching different budgets here:
+${finalShowcaseUrl}`;
+    }
+
+    const message = `Hi ${displayName} 👋
+Thank you for your property enquiry. I'm ${agentName}, your real estate consultant.
+
+To help me suggest the best options, could you please share:
+• Preferred location
+• Budget
+• Flat/Plot/Villa
+• Ready-to-move or under-construction
+
+${linkSection}
+
+Once you share your requirements, I'll personally shortlist the best 5–10 properties for you.`;
 
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
