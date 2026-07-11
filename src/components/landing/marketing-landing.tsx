@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { 
   MessageSquare, 
   Bot, 
@@ -26,6 +27,15 @@ import { CrmLeadForm } from '@/components/landing/crm-lead-form';
 import { BRANDING } from '@/config/branding';
 
 export function MarketingLanding() {
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        window.location.href = '/dashboard';
+      }
+    });
+  }, []);
+
   // Demo states
   const [demoStep, setDemoStep] = useState<'idle' | 'parsing' | 'completed'>('idle');
   const [copyStep, setCopyStep] = useState<'idle' | 'writing' | 'completed'>('idle');

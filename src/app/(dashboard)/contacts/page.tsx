@@ -1051,6 +1051,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     setDetailOpen(true);
   }
 
+  const handleDetailOpenChange = (open: boolean) => {
+    setDetailOpen(open);
+    if (!open) {
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.delete('contactId');
+      const queryString = params.toString();
+      router.push(`/contacts${queryString ? `?${queryString}` : ''}`, { scroll: false });
+      setDetailContactId(null);
+    }
+  };
+
   function confirmDelete(contact: Contact) {
     setDeleteTarget(contact);
     setDeleteConfirmOpen(true);
@@ -1864,7 +1875,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       {/* Contact Detail Sheet */}
       <ContactDetailView
         open={detailOpen}
-        onOpenChange={setDetailOpen}
+        onOpenChange={handleDetailOpenChange}
         contactId={detailContactId}
         onUpdated={fetchContactsWithInvalidate}
       />

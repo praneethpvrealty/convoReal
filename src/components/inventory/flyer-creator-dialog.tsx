@@ -589,18 +589,56 @@ export function FlyerCreatorDialog({
     if (!silent) setSavingToProperty(true);
     try {
       // 1. Convert canvas to Blob
+      // canvas.toBlob() can silently hang on tainted canvases (cross-origin
+      // images without proper CORS) — the callback simply never fires. We
+      // guard against this with a timeout and a toDataURL fallback.
       console.log('[FlyerCreatorDialog] Converting canvas to blob...');
       const blob = await new Promise<Blob | null>((resolve) => {
+        const timeout = setTimeout(() => {
+          console.warn('[FlyerCreatorDialog] toBlob timed out after 10s — trying toDataURL fallback');
+          try {
+            const dataUrl = canvas.toDataURL('image/png');
+            const byteString = atob(dataUrl.split(',')[1]);
+            const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            resolve(new Blob([ab], { type: mimeString }));
+          } catch (fallbackErr) {
+            console.error('[FlyerCreatorDialog] toDataURL fallback also failed (canvas tainted?):', fallbackErr);
+            resolve(null);
+          }
+        }, 10000);
+
         try {
-          canvas.toBlob(resolve, 'image/png');
+          canvas.toBlob((result) => {
+            clearTimeout(timeout);
+            resolve(result);
+          }, 'image/png');
         } catch (err) {
-          console.error('[FlyerCreatorDialog] Canvas toBlob error:', err);
-          resolve(null);
+          clearTimeout(timeout);
+          console.error('[FlyerCreatorDialog] Canvas toBlob threw (tainted canvas):', err);
+          // Synchronous SecurityError on tainted canvas — try toDataURL fallback
+          try {
+            const dataUrl = canvas.toDataURL('image/png');
+            const byteString = atob(dataUrl.split(',')[1]);
+            const mimeString = dataUrl.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            resolve(new Blob([ab], { type: mimeString }));
+          } catch {
+            resolve(null);
+          }
         }
       });
       
       if (!blob) {
-        throw new Error('Failed to generate image blob from design canvas. The canvas may be empty.');
+        throw new Error('Failed to generate image blob. The canvas may be tainted by a cross-origin image. Try using "Generate with AI" for the background instead.');
       }
       
       console.log('[FlyerCreatorDialog] Blob created, size:', blob.size);

@@ -365,6 +365,17 @@ export default function InventoryPage() {
     setFormOpen(true);
   }
 
+  const handleFormOpenChange = (open: boolean) => {
+    setFormOpen(open);
+    if (!open) {
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.delete('propertyId');
+      const queryString = params.toString();
+      router.push(`/inventory${queryString ? `?${queryString}` : ''}`, { scroll: false });
+      setSelectedProperty(null);
+    }
+  };
+
   // Handle flyer click
   function handleFlyerClick(property: Property) {
     setFlyerProperty(property);
@@ -710,7 +721,7 @@ export default function InventoryPage() {
       {/* Add / Edit Form Modal */}
       <PropertyForm
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={handleFormOpenChange}
         property={selectedProperty}
         onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
         viewOnly={formViewOnly}
