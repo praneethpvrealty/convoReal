@@ -21,7 +21,32 @@ function extractPath(url: string): string | null {
   }
 }
 
-export async function GET() {
+/**
+ * Deletes stored images for Sold / stale-unpublished properties on a
+ * schedule. DESTRUCTIVE and cross-tenant, so it must never be
+ * publicly triggerable.
+ *
+ * Auth: requires the shared cron secret, supplied either via the
+ * repo-standard `x-cron-secret` header (external pinger, like the
+ * other cron routes) or Vercel Cron's native `Authorization: Bearer`
+ * header (this job is registered in vercel.json). Matched against
+ * `AUTOMATION_CRON_SECRET` (the operator's existing cron secret) or
+ * `CRON_SECRET` (Vercel's default var). Fails CLOSED: if no secret is
+ * configured the endpoint returns 503 rather than running.
+ */
+export async function GET(request: Request) {
+  const expected =
+    process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET;
+  if (!expected) {
+    return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
+  }
+  const supplied =
+    request.headers.get('x-cron-secret') ||
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+  if (supplied !== expected) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const supabase = supabaseAdmin();
   const cutoff = new Date(Date.now() - DAYS_THRESHOLD * 24 * 60 * 60 * 1000).toISOString();
   let deletedCount = 0;
@@ -61,11 +86,22 @@ export async function GET() {
       }
     }
 
-    // Clear the images array
-    await supabase
+    // Clear the images array. The blobs are already deleted above, so a
+    // failed update leaves the row pointing at dead URLs — surface it as
+    // an error instead of silently counting a clean success.
+    const { error: updateError } = await supabase
       .from('properties')
       .update({ images: [] })
       .eq('id', prop.id);
+
+    if (updateError) {
+      console.error(
+        `[cleanup-images] blobs removed but DB update failed for ${prop.id}:`,
+        updateError,
+      );
+      errorCount++;
+      continue;
+    }
 
     deletedCount++;
   }
