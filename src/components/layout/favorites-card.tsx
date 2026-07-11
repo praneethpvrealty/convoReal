@@ -96,11 +96,12 @@ export function FavoritesCard() {
     };
   }, []);
 
-  // Ensure index remains in bounds if items are deleted
+  // Ensure index remains in bounds if items are added, deleted, or updated
   useEffect(() => {
-    if (startIndex >= favorites.length && favorites.length > 0) {
+    const maxIndex = Math.max(0, favorites.length - 2);
+    if (startIndex > maxIndex) {
       Promise.resolve().then(() => {
-        setStartIndex(Math.max(0, favorites.length - 2));
+        setStartIndex(maxIndex);
       });
     }
   }, [favorites.length, startIndex]);
