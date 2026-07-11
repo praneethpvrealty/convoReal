@@ -114,6 +114,7 @@ export function ContactDetailView({
   // Details tab
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editSecondaryPhones, setEditSecondaryPhones] = useState<string[]>([]);
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
   const [editSource, setEditSource] = useState('');
@@ -249,6 +250,7 @@ export function ContactDetailView({
       setContact(data);
       setEditName(data.name ?? '');
       setEditPhone(data.phone);
+      setEditSecondaryPhones(data.secondary_phones ?? []);
       setEditEmail(data.email ?? '');
       setEditCompany(data.company ?? '');
       setEditSource(data.source ?? '');
@@ -965,6 +967,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       .update({
         name: editName.trim() || null,
         phone: editPhone.trim(),
+        secondary_phones: editSecondaryPhones.filter(p => p.trim().length > 0).map(p => p.trim()),
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         classification: editClassification,
@@ -1537,6 +1540,51 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       onChange={(e) => setEditPhone(e.target.value)}
                       className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-slate-400 text-xs">Secondary Phone Numbers</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditSecondaryPhones([...editSecondaryPhones, ''])}
+                        className="h-5 px-1.5 text-[10px] text-primary hover:text-primary-hover hover:bg-slate-800 flex items-center gap-1 border border-slate-700/50"
+                      >
+                        <Plus className="h-2.5 w-2.5" />
+                        Add Number
+                      </Button>
+                    </div>
+
+                    {editSecondaryPhones.length > 0 && (
+                      <div className="space-y-1.5 mt-1">
+                        {editSecondaryPhones.map((secPhone, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5">
+                            <Input
+                              value={secPhone}
+                              onChange={(e) => {
+                                const updated = [...editSecondaryPhones];
+                                updated[idx] = e.target.value;
+                                setEditSecondaryPhones(updated);
+                              }}
+                              placeholder="+91 98765 43210"
+                              className="bg-slate-800 border-slate-700 text-white h-8 text-sm flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setEditSecondaryPhones(editSecondaryPhones.filter((_, i) => i !== idx));
+                              }}
+                              className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-8 w-8 shrink-0 animate-none"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-slate-400 text-xs">Email</Label>

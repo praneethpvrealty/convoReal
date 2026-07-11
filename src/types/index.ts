@@ -111,6 +111,7 @@ export interface Contact {
   id: string;
   user_id: string;
   phone: string;
+  secondary_phones?: string[];
   name?: string;
   email?: string;
   company?: string;

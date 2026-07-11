@@ -745,6 +745,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           // 7. Fallback for remaining search text
           if (parsed.remainingSearch) {
             const term = `%${parsed.remainingSearch}%`;
+            const cleanSearch = parsed.remainingSearch.trim().replace(/["'{}\\]/g, '');
             const { data: matchedNotes } = await supabaseClient
               .from('contact_notes')
               .select('contact_id')
@@ -757,6 +758,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
 
             let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+            if (cleanSearch) {
+              orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
+            }
             if (safeRemainingIds.length > 0) {
               orFilter += `,id.in.(${safeRemainingIds.join(',')})`;
             }
@@ -765,6 +769,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         } else {
           // Simple text-search query fallback
           const term = `%${debouncedSearch.trim()}%`;
+          const cleanSearch = debouncedSearch.trim().replace(/["'{}\\]/g, '');
           const { data: matchedNotes } = await supabaseClient
               .from('contact_notes')
               .select('contact_id')
@@ -777,6 +782,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           const safeNoteIds = noteContactIds.slice(0, 150);
 
           let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+          if (cleanSearch) {
+            orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
+          }
           if (safeNoteIds.length > 0) {
             orFilter += `,id.in.(${safeNoteIds.join(',')})`;
           }

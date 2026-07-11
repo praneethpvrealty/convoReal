@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, Plus, Trash2 } from 'lucide-react';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
 
@@ -67,6 +67,7 @@ export function ContactForm({
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [secondaryPhones, setSecondaryPhones] = useState<string[]>([]);
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
   const [classification, setClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
@@ -176,6 +177,7 @@ export function ContactForm({
     if (open) {
       setName(contact?.name ?? '');
       setPhone(contact?.phone ?? '');
+      setSecondaryPhones(contact?.secondary_phones ?? []);
       setEmail(contact?.email ?? '');
       setCompany(contact?.company ?? '');
       setClassification((contact as Contact)?.classification ?? 'Others');
@@ -303,6 +305,7 @@ export function ContactForm({
       const payload = {
         name: name.trim() || null,
         phone: phone.trim(),
+        secondary_phones: secondaryPhones,
         email: email.trim() || null,
         company: company.trim() || null,
         classification,
@@ -389,11 +392,60 @@ export function ContactForm({
               id="cf-phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 234 567 8900"
+              placeholder="+91 98765 43210"
               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
             />
             <p className="text-xs text-slate-500">
-              Include country code, e.g. +1 for US
+              Include country code, e.g. +91 for India
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-slate-300">Secondary Phone Numbers</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setSecondaryPhones([...secondaryPhones, ''])}
+                className="h-6 px-2 text-xs text-primary hover:text-primary-hover hover:bg-slate-800 flex items-center gap-1 border border-slate-700/50"
+              >
+                <Plus className="h-3 w-3" />
+                Add Number
+              </Button>
+            </div>
+
+            {secondaryPhones.length > 0 && (
+              <div className="space-y-2 mt-1">
+                {secondaryPhones.map((secPhone, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <Input
+                      value={secPhone}
+                      onChange={(e) => {
+                        const updated = [...secondaryPhones];
+                        updated[idx] = e.target.value;
+                        setSecondaryPhones(updated);
+                      }}
+                      placeholder="+91 98765 43210"
+                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 flex-1 h-9"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSecondaryPhones(secondaryPhones.filter((_, i) => i !== idx));
+                      }}
+                      className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-9 w-9 shrink-0"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-slate-500">
+              For calling/referral lookup only. WhatsApp messages always route to the primary number.
             </p>
           </div>
 

@@ -24,7 +24,7 @@ export async function PUT(
     }
 
     const {
-      name, phone, email, company, classification, lead_temp,
+      name, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest,
       property_interests, min_roi, source, dob, feedback_status,
@@ -47,6 +47,9 @@ export async function PUT(
     const fieldsToSave = {
       name: typeof name === 'string' ? name.trim() || null : null,
       phone: phone.trim(),
+      secondary_phones: Array.isArray(secondary_phones)
+        ? secondary_phones.filter((p: unknown) => typeof p === 'string' && p.trim().length > 0).map((p: string) => p.trim())
+        : [],
       email: typeof email === 'string' ? email.trim() || null : null,
       company: typeof company === 'string' ? company.trim() || null : null,
       classification: typeof classification === 'string' ? classification : 'Buyer',
