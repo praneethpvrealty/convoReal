@@ -28,6 +28,7 @@ export async function POST(request: Request) {
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest,
       property_interests, min_roi, source, dob, feedback_status,
+      strict_area_match,
       // Related entities
       tag_ids,
       note_text,
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
       source: typeof source === 'string' ? source.trim() || null : null,
       dob: typeof dob === 'string' && dob.trim() ? dob.trim() : null,
       feedback_status: typeof feedback_status === 'string' ? feedback_status : 'not_requested',
+      strict_area_match: typeof strict_area_match === 'boolean' ? strict_area_match : false,
     };
 
     // Step 1: Insert the contact

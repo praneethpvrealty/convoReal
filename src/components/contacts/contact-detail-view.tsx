@@ -171,6 +171,7 @@ export function ContactDetailView({
   const [editMinBudget, setEditMinBudget] = useState('');
   const [editMaxBudget, setEditMaxBudget] = useState('');
   const [editNoBudget, setEditNoBudget] = useState(false);
+  const [editStrictAreaMatch, setEditStrictAreaMatch] = useState(false);
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
   const [editAreasText, setEditAreasText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -260,6 +261,7 @@ export function ContactDetailView({
       setEditMinBudget(data.min_budget ? String(data.min_budget) : '');
       setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
       setEditNoBudget(!!data.no_budget);
+      setEditStrictAreaMatch(!!data.strict_area_match);
       const initialAreas = data.areas_of_interest ?? [];
       setEditAreasOfInterest(initialAreas);
       setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
@@ -1182,6 +1184,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         min_budget: editMinBudget ? Number(editMinBudget) : null,
         max_budget: editMaxBudget ? Number(editMaxBudget) : null,
         no_budget: editNoBudget,
+        strict_area_match: editStrictAreaMatch,
         areas_of_interest: editAreasOfInterest,
         property_interests: editPropertyInterests,
         min_roi: editMinRoi ? Number(editMinRoi) : null,
@@ -1973,6 +1976,20 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             </button>
                           );
                         })}
+                      </div>
+
+                      {/* Strict Area Match Checkbox */}
+                      <div className="flex items-center space-x-2 pt-2">
+                        <input
+                          type="checkbox"
+                          id="edit-cf-strict-area-match"
+                          checked={editStrictAreaMatch}
+                          onChange={(e) => setEditStrictAreaMatch(e.target.checked)}
+                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
+                        />
+                        <label htmlFor="edit-cf-strict-area-match" className="text-[11px] text-slate-400 font-medium cursor-pointer select-none">
+                          Strict Area Match (Matches within 5 kms instead of 20 kms)
+                        </label>
                       </div>
                     </div>
 

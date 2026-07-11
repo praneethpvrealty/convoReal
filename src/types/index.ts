@@ -126,6 +126,7 @@ export interface Contact {
   dob?: string | null;
   feedback_status?: 'not_requested' | 'requested' | 'collected';
   last_contacted_at?: string | null;
+  strict_area_match?: boolean;
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;

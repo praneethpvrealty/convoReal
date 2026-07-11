@@ -1,6 +1,110 @@
 import type { Contact, Property } from '@/types';
 import { normalizePropertyType } from '@/lib/property-types';
 
+// Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
+const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> = {
+  'jp nagar': { lat: 12.9063, lng: 77.5857 },
+  'indiranagar': { lat: 12.9719, lng: 77.6412 },
+  'kasturi nagar': { lat: 13.0031, lng: 77.6508 },
+  'hsr layout': { lat: 12.9141, lng: 77.6411 },
+  'koramangala': { lat: 12.9279, lng: 77.6271 },
+  'whitefield': { lat: 12.9698, lng: 77.7500 },
+  'jayanagar': { lat: 12.9308, lng: 77.5838 },
+  'btm layout': { lat: 12.9166, lng: 77.6101 },
+  'bellandur': { lat: 12.9272, lng: 77.6756 },
+  'sarjapur': { lat: 12.8624, lng: 77.7818 },
+  'hebbal': { lat: 13.0354, lng: 77.5988 },
+  'yelahanka': { lat: 13.1007, lng: 77.5963 },
+  'electronic city': { lat: 12.8407, lng: 77.6763 },
+  'marathahalli': { lat: 12.9569, lng: 77.7011 },
+  'malleshwaram': { lat: 13.0031, lng: 77.5701 },
+  'rajajinagar': { lat: 12.9902, lng: 77.5536 },
+  'banashankari': { lat: 12.9255, lng: 77.5468 },
+  'kalyan nagar': { lat: 13.0221, lng: 77.6403 },
+  'kammanahalli': { lat: 13.0093, lng: 77.6366 },
+  'hennur': { lat: 13.0336, lng: 77.6288 },
+  'thanisandra': { lat: 13.0547, lng: 77.6326 },
+  'rt nagar': { lat: 13.0189, lng: 77.5925 },
+  'sadashivanagar': { lat: 13.0068, lng: 77.5802 },
+  'bannerghatta road': { lat: 12.8956, lng: 77.5984 },
+  'halasur nagar': { lat: 12.9818, lng: 77.6256 },
+  'halasur': { lat: 12.9818, lng: 77.6256 },
+  'ulsoor': { lat: 12.9818, lng: 77.6256 },
+  'banaswadi': { lat: 13.0084, lng: 77.6465 },
+  'cv raman nagar': { lat: 12.9792, lng: 77.6644 },
+  'kaggadasapura': { lat: 12.9821, lng: 77.6775 },
+  'ramamurthy nagar': { lat: 13.0163, lng: 77.6785 },
+  'kr puram': { lat: 13.0104, lng: 77.7025 },
+  'mahadevapura': { lat: 12.9866, lng: 77.6975 },
+  'brookefield': { lat: 12.9649, lng: 77.7180 },
+  'kadugodi': { lat: 13.0044, lng: 77.7550 },
+  'hoodi': { lat: 12.9919, lng: 77.7126 },
+  'nagawara': { lat: 13.0339, lng: 77.6186 },
+  'richmond town': { lat: 12.9634, lng: 77.6012 },
+  'lavelle road': { lat: 12.9723, lng: 77.5978 },
+  'cunningham road': { lat: 12.9859, lng: 77.5960 },
+  'mg road': { lat: 12.9756, lng: 77.6068 },
+  'brigade road': { lat: 12.9712, lng: 77.6074 },
+  'frazer town': { lat: 12.9972, lng: 77.6143 },
+  'benson town': { lat: 12.9989, lng: 77.5996 },
+  'cox town': { lat: 12.9976, lng: 77.6267 },
+  'cooke town': { lat: 12.9996, lng: 77.6214 },
+  'yeswanthpur': { lat: 13.0238, lng: 77.5529 },
+  'peenya': { lat: 13.0285, lng: 77.5197 },
+  'dasarahalli': { lat: 13.0435, lng: 77.5126 },
+  'nagasandra': { lat: 13.0483, lng: 77.5025 },
+  'vijayanagar': { lat: 12.9756, lng: 77.5354 },
+  'chandra layout': { lat: 12.9592, lng: 77.5256 },
+  'nayandahalli': { lat: 12.9405, lng: 77.5263 },
+  'rajarajeshwari nagar': { lat: 12.9234, lng: 77.5204 },
+  'rr nagar': { lat: 12.9234, lng: 77.5204 },
+  'kengeri': { lat: 12.9099, lng: 77.4834 },
+  'uttarahalli': { lat: 12.9069, lng: 77.5521 },
+  'subramanyapura': { lat: 12.8986, lng: 77.5458 },
+  'kumaraswamy layout': { lat: 12.9073, lng: 77.5675 },
+  'padmanabhanagar': { lat: 12.9181, lng: 77.5574 },
+  'girinagar': { lat: 12.9423, lng: 77.5434 },
+  'basavanagudi': { lat: 12.9417, lng: 77.5755 },
+  'hanumanth nagar': { lat: 12.9419, lng: 77.5614 },
+  'srinagar': { lat: 12.9442, lng: 77.5528 },
+  'chamarajpet': { lat: 12.9606, lng: 77.5663 },
+  'gandhi nagar': { lat: 12.9767, lng: 77.5772 },
+  'majestic': { lat: 12.9767, lng: 77.5772 },
+  'hosur road': { lat: 12.9165, lng: 77.6253 },
+  'bommanahalli': { lat: 12.9030, lng: 77.6244 },
+  'singasandra': { lat: 12.8798, lng: 77.6394 },
+  'hosa road': { lat: 12.8722, lng: 77.6433 },
+  'konappana agrahara': { lat: 12.8504, lng: 77.6669 },
+  'jigani': { lat: 12.7844, lng: 77.6274 },
+  'anekal': { lat: 12.7107, lng: 77.6980 },
+  'sarjapur road': { lat: 12.9099, lng: 77.6631 },
+  'kasavanahalli': { lat: 12.9079, lng: 77.6749 },
+  'kaikondrahalli': { lat: 12.9135, lng: 77.6748 },
+  'carmelaram': { lat: 12.9136, lng: 77.6961 },
+  'gunjur': { lat: 12.9234, lng: 77.7289 },
+  'varthur': { lat: 12.9406, lng: 77.7471 },
+  'panathur': { lat: 12.9348, lng: 77.6986 },
+  'kadubeesanahalli': { lat: 12.9388, lng: 77.6914 },
+  'munnekolala': { lat: 12.9515, lng: 77.7029 },
+  'kundalahalli': { lat: 12.9619, lng: 77.7121 },
+  'itpl': { lat: 12.9866, lng: 77.7371 },
+  'doddanekundi': { lat: 12.9715, lng: 77.6953 },
+  'outer ring road': { lat: 12.9388, lng: 77.6914 },
+  'orr': { lat: 12.9388, lng: 77.6914 },
+};
+
+function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
 /**
  * Property → contact matching engine.
  *
@@ -328,7 +432,13 @@ export function getMatchingContacts(
 
     let roiVerdict: MatchVerdict = 'unknown';
     if (minExpectedRoi !== null) {
-      roiVerdict = propertyRoi !== null && propertyRoi >= minExpectedRoi ? 'match' : 'mismatch';
+      // ROI for lands/plots cannot be matched and should be ignored
+      const isLand = propertyGroup && PLOT_GROUPS.includes(propertyGroup);
+      if (isLand) {
+        roiVerdict = 'unknown';
+      } else {
+        roiVerdict = propertyRoi !== null && propertyRoi >= minExpectedRoi ? 'match' : 'mismatch';
+      }
     }
     if (roiVerdict === 'mismatch') continue;
 
@@ -355,12 +465,47 @@ export function getMatchingContacts(
 
     let locationVerdict: MatchVerdict = 'unknown';
     if (wantedAreas.length > 0) {
-      if (wantedAreas.some(areaHitsProperty)) {
-        locationVerdict = 'match';
-      } else if (propCity && wantedAreas.some((a) => propCity.includes(a))) {
-        locationVerdict = 'partial';
+      // 3.1 Proximity-based matching if coordinates are available
+      const pLat = property.latitude ? Number(property.latitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lat : null);
+      const pLng = property.longitude ? Number(property.longitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lng : null);
+      
+      let checkedProximity = false;
+      let hasProximityMatch = false;
+      let hasProximityMismatch = false;
+
+      if (pLat !== null && pLng !== null) {
+        const maxAllowedDistance = contact.strict_area_match ? 5 : 20;
+        
+        for (const area of wantedAreas) {
+          const areaCoords = BANGALORE_LOCALITIES_COORDS[area];
+          if (areaCoords) {
+            checkedProximity = true;
+            const dist = calculateHaversineDistance(pLat, pLng, areaCoords.lat, areaCoords.lng);
+            if (dist <= maxAllowedDistance) {
+              hasProximityMatch = true;
+              break;
+            } else {
+              hasProximityMismatch = true;
+            }
+          }
+        }
+      }
+
+      if (checkedProximity) {
+        if (hasProximityMatch) {
+          locationVerdict = 'match';
+        } else if (hasProximityMismatch) {
+          locationVerdict = 'mismatch';
+        }
       } else {
-        locationVerdict = 'mismatch';
+        // 3.2 Fallback to traditional substring matching
+        if (wantedAreas.some(areaHitsProperty)) {
+          locationVerdict = 'match';
+        } else if (propCity && wantedAreas.some((a) => propCity.includes(a))) {
+          locationVerdict = 'partial';
+        } else {
+          locationVerdict = 'mismatch';
+        }
       }
     }
     // Direct mention of the property's locality/project in notes counts as a match
@@ -401,7 +546,8 @@ export function getMatchingContacts(
       budgetMax = parsed.max;
     }
 
-    const BUDGET_TOLERANCE = 0.1;
+    const BUDGET_TOLERANCE_MIN = 0.2; // Allowing 20% gap/tolerance on lower side
+    const BUDGET_TOLERANCE_MAX = 0.1; // Keeping strict 10% gap/tolerance on upper side
     let budgetVerdict: MatchVerdict = 'unknown';
     if (contact.no_budget) {
       budgetVerdict = 'partial'; // flexible — no constraint stated on purpose
@@ -411,8 +557,8 @@ export function getMatchingContacts(
       if (minOk && maxOk) {
         budgetVerdict = 'match';
       } else {
-        const nearMin = budgetMin === null || price >= budgetMin * (1 - BUDGET_TOLERANCE);
-        const nearMax = budgetMax === null || price <= budgetMax * (1 + BUDGET_TOLERANCE);
+        const nearMin = budgetMin === null || price >= budgetMin * (1 - BUDGET_TOLERANCE_MIN);
+        const nearMax = budgetMax === null || price <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
         budgetVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
       }
     }

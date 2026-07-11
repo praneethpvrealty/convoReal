@@ -117,6 +117,7 @@ describe('getMatchingContacts', () => {
         pref_property_types: ['Flat/ Apartment'],
         areas_of_interest: ['Indiranagar'],
         pref_extracted_at: new Date().toISOString(),
+        strict_area_match: true,
       });
       const property = createTestProperty({
         type: 'Flat/ Apartment',
@@ -317,6 +318,7 @@ describe('getMatchingContacts', () => {
       const contact = createTestContact({
         min_roi: 4.5,
         areas_of_interest: ['Indiranagar'],
+        strict_area_match: true,
       });
       const property = createTestProperty({
         location: 'Whitefield, Bangalore',
@@ -357,6 +359,75 @@ describe('getMatchingContacts', () => {
 
       const results = getMatchingContacts(property, [typeOnly, typeBudget, full]);
       expect(results.map((r) => r.contact.id)).toEqual(['c-full', 'c-type-budget', 'c-type']);
+    });
+  });
+
+  describe('Strict Area, Land ROI Bypass, and Min Budget 20% Gap logic', () => {
+    it('bypasses ROI expectation mismatch for raw land properties', () => {
+      const contact = createTestContact({
+        min_roi: 8.0,
+        property_interests: ['Vacant plot'],
+      });
+      const landProperty = createTestProperty({
+        type: 'Commercial Land',
+        price: 400000000,
+        roi: null,
+      });
+
+      const results = getMatchingContacts(landProperty, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.roi).toBe('unknown');
+    });
+
+    it('matches within 20 kms if strict_area_match is false, but mismatches if strict_area_match is true and distance is > 5 kms', () => {
+      // Kasturi Nagar to Indiranagar is ~3.6 kms
+      const contactNonStrict = createTestContact({
+        id: 'c-non-strict',
+        areas_of_interest: ['Indiranagar'],
+        strict_area_match: false,
+      });
+      const contactStrict = createTestContact({
+        id: 'c-strict',
+        areas_of_interest: ['Indiranagar'],
+        strict_area_match: true,
+      });
+      
+      const kasturiNagarProp = createTestProperty({
+        sublocality: 'Kasturi Nagar',
+        type: 'Flat/ Apartment',
+      });
+
+      const results = getMatchingContacts(kasturiNagarProp, [contactNonStrict, contactStrict]);
+      // Both match since 3.6 km is <= 5 km and <= 20 km
+      expect(results.map(r => r.contact.id)).toContain('c-non-strict');
+      expect(results.map(r => r.contact.id)).toContain('c-strict');
+
+      // Whitefield to Indiranagar is ~11.8 kms
+      const whitefieldProp = createTestProperty({
+        sublocality: 'Whitefield',
+        type: 'Flat/ Apartment',
+      });
+
+      const resultsWhitefield = getMatchingContacts(whitefieldProp, [contactNonStrict, contactStrict]);
+      // Only non-strict matches since 11.8 km is <= 20 km but > 5 km
+      expect(resultsWhitefield.map(r => r.contact.id)).toContain('c-non-strict');
+      expect(resultsWhitefield.map(r => r.contact.id)).not.toContain('c-strict');
+    });
+
+    it('allows a 20% budget gap tolerance on the minimum budget side', () => {
+      const contact = createTestContact({
+        min_budget: 500000000, // 50 Cr
+        max_budget: 800000000, // 80 Cr
+        property_interests: ['Vacant plot'],
+      });
+      const property = createTestProperty({
+        type: 'Commercial Land',
+        price: 400000000, // 40 Cr (exactly 80% of min_budget)
+      });
+
+      const results = getMatchingContacts(property, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.budget).toBe('partial');
     });
   });
 });

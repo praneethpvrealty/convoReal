@@ -95,6 +95,7 @@ export function ContactForm({
   const [minBudget, setMinBudget] = useState('');
   const [maxBudget, setMaxBudget] = useState('');
   const [noBudget, setNoBudget] = useState(false);
+  const [strictAreaMatch, setStrictAreaMatch] = useState(false);
   const [areasOfInterest, setAreasOfInterest] = useState<string[]>([]);
   const [areasText, setAreasText] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -185,6 +186,7 @@ export function ContactForm({
       setMinBudget(contact?.min_budget ? String(contact.min_budget) : '');
       setMaxBudget(contact?.max_budget ? String(contact.max_budget) : '');
       setNoBudget(!!contact?.no_budget);
+      setStrictAreaMatch(!!contact?.strict_area_match);
       const initialAreas = contact?.areas_of_interest ?? [];
       setAreasOfInterest(initialAreas);
       setAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
@@ -311,6 +313,7 @@ export function ContactForm({
         min_budget: minBudget ? Number(minBudget) : null,
         max_budget: maxBudget ? Number(maxBudget) : null,
         no_budget: noBudget,
+        strict_area_match: strictAreaMatch,
         areas_of_interest: areasOfInterest,
         property_interests: propertyInterests,
         min_roi: minRoi ? Number(minRoi) : null,
@@ -711,6 +714,20 @@ export function ContactForm({
                       </button>
                     );
                   })}
+                </div>
+
+                {/* Strict Area Match Checkbox */}
+                <div className="flex items-center space-x-2 pt-2">
+                  <input
+                    type="checkbox"
+                    id="cf-strict-area-match"
+                    checked={strictAreaMatch}
+                    onChange={(e) => setStrictAreaMatch(e.target.checked)}
+                    className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
+                  />
+                  <label htmlFor="cf-strict-area-match" className="text-[11px] text-slate-400 font-medium cursor-pointer select-none">
+                    Strict Area Match (Matches within 5 kms instead of 20 kms)
+                  </label>
                 </div>
               </div>
 
