@@ -63,6 +63,7 @@ function makeContact(overrides: Partial<ParsedContactDraft> = {}): ParsedContact
     company: null,
     classification: 'Others',
     notes: null,
+    requirements: null,
     referrer_name: null,
     referrer_phone: null,
     ...overrides,
@@ -304,5 +305,12 @@ describe('formatContactDraftsPreview', () => {
     expect(formatContactDraftsPreview('h', withRef, 'awaiting_confirmation', [])).toContain('• *Referrer:* Mahesh (5551212)');
     const noRef = makeContainer([makeContact({ name: 'A', phone: '1' })]);
     expect(formatContactDraftsPreview('h', noRef, 'awaiting_confirmation', [])).not.toContain('*Referrer:*');
+  });
+
+  it('shows the requirements line only when requirements are present', () => {
+    const withReq = makeContainer([makeContact({ name: 'A', phone: '1', requirements: '1 acre near Hosur Main Road, market rate' })]);
+    expect(formatContactDraftsPreview('h', withReq, 'awaiting_confirmation', [])).toContain('• *Requirements:* 1 acre near Hosur Main Road, market rate');
+    const noReq = makeContainer([makeContact({ name: 'A', phone: '1' })]);
+    expect(formatContactDraftsPreview('h', noReq, 'awaiting_confirmation', [])).not.toContain('*Requirements:*');
   });
 });

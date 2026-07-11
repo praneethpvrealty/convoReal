@@ -207,6 +207,7 @@ export function formatContactDraftsPreview(
         `• *Role/Classification:* ${draft.classification || 'Others'}\n` +
         (draft.referrer_name ? `• *Referrer:* ${draft.referrer_name}${draft.referrer_phone ? ' (' + draft.referrer_phone + ')' : ''}\n` : '') +
         `• *Notes:* ${draft.notes || '_No notes_'}\n` +
+        (draft.requirements ? `• *Requirements:* ${draft.requirements}\n` : '') +
         (duplicateWarning ? `${duplicateWarning}\n` : '') +
         `\n`;
     }

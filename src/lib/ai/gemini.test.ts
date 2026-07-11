@@ -243,6 +243,7 @@ Referred by Suresh Babu.`;
           company: null,
           classification: 'Buyer' as const,
           notes: 'Interested in SJR Blue Waters',
+          requirements: null,
           referrer_name: null,
           referrer_phone: null
         }]

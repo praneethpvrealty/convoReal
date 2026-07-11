@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { SearchableContactSelect } from "@/components/ui/searchable-contact-select";
+import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
 import { InfoHint } from "@/components/ui/info-hint";
 
 interface Appointment {
@@ -361,50 +363,89 @@ export default function CalendarPage() {
 
   const saveAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[CALENDAR SAVE] saveAppointment triggered!');
     if (!apptTitle.trim()) {
       toast.error("Please enter a title");
       return;
     }
 
     try {
+      console.log('[CALENDAR SAVE] payload prep, apptStartTime:', apptStartTime, 'apptEndTime:', apptEndTime);
+      
+      const parseDateTimeString = (str: string): Date => {
+        const parsed = new Date(str);
+        if (!isNaN(parsed.getTime())) return parsed;
+        try {
+          const [datePart, timePart] = str.split('T');
+          const [year, month, day] = datePart.split('-').map(Number);
+          const [hours, minutes] = timePart.split(':').map(Number);
+          return new Date(year, month - 1, day, hours, minutes);
+        } catch {
+          return new Date(str);
+        }
+      };
+
+      const startDate = parseDateTimeString(apptStartTime);
+      const endDate = parseDateTimeString(apptEndTime);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error("Invalid start or end date selection.");
+      }
+
       const payload = {
         title: apptTitle,
         description: apptDesc || null,
-        start_time: new Date(apptStartTime).toISOString(),
-        end_time: new Date(apptEndTime).toISOString(),
+        start_time: startDate.toISOString(),
+        end_time: endDate.toISOString(),
         location: apptLocation || null,
         status: apptStatus,
         contact_id: apptContactId || null,
         property_id: apptPropertyId || null,
       };
+      console.log('[CALENDAR SAVE] payload ready:', payload);
 
       if (selectedAppt) {
-        // Edit mode
+        console.log('[CALENDAR SAVE] updating appointment, id:', selectedAppt.id);
         const { error } = await supabase
           .from("appointments")
           .update(payload)
           .eq("id", selectedAppt.id)
           .eq("account_id", accountId);
 
-        if (error) throw error;
+        if (error) {
+          console.error('[CALENDAR SAVE] update error:', error);
+          throw error;
+        }
         toast.success("Appointment updated successfully");
       } else {
-        // Create mode
+        console.log('[CALENDAR SAVE] creating appointment, accountId:', accountId);
+        const userRes = await supabase.auth.getUser();
+        console.log('[CALENDAR SAVE] getUser response:', userRes);
+        const userId = userRes.data.user?.id;
+        
+        if (!userId) {
+          throw new Error("User session not found. Please re-login.");
+        }
+
         const { error } = await supabase
           .from("appointments")
           .insert({
             ...payload,
             account_id: accountId,
-            user_id: (await supabase.auth.getUser()).data.user?.id,
+            user_id: userId,
           });
 
-        if (error) throw error;
+        if (error) {
+          console.error('[CALENDAR SAVE] insert error:', error);
+          throw error;
+        }
         toast.success("Appointment scheduled successfully");
       }
 
       setIsApptModalOpen(false);
       loadData();
     } catch (err) {
+      console.error('[CALENDAR SAVE] caught error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || "Failed to save appointment");
     }
@@ -1147,36 +1188,24 @@ export default function CalendarPage() {
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Link Client / Contact
                   </label>
-                  <select
-                    value={apptContactId}
-                    onChange={(e) => setApptContactId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                  >
-                    <option value="">-- Select Contact --</option>
-                    {contacts.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({c.phone})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableContactSelect
+                    contacts={contacts}
+                    value={apptContactId || null}
+                    onChange={(val) => setApptContactId(val || "")}
+                    placeholder="Search contact..."
+                  />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                     Link Property Listing
                   </label>
-                  <select
-                    value={apptPropertyId}
-                    onChange={(e) => setApptPropertyId(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                  >
-                    <option value="">-- Select Property --</option>
-                    {properties.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.title}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchablePropertySelect
+                    properties={properties}
+                    value={apptPropertyId || null}
+                    onChange={(val) => setApptPropertyId(val || "")}
+                    placeholder="Search property..."
+                  />
                 </div>
               </div>
 
@@ -1188,6 +1217,7 @@ export default function CalendarPage() {
                   <DateTimePicker
                     value={apptStartTime}
                     onChange={(val) => setApptStartTime(val)}
+                    align="left"
                   />
                 </div>
 
@@ -1198,6 +1228,7 @@ export default function CalendarPage() {
                   <DateTimePicker
                     value={apptEndTime}
                     onChange={(val) => setApptEndTime(val)}
+                    align="right"
                   />
                 </div>
               </div>

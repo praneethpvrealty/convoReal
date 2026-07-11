@@ -1151,6 +1151,7 @@ export async function processOwnerChatbotMessage(
             classification: normalizeClassification(draft.classification),
             status: 'pending_review',
             source: 'WhatsApp',
+            requirements: draft.requirements || null,
             _notes: draft.notes || null, // temporary field, stripped before DB insert
             referrer: referrerNameText,
             referrer_contact_id: referrerContactId,

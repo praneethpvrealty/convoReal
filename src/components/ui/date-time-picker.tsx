@@ -10,6 +10,7 @@ interface DateTimePickerProps {
   className?: string;
   disabled?: boolean;
   id?: string;
+  align?: 'left' | 'right';
 }
 
 export function DateTimePicker({
@@ -18,6 +19,7 @@ export function DateTimePicker({
   className,
   disabled = false,
   id,
+  align = 'left',
 }: DateTimePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -224,43 +226,47 @@ export function DateTimePicker({
 
       {/* Popover */}
       {isOpen && (
-        <div className="absolute z-[9999] mt-1.5 p-4 rounded-xl border border-slate-800 bg-slate-950 shadow-2xl shadow-slate-950/80 w-[340px] md:w-[480px] flex flex-col md:flex-row gap-4 animate-in fade-in-50 zoom-in-95 duration-100 right-0 md:left-0">
-          
+        <div
+          className={cn(
+            "absolute z-[9999] mt-1.5 p-3 sm:p-4 rounded-xl border border-slate-800 bg-slate-950 shadow-2xl shadow-slate-950/80 w-[310px] sm:w-[420px] md:w-[450px] flex flex-row gap-3 sm:gap-4 animate-in fade-in-50 zoom-in-95 duration-100",
+            align === 'right' ? 'right-0' : 'left-0'
+          )}
+        >
           {/* Calendar Picker Panel */}
           <div className="flex-1">
             <div className="flex items-center justify-between mb-3.5">
-              <span className="text-sm font-semibold text-white">
+              <span className="text-xs sm:text-sm font-semibold text-white truncate max-w-[120px] sm:max-w-none">
                 {monthNames[currentMonth]} {currentYear}
               </span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={handlePrevMonth}
                   className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
                 >
-                  <ChevronLeft className="size-3.5" />
+                  <ChevronLeft className="size-3 sm:size-3.5" />
                 </button>
                 <button
                   type="button"
                   onClick={handleNextMonth}
                   className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors"
                 >
-                  <ChevronRight className="size-3.5" />
+                  <ChevronRight className="size-3 sm:size-3.5" />
                 </button>
               </div>
             </div>
 
             {/* Days Headings */}
-            <div className="grid grid-cols-7 gap-1 text-center mb-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-1 text-center mb-1 text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider">
               {daysOfWeek.map((day, idx) => (
-                <div key={idx} className="h-6 flex items-center justify-center">
+                <div key={idx} className="h-5 sm:h-6 flex items-center justify-center">
                   {day}
                 </div>
               ))}
             </div>
 
             {/* Day Cells */}
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
               {getCalendarCells().map((cell, idx) => {
                 const isSelected =
                   selectedDate.getDate() === cell.day &&
@@ -278,7 +284,7 @@ export function DateTimePicker({
                     type="button"
                     onClick={() => handleDateSelect(cell)}
                     className={cn(
-                      "size-8 rounded-lg flex items-center justify-center text-xs transition-all cursor-pointer font-medium border border-transparent",
+                      "size-7 sm:size-8 rounded-lg flex items-center justify-center text-xs transition-all cursor-pointer font-medium border border-transparent",
                       !cell.isCurrentMonth && "text-slate-600 hover:text-slate-400",
                       cell.isCurrentMonth && "text-slate-200 hover:bg-slate-900 hover:text-white",
                       isToday && "border-slate-800 text-primary font-bold bg-slate-900/30",
@@ -293,15 +299,14 @@ export function DateTimePicker({
           </div>
 
           {/* Time Picker Panel (Hour / Minute / Period Scroll) */}
-          <div className="w-full md:w-[150px] border-t md:border-t-0 md:border-l border-slate-850 pt-3 md:pt-0 md:pl-4 flex flex-col justify-between">
-            <div className="flex items-center gap-1.5 text-xs text-slate-450 font-semibold mb-3">
-              <Clock className="size-3.5 text-primary" />
-              <span>Time Selection</span>
+          <div className="w-[85px] sm:w-[120px] border-l border-slate-850 pl-2.5 sm:pl-4 flex flex-col justify-between shrink-0">
+            <div className="flex items-center gap-1 text-[10px] sm:text-xs text-slate-450 font-semibold mb-2 sm:mb-3">
+              <Clock className="size-3 sm:size-3.5 text-primary shrink-0" />
+              <span>Time</span>
             </div>
 
             {/* Time Columns */}
-            <div className="flex gap-2 h-[156px] overflow-hidden">
-              
+            <div className="flex gap-1 sm:gap-2 h-[125px] sm:h-[156px] overflow-hidden">
               {/* Hour Scroll */}
               <div className="flex-1 flex flex-col overflow-y-auto scrollbar-none space-y-1">
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((hour) => (
@@ -341,7 +346,7 @@ export function DateTimePicker({
               </div>
 
               {/* AM / PM Scroll */}
-              <div className="w-[36px] flex flex-col space-y-1 shrink-0">
+              <div className="w-[30px] sm:w-[36px] flex flex-col space-y-1 shrink-0">
                 {['AM', 'PM'].map((period) => {
                   const isActive = (period === 'PM' && isPM) || (period === 'AM' && !isPM);
                   return (
@@ -361,23 +366,22 @@ export function DateTimePicker({
                   );
                 })}
               </div>
-
             </div>
 
             {/* Bottom Actions */}
-            <div className="flex items-center justify-between border-t border-slate-850 pt-3.5 mt-3.5 gap-2">
+            <div className="flex items-center justify-between border-t border-slate-850 pt-2 sm:pt-3.5 mt-2 sm:mt-3.5 gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={handleClear}
-                className="text-[10px] font-semibold text-slate-500 hover:text-rose-400 transition-colors uppercase tracking-wider"
+                className="text-[9px] sm:text-[10px] font-semibold text-slate-500 hover:text-rose-400 transition-colors uppercase tracking-wider"
               >
                 Clear
               </button>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1 sm:gap-1.5">
                 <button
                   type="button"
                   onClick={handleToday}
-                  className="px-2 py-1 rounded bg-slate-900 border border-slate-850 hover:bg-slate-800 text-[10px] font-semibold text-slate-300 transition-colors uppercase tracking-wider"
+                  className="px-1.5 py-0.5 sm:px-2 sm:py-1 rounded bg-slate-900 border border-slate-850 hover:bg-slate-800 text-[9px] sm:text-[10px] font-semibold text-slate-300 transition-colors uppercase tracking-wider"
                 >
                   Today
                 </button>
@@ -386,12 +390,11 @@ export function DateTimePicker({
                   onClick={() => setIsOpen(false)}
                   className="p-1 rounded bg-primary text-primary-foreground hover:opacity-95 transition-all"
                 >
-                  <Check className="size-3" />
+                  <Check className="size-2.5 sm:size-3" />
                 </button>
               </div>
             </div>
           </div>
-
         </div>
       )}
     </div>

@@ -4,17 +4,14 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check } from 'lucide-react';
 
-interface PropertyOption {
+interface Contact {
   id: string;
-  title: string;
-  property_code?: string | null;
-  location?: string | null;
-  sublocality?: string | null;
-  project?: string | null;
+  name: string;
+  phone: string;
 }
 
-interface SearchablePropertySelectProps {
-  properties: PropertyOption[];
+interface SearchableContactSelectProps {
+  contacts: Contact[];
   value: string | null;
   onChange: (value: string | null) => void;
   placeholder?: string;
@@ -22,14 +19,14 @@ interface SearchablePropertySelectProps {
   disabled?: boolean;
 }
 
-export function SearchablePropertySelect({
-  properties,
+export function SearchableContactSelect({
+  contacts,
   value,
   onChange,
-  placeholder = 'Select property...',
+  placeholder = 'Select contact...',
   className = '',
   disabled = false,
-}: SearchablePropertySelectProps) {
+}: SearchableContactSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -37,36 +34,25 @@ export function SearchablePropertySelect({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Find the selected property
-  const selectedProperty = useMemo(() => {
+  // Find the selected contact
+  const selectedContact = useMemo(() => {
     if (!value) return null;
-    return properties.find((p) => p.id === value) || null;
-  }, [value, properties]);
+    return contacts.find((c) => c.id === value) || null;
+  }, [value, contacts]);
 
-  // Filter properties based on search query
-  const filteredProperties = useMemo(() => {
+  // Filter contacts based on search query
+  const filteredContacts = useMemo(() => {
     const query = search.toLowerCase().trim();
-    if (!query) return properties;
+    if (!query) return contacts;
 
-    return properties.filter((p) => {
-      const code = (p.property_code || '').toLowerCase();
-      const title = (p.title || '').toLowerCase();
-      const location = (p.location || '').toLowerCase();
-      const sublocality = (p.sublocality || '').toLowerCase();
-      const project = (p.project || '').toLowerCase();
-      
-      return (
-        code.includes(query) ||
-        title.includes(query) ||
-        location.includes(query) ||
-        sublocality.includes(query) ||
-        project.includes(query)
-      );
+    return contacts.filter((c) => {
+      const name = (c.name || '').toLowerCase();
+      const phone = (c.phone || '').toLowerCase();
+      return name.includes(query) || phone.includes(query);
     });
-  }, [search, properties]);
+  }, [search, contacts]);
 
-  // Close dropdown on click outside — excludes both the trigger container
-  // and the portal-rendered dropdown content.
+  // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
@@ -110,8 +96,8 @@ export function SearchablePropertySelect({
     }
   }, [isOpen]);
 
-  const triggerLabel = selectedProperty
-    ? `${selectedProperty.property_code ? `[${selectedProperty.property_code}] ` : ''}${selectedProperty.title}`
+  const triggerLabel = selectedContact
+    ? `${selectedContact.name} (${selectedContact.phone})`
     : placeholder;
 
   const dropdownContent = isOpen && dropdownPosition ? (
@@ -130,7 +116,7 @@ export function SearchablePropertySelect({
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search properties by title, code or locality..."
+          placeholder="Search contacts by name or phone..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="h-8.5 w-full rounded-lg border border-slate-800 bg-slate-950 pl-8 pr-7 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -165,40 +151,31 @@ export function SearchablePropertySelect({
         {/* Separator */}
         <div className="h-px bg-slate-800/80 my-1" />
 
-        {filteredProperties.length === 0 ? (
+        {filteredContacts.length === 0 ? (
           <div className="py-6 text-center text-xs text-slate-500 font-medium">
-            No matching properties found
+            No matching contacts found
           </div>
         ) : (
-          filteredProperties.map((prop) => {
-            const isSelected = value === prop.id;
+          filteredContacts.map((contact) => {
+            const isSelected = value === contact.id;
             return (
               <div
-                key={prop.id}
+                key={contact.id}
                 onClick={() => {
-                  onChange(prop.id);
+                  onChange(contact.id);
                   setIsOpen(false);
                 }}
-                className={`flex items-start justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer select-none transition-colors hover:bg-slate-800 ${
+                className={`flex items-center justify-between rounded-lg px-2.5 py-2 text-xs cursor-pointer select-none transition-colors hover:bg-slate-800 ${
                   isSelected
                     ? 'bg-primary/10 text-primary hover:bg-primary/15 font-bold'
                     : 'text-slate-200 hover:text-white'
                 }`}
               >
                 <div className="min-w-0 pr-3 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {prop.property_code && (
-                      <span className="font-mono text-[10px] text-slate-400 bg-slate-950 px-1 py-0.2 rounded border border-slate-800 font-bold shrink-0">
-                        {prop.property_code}
-                      </span>
-                    )}
-                    <span className="font-bold truncate">{prop.title}</span>
-                  </div>
-                  {prop.location && (
-                    <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
-                      📍 {prop.location}
-                    </p>
-                  )}
+                  <span className="font-bold truncate block">{contact.name}</span>
+                  <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
+                    📞 {contact.phone}
+                  </p>
                 </div>
                 {isSelected && <Check className="size-3.5 text-primary shrink-0 mt-0.5" />}
               </div>
@@ -224,7 +201,7 @@ export function SearchablePropertySelect({
         <ChevronDown className={`size-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown Menu rendered via portal to escape overflow constraints */}
+      {/* Dropdown Menu rendered via portal */}
       {typeof document !== 'undefined' && createPortal(dropdownContent, document.body)}
     </div>
   );
