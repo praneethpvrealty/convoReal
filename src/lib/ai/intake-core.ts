@@ -9,7 +9,7 @@
 // look like?" live in exactly one place.
 // ============================================================
 
-import type { ParsedPropertyDraft, ParsedContactDraftsContainer } from '@/lib/ai/gemini';
+import type { ParsedPropertyDraft, ParsedContactDraft, ParsedContactDraftsContainer } from '@/lib/ai/gemini';
 import { resolveLocationFromGoogleMapLink } from '@/lib/maps/resolve-location';
 
 /**
@@ -222,4 +222,63 @@ export function formatContactDraftsPreview(
   }
 
   return reply;
+}
+
+/** Combines two free-text fields (notes / requirements), trimming and
+ *  de-duplicating so re-forwarding overlapping details doesn't pile up
+ *  repeated sentences. Returns null when both are empty. */
+export function mergeFreeText(a: string | null | undefined, b: string | null | undefined): string | null {
+  const left = (a || '').trim();
+  const right = (b || '').trim();
+  if (!left) return right || null;
+  if (!right) return left || null;
+  if (left.toLowerCase().includes(right.toLowerCase())) return left;
+  if (right.toLowerCase().includes(left.toLowerCase())) return right;
+  return `${left}\n${right}`;
+}
+
+/** Merges one incoming parsed contact into an existing draft contact.
+ *  Existing identity fields (name/phone/email/company/referrer) win so a
+ *  follow-up screenshot that lacks them doesn't blank them out; the
+ *  classification upgrades away from the generic 'Others'; free-text
+ *  notes/requirements are concatenated. */
+export function mergeContactDraft(base: ParsedContactDraft, add: ParsedContactDraft): ParsedContactDraft {
+  return {
+    name: base.name ?? add.name,
+    phone: base.phone ?? add.phone,
+    email: base.email ?? add.email,
+    company: base.company ?? add.company,
+    classification:
+      base.classification && base.classification !== 'Others'
+        ? base.classification
+        : add.classification,
+    notes: mergeFreeText(base.notes, add.notes),
+    requirements: mergeFreeText(base.requirements, add.requirements),
+    referrer_name: base.referrer_name ?? add.referrer_name,
+    referrer_phone: base.referrer_phone ?? add.referrer_phone,
+  };
+}
+
+/**
+ * Merges a freshly-parsed container INTO an active draft so forwarding an
+ * additional screenshot/text enriches the current contact instead of
+ * spawning a new draft that drops the name/phone captured earlier.
+ * Contacts merge by position; any incoming contacts beyond the existing
+ * count are appended as genuinely new drafts.
+ */
+export function mergeContactDraftsContainer(
+  existing: ParsedContactDraftsContainer,
+  incoming: ParsedContactDraftsContainer
+): ParsedContactDraftsContainer {
+  const existingContacts = existing.contacts || [];
+  const incomingContacts = incoming.contacts || [];
+  if (existingContacts.length === 0) return { contacts: incomingContacts };
+
+  const merged = existingContacts.map((base, idx) =>
+    incomingContacts[idx] ? mergeContactDraft(base, incomingContacts[idx]) : base
+  );
+  if (incomingContacts.length > existingContacts.length) {
+    merged.push(...incomingContacts.slice(existingContacts.length));
+  }
+  return { contacts: merged };
 }

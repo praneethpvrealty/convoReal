@@ -6,6 +6,9 @@ import {
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
+  mergeFreeText,
+  mergeContactDraft,
+  mergeContactDraftsContainer,
 } from '@/lib/ai/intake-core';
 import { resolveLocationFromGoogleMapLink } from '@/lib/maps/resolve-location';
 import type {
@@ -312,5 +315,64 @@ describe('formatContactDraftsPreview', () => {
     expect(formatContactDraftsPreview('h', withReq, 'awaiting_confirmation', [])).toContain('• *Requirements:* 1 acre near Hosur Main Road, market rate');
     const noReq = makeContainer([makeContact({ name: 'A', phone: '1' })]);
     expect(formatContactDraftsPreview('h', noReq, 'awaiting_confirmation', [])).not.toContain('*Requirements:*');
+  });
+});
+
+describe('mergeFreeText', () => {
+  it('returns the non-empty side when the other is empty', () => {
+    expect(mergeFreeText('hello', null)).toBe('hello');
+    expect(mergeFreeText(null, 'world')).toBe('world');
+    expect(mergeFreeText('  ', '')).toBe(null);
+  });
+
+  it('concatenates distinct text and de-duplicates contained text', () => {
+    expect(mergeFreeText('near metro', 'budget 90L')).toBe('near metro\nbudget 90L');
+    expect(mergeFreeText('wants a plot near metro', 'near metro')).toBe('wants a plot near metro');
+    expect(mergeFreeText('near metro', 'wants a plot near metro')).toBe('wants a plot near metro');
+  });
+});
+
+describe('mergeContactDraft', () => {
+  it('keeps existing identity and folds in incoming requirements/notes', () => {
+    const base = makeContact({ name: 'Swaroop', phone: '919108381003', classification: 'Buyer', notes: 'From WhatsApp', requirements: '1 acre Hosur Main Road' });
+    const add = makeContact({ name: null, phone: null, classification: 'Buyer', notes: null, requirements: '20000 sq ft to 2 acre, market rate' });
+    const merged = mergeContactDraft(base, add);
+    expect(merged.name).toBe('Swaroop');
+    expect(merged.phone).toBe('919108381003');
+    expect(merged.requirements).toBe('1 acre Hosur Main Road\n20000 sq ft to 2 acre, market rate');
+    expect(merged.notes).toBe('From WhatsApp');
+  });
+
+  it('upgrades classification away from Others', () => {
+    const base = makeContact({ name: 'A', phone: '1', classification: 'Others' });
+    const add = makeContact({ classification: 'Buyer' });
+    expect(mergeContactDraft(base, add).classification).toBe('Buyer');
+  });
+});
+
+describe('mergeContactDraftsContainer', () => {
+  it('merges an identity-less follow-up into the active single-contact draft', () => {
+    const existing = makeContainer([makeContact({ name: 'Swaroop', phone: '919108381003', classification: 'Buyer', requirements: '1 acre Hosur Main Road' })]);
+    const incoming = makeContainer([makeContact({ name: null, phone: null, classification: 'Buyer', requirements: '20000 sq ft to 2 acre' })]);
+    const merged = mergeContactDraftsContainer(existing, incoming);
+    expect(merged.contacts).toHaveLength(1);
+    expect(merged.contacts[0].name).toBe('Swaroop');
+    expect(merged.contacts[0].phone).toBe('919108381003');
+    expect(merged.contacts[0].requirements).toBe('1 acre Hosur Main Road\n20000 sq ft to 2 acre');
+  });
+
+  it('appends genuinely-additional incoming contacts beyond the existing count', () => {
+    const existing = makeContainer([makeContact({ name: 'A', phone: '1' })]);
+    const incoming = makeContainer([makeContact({ name: null, phone: null, requirements: 'more info' }), makeContact({ name: 'B', phone: '2' })]);
+    const merged = mergeContactDraftsContainer(existing, incoming);
+    expect(merged.contacts).toHaveLength(2);
+    expect(merged.contacts[0].name).toBe('A');
+    expect(merged.contacts[1].name).toBe('B');
+  });
+
+  it('returns the incoming contacts when there is no existing draft', () => {
+    const merged = mergeContactDraftsContainer(makeContainer([]), makeContainer([makeContact({ name: 'A', phone: '1' })]));
+    expect(merged.contacts).toHaveLength(1);
+    expect(merged.contacts[0].name).toBe('A');
   });
 });

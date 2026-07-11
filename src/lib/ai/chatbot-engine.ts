@@ -30,6 +30,7 @@ import {
   formatDraftPreviewMessage,
   formatContactDraftsPreview,
   backfillLocationFromMapLink,
+  mergeContactDraftsContainer,
 } from '@/lib/ai/intake-core';
 
 // Lazy initialize supabase admin client
@@ -1318,6 +1319,57 @@ export async function processOwnerChatbotMessage(
       return true;
     }
 
+
+    // Handle an ADDITIONAL screenshot/document sent during an active
+    // contact draft — parse it and MERGE into the current draft (backfill
+    // missing fields, concatenate notes/requirements) instead of dropping
+    // it or spawning a fresh draft with a blank name/phone.
+    if (isMediaMsg) {
+      if (!(await gatedBurn(accountId, 'contact_parse'))) {
+        return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+      }
+      const analyzingMsg = "⏳ _Analyzing extra details... Please wait._";
+      const analyzingRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: analyzingMsg });
+      await saveBotMessage(conversation.id, analyzingMsg, analyzingRes.messageId);
+
+      try {
+        const mediaId = isImageMsg ? message.image!.id : message.document!.id;
+        const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
+        const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+        const parsedIncoming = await parseContactFromImageOrText(contentText || '', buffer, mimeType);
+        const mergedContainer = mergeContactDraftsContainer(container, parsedIncoming);
+        const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
+        const nextStatus = isValid ? 'awaiting_confirmation' : 'collecting';
+
+        await supabaseAdmin()
+          .from('contact_draft_sessions')
+          .update({
+            draft_data: mergedContainer,
+            status: nextStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', contactSession.id);
+
+        await sendContactDraftPreview(
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          `📝 *Contact Drafts Updated:*`,
+          mergedContainer,
+          nextStatus,
+          missingFields,
+          conversation.id,
+          accountId
+        );
+        return true;
+      } catch (err) {
+        console.error('[chatbot-engine] Error merging additional contact media into draft:', err);
+        const reply = "❌ *Couldn't read that screenshot.* Your current draft is unchanged — reply with details as text, or use Confirm/Cancel.";
+        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
+    }
 
     // Handle conversational updates to contact drafts
     if (cleanedText) {
