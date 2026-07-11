@@ -169,7 +169,8 @@ export function formatDraftPreviewMessage(
     reply += `*Listing Owner/Agent:* ${draft.owner_contact_name}${phonePart}${rolePart}\n`;
   }
 
-  reply += `*Images:* ${draft.images.length} attached\n\n` +
+  reply += `*Images:* ${draft.images.length} attached\n` +
+    `*Documents:* ${(draft.documents || []).length} attached\n\n` +
     (nextStatus === 'awaiting_confirmation'
       ? "✅ All mandatory fields populated!\n• Use the buttons below to Confirm or Cancel.\n• Send more updates to correct details."
       : `⚠️ *Still missing:* ${missingFields.join(', ')}.\n• Use the Cancel button below to discard.\n• Reply with details to complete.`);

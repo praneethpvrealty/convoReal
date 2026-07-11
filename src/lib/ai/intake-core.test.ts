@@ -255,6 +255,11 @@ describe('formatDraftPreviewMessage', () => {
     expect(formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])).toContain('*Images:* 2 attached');
   });
 
+  it('reports the attached document count', () => {
+    const draft = makeDraft({ title: 't', price: 1, location: 'l', documents: ['a.pdf'] });
+    expect(formatDraftPreviewMessage('h', draft, 'awaiting_confirmation', [])).toContain('*Documents:* 1 attached');
+  });
+
   it('includes the listing owner/agent line with phone and role', () => {
     const draft = makeDraft({
       title: 't', price: 1, location: 'l',

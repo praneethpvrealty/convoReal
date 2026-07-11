@@ -250,12 +250,29 @@ export function PropertyShareDialog({
         .eq('status', 'active')
         .order('name');
       if (error) throw error;
-      setContacts(data || []);
+      
+      let contactsList = data || [];
+
+      // If a contact was pre-selected but not in the active list (e.g., pending_review),
+      // fetch it separately and add it to the list
+      if (preSelectedContactId && !contactsList.some((c) => c.id === preSelectedContactId)) {
+        const { data: preSelectedContact } = await supabase
+          .from('contacts')
+          .select('*, contact_notes(note_text)')
+          .eq('id', preSelectedContactId)
+          .maybeSingle();
+        
+        if (preSelectedContact) {
+          contactsList = [preSelectedContact, ...contactsList];
+        }
+      }
+
+      setContacts(contactsList);
 
       // Refresh AI-extracted matching preferences for contacts whose
       // requirements/notes changed since the last extraction (the server
       // hash-skips unchanged ones), then re-pull so matches use fresh data.
-      const stale = (data || [])
+      const stale = contactsList
         .filter(
           (c) =>
             (c.classification === 'Buyer' || c.classification === 'Agent') &&
@@ -279,7 +296,19 @@ export function PropertyShareDialog({
               .eq('account_id', accountId)
               .eq('status', 'active')
               .order('name');
-            if (refreshed) setContacts(refreshed);
+            if (refreshed) {
+              // Re-add pre-selected contact if it was filtered out
+              if (preSelectedContactId && !refreshed.some((c) => c.id === preSelectedContactId)) {
+                const preSelected = contactsList.find((c) => c.id === preSelectedContactId);
+                if (preSelected) {
+                  setContacts([preSelected, ...refreshed]);
+                } else {
+                  setContacts(refreshed);
+                }
+              } else {
+                setContacts(refreshed);
+              }
+            }
           }
         }
       }
@@ -289,7 +318,7 @@ export function PropertyShareDialog({
     } finally {
       setLoadingContacts(false);
     }
-  }, [supabase, accountId]);
+  }, [supabase, accountId, preSelectedContactId]);
 
   // Fetch approved Meta WhatsApp message templates
   const fetchTemplates = useCallback(async () => {

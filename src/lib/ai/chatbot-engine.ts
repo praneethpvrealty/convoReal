@@ -11,7 +11,7 @@ import {
   type ParsedContactDraftsContainer,
   normalizeClassification
 } from '@/lib/ai/gemini';
-import { uploadPropertyImage } from '@/lib/storage/upload';
+import { uploadPropertyImage, uploadPropertyDocument } from '@/lib/storage/upload';
 import { 
   sendTextMessage, 
   downloadMedia, 
@@ -731,6 +731,7 @@ export async function processOwnerChatbotMessage(
           features: draft.features || [],
           nearby_highlights: draft.nearby_highlights || [],
           images: draft.images || [],
+          documents: draft.documents || [],
           rental_income: parseNumeric(draft.rental_income),
           roi: parseNumeric(draft.roi),
           google_map_link: draft.google_map_link,
@@ -937,6 +938,101 @@ export async function processOwnerChatbotMessage(
       } catch (err) {
         console.error('[chatbot-engine] Error processing photo upload:', err);
         const reply = "❌ *Failed to upload image.* Please verify the photo format and try again.";
+        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        return true;
+      }
+    }
+
+    // Handle document upload inside active session
+    if (message.type === 'document' && message.document?.id) {
+      // Prompt user that we are downloading/uploading
+      const uploadMsg = "⏳ _Uploading document to draft listing... Please wait._";
+      const uploadSendRes = await sendTextMessage({
+        phoneNumberId,
+        accessToken,
+        to: contactRecord.phone,
+        text: uploadMsg
+      });
+      await saveBotMessage(conversation.id, uploadMsg, uploadSendRes.messageId);
+
+      try {
+        const { buffer, mimeType } = await loadInboundMedia();
+        const filename = message.document.filename || `doc-${Date.now()}`;
+        const publicUrl = await uploadPropertyDocument(accountId, buffer!, mimeType!, filename);
+
+        let updatedDraft = draft;
+        let nextStatus = propSession.status;
+        let success = false;
+        let retryCount = 0;
+        const maxRetries = 5;
+        let finalUpdateData: { updated_at: string }[] | null = null;
+
+        while (retryCount < maxRetries && !success) {
+          const { data: latestSession, error: fetchErr } = await supabaseAdmin()
+            .from('property_draft_sessions')
+            .select('*')
+            .eq('id', propSession.id)
+            .single();
+
+          if (fetchErr || !latestSession) {
+            if (fetchErr?.code === 'PGRST116') {
+              console.log('[chatbot-engine] Active session was deleted concurrently. Exiting document upload flow.');
+              return true;
+            }
+            throw fetchErr || new Error('Session not found during document append retry');
+          }
+
+          const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
+          const currentDocs = currentDraft.documents || [];
+          const updatedDocs = currentDocs.includes(publicUrl)
+            ? currentDocs
+            : [...currentDocs, publicUrl];
+
+          updatedDraft = { ...currentDraft, documents: updatedDocs };
+
+          const validation = validateDraft(updatedDraft);
+          nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+
+          const { data: updateData, error: updateErr } = await supabaseAdmin()
+            .from('property_draft_sessions')
+            .update({
+              draft_data: updatedDraft,
+              status: nextStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', propSession.id)
+            .eq('updated_at', latestSession.updated_at)
+            .select();
+
+          if (!updateErr && updateData && updateData.length > 0) {
+            success = true;
+            finalUpdateData = updateData;
+          } else {
+            retryCount++;
+            await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+          }
+        }
+
+        if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+          throw new Error('Failed to update draft session due to concurrent modifications');
+        }
+
+        const savedTime = finalUpdateData[0].updated_at;
+
+        sendPropertyDraftPreviewDebounced(
+          propSession.id,
+          savedTime,
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          `📄 *Document added successfully!* Total documents attached: *${(updatedDraft.documents || []).length}*.`,
+          conversation.id
+        );
+        return true;
+      } catch (err) {
+        console.error('[chatbot-engine] Error processing document upload:', err);
+        const reply = "❌ *Failed to upload document.* Please try again.";
         const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         return true;
@@ -1448,7 +1544,12 @@ export async function processOwnerChatbotMessage(
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
       return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
     }
-    const classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
+    let classification: 'property' | 'contact' | 'none';
+    if (isDocMsg) {
+      classification = 'property';
+    } else {
+      classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
+    }
 
     // --- PROPERTY INGESTION FLOW ---
     if (classification === 'property') {
@@ -1482,13 +1583,16 @@ export async function processOwnerChatbotMessage(
             uploadedImages.push(publicUrl);
             parsedDraft.images = uploadedImages;
           } else if (mediaMimeType === 'application/pdf') {
-            // Parallel parse text details and extract images
-            const [parsed, extractedImgBuffers] = await Promise.all([
+            const filename = message.document?.filename || `doc-${Date.now()}.pdf`;
+            // Parallel parse text details, extract images, and upload the PDF document itself
+            const [parsed, extractedImgBuffers, documentUrl] = await Promise.all([
               parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
-              extractImagesFromPdf(mediaBuffer)
+              extractImagesFromPdf(mediaBuffer),
+              uploadPropertyDocument(accountId, mediaBuffer, mediaMimeType, filename)
             ]);
 
             parsedDraft = parsed;
+            parsedDraft.documents = [documentUrl];
 
             // Limit and upload extracted images
             if (extractedImgBuffers.length > 0) {
@@ -1513,8 +1617,14 @@ export async function processOwnerChatbotMessage(
             }
           } else {
             // Other document types fallback
-            parsedDraft = await parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType);
+            const filename = message.document?.filename || `doc-${Date.now()}`;
+            const [parsed, documentUrl] = await Promise.all([
+              parseListingFromImageOrText(contentText || '', mediaBuffer, mediaMimeType),
+              uploadPropertyDocument(accountId, mediaBuffer, mediaMimeType, filename)
+            ]);
+            parsedDraft = parsed;
             parsedDraft.images = [];
+            parsedDraft.documents = [documentUrl];
           }
         } else {
           parsedDraft = await parseListingFromImageOrText(cleanedText);
@@ -1608,7 +1718,8 @@ export async function processOwnerChatbotMessage(
                     gst: latestDraft.gst || parsedDraft.gst,
                     features: Array.from(new Set([...(latestDraft.features || []), ...(parsedDraft.features || [])])),
                     nearby_highlights: Array.from(new Set([...(latestDraft.nearby_highlights || []), ...(parsedDraft.nearby_highlights || [])])),
-                    images: Array.from(new Set([...(latestDraft.images || []), ...(parsedDraft.images || [])]))
+                    images: Array.from(new Set([...(latestDraft.images || []), ...(parsedDraft.images || [])])),
+                    documents: Array.from(new Set([...(latestDraft.documents || []), ...(parsedDraft.documents || [])]))
                   };
 
                   const validation = validateDraft(mergedDraft);
@@ -1940,6 +2051,7 @@ export async function processExternalListingMessage(
         features: draft.features || [],
         nearby_highlights: draft.nearby_highlights || [],
         images: draft.images || [],
+        documents: draft.documents || [],
         rental_income: draft.rental_income,
         roi: draft.roi,
         google_map_link: draft.google_map_link,

@@ -306,6 +306,7 @@ export interface ParsedPropertyDraft {
   roi: number | null;
   google_map_link: string | null;
   images: string[];
+  documents?: string[];
   owner_contact_name: string | null;
   owner_contact_phone: string | null;
   owner_contact_role: string | null;

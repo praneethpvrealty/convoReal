@@ -1425,87 +1425,39 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
             {/* Review Status Banner */}
             {contact.status === 'pending_review' && (
-              <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-3 flex flex-col gap-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-2">
-                    <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse shrink-0 mt-0.5">
+              <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20 animate-pulse shrink-0">
                       Needs Review
                     </span>
-                    <span className="text-xs text-amber-300 leading-relaxed">
-                      Inquiry request from {contact.referrer || 'External Source'}. Please verify details.
+                    <span className="text-[11px] text-amber-300 truncate">
+                      From {contact.referrer || 'External Source'}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2 shrink-0">
                     {inquiredProperty && (
-                      <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+                      <label className="flex items-center gap-1 text-[11px] text-slate-400 cursor-pointer select-none whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={sendDetailsOnApprove}
                           onChange={(e) => setSendDetailsOnApprove(e.target.checked)}
-                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0"
+                          className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3"
                         />
-                        Send details via WhatsApp
+                        Send details
                       </label>
                     )}
                     <Button
                       size="sm"
                       onClick={approveContact}
                       disabled={approving}
-                      className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs py-1 h-7 rounded px-3 cursor-pointer flex items-center gap-1 shrink-0"
+                      className="bg-amber-500 hover:bg-amber-600 disabled:bg-amber-500/50 text-slate-950 font-bold text-xs py-1 h-6 rounded px-2.5 cursor-pointer flex items-center gap-1"
                     >
                       {approving && <Loader2 className="size-3 animate-spin" />}
                       Approve
                     </Button>
                   </div>
                 </div>
-                {inquiredProperty && (
-                  <div className="bg-slate-950/40 border border-slate-800/80 rounded-lg p-3 space-y-2.5 text-xs">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Inquired Property</span>
-                        <span className="text-xs font-bold text-white">{inquiredProperty.title}</span>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={handleSendPropertyDetails}
-                          disabled={approving}
-                          className="bg-slate-900 border-slate-800 text-slate-300 text-[10px] h-6 py-0 px-2.5 flex items-center gap-1 cursor-pointer"
-                        >
-                          <MessageSquare className="size-3 text-green-500 fill-green-500" />
-                          Send Free-text
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => setShareOpen(true)}
-                          disabled={approving}
-                          className="bg-slate-900 border-slate-800 text-slate-300 text-[10px] h-6 py-0 px-2.5 flex items-center gap-1 cursor-pointer"
-                        >
-                          <Share2 className="size-3 text-primary" />
-                          Send Template
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border-t border-slate-800/50 pt-2 text-[11px] text-slate-400">
-                      <div>
-                        <span className="text-slate-500 font-medium">Exact Location: </span>
-                        <span className="text-slate-300 font-semibold">{inquiredProperty.location}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Google Map Link: </span>
-                        {inquiredProperty.google_map_link ? (
-                          <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline font-semibold block truncate max-w-xs">
-                            {inquiredProperty.google_map_link}
-                          </a>
-                        ) : (
-                          <span className="text-slate-500 italic">No link configured</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
