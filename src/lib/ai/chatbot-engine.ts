@@ -2099,7 +2099,7 @@ export async function processExternalListingMessage(
   return true;
 }
 
-function parseNumeric(val: any): number | null {
+function parseNumeric(val: unknown): number | null {
   if (val === null || val === undefined) return null;
   if (typeof val === 'number') return isNaN(val) ? null : val;
   if (typeof val === 'string') {
