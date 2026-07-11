@@ -143,54 +143,74 @@ export default function CalendarPage() {
   // Fetch appointments and todos
   const loadData = useCallback(async () => {
     try {
+      console.log('[CALENDAR PAGE] loadData starting, accountId:', accountId);
       setLoading(true);
 
       // Fetch appointments
+      console.log('[CALENDAR PAGE] Fetching appointments...');
       const { data: appts, error: apptError } = await supabase
         .from("appointments")
         .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("start_time", { ascending: true });
 
-      if (apptError) throw apptError;
+      if (apptError) {
+        console.error('[CALENDAR PAGE] Appointments fetch error:', apptError);
+        throw apptError;
+      }
+      console.log('[CALENDAR PAGE] Appointments fetched:', appts?.length || 0);
       setAppointments(appts || []);
 
       // Fetch todos
+      console.log('[CALENDAR PAGE] Fetching todos...');
       const { data: todoList, error: todoError } = await supabase
         .from("todos")
         .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("created_at", { ascending: true });
 
-      if (todoError) throw todoError;
+      if (todoError) {
+        console.error('[CALENDAR PAGE] Todos fetch error:', todoError);
+        throw todoError;
+      }
+      console.log('[CALENDAR PAGE] Todos fetched:', todoList?.length || 0);
       setTodos(todoList || []);
 
       // Fetch contacts
+      console.log('[CALENDAR PAGE] Fetching contacts...');
       const { data: contactsList } = await supabase
         .from("contacts")
         .select("id, name, phone")
         .eq("account_id", accountId)
         .order("name");
+      console.log('[CALENDAR PAGE] Contacts fetched:', contactsList?.length || 0);
       setContacts(contactsList || []);
 
       // Fetch properties
+      console.log('[CALENDAR PAGE] Fetching properties...');
       const { data: propsList } = await supabase
         .from("properties")
         .select("id, title, location, sublocality")
         .eq("account_id", accountId)
         .order("title");
+      console.log('[CALENDAR PAGE] Properties fetched:', propsList?.length || 0);
       setProperties(propsList || []);
     } catch (err) {
+      console.error('[CALENDAR PAGE] loadData caught error:', err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || "Failed to load calendar data");
     } finally {
+      console.log('[CALENDAR PAGE] loadData finally block, setting loading to false.');
       setLoading(false);
     }
   }, [accountId, supabase]);
 
   useEffect(() => {
+    console.log('[CALENDAR PAGE] useEffect running, accountId:', accountId);
     if (accountId) {
       loadData();
+    } else {
+      console.warn('[CALENDAR PAGE] useEffect skipped because accountId is falsy:', accountId);
     }
   }, [accountId, loadData]);
 

@@ -96,15 +96,6 @@ function LoginPageInner() {
   const supabase = createClient();
 
   useEffect(() => {
-    // If the user is already logged in, redirect them to dashboard
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        window.location.href = '/dashboard';
-      }
-    });
-  }, [supabase]);
-
-  useEffect(() => {
     if (countdown <= 0) return;
     const timer = setInterval(() => {
       setCountdown((prev) => prev - 1);

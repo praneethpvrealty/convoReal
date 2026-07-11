@@ -120,6 +120,7 @@ describe('GET /api/public/properties/similar', () => {
 
     // prop-2 matches listing_type + type but price is far and location differs
     const second = data.find(p => p.id === 'prop-2');
-    expect(second._similarity_score).toBeLessThan(first._similarity_score);
+    expect(second).toBeDefined();
+    expect(second?._similarity_score).toBeLessThan(first._similarity_score);
   });
 });

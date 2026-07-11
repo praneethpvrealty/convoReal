@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -52,13 +52,6 @@ function SignupPageInner() {
   const [success, setSuccess] = useState(false);
   const supabase = createClient();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        window.location.href = '/dashboard';
-      }
-    });
-  }, [supabase]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
