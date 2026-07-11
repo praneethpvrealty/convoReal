@@ -36,11 +36,11 @@ export function TourOverlay() {
       : null;
 
   // Track the target's rect through scroll / resize / layout shifts.
+  // A stale rect is harmless between steps: the component renders
+  // null whenever there's no showing step, and the next measure
+  // (first rAF after the target changes) corrects the position.
   useEffect(() => {
-    if (!targetEl || !step) {
-      setRect(null);
-      return;
-    }
+    if (!targetEl || !step) return;
     let raf = 0;
     const measure = () => {
       raf = 0;
@@ -55,7 +55,7 @@ export function TourOverlay() {
     const schedule = () => {
       if (!raf) raf = requestAnimationFrame(measure);
     };
-    measure();
+    schedule();
     window.addEventListener("scroll", schedule, { capture: true, passive: true });
     window.addEventListener("resize", schedule);
     const ro = new ResizeObserver(schedule);

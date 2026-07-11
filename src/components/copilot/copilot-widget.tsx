@@ -8,7 +8,7 @@
 // whole copilot without a deploy rollback (defaults to on).
 // ============================================================
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, X } from "lucide-react";
 import { useCopilot } from "./copilot-context";
@@ -24,14 +24,11 @@ export function CopilotWidget() {
   const { panelOpen, openPanel, tourStatus, startTour } = useCopilot();
   const { nudge, dismiss, accept } = useCopilotNudges();
   const router = useRouter();
-  const [bubbleVisible, setBubbleVisible] = useState(false);
 
+  // Auto-hide: dismissing clears the nudge in the hook, so the bubble
+  // needs no visibility state of its own.
   useEffect(() => {
-    if (!nudge) {
-      setBubbleVisible(false);
-      return;
-    }
-    setBubbleVisible(true);
+    if (!nudge) return;
     const timer = setTimeout(() => dismiss(), NUDGE_AUTO_HIDE_MS);
     return () => clearTimeout(timer);
   }, [nudge, dismiss]);
@@ -52,7 +49,7 @@ export function CopilotWidget() {
   return (
     <>
       {/* Nudge bubble */}
-      {nudge && bubbleVisible && !panelOpen && (
+      {nudge && !panelOpen && (
         <div className="fixed bottom-24 right-5 z-[60] w-[min(280px,calc(100vw-40px))] rounded-2xl rounded-br-sm border border-slate-700 bg-slate-950/95 p-3.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
           <button
             type="button"
