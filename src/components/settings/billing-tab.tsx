@@ -21,21 +21,21 @@ function formatINR(amount: number) {
 function UsageMeter({ label, current, limit }: { label: string; current: number; limit: number }) {
   const isUnlimited = limit >= 999999;
   const pct = isUnlimited ? 0 : Math.min(100, Math.round((current / limit) * 100));
-  const isWarning = !isUnlimited && pct >= 80;
-  const isFull = !isUnlimited && pct >= 100;
+  const isExceeded = !isUnlimited && current > limit;
+  const isWarningOrFull = !isUnlimited && (current === limit || pct >= 80);
 
   return (
     <div className="space-y-1">
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">{label}</span>
-        <span className={isFull ? 'text-red-500 font-medium' : isWarning ? 'text-amber-500 font-medium' : 'text-foreground'}>
+        <span className={isExceeded ? 'text-red-500 font-medium' : isWarningOrFull ? 'text-amber-500 font-medium' : 'text-foreground'}>
           {isUnlimited ? `${current.toLocaleString()} / Unlimited` : `${current.toLocaleString()} / ${limit.toLocaleString()}`}
         </span>
       </div>
       {!isUnlimited && (
         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${isFull ? 'bg-red-500' : isWarning ? 'bg-amber-500' : 'bg-primary'}`}
+            className={`h-full rounded-full transition-all ${isExceeded ? 'bg-red-500' : isWarningOrFull ? 'bg-amber-500' : 'bg-primary'}`}
             style={{ width: `${pct}%` }}
           />
         </div>
@@ -118,10 +118,10 @@ function PlanCard({
               <span className="text-xs text-muted-foreground">/mo</span>
               <div className="text-[10px] text-muted-foreground mt-0.5">+ 18% GST</div>
               {cycle === 'annual' && (
-                <div className="text-xs text-emerald-600 font-medium">Billed annually</div>
+                <div className="text-xs text-emerald-600 font-medium">{formatINR(config.annualPrice)} billed annually</div>
               )}
               {cycle === 'quarterly' && (
-                <div className="text-xs text-emerald-600 font-medium">Billed quarterly</div>
+                <div className="text-xs text-emerald-600 font-medium">{formatINR(config.quarterlyPrice)} billed quarterly</div>
               )}
             </>
           )}
@@ -329,7 +329,9 @@ export function BillingTab() {
             limit={limits?.max_users ?? 1}
           />
           <p className="text-xs text-muted-foreground pt-1">
-            {REFUND_GUARANTEE_BLURB}.{' '}
+            {plan === 'starter'
+              ? 'Upgrades are covered by our 7-day money-back guarantee. No lock-in.'
+              : `${REFUND_GUARANTEE_BLURB}.`}{' '}
             <a href="/refund-policy" target="_blank" rel="noreferrer" className="underline hover:text-foreground">
               Refund policy
             </a>
@@ -437,11 +439,11 @@ export function BillingTab() {
               {selectedIsUpgrade ? `Upgrade to ${selectedConfig?.name}` : `Switch to ${selectedConfig?.name}`}
             </DialogTitle>
             <DialogDescription>
-              {selectedIsUpgrade && selectedConfig?.monthlyPrice === 0 === false
-                ? selectedIsDowngrade
-                  ? `Your plan will change to ${selectedConfig?.name} at the end of your current billing cycle. You keep all current features until then.`
-                  : `You'll be charged a prorated amount for the remaining days in your current cycle. New features unlock immediately.`
-                : `Switch to the free plan at the end of your billing cycle.`}
+              {selectedIsUpgrade
+                ? `You'll be charged a prorated amount for the remaining days in your current cycle. New features unlock immediately.`
+                : selectedPlan === 'starter'
+                ? `Switch to the free plan at the end of your billing cycle.`
+                : `Your plan will change to ${selectedConfig?.name} at the end of your current billing cycle. You keep all current features until then.`}
             </DialogDescription>
           </DialogHeader>
 
