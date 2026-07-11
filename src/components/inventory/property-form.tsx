@@ -145,6 +145,36 @@ interface PropertyFormProps {
   viewOnly?: boolean;
 }
 
+function compressImageOnClient(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxW = 1200;
+      let w = img.width;
+      let h = img.height;
+
+      if (w > maxW) {
+        h = Math.round(h * (maxW / w));
+        w = maxW;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas unavailable')); return; }
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Compression failed')), 'image/jpeg', 0.75);
+    };
+
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
+
 export function PropertyForm({
   open,
   onOpenChange,
@@ -1596,17 +1626,27 @@ export function PropertyForm({
           continue;
         }
 
-        const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+        // Compress image before upload
+        let uploadFile: File | Blob = file;
+        if (file.type.startsWith('image/') && file.type !== 'image/svg+xml' && file.type !== 'image/gif') {
+          try {
+            uploadFile = await compressImageOnClient(file);
+          } catch {
+            // Fallback to original if compression fails
+          }
+        }
+
+        const ext = 'jpg';
         const randomStr = Math.random().toString(36).substring(2, 7);
         // Scoped by account ID folder
         const path = `${accountId}/img-${Date.now()}-${randomStr}.${ext}`;
 
         const { error: uploadError } = await supabase.storage
           .from('property-images')
-          .upload(path, file, {
+          .upload(path, uploadFile, {
             cacheControl: '3600',
             upsert: true,
-            contentType: file.type,
+            contentType: 'image/jpeg',
           });
 
         if (uploadError) {
@@ -2915,6 +2955,7 @@ export function PropertyForm({
                         <option value="Available">Available</option>
                         <option value="Under Contract">Under Contract</option>
                         <option value="Sold">Sold</option>
+                        <option value="Archived">Archived</option>
                         <option value="Off Market">Off Market</option>
                         <option value="Pending Review">Pending Review</option>
                         <option value="Rejected">Rejected</option>

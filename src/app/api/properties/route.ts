@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     const search = searchParams.get("search")?.trim() || "";
     const type = searchParams.get("type")?.trim() || "";
     const status = searchParams.get("status")?.trim() || "";
+    const excludeArchived = searchParams.get("exclude_archived") === "true";
     const isPublished = searchParams.get("is_published");
     const listingSource = searchParams.get("listing_source")?.trim() || "";
     const listingType = searchParams.get("listing_type")?.trim() || "";
@@ -130,6 +131,10 @@ export async function GET(request: Request) {
       }
 
       if (status) query = query.eq("status", status);
+      if (excludeArchived) {
+        if (status) throw new Error("Cannot combine status and exclude_archived");
+        query = query.neq("status", "Archived");
+      }
       if (isPublished !== null && isPublished !== "") {
         query = query.eq("is_published", isPublished === "true");
       }

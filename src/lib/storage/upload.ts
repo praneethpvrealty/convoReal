@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
 
 let _adminClient: ReturnType<typeof createClient> | null = null;
 function supabaseAdmin() {
@@ -11,6 +12,30 @@ function supabaseAdmin() {
   return _adminClient;
 }
 
+const IMAGE_MAX_WIDTH = 1200;
+const JPEG_QUALITY = 75;
+
+async function compressImage(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  const isImage = mimeType.startsWith('image/') && mimeType !== 'image/svg+xml' && mimeType !== 'image/gif';
+  if (!isImage) return { buffer, mimeType };
+
+  try {
+    const pipeline = sharp(buffer).resize(IMAGE_MAX_WIDTH, null, { withoutEnlargement: true });
+
+    if (mimeType === 'image/png') {
+      const compressed = await pipeline.png({ quality: 80, compressionLevel: 9 }).toBuffer();
+      if (compressed.length < buffer.length * 0.9) return { buffer: compressed, mimeType };
+    }
+
+    const jpeg = await pipeline.jpeg({ quality: JPEG_QUALITY, mozjpeg: true }).toBuffer();
+    if (jpeg.length < buffer.length * 0.9) return { buffer: jpeg, mimeType: 'image/jpeg' };
+
+    return { buffer, mimeType };
+  } catch {
+    return { buffer, mimeType };
+  }
+}
+
 /**
  * Uploads a file buffer directly to the 'property-images' Supabase storage bucket under the account's folder,
  * returning the public URL.
@@ -21,9 +46,13 @@ export async function uploadPropertyImage(
   mimeType: string
 ): Promise<string> {
   const supabase = supabaseAdmin();
+
+  const compressed = await compressImage(buffer, mimeType);
+  buffer = compressed.buffer;
+  mimeType = compressed.mimeType;
   
   // Resolve file extension from mime type
-  let ext = 'png';
+  let ext = 'jpg';
   if (mimeType) {
     const parts = mimeType.split('/');
     if (parts.length > 1) {

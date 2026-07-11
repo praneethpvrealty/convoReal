@@ -18,6 +18,8 @@ import {
   Loader2,
   Sparkles,
   Share2,
+  Archive,
+  ArchiveRestore,
   Megaphone,
 } from 'lucide-react';
 
@@ -47,6 +49,7 @@ interface PropertyListProps {
   onShare?: (property: Property) => void;
   onApprove?: (property: Property) => Promise<void>;
   onReject?: (property: Property) => Promise<void>;
+  onArchive?: (property: Property) => Promise<void>;
   currency?: string;
 }
 
@@ -63,6 +66,7 @@ export function PropertyList({
   onShare,
   onApprove,
   onReject,
+  onArchive,
   currency = 'INR',
 }: PropertyListProps) {
   const [decidingId, setDecidingId] = useState<string | null>(null);
@@ -623,6 +627,25 @@ export function PropertyList({
                     className="h-8 border-slate-850 hover:bg-red-950/20 hover:text-red-400 hover:border-red-900/50 text-slate-400"
                   >
                     <Trash2 className="size-3.5" />
+                  </Button>
+                )}
+                {canEdit && onArchive && property.status !== 'Pending Review' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onArchive(property)}
+                    className={
+                      property.status === 'Archived'
+                        ? 'h-8 border-amber-800/50 hover:bg-amber-950/20 hover:text-amber-400 hover:border-amber-700/50 text-amber-400'
+                        : 'h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-400'
+                    }
+                  >
+                    {property.status === 'Archived' ? (
+                      <ArchiveRestore className="size-3.5" />
+                    ) : (
+                      <Archive className="size-3.5" />
+                    )}
                   </Button>
                 )}
               </div>

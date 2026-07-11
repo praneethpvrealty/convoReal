@@ -29,6 +29,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Share2,
+  Archive,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
@@ -91,8 +92,8 @@ export default function InventoryPage() {
 
   // Filters
   const [typeFilter] = useState('All');
-  const [reviewTab, setReviewTab] = useState<'all' | 'review'>('all');
-  const statusFilter = reviewTab === 'review' ? 'Pending Review' : 'All';
+  const [reviewTab, setReviewTab] = useState<'all' | 'review' | 'archived'>('all');
+  const statusFilter = reviewTab === 'review' ? 'Pending Review' : reviewTab === 'archived' ? 'Archived' : 'All';
   const [showcaseFilter] = useState('All');
   const [sourceFilter] = useState('All');
 
@@ -204,6 +205,7 @@ export default function InventoryPage() {
     }
     if (typeFilter !== 'All') params.set('type', typeFilter);
     if (statusFilter !== 'All') params.set('status', statusFilter);
+    if (reviewTab === 'all') params.set('exclude_archived', 'true');
     if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
     if (sourceFilter !== 'All') params.set('listing_source', sourceFilter === 'Owner' ? 'owner' : 'agent');
 
@@ -237,7 +239,7 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, pickedPlace, radiusKm, typeFilter, statusFilter, showcaseFilter, sourceFilter]);
+  }, [page, debouncedSearch, pickedPlace, radiusKm, typeFilter, statusFilter, showcaseFilter, sourceFilter, reviewTab]);
 
   useEffect(() => {
     fetchProperties();
@@ -511,6 +513,26 @@ export default function InventoryPage() {
     }
   }
 
+  async function handleArchive(property: Property) {
+    const newStatus = property.status === 'Archived' ? 'Available' : 'Archived';
+    const label = newStatus === 'Archived' ? 'archived' : 'unarchived';
+    try {
+      const response = await fetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (!response.ok) throw new Error('Failed to update property status');
+      toast.success(`Property ${label}`);
+      localCache.clear();
+      fetchProperties();
+      fetchGlobalStats();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : `Failed to ${label === 'archived' ? 'archive' : 'unarchive'} property`;
+      toast.error(message);
+    }
+  }
+
   // stats is now sourced from the accurate global DB counts, not from the
   // current page slice. Aliased for minimal JSX diff below.
   const stats = globalStats;
@@ -641,6 +663,18 @@ export default function InventoryPage() {
             </span>
           )}
         </button>
+        <button
+          type="button"
+          onClick={() => { setReviewTab('archived'); setPage(0); }}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${
+            reviewTab === 'archived'
+              ? 'border-primary text-white'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Archive className="size-3.5" />
+          Archived
+        </button>
       </div>
 
       {/* Search Bar */}
@@ -716,6 +750,7 @@ export default function InventoryPage() {
         onShare={handleShareClick}
         onApprove={handleApprove}
         onReject={handleReject}
+        onArchive={handleArchive}
         currency={currency}
       />
 
