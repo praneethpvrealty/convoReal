@@ -239,11 +239,12 @@ export function ConversationList({
     // up on any events sent while the WS was disconnected or throttled.
   }, [resyncToken, profile?.phone]);
 
+  const userPhoneDigits = profile?.phone ? profile.phone.replace(/\D/g, "") : "";
+
   const filtered = useMemo(() => {
     let result = conversations;
 
-    if (profile?.phone) {
-      const userPhoneDigits = profile.phone.replace(/\D/g, "");
+    if (userPhoneDigits) {
       result = result.filter(
         (c) => !c.contact?.phone || c.contact.phone.replace(/\D/g, "") !== userPhoneDigits
       );
@@ -284,7 +285,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, effectiveScope, user?.id, profile?.phone]);
+  }, [conversations, filter, search, effectiveScope, user?.id, userPhoneDigits]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

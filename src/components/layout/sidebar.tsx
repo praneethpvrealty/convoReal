@@ -10,7 +10,6 @@ import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
 import { FavoritesCard } from "@/components/layout/favorites-card";
 import {
   Crown,
-  GitBranch,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -25,17 +24,8 @@ import {
   X,
   Home,
   Calendar,
-  ClipboardList,
-  Sun,
-  Radar,
-  Activity,
-  Megaphone,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
-
-// Kill switch — the Ads nav item only exists where Meta Ads is
-// configured on this deployment (see docs/meta-ads-integration-plan.md §2).
-const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single

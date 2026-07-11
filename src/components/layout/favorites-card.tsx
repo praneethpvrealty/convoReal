@@ -52,7 +52,16 @@ const ICON_MAP: Record<string, typeof LayoutDashboard> = {
 export function FavoritesCard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem("crm_favorites");
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  });
   const [startIndex, setStartIndex] = useState(0);
   const [, startTransition] = useTransition();
 
@@ -73,7 +82,9 @@ export function FavoritesCard() {
   };
 
   useEffect(() => {
-    loadFavorites();
+    Promise.resolve().then(() => {
+      loadFavorites();
+    });
 
     const handleUpdate = () => {
       loadFavorites();
@@ -88,7 +99,9 @@ export function FavoritesCard() {
   // Ensure index remains in bounds if items are deleted
   useEffect(() => {
     if (startIndex >= favorites.length && favorites.length > 0) {
-      setStartIndex(Math.max(0, favorites.length - 2));
+      Promise.resolve().then(() => {
+        setStartIndex(Math.max(0, favorites.length - 2));
+      });
     }
   }, [favorites.length, startIndex]);
 

@@ -17,19 +17,32 @@ interface FavoriteButtonProps {
 }
 
 export function FavoriteButton({ label, href, icon }: FavoriteButtonProps) {
-  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const stored = localStorage.getItem("crm_favorites");
+    if (!stored) return false;
+    try {
+      const favorites: FavoriteItem[] = JSON.parse(stored);
+      return favorites.some((item) => item.href === href);
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
-    // Read favorites from localStorage
-    const stored = localStorage.getItem("crm_favorites");
-    if (stored) {
-      try {
-        const favorites: FavoriteItem[] = JSON.parse(stored);
-        setIsFavorite(favorites.some((item) => item.href === href));
-      } catch (err) {
-        console.error("Failed to parse favorites", err);
+    Promise.resolve().then(() => {
+      const stored = localStorage.getItem("crm_favorites");
+      if (stored) {
+        try {
+          const favorites: FavoriteItem[] = JSON.parse(stored);
+          setIsFavorite(favorites.some((item) => item.href === href));
+        } catch (err) {
+          console.error("Failed to parse favorites", err);
+        }
+      } else {
+        setIsFavorite(false);
       }
-    }
+    });
   }, [href]);
 
   const toggleFavorite = () => {
