@@ -535,6 +535,25 @@ export async function processOwnerChatbotMessage(
     }
   }
 
+  // Lazily download the inbound media (image/doc) at most once, caching
+  // the buffer so the task-switch classifier, the contact-merge branch,
+  // and the new-session parser can all reuse it without re-fetching.
+  let inboundMediaBuffer: Buffer | undefined;
+  let inboundMediaMime: string | undefined;
+  let inboundMediaFetched = false;
+  async function loadInboundMedia(): Promise<{ buffer?: Buffer; mimeType?: string }> {
+    if (inboundMediaFetched) return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
+    inboundMediaFetched = true;
+    if (isImageMsg || isDocMsg) {
+      const mediaId = isImageMsg ? message.image!.id : message.document!.id;
+      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
+      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+      inboundMediaBuffer = buffer;
+      inboundMediaMime = mimeType;
+    }
+    return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
+  }
+
   // 1.8. Quick Task Switch / Fresh Ingestion Intercept
   const hasContactKeywords = cleanedText && (
     /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(cleanedText) ||
@@ -554,9 +573,27 @@ export async function processOwnerChatbotMessage(
   }
 
   if (contactSession && isImageMsg) {
-    console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
-    await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
-    contactSession = null;
+    // An image during an active contact draft is ambiguous: it may be a
+    // property listing (task switch) OR additional contact/requirements
+    // to merge into the current draft. Classify before abandoning the
+    // draft — only a genuine property discards the contact session; a
+    // contact screenshot is left for the merge branch below to enrich.
+    if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+      return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+    }
+    try {
+      const { buffer, mimeType } = await loadInboundMedia();
+      const imgClass = await classifyImageOrText(cleanedText, buffer, mimeType);
+      if (imgClass === 'property') {
+        console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
+        await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
+        contactSession = null;
+      }
+    } catch (err) {
+      // On a classify/download failure, keep the contact session so the
+      // image is treated as enrichment rather than silently lost.
+      console.error('[chatbot-engine] Error classifying image during active contact session:', err);
+    }
   } else if (contactSession && cleanedText) {
     const isNewContactForward = /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(cleanedText);
     const isPropertyListing = /\b(bhk|sqft|flat|plot|villa|crore|lakh|price)\b/i.test(cleanedText) && cleanedText.length > 50;
@@ -1333,9 +1370,7 @@ export async function processOwnerChatbotMessage(
       await saveBotMessage(conversation.id, analyzingMsg, analyzingRes.messageId);
 
       try {
-        const mediaId = isImageMsg ? message.image!.id : message.document!.id;
-        const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
-        const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
+        const { buffer, mimeType } = await loadInboundMedia();
         const parsedIncoming = await parseContactFromImageOrText(contentText || '', buffer, mimeType);
         const mergedContainer = mergeContactDraftsContainer(container, parsedIncoming);
         const { isValid, missingFields } = validateContactDraftsContainer(mergedContainer);
@@ -1408,22 +1443,7 @@ export async function processOwnerChatbotMessage(
 
   // 4. Start New Session Flow (No Session Exists)
   if (isMediaMsg || cleanedText) {
-    let mediaBuffer: Buffer | undefined = undefined;
-    let mediaMimeType: string | undefined = undefined;
-
-    if (isImageMsg) {
-      const mediaId = message.image!.id;
-      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
-      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
-      mediaBuffer = buffer;
-      mediaMimeType = mimeType;
-    } else if (isDocMsg) {
-      const mediaId = message.document!.id;
-      const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
-      const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
-      mediaBuffer = buffer;
-      mediaMimeType = mimeType;
-    }
+    const { buffer: mediaBuffer, mimeType: mediaMimeType } = await loadInboundMedia();
 
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
       return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
