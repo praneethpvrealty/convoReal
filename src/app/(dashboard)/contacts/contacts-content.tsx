@@ -1132,6 +1132,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             canAct={canEdit}
             gateReason="add or import contacts"
             onClick={openAddForm}
+            data-tour="add-contact"
             className="bg-primary hover:bg-primary/90 text-primary-foreground"
           >
             <Plus className="size-4" />

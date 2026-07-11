@@ -198,6 +198,7 @@ export default function SettingsPage() {
                 <button
                   key={value}
                   onClick={() => onChange(value)}
+                  data-tour={`settings-tab-${value}`}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
                     tab === value
@@ -221,7 +222,7 @@ export default function SettingsPage() {
             <SessionsCard />
           </TabsContent>
 
-          <TabsContent value="whatsapp" className="mt-0">
+          <TabsContent value="whatsapp" className="mt-0" data-tour="whatsapp-config-form">
             <WhatsAppConfig />
           </TabsContent>
 

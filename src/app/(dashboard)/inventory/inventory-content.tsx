@@ -540,6 +540,7 @@ export default function InventoryPage() {
           {canEdit && (
             <Button
               onClick={handleAddClick}
+              data-tour="add-property"
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm flex items-center gap-2 shadow"
             >
               <Plus className="size-4" /> Add Property

@@ -195,6 +195,7 @@ export default function BroadcastsPage() {
             canAct={canCreate}
             gateReason="create broadcasts"
             onClick={() => router.push('/broadcasts/new')}
+            data-tour="new-broadcast"
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />
@@ -214,6 +215,7 @@ export default function BroadcastsPage() {
             canAct={canCreate}
             gateReason="create broadcasts"
             onClick={() => router.push('/broadcasts/new')}
+            data-tour="new-broadcast"
             className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Plus className="h-4 w-4" />

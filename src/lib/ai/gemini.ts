@@ -133,6 +133,44 @@ export async function generateJson(prompt: string, systemInstruction?: string): 
   return generateContentRaw(contents, systemInstruction, true);
 }
 
+/** Must match the vector(768) column in copilot_qa_cache. */
+export const EMBEDDING_DIMS = 768;
+const EMBEDDING_MODEL = "gemini-embedding-001";
+
+/**
+ * Semantic embedding for similarity search (copilot Q&A cache).
+ * Same raw-REST style as generateContentRaw — no SDK.
+ */
+export async function embedText(text: string): Promise<number[]> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured. Please add it to your .env.local file.");
+  }
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBEDDING_MODEL}:embedContent?key=${apiKey}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      content: { parts: [{ text }] },
+      taskType: "SEMANTIC_SIMILARITY",
+      outputDimensionality: EMBEDDING_DIMS,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error?.message || `Gemini embed API returned error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const values = data.embedding?.values;
+  if (!Array.isArray(values) || values.length !== EMBEDDING_DIMS) {
+    throw new Error("Gemini embed API returned no usable embedding.");
+  }
+  return values as number[];
+}
+
 /**
  * Classifies if a message text is a real estate listing / advertisement.
  */

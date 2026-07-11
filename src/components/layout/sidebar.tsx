@@ -223,6 +223,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     prefetch={false}
+                    data-tour={`nav-${item.href.slice(1)}`}
                     className={cn(
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
                       "flex items-center gap-3 px-3 py-2.5 text-sm font-semibold transition-all duration-300 lg:py-2",
@@ -266,6 +267,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     prefetch={false}
+                    data-tour={`nav-${item.href.slice(1)}`}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 text-sm font-semibold transition-all duration-300 lg:py-2",
                       isActive

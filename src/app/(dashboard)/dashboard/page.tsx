@@ -65,6 +65,7 @@ export default function DashboardPage() {
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
+            data-tour={`dashboard-tab-${tab.id}`}
             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
               activeTab === tab.id
                 ? "border-primary text-white bg-primary/5"

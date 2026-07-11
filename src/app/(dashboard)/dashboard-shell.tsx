@@ -8,6 +8,9 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { TopupModalProvider } from "@/components/layout/topup-modal-context";
 import { CreditTopup } from "@/components/settings/CreditTopup";
+import { CopilotProvider } from "@/components/copilot/copilot-context";
+import { CopilotWidget } from "@/components/copilot/copilot-widget";
+import { TourOverlay } from "@/components/copilot/tour-overlay";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -65,6 +68,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   if (!user) return null;
 
   return (
+    <CopilotProvider openSidebar={() => setSidebarOpen(true)}>
     <div className="flex h-screen overflow-hidden bg-[#070b15] relative">
       {/* Premium ambient background glows */}
       <div className="absolute -top-60 -left-60 w-[600px] h-[600px] bg-primary/18 rounded-full blur-[150px] pointer-events-none" />
@@ -87,7 +91,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       )}
 
       <CreditTopup />
+      <CopilotWidget />
+      <TourOverlay />
     </div>
+    </CopilotProvider>
   );
 }
 

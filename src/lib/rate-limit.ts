@@ -141,6 +141,19 @@ export const RATE_LIMITS = {
    *  while still bounding accidental abuse from a script run in a
    *  loop or a compromised admin session spamming role flips. */
   adminAction: { limit: 30, windowMs: 60_000 },
+  /** Copilot helper chat, per user. Free feature — the operator pays
+   *  for Gemini, so cap bursts hard while leaving a human typing
+   *  questions comfortable. */
+  copilotChat: { limit: 10, windowMs: 60_000 },
+  /** Copilot helper chat, per account per day. Backstop that bounds a
+   *  single tenant's worst-case Gemini spend. Fixed window resets on
+   *  deploy — fine for a cost cap, not a billing meter. */
+  copilotChatDaily: { limit: 150, windowMs: 86_400_000 },
+  /** Copilot nudge evaluation — cheap RLS-scoped reads, but bounded
+   *  anyway since one call fans out to several queries. */
+  copilotNudges: { limit: 6, windowMs: 60_000 },
+  /** Copilot answer 👍/👎 — one write per tap, same posture as react. */
+  copilotFeedback: { limit: 30, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't
