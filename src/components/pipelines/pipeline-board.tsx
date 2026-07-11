@@ -47,9 +47,22 @@ export function PipelineBoard({
   const dealsByStage = useMemo(() => {
     const map = new Map<string, Deal[]>();
     for (const stage of sortedStages) map.set(stage.id, []);
+
+    const lostStage = sortedStages.find((s) => s.name.toLowerCase().includes("lost"));
+    const wonStage = sortedStages.find((s) => s.name.toLowerCase().includes("won"));
+
     for (const deal of deals) {
-      const bucket = map.get(deal.stage_id);
-      if (bucket) bucket.push(deal);
+      let targetStageId = deal.stage_id;
+      if (deal.status === "lost" && lostStage) {
+        targetStageId = lostStage.id;
+      } else if (deal.status === "won" && wonStage) {
+        targetStageId = wonStage.id;
+      }
+      
+      const bucket = map.get(targetStageId) || map.get(deal.stage_id);
+      if (bucket) {
+        bucket.push(deal);
+      }
     }
     return map;
   }, [sortedStages, deals]);

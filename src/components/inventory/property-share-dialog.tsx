@@ -428,6 +428,8 @@ export function PropertyShareDialog({
   const displayedContacts = useMemo(() => {
     if (!searchQuery.trim()) {
       return matchedContacts.filter(({ contact: c }) => {
+        // Always show pre-selected contacts regardless of classification
+        if (selectedContactIds.includes(c.id)) return true;
         if (c.classification === 'Buyer') return true;
         if (c.classification === 'Agent' && showAgentsInMatches) return true;
         return false;
@@ -466,7 +468,7 @@ export function PropertyShareDialog({
         matchedFields: { budget: false, area: false, interest: false },
       };
     });
-  }, [searchQuery, contacts, matchedContacts, showAgentsInMatches]);
+  }, [searchQuery, contacts, matchedContacts, showAgentsInMatches, selectedContactIds]);
 
   // Toggle single selection
   function toggleContactSelection(id: string) {
