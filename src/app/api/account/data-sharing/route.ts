@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (admin() as any)
       .from('accounts')
       .update({
