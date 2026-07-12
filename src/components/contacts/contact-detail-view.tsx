@@ -2202,7 +2202,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                  onMouseEnter={(e) => {
                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                                    setHoveredPropId(prop.id);
-                                   setHoverPos({ top: rect.top - 8, left: rect.right + 8 });
+                                   setHoverPos({ top: rect.bottom + 4, left: rect.left });
                                  }}
                                  onMouseLeave={() => { setHoveredPropId(null); setHoverPos(null); }}
                                >
