@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Conversation, Message, Contact, ConversationStatus } from "@/types";
 import { useRealtime } from "@/hooks/use-realtime";
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 
 export default function InboxPage() {
-  const router = useRouter();
+
   const searchParams = useSearchParams();
   const { profile } = useAuth();
   /**
@@ -531,9 +531,9 @@ export default function InboxPage() {
       // Reflect the selection in the URL so a refresh lands the user
       // back in the same thread, and so copy-paste links work. Use
       // replace() to avoid polluting browser history with every click.
-      router.replace(`/inbox?c=${conv.id}`, { scroll: false });
+      window.history.replaceState(null, '', `/inbox?c=${conv.id}`);
     },
-    [activeConversation?.id, router]
+    [activeConversation?.id]
   );
 
   // Mobile "back" — deselect the conversation so the list pane comes
@@ -546,8 +546,8 @@ export default function InboxPage() {
     // Clearing the ref lets the deep-link auto-selector fire again if
     // the user later visits /inbox?c=<same-id> — desirable UX.
     autoSelectedForDeepLinkRef.current = null;
-    router.replace("/inbox", { scroll: false });
-  }, [router]);
+    window.history.replaceState(null, '', '/inbox');
+  }, []);
 
 
   const handleMessagesLoaded = useCallback((loaded: Message[]) => {
@@ -615,10 +615,10 @@ export default function InboxPage() {
         setActiveContact(null);
         setMessages([]);
         autoSelectedForDeepLinkRef.current = null;
-        router.replace("/inbox", { scroll: false });
+        window.history.replaceState(null, '', '/inbox');
       }
     },
-    [activeConversation, router]
+    [activeConversation]
   );
 
   // On mobile (<lg) we show a SINGLE pane — either the list or the
