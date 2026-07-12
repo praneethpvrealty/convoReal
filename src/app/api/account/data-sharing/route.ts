@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const { error } = await admin()
+    const { error } = await (admin() as any)
       .from('accounts')
       .update({
         data_sharing_consent: body.consent,

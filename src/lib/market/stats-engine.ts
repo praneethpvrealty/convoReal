@@ -147,7 +147,6 @@ export async function runMarketStats(
   }
   const accountIds = (accounts ?? []).map((a) => (a as { id: string }).id);
   summary.consentingAccounts = accountIds.length;
-  if (accountIds.length === 0) return summary;
 
   const currentMonth = monthBucket(now.toISOString());
   const windowStart = new Date(
@@ -155,6 +154,18 @@ export async function runMarketStats(
   );
   const windowStartIso = windowStart.toISOString();
   const windowStartMonth = monthBucket(windowStartIso);
+
+  if (accountIds.length === 0) {
+    const { error: delErr } = await admin
+      .from('market_stats')
+      .delete()
+      .gte('period_month', windowStartMonth);
+    if (delErr) {
+      console.error('[market-stats] window delete failed on empty accounts:', delErr.message);
+      summary.errors++;
+    }
+    return summary;
+  }
 
   const cells = new Map<string, Cell>();
   const PROP_COLS =
