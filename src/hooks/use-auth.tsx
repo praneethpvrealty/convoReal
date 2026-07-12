@@ -47,6 +47,7 @@ interface Profile {
 interface AccountSummary {
   id: string;
   name: string;
+  status: string;
 }
 
 interface AuthContextValue {
@@ -87,8 +88,12 @@ interface AuthContextValue {
   /** Role within that account. Null while loading. Deprecated —
    *  prefer `orgRole`, kept in sync by a DB trigger for legacy callers. */
   accountRole: AccountRole | null;
-  /** Lightweight account meta — id + name. Null while loading. */
+  /** Lightweight account meta — id + name + status. Null while loading. */
   account: AccountSummary | null;
+  /** True when the account has been archived by a super-admin. While
+   *  true the dashboard shell renders a read-only overlay and all write
+   *  operations should be blocked at the API level. */
+  isAccountArchived: boolean;
   /** True if `accountRole === 'owner'`. */
   isOwner: boolean;
   /** True if `accountRole === 'admin'` (does NOT include owner — use canManageMembers for "admin or above"). */
@@ -160,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // missing account collapses to null rather than a half-
           // populated row (shouldn't happen post-017 NOT NULL, but
           // belt-and-braces against forks running older schemas).
-          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, account:accounts!inner(id, name)",
+          "id, full_name, email, phone, avatar_url, role, beta_features, account_id, account_role, org_role, team_id, is_read_only, account:accounts!inner(id, name, status)",
         )
         .eq("user_id", userId)
         .maybeSingle();
@@ -224,7 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // form before reading.
         const accountRow = Array.isArray(data.account)
           ? data.account[0] ?? null
-          : (data.account as { id: string; name: string } | null);
+          : (data.account as { id: string; name: string; status: string } | null);
 
         // Narrow the DB enum into our AccountRole union. The DB
         // constraint should make this unconditional, but a future
@@ -361,9 +366,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const derived = useMemo(() => {
     const role = profile?.account_role ?? null;
     const orgRole = profile?.org_role ?? null;
+    const accountStatus = Array.isArray(account)
+      ? (account[0] as AccountSummary | undefined)?.status
+      : (account as AccountSummary | null)?.status;
     return {
       accountRole: role,
       accountId: profile?.account_id ?? null,
+      isAccountArchived: accountStatus === 'archived',
       isOwner: role === "owner",
       isAdmin: role === "admin",
       isAgent: role === "agent",
@@ -394,7 +403,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           ? canSendMessagesFor(role)
           : false,
     };
-  }, [profile?.account_role, profile?.account_id, profile?.org_role, profile?.team_id, profile?.is_read_only]);
+  }, [profile?.account_role, profile?.account_id, profile?.org_role, profile?.team_id, profile?.is_read_only, account]);
 
   return (
     <AuthContext.Provider
@@ -437,6 +446,7 @@ export function useAuth(): AuthContextValue {
       account: null,
       accountId: null,
       accountRole: null,
+      isAccountArchived: false,
       isOwner: false,
       isAdmin: false,
       isAgent: false,

@@ -71,7 +71,8 @@ export async function GET() {
     // 4. Fetch list of all organizations/accounts
     const { data: accounts } = await supabase
       .from('accounts')
-      .select('id, name, created_at');
+      .select('id, name, created_at, status, archived_at')
+      .order('created_at', { ascending: false });
 
     const mappedOrgs = accounts?.map((acc) => {
       const orgOwner = profiles?.find((p) => p.account_id === acc.id);

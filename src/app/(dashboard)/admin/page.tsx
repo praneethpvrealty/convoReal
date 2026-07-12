@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import {
   Shield,
@@ -12,6 +12,10 @@ import {
   Loader2,
   Save,
   Info,
+  Archive,
+  ArchiveRestore,
+  Trash2,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import dynamic from 'next/dynamic';
@@ -48,6 +52,8 @@ interface Organization {
   created_at: string;
   owner_name: string;
   owner_email: string;
+  status: string;
+  archived_at?: string | null;
 }
 
 export default function AdminDashboardPage() {
@@ -55,6 +61,10 @@ export default function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace'>('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Organization action state
+  const [orgActionId, setOrgActionId] = useState<string | null>(null);
+  const [confirmDeleteOrg, setConfirmDeleteOrg] = useState<Organization | null>(null);
 
   // DB Data State
   const [whatsappConfigs, setWhatsappConfigs] = useState<WhatsappConfig[]>([]);
@@ -171,6 +181,57 @@ export default function AdminDashboardPage() {
       fetchAdminData();
     }
   }, [user, profileLoading]);
+
+  const refreshOrganizations = useCallback(async () => {
+    const res = await fetch('/api/admin/settings');
+    if (res.ok) {
+      const data = await res.json();
+      setOrganizations(data.organizations || []);
+    }
+  }, []);
+
+  async function handleArchiveOrg(org: Organization) {
+    try {
+      setOrgActionId(org.id);
+      const action = org.status === 'archived' ? 'reactivate' : 'archive';
+      const res = await fetch(`/api/admin/organizations/${org.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to update account status');
+      }
+      const label = action === 'archive' ? 'archived' : 'reactivated';
+      toast.success(`Workspace "${org.name}" ${label} successfully`);
+      await refreshOrganizations();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setOrgActionId(null);
+    }
+  }
+
+  async function handleDeleteOrg(org: Organization) {
+    setConfirmDeleteOrg(null);
+    try {
+      setOrgActionId(org.id);
+      const res = await fetch(`/api/admin/organizations/${org.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || 'Failed to delete account');
+      }
+      toast.success(`Workspace "${org.name}" permanently deleted`);
+      await refreshOrganizations();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setOrgActionId(null);
+    }
+  }
 
   async function handleSaveSettings() {
     try {
@@ -952,47 +1013,163 @@ export default function AdminDashboardPage() {
       )}
 
       {activeTab === 'organizations' && (
-        <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
-          <CardHeader>
-            <CardTitle className="text-white text-base">Registered CRM Tenants</CardTitle>
-            <CardDescription className="text-slate-400">
-              Overview of all organizations and account groups created on the platform.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-xl border border-slate-800">
-              <table className="w-full border-collapse text-left text-sm text-slate-300">
-                <thead className="bg-slate-950/50 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-850">
-                  <tr>
-                    <th className="px-6 py-4">Organization Name</th>
-                    <th className="px-6 py-4">Owner Name</th>
-                    <th className="px-6 py-4">Owner Email</th>
-                    <th className="px-6 py-4">Created Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-850">
-                  {organizations.map((org) => (
-                    <tr key={org.id} className="hover:bg-slate-950/20">
-                      <td className="px-6 py-4 font-bold text-white">{org.name || 'Personal Account'}</td>
-                      <td className="px-6 py-4">{org.owner_name}</td>
-                      <td className="px-6 py-4 text-slate-400">{org.owner_email}</td>
-                      <td className="px-6 py-4 text-xs text-slate-500">
-                        {new Date(org.created_at).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                  {organizations.length === 0 && (
+        <>
+          <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-white text-base">Registered CRM Tenants</CardTitle>
+                  <CardDescription className="text-slate-400">
+                    Manage all organizations on the platform. Archive inactive accounts or permanently delete after archiving.
+                  </CardDescription>
+                </div>
+                <button
+                  onClick={refreshOrganizations}
+                  className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-3 py-2 text-xs text-slate-300 hover:text-white transition-colors"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Refresh
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-xl border border-slate-800">
+                <table className="w-full border-collapse text-left text-sm text-slate-300">
+                  <thead className="bg-slate-950/50 text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800">
                     <tr>
-                      <td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                        No organizations found in database.
-                      </td>
+                      <th className="px-6 py-4">Organization Name</th>
+                      <th className="px-6 py-4">Owner</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Created</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {organizations.map((org) => {
+                      const isActioning = orgActionId === org.id;
+                      const isArchived = org.status === 'archived';
+                      return (
+                        <tr key={org.id} className={`hover:bg-slate-950/30 transition-colors ${isArchived ? 'opacity-70' : ''}`}>
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-white">{org.name || 'Personal Account'}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-sm text-slate-200">{org.owner_name}</div>
+                            <div className="text-xs text-slate-500">{org.owner_email}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            {isArchived ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400">
+                                <Archive className="h-3 w-3" />
+                                Archived
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Active
+                              </span>
+                            )}
+                            {isArchived && org.archived_at && (
+                              <div className="mt-1 text-xs text-slate-500">
+                                {new Date(org.archived_at).toLocaleDateString()}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-xs text-slate-500">
+                            {new Date(org.created_at).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-end gap-2">
+                              {/* Archive / Reactivate */}
+                              <button
+                                onClick={() => handleArchiveOrg(org)}
+                                disabled={isActioning}
+                                title={isArchived ? 'Reactivate workspace' : 'Archive workspace'}
+                                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+                                  isArchived
+                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                                    : 'border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20'
+                                }`}
+                              >
+                                {isActioning ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : isArchived ? (
+                                  <ArchiveRestore className="h-3 w-3" />
+                                ) : (
+                                  <Archive className="h-3 w-3" />
+                                )}
+                                {isArchived ? 'Reactivate' : 'Archive'}
+                              </button>
+
+                              {/* Delete — only enabled when archived */}
+                              <button
+                                onClick={() => setConfirmDeleteOrg(org)}
+                                disabled={!isArchived || isActioning}
+                                title={isArchived ? 'Permanently delete workspace' : 'Archive before deleting'}
+                                className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {organizations.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                          No organizations found in database.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Confirm Delete Modal */}
+          {confirmDeleteOrg && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+              <div className="mx-4 max-w-md w-full rounded-2xl border border-red-500/30 bg-slate-900/95 shadow-2xl p-6 flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/15 border border-red-500/30 shrink-0">
+                    <Trash2 className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Permanently Delete Workspace</h3>
+                    <p className="text-xs text-slate-400">This action cannot be undone</p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 space-y-2">
+                  <p className="text-sm text-slate-200 font-medium">{confirmDeleteOrg.name || 'Personal Account'}</p>
+                  <p className="text-xs text-slate-400">{confirmDeleteOrg.owner_email}</p>
+                </div>
+
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  All contacts, properties, messages, automations, and configurations belonging to this workspace will be <strong className="text-white">permanently deleted</strong> and cannot be recovered.
+                </p>
+
+                <div className="flex gap-3 pt-1">
+                  <button
+                    onClick={() => setConfirmDeleteOrg(null)}
+                    className="flex-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleDeleteOrg(confirmDeleteOrg)}
+                    className="flex-1 rounded-lg border border-red-500/40 bg-red-500/15 hover:bg-red-500/25 px-4 py-2.5 text-sm font-bold text-red-400 transition-colors"
+                  >
+                    Delete Permanently
+                  </button>
+                </div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </>
       )}
 
       {activeTab === 'marketplace' && <MarketplaceTab />}
