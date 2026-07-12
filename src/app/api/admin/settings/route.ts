@@ -74,12 +74,20 @@ export async function GET() {
       .select('id, name, created_at, status, archived_at')
       .order('created_at', { ascending: false });
 
+    // Plan per account — accounts without a subscriptions row are
+    // 'starter' (same default the account_plan_limits view applies).
+    const { data: subscriptions } = await supabase
+      .from('subscriptions')
+      .select('account_id, plan');
+
     const mappedOrgs = accounts?.map((acc) => {
       const orgOwner = profiles?.find((p) => p.account_id === acc.id);
+      const sub = subscriptions?.find((s) => s.account_id === acc.id);
       return {
         ...acc,
         owner_name: orgOwner?.full_name || 'N/A',
         owner_email: orgOwner?.email || 'N/A',
+        plan: sub?.plan || 'starter',
       };
     }) || [];
 

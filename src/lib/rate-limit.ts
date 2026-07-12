@@ -154,6 +154,13 @@ export const RATE_LIMITS = {
   copilotNudges: { limit: 6, windowMs: 60_000 },
   /** Copilot answer 👍/👎 — one write per tap, same posture as react. */
   copilotFeedback: { limit: 30, windowMs: 60_000 },
+  /** Admin plan-override OTP issue + verify. Tighter than adminAction —
+   *  this gates a billing-bypassing action, so both the code-send and
+   *  code-check endpoints share one strict budget per admin to blunt
+   *  brute-force guessing of a 6-digit code (5 attempts/challenge is
+   *  the primary defense; this bounds how many challenges/guesses an
+   *  admin session can burn through per minute on top of that). */
+  adminOtp: { limit: 8, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

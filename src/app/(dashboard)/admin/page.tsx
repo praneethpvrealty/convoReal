@@ -16,11 +16,15 @@ import {
   ArchiveRestore,
   Trash2,
   RefreshCw,
+  ShieldCheck,
+  ArrowLeft,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { PLAN_ORDER, PLAN_CONFIG } from '@/lib/billing/plan-config';
 
 const MarketplaceTab = dynamic(() => import('./marketplace-tab'), {
   ssr: false,
@@ -54,6 +58,7 @@ interface Organization {
   owner_email: string;
   status: string;
   archived_at?: string | null;
+  plan: string;
 }
 
 export default function AdminDashboardPage() {
@@ -65,6 +70,17 @@ export default function AdminDashboardPage() {
   // Organization action state
   const [orgActionId, setOrgActionId] = useState<string | null>(null);
   const [confirmDeleteOrg, setConfirmDeleteOrg] = useState<Organization | null>(null);
+
+  // Admin plan-override state (WhatsApp OTP step-up — see
+  // src/app/api/admin/organizations/[id]/plan/{challenge,}/route.ts)
+  const [planChangeOrg, setPlanChangeOrg] = useState<Organization | null>(null);
+  const [planChangeTarget, setPlanChangeTarget] = useState<string | null>(null);
+  const [otpChallengeId, setOtpChallengeId] = useState<string | null>(null);
+  const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(''));
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpResendCountdown, setOtpResendCountdown] = useState(0);
 
   // DB Data State
   const [whatsappConfigs, setWhatsappConfigs] = useState<WhatsappConfig[]>([]);
@@ -189,6 +205,130 @@ export default function AdminDashboardPage() {
       setOrganizations(data.organizations || []);
     }
   }, []);
+
+  useEffect(() => {
+    if (otpResendCountdown <= 0) return;
+    const timer = setInterval(() => setOtpResendCountdown((c) => c - 1), 1000);
+    return () => clearInterval(timer);
+  }, [otpResendCountdown]);
+
+  function closeOtpModal() {
+    setPlanChangeOrg(null);
+    setPlanChangeTarget(null);
+    setOtpChallengeId(null);
+    setOtpValues(Array(6).fill(''));
+    setOtpError(null);
+    setOtpResendCountdown(0);
+  }
+
+  async function handleIssueOtp(accountId: string, plan: string, isResend = false) {
+    setOtpSending(true);
+    setOtpError(null);
+    try {
+      const res = await fetch(`/api/admin/organizations/${accountId}/plan/challenge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send verification code');
+      }
+      setOtpChallengeId(data.challengeId);
+      setOtpValues(Array(6).fill(''));
+      setOtpResendCountdown(60);
+      toast.success(
+        isResend ? 'New code sent to your WhatsApp' : 'Verification code sent to your WhatsApp'
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send code');
+      if (!isResend) closeOtpModal();
+    } finally {
+      setOtpSending(false);
+    }
+  }
+
+  // Triggered from the plan <select> in the organizations table —
+  // issues a WhatsApp OTP to the ACTING ADMIN's own phone before any
+  // plan change is applied.
+  async function handleRequestPlanChange(org: Organization, newPlan: string) {
+    if (newPlan === org.plan) return;
+    setPlanChangeOrg(org);
+    setPlanChangeTarget(newPlan);
+    await handleIssueOtp(org.id, newPlan);
+  }
+
+  async function handleVerifyPlanOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (!planChangeOrg || !planChangeTarget || !otpChallengeId) return;
+    const code = otpValues.join('');
+    if (code.length !== 6) return;
+
+    setOtpVerifying(true);
+    setOtpError(null);
+    try {
+      const res = await fetch(`/api/admin/organizations/${planChangeOrg.id}/plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: otpChallengeId, code, plan: planChangeTarget }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setOtpError(data.error || 'Verification failed');
+        setOtpValues(Array(6).fill(''));
+        return;
+      }
+      toast.success(`"${planChangeOrg.name}" moved to the ${PLAN_CONFIG[planChangeTarget as keyof typeof PLAN_CONFIG]?.name ?? planChangeTarget} plan`);
+      closeOtpModal();
+      await refreshOrganizations();
+    } catch (err) {
+      setOtpError(err instanceof Error ? err.message : 'Verification failed');
+    } finally {
+      setOtpVerifying(false);
+    }
+  }
+
+  const handleOtpChange = (index: number, val: string) => {
+    const digit = val.replace(/\D/g, '');
+    const nextOtp = [...otpValues];
+    nextOtp[index] = digit.slice(-1);
+    setOtpValues(nextOtp);
+
+    if (digit && index < 5) {
+      document.getElementById(`admin-otp-${index + 1}`)?.focus();
+    }
+
+    const finalOtp = nextOtp.join('');
+    if (finalOtp.length === 6) {
+      setTimeout(() => {
+        const form = document.getElementById('admin-otp-form') as HTMLFormElement | null;
+        form?.requestSubmit();
+      }, 50);
+    }
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace' && !otpValues[index] && index > 0) {
+      const nextOtp = [...otpValues];
+      nextOtp[index - 1] = '';
+      setOtpValues(nextOtp);
+      document.getElementById(`admin-otp-${index - 1}`)?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasteData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasteData.length > 0) {
+      const newOtp = [...otpValues];
+      pasteData.split('').forEach((digit, idx) => {
+        if (idx < 6) newOtp[idx] = digit;
+      });
+      setOtpValues(newOtp);
+      const targetIndex = Math.min(pasteData.length, 5);
+      document.getElementById(`admin-otp-${targetIndex}`)?.focus();
+    }
+  };
 
   async function handleArchiveOrg(org: Organization) {
     try {
@@ -1040,6 +1180,7 @@ export default function AdminDashboardPage() {
                       <th className="px-6 py-4">Organization Name</th>
                       <th className="px-6 py-4">Owner</th>
                       <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Plan</th>
                       <th className="px-6 py-4">Created</th>
                       <th className="px-6 py-4 text-right">Actions</th>
                     </tr>
@@ -1074,6 +1215,21 @@ export default function AdminDashboardPage() {
                                 {new Date(org.archived_at).toLocaleDateString()}
                               </div>
                             )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <select
+                              value={org.plan}
+                              disabled={isActioning || otpSending || planChangeOrg?.id === org.id}
+                              onChange={(e) => handleRequestPlanChange(org, e.target.value)}
+                              title="Change plan (requires WhatsApp OTP confirmation)"
+                              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-200 disabled:opacity-50"
+                            >
+                              {PLAN_ORDER.map((p) => (
+                                <option key={p} value={p}>
+                                  {PLAN_CONFIG[p].name}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td className="px-6 py-4 text-xs text-slate-500">
                             {new Date(org.created_at).toLocaleDateString()}
@@ -1118,7 +1274,7 @@ export default function AdminDashboardPage() {
                     })}
                     {organizations.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
                           No organizations found in database.
                         </td>
                       </tr>
@@ -1166,6 +1322,106 @@ export default function AdminDashboardPage() {
                     Delete Permanently
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Plan-Change OTP Modal — WhatsApp step-up before an admin
+              plan override is applied. */}
+          {planChangeOrg && planChangeTarget && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+              <div className="mx-4 max-w-md w-full rounded-2xl border border-primary/30 bg-slate-900/95 shadow-2xl p-6 flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/15 border border-primary/30 shrink-0">
+                    <ShieldCheck className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Confirm Plan Change</h3>
+                    <p className="text-xs text-slate-400">Verify with the code sent to your WhatsApp</p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 space-y-1">
+                  <p className="text-sm text-slate-200 font-medium">
+                    {planChangeOrg.name || 'Personal Account'}
+                  </p>
+                  <p className="text-xs text-slate-400">
+                    {PLAN_CONFIG[planChangeOrg.plan as keyof typeof PLAN_CONFIG]?.name ?? planChangeOrg.plan}
+                    {' → '}
+                    <span className="text-primary font-semibold">
+                      {PLAN_CONFIG[planChangeTarget as keyof typeof PLAN_CONFIG]?.name ?? planChangeTarget}
+                    </span>
+                  </p>
+                </div>
+
+                {otpSending && !otpChallengeId ? (
+                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-slate-400">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Sending code to your WhatsApp…
+                  </div>
+                ) : (
+                  <form id="admin-otp-form" onSubmit={handleVerifyPlanOtp} className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      <Label className="text-slate-300 font-bold text-xs">Verification Code</Label>
+                      <div className="flex justify-between gap-2">
+                        {Array.from({ length: 6 }).map((_, idx) => (
+                          <input
+                            key={idx}
+                            id={`admin-otp-${idx}`}
+                            type="text"
+                            pattern="\d*"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={otpValues[idx]}
+                            onChange={(e) => handleOtpChange(idx, e.target.value)}
+                            onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                            onPaste={idx === 0 ? handleOtpPaste : undefined}
+                            disabled={otpVerifying}
+                            className="w-11 h-11 text-center text-lg font-bold bg-slate-950 border border-slate-700 focus:border-primary focus:ring-1 focus:ring-primary/30 rounded-xl text-white outline-none transition-all disabled:opacity-50"
+                          />
+                        ))}
+                      </div>
+                      {otpError && (
+                        <p className="text-xs font-medium text-red-400">{otpError}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs font-semibold px-1">
+                      <span className="text-slate-500">Didn&apos;t receive the code?</span>
+                      {otpResendCountdown > 0 ? (
+                        <span className="text-slate-400 font-mono">Resend in {otpResendCountdown}s</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleIssueOtp(planChangeOrg.id, planChangeTarget, true)}
+                          disabled={otpSending}
+                          className="text-primary hover:underline font-bold cursor-pointer bg-transparent border-0 p-0 disabled:opacity-50"
+                        >
+                          Resend code
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 pt-1">
+                      <button
+                        type="button"
+                        onClick={closeOtpModal}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={otpVerifying || otpValues.join('').length !== 6}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 hover:bg-primary/25 px-4 py-2.5 text-sm font-bold text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {otpVerifying && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        Verify & Apply
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
             </div>
           )}
