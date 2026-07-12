@@ -324,14 +324,27 @@ export default function InboxPage() {
    * strict-mode's dev-only effect double-fire doesn't read as a
    * reconnect.
    */
+  console.log("[inbox-page] Render: resyncToken =", resyncToken, "isConnected =", isConnected, "activeConversation =", activeConversation?.id);
+
   const wasConnectedRef = useRef(false);
   const initialConnectDoneRef = useRef(false);
+  const lastResyncTimeRef = useRef(0);
   useEffect(() => {
+    console.log("[inbox-page] isConnected effect: isConnected =", isConnected, "wasConnectedRef.current =", wasConnectedRef.current, "initialConnectDoneRef.current =", initialConnectDoneRef.current);
     if (isConnected && !wasConnectedRef.current) {
       // false → true transition
       if (initialConnectDoneRef.current) {
-        setResyncToken((n) => n + 1);
+        const now = Date.now();
+        // Cooldown of 5 seconds to prevent flapping/spamming database fetches on unstable connection status toggles
+        if (now - lastResyncTimeRef.current > 5000) {
+          console.log("[inbox-page] Reconnect transition detected: bumping resyncToken");
+          setResyncToken((n) => n + 1);
+          lastResyncTimeRef.current = now;
+        } else {
+          console.log("[inbox-page] Reconnect transition ignored due to cooldown");
+        }
       } else {
+        console.log("[inbox-page] Initial connection done");
         initialConnectDoneRef.current = true;
       }
     }
@@ -346,7 +359,9 @@ export default function InboxPage() {
    */
   useEffect(() => {
     const onVisibility = () => {
+      console.log("[inbox-page] Visibility state:", document.visibilityState);
       if (document.visibilityState === "visible") {
+        console.log("[inbox-page] Tab visibility active: bumping resyncToken");
         setResyncToken((n) => n + 1);
       }
     };
