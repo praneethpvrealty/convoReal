@@ -112,3 +112,61 @@ export function buildTrialExpiredEmail(params: {
     daysRemaining: 0,
   })
 }
+
+export function buildImageCleanupWarningEmail(params: {
+  tenantName: string
+  properties: { title: string }[]
+  archiveDate: string
+  inventoryUrl: string
+}): { subject: string; html: string; text: string } {
+  const { tenantName, properties, archiveDate, inventoryUrl } = params
+  const count = properties.length
+  const dateStr = new Date(archiveDate).toLocaleDateString()
+  const noun = count === 1 ? 'property' : 'properties'
+
+  const subject = `Photos for ${count} old ${noun} will be archived on ${dateStr}`
+
+  const list = properties
+    .slice(0, 25)
+    .map((p) => `<li style="margin: 4px 0;">${p.title}</li>`)
+    .join('')
+  const more =
+    count > 25
+      ? `<p style="font-size: 13px; color: #6b7280;">…and ${count - 25} more.</p>`
+      : ''
+
+  const html = `
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1a1a1a;">
+      <h2 style="color: #7c3aed; margin-bottom: 16px;">Freeing up storage on old listings</h2>
+      <p>Hi ${tenantName},</p>
+      <p>
+        These ${noun} have been <strong>Sold, Archived, or off the market</strong>
+        for a long time. To keep your account tidy, their photos will be archived
+        on <strong>${dateStr}</strong>:
+      </p>
+      <ul style="background: #f3f4f6; border-radius: 8px; padding: 16px 16px 16px 32px; margin: 16px 0;">
+        ${list}
+      </ul>
+      ${more}
+      <p style="font-size: 14px;">
+        <strong>Want to keep them?</strong> Just re-activate the listing (change its
+        status back to Available) before that date, or open it any time afterwards to
+        restore the photos — we keep a recoverable copy.
+      </p>
+      <a href="${inventoryUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 16px 0;">
+        Open Inventory
+      </a>
+      <p style="font-size: 12px; color: #6b7280; margin-top: 24px;">
+        No action is needed if you no longer need these photos. Reply to this email if you have questions.
+      </p>
+    </div>
+  `
+
+  const titles = properties
+    .slice(0, 25)
+    .map((p) => `- ${p.title}`)
+    .join('\n')
+  const text = `Hi ${tenantName},\n\nPhotos for ${count} old ${noun} (Sold / Archived / off-market) will be archived on ${dateStr}:\n\n${titles}${count > 25 ? `\n…and ${count - 25} more.` : ''}\n\nTo keep them, re-activate the listing before that date, or restore the photos afterwards from Inventory: ${inventoryUrl}`
+
+  return { subject, html, text }
+}
