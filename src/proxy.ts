@@ -52,7 +52,7 @@ export async function proxy(request: NextRequest) {
   )
 
   let data = null
-  let error: any = null
+  let error: Error | null = null
   try {
     const res = await Promise.race([getUserPromise, timeoutPromise])
     data = res.data
@@ -66,7 +66,7 @@ export async function proxy(request: NextRequest) {
 
   if (
     error &&
-    (error.code === 'refresh_token_not_found' ||
+    ((error as { code?: string }).code === 'refresh_token_not_found' ||
       error.message?.includes('Refresh Token Not Found') ||
       error.message?.includes('Invalid Refresh Token'))
   ) {

@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     }
 
     // 2. Upsert profile row (linked to the resolved account) using Admin Client
-    const upsertPayload: Record<string, any> = {
+    const upsertPayload: Record<string, string | null> = {
       user_id: user.id,
       full_name: nameVal,
       email: emailVal,
