@@ -469,7 +469,7 @@ Content-Transfer-Encoding: quoted-printable
       expect(classificationFromNameSuffix('Robert Smith (Agent)')).toBe('Agent');
       expect(classificationFromNameSuffix('Some Landlord (Landlord)')).toBe('Owner');
       expect(classificationFromNameSuffix('A Seller (Seller)')).toBe('Seller');
-      expect(classificationFromNameSuffix('Pushpa (Individual)')).toBe('Owner');
+      expect(classificationFromNameSuffix('Pushpa (Individual)')).toBe('Buyer');
       expect(classificationFromNameSuffix('John Doe (Buyer)')).toBe('Buyer');
       expect(classificationFromNameSuffix('A Tenant (Tenant)')).toBe('Buyer');
       expect(classificationFromNameSuffix('A Customer (Customer)')).toBe('Buyer');

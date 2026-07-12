@@ -210,9 +210,9 @@ const ROLE_SUFFIX_TO_CLASSIFICATION: Record<string, 'Owner' | 'Seller' | 'Buyer'
   agent: 'Agent',
   landlord: 'Owner',
   seller: 'Seller',
-  // "Individual" distinguishes a private owner from an agent/builder
-  // in portal parlance (e.g. Housing.com's "Owner: Individual" tag).
-  individual: 'Owner',
+  // "Individual" distinguishes a private buyer/tenant from an agent
+  // in portal parlance (e.g. Magicbricks' "DineshReddy (Individual)" suffix).
+  individual: 'Buyer',
   buyer: 'Buyer',
   tenant: 'Buyer',
   customer: 'Buyer',
