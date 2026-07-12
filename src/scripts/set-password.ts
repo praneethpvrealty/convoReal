@@ -19,7 +19,7 @@ async function main() {
     console.error('User not found:', email);
     return;
   }
-  const { data, error } = await supabase.auth.admin.updateUserById(
+  const { error } = await supabase.auth.admin.updateUserById(
     user.id,
     { password: 'password123', email_confirm: true }
   );
