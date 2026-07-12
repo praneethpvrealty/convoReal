@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   MessageSquare, 
   Bot, 
@@ -26,6 +26,20 @@ import { CrmLeadForm } from '@/components/landing/crm-lead-form';
 import { BRANDING } from '@/config/branding';
 
 export function MarketingLanding() {
+  // Catch recovery/reset password or session tokens in URL hash and redirect client-side
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash;
+      if (hash.includes('access_token=')) {
+        if (hash.includes('type=recovery') || window.location.href.includes('recovery')) {
+          window.location.replace(`/reset-password${hash}`);
+        } else {
+          window.location.replace(`/dashboard${hash}`);
+        }
+      }
+    }
+  }, []);
+
   // Demo states
   const [demoStep, setDemoStep] = useState<'idle' | 'parsing' | 'completed'>('idle');
   const [copyStep, setCopyStep] = useState<'idle' | 'writing' | 'completed'>('idle');

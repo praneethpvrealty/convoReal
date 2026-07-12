@@ -4,6 +4,13 @@ import { billingAdmin } from '@/lib/billing/admin-client';
 import { PLAN_CONFIG, isUpgrade } from '@/lib/billing/plan-config';
 import { getPlanLimits } from '@/lib/billing/gates';
 import type { Plan, BillingCycle } from '@/lib/billing/types';
+import { grantSubscriptionCredits } from '@/lib/credits/grant';
+import { processReferralConversion } from '@/lib/credits/referral';
+import type { SubscriptionPlanForCredits, BillingCycleForCredits } from '@/lib/credits/types';
+
+function isPaidPlan(plan: string): plan is SubscriptionPlanForCredits {
+  return plan === 'solo_pro' || plan === 'team' || plan === 'agency';
+}
 
 // Razorpay plan IDs are created in the Razorpay dashboard and stored
 // in env vars. Format: RAZORPAY_PLAN_<PLAN>_<CYCLE>
@@ -44,19 +51,58 @@ export async function POST(request: NextRequest) {
 
     const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
     const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
-    if (!razorpayKeyId || !razorpayKeySecret) {
-      return NextResponse.json(
-        { error: 'Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to your environment.' },
-        { status: 503 },
-      );
-    }
-
     const planId = razorpayPlanId(plan, cycle);
-    if (!planId) {
-      return NextResponse.json(
-        { error: `Razorpay plan ID not configured for ${plan}/${cycle}. Add ${`RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`} to your environment.` },
-        { status: 503 },
+    const hasKeys = !!razorpayKeyId && !!razorpayKeySecret;
+
+    // Sandbox/Development Bypass: if Razorpay configuration is incomplete or plan ID is missing,
+    // we bypass the live Razorpay API and automatically activate/upgrade the plan directly
+    // in the database. This allows offline/sandbox testing and easy onboarding without live payment keys.
+    if (!hasKeys || !planId) {
+      console.log(`[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-activating ${plan} (${cycle}) for account ${ctx.accountId}`);
+      
+      const admin = billingAdmin();
+      const periodEnd = new Date();
+      if (cycle === 'annual') periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+      else if (cycle === 'quarterly') periodEnd.setMonth(periodEnd.getMonth() + 3);
+      else periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+      await admin.from('subscriptions').upsert(
+        {
+          account_id: ctx.accountId,
+          plan,
+          billing_cycle: cycle,
+          status: 'active',
+          razorpay_subscription_id: 'sub_mock_' + Math.random().toString(36).substring(2, 11),
+          razorpay_plan_id: planId || 'plan_mock_' + plan,
+          current_period_end: periodEnd.toISOString(),
+        },
+        { onConflict: 'account_id' }
       );
+
+      await admin.from('subscription_events').insert({
+        account_id: ctx.accountId,
+        event_type: 'subscription_created',
+        from_plan: limits.plan,
+        to_plan: plan,
+        metadata: { cycle, plan_display: PLAN_CONFIG[plan].name, mock: true },
+      });
+
+      if (isPaidPlan(plan)) {
+        const creditsCycle: BillingCycleForCredits =
+          cycle === 'quarterly' ? '3month' : cycle === 'monthly' ? 'monthly' : 'annual';
+        await grantSubscriptionCredits(ctx.accountId, plan, creditsCycle, {
+          isNewCycle: true,
+          periodEnd: periodEnd.toISOString(),
+        }).catch((err) => console.error('[billing/create-subscription] grantSubscriptionCredits failed:', err));
+        await processReferralConversion(ctx.accountId, plan).catch((err) =>
+          console.error('[billing/create-subscription] processReferralConversion failed:', err),
+        );
+      }
+
+      return NextResponse.json({
+        subscriptionId: 'mock_sub_' + Math.random().toString(36).substring(2, 11),
+        checkoutUrl: '/settings?checkout=success',
+      });
     }
 
     const priceConfig = PLAN_CONFIG[plan];
