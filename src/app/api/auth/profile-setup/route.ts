@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
     const { data: existingProfile } = await admin
       .from('profiles')
-      .select('id, account_id')
+      .select('id, account_id, account_role, org_role')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -56,15 +56,24 @@ export async function POST(req: Request) {
     }
 
     // 2. Upsert profile row (linked to the resolved account) using Admin Client
+    const upsertPayload: Record<string, any> = {
+      user_id: user.id,
+      full_name: nameVal,
+      email: emailVal,
+      account_id: resolvedAccountId,
+      account_role: existingProfile?.account_role || 'owner',
+    };
+
+    // If org_role is present or needed, preserve or set it
+    if (existingProfile?.org_role) {
+      upsertPayload.org_role = existingProfile.org_role;
+    } else {
+      upsertPayload.org_role = 'org_manager';
+    }
+
     const { error: profileError } = await admin
       .from('profiles')
-      .upsert({
-        user_id: user.id,
-        full_name: nameVal,
-        email: emailVal,
-        account_id: resolvedAccountId,
-        account_role: existingProfile?.account_id ? undefined : 'owner',
-      }, {
+      .upsert(upsertPayload, {
         onConflict: 'user_id',
       });
 
