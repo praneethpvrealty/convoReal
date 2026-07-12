@@ -236,6 +236,7 @@ export async function createCampaign(
       objective: 'OUTCOME_ENGAGEMENT',
       status: 'PAUSED',
       special_ad_categories: opts.specialAdCategories,
+      is_adset_budget_sharing_enabled: false,
     },
   })
   return data.id
