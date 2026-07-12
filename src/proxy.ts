@@ -1,6 +1,24 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+const SUPABASE_COOKIE_PREFIXES = [
+  'sb-access-token',
+  'sb-refresh-token',
+  'sb-auth-token',
+]
+
+function clearAuthCookies(res: NextResponse, req: NextRequest) {
+  const all = req.cookies.getAll()
+  for (const { name } of all) {
+    if (
+      SUPABASE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
+      name.includes('-auth-token')
+    ) {
+      res.cookies.set(name, '', { maxAge: 0, path: '/' })
+    }
+  }
+}
+
 export async function proxy(request: NextRequest) {
   // Create the response upfront so cookie mutations always target the same object.
   // Do NOT create a new NextResponse inside setAll — that drops cookies and causes
@@ -27,7 +45,24 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data, error } = await supabase.auth.getUser()
+  const user = data?.user ?? null
+
+  if (
+    error &&
+    (error.code === 'refresh_token_not_found' ||
+      error.message?.includes('Refresh Token Not Found') ||
+      error.message?.includes('Invalid Refresh Token'))
+  ) {
+    console.warn('[proxy] stale refresh token detected — clearing cookies and redirecting to /login')
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    loginUrl.search = ''
+    const redirectResponse = NextResponse.redirect(loginUrl)
+    clearAuthCookies(redirectResponse, request)
+    return redirectResponse
+  }
+
 
   // Auth pages - redirect to dashboard if already logged in.
   // Exception: when an invite token is in the query string we
