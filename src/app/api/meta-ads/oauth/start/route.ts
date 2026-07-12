@@ -8,7 +8,7 @@ const NONCE_COOKIE = 'meta_ads_oauth_nonce';
 
 // Scopes needed to list ad accounts/Pages, read insights, and create
 // CTWA campaigns on the agent's behalf (Phase C).
-const SCOPES = ['ads_management', 'ads_read', 'business_management', 'pages_show_list', 'instagram_basic'].join(',');
+const SCOPES = ['ads_management', 'ads_read', 'business_management', 'pages_show_list'].join(',');
 
 function oauthRedirectUri(): string {
   const base =
