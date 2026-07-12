@@ -23,6 +23,10 @@ export interface PlanConfig {
   features: string[];
   notIncluded: string[];
   highlighted: boolean;   // show as "most popular"
+  /** Shown under the feature list for plans with a capped ceiling —
+   *  points larger teams to a human sales conversation instead of a
+   *  self-serve tier. Only set on the top plan (agency). */
+  contactSalesNote?: string;
 }
 
 export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
@@ -67,12 +71,12 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     annualMonthlyEquiv: 666,
     quarterlyMonthlyEquiv: 733,
     maxUsers: 1,
-    maxContacts: 999999,
-    maxProperties: 999999,
+    maxContacts: 1500,
+    maxProperties: 500,
     maxBroadcastsPerMonth: 500,
     features: [
       '1 user',
-      'Unlimited contacts & properties',
+      '1,500 contacts & 500 properties',
       'WhatsApp inbox',
       'Branded showcase (logo & colors)',
       'AI description, chatbot & images',
@@ -101,13 +105,13 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     annualPrice: 24990,
     annualMonthlyEquiv: 2083,
     quarterlyMonthlyEquiv: 2300,
-    maxUsers: 10,
-    maxContacts: 999999,
-    maxProperties: 999999,
+    maxUsers: 3,
+    maxContacts: 4500,
+    maxProperties: 1500,
     maxBroadcastsPerMonth: 2000,
     features: [
-      'Up to 10 users',
-      'Unlimited contacts & properties',
+      'Up to 3 users',
+      '4,500 contacts & 1,500 properties',
       'Everything in Solo Pro',
       'Teams & org hierarchy',
       'Smart inbound routing',
@@ -132,13 +136,13 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     annualPrice: 59990,
     annualMonthlyEquiv: 4999,
     quarterlyMonthlyEquiv: 5500,
-    maxUsers: 999999,
-    maxContacts: 999999,
-    maxProperties: 999999,
+    maxUsers: 10,
+    maxContacts: 15000,
+    maxProperties: 5000,
     maxBroadcastsPerMonth: 5000,
     features: [
-      'Unlimited users',
-      'Unlimited contacts & properties',
+      'Up to 10 users',
+      '15,000 contacts & 5,000 properties',
       'Everything in Team',
       'Multi-number WhatsApp (per team)',
       'Full routing rules',
@@ -151,6 +155,7 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
     ],
     notIncluded: [],
     highlighted: false,
+    contactSalesNote: 'Need more? Contact us for a custom Enterprise plan.',
   },
 };
 

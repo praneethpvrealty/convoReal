@@ -143,6 +143,12 @@ function PlanCard({
         ))}
       </ul>
 
+      {config.contactSalesNote && (
+        <p className="text-[11px] text-muted-foreground italic border-t border-border pt-3">
+          {config.contactSalesNote}
+        </p>
+      )}
+
       {!isCurrent && (
         <Button
           size="sm"
