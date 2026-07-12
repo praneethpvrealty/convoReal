@@ -26,7 +26,7 @@ import { CrmLeadForm } from '@/components/landing/crm-lead-form';
 import { BRANDING } from '@/config/branding';
 
 export function MarketingLanding() {
-  // Catch recovery/reset password or session tokens in URL hash and redirect client-side
+  // Catch recovery/reset password, session tokens, or auth errors in URL hash and redirect client-side
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hash) {
       const hash = window.location.hash;
@@ -36,6 +36,10 @@ export function MarketingLanding() {
         } else {
           window.location.replace(`/dashboard${hash}`);
         }
+      } else if (hash.includes('error=')) {
+        const params = new URLSearchParams(hash.substring(1)); // strip leading '#'
+        const errorDesc = params.get('error_description') || 'Authentication failed';
+        window.location.replace(`/login?error=${encodeURIComponent(errorDesc)}`);
       }
     }
   }, []);
