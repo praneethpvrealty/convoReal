@@ -547,56 +547,67 @@ export async function POST(request: Request) {
             matchedPropertyIds = matchedProperties.map(p => p.id);
             console.log(`[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.title).join(', ')} from ${parsed.source} inquiry`);
 
-            // Use matched property data to enhance budget, areas, and interests
-            // Use the highest price from matched properties as budget if not already set
-            if (!maxBudget) {
-              const maxPrice = Math.max(...matchedProperties.map(p => p.price || 0));
-              if (maxPrice > 0) {
-                maxBudget = maxPrice;
+            // Find the maximum matching score
+            const maxScore = Math.max(...scoredProperties.map((sp) => sp.score), 0);
+
+            // Only use high-confidence matched properties (score >= 3 and score === maxScore) 
+            // to enhance the contact's budget, areas, and interests. This prevents type-only matches 
+            // (e.g., matching every Plot in the account) from polluting the contact's details.
+            const bestMatchedProperties = scoredProperties
+              .filter((sp) => sp.score >= 3 && sp.score === maxScore)
+              .map((sp) => sp.property);
+
+            if (bestMatchedProperties.length > 0) {
+              // Use the highest price from best matched properties as budget if not already set
+              if (!maxBudget) {
+                const maxPrice = Math.max(...bestMatchedProperties.map(p => p.price || 0));
+                if (maxPrice > 0) {
+                  maxBudget = maxPrice;
+                }
               }
+
+              // Add areas from best matched property locations
+              bestMatchedProperties.forEach((p: PropertyForMatching) => {
+                if (p.location) {
+                  // Extract main area from location (e.g., "Kudlu, SJR Blue waters, Bangalore, Karnataka" -> "Kudlu")
+                  const mainArea = p.location.split(',')[0]?.trim();
+                  if (mainArea) {
+                    const areaLower = mainArea.toLowerCase();
+                    let formattedArea = mainArea;
+                    if (areaLower === 'hsr' || areaLower === 'jp nagar') {
+                      formattedArea = mainArea.toUpperCase();
+                    } else {
+                      formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
+                    }
+                    if (!areasOfInterest.includes(formattedArea)) {
+                      areasOfInterest.push(formattedArea);
+                    }
+                  }
+                }
+              });
+
+              // Add property interests from best matched property types
+              bestMatchedProperties.forEach((p: PropertyForMatching) => {
+                if (p.type) {
+                  const typeLower = p.type.toLowerCase();
+                  let interest = '';
+                  if (typeLower.includes('industrial') || typeLower.includes('industry') || typeLower.includes('warehouse') || typeLower.includes('factory') || typeLower.includes('shed') || typeLower.includes('godown')) {
+                    interest = 'Industrial';
+                  } else if (typeLower.includes('commercial') || typeLower.includes('office') || typeLower.includes('shop') || typeLower.includes('showroom')) {
+                    interest = 'Commercial';
+                  } else if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
+                    interest = 'Flat/ Apartment';
+                  } else if (typeLower.includes('plot') || typeLower.includes('land') || typeLower.includes('site')) {
+                    interest = 'Vacant plot';
+                  } else if (typeLower.includes('house') || typeLower.includes('villa')) {
+                    interest = 'Vacant building';
+                  }
+                  if (interest && !propertyInterests.includes(interest)) {
+                    propertyInterests.push(interest);
+                  }
+                }
+              });
             }
-
-            // Add areas from matched property locations
-            matchedProperties.forEach((p: PropertyForMatching) => {
-              if (p.location) {
-                // Extract main area from location (e.g., "Kudlu, SJR Blue waters, Bangalore, Karnataka" -> "Kudlu")
-                const mainArea = p.location.split(',')[0]?.trim();
-                if (mainArea) {
-                  const areaLower = mainArea.toLowerCase();
-                  let formattedArea = mainArea;
-                  if (areaLower === 'hsr' || areaLower === 'jp nagar') {
-                    formattedArea = mainArea.toUpperCase();
-                  } else {
-                    formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
-                  }
-                  if (!areasOfInterest.includes(formattedArea)) {
-                    areasOfInterest.push(formattedArea);
-                  }
-                }
-              }
-            });
-
-            // Add property interests from matched property types
-            matchedProperties.forEach((p: PropertyForMatching) => {
-              if (p.type) {
-                const typeLower = p.type.toLowerCase();
-                let interest = '';
-                if (typeLower.includes('industrial') || typeLower.includes('industry') || typeLower.includes('warehouse') || typeLower.includes('factory') || typeLower.includes('shed') || typeLower.includes('godown')) {
-                  interest = 'Industrial';
-                } else if (typeLower.includes('commercial') || typeLower.includes('office') || typeLower.includes('shop') || typeLower.includes('showroom')) {
-                  interest = 'Commercial';
-                } else if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
-                  interest = 'Flat/ Apartment';
-                } else if (typeLower.includes('plot') || typeLower.includes('land') || typeLower.includes('site')) {
-                  interest = 'Vacant plot';
-                } else if (typeLower.includes('house') || typeLower.includes('villa')) {
-                  interest = 'Vacant building';
-                }
-                if (interest && !propertyInterests.includes(interest)) {
-                  propertyInterests.push(interest);
-                }
-              }
-            });
           }
         }
       } catch (err) {
