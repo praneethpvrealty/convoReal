@@ -426,47 +426,53 @@ export function PropertyShareDialog({
 
   // Combine search query and matching contacts logic
   const displayedContacts = useMemo(() => {
+    let result = [];
+
     if (!searchQuery.trim()) {
-      return matchedContacts.filter(({ contact: c }) => {
+      result = matchedContacts.filter(({ contact: c }) => {
         // Always show pre-selected contacts regardless of classification
         if (selectedContactIds.includes(c.id)) return true;
         if (c.classification === 'Buyer') return true;
         if (c.classification === 'Agent' && showAgentsInMatches) return true;
         return false;
       });
+    } else {
+      const q = searchQuery.toLowerCase().trim();
+      const filtered = contacts.filter((c) => {
+        if (c.classification === 'Agent' && !showAgentsInMatches) return false;
+        return (
+          (c.name && c.name.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.includes(q))
+        );
+      });
+
+      result = filtered.map((c) => {
+        const match = matchedContacts.find((m) => m.contact.id === c.id);
+        if (match) return match;
+        const unknownDetails: MatchDetails = {
+          type: 'unknown',
+          location: 'unknown',
+          budget: 'unknown',
+          bhk: 'unknown',
+          roi: 'unknown',
+        };
+        return {
+          contact: c,
+          score: 0,
+          details: unknownDetails,
+          matchedFields: { budget: false, area: false, interest: false },
+        };
+      });
     }
 
-    // Search spans every classification (Owner/Seller/Developer/Others too) —
-    // unlike the no-search "matched" view, an explicit name/phone search means
-    // the user already knows who they're looking for, so we shouldn't hide
-    // them just because the property doesn't match their stored preferences
-    // or their classification isn't Buyer/Agent. Only the Agent visibility
-    // toggle still applies, to keep behaviour predictable.
-    const q = searchQuery.toLowerCase().trim();
-    const filtered = contacts.filter((c) => {
-      if (c.classification === 'Agent' && !showAgentsInMatches) return false;
-      return (
-        (c.name && c.name.toLowerCase().includes(q)) ||
-        (c.phone && c.phone.includes(q))
-      );
-    });
-
-    return filtered.map((c) => {
-      const match = matchedContacts.find((m) => m.contact.id === c.id);
-      if (match) return match;
-      const unknownDetails: MatchDetails = {
-        type: 'unknown',
-        location: 'unknown',
-        budget: 'unknown',
-        bhk: 'unknown',
-        roi: 'unknown',
-      };
-      return {
-        contact: c,
-        score: 0,
-        details: unknownDetails,
-        matchedFields: { budget: false, area: false, interest: false },
-      };
+    // Sort: Checked/selected contacts always on top.
+    // Within the selected and unselected groups, preserve original sort order (match score descending).
+    return [...result].sort((a, b) => {
+      const aSelected = selectedContactIds.includes(a.contact.id);
+      const bSelected = selectedContactIds.includes(b.contact.id);
+      if (aSelected && !bSelected) return -1;
+      if (!aSelected && bSelected) return 1;
+      return 0;
     });
   }, [searchQuery, contacts, matchedContacts, showAgentsInMatches, selectedContactIds]);
 

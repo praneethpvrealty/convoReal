@@ -28,21 +28,45 @@ export default function ResetPasswordPage() {
 
   // When Supabase redirects from the verify link, tokens arrive in the
   // URL hash fragment. The Supabase SDK detects and sets the session
-  // automatically, but we wait for it to complete before showing the form.
+  // asynchronously. We listen to the state change and set a safety timeout fallback.
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.includes('access_token')) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) setSessionReady(true);
-      });
-    } else {
-      // No hash fragment — check if session already exists
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) setSessionReady(true);
-        else setError('This password reset link is invalid or has expired. Please request a new one.');
-      });
-    }
-  }, [supabase.auth]);
+    let active = true;
+
+    // 1. Initial check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (active && session) {
+        setSessionReady(true);
+      }
+    });
+
+    // 2. Listen to state changes (especially PASSWORD_RECOVERY and SIGNED_IN)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!active) return;
+      if (event === 'PASSWORD_RECOVERY' || session) {
+        setSessionReady(true);
+      }
+    });
+
+    // 3. 4-second safety timeout fallback so it never hangs forever if the link is invalid
+    const timer = setTimeout(() => {
+      if (active && !sessionReady) {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            setSessionReady(true);
+          } else {
+            setError('This password reset link is invalid or has expired. Please request a new one.');
+          }
+        });
+      }
+    }, 4000);
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
