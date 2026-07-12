@@ -660,6 +660,22 @@ async function processMessage(
   accessToken: string,
   phoneNumberId: string
 ) {
+  // Archived accounts (dormant/expired, see 113_account_archival.sql) must
+  // not keep ingesting messages or burning AI credits. getCurrentAccount()
+  // blocks the authed API surface, but the webhook is unauthenticated and
+  // resolves accountId directly from whatsapp_config — this is the
+  // equivalent chokepoint for the inbound-message path. Mirrors the
+  // existing "sandbox trial expired ... dropping" guard below.
+  const { data: accountRow } = await supabaseAdmin()
+    .from('accounts')
+    .select('status')
+    .eq('id', accountId)
+    .maybeSingle()
+  if ((accountRow as { status?: string } | null)?.status === 'archived') {
+    console.warn(`[webhook] Account ${accountId} is archived. Dropping message.`)
+    return
+  }
+
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
 

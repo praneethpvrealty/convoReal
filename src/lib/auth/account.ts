@@ -54,6 +54,21 @@ export class ForbiddenError extends Error {
   }
 }
 
+/**
+ * Thrown by `getCurrentAccount()` when the caller's account has been
+ * archived by a super-admin (see supabase/migrations/113_account_archival.sql
+ * and src/app/api/admin/organizations/[id]/route.ts). Distinct from
+ * `ForbiddenError` so callers/clients can distinguish "you archived this
+ * workspace" from an ordinary permissions failure if they ever need to.
+ */
+export class AccountArchivedError extends Error {
+  readonly status = 403 as const;
+  constructor(message = "This workspace has been archived. Contact support to reactivate it.") {
+    super(message);
+    this.name = "AccountArchivedError";
+  }
+}
+
 export class UserFacingError extends Error {
   readonly status: number;
   constructor(message: string, status = 400) {
@@ -76,7 +91,12 @@ export class UserFacingError extends Error {
  * server internals out of the wire.
  */
 export function toErrorResponse(err: unknown): NextResponse {
-  if (err instanceof UnauthorizedError || err instanceof ForbiddenError || err instanceof UserFacingError) {
+  if (
+    err instanceof UnauthorizedError ||
+    err instanceof ForbiddenError ||
+    err instanceof UserFacingError ||
+    err instanceof AccountArchivedError
+  ) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
 
@@ -147,7 +167,7 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // rather than silently returning a half-populated profile.
   const { data, error } = await supabase
     .from("profiles")
-    .select("account_id, account_role, org_role, team_id, account:accounts!inner(id, name)")
+    .select("account_id, account_role, org_role, team_id, account:accounts!inner(id, name, status)")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -176,6 +196,17 @@ export async function getCurrentAccount(): Promise<AccountContext> {
   // Supabase's typed client returns related rows as an array even
   // for `!inner` single-record joins; normalise to a single object.
   const accountRow = Array.isArray(data.account) ? data.account[0] : data.account;
+
+  // Hard block at the one chokepoint nearly every API route funnels
+  // through — the read-only overlay in dashboard-shell.tsx is a UX nicety,
+  // not a security boundary. Without this, an archived (dormant/expired)
+  // account keeps full API access, and the WhatsApp webhook keeps
+  // ingesting messages and burning credits indefinitely (see
+  // processMessage() in webhook-handler.ts for the equivalent block on
+  // that path, which doesn't go through getCurrentAccount at all).
+  if ((accountRow as { status?: string }).status === "archived") {
+    throw new AccountArchivedError();
+  }
 
   return {
     supabase,

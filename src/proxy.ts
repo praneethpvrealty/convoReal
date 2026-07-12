@@ -45,7 +45,23 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data, error } = await supabase.auth.getUser()
+  // Race getUser against a 4-second timeout to prevent Supabase outages from freezing page load
+  const getUserPromise = supabase.auth.getUser()
+  const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((_, reject) =>
+    setTimeout(() => reject(new Error('Supabase request timed out')), 4000)
+  )
+
+  let data = null
+  let error: any = null
+  try {
+    const res = await Promise.race([getUserPromise, timeoutPromise])
+    data = res.data
+    error = res.error
+  } catch (err) {
+    console.error('[proxy] getUser failed or timed out:', err)
+    error = err instanceof Error ? err : new Error(String(err))
+  }
+
   const user = data?.user ?? null
 
   if (

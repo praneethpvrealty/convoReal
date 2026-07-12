@@ -347,7 +347,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    try {
+      // Fire-and-forget/timeout the network call to avoid blocking the user redirect
+      // if Supabase is having an outage.
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Signout timeout')), 2000))
+      ]);
+    } catch (err) {
+      console.warn("[signOut] Supabase network signout failed or timed out:", err);
+    }
     setUser(null);
     setProfile(null);
     setAccount(null);
