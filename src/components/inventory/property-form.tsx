@@ -204,6 +204,9 @@ export function PropertyForm({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState(''); // Whole rupee amount (INR)
+  // Final sale price, captured only when status is Sold. Optional —
+  // feeds the anonymized market-stats aggregation, never shown to buyers.
+  const [soldPrice, setSoldPrice] = useState('');
   const [listingType, setListingType] = useState<'Sale' | 'Rent'>('Sale');
   const [rentPerMonth, setRentPerMonth] = useState('');
   const [maintenance, setMaintenance] = useState('');
@@ -1247,6 +1250,7 @@ export function PropertyForm({
         setRentalIncome(property.rental_income !== null && property.rental_income !== undefined ? String(property.rental_income) : '');
         setType(property.type);
         setStatus(property.status);
+        setSoldPrice(property.sold_price !== null && property.sold_price !== undefined ? String(property.sold_price) : '');
         setBedrooms(property.bedrooms !== null && property.bedrooms !== undefined ? String(property.bedrooms) : '');
         setBathrooms(property.bathrooms !== null && property.bathrooms !== undefined ? String(property.bathrooms) : '');
         setAreaSqft(property.area_sqft !== null && property.area_sqft !== undefined ? String(property.area_sqft) : '');
@@ -1964,6 +1968,12 @@ export function PropertyForm({
         location: fullLocation,
         type,
         status: isEdit ? status : "Available", // Force Available for additions
+        // Only meaningful while Sold; sending null clears a stale value
+        // if the status moves away from Sold.
+        sold_price:
+          status === 'Sold' && soldPrice.trim() !== '' && !Number.isNaN(Number(soldPrice))
+            ? Number(soldPrice)
+            : null,
         bedrooms: parsedBedrooms,
         bathrooms: parsedBathrooms,
         area_sqft: parsedAreaSqft,
@@ -2960,6 +2970,26 @@ export function PropertyForm({
                         <option value="Pending Review">Pending Review</option>
                         <option value="Rejected">Rejected</option>
                       </select>
+                    </div>
+                  )}
+
+                  {isEdit && status === 'Sold' && (
+                    <div className="space-y-1.5 col-span-2">
+                      <Label htmlFor="prop-sold-price" className="text-slate-300">
+                        Final sale price
+                      </Label>
+                      <Input
+                        id="prop-sold-price"
+                        type="number"
+                        min="0"
+                        value={soldPrice}
+                        onChange={(e) => setSoldPrice(e.target.value)}
+                        placeholder={price ? `e.g. ${price}` : 'e.g. 8500000'}
+                        className="border-slate-700 bg-slate-800 text-white"
+                      />
+                      <p className="text-[11px] text-slate-500">
+                        Optional — improves your area&apos;s price accuracy. Never shown to buyers.
+                      </p>
                     </div>
                   )}
 

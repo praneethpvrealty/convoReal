@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 sm:p-8 backdrop-blur-xl shadow-xl space-y-6">
           <div className="space-y-2 border-b border-slate-800/50 pb-4">
             <h2 className="text-xl font-bold text-white">Privacy Policy</h2>
-            <p className="text-xs text-slate-400">Last updated: June 21, 2026</p>
+            <p className="text-xs text-slate-400">Last updated: July 12, 2026</p>
           </div>
 
           <div className="space-y-6 text-sm text-slate-300 leading-relaxed">
@@ -73,6 +73,20 @@ export default function PrivacyPage() {
               <p>
                 We do not sell, rent, or trade your personal information with third parties. We only share information with your consent, to comply with laws, to provide you with services (such as forwarding your inquiries to matched agents), to protect your rights, or to fulfill business obligations.
               </p>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-base font-bold text-white">5. Anonymized Market Data &amp; Your Choices</h3>
+              <p>
+                Business accounts (real-estate agencies) may <strong className="text-slate-200">optionally opt in</strong> to contribute anonymized market statistics — such as median asking prices, listing counts, and time-on-market per locality and month — to aggregated market benchmarks. This is governed by the following commitments, consistent with the Digital Personal Data Protection Act, 2023:
+              </p>
+              <ul className="list-disc list-inside pl-2 space-y-1 text-slate-400">
+                <li><strong className="text-slate-300">Opt-in only:</strong> data sharing is off by default and enabled solely by the account owner from Settings → Other.</li>
+                <li><strong className="text-slate-300">Purpose limitation:</strong> contributed data is used only to compute aggregated market statistics, never for advertising profiles or lead resale.</li>
+                <li><strong className="text-slate-300">Anonymization &amp; aggregation:</strong> only statistical rollups are produced; a statistic is published only when it is backed by at least five distinct businesses, so no individual account or listing is identifiable.</li>
+                <li><strong className="text-slate-300">No personal data:</strong> names, phone numbers, conversations, contacts, and individual listings are never part of shared data. Personal information is never sold in identifiable form.</li>
+                <li><strong className="text-slate-300">Withdrawal:</strong> consent can be withdrawn at any time from the same setting; the account&apos;s data is excluded from the very next aggregation run.</li>
+              </ul>
             </section>
 
             {/* Crucial Data Deletion Section for Meta App Review */}

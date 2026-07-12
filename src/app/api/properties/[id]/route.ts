@@ -85,6 +85,7 @@ export async function PUT(
       title,
       description,
       price,
+      sold_price,
       location,
       type,
       status,
@@ -168,6 +169,17 @@ export async function PUT(
         );
       }
       updateData.price = price;
+    }
+
+    if (sold_price !== undefined) {
+      // Optional final sale price (set while Sold; null clears it).
+      if (sold_price !== null && (typeof sold_price !== "number" || sold_price < 0)) {
+        return NextResponse.json(
+          { error: "'sold_price' must be a non-negative number or null" },
+          { status: 400 }
+        );
+      }
+      updateData.sold_price = sold_price;
     }
 
     if (location !== undefined) {

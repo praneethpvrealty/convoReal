@@ -755,6 +755,8 @@ export interface Property {
   title: string;
   description?: string;
   price: number;
+  /** Final sale price captured when status → Sold. Optional, never buyer-facing. */
+  sold_price?: number | null;
   location: string;
   type: string;
   status: string;

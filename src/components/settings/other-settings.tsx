@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Coins, Loader2, Save, Database, RefreshCw, Mail, Copy, Check } from 'lucide-react';
+import { Coins, Loader2, Save, Database, RefreshCw, Mail, Copy, Check, BarChart3 } from 'lucide-react';
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { BRANDING } from '@/config/branding';
@@ -14,7 +15,7 @@ import { MessageTemplate } from '@/types';
 
 export function OtherSettingsPanel() {
   const supabase = createClient();
-  const { accountId, loading: authLoading } = useAuth();
+  const { accountId, loading: authLoading, isOwner } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +42,55 @@ export function OtherSettingsPanel() {
   const [verCode, setVerCode] = useState<string | null>(null);
   const [verLink, setVerLink] = useState<string | null>(null);
   const [verAt, setVerAt] = useState<string | null>(null);
+
+  // Data-sharing consent (DPDP opt-in for anonymized market stats)
+  const [consent, setConsent] = useState(false);
+  const [consentAt, setConsentAt] = useState<string | null>(null);
+  const [consentSaving, setConsentSaving] = useState(false);
+
+  useEffect(() => {
+    if (!accountId) return;
+    fetch('/api/account/data-sharing')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setConsent(!!data.consent);
+          setConsentAt(data.consentAt ?? null);
+        }
+      })
+      .catch(() => {
+        // Pre-migration or transient failure — leave the toggle off.
+      });
+  }, [accountId]);
+
+  const handleToggleConsent = async () => {
+    if (!isOwner || consentSaving) return;
+    const next = !consent;
+    setConsentSaving(true);
+    try {
+      const res = await fetch('/api/account/data-sharing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consent: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to update');
+      }
+      const data = await res.json();
+      setConsent(data.consent);
+      setConsentAt(data.consentAt ?? null);
+      toast.success(
+        data.consent
+          ? 'Thank you! Your anonymized market data now contributes to (and will unlock) area benchmarks.'
+          : 'Data sharing turned off. Your data will be excluded from the next aggregation run.',
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update data sharing');
+    } finally {
+      setConsentSaving(false);
+    }
+  };
 
   const fetchProjectCount = useCallback(async () => {
     try {
@@ -731,6 +781,83 @@ export function OtherSettingsPanel() {
             </div>
 
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Anonymized Market Data (DPDP opt-in) Card */}
+      <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
+            <BarChart3 className="size-5 text-primary" />
+            Anonymized Market Data
+          </CardTitle>
+          <CardDescription className="text-slate-400">
+            Contribute anonymized listing &amp; demand statistics to build area-level
+            market benchmarks — and unlock them for your account as they become available.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="rounded-lg border border-slate-800 bg-slate-950/30 p-4 space-y-2 text-[11px] text-slate-400 leading-relaxed">
+            <p>
+              <strong className="text-slate-300">What is shared:</strong> aggregated,
+              anonymized statistics only — e.g. median price, listing counts, and
+              days-to-sell per locality and month. A statistic is published only when it
+              is backed by at least 5 different agencies, so your individual activity is
+              never identifiable.
+            </p>
+            <p>
+              <strong className="text-slate-300">What is never shared:</strong> your
+              contacts, leads, conversations, names, phone numbers, or any individual
+              listing. Your data is never sold to third parties in identifiable form.
+            </p>
+            <p>
+              <strong className="text-slate-300">Your choice:</strong> this is optional
+              and off by default. You can withdraw anytime here — your data is excluded
+              from the very next aggregation. Details in our{' '}
+              <Link href="/privacy" className="text-primary hover:underline">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+          </div>
+
+          <div
+            onClick={handleToggleConsent}
+            role="switch"
+            aria-checked={consent}
+            aria-disabled={!isOwner}
+            className={`p-4 rounded-xl border transition-all duration-300 flex items-center justify-between select-none ${
+              !isOwner
+                ? 'border-slate-800 bg-slate-950/20 text-slate-500 cursor-not-allowed opacity-70'
+                : consent
+                  ? 'border-primary bg-primary/5 text-white shadow-[0_0_15px_rgba(99,102,241,0.05)] cursor-pointer'
+                  : 'border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:bg-slate-950/40 cursor-pointer'
+            }`}
+          >
+            <div className="space-y-0.5 pr-2">
+              <h4 className="text-xs font-bold text-slate-100">
+                Share anonymized market data
+              </h4>
+              <p className="text-[10px] text-slate-400 leading-normal">
+                {!isOwner
+                  ? 'Only the account owner can change this setting.'
+                  : consent && consentAt
+                    ? `On since ${new Date(consentAt).toLocaleDateString()}. Tap to withdraw.`
+                    : 'Opt in to contribute — and benefit from — area benchmarks.'}
+              </p>
+            </div>
+            {consentSaving ? (
+              <Loader2 className="size-4 animate-spin text-slate-400 shrink-0" />
+            ) : (
+              <div
+                className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 shrink-0 ${consent ? 'bg-primary' : 'bg-slate-700'}`}
+              >
+                <div
+                  className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 ${consent ? 'translate-x-4' : 'translate-x-0'}`}
+                />
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>
