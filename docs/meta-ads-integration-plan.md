@@ -43,7 +43,15 @@ audiences tuning.
 2. Decide: reuse the existing WABA Meta app or a second app. Recommendation: **same app** (one
    review relationship, one secret), with new env vars so code doesn't care:
    `META_ADS_APP_ID`, `META_ADS_APP_SECRET` (may equal existing), `NEXT_PUBLIC_META_ADS_APP_ID`.
-3. Register OAuth redirect URI: `https://<domain>/api/meta-ads/oauth/callback` (plus localhost for dev).
+3. Register OAuth redirect URI: `https://<domain>/api/meta-ads/oauth/callback` (plus localhost for
+   dev). `<domain>` must match, character-for-character, whatever `NEXT_PUBLIC_APP_URL` (or its
+   `NEXT_PUBLIC_SITE_URL` fallback — see `src/app/api/meta-ads/oauth/start/route.ts`) resolves to in
+   that environment. For this deployment that's `https://www.convoreal.com` — register
+   `https://www.convoreal.com/api/meta-ads/oauth/callback` **and**
+   `https://convoreal.com/api/meta-ads/oauth/callback` (both www and non-www) unless you're certain
+   only one form is ever used, since Meta's "Use Strict Mode for redirect URIs" does an exact string
+   match and treats the www/non-www forms as different hosts — a mismatch here fails silently with
+   Facebook's generic "URL Blocked" page and no server-side error to debug from.
 4. Feature flag: `META_ADS_ENABLED=true` env — all UI surfaces hide when unset, so this can merge
    and deploy before app review completes.
 5. **Migration numbering**: `103` is currently DUPLICATED (`103_razorpay_orders.sql` and
