@@ -425,16 +425,37 @@ export function PropertyShareDialog({
   }, [contacts, property]);
 
   // Combine search query and matching contacts logic
+  // Exclude contacts who were already messaged in the last 14 days from
+  // the matched suggestions (not from explicit search or pre-selected).
   const displayedContacts = useMemo(() => {
-    let result = [];
+    const recentCutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+    let result: Array<{ contact: Contact; score: number; details: MatchDetails; matchedFields: { budget: boolean; area: boolean; interest: boolean } }> = [];
 
     if (!searchQuery.trim()) {
       result = matchedContacts.filter(({ contact: c }) => {
-        // Always show pre-selected contacts regardless of classification
-        if (selectedContactIds.includes(c.id)) return true;
         if (c.classification === 'Buyer') return true;
         if (c.classification === 'Agent' && showAgentsInMatches) return true;
         return false;
+      });
+
+      // Ensure pre-selected contacts always appear — even if they're not
+      // in matchedContacts (due to classification or no-match score).
+      for (const id of selectedContactIds) {
+        if (!result.some((r) => r.contact.id === id)) {
+          const c = contacts.find((x) => x.id === id);
+          if (c) {
+            const unknownDetails: MatchDetails = { type: 'unknown', location: 'unknown', budget: 'unknown', bhk: 'unknown', roi: 'unknown' };
+            result.unshift({ contact: c, score: 0, details: unknownDetails, matchedFields: { budget: false, area: false, interest: false } });
+          }
+        }
+      }
+
+      // Exclude contacts who were already contacted in the last 14 days,
+      // except for contacts that are pre-selected or explicitly searched.
+      result = result.filter(({ contact: c }) => {
+        if (selectedContactIds.includes(c.id)) return true;
+        if (c.last_contacted_at && new Date(c.last_contacted_at).getTime() > recentCutoff) return false;
+        return true;
       });
     } else {
       const q = searchQuery.toLowerCase().trim();
