@@ -316,7 +316,7 @@ async function computeContactDuplicateWarnings(
         let matchType = '';
 
         if (draft.phone) {
-          const normalized = normalizePhoneWithCountryCode(draft.phone, '91');
+          const normalized = normalizePhoneWithCountryCode(draft.phone);
           const cleanPhone = normalized.replace(/\D/g, '');
           const { data: byPhone } = await supabaseAdmin()
             .from('contacts')
@@ -655,7 +655,7 @@ export async function processOwnerChatbotMessage(
       if (draft.owner_contact_name) {
         const ownerName = draft.owner_contact_name.trim();
         const ownerPhone = draft.owner_contact_phone;
-        const normalizedPhone = ownerPhone ? (normalizePhoneWithCountryCode(ownerPhone, '91') || null) : null;
+        const normalizedPhone = ownerPhone ? (normalizePhoneWithCountryCode(ownerPhone) || null) : null;
 
         if (normalizedPhone) {
           const cleanPhone = normalizedPhone.replace(/\D/g, '');
@@ -1171,7 +1171,7 @@ export async function processOwnerChatbotMessage(
       const duplicates = [];
 
       for (const draft of container.contacts) {
-        const normalized = normalizePhoneWithCountryCode(draft.phone || '', '91');
+        const normalized = normalizePhoneWithCountryCode(draft.phone || '');
         const cleanPhone = normalized.replace(/\D/g, '');
         const { data: existingContact } = await supabaseAdmin()
           .from('contacts')
@@ -1193,7 +1193,7 @@ export async function processOwnerChatbotMessage(
             let refQuery = supabaseAdmin().from('contacts').select('id, name').eq('account_id', accountId);
             
             if (refPhone) {
-              const refNormalized = normalizePhoneWithCountryCode(refPhone, '91');
+              const refNormalized = normalizePhoneWithCountryCode(refPhone);
               const refCleanPhone = refNormalized.replace(/\D/g, '');
               const escapedRefName = refName.replace(/"/g, '\\"');
               refQuery = refQuery.or(`phone.eq.${refPhone},phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike."${escapedRefName}"`);

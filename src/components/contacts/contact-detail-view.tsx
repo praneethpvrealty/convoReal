@@ -44,8 +44,17 @@ import {
   PhoneIncoming,
   PhoneMissed,
   Clock,
+  ArrowUp,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { getCurrencyIcon } from '@/lib/currency-utils';
+import { BRANDING } from '@/config/branding';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
@@ -962,12 +971,26 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
 
     setSavingDetails(true);
+
+    const defaultCc = showcaseSettings?.default_country_code || BRANDING.defaultCountryCode || '91';
+    const normalizedPrimary = normalizePhoneWithCountryCode(editPhone.trim(), defaultCc);
+    if (!normalizedPrimary) {
+      toast.error('Invalid primary phone number format');
+      setSavingDetails(false);
+      return;
+    }
+
+    const normalizedSecondary = editSecondaryPhones
+      .filter((p) => p.trim().length > 0)
+      .map((p) => normalizePhoneWithCountryCode(p.trim(), defaultCc))
+      .filter(Boolean);
+
     const { error } = await supabase
       .from('contacts')
       .update({
         name: editName.trim() || null,
-        phone: editPhone.trim(),
-        secondary_phones: editSecondaryPhones.filter(p => p.trim().length > 0).map(p => p.trim()),
+        phone: normalizedPrimary,
+        secondary_phones: normalizedSecondary,
         email: editEmail.trim() || null,
         company: editCompany.trim() || null,
         classification: editClassification,
@@ -992,6 +1015,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
     setSavingDetails(false);
   }
+
+  const handleSwapSecondaryToPrimary = (idx: number) => {
+    const currentPrimary = editPhone;
+    const selectedSecondary = editSecondaryPhones[idx];
+
+    setEditPhone(selectedSecondary);
+    const updated = [...editSecondaryPhones];
+    updated[idx] = currentPrimary;
+    setEditSecondaryPhones(updated);
+
+    toast.success('Phone numbers swapped! Remember to save changes.');
+  };
 
   async function sendPropertyDetailsHelper() {
     if (!contactId || !inquiredProperty) return;
@@ -1570,17 +1605,47 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                               placeholder="+91 98765 43210"
                               className="bg-slate-800 border-slate-700 text-white h-8 text-sm flex-1"
                             />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                setEditSecondaryPhones(editSecondaryPhones.filter((_, i) => i !== idx));
-                              }}
-                              className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-8 w-8 shrink-0 animate-none"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleSwapSecondaryToPrimary(idx)}
+                                      className="text-slate-400 hover:text-primary hover:bg-slate-800 h-8 w-8 shrink-0 animate-none"
+                                    />
+                                  }
+                                >
+                                  <ArrowUp className="h-3.5 w-3.5" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  Make primary (swap with current primary)
+                                </TooltipContent>
+                              </Tooltip>
+
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        setEditSecondaryPhones(editSecondaryPhones.filter((_, i) => i !== idx));
+                                      }}
+                                      className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-8 w-8 shrink-0 animate-none"
+                                    />
+                                  }
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                  Delete secondary number
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </div>
                         ))}
                       </div>

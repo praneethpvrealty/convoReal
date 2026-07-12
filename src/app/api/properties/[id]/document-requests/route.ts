@@ -146,7 +146,7 @@ export async function PATCH(
     // 5. Send WhatsApp message to requester (fire-and-forget)
     (async () => {
       try {
-        const normalizedPhone = normalizePhoneWithCountryCode(docRequest.requester_phone, "91");
+        const normalizedPhone = normalizePhoneWithCountryCode(docRequest.requester_phone);
         if (!normalizedPhone) return;
 
         const hasDocuments =
@@ -264,7 +264,7 @@ export async function POST(
     // 5. Send WhatsApp message (fire-and-forget)
     (async () => {
       try {
-        const normalizedPhone = normalizePhoneWithCountryCode(requester_phone, "91");
+        const normalizedPhone = normalizePhoneWithCountryCode(requester_phone);
         if (!normalizedPhone) return;
 
         const hasDocuments =

@@ -833,6 +833,7 @@ export interface ShowcaseSettings {
   whatsapp_message_template: string;
   flyer_ai_provider?: 'google' | 'huggingface';
   currency?: string;
+  default_country_code?: string;
   meta_pixel_id?: string | null;
   subdomain?: string | null;
   theme?: string;

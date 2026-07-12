@@ -22,6 +22,12 @@ import {
   ArchiveRestore,
   Megaphone,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 const highlightIcons: Record<string, string> = {
   'School': '🏫',
@@ -565,89 +571,152 @@ export function PropertyList({
                     Reject
                   </Button>
                 )}
-                {onFlyer && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onFlyer(property)}
-                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
-                  >
-                    <Sparkles className="size-3.5 mr-1.5 text-primary" /> Flyer
-                  </Button>
-                )}
-                {onPromote && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onPromote(property)}
-                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
-                  >
-                    <Megaphone className="size-3.5 mr-1.5 text-primary" /> Promote
-                  </Button>
-                )}
-                {onShare && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onShare(property)}
-                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
-                  >
-                    <Share2 className="size-3.5 mr-1.5 text-primary" /> Share
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onView(property)}
-                  className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
-                >
-                  <Eye className="size-3.5 mr-1.5" /> Details
-                </Button>
-                {canEdit && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onEdit(property)}
-                    className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
-                  >
-                    <Edit className="size-3.5 mr-1.5" /> Edit
-                  </Button>
-                )}
-                {canEdit && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDelete(property)}
-                    className="h-8 border-slate-850 hover:bg-red-950/20 hover:text-red-400 hover:border-red-900/50 text-slate-400"
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                )}
-                {canEdit && onArchive && property.status !== 'Pending Review' && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onArchive(property)}
-                    className={
-                      property.status === 'Archived'
-                        ? 'h-8 border-amber-800/50 hover:bg-amber-950/20 hover:text-amber-400 hover:border-amber-700/50 text-amber-400'
-                        : 'h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-400'
-                    }
-                  >
-                    {property.status === 'Archived' ? (
-                      <ArchiveRestore className="size-3.5" />
-                    ) : (
-                      <Archive className="size-3.5" />
-                    )}
-                  </Button>
-                )}
+                <TooltipProvider>
+                  {onFlyer && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onFlyer(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Sparkles className="size-3.5 mr-1.5 text-primary" /> Flyer
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">AI Flyer Creator</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onPromote && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onPromote(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Megaphone className="size-3.5 mr-1.5 text-primary" /> Promote
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Create Meta ad campaign</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onShare && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onShare(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Share2 className="size-3.5 mr-1.5 text-primary" /> Share
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Share property listing</TooltipContent>
+                    </Tooltip>
+                  )}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onView(property)}
+                          className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                        />
+                      }
+                    >
+                      <>
+                        <Eye className="size-3.5 mr-1.5" /> Details
+                      </>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">View property details</TooltipContent>
+                  </Tooltip>
+                  {canEdit && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onEdit(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Edit className="size-3.5 mr-1.5" /> Edit
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Edit property details</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {canEdit && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onDelete(property)}
+                            className="h-8 border-slate-855 hover:bg-red-950/20 hover:text-red-400 hover:border-red-900/50 text-slate-400"
+                          />
+                        }
+                      >
+                        <Trash2 className="size-3.5" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Delete property</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {canEdit && onArchive && property.status !== 'Pending Review' && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onArchive(property)}
+                            className={
+                              property.status === 'Archived'
+                                ? 'h-8 border-amber-800/50 hover:bg-amber-950/20 hover:text-amber-400 hover:border-amber-700/50 text-amber-400'
+                                : 'h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-400'
+                            }
+                          />
+                        }
+                      >
+                        {property.status === 'Archived' ? (
+                          <ArchiveRestore className="size-3.5" />
+                        ) : (
+                          <Archive className="size-3.5" />
+                        )}
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {property.status === 'Archived' ? 'Restore property' : 'Archive property'}
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </TooltipProvider>
               </div>
             </div>
           </div>

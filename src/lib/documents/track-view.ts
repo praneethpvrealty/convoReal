@@ -82,7 +82,7 @@ export async function trackDocumentView(
     // already counted moments ago; don't log the interaction twice.
     if (withinSameSession) return;
 
-    const normalized = normalizePhoneWithCountryCode(docRequest.requester_phone, '91');
+    const normalized = normalizePhoneWithCountryCode(docRequest.requester_phone);
     if (!normalized) return;
     const cleanPhone = normalized.replace(/\D/g, '');
 

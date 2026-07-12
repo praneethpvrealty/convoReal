@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     if (!rawPhone) {
       return NextResponse.json({ error: 'Please share your WhatsApp number.' }, { status: 400 });
     }
-    const phone = normalizePhoneWithCountryCode(rawPhone, '91');
+    const phone = normalizePhoneWithCountryCode(rawPhone);
     if (!phone) {
       return NextResponse.json({ error: 'That number looks off — please re-enter it with your area code.' }, { status: 400 });
     }

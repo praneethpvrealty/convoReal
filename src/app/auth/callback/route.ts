@@ -10,10 +10,11 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      const next = requestUrl.searchParams.get('next') || '/dashboard';
       if (invite) {
         return NextResponse.redirect(`${requestUrl.origin}/join/${encodeURIComponent(invite)}`);
       }
-      return NextResponse.redirect(`${requestUrl.origin}/dashboard`);
+      return NextResponse.redirect(`${requestUrl.origin}${next}`);
     }
   }
 

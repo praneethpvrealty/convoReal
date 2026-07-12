@@ -744,14 +744,14 @@ export async function parseContactFromImageOrText(
     return {
       contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
         name: c.name || null,
-        phone: c.phone ? (normalizePhoneWithCountryCode(c.phone, "91") || null) : null,
+        phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
         email: c.email || null,
         company: c.company || null,
         classification: normalizeClassification(c.classification),
         notes: c.notes || null,
         requirements: c.requirements || null,
         referrer_name: c.referrer_name || null,
-        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone, "91") || null) : null
+        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone) || null) : null
       }))
     };
   } catch (err) {
@@ -785,14 +785,14 @@ export async function updateContactDraft(
     return {
       contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
         name: c.name || null,
-        phone: c.phone ? (normalizePhoneWithCountryCode(c.phone, "91") || null) : null,
+        phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
         email: c.email || null,
         company: c.company || null,
         classification: normalizeClassification(c.classification),
         notes: c.notes || null,
         requirements: c.requirements || null,
         referrer_name: c.referrer_name || null,
-        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone, "91") || null) : null
+        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone) || null) : null
       }))
     };
   } catch (err) {

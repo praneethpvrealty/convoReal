@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,25 +19,28 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const supabase = createClient();
-
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
-    });
-
-    if (error) {
-      setError(error.message);
+    try {
+      const response = await fetch("/api/auth/reset-password/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to request password reset link");
+      }
+      setSuccess(true);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      setError(message);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setSuccess(true);
-    setLoading(false);
   };
 
   if (success) {

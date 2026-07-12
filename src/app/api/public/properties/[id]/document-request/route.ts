@@ -31,7 +31,7 @@ export async function POST(
       return NextResponse.json({ error: "account_id is required" }, { status: 400 });
     }
 
-    const normalizedPhone = normalizePhoneWithCountryCode(requester_phone.trim(), "91");
+    const normalizedPhone = normalizePhoneWithCountryCode(requester_phone.trim());
     if (!normalizedPhone) {
       return NextResponse.json({ error: "Invalid phone number format" }, { status: 400 });
     }

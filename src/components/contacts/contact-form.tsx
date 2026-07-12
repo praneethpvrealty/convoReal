@@ -18,7 +18,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Search, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Search, Plus, Trash2, ArrowUp } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 
 const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
 
@@ -85,6 +92,7 @@ export function ContactForm({
   // Notes state
   const [notesText, setNotesText] = useState('');
   const [recentNoteId, setRecentNoteId] = useState<string | null>(null);
+  const [defaultCountryCode, setDefaultCountryCode] = useState('91');
 
   // Associated Properties state
   const [propertiesList, setPropertiesList] = useState<Property[]>([]);
@@ -213,6 +221,24 @@ export function ContactForm({
     }
   }, [open, contact, contactTags, fetchTags, fetchContacts, fetchProperties, fetchRecentNote, fetchAssociatedProperties]);
 
+  useEffect(() => {
+    if (!open) return;
+    async function fetchShowcaseSettings() {
+      try {
+        const { data } = await supabase
+          .from('showcase_settings')
+          .select('default_country_code')
+          .maybeSingle();
+        if (data?.default_country_code) {
+          setDefaultCountryCode(data.default_country_code);
+        }
+      } catch (err) {
+        console.error('Failed to load default country code setting:', err);
+      }
+    }
+    fetchShowcaseSettings();
+  }, [open, supabase]);
+
   const filteredProperties = useMemo(() => {
     if (!propertySearch.trim()) return propertiesList;
     const q = propertySearch.toLowerCase();
@@ -278,6 +304,18 @@ export function ContactForm({
 
 
 
+  const handleSwapSecondaryToPrimary = (idx: number) => {
+    const currentPrimary = phone;
+    const selectedSecondary = secondaryPhones[idx];
+
+    setPhone(selectedSecondary);
+    const updated = [...secondaryPhones];
+    updated[idx] = currentPrimary;
+    setSecondaryPhones(updated);
+
+    toast.success('Phone numbers swapped!');
+  };
+
   function toggleTag(tagId: string) {
     setSelectedTagIds((prev) =>
       prev.includes(tagId)
@@ -302,10 +340,22 @@ export function ContactForm({
       const isEdit = !!contact?.id;
       const contactId = contact?.id;
 
+      const normalizedPrimary = normalizePhoneWithCountryCode(phone.trim(), defaultCountryCode);
+      if (!normalizedPrimary) {
+        toast.error('Invalid primary phone number format');
+        setSaving(false);
+        return;
+      }
+
+      const normalizedSecondary = secondaryPhones
+        .filter((p) => p.trim().length > 0)
+        .map((p) => normalizePhoneWithCountryCode(p.trim(), defaultCountryCode))
+        .filter(Boolean);
+
       const payload = {
         name: name.trim() || null,
-        phone: phone.trim(),
-        secondary_phones: secondaryPhones,
+        phone: normalizedPrimary,
+        secondary_phones: normalizedSecondary,
         email: email.trim() || null,
         company: company.trim() || null,
         classification,
@@ -429,17 +479,47 @@ export function ContactForm({
                       placeholder="+91 98765 43210"
                       className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 flex-1 h-9"
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setSecondaryPhones(secondaryPhones.filter((_, i) => i !== idx));
-                      }}
-                      className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-9 w-9 shrink-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleSwapSecondaryToPrimary(idx)}
+                              className="text-slate-400 hover:text-primary hover:bg-slate-800 h-9 w-9 shrink-0"
+                            />
+                          }
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          Make primary (swap with current primary)
+                        </TooltipContent>
+                      </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                setSecondaryPhones(secondaryPhones.filter((_, i) => i !== idx));
+                              }}
+                              className="text-slate-400 hover:text-red-400 hover:bg-slate-800 h-9 w-9 shrink-0"
+                            />
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          Delete secondary number
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 ))}
               </div>

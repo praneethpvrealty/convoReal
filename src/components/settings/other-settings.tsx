@@ -13,6 +13,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { MessageTemplate } from '@/types';
 
 
+const COUNTRIES = [
+  { name: 'India', code: '91', currency: 'INR' },
+  { name: 'United Arab Emirates', code: '971', currency: 'AED' },
+  { name: 'United States', code: '1', currency: 'USD' },
+  { name: 'United Kingdom', code: '44', currency: 'GBP' },
+  { name: 'Germany', code: '49', currency: 'EUR' },
+  { name: 'France', code: '33', currency: 'EUR' },
+  { name: 'Australia', code: '61', currency: 'AUD' },
+  { name: 'Singapore', code: '65', currency: 'SGD' },
+  { name: 'Canada', code: '1', currency: 'CAD' },
+];
+
 export function OtherSettingsPanel() {
   const supabase = createClient();
   const { accountId, loading: authLoading, isOwner } = useAuth();
@@ -20,7 +32,37 @@ export function OtherSettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [currency, setCurrency] = useState('INR');
+  const [defaultCountryCode, setDefaultCountryCode] = useState('91');
   const [hasSettings, setHasSettings] = useState(false);
+  const [selectedCountryIndex, setSelectedCountryIndex] = useState(0);
+  const [useUsdOverride, setUseUsdOverride] = useState(false);
+
+  const selectedCountry = COUNTRIES[selectedCountryIndex] || COUNTRIES[0];
+
+  const handleCountrySelect = (index: number) => {
+    setSelectedCountryIndex(index);
+    const country = COUNTRIES[index];
+    if (country) {
+      setDefaultCountryCode(country.code);
+      if (useUsdOverride) {
+        setCurrency('USD');
+      } else {
+        setCurrency(country.currency);
+      }
+    }
+  };
+
+  const handleUsdOverrideChange = (checked: boolean) => {
+    setUseUsdOverride(checked);
+    const country = COUNTRIES[selectedCountryIndex];
+    if (country) {
+      if (checked) {
+        setCurrency('USD');
+      } else {
+        setCurrency(country.currency);
+      }
+    }
+  };
 
   // RERA Projects Sync State
   const [projectCount, setProjectCount] = useState<number | null>(null);
@@ -170,7 +212,7 @@ export function OtherSettingsPanel() {
       try {
         const { data, error } = await supabase
           .from('showcase_settings')
-          .select('currency')
+          .select('currency, default_country_code')
           .eq('account_id', accountId)
           .maybeSingle();
 
@@ -181,7 +223,23 @@ export function OtherSettingsPanel() {
         }
 
         if (data) {
-          setCurrency(data.currency || 'INR');
+          const loadedCurrency = data.currency || 'INR';
+          const loadedCountryCode = data.default_country_code || '91';
+          setCurrency(loadedCurrency);
+          setDefaultCountryCode(loadedCountryCode);
+          
+          let idx = COUNTRIES.findIndex(c => c.code === loadedCountryCode && c.currency === loadedCurrency);
+          if (idx === -1) {
+            idx = COUNTRIES.findIndex(c => c.code === loadedCountryCode);
+          }
+          if (idx !== -1) {
+            setSelectedCountryIndex(idx);
+          }
+
+          const isUsd = loadedCurrency === 'USD';
+          const isNorthAmerica = loadedCountryCode === '1';
+          setUseUsdOverride(isUsd && !isNorthAmerica);
+
           setHasSettings(true);
         }
       } catch (err) {
@@ -289,6 +347,7 @@ export function OtherSettingsPanel() {
           .from('showcase_settings')
           .update({
             currency,
+            default_country_code: defaultCountryCode,
             updated_at: new Date().toISOString(),
           })
           .eq('account_id', accountId);
@@ -305,6 +364,7 @@ export function OtherSettingsPanel() {
             contact_phone: '',
             whatsapp_message_template: 'Hi! I am interested in your property "{title}" in {location}. Please share details.',
             currency,
+            default_country_code: defaultCountryCode,
           }]);
 
         if (error) throw error;
@@ -403,25 +463,42 @@ export function OtherSettingsPanel() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-6">
-            <div className="space-y-2 max-w-md">
-              <Label htmlFor="currency" className="text-slate-350 font-medium">
-                System Default Currency
-              </Label>
-              <select
-                id="currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary font-medium"
-              >
-                <option value="INR">INR (₹) - Rupees</option>
-                <option value="USD">USD ($) - Dollars</option>
-                <option value="EUR">EUR (€) - Euros</option>
-                <option value="GBP">GBP (£) - Pounds</option>
-                <option value="AED">AED (د.إ) - Dirhams</option>
-              </select>
-              <p className="text-[11px] text-slate-400">
-                Primary currency code. Indian Rupees use dynamic Lakhs/Crores representations automatically.
-              </p>
+            <div className="space-y-3 max-w-md">
+              <div className="space-y-1.5">
+                <Label htmlFor="country" className="text-slate-350 font-medium">
+                  Default Workspace Country
+                </Label>
+                <select
+                  id="country"
+                  value={selectedCountryIndex}
+                  onChange={(e) => handleCountrySelect(Number(e.target.value))}
+                  className="flex h-10 w-full rounded-md border border-slate-800 bg-slate-950 px-3 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary font-medium"
+                >
+                  {COUNTRIES.map((c, idx) => (
+                    <option key={`${c.code}-${c.currency}`} value={idx}>
+                      {c.name} (+{c.code})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400">
+                  Selecting your country automatically derives your default local currency ({selectedCountry.currency}) and phone prefix (+{selectedCountry.code}) across the workspace.
+                </p>
+              </div>
+
+              {selectedCountry.currency !== 'USD' && (
+                <div className="flex items-center gap-2 pt-1.5">
+                  <input
+                    id="usd-override"
+                    type="checkbox"
+                    checked={useUsdOverride}
+                    onChange={(e) => handleUsdOverrideChange(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-primary focus:ring-primary focus:ring-offset-slate-900 cursor-pointer"
+                  />
+                  <Label htmlFor="usd-override" className="text-xs text-slate-300 font-normal cursor-pointer select-none">
+                    Use US Dollar (USD, $) as workspace currency instead of local currency ({selectedCountry.currency})
+                  </Label>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end pt-4 border-t border-slate-800">

@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const normalizedPhone = normalizePhoneWithCountryCode(phone, "91");
+    const normalizedPhone = normalizePhoneWithCountryCode(phone);
     if (!normalizedPhone) {
       return NextResponse.json(
         { error: "Invalid phone number format" },

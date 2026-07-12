@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     if (!rawPhone) {
       return NextResponse.json({ answer: null, needs_phone: true, message: NEEDS_PHONE_MESSAGE });
     }
-    const phone = normalizePhoneWithCountryCode(rawPhone, '91');
+    const phone = normalizePhoneWithCountryCode(rawPhone);
     if (!phone) {
       return NextResponse.json({ answer: null, needs_phone: true, message: 'That number looks off — please re-enter it with your area code.' });
     }

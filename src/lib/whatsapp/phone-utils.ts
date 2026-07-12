@@ -1,3 +1,5 @@
+import { BRANDING } from '@/config/branding';
+
 /**
  * Sanitize phone number for Meta WhatsApp API.
  * Meta requires digits only — no + prefix, no spaces, no dashes.
@@ -24,7 +26,7 @@ export function normalizePhone(phone: unknown): string {
  * If the number is a local number (e.g. 10 digits in India), it prefixes it with the default country code.
  * Strips leading zeros (e.g. domestic trunk prefixes like '0') before prefixing.
  */
-export function normalizePhoneWithCountryCode(phone: unknown, defaultCountryCode: string = '91'): string {
+export function normalizePhoneWithCountryCode(phone: unknown, defaultCountryCode: string = BRANDING.defaultCountryCode || '91'): string {
   if (phone === null || phone === undefined) return ''
   const phoneStr = String(phone)
   
