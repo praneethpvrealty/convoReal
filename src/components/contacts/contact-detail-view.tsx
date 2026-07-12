@@ -2136,13 +2136,68 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             </p>
                           </div>
                         ) : (
-                          <div className="space-y-2">
-                            {inquiredProperties.map((prop) => (
-                              <div
-                                key={prop.id}
-                                className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
-                              >
-                                <div className="flex items-start justify-between gap-3">
+                           <div className="space-y-2">
+                             {inquiredProperties.map((prop) => (
+                               <div
+                                 key={prop.id}
+                                 className="group relative rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
+                               >
+                                 {/* Hover Preview Card */}
+                                 <div className="absolute left-0 bottom-full mb-2 z-50 hidden group-hover:block pointer-events-none">
+                                   <div className="w-64 rounded-lg border border-slate-700 bg-slate-850 p-3 shadow-xl shadow-black/30">
+                                     <div className="flex items-center gap-1.5 mb-2">
+                                       {prop.property_code && (
+                                         <span className="font-mono text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold">
+                                           {prop.property_code}
+                                         </span>
+                                       )}
+                                       <span className="text-[10px] px-1 py-0 rounded bg-slate-800 text-slate-400 font-semibold uppercase border border-slate-700">
+                                         {prop.type}
+                                       </span>
+                                       {prop.listing_type && (
+                                         <span className="text-[9px] px-1 py-0 rounded bg-primary/10 text-primary font-semibold uppercase border border-primary/20">
+                                           {prop.listing_type}
+                                         </span>
+                                       )}
+                                     </div>
+                                     <h6 className="text-xs font-bold text-white mb-1 leading-snug">{prop.title}</h6>
+                                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                                       {prop.area_sqft && (
+                                         <div className="text-slate-400">
+                                           <span className="text-slate-500">Area:</span> {prop.area_sqft} {prop.area_unit || 'sqft'}
+                                         </div>
+                                       )}
+                                       {prop.bedrooms != null && (
+                                         <div className="text-slate-400">
+                                           <span className="text-slate-500">Beds:</span> {prop.bedrooms}
+                                         </div>
+                                       )}
+                                       {prop.bathrooms != null && (
+                                         <div className="text-slate-400">
+                                           <span className="text-slate-500">Baths:</span> {prop.bathrooms}
+                                         </div>
+                                       )}
+                                       {prop.facing_direction && (
+                                         <div className="text-slate-400">
+                                           <span className="text-slate-500">Facing:</span> {prop.facing_direction}
+                                         </div>
+                                       )}
+                                     </div>
+                                     <p className="text-[10px] text-slate-400 mt-1.5 truncate">📍 {prop.location}{prop.sublocality ? `, ${prop.sublocality}` : ''}</p>
+                                     <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800">
+                                       <span className="text-xs font-bold text-primary">
+                                         {prop.price >= 10000000 
+                                           ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                                           : prop.price >= 100000 
+                                             ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
+                                             : `₹${prop.price.toLocaleString('en-IN')}`}
+                                       </span>
+                                       <span className="text-[9px] px-1 py-0 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase">{prop.status}</span>
+                                     </div>
+                                   </div>
+                                 </div>
+
+                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded uppercase font-bold tracking-wider inline-block mb-1.5">
                                       SHOWN INTEREST
