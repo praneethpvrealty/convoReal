@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, createElement, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -172,6 +173,8 @@ export function ContactDetailView({
   const [propertyFormOpen, setPropertyFormOpen] = useState(false);
   const [selectedPropertyForEdit, setSelectedPropertyForEdit] = useState<Property | null>(null);
   const [linkExistingOpen, setLinkExistingOpen] = useState(false);
+  const [hoveredPropId, setHoveredPropId] = useState<string | null>(null);
+  const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
 
   // Shared properties via WhatsApp
   const [sharedProperties, setSharedProperties] = useState<Array<Property & { sharedAt: string }>>([]);
@@ -1688,9 +1691,64 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-primary/20 text-primary border border-primary/30 px-1.5 py-0.5 rounded font-medium">
                           Linked
                         </span>
-                      )}
-                    </div>
+            )}
 
+            {/* Hover property preview — rendered via portal so it escapes the Sheet overflow */}
+            {hoveredPropId && hoverPos && typeof document !== 'undefined' && (() => {
+              const prop = inquiredProperties.find(p => p.id === hoveredPropId);
+              if (!prop) return null;
+              const el = (
+                <div
+                  className="fixed z-[200] w-64 rounded-lg border border-slate-700 bg-slate-850 p-3 shadow-xl shadow-black/40 pointer-events-none"
+                  style={{ top: hoverPos.top, left: hoverPos.left }}
+                >
+                  <div className="flex items-center gap-1.5 mb-2">
+                    {prop.property_code && (
+                      <span className="font-mono text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold">
+                        {prop.property_code}
+                      </span>
+                    )}
+                    <span className="text-[10px] px-1 py-0 rounded bg-slate-800 text-slate-400 font-semibold uppercase border border-slate-700">
+                      {prop.type}
+                    </span>
+                    {prop.listing_type && (
+                      <span className="text-[9px] px-1 py-0 rounded bg-primary/10 text-primary font-semibold uppercase border border-primary/20">
+                        {prop.listing_type}
+                      </span>
+                    )}
+                  </div>
+                  <h6 className="text-xs font-bold text-white mb-1 leading-snug">{prop.title}</h6>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
+                    {prop.area_sqft && (
+                      <div className="text-slate-400"><span className="text-slate-500">Area:</span> {prop.area_sqft} {prop.area_unit || 'sqft'}</div>
+                    )}
+                    {prop.bedrooms != null && (
+                      <div className="text-slate-400"><span className="text-slate-500">Beds:</span> {prop.bedrooms}</div>
+                    )}
+                    {prop.bathrooms != null && (
+                      <div className="text-slate-400"><span className="text-slate-500">Baths:</span> {prop.bathrooms}</div>
+                    )}
+                    {prop.facing_direction && (
+                      <div className="text-slate-400"><span className="text-slate-500">Facing:</span> {prop.facing_direction}</div>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1.5 truncate">📍 {prop.location}{prop.sublocality ? `, ${prop.sublocality}` : ''}</p>
+                  <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800">
+                    <span className="text-xs font-bold text-primary">
+                      {prop.price >= 10000000 
+                        ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
+                        : prop.price >= 100000 
+                          ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
+                          : `₹${prop.price.toLocaleString('en-IN')}`}
+                    </span>
+                    <span className="text-[9px] px-1 py-0 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase">{prop.status}</span>
+                  </div>
+                </div>
+              );
+              return createPortal(el, document.body);
+            })()}
+
+          </div>
                     {showReferrerSuggestions && filteredReferrerContacts.length > 0 && (
                       <div className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5">
                         <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-800 mb-1">
@@ -2140,63 +2198,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                              {inquiredProperties.map((prop) => (
                                <div
                                  key={prop.id}
-                                 className="group relative rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
+                                 className="rounded-lg bg-slate-850/60 border border-slate-800 p-3 hover:border-slate-700/80 transition-all duration-200"
+                                 onMouseEnter={(e) => {
+                                   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                   setHoveredPropId(prop.id);
+                                   setHoverPos({ top: rect.top - 8, left: rect.right + 8 });
+                                 }}
+                                 onMouseLeave={() => { setHoveredPropId(null); setHoverPos(null); }}
                                >
-                                 {/* Hover Preview Card */}
-                                 <div className="absolute left-0 bottom-full mb-2 z-50 hidden group-hover:block pointer-events-none">
-                                   <div className="w-64 rounded-lg border border-slate-700 bg-slate-850 p-3 shadow-xl shadow-black/30">
-                                     <div className="flex items-center gap-1.5 mb-2">
-                                       {prop.property_code && (
-                                         <span className="font-mono text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold">
-                                           {prop.property_code}
-                                         </span>
-                                       )}
-                                       <span className="text-[10px] px-1 py-0 rounded bg-slate-800 text-slate-400 font-semibold uppercase border border-slate-700">
-                                         {prop.type}
-                                       </span>
-                                       {prop.listing_type && (
-                                         <span className="text-[9px] px-1 py-0 rounded bg-primary/10 text-primary font-semibold uppercase border border-primary/20">
-                                           {prop.listing_type}
-                                         </span>
-                                       )}
-                                     </div>
-                                     <h6 className="text-xs font-bold text-white mb-1 leading-snug">{prop.title}</h6>
-                                     <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px]">
-                                       {prop.area_sqft && (
-                                         <div className="text-slate-400">
-                                           <span className="text-slate-500">Area:</span> {prop.area_sqft} {prop.area_unit || 'sqft'}
-                                         </div>
-                                       )}
-                                       {prop.bedrooms != null && (
-                                         <div className="text-slate-400">
-                                           <span className="text-slate-500">Beds:</span> {prop.bedrooms}
-                                         </div>
-                                       )}
-                                       {prop.bathrooms != null && (
-                                         <div className="text-slate-400">
-                                           <span className="text-slate-500">Baths:</span> {prop.bathrooms}
-                                         </div>
-                                       )}
-                                       {prop.facing_direction && (
-                                         <div className="text-slate-400">
-                                           <span className="text-slate-500">Facing:</span> {prop.facing_direction}
-                                         </div>
-                                       )}
-                                     </div>
-                                     <p className="text-[10px] text-slate-400 mt-1.5 truncate">📍 {prop.location}{prop.sublocality ? `, ${prop.sublocality}` : ''}</p>
-                                     <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-800">
-                                       <span className="text-xs font-bold text-primary">
-                                         {prop.price >= 10000000 
-                                           ? `₹${(prop.price / 10000000).toFixed(2).replace(/\.00$/, '')} Cr` 
-                                           : prop.price >= 100000 
-                                             ? `₹${(prop.price / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs` 
-                                             : `₹${prop.price.toLocaleString('en-IN')}`}
-                                       </span>
-                                       <span className="text-[9px] px-1 py-0 bg-slate-800 border border-slate-700 text-slate-300 rounded uppercase">{prop.status}</span>
-                                     </div>
-                                   </div>
-                                 </div>
-
                                  <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded uppercase font-bold tracking-wider inline-block mb-1.5">
