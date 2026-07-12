@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Lock, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, CheckCircle, AlertCircle, LinkIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ResetPasswordPage() {
@@ -22,51 +21,9 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
-
-  // When Supabase redirects from the verify link, tokens arrive in the
-  // URL hash fragment. The Supabase SDK detects and sets the session
-  // asynchronously. We listen to the state change and set a safety timeout fallback.
-  useEffect(() => {
-    let active = true;
-
-    // 1. Initial check
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (active && session) {
-        setSessionReady(true);
-      }
-    });
-
-    // 2. Listen to state changes (especially PASSWORD_RECOVERY and SIGNED_IN)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!active) return;
-      if (event === 'PASSWORD_RECOVERY' || session) {
-        setSessionReady(true);
-      }
-    });
-
-    // 3. 4-second safety timeout fallback so it never hangs forever if the link is invalid
-    const timer = setTimeout(() => {
-      if (active && !sessionReady) {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (session) {
-            setSessionReady(true);
-          } else {
-            setError('This password reset link is invalid or has expired. Please request a new one.');
-          }
-        });
-      }
-    }, 4000);
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,41 +41,58 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.updateUser({
-      password: password,
-    });
+    try {
+      const res = await fetch('/api/auth/reset-password/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
 
-    if (error) {
-      setError(error.message);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Failed to update password.');
+        setLoading(false);
+        return;
+      }
+
+      setSuccess(true);
       setLoading(false);
-      return;
-    }
+      toast.success('Password updated successfully!');
 
-    setSuccess(true);
-    setLoading(false);
-    toast.success('Password updated successfully!');
-    
-    // Redirect to dashboard after a brief delay
-    setTimeout(() => {
-      router.push('/dashboard');
-    }, 2000);
+      // Redirect to login after a brief delay
+      setTimeout(() => {
+        router.push('/login');
+      }, 2000);
+    } catch {
+      setError('An unexpected error occurred. Please try again.');
+      setLoading(false);
+    }
   };
 
-  if (!sessionReady) {
+  // No token in the URL — invalid access
+  if (!token) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
         <Card className="w-full max-w-md border-slate-800 bg-slate-900">
           <CardHeader className="items-center text-center">
-            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <Loader2 className="h-6 w-6 text-primary animate-spin" />
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
+              <LinkIcon className="h-6 w-6 text-red-400" />
             </div>
-            <CardTitle className="text-xl text-white">
-              {error ? 'Invalid Link' : 'Verifying...'}
-            </CardTitle>
+            <CardTitle className="text-xl text-white">Invalid Link</CardTitle>
             <CardDescription className="text-slate-400">
-              {error || 'Please wait while we verify your reset link.'}
+              This password reset link is invalid or has expired. Please request a new one.
             </CardDescription>
           </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => router.push('/login')}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              Back to Login
+            </Button>
+          </CardContent>
         </Card>
       </div>
     );
@@ -134,7 +108,7 @@ export default function ResetPasswordPage() {
             </div>
             <CardTitle className="text-xl text-white">Password Updated</CardTitle>
             <CardDescription className="text-slate-400">
-              Your password has been changed successfully. You are now logged in and being redirected to the dashboard.
+              Your password has been changed successfully. You will be redirected to the login page.
             </CardDescription>
           </CardHeader>
         </Card>

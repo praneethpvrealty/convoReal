@@ -1,6 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { sendTransactionalEmail } from '@/lib/email';
+import crypto from 'crypto';
+
+/**
+ * Generates an HMAC-signed password-reset token that encodes the user ID
+ * and an expiry timestamp.  No Supabase redirect flow needed — the token
+ * travels as a plain query parameter and is verified server-side when the
+ * user submits a new password.
+ */
+function generateResetToken(userId: string, secret: string): string {
+  const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
+  const payload = `${userId}.${expiresAt}`;
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  // URL-safe base64 of "userId.expiresAt.signature"
+  return Buffer.from(`${payload}.${signature}`).toString('base64url');
+}
 
 export async function POST(request: Request) {
   try {
@@ -27,29 +45,28 @@ export async function POST(request: Request) {
       },
     });
 
+    // Look up the user by email so we can embed their ID in the token
+    const { data: userList, error: listError } =
+      await supabaseAdmin.auth.admin.listUsers();
+
+    if (listError) {
+      return NextResponse.json({ error: listError.message }, { status: 500 });
+    }
+
+    const user = userList.users.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+
+    if (!user) {
+      // Don't reveal whether the email exists — return success silently
+      return NextResponse.json({ success: true });
+    }
+
+    // Build the signed token and reset URL
+    const token = generateResetToken(user.id, supabaseServiceKey);
     const requestUrl = new URL(request.url);
     const origin = requestUrl.origin;
-    const redirectTo = `${origin}/reset-password`;
-
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email,
-      options: {
-        redirectTo,
-      },
-    });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-
-    const actionLink = data.properties?.action_link;
-    if (!actionLink) {
-      return NextResponse.json(
-        { error: 'Failed to generate reset link' },
-        { status: 500 }
-      );
-    }
+    const resetLink = `${origin}/reset-password?token=${token}`;
 
     // Build the email template
     const appName = process.env.NEXT_PUBLIC_DEFAULT_WEBSITE_NAME || 'ConvoReal';
@@ -61,7 +78,7 @@ export async function POST(request: Request) {
           You requested to reset your password for your <strong>${appName}</strong> account. Click the button below to choose a new password:
         </p>
         <div style="text-align: center; margin-bottom: 28px;">
-          <a href="${actionLink}" style="display: inline-block; background-color: #7c3aed; color: #ffffff !important; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);">
+          <a href="${resetLink}" style="display: inline-block; background-color: #7c3aed; color: #ffffff !important; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 15px; box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);">
             Reset Password
           </a>
         </div>
@@ -73,7 +90,7 @@ export async function POST(request: Request) {
           If you're having trouble with the button above, copy and paste the link below into your web browser:
         </p>
         <p style="font-size: 11px; line-height: 1.5; color: #64748b; text-align: center; word-break: break-all; margin-top: 8px; margin-bottom: 0;">
-          <a href="${actionLink}" style="color: #7c3aed; text-decoration: underline;">${actionLink}</a>
+          <a href="${resetLink}" style="color: #7c3aed; text-decoration: underline;">${resetLink}</a>
         </p>
       </div>
     `;
@@ -89,7 +106,7 @@ export async function POST(request: Request) {
       // Fallback logging for local setup
       console.log('==================================================');
       console.log(`[AUTH CLIENT] Password reset link for ${email}:`);
-      console.log(actionLink);
+      console.log(resetLink);
       console.log('==================================================');
       // If it failed because resend is not configured, we return success so local devs see it in terminal
       if (res.error === 'Email service not configured') {
