@@ -98,11 +98,20 @@ async function generateContentRaw(
 
       // If it is a transient error (rate limit, service unavailable, high demand),
       // we proceed to try the fallback model.
+      const errLower = errorMessage.toLowerCase();
       const isTransientError = 
-        errorMessage.includes("high demand") || 
-        errorMessage.includes("quota") || 
-        errorMessage.includes("429") || 
-        errorMessage.includes("503");
+        errLower.includes("high demand") || 
+        errLower.includes("quota") || 
+        errLower.includes("429") || 
+        errLower.includes("503") ||
+        errLower.includes("500") ||
+        errLower.includes("502") ||
+        errLower.includes("504") ||
+        errLower.includes("unavailable") ||
+        errLower.includes("overloaded") ||
+        errLower.includes("timeout") ||
+        errLower.includes("deadline") ||
+        errLower.includes("internal");
 
       if (isTransientError && model !== MODELS[MODELS.length - 1]) {
         console.log("[Gemini AI] Falling back to the next model due to transient error...");

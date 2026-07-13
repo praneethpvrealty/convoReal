@@ -104,7 +104,7 @@ Return ONLY the raw JSON object. If the project cannot be identified as a real p
             }
           }
         } catch (err) {
-          console.error("[GET /api/projects] Dynamic discovery error:", err);
+          console.warn("[GET /api/projects] Dynamic discovery fallback: Gemini service is currently unavailable or returned an error:", err);
         }
       }
     }
