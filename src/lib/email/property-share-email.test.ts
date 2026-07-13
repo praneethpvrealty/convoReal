@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { buildPropertyShareEmailContent, type ShareEmailProperty } from './property-share-email';
+import {
+  buildPropertyShareEmailContent,
+  buildShareEmailAiPrompt,
+  parseAiShareEmail,
+  type ShareEmailProperty,
+} from './property-share-email';
 
 const baseProperty = (overrides: Partial<ShareEmailProperty>): ShareEmailProperty => ({
+  id: 'p-1',
+  is_published: false,
   title: 'Test Land',
   type: 'Residential Land/ Plot',
   listing_type: 'Sale',
@@ -112,12 +119,44 @@ describe('buildPropertyShareEmailContent', () => {
     expect(body.startsWith('Hi,')).toBe(true);
   });
 
-  it('reminds the agent to attach documents when the listing has any', () => {
+  it('links a single document under a Sketch heading', () => {
     const property = baseProperty({
       documents: [JSON.stringify({ url: 'https://example.com/sketch.pdf', title: 'Sketch' })],
     });
     const { body } = buildPropertyShareEmailContent(property);
-    expect(body).toContain("Sketch: Attached (remember to attach the file");
+    expect(body).toContain('Sketch:');
+    expect(body).toContain('1. Sketch - https://example.com/sketch.pdf');
+  });
+
+  it('links multiple documents under a Documents heading', () => {
+    const property = baseProperty({
+      documents: [
+        JSON.stringify({ url: 'https://example.com/sketch.pdf', title: 'Sketch' }),
+        JSON.stringify({ url: 'https://example.com/khata.pdf', title: 'Khata Extract' }),
+      ],
+    });
+    const { body } = buildPropertyShareEmailContent(property);
+    expect(body).toContain('Documents:');
+    expect(body).toContain('1. Sketch - https://example.com/sketch.pdf');
+    expect(body).toContain('2. Khata Extract - https://example.com/khata.pdf');
+  });
+
+  it('caps inlined document links and notes the remainder', () => {
+    const documents = Array.from({ length: 7 }, (_, i) =>
+      JSON.stringify({ url: `https://example.com/doc${i + 1}.pdf`, title: `Doc ${i + 1}` })
+    );
+    const property = baseProperty({ documents });
+    const { body } = buildPropertyShareEmailContent(property);
+    expect(body).toContain('5. Doc 5 - https://example.com/doc5.pdf');
+    expect(body).not.toContain('Doc 6 - https://example.com/doc6.pdf');
+    expect(body).toContain('...plus 2 more document(s) available on request.');
+  });
+
+  it('skips documents whose JSON has no url', () => {
+    const property = baseProperty({ documents: [JSON.stringify({ title: 'Broken' })] });
+    const { body } = buildPropertyShareEmailContent(property);
+    expect(body).not.toContain('Sketch:');
+    expect(body).not.toContain('Documents:');
   });
 
   it('falls back to the location string when no google_map_link is set', () => {
@@ -137,13 +176,33 @@ describe('buildPropertyShareEmailContent', () => {
       expect(body).toContain('2. https://example.com/2.jpg');
     });
 
-    it('caps inlined photo links and notes the remainder instead of dropping them silently', () => {
+    it('caps inlined photo links and notes the remainder when the listing is unpublished', () => {
       const images = Array.from({ length: 8 }, (_, i) => `https://example.com/${i + 1}.jpg`);
-      const property = baseProperty({ images });
+      const property = baseProperty({ images, is_published: false });
       const { body } = buildPropertyShareEmailContent(property);
-      expect(body).toContain('5. https://example.com/5.jpg');
-      expect(body).not.toContain('6. https://example.com/6.jpg');
-      expect(body).toContain('...and 3 more photo(s) in the listing.');
+      expect(body).toContain('3. https://example.com/3.jpg');
+      expect(body).not.toContain('4. https://example.com/4.jpg');
+      expect(body).toContain('...plus 5 more photo(s) available on request.');
+    });
+
+    it('points overflow photos at the public showcase link when published', () => {
+      const images = Array.from({ length: 8 }, (_, i) => `https://example.com/${i + 1}.jpg`);
+      const property = baseProperty({ images, is_published: true, id: 'prop-xyz' });
+      const { body } = buildPropertyShareEmailContent(property, {
+        showcaseBaseUrl: 'https://convoreal.com/',
+      });
+      expect(body).toContain('All 8 photos & full details: https://convoreal.com/?property_id=prop-xyz');
+      expect(body).not.toContain('available on request');
+    });
+
+    it('does not leak a showcase link for unpublished listings even when a base URL is given', () => {
+      const images = Array.from({ length: 8 }, (_, i) => `https://example.com/${i + 1}.jpg`);
+      const property = baseProperty({ images, is_published: false });
+      const { body } = buildPropertyShareEmailContent(property, {
+        showcaseBaseUrl: 'https://convoreal.com',
+      });
+      expect(body).not.toContain('property_id=');
+      expect(body).toContain('...plus 5 more photo(s) available on request.');
     });
 
     it('omits the Photos section entirely when the listing has no images', () => {
@@ -157,5 +216,37 @@ describe('buildPropertyShareEmailContent', () => {
       expect(body).toContain('1. https://example.com/1.jpg');
       expect(body).not.toContain('2.');
     });
+  });
+});
+
+describe('buildShareEmailAiPrompt', () => {
+  it('embeds the deterministic draft as the baseline for the rewrite', () => {
+    const prompt = buildShareEmailAiPrompt(
+      baseProperty({ listing_type: 'JV/JD', ownership_status: 'Single owner' }),
+      { recipientNames: ['Nilanjan'] }
+    );
+    expect(prompt).toContain('Baseline draft:');
+    expect(prompt).toContain('Subject: JD Opportunity');
+    expect(prompt).toContain('Hi Nilanjan,');
+    expect(prompt).toContain('Ownership - Single owner');
+  });
+});
+
+describe('parseAiShareEmail', () => {
+  it('parses a clean JSON response', () => {
+    const parsed = parseAiShareEmail('{"subject": "S", "body": "B"}');
+    expect(parsed).toEqual({ subject: 'S', body: 'B' });
+  });
+
+  it('tolerates code fences and surrounding prose', () => {
+    const parsed = parseAiShareEmail('Sure!\n```json\n{"subject": "S", "body": "Line1\\nLine2"}\n```');
+    expect(parsed).toEqual({ subject: 'S', body: 'Line1\nLine2' });
+  });
+
+  it('returns null for unusable output so callers can refund', () => {
+    expect(parseAiShareEmail('')).toBeNull();
+    expect(parseAiShareEmail('no json here')).toBeNull();
+    expect(parseAiShareEmail('{"subject": ""}')).toBeNull();
+    expect(parseAiShareEmail('{"subject": "S"}')).toBeNull();
   });
 });

@@ -108,6 +108,7 @@ export const AI_FEATURE_COSTS = {
   listing_parse: 5,
   greetings_generate: 10,
   ad_copy: 10,
+  share_email: 10,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;

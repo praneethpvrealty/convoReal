@@ -17,8 +17,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Mail, X, Copy, Check, ExternalLink, Paperclip, Search, ImageIcon } from 'lucide-react';
+import { Loader2, Mail, X, Copy, Check, ExternalLink, Paperclip, Search, ImageIcon, Sparkles } from 'lucide-react';
 import { buildPropertyShareEmailContent } from '@/lib/email/property-share-email';
+import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 
 interface PropertyEmailShareDialogProps {
   open: boolean;
@@ -38,12 +39,12 @@ function firstName(name: string): string {
   return (name || '').trim().split(/\s+/)[0] || name;
 }
 
-function parseDocumentTitle(raw: string, index: number): string {
+function hasDocumentUrl(raw: string): boolean {
   try {
-    const parsed = JSON.parse(raw) as { url?: string; title?: string };
-    return parsed.title?.trim() || `Document ${index + 1}`;
+    const parsed = JSON.parse(raw) as { url?: string };
+    return !!parsed.url?.trim();
   } catch {
-    return `Document ${index + 1}`;
+    return false;
   }
 }
 
@@ -61,9 +62,10 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
   const [body, setBody] = useState('');
   const [bodyDirty, setBodyDirty] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
-  const documentTitles = useMemo(
-    () => (property?.documents || []).map((d, i) => parseDocumentTitle(d, i)),
+  const documentCount = useMemo(
+    () => (property?.documents || []).filter(hasDocumentUrl).length,
     [property?.documents]
   );
   const imageCount = useMemo(() => (property?.images || []).filter(Boolean).length, [property?.images]);
@@ -96,10 +98,12 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     setContactSearch('');
     setBodyDirty(false);
     setCopied(false);
+    setDrafting(false);
     fetchContacts();
     const { subject: s, body: b } = buildPropertyShareEmailContent(property, {
       agentName: profile?.full_name || null,
       agentPhone: profile?.phone || null,
+      showcaseBaseUrl: typeof window !== 'undefined' ? window.location.origin : null,
     });
     setSubject(s);
     setBody(b);
@@ -114,6 +118,7 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
       recipientNames: recipients.map((r) => firstName(r.name)),
       agentName: profile?.full_name || null,
       agentPhone: profile?.phone || null,
+      showcaseBaseUrl: typeof window !== 'undefined' ? window.location.origin : null,
     });
     setBody(b);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -173,6 +178,43 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     window.location.href = `mailto:${encodeURIComponent(toList.join(','))}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
+  async function draftWithAi() {
+    if (!property || drafting) return;
+    setDrafting(true);
+    try {
+      const res = await fetch('/api/ai/share-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property_id: property.id,
+          recipient_names: recipients.map((r) => firstName(r.name)),
+          agent_name: profile?.full_name || undefined,
+          agent_phone: profile?.phone || undefined,
+          showcase_base_url: window.location.origin,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        toast.error('Not enough credits to draft with AI.');
+        return;
+      }
+      if (!res.ok || !data.draft) {
+        toast.error(data.error || 'Could not draft the email. Please try again.');
+        return;
+      }
+      setSubject(data.draft.subject);
+      setBody(data.draft.body);
+      // Treat the AI draft like a hand edit so recipient changes don't
+      // regenerate the deterministic template over it.
+      setBodyDirty(true);
+      toast.success('Draft rewritten by AI');
+    } catch {
+      toast.error('Could not draft the email. Please try again.');
+    } finally {
+      setDrafting(false);
+    }
+  }
+
   async function copyBody() {
     try {
       await navigator.clipboard.writeText(body);
@@ -186,7 +228,7 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-800 text-white max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="size-5 text-primary" /> Share via Email
@@ -210,9 +252,9 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                   {recipients.map((r) => (
                     <Badge
                       key={r.id}
-                      className="bg-slate-800 text-slate-200 border border-slate-700 font-medium gap-1.5 pr-1 py-1"
+                      className="bg-slate-800 text-slate-200 border border-slate-700 font-medium gap-1.5 pr-1 py-1 max-w-full"
                     >
-                      {r.name} <span className="text-slate-500">({r.email})</span>
+                      <span className="truncate">{r.name}</span> <span className="text-slate-500 truncate">({r.email})</span>
                       <button
                         type="button"
                         onClick={() => removeRecipient(r.id)}
@@ -290,7 +332,21 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
 
             {/* Body */}
             <div className="space-y-1.5">
-              <Label htmlFor="email-share-body" className="text-slate-300">Body</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="email-share-body" className="text-slate-300">Body</Label>
+                <button
+                  type="button"
+                  onClick={draftWithAi}
+                  disabled={drafting}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 disabled:opacity-50 transition-colors"
+                >
+                  {drafting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                  {drafting ? 'Drafting...' : 'Draft with AI'}
+                  <span className="text-[10px] font-mono text-slate-500 border border-slate-800 rounded px-1 py-0.5">
+                    {AI_FEATURE_COSTS.share_email} cr
+                  </span>
+                </button>
+              </div>
               <Textarea
                 id="email-share-body"
                 value={body}
@@ -299,27 +355,29 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                   setBodyDirty(true);
                 }}
                 rows={14}
-                className="bg-slate-800 border-slate-700 text-white font-mono text-xs leading-relaxed min-h-72"
+                // field-sizing-fixed: the base Textarea's field-sizing-content
+                // sizes intrinsic width to the longest unbroken line — a long
+                // storage URL blows the dialog past the viewport on mobile.
+                className="bg-slate-800 border-slate-700 text-white font-mono text-xs leading-relaxed min-h-72 field-sizing-fixed w-full [overflow-wrap:anywhere]"
               />
             </div>
 
-            {/* Photo links info — images can't be attached either, but their links are already in the body */}
+            {/* Photo/document links info — this draft can't carry real file
+                attachments, so photos and documents are inlined as clickable
+                links in the body instead. */}
             {imageCount > 0 && (
               <div className="flex items-start gap-2 p-3 rounded-lg border border-slate-800 bg-slate-950/30 text-xs text-slate-400">
                 <ImageIcon className="size-3.5 shrink-0 mt-0.5" />
-                <div>
-                  {`${imageCount} photo${imageCount === 1 ? '' : 's'} linked in the body above (this draft can't carry real attachments) — the recipient can click through to view them.`}
+                <div className="min-w-0 break-words">
+                  {`${imageCount} photo${imageCount === 1 ? '' : 's'} linked in the body above — the recipient can click through to view ${imageCount === 1 ? 'it' : 'them'}.`}
                 </div>
               </div>
             )}
-
-            {/* Attachment reminder */}
-            {documentTitles.length > 0 && (
-              <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/20 bg-amber-500/5 text-xs text-amber-300">
+            {documentCount > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg border border-slate-800 bg-slate-950/30 text-xs text-slate-400">
                 <Paperclip className="size-3.5 shrink-0 mt-0.5" />
-                <div>
-                  This draft can&apos;t carry attachments. Remember to attach{' '}
-                  {documentTitles.length === 1 ? documentTitles[0] : documentTitles.join(', ')} from the listing before sending.
+                <div className="min-w-0 break-words">
+                  {`${documentCount} document${documentCount === 1 ? '' : 's'} linked in the body above — the recipient can click through to view ${documentCount === 1 ? 'it' : 'them'}.`}
                 </div>
               </div>
             )}
