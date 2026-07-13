@@ -119,7 +119,7 @@ export function ShowcaseView({
   }, [settings?.theme]);
 
   const [selectedType, setSelectedType] = useState('All');
-  const [selectedListingType, setSelectedListingType] = useState<'All' | 'Sale' | 'Rent'>('All');
+  const [selectedListingType, setSelectedListingType] = useState<'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'>('All');
   const [minBeds, setMinBeds] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
   // Share links (?property_id=...) render with the detail modal already open —
@@ -209,7 +209,7 @@ export function ShowcaseView({
     }
 
     let categoryToSet = 'All';
-    let listingTypeToSet: 'All' | 'Sale' | 'Rent' = 'All';
+    let listingTypeToSet: 'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit' = 'All';
     let bedsToSet = 'All';
     let sortByToSet = 'newest';
     let searchQueryToSet = '';
@@ -218,7 +218,7 @@ export function ShowcaseView({
     interface SavedShowcaseState {
       timestamp: number;
       selectedType?: string;
-      selectedListingType?: 'All' | 'Sale' | 'Rent';
+      selectedListingType?: 'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit';
       minBeds?: string;
       sortBy?: string;
       searchQuery?: string;
@@ -248,8 +248,8 @@ export function ShowcaseView({
       categoryToSet = initialCategory;
     }
 
-    if (urlListingType === 'Sale' || urlListingType === 'Rent') {
-      listingTypeToSet = urlListingType as 'All' | 'Sale' | 'Rent';
+    if (urlListingType === 'Sale' || urlListingType === 'Rent' || urlListingType === 'JV/JD' || urlListingType === 'Built to Suit') {
+      listingTypeToSet = urlListingType;
     } else if (savedState?.selectedListingType) {
       listingTypeToSet = savedState.selectedListingType;
     }
@@ -1078,12 +1078,14 @@ export function ShowcaseView({
               <Filter className="size-4 text-slate-500 shrink-0" />
               <select
                 value={selectedListingType}
-                onChange={(e) => setSelectedListingType(e.target.value as 'All' | 'Sale' | 'Rent')}
+                onChange={(e) => setSelectedListingType(e.target.value as 'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit')}
                 className="bg-slate-950/60 border border-slate-900 rounded-xl text-slate-350 text-sm p-2.5 w-full focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all cursor-pointer"
               >
                 <option value="All">All Listings</option>
                 <option value="Sale">For Sale</option>
                 <option value="Rent">For Rent</option>
+                <option value="JV/JD">JV / Joint Development</option>
+                <option value="Built to Suit">Built to Suit</option>
               </select>
             </div>
 
@@ -1343,11 +1345,21 @@ export function ShowcaseView({
                       <div className="flex items-center justify-between mt-2 pt-2 gap-2">
                         <div className="flex flex-col">
                           <span className="text-[10px] font-bold text-slate-550 uppercase tracking-wider">
-                            {property.listing_type === 'Rent' ? 'Rent' : 'Price'}
+                            {property.listing_type === 'Rent' || property.listing_type === 'Built to Suit'
+                              ? 'Rent'
+                              : property.listing_type === 'JV/JD'
+                                ? 'JV / JD'
+                                : 'Price'}
                           </span>
                           <span className="text-lg font-black text-white leading-tight">
-                            {property.listing_type === 'Rent' ? (
+                            {property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? (
                               <span>{formatPrice(property.rent_per_month || 0)}/mo</span>
+                            ) : property.listing_type === 'JV/JD' ? (
+                              <span>
+                                {property.owner_share_percent && property.builder_share_percent
+                                  ? `${property.owner_share_percent}:${property.builder_share_percent} share`
+                                  : 'Enquire'}
+                              </span>
                             ) : (
                               formatPrice(property.price)
                             )}
@@ -1552,16 +1564,26 @@ export function ShowcaseView({
                 <div className="bg-slate-950/65 border border-slate-900/80 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 backdrop-blur-md">
                   <div className="flex flex-col">
                     <span className="text-[10px] text-slate-550 font-bold uppercase tracking-wider">
-                      {selectedProperty.listing_type === 'Rent' ? 'Rent' : 'Price'}
+                      {selectedProperty.listing_type === 'Rent' || selectedProperty.listing_type === 'Built to Suit'
+                        ? 'Rent'
+                        : selectedProperty.listing_type === 'JV/JD'
+                          ? 'JV / JD'
+                          : 'Price'}
                     </span>
                     <span className="text-2xl font-black text-white leading-tight">
-                      {selectedProperty.listing_type === 'Rent' ? (
+                      {selectedProperty.listing_type === 'Rent' || selectedProperty.listing_type === 'Built to Suit' ? (
                         <span>{formatPrice(selectedProperty.rent_per_month || 0)}/mo</span>
+                      ) : selectedProperty.listing_type === 'JV/JD' ? (
+                        <span>
+                          {selectedProperty.owner_share_percent && selectedProperty.builder_share_percent
+                            ? `${selectedProperty.owner_share_percent}:${selectedProperty.builder_share_percent} share`
+                            : 'Enquire'}
+                        </span>
                       ) : (
                         formatPrice(selectedProperty.price)
                       )}
                     </span>
-                    {selectedProperty.listing_type === 'Rent' && (selectedProperty.maintenance || selectedProperty.advance || selectedProperty.gst) ? (
+                    {(selectedProperty.listing_type === 'Rent' || selectedProperty.listing_type === 'Built to Suit') && (selectedProperty.maintenance || selectedProperty.advance || selectedProperty.gst) ? (
                       <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-1 font-medium">
                         {selectedProperty.maintenance && selectedProperty.maintenance > 0 ? (
                           <span>Maint: {formatPrice(selectedProperty.maintenance)}</span>
@@ -1571,6 +1593,15 @@ export function ShowcaseView({
                         ) : null}
                         {selectedProperty.gst && selectedProperty.gst > 0 ? (
                           <span>GST: {formatPrice(selectedProperty.gst)}</span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {selectedProperty.listing_type === 'JV/JD' && (selectedProperty.jv_structure || selectedProperty.goodwill_amount || selectedProperty.price > 0) ? (
+                      <div className="text-[11px] text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-1 font-medium">
+                        {selectedProperty.jv_structure ? <span>Structure: {selectedProperty.jv_structure}</span> : null}
+                        {selectedProperty.price > 0 ? <span>Est. value: {formatPrice(selectedProperty.price)}</span> : null}
+                        {selectedProperty.goodwill_amount && selectedProperty.goodwill_amount > 0 ? (
+                          <span>Goodwill: {formatPrice(selectedProperty.goodwill_amount)}</span>
                         ) : null}
                       </div>
                     ) : null}

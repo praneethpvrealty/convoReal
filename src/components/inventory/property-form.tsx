@@ -207,11 +207,20 @@ export function PropertyForm({
   // Final sale price, captured only when status is Sold. Optional —
   // feeds the anonymized market-stats aggregation, never shown to buyers.
   const [soldPrice, setSoldPrice] = useState('');
-  const [listingType, setListingType] = useState<'Sale' | 'Rent'>('Sale');
+  const [listingType, setListingType] = useState<'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'>('Sale');
   const [rentPerMonth, setRentPerMonth] = useState('');
   const [maintenance, setMaintenance] = useState('');
   const [advance, setAdvance] = useState('');
   const [gst, setGst] = useState('');
+  // JV/JD deal terms
+  const [jvStructure, setJvStructure] = useState<'Revenue Share' | 'Area Share' | 'Hybrid'>('Revenue Share');
+  const [ownerSharePercent, setOwnerSharePercent] = useState('');
+  const [builderSharePercent, setBuilderSharePercent] = useState('');
+  const [goodwillAmount, setGoodwillAmount] = useState('');
+  // Built to Suit lease terms
+  const [btsLeaseYears, setBtsLeaseYears] = useState('');
+  const [btsLockInYears, setBtsLockInYears] = useState('');
+  const [btsEscalationPercent, setBtsEscalationPercent] = useState('');
   const [type, setType] = useState('Flat/ Apartment');
   const [status, setStatus] = useState('Available');
   const [bedrooms, setBedrooms] = useState('');
@@ -1247,6 +1256,13 @@ export function PropertyForm({
         setMaintenance(property.maintenance !== null && property.maintenance !== undefined ? String(property.maintenance) : '');
         setAdvance(property.advance !== null && property.advance !== undefined ? String(property.advance) : '');
         setGst(property.gst !== null && property.gst !== undefined ? String(property.gst) : '');
+        setJvStructure(property.jv_structure ?? 'Revenue Share');
+        setOwnerSharePercent(property.owner_share_percent !== null && property.owner_share_percent !== undefined ? String(property.owner_share_percent) : '');
+        setBuilderSharePercent(property.builder_share_percent !== null && property.builder_share_percent !== undefined ? String(property.builder_share_percent) : '');
+        setGoodwillAmount(property.goodwill_amount !== null && property.goodwill_amount !== undefined ? String(property.goodwill_amount) : '');
+        setBtsLeaseYears(property.bts_lease_years !== null && property.bts_lease_years !== undefined ? String(property.bts_lease_years) : '');
+        setBtsLockInYears(property.bts_lock_in_years !== null && property.bts_lock_in_years !== undefined ? String(property.bts_lock_in_years) : '');
+        setBtsEscalationPercent(property.bts_escalation_percent !== null && property.bts_escalation_percent !== undefined ? String(property.bts_escalation_percent) : '');
         setRentalIncome(property.rental_income !== null && property.rental_income !== undefined ? String(property.rental_income) : '');
         setType(property.type);
         setStatus(property.status);
@@ -1375,6 +1391,13 @@ export function PropertyForm({
         setMaintenance('');
         setAdvance('');
         setGst('');
+        setJvStructure('Revenue Share');
+        setOwnerSharePercent('');
+        setBuilderSharePercent('');
+        setGoodwillAmount('');
+        setBtsLeaseYears('');
+        setBtsLockInYears('');
+        setBtsEscalationPercent('');
         setRentalIncome('');
         setType('Flat/ Apartment');
         setStatus('Available');
@@ -1867,10 +1890,14 @@ export function PropertyForm({
     }
 
     const isRent = listingType === 'Rent';
+    const isJV = listingType === 'JV/JD';
+    const isBTS = listingType === 'Built to Suit';
+    // BTS is leased out like Rent — same rent/maintenance/advance/gst fields.
+    const isRentLike = isRent || isBTS;
 
-    if (isRent) {
+    if (isRentLike) {
       if (!rentPerMonth.trim() || isNaN(Number(rentPerMonth)) || Number(rentPerMonth) < 0) {
-        toast.error('Rent per month must be a valid non-negative number');
+        toast.error(isBTS ? 'Expected rent must be a valid non-negative number' : 'Rent per month must be a valid non-negative number');
         return;
       }
       if (maintenance && (isNaN(Number(maintenance)) || Number(maintenance) < 0)) {
@@ -1885,9 +1912,53 @@ export function PropertyForm({
         toast.error('GST must be a valid non-negative number');
         return;
       }
+    } else if (isJV) {
+      if (price && (isNaN(Number(price)) || Number(price) < 0)) {
+        toast.error('Expected project value must be a valid non-negative number');
+        return;
+      }
+      if (!ownerSharePercent.trim() || isNaN(Number(ownerSharePercent)) || Number(ownerSharePercent) <= 0 || Number(ownerSharePercent) >= 100) {
+        toast.error('Owner share % must be a valid number between 0 and 100');
+        return;
+      }
+      if (!builderSharePercent.trim() || isNaN(Number(builderSharePercent)) || Number(builderSharePercent) <= 0 || Number(builderSharePercent) >= 100) {
+        toast.error('Builder share % must be a valid number between 0 and 100');
+        return;
+      }
+      if (Math.round(Number(ownerSharePercent) + Number(builderSharePercent)) !== 100) {
+        toast.error('Owner share % and Builder share % must add up to 100');
+        return;
+      }
+      if (goodwillAmount && (isNaN(Number(goodwillAmount)) || Number(goodwillAmount) < 0)) {
+        toast.error('Goodwill amount must be a valid non-negative number');
+        return;
+      }
+      if (advance && (isNaN(Number(advance)) || Number(advance) < 0)) {
+        toast.error('Advance must be a valid non-negative number');
+        return;
+      }
     } else {
       if (!price.trim() || isNaN(Number(price)) || Number(price) < 0) {
         toast.error('Price must be a valid non-negative number');
+        return;
+      }
+    }
+
+    if (isBTS) {
+      if (!btsLeaseYears.trim() || isNaN(Number(btsLeaseYears)) || Number(btsLeaseYears) <= 0) {
+        toast.error('Lease term (years) must be a valid positive number');
+        return;
+      }
+      if (btsLockInYears && (isNaN(Number(btsLockInYears)) || Number(btsLockInYears) < 0)) {
+        toast.error('Lock-in period must be a valid non-negative number');
+        return;
+      }
+      if (btsLockInYears && Number(btsLockInYears) > Number(btsLeaseYears)) {
+        toast.error('Lock-in period cannot exceed the total lease term');
+        return;
+      }
+      if (btsEscalationPercent && (isNaN(Number(btsEscalationPercent)) || Number(btsEscalationPercent) < 0)) {
+        toast.error('Rent escalation % must be a valid non-negative number');
         return;
       }
     }
@@ -1912,11 +1983,20 @@ export function PropertyForm({
     try {
       if (!user || !accountId) throw new Error('Not authenticated or account not loaded');
 
-      const parsedPrice = isRent ? (Number(rentPerMonth) || 0) : Number(price);
-      const parsedRentPerMonth = isRent ? Number(rentPerMonth) : null;
-      const parsedMaintenance = isRent && maintenance.trim() !== '' ? Number(maintenance) : null;
-      const parsedAdvance = isRent && advance.trim() !== '' ? Number(advance) : null;
-      const parsedGst = isRent && gst.trim() !== '' ? Number(gst) : null;
+      const parsedPrice = isRentLike
+        ? (Number(rentPerMonth) || 0)
+        : (isJV ? (price.trim() !== '' ? Number(price) : 0) : Number(price));
+      const parsedRentPerMonth = isRentLike ? Number(rentPerMonth) : null;
+      const parsedMaintenance = isRentLike && maintenance.trim() !== '' ? Number(maintenance) : null;
+      const parsedAdvance = (isRentLike || isJV) && advance.trim() !== '' ? Number(advance) : null;
+      const parsedGst = isRentLike && gst.trim() !== '' ? Number(gst) : null;
+      const parsedJvStructure = isJV ? jvStructure : null;
+      const parsedOwnerSharePercent = isJV && ownerSharePercent.trim() !== '' ? Number(ownerSharePercent) : null;
+      const parsedBuilderSharePercent = isJV && builderSharePercent.trim() !== '' ? Number(builderSharePercent) : null;
+      const parsedGoodwillAmount = isJV && goodwillAmount.trim() !== '' ? Number(goodwillAmount) : null;
+      const parsedBtsLeaseYears = isBTS && btsLeaseYears.trim() !== '' ? Number(btsLeaseYears) : null;
+      const parsedBtsLockInYears = isBTS && btsLockInYears.trim() !== '' ? Number(btsLockInYears) : null;
+      const parsedBtsEscalationPercent = isBTS && btsEscalationPercent.trim() !== '' ? Number(btsEscalationPercent) : null;
       const parsedBedrooms = hasBedsBaths && bedrooms.trim() !== '' ? Number(bedrooms) : null;
       const parsedBathrooms = hasBedsBaths && bathrooms.trim() !== '' ? Number(bathrooms) : null;
       const parsedAreaSqft = areaSqft.trim() !== '' ? Number(areaSqft) : null;
@@ -1965,6 +2045,13 @@ export function PropertyForm({
         maintenance: parsedMaintenance,
         advance: parsedAdvance,
         gst: parsedGst,
+        jv_structure: parsedJvStructure,
+        owner_share_percent: parsedOwnerSharePercent,
+        builder_share_percent: parsedBuilderSharePercent,
+        goodwill_amount: parsedGoodwillAmount,
+        bts_lease_years: parsedBtsLeaseYears,
+        bts_lock_in_years: parsedBtsLockInYears,
+        bts_escalation_percent: parsedBtsEscalationPercent,
         location: fullLocation,
         type,
         status: isEdit ? status : "Available", // Force Available for additions
@@ -2178,11 +2265,15 @@ export function PropertyForm({
                     <div className="space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge className={`hover:opacity-90 border-none font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 rounded ${
-                          listingType === 'Rent' 
-                            ? 'bg-blue-500/10 text-blue-400' 
-                            : 'bg-primary/10 text-primary'
+                          listingType === 'Rent'
+                            ? 'bg-blue-500/10 text-blue-400'
+                            : listingType === 'JV/JD'
+                              ? 'bg-purple-500/10 text-purple-400'
+                              : listingType === 'Built to Suit'
+                                ? 'bg-amber-500/10 text-amber-400'
+                                : 'bg-primary/10 text-primary'
                         }`}>
-                          {listingType === 'Rent' ? 'For Rent' : 'For Sale'}
+                          {listingType === 'Rent' ? 'For Rent' : listingType === 'JV/JD' ? 'JV / JD' : listingType === 'Built to Suit' ? 'Built to Suit' : 'For Sale'}
                         </Badge>
                         <Badge className="bg-slate-800/80 text-slate-300 border-none font-semibold text-[10px] tracking-wide uppercase px-2 py-0.5 rounded">
                           {type}
@@ -2216,7 +2307,7 @@ export function PropertyForm({
                     </div>
 
                     <div className="text-left md:text-right shrink-0">
-                      {listingType === 'Rent' ? (
+                      {listingType === 'Rent' || listingType === 'Built to Suit' ? (
                         <>
                           <div className="text-2xl font-black text-white">
                             {rentPerMonth ? `${formatCurrency(Number(rentPerMonth), currency)}/mo` : '--'}
@@ -2236,6 +2327,34 @@ export function PropertyForm({
                               )}
                               {gst && Number(gst) > 0 && (
                                 <div>GST: {formatCurrency(Number(gst), currency)}</div>
+                              )}
+                            </div>
+                          )}
+                          {listingType === 'Built to Suit' && (btsLeaseYears || btsLockInYears) && (
+                            <div className="text-[10px] text-slate-400 mt-1 space-y-0.5 font-medium">
+                              {btsLeaseYears && <div>Lease: {btsLeaseYears} yrs</div>}
+                              {btsLockInYears && <div>Lock-in: {btsLockInYears} yrs</div>}
+                            </div>
+                          )}
+                        </>
+                      ) : listingType === 'JV/JD' ? (
+                        <>
+                          <div className="text-2xl font-black text-white">
+                            {ownerSharePercent && builderSharePercent ? `${ownerSharePercent}:${builderSharePercent}` : '--'}
+                          </div>
+                          <p className="text-[10px] text-purple-400 font-semibold mt-0.5">
+                            Owner : Builder share ({jvStructure})
+                          </p>
+                          {(goodwillAmount || advance || price) && (
+                            <div className="text-[10px] text-slate-400 mt-1 space-y-0.5 font-medium">
+                              {price && Number(price) > 0 && (
+                                <div>Est. value: {formatCurrency(Number(price), currency)}</div>
+                              )}
+                              {goodwillAmount && Number(goodwillAmount) > 0 && (
+                                <div>Goodwill: {formatCurrency(Number(goodwillAmount), currency)}</div>
+                              )}
+                              {advance && Number(advance) > 0 && (
+                                <div>Advance: {formatCurrency(Number(advance), currency)}</div>
                               )}
                             </div>
                           )}
@@ -2803,11 +2922,13 @@ export function PropertyForm({
                     <select
                       id="prop-listing-type"
                       value={listingType}
-                      onChange={(e) => setListingType(e.target.value as 'Sale' | 'Rent')}
+                      onChange={(e) => setListingType(e.target.value as 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit')}
                       className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
                     >
                       <option value="Sale">For Sale</option>
                       <option value="Rent">For Rent</option>
+                      <option value="JV/JD">JV / Joint Development</option>
+                      <option value="Built to Suit">Built to Suit</option>
                     </select>
                   </div>
 
@@ -2831,7 +2952,7 @@ export function PropertyForm({
                         </p>
                       )}
                     </div>
-                  ) : (
+                  ) : listingType === 'Rent' ? (
                     <div className="grid grid-cols-2 gap-4 col-span-2 p-4 rounded-lg border border-slate-800 bg-slate-950/20 animate-fade-in">
                       <div className="space-y-1.5">
                         <Label htmlFor="prop-rent" className="text-slate-300">
@@ -2908,6 +3029,219 @@ export function PropertyForm({
                             {getEquivalentPriceLabel(gst)}
                           </p>
                         )}
+                      </div>
+                    </div>
+                  ) : listingType === 'Built to Suit' ? (
+                    <div className="grid grid-cols-2 gap-4 col-span-2 p-4 rounded-lg border border-slate-800 bg-slate-950/20 animate-fade-in">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-bts-rent" className="text-slate-300">
+                          Expected Rent per month (INR) <span className="text-red-400">*</span>
+                        </Label>
+                        <Input
+                          id="prop-bts-rent"
+                          type="number"
+                          value={rentPerMonth}
+                          onChange={(e) => setRentPerMonth(e.target.value)}
+                          placeholder="e.g. 250000"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                          required
+                        />
+                        {rentPerMonth && !isNaN(Number(rentPerMonth)) && Number(rentPerMonth) > 0 && (
+                          <p className="text-[11px] text-primary font-semibold mt-0.5">
+                            {getEquivalentPriceLabel(rentPerMonth)}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-bts-maintenance" className="text-slate-300">
+                          Maintenance / CAM (INR)
+                        </Label>
+                        <Input
+                          id="prop-bts-maintenance"
+                          type="number"
+                          value={maintenance}
+                          onChange={(e) => setMaintenance(e.target.value)}
+                          placeholder="e.g. 15000"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-bts-advance" className="text-slate-300">
+                          Security Deposit (INR)
+                        </Label>
+                        <Input
+                          id="prop-bts-advance"
+                          type="number"
+                          value={advance}
+                          onChange={(e) => setAdvance(e.target.value)}
+                          placeholder="e.g. 1500000"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-bts-gst" className="text-slate-300">
+                          GST (INR)
+                        </Label>
+                        <Input
+                          id="prop-bts-gst"
+                          type="number"
+                          value={gst}
+                          onChange={(e) => setGst(e.target.value)}
+                          placeholder="e.g. 45000"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-bts-lease-years" className="text-slate-300">
+                          Total Lease Term (years) <span className="text-red-400">*</span>
+                        </Label>
+                        <Input
+                          id="prop-bts-lease-years"
+                          type="number"
+                          value={btsLeaseYears}
+                          onChange={(e) => setBtsLeaseYears(e.target.value)}
+                          placeholder="e.g. 9"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-bts-lockin-years" className="text-slate-300">
+                          Lock-in Period (years)
+                        </Label>
+                        <Input
+                          id="prop-bts-lockin-years"
+                          type="number"
+                          value={btsLockInYears}
+                          onChange={(e) => setBtsLockInYears(e.target.value)}
+                          placeholder="e.g. 3"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-bts-escalation" className="text-slate-300">
+                          Rent Escalation (%)
+                        </Label>
+                        <Input
+                          id="prop-bts-escalation"
+                          type="number"
+                          value={btsEscalationPercent}
+                          onChange={(e) => setBtsEscalationPercent(e.target.value)}
+                          placeholder="e.g. 5"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 col-span-2 p-4 rounded-lg border border-slate-800 bg-slate-950/20 animate-fade-in">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-jv-structure" className="text-slate-300">
+                          Deal Structure
+                        </Label>
+                        <select
+                          id="prop-jv-structure"
+                          value={jvStructure}
+                          onChange={(e) => setJvStructure(e.target.value as 'Revenue Share' | 'Area Share' | 'Hybrid')}
+                          className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                        >
+                          <option value="Revenue Share">Revenue Share</option>
+                          <option value="Area Share">Area Share</option>
+                          <option value="Hybrid">Hybrid</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-jv-price" className="text-slate-300">
+                          Expected Project Value (INR)
+                        </Label>
+                        <Input
+                          id="prop-jv-price"
+                          type="number"
+                          value={price}
+                          onChange={(e) => setPrice(e.target.value)}
+                          placeholder="e.g. 50000000"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-jv-owner-share" className="text-slate-300">
+                          Owner Share (%) <span className="text-red-400">*</span>
+                        </Label>
+                        <Input
+                          id="prop-jv-owner-share"
+                          type="number"
+                          value={ownerSharePercent}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setOwnerSharePercent(val);
+                            const num = Number(val);
+                            if (val.trim() !== '' && !isNaN(num) && num >= 0 && num <= 100) {
+                              setBuilderSharePercent(String(100 - num));
+                            }
+                          }}
+                          placeholder="e.g. 40"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-jv-builder-share" className="text-slate-300">
+                          Builder Share (%) <span className="text-red-400">*</span>
+                        </Label>
+                        <Input
+                          id="prop-jv-builder-share"
+                          type="number"
+                          value={builderSharePercent}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBuilderSharePercent(val);
+                            const num = Number(val);
+                            if (val.trim() !== '' && !isNaN(num) && num >= 0 && num <= 100) {
+                              setOwnerSharePercent(String(100 - num));
+                            }
+                          }}
+                          placeholder="e.g. 60"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-jv-goodwill" className="text-slate-300">
+                          Goodwill (INR)
+                        </Label>
+                        <Input
+                          id="prop-jv-goodwill"
+                          type="number"
+                          value={goodwillAmount}
+                          onChange={(e) => setGoodwillAmount(e.target.value)}
+                          placeholder="e.g. 2000000"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                        <p className="text-[10px] text-slate-500">Non-refundable upfront payment to the landowner.</p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-jv-advance" className="text-slate-300">
+                          Advance (Refundable) (INR)
+                        </Label>
+                        <Input
+                          id="prop-jv-advance"
+                          type="number"
+                          value={advance}
+                          onChange={(e) => setAdvance(e.target.value)}
+                          placeholder="e.g. 1000000"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        />
+                        <p className="text-[10px] text-slate-500">Refundable deposit, adjusted against the owner&apos;s share at handover.</p>
                       </div>
                     </div>
                   )}

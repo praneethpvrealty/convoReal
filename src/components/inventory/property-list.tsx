@@ -218,10 +218,20 @@ export function PropertyList({
                   className={`border font-semibold text-[10px] tracking-wider uppercase px-2 py-0.5 rounded-full ${
                     property.listing_type === 'Rent'
                       ? 'bg-blue-500/20 text-blue-400 border-blue-500/30'
-                      : 'bg-primary/20 text-primary border-primary/30'
+                      : property.listing_type === 'JV/JD'
+                        ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                        : property.listing_type === 'Built to Suit'
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                          : 'bg-primary/20 text-primary border-primary/30'
                   }`}
                 >
-                  {property.listing_type === 'Rent' ? 'For Rent' : 'For Sale'}
+                  {property.listing_type === 'Rent'
+                    ? 'For Rent'
+                    : property.listing_type === 'JV/JD'
+                      ? 'JV / JD'
+                      : property.listing_type === 'Built to Suit'
+                        ? 'Built to Suit'
+                        : 'For Sale'}
                 </Badge>
                 <Badge
                   className={
@@ -313,12 +323,23 @@ export function PropertyList({
 
                 <div className="flex items-center justify-between mb-4">
                   <div className="text-lg font-black text-white">
-                    {property.listing_type === 'Rent' ? (
+                    {property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? (
                       <span className="flex flex-col">
                         <span>{formatPrice(property.rent_per_month || 0)}/mo</span>
                         {property.maintenance && property.maintenance > 0 ? (
                           <span className="text-[10px] text-slate-400 font-medium">+ {formatPrice(property.maintenance)} Maint.</span>
                         ) : null}
+                      </span>
+                    ) : property.listing_type === 'JV/JD' ? (
+                      <span className="flex flex-col">
+                        <span>
+                          {property.owner_share_percent && property.builder_share_percent
+                            ? `${property.owner_share_percent}:${property.builder_share_percent} share`
+                            : 'JV / JD'}
+                        </span>
+                        {property.price > 0 && (
+                          <span className="text-[10px] text-slate-400 font-medium">Est. {formatPrice(property.price)}</span>
+                        )}
                       </span>
                     ) : (
                       formatPrice(property.price)
@@ -451,8 +472,8 @@ export function PropertyList({
                         ) : null}
                       </div>
                     ) : null}
-                    {/* Rental details for Rent listings */}
-                    {property.listing_type === 'Rent' && (property.advance || property.gst) ? (
+                    {/* Rental details for Rent / Built to Suit listings */}
+                    {(property.listing_type === 'Rent' || property.listing_type === 'Built to Suit') && (property.advance || property.gst) ? (
                       <div className="flex justify-between flex-wrap gap-y-2 border-t border-slate-800/45 pt-1.5 text-[10px]">
                         {property.advance ? (
                           <div>
@@ -462,6 +483,21 @@ export function PropertyList({
                         {property.gst ? (
                           <div>
                             GST: <span className="text-slate-200">{formatPrice(property.gst)}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {/* JV/JD deal terms */}
+                    {property.listing_type === 'JV/JD' && (property.jv_structure || property.goodwill_amount) ? (
+                      <div className="flex justify-between flex-wrap gap-y-2 border-t border-slate-800/45 pt-1.5 text-[10px]">
+                        {property.jv_structure ? (
+                          <div>
+                            Structure: <span className="text-slate-200">{property.jv_structure}</span>
+                          </div>
+                        ) : null}
+                        {property.goodwill_amount ? (
+                          <div>
+                            Goodwill: <span className="text-slate-200">{formatPrice(property.goodwill_amount)}</span>
                           </div>
                         ) : null}
                       </div>

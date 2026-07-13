@@ -18,6 +18,10 @@ export const PROPERTY_CATEGORY_VALUES = [
 
 export type PropertyCategory = (typeof PROPERTY_CATEGORY_VALUES)[number];
 
+export const LISTING_TYPE_VALUES = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'] as const;
+
+export type ListingType = (typeof LISTING_TYPE_VALUES)[number];
+
 export interface ExtractedPreferences {
   property_types: string[];
   property_categories: PropertyCategory[];
@@ -28,6 +32,7 @@ export interface ExtractedPreferences {
   areas: string[];
   excluded_areas: string[];
   min_roi: number | null;
+  listing_types: ListingType[];
 }
 
 export const EMPTY_PREFERENCES: ExtractedPreferences = {
@@ -40,6 +45,7 @@ export const EMPTY_PREFERENCES: ExtractedPreferences = {
   areas: [],
   excluded_areas: [],
   min_roi: null,
+  listing_types: [],
 };
 
 function parseJsonLenient(raw: string): Record<string, unknown> {
@@ -94,7 +100,8 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     '  "budget_max": Maximum budget in INR (e.g. "under 1.2 Cr" -> 12000000, "budget 90 lakhs" -> 9000000) or null,\n' +
     '  "areas": Array of localities/neighbourhoods/cities the contact WANTS (e.g. ["HSR Layout", "Koramangala"]). Empty array if none or "any location".,\n' +
     '  "excluded_areas": Array of localities the contact explicitly does NOT want (e.g. "not Jayanagar" -> ["Jayanagar"]). Empty array if none.,\n' +
-    '  "min_roi": Minimum rental yield / ROI percentage wanted (e.g. "yield above 4%" -> 4) or null\n' +
+    '  "min_roi": Minimum rental yield / ROI percentage wanted (e.g. "yield above 4%" -> 4) or null,\n' +
+    `  "listing_types": Array of deal type(s) the contact wants, each exactly one of: ${LISTING_TYPE_VALUES.map((v) => `'${v}'`).join(', ')}. 'Rent'/'tenant'/'to let' -> 'Rent'. 'Joint venture'/'joint development'/'JV'/'JD'/'revenue share'/'landowner looking for a builder' -> 'JV/JD'. 'Built to suit'/'BTS'/'lease to occupier' -> 'Built to Suit'. Leave empty if the contact is a plain buyer with no stated deal-type preference — do NOT assume 'Sale' by default.\n` +
     '}\n\n' +
     'Rules:\n' +
     "1. Convert Indian number formats: 'Crore'/'Cr' = 10000000, 'Lakh'/'L' = 100000, 'k' = 1000. '1.2cr' -> 12000000, '80L' -> 8000000, '₹90 lakh' -> 9000000.\n" +
@@ -118,6 +125,9 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
       (PROPERTY_CATEGORY_VALUES as readonly string[]).includes(c)
     );
 
+  const listingTypes = toStringArray(parsed.listing_types)
+    .filter((t): t is ListingType => (LISTING_TYPE_VALUES as readonly string[]).includes(t));
+
   return {
     property_types: [...new Set(propertyTypes)],
     property_categories: [...new Set(categories)],
@@ -128,6 +138,7 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     areas: toStringArray(parsed.areas),
     excluded_areas: toStringArray(parsed.excluded_areas),
     min_roi: toNumberOrNull(parsed.min_roi),
+    listing_types: [...new Set(listingTypes)],
   };
 }
 

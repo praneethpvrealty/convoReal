@@ -20,6 +20,8 @@ export type QaProperty = Pick<
   | 'area_unit' | 'super_built_area' | 'land_area' | 'land_area_unit'
   | 'facing_direction' | 'features' | 'nearby_highlights'
   | 'property_code' | 'project' | 'rental_income' | 'roi' | 'dimensions'
+  | 'jv_structure' | 'owner_share_percent' | 'builder_share_percent' | 'goodwill_amount'
+  | 'bts_lease_years' | 'bts_lock_in_years' | 'bts_escalation_percent'
 >;
 
 export interface QaResult {
@@ -37,12 +39,33 @@ function isRent(p: QaProperty): boolean {
   return p.listing_type === 'Rent';
 }
 
+function isRentLike(p: QaProperty): boolean {
+  return p.listing_type === 'Rent' || p.listing_type === 'Built to Suit';
+}
+
+function isJV(p: QaProperty): boolean {
+  return p.listing_type === 'JV/JD';
+}
+
 function priceAnswer(p: QaProperty): string | null {
-  if (isRent(p)) {
+  if (isJV(p)) {
+    const parts: string[] = [];
+    if (p.owner_share_percent && p.builder_share_percent) {
+      parts.push(`the proposed share is ${p.owner_share_percent}:${p.builder_share_percent} (owner:builder)${p.jv_structure ? `, ${p.jv_structure}` : ''}`);
+    }
+    if (p.price) parts.push(`estimated project value is ${inr(p.price)}`);
+    if (p.goodwill_amount) parts.push(`goodwill of ${inr(p.goodwill_amount)}`);
+    if (p.advance) parts.push(`refundable advance of ${inr(p.advance)}`);
+    return parts.length ? `This is a Joint Venture/Development deal — ${parts.join(', ')}.` : null;
+  }
+  if (isRentLike(p)) {
     if (!p.rent_per_month) return null;
     let s = `The monthly rent is ${inr(p.rent_per_month)}.`;
     if (p.maintenance) s += ` Maintenance is ${inr(p.maintenance)}/month.`;
     if (p.advance) s += ` Advance/deposit is ${inr(p.advance)}.`;
+    if (p.listing_type === 'Built to Suit' && p.bts_lease_years) {
+      s += ` It's a Built to Suit lease with a ${p.bts_lease_years}-year term${p.bts_lock_in_years ? ` (${p.bts_lock_in_years}-year lock-in)` : ''}.`;
+    }
     return s;
   }
   if (!p.price) return null;
@@ -97,7 +120,13 @@ function nearbyAnswer(p: QaProperty): string | null {
 
 function typeAnswer(p: QaProperty): string | null {
   if (!p.type) return null;
-  const forWhat = isRent(p) ? 'for rent' : 'for sale';
+  const forWhat = isRent(p)
+    ? 'for rent'
+    : p.listing_type === 'Built to Suit'
+      ? 'as a Built to Suit lease'
+      : isJV(p)
+        ? 'for Joint Venture/Development'
+        : 'for sale';
   return `This is a ${p.type} listed ${forWhat}.`;
 }
 
@@ -188,11 +217,23 @@ export function buildPropertyContext(property: QaProperty): string {
   add('Title', p.title);
   add('Type', p.type);
   add('Listing', p.listing_type);
-  if (isRent(p)) {
+  if (isRentLike(p)) {
     add('Rent (per month)', p.rent_per_month ? inr(p.rent_per_month) : null);
     add('Maintenance (per month)', p.maintenance ? inr(p.maintenance) : null);
     add('Advance/Deposit', p.advance ? inr(p.advance) : null);
     add('GST', p.gst ?? null);
+    if (p.listing_type === 'Built to Suit') {
+      add('Lease term (years)', p.bts_lease_years ?? null);
+      add('Lock-in period (years)', p.bts_lock_in_years ?? null);
+      add('Rent escalation (%)', p.bts_escalation_percent ?? null);
+    }
+  } else if (isJV(p)) {
+    add('Deal structure', p.jv_structure);
+    add('Owner share (%)', p.owner_share_percent ?? null);
+    add('Builder share (%)', p.builder_share_percent ?? null);
+    add('Estimated project value', p.price ? inr(p.price) : null);
+    add('Goodwill', p.goodwill_amount ? inr(p.goodwill_amount) : null);
+    add('Refundable advance', p.advance ? inr(p.advance) : null);
   } else {
     add('Price', p.price ? inr(p.price) : null);
   }

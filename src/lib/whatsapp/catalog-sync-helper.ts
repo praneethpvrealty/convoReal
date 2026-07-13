@@ -42,6 +42,12 @@ export async function autoSyncPropertyCatalogIfNeeded(
       return
     }
 
+    // JV/JD and Built to Suit deals don't have Meta-catalog-compatible sale/
+    // rent pricing — never push them to the catalog, silently skip.
+    if (property.listing_type === 'JV/JD' || property.listing_type === 'Built to Suit') {
+      return
+    }
+
     // 3. Decrypt the access token
     let accessToken: string
     try {

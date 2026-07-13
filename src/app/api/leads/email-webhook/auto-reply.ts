@@ -11,6 +11,27 @@ export interface SendAutoReplyResult {
   replyText?: string;
 }
 
+// Helper to dynamically build body params matching the placeholders in body_text
+export function buildBodyParams(bodyText: string | null | undefined, leadName: string, leadSource: string): string[] {
+  if (!bodyText) return [];
+  const matches = bodyText.match(/\{\{\d+\}\}/g) || [];
+  const uniqueVars = new Set(matches);
+  const count = uniqueVars.size;
+
+  const params: string[] = [];
+  if (count >= 1) {
+    params.push(leadName || 'there');
+  }
+  if (count >= 2) {
+    params.push(leadSource || 'portal');
+  }
+  // Pad with empty strings for any extra placeholders (e.g. {{3}}, {{4}})
+  for (let i = 2; i < count; i++) {
+    params.push('');
+  }
+  return params;
+}
+
 // Helper to trigger automatic WhatsApp auto-reply (either approved template or custom text)
 export async function sendAutoReply({
   supabase,
@@ -80,10 +101,7 @@ export async function sendAutoReply({
     }
 
     if (template) {
-      const bodyParams = [
-        leadName || 'there',
-        leadSource || 'portal'
-      ];
+      const bodyParams = buildBodyParams(template.body_text, leadName, leadSource);
 
       const buttonParams: Record<number, string> = {};
       if (template.buttons && Array.isArray(template.buttons)) {
@@ -199,8 +217,8 @@ export async function sendAutoReply({
             try {
               console.log(`${logPrefix} Trying fallback template: ${fallbackTemplate.name} (lang: ${lang})`);
 
-              const bodyParams = [leadName || 'there', leadSource || 'portal'];
               const tpl = fallbackTemplate as MessageTemplate;
+              const bodyParams = buildBodyParams(tpl.body_text, leadName, leadSource);
               const buttonParams: Record<number, string> = {};
               if (tpl.buttons && Array.isArray(tpl.buttons)) {
                 tpl.buttons.forEach((btn, idx: number) => {

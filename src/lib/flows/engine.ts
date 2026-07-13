@@ -305,13 +305,15 @@ async function fetchAndFormatPropertyListings(
     const p = properties[i];
     const idx = i + 1;
     const priceLabel =
-      p.listing_type === "Rent" && p.price
+      (p.listing_type === "Rent" || p.listing_type === "Built to Suit") && p.price
         ? `${currency}${(p.price / 1000).toFixed(0)}K/month`
-        : p.price && p.price >= 10000000
-          ? `${currency}${(p.price / 10000000).toFixed(2).replace(/\.?0+$/, "")} Cr`
-          : p.price
-            ? `${currency}${(p.price / 100000).toFixed(2).replace(/\.?0+$/, "")}L`
-            : "Price on request";
+        : p.listing_type === "JV/JD"
+          ? "JV / Joint Development — enquire"
+          : p.price && p.price >= 10000000
+            ? `${currency}${(p.price / 10000000).toFixed(2).replace(/\.?0+$/, "")} Cr`
+            : p.price
+              ? `${currency}${(p.price / 100000).toFixed(2).replace(/\.?0+$/, "")}L`
+              : "Price on request";
 
     const specs = [
       p.type,

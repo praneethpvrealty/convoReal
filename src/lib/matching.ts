@@ -225,6 +225,30 @@ function resolvePropertyGroup(property: Partial<Property>): SubtypeGroup | null 
   return null;
 }
 
+// ── Listing intent (Sale / Rent / JV/JD / Built to Suit) ───────────
+
+type ListingType = 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit';
+const LISTING_TYPES: ListingType[] = ['Sale', 'Rent', 'JV/JD', 'Built to Suit'];
+const NICHE_LISTING_TYPES: ListingType[] = ['JV/JD', 'Built to Suit'];
+
+function resolveListingType(property: Partial<Property>): ListingType {
+  const lt = property.listing_type;
+  return lt && (LISTING_TYPES as string[]).includes(lt) ? (lt as ListingType) : 'Sale';
+}
+
+/** Infers stated listing intent(s) from free text. Fallback for contacts without AI extraction. */
+function inferListingTypesFromText(text: string): Set<ListingType> {
+  const wanted = new Set<ListingType>();
+  const add = (type: ListingType, pattern: RegExp) => {
+    const m = pattern.exec(text);
+    if (m && !isNegated(text, m[0])) wanted.add(type);
+  };
+  add('JV/JD', /\bjv\/?jd\b|joint\s*venture|joint\s*development|revenue\s*share|area\s*share/i);
+  add('Built to Suit', /built[\s-]?to[\s-]?suit|\bbts\b/i);
+  add('Rent', /\brent(al)?\b|to\s*let|\btenant\b|\blease\b/i);
+  return wanted;
+}
+
 // ── Text heuristics (fallback for contacts without AI extraction) ──
 
 /**
@@ -345,6 +369,7 @@ export function getMatchingContacts(
 
   const propertyGroup = resolvePropertyGroup(property);
   const propertyCategory = propertyGroup ? GROUP_TO_CATEGORY[propertyGroup] : null;
+  const propertyListingType = resolveListingType(property);
   const price = Number(property.price || 0);
   const rentalIncome = property.rental_income ? Number(property.rental_income) : null;
   const propertyRoi = property.roi
@@ -352,6 +377,14 @@ export function getMatchingContacts(
     : price > 0 && rentalIncome !== null
       ? ((rentalIncome * 12) / price) * 100
       : null;
+  // Budget comparison value switches with listing type: Sale prices against
+  // `price`, Rent/Built to Suit against monthly rent, JV/JD against `price`
+  // only if one was entered (JV deals are usually matched on land/share
+  // terms, not a price band).
+  const budgetComparisonValue =
+    propertyListingType === 'Rent' || propertyListingType === 'Built to Suit'
+      ? Number(property.rent_per_month || 0)
+      : price;
 
   const propLoc = cleanArea(property.location || '');
   const propSub = cleanArea(property.sublocality || '');
@@ -365,6 +398,27 @@ export function getMatchingContacts(
     const notesText = (contact.contact_notes || []).map((n) => n.note_text).join(' ');
     const combinedText = `${contact.requirements || ''} ${notesText}`.toLowerCase();
     const hasExtraction = !!contact.pref_extracted_at;
+
+    // ── 0. Listing intent gate (Sale / Rent / JV/JD / Built to Suit) ──
+    // JV/JD and Built to Suit are niche deals: they only ever surface for
+    // contacts who have explicitly stated that intent, regardless of type/
+    // location/budget fit. Sale/Rent stay soft — an unstated intent doesn't
+    // exclude anyone (preserves pre-existing matching behavior), but a
+    // stated contrary intent (e.g. "looking to rent") does.
+    const wantedListingTypes = new Set<ListingType>(
+      (contact.pref_listing_types || []).filter((t): t is ListingType =>
+        (LISTING_TYPES as string[]).includes(t)
+      )
+    );
+    if (wantedListingTypes.size === 0 && !hasExtraction) {
+      inferListingTypesFromText(combinedText).forEach((t) => wantedListingTypes.add(t));
+    }
+    const isNicheListing = NICHE_LISTING_TYPES.includes(propertyListingType);
+    if (wantedListingTypes.size > 0) {
+      if (!wantedListingTypes.has(propertyListingType)) continue;
+    } else if (isNicheListing) {
+      continue;
+    }
 
     // ── 1. Property type gate ─────────────────────────────────────
     const wantedGroups = new Set<SubtypeGroup>();
@@ -551,14 +605,14 @@ export function getMatchingContacts(
     let budgetVerdict: MatchVerdict = 'unknown';
     if (contact.no_budget) {
       budgetVerdict = 'partial'; // flexible — no constraint stated on purpose
-    } else if ((budgetMin !== null || budgetMax !== null) && price > 0) {
-      const minOk = budgetMin === null || price >= budgetMin;
-      const maxOk = budgetMax === null || price <= budgetMax;
+    } else if ((budgetMin !== null || budgetMax !== null) && budgetComparisonValue > 0) {
+      const minOk = budgetMin === null || budgetComparisonValue >= budgetMin;
+      const maxOk = budgetMax === null || budgetComparisonValue <= budgetMax;
       if (minOk && maxOk) {
         budgetVerdict = 'match';
       } else {
-        const nearMin = budgetMin === null || price >= budgetMin * (1 - BUDGET_TOLERANCE_MIN);
-        const nearMax = budgetMax === null || price <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
+        const nearMin = budgetMin === null || budgetComparisonValue >= budgetMin * (1 - BUDGET_TOLERANCE_MIN);
+        const nearMax = budgetMax === null || budgetComparisonValue <= budgetMax * (1 + BUDGET_TOLERANCE_MAX);
         budgetVerdict = nearMin && nearMax ? 'partial' : 'mismatch';
       }
     }

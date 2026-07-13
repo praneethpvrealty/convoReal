@@ -43,6 +43,8 @@ const ASK_ACCOUNT_LIMIT = { limit: 120, windowMs: 60_000 };
 const QA_COLUMNS = [
   'id', 'account_id', 'user_id', 'title', 'type', 'listing_type',
   'price', 'rent_per_month', 'maintenance', 'advance', 'gst',
+  'jv_structure', 'owner_share_percent', 'builder_share_percent', 'goodwill_amount',
+  'bts_lease_years', 'bts_lock_in_years', 'bts_escalation_percent',
   'location', 'sublocality', 'city', 'state', 'bedrooms', 'bathrooms',
   'area_sqft', 'area_unit', 'super_built_area', 'land_area',
   'land_area_unit', 'facing_direction', 'features', 'nearby_highlights',

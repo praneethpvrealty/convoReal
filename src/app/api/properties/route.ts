@@ -352,6 +352,15 @@ export async function POST(request: Request) {
       maintenance,
       advance,
       gst,
+      // JV/JD deal terms
+      jv_structure,
+      owner_share_percent,
+      builder_share_percent,
+      goodwill_amount,
+      // Built to Suit lease terms
+      bts_lease_years,
+      bts_lock_in_years,
+      bts_escalation_percent,
       notes,
       documents,
       // locality coordinates (from the form's Places autocomplete pick)
@@ -370,10 +379,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const parsedListingType = listing_type === "Rent" ? "Rent" : "Sale";
+    const VALID_LISTING_TYPES = ["Sale", "Rent", "JV/JD", "Built to Suit"];
+    const parsedListingType = VALID_LISTING_TYPES.includes(listing_type) ? listing_type : "Sale";
+    const isRentLike = parsedListingType === "Rent" || parsedListingType === "Built to Suit";
     let parsedPrice = price;
-    if (parsedListingType === "Rent" && (parsedPrice === undefined || parsedPrice === null)) {
+    if (isRentLike && (parsedPrice === undefined || parsedPrice === null)) {
       parsedPrice = rent_per_month || 0;
+    }
+    // JV/JD's project value is optional — a price band isn't always known upfront.
+    if (parsedListingType === "JV/JD" && (parsedPrice === undefined || parsedPrice === null)) {
+      parsedPrice = 0;
     }
 
     if (typeof parsedPrice !== "number" || parsedPrice < 0) {
@@ -440,6 +455,13 @@ export async function POST(request: Request) {
       maintenance: typeof maintenance === "number" ? maintenance : null,
       advance: typeof advance === "number" ? advance : null,
       gst: typeof gst === "number" ? gst : null,
+      jv_structure: ["Revenue Share", "Area Share", "Hybrid"].includes(jv_structure) ? jv_structure : null,
+      owner_share_percent: typeof owner_share_percent === "number" ? owner_share_percent : null,
+      builder_share_percent: typeof builder_share_percent === "number" ? builder_share_percent : null,
+      goodwill_amount: typeof goodwill_amount === "number" ? goodwill_amount : null,
+      bts_lease_years: typeof bts_lease_years === "number" ? bts_lease_years : null,
+      bts_lock_in_years: typeof bts_lock_in_years === "number" ? bts_lock_in_years : null,
+      bts_escalation_percent: typeof bts_escalation_percent === "number" ? bts_escalation_percent : null,
       notes: typeof notes === "string" ? notes.trim() || null : null,
       latitude: typeof latitude === "number" && Number.isFinite(latitude) ? latitude : null,
       longitude: typeof longitude === "number" && Number.isFinite(longitude) ? longitude : null,

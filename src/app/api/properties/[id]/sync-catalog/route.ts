@@ -27,6 +27,16 @@ export async function POST(
       return NextResponse.json({ error: 'Property not found' }, { status: 404 })
     }
 
+    // JV/JD and Built to Suit deals don't have Meta-catalog-compatible sale/
+    // rent pricing — refuse the sync with a clear reason instead of pushing
+    // a malformed catalog entry.
+    if (property.listing_type === 'JV/JD' || property.listing_type === 'Built to Suit') {
+      return NextResponse.json(
+        { error: `${property.listing_type} listings can't be synced to Meta Catalog — it only supports Sale/Rent pricing.` },
+        { status: 400 }
+      )
+    }
+
     // 2. Fetch whatsapp_config for account
     const { data: config, error: configErr } = await ctx.supabase
       .from('whatsapp_config')

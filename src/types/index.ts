@@ -144,6 +144,10 @@ export interface Contact {
   pref_areas?: string[] | null;
   pref_excluded_areas?: string[] | null;
   pref_min_roi?: number | null;
+  /** AI-extracted / inferred listing intent(s): 'Sale' | 'Rent' | 'JV/JD' |
+   *  'Built to Suit' (migration 117). Gates JV/BTS properties out of
+   *  matching for contacts who haven't stated that intent. */
+  pref_listing_types?: string[] | null;
   pref_source_hash?: string | null;
   pref_extracted_at?: string | null;
   contact_notes?: { note_text: string }[] | null;
@@ -760,11 +764,20 @@ export interface Property {
   location: string;
   type: string;
   status: string;
-  listing_type?: 'Sale' | 'Rent';
+  listing_type?: 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit';
   rent_per_month?: number | null;
   maintenance?: number | null;
   advance?: number | null;
   gst?: number | null;
+  /** JV/JD deal terms. */
+  jv_structure?: 'Revenue Share' | 'Area Share' | 'Hybrid' | null;
+  owner_share_percent?: number | null;
+  builder_share_percent?: number | null;
+  goodwill_amount?: number | null;
+  /** Built to Suit lease terms. */
+  bts_lease_years?: number | null;
+  bts_lock_in_years?: number | null;
+  bts_escalation_percent?: number | null;
   bedrooms?: number;
   bathrooms?: number;
   area_sqft?: number;

@@ -203,8 +203,8 @@ export interface SendPropertyListingsNodeConfig {
   filter_type?: string;
   /** Match any of these property types (OR logic). Supersedes filter_type when set. */
   filter_types?: string[];
-  /** Optional listing type filter: "Sale" or "Rent". */
-  filter_listing_type?: "Sale" | "Rent";
+  /** Optional listing type filter. */
+  filter_listing_type?: "Sale" | "Rent" | "JV/JD" | "Built to Suit";
   /** Auto-advance target after the message lands at Meta. */
   next_node_key: string;
 }

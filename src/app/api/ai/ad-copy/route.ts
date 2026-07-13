@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // client — a forged id from another tenant finds nothing).
     const { data: property } = await ctx.supabase
       .from('properties')
-      .select('id, title, type, location, city, listing_type, price, rent_per_month, bedrooms, area_sqft, features, nearby_highlights')
+      .select('id, title, type, location, city, listing_type, price, rent_per_month, bedrooms, area_sqft, features, nearby_highlights, owner_share_percent, builder_share_percent')
       .eq('id', propertyId)
       .eq('account_id', ctx.accountId)
       .maybeSingle();

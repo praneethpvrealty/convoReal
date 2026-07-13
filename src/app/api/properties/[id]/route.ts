@@ -121,6 +121,15 @@ export async function PUT(
       maintenance,
       advance,
       gst,
+      // JV/JD deal terms
+      jv_structure,
+      owner_share_percent,
+      builder_share_percent,
+      goodwill_amount,
+      // Built to Suit lease terms
+      bts_lease_years,
+      bts_lock_in_years,
+      bts_escalation_percent,
       notes,
       documents,
       // locality coordinates (from the form's Places autocomplete pick)
@@ -324,8 +333,9 @@ export async function PUT(
       updateData.listing_source = listing_source === "agent" ? "agent" : "owner";
     }
 
+    const VALID_LISTING_TYPES = ["Sale", "Rent", "JV/JD", "Built to Suit"];
     if (listing_type !== undefined) {
-      updateData.listing_type = listing_type === "Rent" ? "Rent" : "Sale";
+      updateData.listing_type = VALID_LISTING_TYPES.includes(listing_type) ? listing_type : "Sale";
     }
 
     if (rent_per_month !== undefined) {
@@ -342,6 +352,34 @@ export async function PUT(
 
     if (gst !== undefined) {
       updateData.gst = typeof gst === "number" ? gst : null;
+    }
+
+    if (jv_structure !== undefined) {
+      updateData.jv_structure = ["Revenue Share", "Area Share", "Hybrid"].includes(jv_structure) ? jv_structure : null;
+    }
+
+    if (owner_share_percent !== undefined) {
+      updateData.owner_share_percent = typeof owner_share_percent === "number" ? owner_share_percent : null;
+    }
+
+    if (builder_share_percent !== undefined) {
+      updateData.builder_share_percent = typeof builder_share_percent === "number" ? builder_share_percent : null;
+    }
+
+    if (goodwill_amount !== undefined) {
+      updateData.goodwill_amount = typeof goodwill_amount === "number" ? goodwill_amount : null;
+    }
+
+    if (bts_lease_years !== undefined) {
+      updateData.bts_lease_years = typeof bts_lease_years === "number" ? bts_lease_years : null;
+    }
+
+    if (bts_lock_in_years !== undefined) {
+      updateData.bts_lock_in_years = typeof bts_lock_in_years === "number" ? bts_lock_in_years : null;
+    }
+
+    if (bts_escalation_percent !== undefined) {
+      updateData.bts_escalation_percent = typeof bts_escalation_percent === "number" ? bts_escalation_percent : null;
     }
 
     if (notes !== undefined) {

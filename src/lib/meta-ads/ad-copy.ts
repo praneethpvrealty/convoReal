@@ -25,13 +25,15 @@ interface PropertyForCopy {
   type?: string | null;
   location?: string | null;
   city?: string | null;
-  listing_type?: 'Sale' | 'Rent' | null;
+  listing_type?: 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit' | null;
   price?: number | null;
   rent_per_month?: number | null;
   bedrooms?: number | null;
   area_sqft?: number | null;
   features?: string[] | null;
   nearby_highlights?: string[] | null;
+  owner_share_percent?: number | null;
+  builder_share_percent?: number | null;
 }
 
 /** System instruction: housing-ad-safe, no phone numbers, length-aware. */
@@ -59,8 +61,14 @@ export function buildAdCopyPrompt(p: PropertyForCopy): string {
   if (loc) lines.push(`Location: ${loc}`);
   if (p.bedrooms) lines.push(`Bedrooms: ${p.bedrooms} BHK`);
   if (p.area_sqft) lines.push(`Area: ${p.area_sqft} sq.ft.`);
-  if (p.listing_type === 'Rent') {
+  if (p.listing_type === 'Rent' || p.listing_type === 'Built to Suit') {
     if (p.rent_per_month) lines.push(`Rent: ${inr(p.rent_per_month)}/month`);
+  } else if (p.listing_type === 'JV/JD') {
+    if (p.owner_share_percent && p.builder_share_percent) {
+      lines.push(`Deal: Joint Venture/Development, ${p.owner_share_percent}:${p.builder_share_percent} owner:builder share`);
+    } else {
+      lines.push('Deal: Joint Venture/Development opportunity');
+    }
   } else if (p.price) {
     lines.push(`Price: ${inr(p.price)}`);
   }

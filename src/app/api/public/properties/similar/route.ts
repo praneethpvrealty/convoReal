@@ -49,7 +49,9 @@ const PUBLIC_PROPERTY_COLUMNS = [
   "facing_direction", "nearby_highlights", "is_published", "features",
   "images", "google_map_link", "property_code", "owner_contact_id",
   "rental_income", "roi", "listing_source", "rent_per_month",
-  "maintenance", "advance", "gst", "latitude", "longitude",
+  "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
+  "builder_share_percent", "goodwill_amount", "bts_lease_years",
+  "bts_lock_in_years", "bts_escalation_percent", "latitude", "longitude",
   "created_at", "updated_at",
 ].join(", ");
 
@@ -79,8 +81,9 @@ export async function GET(request: Request) {
     const seedLat = parseFloat(searchParams.get("lat") || "0") || 0;
     const seedLon = parseFloat(searchParams.get("lon") || "0") || 0;
 
-    // Effective price for comparison (rent uses rent_per_month)
-    const seedEffectivePrice = seedListingType === "Rent" ? seedRent : seedPrice;
+    // Effective price for comparison (rent / built-to-suit use rent_per_month)
+    const seedEffectivePrice =
+      seedListingType === "Rent" || seedListingType === "Built to Suit" ? seedRent : seedPrice;
 
     const client = supabaseAdmin();
 
@@ -156,7 +159,7 @@ export async function GET(request: Request) {
 
       // 4. Price band (±30%)
       if (seedEffectivePrice > 0) {
-        const pEffectivePrice = p.listing_type === "Rent"
+        const pEffectivePrice = p.listing_type === "Rent" || p.listing_type === "Built to Suit"
           ? (p.rent_per_month || 0)
           : (p.price || 0);
 

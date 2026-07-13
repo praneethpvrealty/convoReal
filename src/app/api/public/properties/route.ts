@@ -58,7 +58,9 @@ export async function GET(request: Request) {
       "facing_direction", "nearby_highlights", "is_published", "features",
       "images", "google_map_link", "property_code", "owner_contact_id",
       "rental_income", "roi", "listing_source", "rent_per_month",
-      "maintenance", "advance", "gst", "created_at", "updated_at",
+      "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
+      "builder_share_percent", "goodwill_amount", "bts_lease_years",
+      "bts_lock_in_years", "bts_escalation_percent", "created_at", "updated_at",
     ].join(", ");
 
     let query = client

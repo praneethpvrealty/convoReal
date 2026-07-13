@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
               pref_areas: prefs.areas,
               pref_excluded_areas: prefs.excluded_areas,
               pref_min_roi: prefs.min_roi,
+              pref_listing_types: prefs.listing_types,
               pref_source_hash: hash,
               pref_extracted_at: new Date().toISOString(),
             })

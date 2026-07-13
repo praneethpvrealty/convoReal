@@ -111,6 +111,96 @@ describe('getMatchingContacts', () => {
     });
   });
 
+  describe('Listing intent gate (Sale / Rent / JV/JD / Built to Suit)', () => {
+    it('never surfaces a JV/JD property for a contact with no stated JV intent', () => {
+      const contact = createTestContact({
+        pref_property_categories: ['residential'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const jvLand = createTestProperty({
+        type: 'Residential Land/ Plot',
+        listing_type: 'JV/JD',
+      });
+      expect(getMatchingContacts(jvLand, [contact]).length).toBe(0);
+    });
+
+    it('never surfaces a Built to Suit property for a contact with no stated BTS intent', () => {
+      const contact = createTestContact({
+        pref_property_categories: ['commercial'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const btsShed = createTestProperty({
+        type: 'Industrial Shed',
+        listing_type: 'Built to Suit',
+      });
+      expect(getMatchingContacts(btsShed, [contact]).length).toBe(0);
+    });
+
+    it('matches a JV/JD property for a contact with explicit JV/JD intent', () => {
+      const contact = createTestContact({
+        pref_property_categories: ['residential'],
+        pref_listing_types: ['JV/JD'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const jvLand = createTestProperty({
+        type: 'Residential Land/ Plot',
+        listing_type: 'JV/JD',
+      });
+      const results = getMatchingContacts(jvLand, [contact]);
+      expect(results.length).toBe(1);
+    });
+
+    it('infers JV intent from free text ("joint development") when no extraction has run', () => {
+      const contact = createTestContact({
+        requirements: 'landowner looking for joint development partners',
+      });
+      const jvLand = createTestProperty({
+        type: 'Residential Land/ Plot',
+        listing_type: 'JV/JD',
+      });
+      expect(getMatchingContacts(jvLand, [contact]).length).toBe(1);
+    });
+
+    it('excludes a Sale property for a contact whose stated intent is Rent only', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_listing_types: ['Rent'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const saleFlat = createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Sale' });
+      expect(getMatchingContacts(saleFlat, [contact]).length).toBe(0);
+    });
+
+    it('does not gate Sale/Rent when the contact has no stated listing intent (backward compatible)', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const saleFlat = createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Sale' });
+      const rentFlat = createTestProperty({ type: 'Flat/ Apartment', listing_type: 'Rent' });
+      expect(getMatchingContacts(saleFlat, [contact]).length).toBe(1);
+      expect(getMatchingContacts(rentFlat, [contact]).length).toBe(1);
+    });
+
+    it('matches Rent budget against rent_per_month rather than price', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_listing_types: ['Rent'],
+        pref_budget_max: 50000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const rentFlat = createTestProperty({
+        type: 'Flat/ Apartment',
+        listing_type: 'Rent',
+        price: 10000000, // mirrors rent_per_month by convention, ignored here
+        rent_per_month: 45000,
+      });
+      const results = getMatchingContacts(rentFlat, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.budget).toBe('match');
+    });
+  });
+
   describe('Location refinement', () => {
     it('excludes contacts whose stated areas do not cover the property', () => {
       const contact = createTestContact({
