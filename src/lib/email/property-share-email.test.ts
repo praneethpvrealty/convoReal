@@ -25,6 +25,7 @@ const baseProperty = (overrides: Partial<ShareEmailProperty>): ShareEmailPropert
   goodwill_amount: null,
   documents: [],
   property_code: undefined,
+  images: [],
   ...overrides,
 });
 
@@ -123,5 +124,38 @@ describe('buildPropertyShareEmailContent', () => {
     const property = baseProperty({ google_map_link: null, sublocality: 'Hosur Road', city: 'Bangalore' });
     const { body } = buildPropertyShareEmailContent(property);
     expect(body).toContain('Location: Hosur Road, Bangalore');
+  });
+
+  describe('photo links', () => {
+    it('lists each image URL as a numbered link under a Photos heading', () => {
+      const property = baseProperty({
+        images: ['https://example.com/1.jpg', 'https://example.com/2.jpg'],
+      });
+      const { body } = buildPropertyShareEmailContent(property);
+      expect(body).toContain('Photos:');
+      expect(body).toContain('1. https://example.com/1.jpg');
+      expect(body).toContain('2. https://example.com/2.jpg');
+    });
+
+    it('caps inlined photo links and notes the remainder instead of dropping them silently', () => {
+      const images = Array.from({ length: 8 }, (_, i) => `https://example.com/${i + 1}.jpg`);
+      const property = baseProperty({ images });
+      const { body } = buildPropertyShareEmailContent(property);
+      expect(body).toContain('5. https://example.com/5.jpg');
+      expect(body).not.toContain('6. https://example.com/6.jpg');
+      expect(body).toContain('...and 3 more photo(s) in the listing.');
+    });
+
+    it('omits the Photos section entirely when the listing has no images', () => {
+      const { body } = buildPropertyShareEmailContent(baseProperty({ images: [] }));
+      expect(body).not.toContain('Photos:');
+    });
+
+    it('filters out empty/falsy image entries', () => {
+      const property = baseProperty({ images: ['', 'https://example.com/1.jpg', ''] as string[] });
+      const { body } = buildPropertyShareEmailContent(property);
+      expect(body).toContain('1. https://example.com/1.jpg');
+      expect(body).not.toContain('2.');
+    });
   });
 });

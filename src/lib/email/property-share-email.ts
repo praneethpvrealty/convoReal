@@ -14,8 +14,13 @@ export type ShareEmailProperty = Pick<
   | 'location' | 'sublocality' | 'city' | 'google_map_link' | 'nearby_highlights'
   | 'land_area' | 'land_area_unit' | 'land_zone' | 'land_use_zoning' | 'ownership_status'
   | 'deal_remarks' | 'jv_structure' | 'owner_share_percent' | 'builder_share_percent'
-  | 'goodwill_amount' | 'documents' | 'property_code'
+  | 'goodwill_amount' | 'documents' | 'property_code' | 'images'
 >;
+
+/** Mail clients (mailto: especially) choke on very long URLs — cap how
+ *  many photo links get inlined and note the rest instead of dropping
+ *  them silently. */
+const IMAGE_LINK_CAP = 5;
 
 export interface PropertyShareEmailOptions {
   /** First names of the selected recipients, used to build the greeting line. */
@@ -101,6 +106,15 @@ export function buildPropertyShareEmailContent(
 
   if (property.nearby_highlights && property.nearby_highlights.length > 0) {
     lines.push(`Landmark: ${property.nearby_highlights[0]}`);
+  }
+
+  const images = (property.images || []).filter(Boolean);
+  if (images.length > 0) {
+    lines.push('', 'Photos:');
+    images.slice(0, IMAGE_LINK_CAP).forEach((url, i) => lines.push(`${i + 1}. ${url}`));
+    if (images.length > IMAGE_LINK_CAP) {
+      lines.push(`...and ${images.length - IMAGE_LINK_CAP} more photo(s) in the listing.`);
+    }
   }
 
   const docCount = property.documents?.length || 0;

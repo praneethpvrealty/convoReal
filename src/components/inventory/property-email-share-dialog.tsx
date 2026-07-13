@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Mail, X, Copy, Check, ExternalLink, Paperclip, Search } from 'lucide-react';
+import { Loader2, Mail, X, Copy, Check, ExternalLink, Paperclip, Search, ImageIcon } from 'lucide-react';
 import { buildPropertyShareEmailContent } from '@/lib/email/property-share-email';
 
 interface PropertyEmailShareDialogProps {
@@ -66,6 +66,7 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     () => (property?.documents || []).map((d, i) => parseDocumentTitle(d, i)),
     [property?.documents]
   );
+  const imageCount = useMemo(() => (property?.images || []).filter(Boolean).length, [property?.images]);
 
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
@@ -301,6 +302,16 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                 className="bg-slate-800 border-slate-700 text-white font-mono text-xs leading-relaxed min-h-72"
               />
             </div>
+
+            {/* Photo links info — images can't be attached either, but their links are already in the body */}
+            {imageCount > 0 && (
+              <div className="flex items-start gap-2 p-3 rounded-lg border border-slate-800 bg-slate-950/30 text-xs text-slate-400">
+                <ImageIcon className="size-3.5 shrink-0 mt-0.5" />
+                <div>
+                  {`${imageCount} photo${imageCount === 1 ? '' : 's'} linked in the body above (this draft can't carry real attachments) — the recipient can click through to view them.`}
+                </div>
+              </div>
+            )}
 
             {/* Attachment reminder */}
             {documentTitles.length > 0 && (
