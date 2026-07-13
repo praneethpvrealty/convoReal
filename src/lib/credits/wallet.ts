@@ -23,13 +23,13 @@ function generateReferralCode(seed: string): string {
  */
 export async function getOrCreateWallet(
   accountId: string,
-  client?: SupabaseClient,
+  // Accepted for call-site compatibility but intentionally ignored: wallet
+  // bootstrap must run as service-role to bypass RLS on credit_wallets.
+  // Callers therefore must only pass a server-trusted accountId, never
+  // user-supplied input, since RLS no longer scopes this to one account.
+  _client?: SupabaseClient,
 ): Promise<CreditWallet> {
-  // Always use the service-role admin client to bypass RLS for credit wallet operations (bootstrap & reset).
   const supabase = billingAdmin();
-  if (client) {
-    // Suppress lint warning for unused parameter while preserving signature compatibility
-  }
 
   const { data: existing, error: fetchErr } = await supabase
     .from('credit_wallets')
