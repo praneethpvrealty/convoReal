@@ -21,6 +21,7 @@ import {
   Archive,
   ArchiveRestore,
   Megaphone,
+  Mail,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -53,6 +54,7 @@ interface PropertyListProps {
   onFlyer?: (property: Property) => void;
   onPromote?: (property: Property) => void;
   onShare?: (property: Property) => void;
+  onEmailShare?: (property: Property) => void;
   onApprove?: (property: Property) => Promise<void>;
   onReject?: (property: Property) => Promise<void>;
   onArchive?: (property: Property) => Promise<void>;
@@ -70,6 +72,7 @@ export function PropertyList({
   onFlyer,
   onPromote,
   onShare,
+  onEmailShare,
   onApprove,
   onReject,
   onArchive,
@@ -666,6 +669,26 @@ export function PropertyList({
                         </>
                       </TooltipTrigger>
                       <TooltipContent side="top">Share property listing</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onEmailShare && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onEmailShare(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Mail className="size-3.5 mr-1.5 text-primary" /> Email
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Share via email</TooltipContent>
                     </Tooltip>
                   )}
                   <Tooltip>

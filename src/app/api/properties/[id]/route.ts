@@ -130,6 +130,10 @@ export async function PUT(
       bts_lease_years,
       bts_lock_in_years,
       bts_escalation_percent,
+      // Land/JV deal notes (internal only)
+      ownership_status,
+      land_use_zoning,
+      deal_remarks,
       notes,
       documents,
       // locality coordinates (from the form's Places autocomplete pick)
@@ -291,6 +295,18 @@ export async function PUT(
 
     if (ideal_for !== undefined) {
       updateData.ideal_for = typeof ideal_for === "string" ? ideal_for.trim() : null;
+    }
+
+    if (ownership_status !== undefined) {
+      updateData.ownership_status = typeof ownership_status === "string" ? ownership_status.trim() || null : null;
+    }
+
+    if (land_use_zoning !== undefined) {
+      updateData.land_use_zoning = typeof land_use_zoning === "string" ? land_use_zoning.trim() || null : null;
+    }
+
+    if (deal_remarks !== undefined) {
+      updateData.deal_remarks = typeof deal_remarks === "string" ? deal_remarks.trim() || null : null;
     }
 
     if (dimensions !== undefined) {

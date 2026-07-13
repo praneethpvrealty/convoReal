@@ -239,6 +239,10 @@ export function PropertyForm({
   const [project, setProject] = useState('');
   const [landZone, setLandZone] = useState('');
   const [idealFor, setIdealFor] = useState('');
+  // Land/JV deal notes — prefill source for the "Share via Email" draft
+  const [ownershipStatus, setOwnershipStatus] = useState('');
+  const [landUseZoning, setLandUseZoning] = useState('');
+  const [dealRemarks, setDealRemarks] = useState('');
   const [dimensions, setDimensions] = useState('');
   const [roadWidth, setRoadWidth] = useState('');
   const [roadWidthUnit, setRoadWidthUnit] = useState('Feet');
@@ -1280,6 +1284,9 @@ export function PropertyForm({
         setProject(property.project ?? '');
         setLandZone(property.land_zone ?? '');
         setIdealFor(property.ideal_for ?? '');
+        setOwnershipStatus(property.ownership_status ?? '');
+        setLandUseZoning(property.land_use_zoning ?? '');
+        setDealRemarks(property.deal_remarks ?? '');
         const dims = property.dimensions ?? '';
         setDimensions(dims);
         if (dims && dims.includes('x')) {
@@ -1415,6 +1422,9 @@ export function PropertyForm({
         setProject('');
         setLandZone('');
         setIdealFor('');
+        setOwnershipStatus('');
+        setLandUseZoning('');
+        setDealRemarks('');
         setDimensions('');
         setFrontage('');
         setDepth('');
@@ -1522,38 +1532,60 @@ export function PropertyForm({
 
 
 
-  // Update land area and dimensions automatically for land types
-  useEffect(() => {
+  // Helpers to update land area and dimensions on direct user input to prevent deadlocks
+  const handleLandAreaChange = (val: string) => {
+    setLandArea(val);
     if (!isLand) return;
+    const aNum = Number(val);
+    const fNum = Number(frontage);
+    const dNum = Number(depth);
 
-    const areaNum = Number(landArea);
-    const frontageNum = Number(frontage);
-    const depthNum = Number(depth);
-
-    // Case A: Frontage and Depth are typed -> Auto-calculate Land Area
-    if (frontage && depth) {
-      if (!isNaN(frontageNum) && !isNaN(depthNum) && frontageNum > 0 && depthNum > 0) {
-        const calculatedArea = frontageNum * depthNum;
-        if (Math.abs(Number(landArea) - calculatedArea) > 0.01) {
-          setLandArea(String(calculatedArea));
-        }
-      }
-    }
-    // Case B: Land Area is typed, user enters Frontage -> Auto-calculate Depth
-    else if (landArea && frontage && !depth) {
-      if (!isNaN(areaNum) && !isNaN(frontageNum) && areaNum > 0 && frontageNum > 0) {
-        const calculatedDepth = Math.round((areaNum / frontageNum) * 100) / 100;
+    if (val && !isNaN(aNum) && aNum > 0) {
+      if (frontage && !depth && !isNaN(fNum) && fNum > 0) {
+        const calculatedDepth = Math.round((aNum / fNum) * 100) / 100;
         setDepth(String(calculatedDepth));
-      }
-    }
-    // Case C: Land Area is typed, user enters Depth -> Auto-calculate Frontage
-    else if (landArea && depth && !frontage) {
-      if (!isNaN(areaNum) && !isNaN(depthNum) && areaNum > 0 && depthNum > 0) {
-        const calculatedFrontage = Math.round((areaNum / depthNum) * 100) / 100;
+      } else if (depth && !frontage && !isNaN(dNum) && dNum > 0) {
+        const calculatedFrontage = Math.round((aNum / dNum) * 100) / 100;
         setFrontage(String(calculatedFrontage));
       }
     }
-  }, [frontage, depth, landArea, isLand]);
+  };
+
+  const handleFrontageChange = (val: string) => {
+    setFrontage(val);
+    if (!isLand) return;
+    const fNum = Number(val);
+    const dNum = Number(depth);
+    const aNum = Number(landArea);
+
+    if (val && !isNaN(fNum) && fNum > 0) {
+      if (depth && !isNaN(dNum) && dNum > 0) {
+        const calculatedArea = fNum * dNum;
+        setLandArea(String(calculatedArea));
+      } else if (landArea && !isNaN(aNum) && aNum > 0) {
+        const calculatedDepth = Math.round((aNum / fNum) * 100) / 100;
+        setDepth(String(calculatedDepth));
+      }
+    }
+  };
+
+  const handleDepthChange = (val: string) => {
+    setDepth(val);
+    if (!isLand) return;
+    const dNum = Number(val);
+    const fNum = Number(frontage);
+    const aNum = Number(landArea);
+
+    if (val && !isNaN(dNum) && dNum > 0) {
+      if (frontage && !isNaN(fNum) && fNum > 0) {
+        const calculatedArea = fNum * dNum;
+        setLandArea(String(calculatedArea));
+      } else if (landArea && !isNaN(aNum) && aNum > 0) {
+        const calculatedFrontage = Math.round((aNum / dNum) * 100) / 100;
+        setFrontage(String(calculatedFrontage));
+      }
+    }
+  };
 
   const filteredAmenities = useMemo(() => {
     if (isLand) {
@@ -2074,6 +2106,9 @@ export function PropertyForm({
         project: project.trim() || null,
         land_zone: landZone.trim() || null,
         ideal_for: idealFor.trim() || null,
+        ownership_status: ownershipStatus.trim() || null,
+        land_use_zoning: landUseZoning.trim() || null,
+        deal_remarks: dealRemarks.trim() || null,
         dimensions: finalDimensions || null,
         road_width: parsedRoadWidth,
         road_width_unit: roadWidthUnit,
@@ -3654,7 +3689,7 @@ export function PropertyForm({
                             id="prop-land-area"
                             type="number"
                             value={landArea}
-                            onChange={(e) => setLandArea(e.target.value)}
+                            onChange={(e) => handleLandAreaChange(e.target.value)}
                             placeholder="e.g. 2400"
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 flex-1"
                             required
@@ -3721,7 +3756,7 @@ export function PropertyForm({
                                 id="prop-land-area"
                                 type="number"
                                 value={landArea}
-                                onChange={(e) => setLandArea(e.target.value)}
+                                onChange={(e) => handleLandAreaChange(e.target.value)}
                                 placeholder="e.g. 2400"
                                 className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9 flex-1"
                               />
@@ -3750,7 +3785,7 @@ export function PropertyForm({
                             id="prop-frontage"
                             type="number"
                             value={frontage}
-                            onChange={(e) => setFrontage(e.target.value)}
+                            onChange={(e) => handleFrontageChange(e.target.value)}
                             placeholder="e.g. 30"
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                           />
@@ -3763,7 +3798,7 @@ export function PropertyForm({
                             id="prop-depth"
                             type="number"
                             value={depth}
-                            onChange={(e) => setDepth(e.target.value)}
+                            onChange={(e) => handleDepthChange(e.target.value)}
                             placeholder="e.g. 40"
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                           />
@@ -3828,6 +3863,54 @@ export function PropertyForm({
                         ))}
                       </select>
                     </div>
+
+                    {/* Land/JV Deal Notes — prefills the "Share via Email" draft */}
+                    {(isLand || listingType === 'JV/JD') && (
+                      <div className="col-span-2 grid grid-cols-2 gap-4 p-4 rounded-lg border border-slate-800 bg-slate-950/20">
+                        <div className="col-span-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                          Land / Deal Notes
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-ownership-status" className="text-slate-300">
+                            Ownership Status
+                          </Label>
+                          <Input
+                            id="prop-ownership-status"
+                            value={ownershipStatus}
+                            onChange={(e) => setOwnershipStatus(e.target.value)}
+                            placeholder="e.g. Single owner / Multiple owners, aggregation in process"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-land-use-zoning" className="text-slate-300">
+                            Land Use Breakdown
+                          </Label>
+                          <Input
+                            id="prop-land-use-zoning"
+                            value={landUseZoning}
+                            onChange={(e) => setLandUseZoning(e.target.value)}
+                            placeholder="e.g. Residential zone 26A 13G, Red Zone 5A 29G"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5 col-span-2">
+                          <Label htmlFor="prop-deal-remarks" className="text-slate-300">
+                            Deal Remarks
+                          </Label>
+                          <Textarea
+                            id="prop-deal-remarks"
+                            value={dealRemarks}
+                            onChange={(e) => setDealRemarks(e.target.value)}
+                            placeholder="e.g. Legal/aggregation status, road access, timeline for completion..."
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-16"
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-500 col-span-2">
+                          Internal notes — never shown on the public showcase. Used to prefill the &quot;Share via Email&quot; draft.
+                        </p>
+                      </div>
+                    )}
 
                     {/* Amenities Checkbox Selection */}
                     <div className="space-y-3 p-4 rounded-lg border border-slate-800 bg-slate-950/20 col-span-2">

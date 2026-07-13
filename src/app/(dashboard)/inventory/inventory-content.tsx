@@ -41,6 +41,7 @@ import { PromotePropertyDialog } from '@/components/inventory/promote-property-d
 // configured on the deployment (see docs/meta-ads-integration-plan.md §2).
 const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
+import { PropertyEmailShareDialog } from '@/components/inventory/property-email-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { localCache } from '@/lib/cache-store';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
@@ -110,6 +111,8 @@ export default function InventoryPage() {
   const [promoteProperty, setPromoteProperty] = useState<Property | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
+  const [emailShareOpen, setEmailShareOpen] = useState(false);
+  const [emailShareProperty, setEmailShareProperty] = useState<Property | null>(null);
   const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
   const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
 
@@ -393,6 +396,12 @@ export default function InventoryPage() {
   function handleShareClick(property: Property) {
     setShareProperty(property);
     setShareOpen(true);
+  }
+
+  // Handle email share click
+  function handleEmailShareClick(property: Property) {
+    setEmailShareProperty(property);
+    setEmailShareOpen(true);
   }
 
   // Handle delete confirmation click
@@ -748,6 +757,7 @@ export default function InventoryPage() {
         onFlyer={handleFlyerClick}
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
         onShare={handleShareClick}
+        onEmailShare={handleEmailShareClick}
         onApprove={handleApprove}
         onReject={handleReject}
         onArchive={handleArchive}
@@ -786,6 +796,13 @@ export default function InventoryPage() {
         onOpenChange={setShareOpen}
         property={shareProperty}
         onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
+      />
+
+      {/* Share via Email Dialog */}
+      <PropertyEmailShareDialog
+        open={emailShareOpen}
+        onOpenChange={setEmailShareOpen}
+        property={emailShareProperty}
       />
 
       {/* Share Showcase Portal Dialog */}

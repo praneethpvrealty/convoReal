@@ -361,6 +361,10 @@ export async function POST(request: Request) {
       bts_lease_years,
       bts_lock_in_years,
       bts_escalation_percent,
+      // Land/JV deal notes (internal only)
+      ownership_status,
+      land_use_zoning,
+      deal_remarks,
       notes,
       documents,
       // locality coordinates (from the form's Places autocomplete pick)
@@ -436,6 +440,9 @@ export async function POST(request: Request) {
       project: typeof project === "string" ? project.trim() : null,
       land_zone: typeof land_zone === "string" ? land_zone.trim() : null,
       ideal_for: typeof ideal_for === "string" ? ideal_for.trim() : null,
+      ownership_status: typeof ownership_status === "string" ? ownership_status.trim() || null : null,
+      land_use_zoning: typeof land_use_zoning === "string" ? land_use_zoning.trim() || null : null,
+      deal_remarks: typeof deal_remarks === "string" ? deal_remarks.trim() || null : null,
       dimensions: typeof dimensions === "string" ? dimensions.trim() : null,
       road_width: typeof road_width === "number" ? road_width : null,
       road_width_unit: typeof road_width_unit === "string" ? road_width_unit.trim() : "Feet",

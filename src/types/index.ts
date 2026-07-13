@@ -778,6 +778,11 @@ export interface Property {
   bts_lease_years?: number | null;
   bts_lock_in_years?: number | null;
   bts_escalation_percent?: number | null;
+  /** Land/JV deal notes (migration 118) — internal only, used to prefill
+   *  the "Share via Email" draft. Never shown on the public showcase. */
+  ownership_status?: string | null;
+  land_use_zoning?: string | null;
+  deal_remarks?: string | null;
   bedrooms?: number;
   bathrooms?: number;
   area_sqft?: number;
