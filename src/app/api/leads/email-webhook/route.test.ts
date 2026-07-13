@@ -108,6 +108,7 @@ import {
   checkIsNonLeadEmail,
   stripOwnerSuffix,
   classificationFromNameSuffix,
+  checkLocationMatch,
   POST
 } from './route';
 
@@ -478,6 +479,28 @@ Content-Transfer-Encoding: quoted-printable
     it('returns null when there is no role suffix, so the caller can apply its own default', () => {
       expect(classificationFromNameSuffix('No Suffix')).toBeNull();
       expect(classificationFromNameSuffix('')).toBeNull();
+    });
+  });
+
+  describe('checkLocationMatch', () => {
+    it('should match exact locations', () => {
+      expect(checkLocationMatch('HSR Layout', 'HSR Layout, Bangalore')).toBe(true);
+      expect(checkLocationMatch('JP Nagar', 'JP Nagar')).toBe(true);
+    });
+
+    it('should normalize Roman numerals to Arabic numbers', () => {
+      expect(checkLocationMatch('Surya City Phase II', 'Surya City Phase 2')).toBe(true);
+      expect(checkLocationMatch('Phase I', 'Phase 1')).toBe(true);
+    });
+
+    it('should match using token overlap regardless of word order', () => {
+      expect(checkLocationMatch('Surya City Phase II', '#365, Sector C, Phase 2 Surya City')).toBe(true);
+      expect(checkLocationMatch('Phase 2 Surya City', 'Surya City Phase II')).toBe(true);
+    });
+
+    it('should return false for unrelated locations', () => {
+      expect(checkLocationMatch('HSR Layout', 'JP Nagar 2nd Phase')).toBe(false);
+      expect(checkLocationMatch('Whitefield', 'Electronic City')).toBe(false);
     });
   });
 

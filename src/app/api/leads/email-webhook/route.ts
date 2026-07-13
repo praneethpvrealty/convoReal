@@ -45,6 +45,52 @@ interface PropertyForMatching {
   property_code: string | null;
 }
 
+export function normalizeLocationString(str: string): string {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .replace(/\bix\b/g, '9')
+    .replace(/\bviii\b/g, '8')
+    .replace(/\bvii\b/g, '7')
+    .replace(/\bvi\b/g, '6')
+    .replace(/\bv\b/g, '5')
+    .replace(/\biv\b/g, '4')
+    .replace(/\biii\b/g, '3')
+    .replace(/\bii\b/g, '2')
+    .replace(/\bi\b/g, '1')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function checkLocationMatch(parsedLoc: string, propertyLoc: string): boolean {
+  if (!parsedLoc || !propertyLoc) return false;
+  
+  const normParsed = normalizeLocationString(parsedLoc);
+  const normProperty = normalizeLocationString(propertyLoc);
+  
+  // 1. Direct substring match on normalized strings
+  if (normProperty.includes(normParsed) || normParsed.includes(normProperty)) {
+    return true;
+  }
+  
+  // 2. Token overlap check
+  const parsedWords = normParsed.split(' ').filter(w => w.length > 1);
+  const propertyWords = normProperty.split(' ').filter(w => w.length > 1);
+  
+  if (parsedWords.length === 0 || propertyWords.length === 0) return false;
+  
+  // Check how many of the parsed location's words are in the property location
+  const matchCount = parsedWords.filter(w => propertyWords.includes(w)).length;
+  
+  // If the parsed location is longer (e.g. "Surya City Phase 2" has 4 words),
+  // we require at least 75% of its words to be present in the property location.
+  // If it's a short location (1 or 2 words), we require all of them to be present.
+  const threshold = parsedWords.length <= 2 ? parsedWords.length : Math.ceil(parsedWords.length * 0.75);
+  
+  return matchCount >= threshold;
+}
+
 export function checkIsNonLeadEmail(subject: string, sender: string): boolean {
   // System/notification emails
   if (/^noreply@|^no-reply@|^donotreply@|^mailer-daemon@/i.test(sender)) {
@@ -511,9 +557,7 @@ export async function POST(request: Request) {
 
             // Match by location (fuzzy match) — highest weight
             if (parsed.propertyLocation && p.location) {
-              const locLower = parsed.propertyLocation.toLowerCase();
-              const pLocLower = p.location.toLowerCase();
-              if (pLocLower.includes(locLower) || locLower.includes(pLocLower)) {
+              if (checkLocationMatch(parsed.propertyLocation, p.location)) {
                 matchScore += 3;
               }
             }
