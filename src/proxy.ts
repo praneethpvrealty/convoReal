@@ -70,6 +70,14 @@ export async function proxy(request: NextRequest) {
       error.message?.includes('Refresh Token Not Found') ||
       error.message?.includes('Invalid Refresh Token'))
   ) {
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      console.warn('[proxy] stale refresh token detected on API route — returning 401 without clearing cookies')
+      return NextResponse.json(
+        { error: 'Unauthorized', code: 'stale_session' },
+        { status: 401 }
+      )
+    }
+
     console.warn('[proxy] stale refresh token detected — clearing cookies and redirecting to /login')
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'

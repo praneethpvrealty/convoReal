@@ -27,9 +27,12 @@ export async function getOrCreateWallet(
   // bootstrap must run as service-role to bypass RLS on credit_wallets.
   // Callers therefore must only pass a server-trusted accountId, never
   // user-supplied input, since RLS no longer scopes this to one account.
-  _client?: SupabaseClient,
+  client?: SupabaseClient,
 ): Promise<CreditWallet> {
   const supabase = billingAdmin();
+  if (client) {
+    // Suppress lint warning for unused parameter while preserving signature compatibility
+  }
 
   const { data: existing, error: fetchErr } = await supabase
     .from('credit_wallets')
