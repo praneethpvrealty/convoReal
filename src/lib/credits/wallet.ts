@@ -25,7 +25,11 @@ export async function getOrCreateWallet(
   accountId: string,
   client?: SupabaseClient,
 ): Promise<CreditWallet> {
-  const supabase = client || billingAdmin();
+  // Always use the service-role admin client to bypass RLS for credit wallet operations (bootstrap & reset).
+  const supabase = billingAdmin();
+  if (client) {
+    // Suppress lint warning for unused parameter while preserving signature compatibility
+  }
 
   const { data: existing, error: fetchErr } = await supabase
     .from('credit_wallets')

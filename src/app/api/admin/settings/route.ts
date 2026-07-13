@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/flows/admin-client';
 
 export async function GET() {
   try {
@@ -25,8 +26,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Caller is a verified super_admin. Cross-tenant reads below use the
+    // service-role client so RLS (which scopes accounts/profiles/etc. to
+    // the caller's own account) doesn't silently hide other tenants.
+    const admin = supabaseAdmin();
+
     // 1. Fetch system settings
-    const { data: settings, error: settingsError } = await supabase
+    const { data: settings, error: settingsError } = await admin
       .from('system_settings')
       .select('*');
 
@@ -41,20 +47,20 @@ export async function GET() {
     });
 
     // 2. Fetch overview metrics
-    const { count: usersCount } = await supabase
+    const { count: usersCount } = await admin
       .from('profiles')
       .select('*', { count: 'exact', head: true });
 
-    const { count: orgsCount } = await supabase
+    const { count: orgsCount } = await admin
       .from('accounts')
       .select('*', { count: 'exact', head: true });
 
     // 3. Fetch all active WhatsApp configurations with owner detail
-    const { data: configs } = await supabase
+    const { data: configs } = await admin
       .from('whatsapp_config')
       .select('account_id, phone_number_id, status, integration_type');
 
-    const { data: profiles } = await supabase
+    const { data: profiles } = await admin
       .from('profiles')
       .select('account_id, full_name, email')
       .eq('account_role', 'owner');
@@ -69,14 +75,14 @@ export async function GET() {
     }) || [];
 
     // 4. Fetch list of all organizations/accounts
-    const { data: accounts } = await supabase
+    const { data: accounts } = await admin
       .from('accounts')
       .select('id, name, created_at, status, archived_at')
       .order('created_at', { ascending: false });
 
     // Plan per account — accounts without a subscriptions row are
     // 'starter' (same default the account_plan_limits view applies).
-    const { data: subscriptions } = await supabase
+    const { data: subscriptions } = await admin
       .from('subscriptions')
       .select('account_id, plan');
 
@@ -130,11 +136,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Verified super_admin; write system settings with the service-role
+    // client (system_settings RLS is not scoped to this admin's account).
+    const admin = supabaseAdmin();
+
     const body = await request.json();
     const { fallback_whatsapp_account_id, feature_toggles } = body;
 
     if (fallback_whatsapp_account_id !== undefined) {
-      const { error: err } = await supabase
+      const { error: err } = await admin
         .from('system_settings')
         .upsert({
           key: 'fallback_whatsapp_account_id',
@@ -145,7 +155,7 @@ export async function POST(request: Request) {
     }
 
     if (feature_toggles !== undefined) {
-      const { error: err } = await supabase
+      const { error: err } = await admin
         .from('system_settings')
         .upsert({
           key: 'feature_toggles',
