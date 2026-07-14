@@ -8,8 +8,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 let browserClient: SupabaseClient | undefined
 
 // How long to wait for the cross-tab auth Web Lock before giving up and
-// running the operation lock-less.
-const LOCK_ACQUIRE_TIMEOUT_MS = 5_000
+// running the operation lock-less. Must stay BELOW the AuthProvider's 3s
+// getSession safety timer — the fallback has to deliver the session
+// before that timer gives up with user=null and the shell redirects.
+const LOCK_ACQUIRE_TIMEOUT_MS = 2_000
 
 /**
  * navigatorLock wrapper that can never wedge the app.
@@ -38,7 +40,13 @@ async function resilientNavigatorLock<R>(
   fn: () => Promise<R>,
 ): Promise<R> {
   if (acquireTimeout === 0) return navigatorLock(name, 0, fn)
-  const waitMs = acquireTimeout < 0 ? LOCK_ACQUIRE_TIMEOUT_MS : acquireTimeout
+  // Cap even caller-specified waits (auth-js defaults to 5000ms) — the
+  // fallback path makes a longer wait pointless, and the shorter wait is
+  // what keeps us ahead of the AuthProvider safety timer.
+  const waitMs =
+    acquireTimeout < 0
+      ? LOCK_ACQUIRE_TIMEOUT_MS
+      : Math.min(acquireTimeout, LOCK_ACQUIRE_TIMEOUT_MS)
   try {
     return await navigatorLock(name, waitMs, fn)
   } catch (err) {
