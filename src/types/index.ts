@@ -113,6 +113,10 @@ export interface Contact {
   phone: string;
   secondary_phones?: string[];
   name?: string;
+  /** Name Tag — short internal qualifier shown after the name in the CRM
+   *  (e.g. "Bank DSA"). Never included in outbound messages, which use
+   *  `name` only (migration 122). */
+  name_tag?: string | null;
   email?: string;
   company?: string;
   classification?: 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others';

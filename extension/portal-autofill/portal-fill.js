@@ -81,7 +81,12 @@
     return rect.width > 40 && rect.height > 10;
   }
 
-  function autofill(fields) {
+  function flashOutline(el) {
+    el.style.outline = '2px solid #10b981';
+    setTimeout(() => { el.style.outline = ''; }, 3000);
+  }
+
+  function fillTextFields(fields) {
     const candidates = [...document.querySelectorAll('input, textarea')].filter(isFillable);
     const used = new Set();
     let filled = 0;
@@ -89,10 +94,11 @@
     for (const field of fields) {
       const hints = FIELD_HINTS[field.label];
       if (!hints) continue;
+      const value = NUMERIC_FIELDS.has(field.label) ? numericValue(field.label, field.value) : field.value;
       let best = null;
       let bestScore = 0;
       for (const el of candidates) {
-        if (used.has(el)) continue;
+        if (used.has(el) || el.value === value) continue;
         const ctx = contextText(el);
         if (!ctx) continue;
         let score = 0;
@@ -106,12 +112,10 @@
         }
       }
       if (best && bestScore > 0) {
-        const value = NUMERIC_FIELDS.has(field.label) ? numericValue(field.label, field.value) : field.value;
         try {
           nativeSet(best, value);
           used.add(best);
-          best.style.outline = '2px solid #10b981';
-          setTimeout(() => { best.style.outline = ''; }, 3000);
+          flashOutline(best);
           filled++;
         } catch {
           // Portal blocked the write — the copy button still covers it.
@@ -119,6 +123,110 @@
       }
     }
     return filled;
+  }
+
+  // ── Choice chips / radios ─────────────────────────────────────
+  // Portal wizards front-load selections (Sell vs Rent, Residential
+  // vs Commercial, "Plot / Land" chips). Map our field values to the
+  // chip texts the portals use and click exact matches — never inside
+  // links/nav (a nav "Sell" would navigate away), never our own panel.
+
+  function normalizedText(t) {
+    return (t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function choiceTargets(fields) {
+    const get = (label) => fields.find((f) => f.label === label)?.value || '';
+    const targets = [];
+
+    const listingFor = get('Listing For');
+    if (listingFor) {
+      targets.push({
+        synonyms: listingFor.startsWith('Rent') ? ['rent / lease', 'rent/lease', 'rent'] : ['sell', 'sale', 'resale'],
+      });
+    }
+
+    const type = normalizedText(get('Property Type'));
+    if (type) {
+      const commercial = /commercial|office|shop|showroom|industrial|warehouse|godown/.test(type);
+      targets.push({ synonyms: [commercial ? 'commercial' : 'residential'] });
+
+      const sub = [];
+      if (/plot|land/.test(type)) sub.push('plot / land', 'plot/land', 'plot', 'land');
+      if (/apartment|flat/.test(type) && !/studio|1 rk/.test(type)) sub.push('flat/apartment', 'flat / apartment', 'apartment', 'flat');
+      if (/villa|independent house/.test(type)) sub.push('independent house / villa', 'villa', 'independent house');
+      if (/builder floor/.test(type)) sub.push('independent / builder floor', 'builder floor');
+      if (/studio|1 rk/.test(type)) sub.push('1 rk/ studio apartment', 'studio apartment');
+      if (/office/.test(type)) sub.push('office', 'office space');
+      if (/shop|showroom|retail/.test(type)) sub.push('shop', 'showroom', 'retail');
+      if (/warehouse|godown/.test(type)) sub.push('warehouse / godown', 'warehouse');
+      if (/farm/.test(type)) sub.push('farmhouse', 'farm house');
+      if (/pg|hostel/.test(type)) sub.push('pg');
+      if (sub.length > 0) targets.push({ synonyms: sub });
+    }
+
+    const beds = get('Bedrooms');
+    if (beds) targets.push({ synonyms: [`${beds} bhk`, `${beds}bhk`, beds], scope: /bedroom|bhk/ });
+    const baths = get('Bathrooms');
+    if (baths) targets.push({ synonyms: [baths], scope: /bathroom|bath/ });
+    const facing = normalizedText(get('Facing'));
+    if (facing) targets.push({ synonyms: [facing], scope: /facing/ });
+
+    return targets;
+  }
+
+  function clickChoice(target) {
+    const clickables = [...document.querySelectorAll('button, label, li, span, div, [role="radio"], [role="button"], [role="tab"]')]
+      .filter((el) => {
+        if (el.closest(`#${PANEL_ID}, a[href], nav, header, footer`)) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 20 && rect.height > 14 && rect.width < 420 && rect.height < 90;
+      });
+
+    for (const syn of target.synonyms) {
+      const matches = clickables
+        .filter((el) => normalizedText(el.textContent) === syn && el.childElementCount <= 2)
+        .filter((el) => {
+          if (!target.scope) return true;
+          // Numeric/direction chips are ambiguous ("3", "east") — only
+          // click them inside a section that mentions the field.
+          let node = el.parentElement;
+          for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
+            if (target.scope.test(normalizedText(node.textContent).slice(0, 300))) return true;
+          }
+          return false;
+        })
+        .sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width);
+
+      if (matches.length > 0) {
+        const el = matches[0];
+        try {
+          el.click();
+          flashOutline(el);
+          return true;
+        } catch {
+          // Ignore and try the next synonym.
+        }
+      }
+    }
+    return false;
+  }
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function autofill(fields) {
+    let done = fillTextFields(fields);
+    // Chips first-to-last: each click can reveal the next section, so
+    // pause briefly and re-scan between clicks, then run a second text
+    // pass over whatever the selections revealed.
+    for (const target of choiceTargets(fields)) {
+      if (clickChoice(target)) {
+        done++;
+        await sleep(450);
+      }
+    }
+    done += fillTextFields(fields);
+    return done;
   }
 
   function copyText(text, btn) {
@@ -170,9 +278,15 @@
         'flex:1;background:#7c3aed;border:none;border-radius:8px;color:#fff;font-weight:700;padding:8px;cursor:pointer;font-size:12px',
         'Autofill this page');
       const status = el('span', 'align-self:center;color:#94a3b8;white-space:nowrap');
-      fillBtn.addEventListener('click', () => {
-        const n = autofill(fields);
-        status.textContent = n > 0 ? `${n} filled ✓` : 'No matches on this step';
+      fillBtn.addEventListener('click', async () => {
+        fillBtn.disabled = true;
+        status.textContent = 'Filling…';
+        try {
+          const n = await autofill(fields);
+          status.textContent = n > 0 ? `${n} filled ✓` : 'No matches on this step';
+        } finally {
+          fillBtn.disabled = false;
+        }
       });
       actions.appendChild(fillBtn);
       actions.appendChild(status);
@@ -202,7 +316,7 @@
       body.appendChild(list);
 
       body.appendChild(el('div', 'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
-        'Autofill covers text fields; pick dropdowns manually, then review before submitting.'));
+        'Autofill fills text fields and selects matching chips (Sell, property type, BHK). Re-run it on each wizard step, fix anything it missed, review, then submit.'));
     }
 
     let collapsed = false;

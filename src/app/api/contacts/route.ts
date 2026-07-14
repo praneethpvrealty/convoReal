@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     }
 
     const {
-      name, phone, secondary_phones, email, company, classification, lead_temp,
+      name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest,
       property_interests, min_roi, source, dob, feedback_status,
@@ -47,6 +47,7 @@ export async function POST(request: Request) {
       user_id: ctx.userId,
       account_id: ctx.accountId,
       name: typeof name === 'string' ? name.trim() || null : null,
+      name_tag: typeof name_tag === 'string' ? name_tag.trim() || null : null,
       phone: phone.trim(),
       secondary_phones: Array.isArray(secondary_phones)
         ? secondary_phones.filter((p: unknown) => typeof p === 'string' && p.trim().length > 0).map((p: string) => p.trim())

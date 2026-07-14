@@ -123,6 +123,7 @@ export function ContactDetailView({
 
   // Details tab
   const [editName, setEditName] = useState('');
+  const [editNameTag, setEditNameTag] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editSecondaryPhones, setEditSecondaryPhones] = useState<string[]>([]);
   const [editEmail, setEditEmail] = useState('');
@@ -261,6 +262,7 @@ export function ContactDetailView({
     if (data) {
       setContact(data);
       setEditName(data.name ?? '');
+      setEditNameTag(data.name_tag ?? '');
       setEditPhone(data.phone);
       setEditSecondaryPhones(data.secondary_phones ?? []);
       setEditEmail(data.email ?? '');
@@ -992,6 +994,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       .from('contacts')
       .update({
         name: editName.trim() || null,
+        name_tag: editNameTag.trim() || null,
         phone: normalizedPrimary,
         secondary_phones: normalizedSecondary,
         email: editEmail.trim() || null,
@@ -1378,6 +1381,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 <div className="flex-1 min-w-0">
                   <SheetTitle className="text-white truncate">
                     {contact.name || 'Unknown'}
+                    {contact.name_tag && (
+                      <span
+                        className="ml-2 inline-flex items-center align-middle bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
+                        title="Name Tag — internal label, not sent in messages"
+                      >
+                        {contact.name_tag}
+                      </span>
+                    )}
                   </SheetTitle>
                   <SheetDescription className="text-slate-400 text-xs mt-0.5">
                     Contact details
@@ -1561,13 +1572,27 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               {/* Details Tab */}
               <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-slate-400 text-xs">Name</Label>
-                    <Input
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
-                    />
+                  <div className="grid grid-cols-5 gap-2">
+                    <div className="space-y-1.5 col-span-3">
+                      <Label className="text-slate-400 text-xs">Name</Label>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5 col-span-2">
+                      <Label className="text-slate-400 text-xs">Name Tag</Label>
+                      <Input
+                        value={editNameTag}
+                        onChange={(e) => setEditNameTag(e.target.value)}
+                        placeholder="Bank DSA"
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-600"
+                      />
+                    </div>
+                    <p className="col-span-5 -mt-0.5 text-[10px] text-slate-500">
+                      Name Tag shows only inside the CRM — messages always use the Name alone.
+                    </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-slate-400 text-xs">

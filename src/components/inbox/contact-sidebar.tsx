@@ -262,6 +262,14 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
             </div>
             <h3 className="mt-3 text-sm font-semibold text-white">
               {displayName}
+              {contact.name_tag && (
+                <span
+                  className="ml-1.5 inline-flex items-center align-middle bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
+                  title="Name Tag — internal label, not sent in messages"
+                >
+                  {contact.name_tag}
+                </span>
+              )}
             </h3>
             {contact.company && (
               <p className="text-xs text-slate-400">{contact.company}</p>

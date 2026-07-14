@@ -601,7 +601,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       let query = supabaseClient
         .from('contacts')
         .select(
-          'id, user_id, name, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, min_roi, source, status, created_at, updated_at',
+          'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, min_roi, source, status, created_at, updated_at',
           { count: 'exact' },
         )
         .eq('account_id', accountId);
@@ -845,7 +845,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               : [];
             const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
 
-            let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+            let orFilter = `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
             if (cleanSearch) {
               orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
             }
@@ -869,7 +869,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             : [];
           const safeNoteIds = noteContactIds.slice(0, 150);
 
-          let orFilter = `name.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+          let orFilter = `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
           if (cleanSearch) {
             orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
           }
@@ -1769,6 +1769,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{contact.name || <span className="text-slate-500 italic text-xs">Unnamed</span>}</span>
+                        {contact.name_tag && (
+                          <span
+                            className="inline-flex items-center bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
+                            title="Name Tag — internal label, not sent in messages"
+                          >
+                            {contact.name_tag}
+                          </span>
+                        )}
                         {contact.tags?.some((t) => t.name.toUpperCase() === 'VIP') && (
                           <span className="inline-flex items-center gap-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider select-none">
                             ⭐ VIP

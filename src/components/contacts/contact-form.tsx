@@ -73,6 +73,7 @@ export function ContactForm({
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
+  const [nameTag, setNameTag] = useState('');
   const [phone, setPhone] = useState('');
   const [secondaryPhones, setSecondaryPhones] = useState<string[]>([]);
   const [email, setEmail] = useState('');
@@ -184,6 +185,7 @@ export function ContactForm({
   useEffect(() => {
     if (open) {
       setName(contact?.name ?? '');
+      setNameTag(contact?.name_tag ?? '');
       setPhone(contact?.phone ?? '');
       setSecondaryPhones(contact?.secondary_phones ?? []);
       setEmail(contact?.email ?? '');
@@ -354,6 +356,7 @@ export function ContactForm({
 
       const payload = {
         name: name.trim() || null,
+        name_tag: nameTag.trim() || null,
         phone: normalizedPrimary,
         secondary_phones: normalizedSecondary,
         email: email.trim() || null,
@@ -421,17 +424,35 @@ export function ContactForm({
 
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="cf-name" className="text-slate-300">
-              Name
-            </Label>
-            <Input
-              id="cf-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-            />
+          <div className="grid grid-cols-5 gap-3">
+            <div className="space-y-2 col-span-3">
+              <Label htmlFor="cf-name" className="text-slate-300">
+                Name
+              </Label>
+              <Input
+                id="cf-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="cf-name-tag" className="text-slate-300">
+                Name Tag
+              </Label>
+              <Input
+                id="cf-name-tag"
+                value={nameTag}
+                onChange={(e) => setNameTag(e.target.value)}
+                placeholder="Bank DSA"
+                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <p className="col-span-5 -mt-1 text-xs text-slate-500">
+              Name Tag is a quick-recall label shown only inside the CRM — WhatsApp
+              templates and other messages use the Name alone.
+            </p>
           </div>
 
           <div className="space-y-2">
