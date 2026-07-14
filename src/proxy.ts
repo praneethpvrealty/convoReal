@@ -47,12 +47,20 @@ export async function proxy(request: NextRequest) {
 
   // Race getUser against a 4-second timeout to prevent Supabase outages from freezing page load
   const getUserPromise = supabase.auth.getUser()
-  const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((_, reject) =>
-    setTimeout(() => reject(new Error('Supabase request timed out')), 4000)
-  )
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+  const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error('Supabase request timed out')), 4000)
+  })
 
+  // A thrown/timed-out getUser means auth is UNAVAILABLE, not that the
+  // caller is signed out. Those are handled differently below: definitive
+  // "no user" answers gate as usual, while infrastructure failures fail
+  // open — every API route re-checks auth itself and RLS scopes all data,
+  // so failing open never exposes anything; failing closed would kick
+  // validly-signed-in users to /login on every Supabase latency blip.
   let data = null
   let error: Error | null = null
+  let authUnavailable = false
   try {
     const res = await Promise.race([getUserPromise, timeoutPromise])
     data = res.data
@@ -60,6 +68,9 @@ export async function proxy(request: NextRequest) {
   } catch (err) {
     console.error('[proxy] getUser failed or timed out:', err)
     error = err instanceof Error ? err : new Error(String(err))
+    authUnavailable = true
+  } finally {
+    clearTimeout(timeoutHandle)
   }
 
   const user = data?.user ?? null
@@ -115,16 +126,21 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Protected pages - redirect to login if not authenticated
+  // Protected pages - redirect to login if not authenticated. Skipped
+  // when auth was unavailable (timeout/network): the dashboard shell
+  // client-side redirects genuinely signed-out users, so a Supabase
+  // blip doesn't bounce a valid session to /login.
   const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings']
-  if (!user && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
+  if (!user && !authUnavailable && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // API routes that need auth (not webhooks)
-  if (!user && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
+  // API routes that need auth (not webhooks). Also fails open when auth
+  // was unavailable — every route handler calls getUser()/requireRole
+  // itself, so this gate is an early-exit optimisation, not the boundary.
+  if (!user && !authUnavailable && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
