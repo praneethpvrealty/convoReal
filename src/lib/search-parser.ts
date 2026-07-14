@@ -179,6 +179,22 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     }
   }
 
+  if (minArea === null && maxArea === null) {
+    // Natural language bounds, mirroring the price keywords above:
+    // "above 30000 sqft", "under 2 acres", "at least 5 guntas"
+    const areaUnit = '(sq\\.?\\s*(?:ft|feet|meter|mtr|m)|sqft|sqm|acres?|guntas?|grounds?|cents?)';
+    const maxAreaKeyword = new RegExp(
+      `(?:under|below|less\\s+than|max(?:imum)?|upto?|up\\s+to|within)\\s+(\\d+(?:\\.\\d+)?)\\s*${areaUnit}\\b`, 'gi');
+    const minAreaKeyword = new RegExp(
+      `(?:above|over|more\\s+than|greater\\s+than|min(?:imum)?|at\\s+least|starting\\s+(?:from|at)|from)\\s+(\\d+(?:\\.\\d+)?)\\s*${areaUnit}\\b`, 'gi');
+
+    let am = maxAreaKeyword.exec(q);
+    if (am) { maxArea = parseAreaUnit(parseFloat(am[1]), am[2]); q = q.replace(am[0], ' '); }
+
+    am = minAreaKeyword.exec(q);
+    if (am) { minArea = parseAreaUnit(parseFloat(am[1]), am[2]); q = q.replace(am[0], ' '); }
+  }
+
   // ── Property type detection ───────────────────────────────────────────────
 
   const types: string[] = [];
@@ -263,12 +279,15 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   // Strip bedroom words
   remaining = remaining.replace(/\b\d+\s*(?:-\s*)?(?:bhk|bedrooms?|bed)\b/gi, '');
 
-  // Strip filler words
+  // Strip filler words. 'vacant'/'empty'/'open' are land adjectives that
+  // carry no filterable meaning ("vacant land" IS land) — left in place
+  // they'd AND a text match that no listing contains and zero the results.
   const FILLERS = ['properties','property','listing','listings','with','having',
     'price','cost','budget','rate','value','area','size','sqft','sq ft',
     'from','to','range','between','and','in','at','for','near','around','about',
-    'approx','under','above','below','more','less','than','the','a','an',
-    'all','any','some','give','show','find','search','get','list','want'];
+    'approx','under','above','below','over','more','less','than','the','a','an',
+    'all','any','some','give','show','find','search','get','list','want',
+    'vacant','empty','open'];
   FILLERS.sort((a, b) => b.length - a.length);
   FILLERS.forEach(f => {
     remaining = remaining.replace(new RegExp(`\\b${f}\\b`, 'gi'), '');

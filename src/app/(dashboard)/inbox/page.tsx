@@ -644,10 +644,16 @@ export default function InboxPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left panel: Conversation list.
             Hidden on mobile when a conversation is selected so the
-            thread can occupy the full width. Always visible on lg+. */}
+            thread can occupy the full width. Always visible on lg+.
+
+            `min-w-0` is load-bearing on mobile/tablet (same as the
+            thread pane below): the pane is flex-1 there, and without
+            it the nowrap preview text sets the pane's intrinsic
+            min-width — truncate never engages and the whole list
+            renders wider than the viewport. */}
         <div
           className={cn(
-            "flex h-full flex-1 lg:flex-none",
+            "flex h-full min-w-0 flex-1 lg:flex-none",
             hasActiveConv ? "hidden lg:flex" : "flex",
           )}
         >

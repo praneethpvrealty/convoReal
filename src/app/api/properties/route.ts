@@ -25,6 +25,34 @@ function sanitizeLocalityLabel(label: string): string {
   return label.split(",")[0].replace(/[(),.]/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/** land_area_unit values (property-form AREA_UNITS) → sqft factor,
+ *  matching the conversions in search-parser.ts. */
+const LAND_UNIT_TO_SQFT: Record<string, number> = {
+  "Sq.Ft.": 1,
+  "Sq.Mtr.": 10.764,
+  "Acre": 43_560,
+  "Gunta": 1_089,
+  "Cent": 435.6,
+  "Ground": 2_400,
+};
+
+/**
+ * Area bound as a PostgREST .or() expression. Land/JV listings store
+ * their size in land_area + land_area_unit (area_sqft is often NULL for
+ * them), so comparing area_sqft alone silently drops every plot from
+ * "> 30000 sqft" searches. Units are heterogeneous per row, so the
+ * sqft threshold is pre-converted into each known unit and paired with
+ * an exact unit match.
+ */
+function areaFilter(op: "gte" | "lte", sqft: number): string {
+  const branches = [`area_sqft.${op}.${sqft}`];
+  for (const [unit, factor] of Object.entries(LAND_UNIT_TO_SQFT)) {
+    const threshold = +(sqft / factor).toFixed(4);
+    branches.push(`and(land_area_unit.eq."${unit}",land_area.${op}.${threshold})`);
+  }
+  return branches.join(",");
+}
+
 // GET /api/properties
 // Lists properties for the user's account with pagination and filtering
 export async function GET(request: Request) {
@@ -77,8 +105,8 @@ export async function GET(request: Request) {
 
         if (parsed.minPrice !== null) query = query.gte("price", parsed.minPrice);
         if (parsed.maxPrice !== null) query = query.lte("price", parsed.maxPrice);
-        if (parsed.minArea !== null) query = query.gte("area_sqft", parsed.minArea);
-        if (parsed.maxArea !== null) query = query.lte("area_sqft", parsed.maxArea);
+        if (parsed.minArea !== null) query = query.or(areaFilter("gte", parsed.minArea));
+        if (parsed.maxArea !== null) query = query.or(areaFilter("lte", parsed.maxArea));
         if (parsed.bedrooms !== null) query = query.eq("bedrooms", parsed.bedrooms);
 
         // Apply listing type (rent vs sale) from NL query — only if the
