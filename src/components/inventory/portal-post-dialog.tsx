@@ -74,6 +74,10 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
   const [showMarkForm, setShowMarkForm] = useState(false);
   const [formUrl, setFormUrl] = useState('');
   const [formExpiry, setFormExpiry] = useState(defaultExpiryDate());
+  // Chrome-extension bridge (extension/portal-autofill): detected via a
+  // ping/pong handshake over window.postMessage; "Send to Extension"
+  // hands the listing payload to the portal-side autofill panel.
+  const [extensionDetected, setExtensionDetected] = useState(false);
 
   const fetchListings = useCallback(async () => {
     if (!property || !accountId) return;
@@ -104,6 +108,41 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
       fetchListings();
     }
   }, [open, fetchListings]);
+
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; propertyTitle?: string } | null;
+      if (data?.type === 'CONVOREAL_PORTAL_EXT_PONG') {
+        setExtensionDetected(true);
+      } else if (data?.type === 'CONVOREAL_PORTAL_PAYLOAD_SAVED') {
+        toast.success('Sent to the extension — open the portal tab and use the Autofill panel.');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    window.postMessage({ type: 'CONVOREAL_PORTAL_EXT_PING' }, window.location.origin);
+    return () => window.removeEventListener('message', onMessage);
+  }, [open]);
+
+  const sendToExtension = () => {
+    if (!property) return;
+    const portals = Object.fromEntries(
+      PORTAL_KEYS.map((key) => [key, buildPortalFields(property, key, currency)])
+    );
+    window.postMessage(
+      {
+        type: 'CONVOREAL_PORTAL_PAYLOAD',
+        payload: {
+          propertyId: property.id,
+          title: property.title,
+          portals,
+          photos: (property.images || []).filter((img) => img.trim().length > 0),
+        },
+      },
+      window.location.origin
+    );
+  };
 
   const activeListing = listings.find((l) => l.portal === activePortal && l.status === 'active') || null;
   const meta = PORTALS[activePortal];
@@ -320,6 +359,38 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
             </div>
           </div>
         )}
+
+        {/* Browser-extension autofill */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+          <div className="flex items-center gap-2 text-xs text-slate-400 min-w-0">
+            <span
+              className={cn(
+                'h-2 w-2 rounded-full shrink-0',
+                extensionDetected ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]' : 'bg-slate-600'
+              )}
+            />
+            {extensionDetected ? (
+              <span>
+                Autofill extension detected — send this listing, then click <strong className="text-slate-200">Autofill</strong> in
+                the floating panel on the portal page.
+              </span>
+            ) : (
+              <span>
+                Autofill extension not detected. Install once from{' '}
+                <code className="text-slate-300 bg-slate-900 px-1 rounded">extension/portal-autofill</code> (chrome://extensions →
+                Load unpacked) to fill portal forms in one click.
+              </span>
+            )}
+          </div>
+          <Button
+            disabled={!extensionDetected}
+            onClick={sendToExtension}
+            className="h-7 bg-violet-600 hover:bg-violet-700 text-white text-xs px-3 flex items-center gap-1 shrink-0 disabled:opacity-40"
+          >
+            <Globe className="size-3" />
+            Send to Extension
+          </Button>
+        </div>
 
         {/* Mark-as-posted form */}
         {showMarkForm && (

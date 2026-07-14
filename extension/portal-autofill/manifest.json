@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "ConvoReal Portal Autofill",
+  "version": "1.0.0",
+  "description": "Fills 99acres / MagicBricks / Housing post-property forms with listing data sent from your ConvoReal CRM. Runs on your own logged-in portal session — no credentials stored.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost:3000/*",
+        "https://convoreal.com/*",
+        "https://www.convoreal.com/*"
+      ],
+      "js": ["crm-bridge.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://*.99acres.com/*",
+        "https://*.magicbricks.com/*",
+        "https://*.housing.com/*"
+      ],
+      "js": ["portal-fill.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
