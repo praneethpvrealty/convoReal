@@ -152,9 +152,14 @@ export async function parseEventFromInput(input: EventParseInput): Promise<Parse
     throw new Error('parseEventFromInput requires text or audio');
   }
 
+  // Typed text is a simple extraction — lite tier. Voice notes need
+  // transcription quality, so they stay on the standard tier.
   const raw = await generateJsonFromParts(
     parts,
-    buildSystemPrompt(input.now || new Date(), input.memberNames || [])
+    buildSystemPrompt(input.now || new Date(), input.memberNames || []),
+    input.audio
+      ? { feature: 'voice_event_parse' }
+      : { tier: 'lite', feature: 'event_parse' }
   );
 
   let parsed: unknown;

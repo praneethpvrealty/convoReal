@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
     // 6. AI answer grounded in the listing.
     try {
       const prompt = `Property details:\n${buildPropertyContext(property)}\n\nBuyer's question: ${question}\n\nAnswer:`;
-      const raw = await generateText(prompt, PROPERTY_QA_SYSTEM_PROMPT);
+      const raw = await generateText(prompt, PROPERTY_QA_SYSTEM_PROMPT, { feature: 'public_ask' });
       const answer = (raw || '').trim();
       if (!answer) {
         return NextResponse.json({ answer: null, escalate_whatsapp: true, message: HANDOFF_MESSAGE });

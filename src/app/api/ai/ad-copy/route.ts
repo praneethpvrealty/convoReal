@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     let raw: string;
     try {
-      raw = await generateText(buildAdCopyPrompt(property), AD_COPY_SYSTEM_PROMPT);
+      raw = await generateText(buildAdCopyPrompt(property), AD_COPY_SYSTEM_PROMPT, { feature: 'ad_copy' });
     } catch (apiErr) {
       await refundCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
       throw apiErr;

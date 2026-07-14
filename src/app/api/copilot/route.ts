@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
       ? `${transcript}\nUser: ${message}`
       : `User: ${message}`;
 
-    const raw = await generateJson(prompt, buildCopilotSystemPrompt(pathname));
+    const raw = await generateJson(prompt, buildCopilotSystemPrompt(pathname), { feature: 'copilot' });
     const parsed = parseModelJson(raw);
 
     const reply =

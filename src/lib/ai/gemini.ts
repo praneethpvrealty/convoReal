@@ -1,5 +1,6 @@
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { PROPERTY_TYPE_VALUES, normalizePropertyType } from '@/lib/property-types';
+import { logAiCall } from '@/lib/ai/call-log';
 
 export { PROPERTY_TYPE_VALUES, normalizePropertyType };
 
@@ -8,9 +9,26 @@ export { PROPERTY_TYPE_VALUES, normalizePropertyType };
  * Uses the Generative Language REST API directly to avoid additional SDK dependencies.
  */
 
-// Define models to try. We prioritize the latest Gemini 2.5 Flash,
-// but fall back to the extremely stable Gemini 1.5 Flash if needed.
-const MODELS = ["gemini-2.5-flash", "gemini-1.5-flash"];
+// Model tiers with failover chains. 'standard' (default) is full Flash for
+// generation, extraction, and vision; 'lite' fronts Flash-Lite for cheap
+// high-volume tasks (classification, simple text parses) and falls back UP
+// to full Flash on transient errors, so quality is the floor, not the
+// ceiling. All four names live-verified against our API key on 2026-07-14 —
+// the old gemini-1.5-flash fallback had been retired by Google (and
+// gemini-2.5-flash-lite is gated off for newer keys); a dead fallback fails
+// exactly when the primary is down.
+export type GeminiTier = 'standard' | 'lite';
+const MODEL_CHAINS: Record<GeminiTier, string[]> = {
+  standard: ["gemini-2.5-flash", "gemini-3.5-flash"],
+  lite: ["gemini-3.1-flash-lite", "gemini-2.5-flash"],
+};
+
+export interface GeminiCallOpts {
+  /** Model tier — use 'lite' for cheap high-volume calls. Default 'standard'. */
+  tier?: GeminiTier;
+  /** Feature key for the ai_call_log (e.g. 'contact_parse'). Optional. */
+  feature?: string;
+}
 
 interface GeminiPart {
   text?: string;
@@ -40,16 +58,29 @@ interface GeneratePayload {
 async function generateContentRaw(
   contents: GeminiContent[],
   systemInstructionText?: string,
-  jsonMode: boolean = false
+  jsonMode: boolean = false,
+  opts: GeminiCallOpts = {}
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not configured. Please add it to your .env.local file.");
   }
 
+  const tier: GeminiTier = opts.tier ?? 'standard';
+  const models = MODEL_CHAINS[tier];
+
+  // Telemetry inputs (see ai_call_log, migration 123). Media parts are
+  // counted as a flag only — never previewed or sized.
+  const inputText = contents
+    .flatMap((c) => c.parts)
+    .map((p) => p.text || '')
+    .join('\n');
+  const hasMedia = contents.some((c) => c.parts.some((p) => p.inlineData));
+  const startedAt = Date.now();
+
   let lastError: Error | null = null;
 
-  for (const model of MODELS) {
+  for (const model of models) {
     try {
       console.log(`[Gemini AI] Attempting generation using model: ${model}`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -90,6 +121,22 @@ async function generateContentRaw(
       }
 
       console.log(`[Gemini AI] Generation succeeded with model: ${model}`);
+      logAiCall({
+        feature: opts.feature,
+        model,
+        tier,
+        success: true,
+        latencyMs: Date.now() - startedAt,
+        jsonMode,
+        hasMedia,
+        promptTokens: data.usageMetadata?.promptTokenCount ?? null,
+        responseTokens: data.usageMetadata?.candidatesTokenCount ?? null,
+        promptChars: inputText.length,
+        responseChars: text.length,
+        systemPreview: systemInstructionText,
+        inputPreview: inputText,
+        outputPreview: text,
+      });
       return text.trim();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
@@ -99,10 +146,10 @@ async function generateContentRaw(
       // If it is a transient error (rate limit, service unavailable, high demand),
       // we proceed to try the fallback model.
       const errLower = errorMessage.toLowerCase();
-      const isTransientError = 
-        errLower.includes("high demand") || 
-        errLower.includes("quota") || 
-        errLower.includes("429") || 
+      const isTransientError =
+        errLower.includes("high demand") ||
+        errLower.includes("quota") ||
+        errLower.includes("429") ||
         errLower.includes("503") ||
         errLower.includes("500") ||
         errLower.includes("502") ||
@@ -113,33 +160,60 @@ async function generateContentRaw(
         errLower.includes("deadline") ||
         errLower.includes("internal");
 
-      if (isTransientError && model !== MODELS[MODELS.length - 1]) {
+      if (isTransientError && model !== models[models.length - 1]) {
         console.log("[Gemini AI] Falling back to the next model due to transient error...");
         continue;
       }
-      
+
+      logAiCall({
+        feature: opts.feature,
+        model,
+        tier,
+        success: false,
+        errorMessage,
+        latencyMs: Date.now() - startedAt,
+        jsonMode,
+        hasMedia,
+        promptChars: inputText.length,
+        systemPreview: systemInstructionText,
+        inputPreview: inputText,
+      });
       // For non-transient errors (like invalid API keys), fail fast.
       throw err;
     }
   }
 
-  throw lastError || new Error("Failed to generate content with all available models.");
+  const chainError = lastError || new Error("Failed to generate content with all available models.");
+  logAiCall({
+    feature: opts.feature,
+    model: models[models.length - 1],
+    tier,
+    success: false,
+    errorMessage: chainError.message,
+    latencyMs: Date.now() - startedAt,
+    jsonMode,
+    hasMedia,
+    promptChars: inputText.length,
+    systemPreview: systemInstructionText,
+    inputPreview: inputText,
+  });
+  throw chainError;
 }
 
 /**
  * Standard utility to generate plain text using prompt and system instruction.
  */
-export async function generateText(prompt: string, systemInstruction?: string): Promise<string> {
+export async function generateText(prompt: string, systemInstruction?: string, opts?: GeminiCallOpts): Promise<string> {
   const contents = [{ parts: [{ text: prompt }] }];
-  return generateContentRaw(contents, systemInstruction, false);
+  return generateContentRaw(contents, systemInstruction, false, opts);
 }
 
 /**
  * Same as generateText but with JSON response mode enabled.
  */
-export async function generateJson(prompt: string, systemInstruction?: string): Promise<string> {
+export async function generateJson(prompt: string, systemInstruction?: string, opts?: GeminiCallOpts): Promise<string> {
   const contents = [{ parts: [{ text: prompt }] }];
-  return generateContentRaw(contents, systemInstruction, true);
+  return generateContentRaw(contents, systemInstruction, true, opts);
 }
 
 /**
@@ -147,8 +221,8 @@ export async function generateJson(prompt: string, systemInstruction?: string): 
  * voice-note audio buffer). Used by the calendar event parser to
  * transcribe-and-extract in a single call.
  */
-export async function generateJsonFromParts(parts: GeminiPart[], systemInstruction?: string): Promise<string> {
-  return generateContentRaw([{ parts }], systemInstruction, true);
+export async function generateJsonFromParts(parts: GeminiPart[], systemInstruction?: string, opts?: GeminiCallOpts): Promise<string> {
+  return generateContentRaw([{ parts }], systemInstruction, true, opts);
 }
 
 export type { GeminiPart };
@@ -204,9 +278,9 @@ export async function isListingMessage(text: string): Promise<boolean> {
     "Only respond with exactly 'true' or 'false'. Absolutely no markdown, no punctuation, and no other text.";
 
   const prompt = `Classify this message:\n\n"${cleanText}"`;
-  
+
   try {
-    const response = await generateText(prompt, systemInstruction);
+    const response = await generateText(prompt, systemInstruction, { tier: 'lite', feature: 'chatbot_classify' });
     return response.toLowerCase().includes("true");
   } catch (err) {
     console.error("[Gemini AI] Error in isListingMessage classification:", err);
@@ -245,7 +319,7 @@ export async function classifyImageOrText(
   const contents = [{ parts }];
 
   try {
-    const response = await generateContentRaw(contents, systemInstruction, false);
+    const response = await generateContentRaw(contents, systemInstruction, false, { tier: 'lite', feature: 'chatbot_classify' });
     const classification = response.toLowerCase().trim();
     if (classification.includes("property")) return "property";
     if (classification.includes("contact")) return "contact";
@@ -534,9 +608,9 @@ export async function parseListingFromImageOrText(
   const contents = [{ parts }];
 
   try {
-    const rawResult = await generateContentRaw(contents, systemInstruction, true);
+    const rawResult = await generateContentRaw(contents, systemInstruction, true, { feature: 'listing_parse' });
     const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedPropertyDraft>;
-    
+
     const rental_income = parsed.rental_income || null;
     let roi = null;
     if (rental_income && parsed.price) {
@@ -612,9 +686,9 @@ export async function updateListingDraft(
   const contents = [{ parts: [{ text: prompt }] }];
 
   try {
-    const rawResult = await generateContentRaw(contents, systemInstruction, true);
+    const rawResult = await generateContentRaw(contents, systemInstruction, true, { feature: 'listing_update' });
     const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedPropertyDraft>;
-    
+
     const updatedDraft = {
       ...currentDraft,
       ...parsed,
@@ -659,9 +733,9 @@ export async function isContactMessage(text: string): Promise<boolean> {
     "Only respond with exactly 'true' or 'false'. Absolutely no markdown, no punctuation, and no other text.";
 
   const prompt = `Classify this message:\n\n"${cleanText}"`;
-  
+
   try {
-    const response = await generateText(prompt, systemInstruction);
+    const response = await generateText(prompt, systemInstruction, { tier: 'lite', feature: 'chatbot_classify' });
     return response.toLowerCase().includes("true");
   } catch (err) {
     console.error("[Gemini AI] Error in isContactMessage classification:", err);
@@ -757,10 +831,10 @@ export async function parseContactFromImageOrText(
   const contents = [{ parts }];
 
   try {
-    const rawResult = await generateContentRaw(contents, systemInstruction, true);
+    const rawResult = await generateContentRaw(contents, systemInstruction, true, { feature: 'contact_parse' });
     const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedContactDraftsContainer>;
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
-    
+
     return {
       contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
         name: c.name || null,
@@ -798,10 +872,10 @@ export async function updateContactDraft(
   const contents = [{ parts: [{ text: prompt }] }];
 
   try {
-    const rawResult = await generateContentRaw(contents, systemInstruction, true);
+    const rawResult = await generateContentRaw(contents, systemInstruction, true, { feature: 'contact_update' });
     const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedContactDraftsContainer>;
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
-    
+
     return {
       contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
         name: c.name || null,

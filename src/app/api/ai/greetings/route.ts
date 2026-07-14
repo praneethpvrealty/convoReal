@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         'You are an elite, personal real estate relationship manager. Write a warm, customized personal greeting message for WhatsApp.';
       const prompt = `Write a short, engaging, and personal greeting for my client named "${contactName}" for the occasion: "${occasion}". Make it professional yet warm, and keep it under 3-4 sentences so it fits perfectly in a WhatsApp message. Do not include placeholders like [Your Name], just write the greeting itself.`;
       
-      textResult = await generateText(prompt, systemInstruction);
+      textResult = await generateText(prompt, systemInstruction, { feature: 'greetings_generate' });
 
       // 2. Generate graphic card image via Hugging Face if requested
       if (generateImage) {

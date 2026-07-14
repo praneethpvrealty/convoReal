@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
     let raw: string;
     try {
-      raw = await generateText(prompt, SHARE_EMAIL_SYSTEM_PROMPT);
+      raw = await generateText(prompt, SHARE_EMAIL_SYSTEM_PROMPT, { feature: 'share_email' });
     } catch (apiErr) {
       await refundCredits(ctx.accountId, AI_FEATURE, cost, { client: ctx.supabase });
       throw apiErr;
