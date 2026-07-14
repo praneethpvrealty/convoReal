@@ -109,15 +109,24 @@ const nextConfig: NextConfig = {
    */
   async headers() {
     return [
-      {
-        source: "/_next/static/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
+      // Immutable chunk caching is PRODUCTION-ONLY: `next build` chunk
+      // filenames are content-hashed so year-long caching is safe. In
+      // `next dev` Turbopack reuses stable chunk names across rebuilds —
+      // this header would make browsers cache dev chunks for a year and
+      // serve stale code after every edit.
+      ...(process.env.NODE_ENV === "production"
+        ? [
+            {
+              source: "/_next/static/:path*",
+              headers: [
+                {
+                  key: "Cache-Control",
+                  value: "public, max-age=31536000, immutable",
+                },
+              ],
+            },
+          ]
+        : []),
       {
         // Showcase root path (property listings).
         // The page is dynamic (reads headers + searchParams) so Next.js App

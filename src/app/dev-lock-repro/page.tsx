@@ -6,10 +6,16 @@
 
 import { useEffect } from "react";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { createClient } from "@/lib/supabase/client";
 
 declare global {
   interface Window {
-    __probe?: { warns: string[]; loadingResolvedMs?: number; t0: number };
+    __probe?: {
+      warns: string[];
+      loadingResolvedMs?: number;
+      t0: number;
+      directGetSessionMs?: number | "pending";
+    };
   }
 }
 
@@ -31,6 +37,16 @@ function Probe() {
       window.__probe.loadingResolvedMs = Math.round(performance.now() - window.__probe.t0);
     }
   }, [loading]);
+  useEffect(() => {
+    if (!window.__probe || window.__probe.directGetSessionMs !== undefined) return;
+    window.__probe.directGetSessionMs = "pending";
+    const t = performance.now();
+    void createClient()
+      .auth.getSession()
+      .then(() => {
+        window.__probe!.directGetSessionMs = Math.round(performance.now() - t);
+      });
+  }, []);
   return (
     <div className="p-8 text-white bg-slate-950 min-h-screen font-mono text-sm">
       <p data-probe="loading">loading: {String(loading)}</p>
