@@ -22,6 +22,7 @@ import {
   Users,
   LayoutGrid,
   Columns3,
+  List,
   AudioLines,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -33,6 +34,7 @@ import { FavoriteButton } from "@/components/layout/favorite-button";
 import { SmartAddBar, ConfirmedEventDraft } from "@/components/calendar/smart-add-bar";
 import { TeamView } from "@/components/calendar/team-view";
 import { WeekView } from "@/components/calendar/week-view";
+import { AgendaView } from "@/components/calendar/agenda-view";
 import {
   CalendarEvent,
   TeamMember,
@@ -80,7 +82,7 @@ interface SimpleProperty {
   sublocality: string | null;
 }
 
-type ViewMode = "month" | "week" | "team";
+type ViewMode = "month" | "week" | "team" | "agenda";
 
 export default function CalendarPage() {
   const supabase = createClient();
@@ -894,9 +896,11 @@ export default function CalendarPage() {
   }, [members]);
 
   const headerLabel =
-    view === "month"
-      ? `${monthNames[month]} ${year}`
-      : currentDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+    view === "agenda"
+      ? "All Scheduled Events"
+      : view === "month"
+        ? `${monthNames[month]} ${year}`
+        : currentDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
   return (
     <div className="space-y-6 relative overflow-hidden h-full flex flex-col">
@@ -920,7 +924,7 @@ export default function CalendarPage() {
 
       <div className="flex flex-col gap-6 lg:h-full lg:flex-row overflow-hidden flex-1">
         {/* ── Left Side: Calendar views ────────────────── */}
-        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-0">
+        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-[560px] lg:min-h-0">
           {/* Calendar Header Nav */}
           <div className="mb-4 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div className="flex items-center gap-3">
@@ -937,6 +941,7 @@ export default function CalendarPage() {
                   { key: "month", label: "Month", icon: LayoutGrid },
                   { key: "week", label: "Week", icon: Columns3 },
                   { key: "team", label: "Team", icon: Users },
+                  { key: "agenda", label: "Agenda", icon: List },
                 ] as { key: ViewMode; label: string; icon: typeof Users }[]).map((v) => (
                   <button
                     key={v.key}
@@ -952,28 +957,32 @@ export default function CalendarPage() {
                 ))}
               </div>
 
-              <button
-                onClick={handleToday}
-                className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
-              >
-                Today
-              </button>
-              <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-1">
-                <button
-                  onClick={handlePrev}
-                  aria-label="Previous"
-                  className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={handleNext}
-                  aria-label="Next"
-                  className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
+              {view !== "agenda" && (
+                <>
+                  <button
+                    onClick={handleToday}
+                    className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
+                  >
+                    Today
+                  </button>
+                  <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-1">
+                    <button
+                      onClick={handlePrev}
+                      aria-label="Previous"
+                      className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={handleNext}
+                      aria-label="Next"
+                      className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </>
+              )}
               <button
                 onClick={() => openNewApptModal()}
                 className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
@@ -1049,6 +1058,12 @@ export default function CalendarPage() {
               selectedDate={currentDate}
               onEventClick={openEditApptModal}
               onSlotClick={(date) => openNewApptModal(date)}
+            />
+          ) : view === "agenda" ? (
+            <AgendaView
+              events={filteredAppointments}
+              members={members}
+              onEventClick={openEditApptModal}
             />
           ) : (
             <>
