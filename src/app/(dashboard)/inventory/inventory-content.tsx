@@ -45,6 +45,8 @@ import { PropertyEmailShareDialog } from '@/components/inventory/property-email-
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { localCache } from '@/lib/cache-store';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
+import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
+import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { InfoHint } from '@/components/ui/info-hint';
 
@@ -116,6 +118,9 @@ export default function InventoryPage() {
   const [emailShareProperty, setEmailShareProperty] = useState<Property | null>(null);
   const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
   const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
+  const [portalOpen, setPortalOpen] = useState(false);
+  const [portalProperty, setPortalProperty] = useState<Property | null>(null);
+  const [portalBadges, setPortalBadges] = useState<Record<string, string[]>>({});
 
   const { accountId } = useAuth();
   const [currency, setCurrency] = useState('INR');
@@ -471,6 +476,35 @@ export default function InventoryPage() {
     }
   }
 
+  // Which portals each visible property is live on — feeds the tiny
+  // "99 / MB / H" badges on the cards. A missing table (migration 121
+  // not applied) just leaves the badges off.
+  const fetchPortalBadges = useCallback(async () => {
+    if (!accountId || properties.length === 0) {
+      setPortalBadges({});
+      return;
+    }
+    const supabaseClient = createClient();
+    const { data } = await supabaseClient
+      .from('property_portal_listings')
+      .select('property_id, portal')
+      .eq('account_id', accountId)
+      .eq('status', 'active')
+      .in('property_id', properties.map((p) => p.id));
+    const map: Record<string, string[]> = {};
+    for (const row of data || []) {
+      const code = PORTALS[row.portal as PortalKey]?.shortCode;
+      if (!code) continue;
+      if (!map[row.property_id]) map[row.property_id] = [];
+      map[row.property_id].push(code);
+    }
+    setPortalBadges(map);
+  }, [accountId, properties]);
+
+  useEffect(() => {
+    fetchPortalBadges();
+  }, [fetchPortalBadges]);
+
   // Toggle the Contacts-page interest-filter star. The server enforces
   // the cap too; this pre-check just gives a friendlier local error.
   async function handleToggleStar(property: Property) {
@@ -800,6 +834,11 @@ export default function InventoryPage() {
         onDelete={handleDeleteClick}
         onTogglePublish={handleTogglePublish}
         onToggleStar={handleToggleStar}
+        onPortals={(property) => {
+          setPortalProperty(property);
+          setPortalOpen(true);
+        }}
+        portalBadges={portalBadges}
         canEdit={canEdit}
         onFlyer={handleFlyerClick}
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
@@ -850,6 +889,15 @@ export default function InventoryPage() {
         open={emailShareOpen}
         onOpenChange={setEmailShareOpen}
         property={emailShareProperty}
+      />
+
+      {/* Post to Portals Dialog */}
+      <PortalPostDialog
+        open={portalOpen}
+        onOpenChange={setPortalOpen}
+        property={portalProperty}
+        currency={currency}
+        onSaved={fetchPortalBadges}
       />
 
       {/* Share Showcase Portal Dialog */}

@@ -52,6 +52,17 @@ interface PropertyShareDialogProps {
   preSelectedContactId?: string;
 }
 
+// On desktop, navigator.share opens the OS share sheet, which has no
+// WhatsApp target — only mobile share sheets route into WhatsApp with
+// the photo attached. Includes iPadOS, which masquerades as macOS.
+function isMobileSharePlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
+  if (uaData?.mobile) return true;
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return true;
+  return navigator.userAgent.includes('Macintosh') && navigator.maxTouchPoints > 1;
+}
+
 export function PropertyShareDialog({
   open,
   onOpenChange,
@@ -1151,14 +1162,14 @@ export function PropertyShareDialog({
                         <Button
                           disabled={sharingWhatsApp}
                           onClick={async () => {
-                            // Where the platform can share files (Android/iOS,
-                            // macOS Safari), send photo + caption through the
-                            // native sheet so the cover image lands inside the
-                            // WhatsApp message. Elsewhere fall back to wa.me —
-                            // the link preview (OG image) still shows the photo.
+                            // On mobile, send photo + caption through the native
+                            // sheet so the cover image lands inside the WhatsApp
+                            // message. On desktop go straight to wa.me — the OS
+                            // share sheet has no WhatsApp target, and the link
+                            // preview (OG image) still shows the photo.
                             setSharingWhatsApp(true);
                             try {
-                              const file = await fetchCoverImageFile();
+                              const file = isMobileSharePlatform() ? await fetchCoverImageFile() : null;
                               if (
                                 file &&
                                 typeof navigator !== 'undefined' &&

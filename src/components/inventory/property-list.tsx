@@ -23,6 +23,7 @@ import {
   Megaphone,
   Mail,
   Star,
+  Globe,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -57,6 +58,9 @@ interface PropertyListProps {
   onPromote?: (property: Property) => void;
   onShare?: (property: Property) => void;
   onEmailShare?: (property: Property) => void;
+  onPortals?: (property: Property) => void;
+  /** propertyId → portal short codes ("99" | "MB" | "H") currently live. */
+  portalBadges?: Record<string, string[]>;
   onApprove?: (property: Property) => Promise<void>;
   onReject?: (property: Property) => Promise<void>;
   onArchive?: (property: Property) => Promise<void>;
@@ -76,6 +80,8 @@ export function PropertyList({
   onPromote,
   onShare,
   onEmailShare,
+  onPortals,
+  portalBadges,
   onApprove,
   onReject,
   onArchive,
@@ -333,11 +339,22 @@ export function PropertyList({
                     <TypeIcon className="size-3.5" />
                     {property.type}
                   </div>
-                  {property.property_code && (
-                    <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded select-all" title="Copy Property Code">
-                      {property.property_code}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {(portalBadges?.[property.id] || []).map((code) => (
+                      <span
+                        key={code}
+                        title={`Live on ${code === '99' ? '99acres' : code === 'MB' ? 'MagicBricks' : 'Housing.com'}`}
+                        className="text-[9px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-1 py-0.5 rounded"
+                      >
+                        {code}
+                      </span>
+                    ))}
+                    {property.property_code && (
+                      <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded select-all" title="Copy Property Code">
+                        {property.property_code}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {property.project && (
                   <div className="text-xs text-slate-300 font-semibold mb-1 truncate flex items-center gap-1" title={property.project}>
@@ -727,6 +744,26 @@ export function PropertyList({
                         </>
                       </TooltipTrigger>
                       <TooltipContent side="top">Share via email</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onPortals && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onPortals(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Globe className="size-3.5 mr-1.5 text-primary" /> Post Ad
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Post on 99acres / MagicBricks / Housing</TooltipContent>
                     </Tooltip>
                   )}
                   <Tooltip>

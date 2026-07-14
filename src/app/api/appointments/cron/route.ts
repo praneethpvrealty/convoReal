@@ -5,6 +5,7 @@ import {
   sendDailyScheduleDigests,
   sendOverdueNudges,
 } from '@/lib/calendar/agent-reminders'
+import { sendPortalExpiryReminders } from '@/lib/portals/expiry-reminders'
 
 export async function GET(request: Request) {
   const expected = process.env.AUTOMATION_CRON_SECRET
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
     await sendAgentEventReminders()
     await sendDailyScheduleDigests()
     await sendOverdueNudges()
+    await sendPortalExpiryReminders()
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[Appointments Cron] Check failed:', error)
