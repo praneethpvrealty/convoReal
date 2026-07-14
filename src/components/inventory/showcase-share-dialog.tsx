@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
 import {
   Dialog,
   DialogContent,
@@ -13,8 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Share2, Copy, Check, ExternalLink, MessageCircle } from 'lucide-react';
+import { Share2, Copy, Check, ExternalLink, MessageCircle, Search, Smartphone, UserCheck, X } from 'lucide-react';
 import type { ShowcaseSettings } from '@/types';
+
+interface PickerContact {
+  id: string;
+  name: string | null;
+  phone: string;
+}
 
 interface ShowcaseShareDialogProps {
   open: boolean;
@@ -50,7 +57,14 @@ export function ShowcaseShareDialog({
   const [copiedWithMessage, setCopiedWithMessage] = useState(false);
   const [includeSearch, setIncludeSearch] = useState(true);
 
-  const defaultPassionateMessage = `Hi there! 👋
+  // "Send personally" picker — each contact gets a link tagged with
+  // ?v=<contactId> so their showcase activity shows up by name in Pulse.
+  const [contacts, setContacts] = useState<PickerContact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  const [contactSearch, setContactSearch] = useState('');
+  const [copiedContactId, setCopiedContactId] = useState<string | null>(null);
+
+  const defaultPassionateMessage = `Hi {name}! 👋
 
 I've curated an exclusive property showcase just for you. Browse through handpicked listings and find the one that feels right.
 
@@ -63,6 +77,46 @@ Best regards`;
 
 
   const [passionateMessage, setPassionateMessage] = useState(defaultPassionateMessage);
+
+  useEffect(() => {
+    if (!open || !accountId) return;
+    let cancelled = false;
+    // Microtask defer keeps the synchronous loading-flag setter out of
+    // the effect body (react-hooks/set-state-in-effect) — same pattern
+    // as the Today page loaders.
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      setLoadingContacts(true);
+      const db = createClient();
+      void db
+        .from('contacts')
+        .select('id, name, phone')
+        .eq('account_id', accountId)
+        .eq('status', 'active')
+        .order('name')
+        .then(({ data, error }) => {
+          if (cancelled) return;
+          if (error) {
+            console.error('[showcase-share] contacts load failed:', error);
+            toast.error('Failed to load contacts');
+          } else {
+            setContacts((data ?? []) as PickerContact[]);
+          }
+          setLoadingContacts(false);
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, accountId]);
+
+  const filteredContacts = useMemo(() => {
+    const q = contactSearch.toLowerCase().trim();
+    if (!q) return contacts;
+    return contacts.filter(
+      (c) => (c.name || '').toLowerCase().includes(q) || c.phone.includes(q),
+    );
+  }, [contacts, contactSearch]);
 
   const generatedLink = useMemo(() => {
     if (typeof window === 'undefined') return '';
@@ -96,6 +150,41 @@ Best regards`;
     return urlObj.toString();
   }, [accountId, shareCategory, showcaseSettings, includeSearch, activeSearch]);
 
+  /** Same portal link, tagged with the contact so Pulse events carry
+   *  their identity (`v=` is read by the showcase tracker, never used
+   *  to filter the catalog). */
+  const personalizedLink = (contactId: string) => {
+    if (!generatedLink) return '';
+    const url = new URL(generatedLink);
+    url.searchParams.set('v', contactId);
+    return url.toString();
+  };
+
+  const buildMessage = (link: string, name?: string | null) =>
+    passionateMessage
+      .replaceAll('{portalUrl}', link)
+      .replaceAll('{name}', name?.trim().split(/\s+/)[0] || 'there');
+
+  const handleCopyPersonalLink = async (contact: PickerContact) => {
+    try {
+      await navigator.clipboard.writeText(
+        buildMessage(personalizedLink(contact.id), contact.name),
+      );
+      setCopiedContactId(contact.id);
+      toast.success(`Personal message for ${contact.name || contact.phone} copied!`);
+      setTimeout(() => setCopiedContactId(null), 2000);
+    } catch (err) {
+      toast.error('Failed to copy link');
+      console.error(err);
+    }
+  };
+
+  const handleWhatsAppPersonal = (contact: PickerContact) => {
+    const message = buildMessage(personalizedLink(contact.id), contact.name);
+    const phone = contact.phone.replace(/\D/g, '');
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
   const handleCopyLink = async () => {
     try {
       await navigator.clipboard.writeText(generatedLink);
@@ -114,7 +203,7 @@ Best regards`;
 
   const handleCopyWithMessage = async () => {
     try {
-      const messageWithLink = passionateMessage.replace('{portalUrl}', generatedLink);
+      const messageWithLink = buildMessage(generatedLink);
       await navigator.clipboard.writeText(messageWithLink);
       setCopiedWithMessage(true);
       toast.success('Message with showcase link copied to clipboard!');
@@ -127,7 +216,7 @@ Best regards`;
 
   const handleShareMessage = async () => {
     try {
-      const messageWithLink = passionateMessage.replace('{portalUrl}', generatedLink);
+      const messageWithLink = buildMessage(generatedLink);
       if (navigator.share) {
         await navigator.share({
           title: 'Property Showcase',
@@ -243,7 +332,7 @@ Best regards`;
               className="bg-slate-900 border-slate-800 text-xs text-slate-200 min-h-[120px] resize-none"
             />
             <p className="text-[10px] text-slate-500">
-              Use <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">{'{portalUrl}'}</code> as placeholder for the showcase link. It will be replaced when copied.
+              Use <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">{'{portalUrl}'}</code> for the showcase link and <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">{'{name}'}</code> for the contact&apos;s first name. Both are replaced when copied or sent.
             </p>
             <div className="flex gap-2">
               <Button
@@ -271,6 +360,97 @@ Best regards`;
                 Share
               </Button>
             </div>
+          </div>
+
+          {/* Send personally — per-contact tracked links */}
+          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">
+            <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider block flex items-center gap-2">
+              <UserCheck className="size-3.5 text-primary" />
+              Send personally (tracked)
+            </Label>
+            <p className="text-[11px] text-slate-500 font-medium">
+              Each contact gets their own link, so every open, photo swipe, and map click shows up
+              <strong className="text-slate-400"> by name</strong> in Showcase Pulse — no more Anonymous Guests.
+            </p>
+
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search contacts by name or phone..."
+                value={contactSearch}
+                onChange={(e) => setContactSearch(e.target.value)}
+                className="h-9 w-full rounded-lg border border-slate-800 bg-slate-900 pl-8 pr-7 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+              {contactSearch && (
+                <button
+                  type="button"
+                  onClick={() => setContactSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  <X className="size-3" />
+                </button>
+              )}
+            </div>
+
+            {loadingContacts ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-10 rounded-lg bg-slate-900 animate-pulse" />
+                ))}
+              </div>
+            ) : filteredContacts.length === 0 ? (
+              <p className="py-4 text-center text-xs font-medium text-slate-500">
+                {contacts.length === 0 ? 'No active contacts yet' : 'No matching contacts found'}
+              </p>
+            ) : (
+              <div className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-slate-800">
+                {filteredContacts.slice(0, 50).map((contact) => (
+                  <div
+                    key={contact.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-white truncate block">
+                        {contact.name || contact.phone}
+                      </span>
+                      {contact.name && (
+                        <span className="text-[10px] text-slate-500 font-medium truncate block">
+                          📞 {contact.phone}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        onClick={() => handleWhatsAppPersonal(contact)}
+                        className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
+                      >
+                        <Smartphone className="size-3" />
+                        WhatsApp
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleCopyPersonalLink(contact)}
+                        className="h-7 px-2 text-[11px] border-slate-800 hover:bg-slate-800 text-slate-350 flex items-center gap-1"
+                      >
+                        {copiedContactId === contact.id ? (
+                          <Check className="size-3 text-emerald-400" />
+                        ) : (
+                          <Copy className="size-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {filteredContacts.length > 50 && (
+                  <p className="pt-1 text-center text-[10px] font-medium text-slate-500">
+                    Showing first 50 — refine the search to find others
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

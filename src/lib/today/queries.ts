@@ -18,7 +18,7 @@ const DAY_MS = 24 * HOUR_MS
 
 /** End of the local calendar day (23:59:59.999), mirroring
  *  startOfLocalDay from the dashboard date utils. */
-function endOfLocalDay(d: Date = new Date()): Date {
+export function endOfLocalDay(d: Date = new Date()): Date {
   const out = startOfLocalDay(d)
   out.setDate(out.getDate() + 1)
   out.setMilliseconds(-1)
@@ -162,7 +162,104 @@ export async function loadHotGoingQuiet(db: DB): Promise<QuietHotLead[]> {
   return leads.sort((a, b) => b.daysSilent - a.daysSilent).slice(0, 20)
 }
 
-// --- 3. Today's agenda: appointments + open todos ----------------------
+// --- 3. Range insights: the daily numbers ------------------------------
+
+export interface RangeInsights {
+  /** Conversations opened in the range — new WhatsApp inquiries. */
+  newInquiries: number
+  /** Contacts created in the range. */
+  newContacts: number
+  /** Inbound customer messages in the range. */
+  messagesReceived: number
+  /** Outbound messages in the range (agent + bot). */
+  messagesSent: number
+  /** Conversations with ≥1 customer message in the range. */
+  inboundConversations: number
+  /** Of those, how many got an outbound reply after the customer's
+   *  first message of the range. */
+  respondedConversations: number
+  /** Showcase link opens (Pulse `open` events) in the range. */
+  showcaseOpens: number
+}
+
+/**
+ * Activity counters for an arbitrary local date range, powering the
+ * insights bar on the Today page. Same client-side aggregation
+ * trade-off as the loaders above: fine at current scale, move to an
+ * RPC if a tenant outgrows it.
+ */
+export async function loadRangeInsights(
+  db: DB,
+  start: Date,
+  end: Date,
+): Promise<RangeInsights> {
+  const startIso = start.toISOString()
+  const endIso = end.toISOString()
+
+  const [convRes, contactRes, msgRes, showcaseRes] = await Promise.all([
+    db
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', startIso)
+      .lte('created_at', endIso),
+    db
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', startIso)
+      .lte('created_at', endIso),
+    db
+      .from('messages')
+      .select('conversation_id, sender_type, created_at')
+      .gte('created_at', startIso)
+      .lte('created_at', endIso)
+      .order('conversation_id', { ascending: true })
+      .order('created_at', { ascending: true }),
+    db
+      .from('showcase_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_type', 'open')
+      .gte('created_at', startIso)
+      .lte('created_at', endIso),
+  ])
+  if (convRes.error) throw convRes.error
+  if (contactRes.error) throw contactRes.error
+  if (msgRes.error) throw msgRes.error
+  if (showcaseRes.error) throw showcaseRes.error
+
+  const rows = (msgRes.data ?? []) as {
+    conversation_id: string
+    sender_type: string
+  }[]
+
+  let messagesReceived = 0
+  let messagesSent = 0
+  // Walk per conversation (rows grouped by conversation_id, time-ordered
+  // within each group): a conversation counts as "responded" when any
+  // outbound message follows its first inbound message of the range.
+  const inbound = new Set<string>()
+  const responded = new Set<string>()
+  for (const row of rows) {
+    if (row.sender_type === 'customer') {
+      messagesReceived++
+      inbound.add(row.conversation_id)
+    } else {
+      messagesSent++
+      if (inbound.has(row.conversation_id)) responded.add(row.conversation_id)
+    }
+  }
+
+  return {
+    newInquiries: convRes.count ?? 0,
+    newContacts: contactRes.count ?? 0,
+    messagesReceived,
+    messagesSent,
+    inboundConversations: inbound.size,
+    respondedConversations: responded.size,
+    showcaseOpens: showcaseRes.count ?? 0,
+  }
+}
+
+// --- 4. Today's agenda: appointments + open todos ----------------------
 
 export interface AgendaContactRef {
   id: string

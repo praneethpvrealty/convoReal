@@ -102,6 +102,21 @@ export async function POST(request: NextRequest) {
       if (error) console.error('[showcase-events] insert failed:', error.message);
     }
 
+    // Retroactive stitching: the session_key persists in the visitor's
+    // localStorage, so once a session is ever identified (they opened a
+    // personalized v= link), earlier anonymous events from the same
+    // device inherit that identity. Only null rows are touched — a
+    // session already attributed to another contact is never rewritten.
+    if (contactId) {
+      const { error } = await db
+        .from('showcase_events')
+        .update({ contact_id: contactId })
+        .eq('account_id', accountId)
+        .eq('session_key', sessionKey)
+        .is('contact_id', null);
+      if (error) console.error('[showcase-events] stitch failed:', error.message);
+    }
+
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     console.error('[POST /api/public/showcase-events] Error:', err);

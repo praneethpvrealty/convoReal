@@ -53,6 +53,9 @@ import {
   CheckCircle,
   XCircle,
   Eye,
+  Ruler,
+  Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
@@ -2410,67 +2413,177 @@ export function PropertyForm({
                   </div>
 
                   {/* 3. KEY SPECS GRID */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {hasBedsBaths ? (
-                      <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <BedDouble className="size-4 text-slate-500" />
-                          <span className="text-[10px] font-semibold uppercase tracking-wider">Bedrooms</span>
-                        </div>
-                        <span className="text-sm font-bold text-white">{bedrooms || '--'} Bedrooms</span>
-                      </div>
-                    ) : (
-                      <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <Building className="size-4 text-slate-500" />
-                          <span className="text-[10px] font-semibold uppercase tracking-wider">Project</span>
-                        </div>
-                        <span className="text-sm font-bold text-white truncate" title={project || '--'}>{project || '--'}</span>
-                      </div>
-                    )}
+                  {(() => {
+                    const specs: React.ReactNode[] = [];
 
-                    {hasBedsBaths ? (
-                      <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <Bath className="size-4 text-slate-500" />
-                          <span className="text-[10px] font-semibold uppercase tracking-wider">Bathrooms</span>
-                        </div>
-                        <span className="text-sm font-bold text-white">{bathrooms || '--'} Bathrooms</span>
-                      </div>
-                    ) : (
-                      <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
-                        <div className="flex items-center gap-1.5 text-slate-400">
-                          <MapPin className="size-4 text-slate-500" />
-                          <span className="text-[10px] font-semibold uppercase tracking-wider">Locality</span>
-                        </div>
-                        <span className="text-sm font-bold text-white truncate" title={sublocality || '--'}>{sublocality || '--'}</span>
-                      </div>
-                    )}
+                    if (hasBedsBaths) {
+                      if (bedrooms) {
+                        specs.push(
+                          <div key="bedrooms" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <BedDouble className="size-4 text-slate-500" />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider">Bedrooms</span>
+                            </div>
+                            <span className="text-sm font-bold text-white">{bedrooms} Bedrooms</span>
+                          </div>
+                        );
+                      }
+                    } else {
+                      if (project && project.trim() && project !== '--') {
+                        specs.push(
+                          <div key="project" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <Building className="size-4 text-slate-500" />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider">Project</span>
+                            </div>
+                            <span className="text-sm font-bold text-white truncate" title={project}>{project}</span>
+                          </div>
+                        );
+                      }
+                    }
 
-                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <Maximize2 className="size-4 text-slate-500" />
-                        <span className="text-[10px] font-semibold uppercase tracking-wider">Area</span>
-                      </div>
-                      <span className="text-sm font-bold text-white truncate">
-                        {hasCommercialFields || type.includes('Land') || type.includes('Plot')
-                          ? landArea
-                            ? `${Number(landArea).toLocaleString('en-IN')} ${landAreaUnit}`
-                            : '--'
-                          : areaSqft
-                            ? `${Number(areaSqft).toLocaleString('en-IN')} ${areaUnit}`
-                            : '--'}
-                      </span>
-                    </div>
+                    if (hasBedsBaths) {
+                      if (bathrooms) {
+                        specs.push(
+                          <div key="bathrooms" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <Bath className="size-4 text-slate-500" />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider">Bathrooms</span>
+                            </div>
+                            <span className="text-sm font-bold text-white">{bathrooms} Bathrooms</span>
+                          </div>
+                        );
+                      }
+                    } else {
+                      if (sublocality && sublocality.trim() && sublocality !== '--') {
+                        specs.push(
+                          <div key="locality" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <MapPin className="size-4 text-slate-500" />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider">Locality</span>
+                            </div>
+                            <span className="text-sm font-bold text-white truncate" title={sublocality}>{sublocality}</span>
+                          </div>
+                        );
+                      }
+                    }
 
-                    <div className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
-                      <div className="flex items-center gap-1.5 text-slate-400">
-                        <Compass className="size-4 text-slate-500" />
-                        <span className="text-[10px] font-semibold uppercase tracking-wider">Facing</span>
+                    const areaVal = hasCommercialFields || type.includes('Land') || type.includes('Plot') ? landArea : areaSqft;
+                    if (areaVal && areaVal.trim() && areaVal !== '--') {
+                      specs.push(
+                        <div key="area" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <Maximize2 className="size-4 text-slate-500" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">Area</span>
+                          </div>
+                          <span className="text-sm font-bold text-white truncate">
+                            {hasCommercialFields || type.includes('Land') || type.includes('Plot')
+                              ? `${Number(landArea).toLocaleString('en-IN')} ${landAreaUnit}`
+                              : `${Number(areaSqft).toLocaleString('en-IN')} ${areaUnit}`}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (facingDirection && facingDirection.trim() && facingDirection !== 'Any Facing') {
+                      specs.push(
+                        <div key="facing" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <Compass className="size-4 text-slate-500" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">Facing</span>
+                          </div>
+                          <span className="text-sm font-bold text-white truncate">{facingDirection}</span>
+                        </div>
+                      );
+                    }
+
+                    if (superBuiltArea && superBuiltArea.trim() && superBuiltArea !== '--') {
+                      specs.push(
+                        <div key="superBuilt" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <Maximize2 className="size-4 text-slate-500" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">Super Built-up</span>
+                          </div>
+                          <span className="text-sm font-bold text-white truncate">
+                            {Number(superBuiltArea).toLocaleString('en-IN')} Sq.Ft.
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (frontage && frontage.trim() && frontage !== '--') {
+                      specs.push(
+                        <div key="frontage" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <Ruler className="size-4 text-slate-500" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">Frontage</span>
+                          </div>
+                          <span className="text-sm font-bold text-white truncate">
+                            {frontage} Ft
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (depth && depth.trim() && depth !== '--') {
+                      specs.push(
+                        <div key="depth" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <Ruler className="size-4 text-slate-500" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">Depth</span>
+                          </div>
+                          <span className="text-sm font-bold text-white truncate">
+                            {depth} Ft
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (landZone && landZone.trim() && landZone !== '--') {
+                      specs.push(
+                        <div key="zoning" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <Layers className="size-4 text-slate-500" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">Zoning</span>
+                          </div>
+                          <span className="text-sm font-bold text-white truncate" title={landZone}>
+                            {landZone}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (ownershipStatus && ownershipStatus.trim() && ownershipStatus !== '--') {
+                      specs.push(
+                        <div key="ownership" className="p-3.5 rounded-xl border border-slate-800 bg-slate-950/20 hover:border-slate-700 transition-colors flex flex-col justify-center gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-400">
+                            <ShieldCheck className="size-4 text-slate-500" />
+                            <span className="text-[10px] font-semibold uppercase tracking-wider">Ownership</span>
+                          </div>
+                          <span className="text-sm font-bold text-white truncate" title={ownershipStatus}>
+                            {ownershipStatus}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (specs.length === 0) return null;
+
+                    const gridColsClass =
+                      specs.length === 1
+                        ? 'grid-cols-1'
+                        : specs.length === 2
+                        ? 'grid-cols-2'
+                        : specs.length === 3
+                        ? 'grid-cols-2 sm:grid-cols-3'
+                        : 'grid-cols-2 sm:grid-cols-4';
+
+                    return (
+                      <div className={`grid ${gridColsClass} gap-3`}>
+                        {specs}
                       </div>
-                      <span className="text-sm font-bold text-white truncate">{facingDirection || 'Any Facing'}</span>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* 4. GOOGLE MAPS DEEP LINK CARD */}
                   <div className="p-4 rounded-xl border border-slate-800 bg-slate-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4">

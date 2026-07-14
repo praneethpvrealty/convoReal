@@ -5,15 +5,19 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
+  BarChart3,
   CalendarDays,
   Check,
   Clock,
   Flame,
+  Link2,
   MessageSquare,
   MessagesSquare,
   RefreshCw,
+  Reply,
   Smartphone,
   Timer,
+  UserPlus,
 } from 'lucide-react'
 
 import { createClient } from '@/lib/supabase/client'
@@ -23,18 +27,58 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { InfoHint } from '@/components/ui/info-hint'
 import {
+  endOfLocalDay,
   loadExpiringSessions,
   loadHotGoingQuiet,
+  loadRangeInsights,
   loadTodaysAgenda,
   type AgendaAppointment,
   type AgendaTodo,
   type ExpiringSessionItem,
   type QuietHotLead,
+  type RangeInsights,
   type TodaysAgenda,
 } from '@/lib/today/queries'
+import { daysAgoStart, startOfLocalDay } from '@/lib/dashboard/date-utils'
 import type { Contact } from '@/types'
 
 const HOUR_MS = 3_600_000
+
+type RangePreset = 'today' | 'yesterday' | '7d' | '30d' | 'custom'
+
+const RANGE_CHIPS: { key: RangePreset; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'yesterday', label: 'Yesterday' },
+  { key: '7d', label: '7 days' },
+  { key: '30d', label: '30 days' },
+  { key: 'custom', label: 'Custom' },
+]
+
+/** [start, end] of the selected insights range in local time, or null
+ *  while a custom range is still incomplete/invalid. */
+function resolveRange(
+  preset: RangePreset,
+  customStart: string,
+  customEnd: string,
+): [Date, Date] | null {
+  switch (preset) {
+    case 'today':
+      return [startOfLocalDay(), endOfLocalDay()]
+    case 'yesterday':
+      return [daysAgoStart(1), endOfLocalDay(daysAgoStart(1))]
+    case '7d':
+      return [daysAgoStart(6), endOfLocalDay()]
+    case '30d':
+      return [daysAgoStart(29), endOfLocalDay()]
+    case 'custom': {
+      if (!customStart || !customEnd) return null
+      const start = new Date(`${customStart}T00:00:00`)
+      const end = new Date(`${customEnd}T00:00:00`)
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return null
+      return [start, endOfLocalDay(end)]
+    }
+  }
+}
 
 type SectionFilter = 'all' | 'windows' | 'hot' | 'replies' | 'agenda'
 
@@ -119,6 +163,12 @@ export default function TodayPage() {
   const [agenda, setAgenda] = useState<TodaysAgenda | null>(null)
   const [agendaLoading, setAgendaLoading] = useState(true)
 
+  const [insights, setInsights] = useState<RangeInsights | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(true)
+  const [rangePreset, setRangePreset] = useState<RangePreset>('today')
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
+
   const [filter, setFilter] = useState<SectionFilter>('all')
   /** Agenda rows mid-way through their optimistic strikethrough. */
   const [completing, setCompleting] = useState<Set<string>>(new Set())
@@ -165,6 +215,30 @@ export default function TodayPage() {
     // as the pipelines page's fetchCurrency effect.
     if (accountId) Promise.resolve().then(() => loadAll())
   }, [accountId, loadAll])
+
+  // Insights refetch on range change and on manual refresh (refreshedAt
+  // bumps whenever loadAll runs). A stale-guard drops out-of-order
+  // responses when the user flips ranges quickly.
+  useEffect(() => {
+    if (!accountId) return
+    const range = resolveRange(rangePreset, customStart, customEnd)
+    if (!range) return // incomplete custom range — keep showing the last numbers
+    let cancelled = false
+    Promise.resolve().then(() => {
+      setInsightsLoading(true)
+      loadRangeInsights(createClient(), range[0], range[1])
+        .then((data) => {
+          if (!cancelled) setInsights(data)
+        })
+        .catch((err) => console.error('[today] insights failed:', err))
+        .finally(() => {
+          if (!cancelled) setInsightsLoading(false)
+        })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [accountId, rangePreset, customStart, customEnd, refreshedAt])
 
   // --- Split loader 1's list into the two visible sections ------------
   const { windowsClosing, awaitingReply } = useMemo(() => {
@@ -322,7 +396,7 @@ export default function TodayPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">Today</h1>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Everything that needs your attention right now — reply windows, cooling leads, and today&apos;s schedule.
+            Everything that needs your attention right now — reply windows, cooling leads, today&apos;s schedule, and your activity numbers.
           </p>
         </div>
         <Button
@@ -372,6 +446,108 @@ export default function TodayPage() {
           hint="Your appointments and to-do items due today. Complete or reschedule them from here."
         />
       </div>
+
+      {/* Activity insights */}
+      <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+            <BarChart3 className="size-4 text-primary" />
+            Activity insights
+            <InfoHint text="Your working numbers for the selected period — inquiries, contacts, message volume, replies, and showcase link opens." />
+          </h2>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {RANGE_CHIPS.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={() => setRangePreset(chip.key)}
+                className={`rounded-full border px-3 py-1 text-[11px] font-bold transition-colors cursor-pointer ${
+                  rangePreset === chip.key
+                    ? 'border-primary/50 bg-primary/10 text-primary'
+                    : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {rangePreset === 'custom' && (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              value={customStart}
+              max={customEnd || undefined}
+              onChange={(e) => setCustomStart(e.target.value)}
+              className="h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary [color-scheme:dark]"
+            />
+            <span className="text-xs font-bold text-slate-500">to</span>
+            <input
+              type="date"
+              value={customEnd}
+              min={customStart || undefined}
+              onChange={(e) => setCustomEnd(e.target.value)}
+              className="h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary [color-scheme:dark]"
+            />
+            {(!customStart || !customEnd) && (
+              <span className="text-[11px] font-medium text-slate-500">
+                Pick both dates to load the range
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+          <InsightTile
+            label="New inquiries"
+            value={insights?.newInquiries ?? 0}
+            loading={insightsLoading}
+            icon={<MessagesSquare className="size-3.5 text-sky-400" />}
+            hint="New WhatsApp conversations opened in this period."
+          />
+          <InsightTile
+            label="New contacts"
+            value={insights?.newContacts ?? 0}
+            loading={insightsLoading}
+            icon={<UserPlus className="size-3.5 text-emerald-400" />}
+            hint="Contacts added to your CRM in this period — from inbound chats, imports, or manual entry."
+          />
+          <InsightTile
+            label="Msgs received"
+            value={insights?.messagesReceived ?? 0}
+            loading={insightsLoading}
+            icon={<MessageSquare className="size-3.5 text-violet-400" />}
+            hint="Inbound customer messages across all conversations."
+          />
+          <InsightTile
+            label="Msgs sent"
+            value={insights?.messagesSent ?? 0}
+            loading={insightsLoading}
+            icon={<Reply className="size-3.5 text-amber-400" />}
+            hint="Outbound messages in this period, including AI bot replies."
+          />
+          <InsightTile
+            label="Responded"
+            value={insights?.respondedConversations ?? 0}
+            suffix={
+              insights && insights.inboundConversations > 0
+                ? `/ ${insights.inboundConversations}`
+                : undefined
+            }
+            loading={insightsLoading}
+            icon={<Check className="size-3.5 text-teal-400" />}
+            hint="Of the conversations where a customer wrote to you in this period, how many got a reply (you or the bot)."
+          />
+          <InsightTile
+            label="Showcase opens"
+            value={insights?.showcaseOpens ?? 0}
+            loading={insightsLoading}
+            icon={<Link2 className="size-3.5 text-rose-400" />}
+            hint="How many times your shared showcase links were opened (from Showcase Pulse)."
+          />
+        </div>
+      </section>
 
       {/* Filter chips */}
       <div className="flex flex-wrap gap-2">
@@ -645,6 +821,46 @@ export default function TodayPage() {
 // ------------------------------------------------------------
 // Building blocks
 // ------------------------------------------------------------
+
+function InsightTile({
+  label,
+  value,
+  suffix,
+  loading,
+  icon,
+  hint,
+}: {
+  label: string
+  value: number
+  suffix?: string
+  loading: boolean
+  icon: React.ReactNode
+  hint?: string
+}) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center min-w-0 truncate">
+          {label}
+          {hint && <InfoHint text={hint} />}
+        </span>
+        <span className="shrink-0">{icon}</span>
+      </div>
+      <div className="mt-1.5 text-xl font-black text-white">
+        {loading ? (
+          <div className="h-7 w-9 animate-pulse rounded-md bg-slate-800" />
+        ) : (
+          <>
+            {value}
+            {suffix && (
+              <span className="ml-1 text-xs font-bold text-slate-500">{suffix}</span>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function StatCard({
   label,
