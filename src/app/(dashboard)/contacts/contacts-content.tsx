@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -428,6 +428,32 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // that property (last_inquired_property_id ∪ contact_property_inquiries).
   const [starredProps, setStarredProps] = useState<{ id: string; property_code: string | null; title: string }[]>([]);
   const [filterInterestProperty, setFilterInterestProperty] = useState<string>('All');
+  // Touch equivalent of the chip's hover-expand: long-press (~450ms)
+  // reveals the full property title for 3s. A completed long-press
+  // must NOT also toggle the filter, so the click that follows it is
+  // swallowed via chipPressFired.
+  const [expandedInterestChip, setExpandedInterestChip] = useState<string | null>(null);
+  const chipPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chipCollapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chipPressFired = useRef(false);
+
+  const beginChipPress = (id: string) => {
+    chipPressFired.current = false;
+    chipPressTimer.current = setTimeout(() => {
+      chipPressFired.current = true;
+      setExpandedInterestChip(id);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(10);
+      if (chipCollapseTimer.current) clearTimeout(chipCollapseTimer.current);
+      chipCollapseTimer.current = setTimeout(() => setExpandedInterestChip(null), 3000);
+    }, 450);
+  };
+
+  const endChipPress = () => {
+    if (chipPressTimer.current) {
+      clearTimeout(chipPressTimer.current);
+      chipPressTimer.current = null;
+    }
+  };
   // All unique areas across all contacts for the area filter dropdown
   const [allAreas, setAllAreas] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>('created_desc');
@@ -1353,7 +1379,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
         {/* Starred-property interest chips — starred in Inventory, each
             chip filters to contacts who showed interest in that listing.
-            The label is the property code; hovering expands the full title. */}
+            The label is the property code; hovering (or long-pressing on
+            touch devices) expands the full title. */}
         {starredProps.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 -mt-1">
             <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
@@ -1362,25 +1389,47 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             </span>
             {starredProps.map((p) => {
               const active = filterInterestProperty === p.id;
+              const expanded = expandedInterestChip === p.id;
               const label = p.property_code || p.title.split(/\s+/).slice(0, 2).join(' ');
               return (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => {
+                    // A completed long-press only expands — it must not
+                    // also toggle the filter on release.
+                    if (chipPressFired.current) {
+                      chipPressFired.current = false;
+                      return;
+                    }
                     setFilterInterestProperty(active ? 'All' : p.id);
                     setPage(0);
                   }}
+                  onTouchStart={() => beginChipPress(p.id)}
+                  onTouchEnd={endChipPress}
+                  onTouchMove={endChipPress}
+                  onTouchCancel={endChipPress}
+                  onContextMenu={(e) => {
+                    // Long-press on Android fires contextmenu — swallow it
+                    // so the expand isn't covered by the browser menu.
+                    if (expanded || chipPressFired.current) e.preventDefault();
+                  }}
                   title={p.title}
+                  style={{ WebkitTouchCallout: 'none' }}
                   className={cn(
-                    'group flex items-center overflow-hidden rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold transition-all cursor-pointer',
+                    'group flex items-center overflow-hidden rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold transition-all cursor-pointer select-none',
                     active
                       ? 'border-amber-500/60 bg-amber-500/15 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
                       : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-300'
                   )}
                 >
                   <span className="whitespace-nowrap">{label}</span>
-                  <span className="max-w-0 overflow-hidden whitespace-nowrap font-sans font-medium text-slate-400 transition-all duration-300 ease-out group-hover:max-w-[260px] group-hover:pl-1.5">
+                  <span
+                    className={cn(
+                      'max-w-0 overflow-hidden whitespace-nowrap font-sans font-medium text-slate-400 transition-all duration-300 ease-out group-hover:max-w-[260px] group-hover:pl-1.5',
+                      expanded && 'max-w-[260px] pl-1.5'
+                    )}
+                  >
                     {p.title}
                   </span>
                   {active && <X className="ml-1 size-3 shrink-0" />}

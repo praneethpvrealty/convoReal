@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils'
+import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import {
@@ -964,12 +965,17 @@ async function processMessage(
         .maybeSingle();
 
       if (!existingContact) {
+        // Forwarded phonebook cards carry the agent's quick-reference names
+        // ("Nataraj Bank DSA") — split the qualifier into the CRM-only Name
+        // Tag so outbound messages use the clean name.
+        const nameSplit = name ? suggestNameTagSplit(name) : null;
         const { error: insertErr } = await supabaseAdmin()
           .from('contacts')
           .insert({
             account_id: accountId,
             user_id: configOwnerUserId || null,
-            name: name || `Contact ${normalizedImportPhone}`,
+            name: nameSplit?.name ?? (name || `Contact ${normalizedImportPhone}`),
+            name_tag: nameSplit?.nameTag ?? null,
             phone: normalizedImportPhone,
             email: email || null,
             classification: 'Others',
@@ -977,9 +983,11 @@ async function processMessage(
             status: 'pending_review',
             source: 'WhatsApp',
           });
-        
+
         if (insertErr) {
           console.error('[webhook] Failed to auto-insert shared contact:', insertErr);
+        } else if (nameSplit) {
+          importedNames.push(`${nameSplit.name} — 🏷️ ${nameSplit.nameTag}`);
         } else {
           importedNames.push(name || normalizedImportPhone);
         }

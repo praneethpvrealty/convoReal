@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import type { Contact } from '@/types';
 import { 
   parseListingFromImageOrText, 
@@ -1301,10 +1302,14 @@ export async function processOwnerChatbotMessage(
             }
           }
 
+          // Phonebook-style names ("Nataraj Bank DSA") get the qualifier moved
+          // into the CRM-only Name Tag so outbound messages stay clean.
+          const nameSplit = suggestNameTagSplit(draft.name!.trim());
           toInsert.push({
             account_id: accountId,
             user_id: userId,
-            name: draft.name!.trim(),
+            name: nameSplit?.name ?? draft.name!.trim(),
+            name_tag: nameSplit?.nameTag ?? null,
             phone: normalized || draft.phone!.trim(),
             email: draft.email || null,
             company: draft.company || '',
@@ -1462,7 +1467,8 @@ export async function processOwnerChatbotMessage(
 
       let reply = `✅ *Successfully saved ${inserted.length} new contact(s) to CRM!*\n\n`;
       inserted.forEach((c: Contact) => {
-        reply += `• *Name:* ${c.name} (${c.phone}) [${c.classification}]\n`;
+        const tagNote = c.name_tag ? ` — 🏷️ ${c.name_tag}` : '';
+        reply += `• *Name:* ${c.name}${tagNote} (${c.phone}) [${c.classification}]\n`;
       });
       if (duplicates.length > 0) {
         reply += `\n⚠️ *Skipped duplicates:* \n` + duplicates.map(d => `• ${d}`).join('\n') + `\n`;
