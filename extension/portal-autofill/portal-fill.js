@@ -358,23 +358,77 @@
         'Autofill fills text fields, selects matching chips (Sell, property type, BHK), and picks city/locality suggestions. Re-run it on each wizard step, fix anything it missed, review, then submit.'));
     }
 
-    let collapsed = false;
-    header.addEventListener('click', () => {
-      collapsed = !collapsed;
-      body.style.display = collapsed ? 'none' : 'flex';
-      collapseBtn.textContent = collapsed ? '+' : '−';
-    });
+    // The − minimizes the whole panel back to the floating launcher.
+    header.addEventListener('click', () => setExpanded(false));
 
     document.body.appendChild(panel);
+    syncVisibility();
+  }
+
+  // ── Floating launcher ─────────────────────────────────────────
+  // The panel stays out of the way by default: a small floating
+  // button bottom-right expands it on click. Sending a listing from
+  // the CRM auto-expands so the handoff is obvious.
+
+  const LAUNCHER_ID = 'convoreal-portal-launcher';
+  let panelExpanded = false;
+  let hasPayload = false;
+
+  function ensureLauncher() {
+    let launcher = document.getElementById(LAUNCHER_ID);
+    if (launcher) return launcher;
+    launcher = el('button');
+    launcher.id = LAUNCHER_ID;
+    launcher.title = 'ConvoReal Autofill';
+    launcher.style.cssText = [
+      'position:fixed', 'right:16px', 'bottom:16px', 'z-index:2147483647',
+      'width:48px', 'height:48px', 'border-radius:9999px', 'border:1px solid #4c1d95',
+      'background:linear-gradient(135deg,#7c3aed,#4338ca)', 'color:#fff',
+      'font-weight:900', 'font-size:15px', 'font-family:system-ui,sans-serif',
+      'cursor:pointer', 'box-shadow:0 6px 24px rgba(124,58,237,.45)',
+      'display:flex', 'align-items:center', 'justify-content:center',
+    ].join(';');
+    launcher.textContent = 'CR';
+    const dot = el('span', [
+      'position:absolute', 'top:2px', 'right:2px', 'width:11px', 'height:11px',
+      'border-radius:9999px', 'background:#34d399', 'border:2px solid #0f172a', 'display:none',
+    ].join(';'));
+    dot.id = `${LAUNCHER_ID}-dot`;
+    launcher.style.position = 'fixed';
+    launcher.appendChild(dot);
+    launcher.addEventListener('click', () => setExpanded(true));
+    document.body.appendChild(launcher);
+    return launcher;
+  }
+
+  function syncVisibility() {
+    const panel = document.getElementById(PANEL_ID);
+    const launcher = ensureLauncher();
+    if (panel) panel.style.display = panelExpanded ? 'flex' : 'none';
+    launcher.style.display = panelExpanded ? 'none' : 'flex';
+    const dot = document.getElementById(`${LAUNCHER_ID}-dot`);
+    if (dot) dot.style.display = hasPayload && !panelExpanded ? 'block' : 'none';
+  }
+
+  function setExpanded(next) {
+    panelExpanded = next;
+    syncVisibility();
   }
 
   chrome.storage.local.get('convorealPortalPayload', ({ convorealPortalPayload }) => {
-    renderPanel(convorealPortalPayload || {});
+    const payload = convorealPortalPayload || {};
+    hasPayload = !!(payload.portals && payload.portals[PORTAL] && payload.portals[PORTAL].length > 0);
+    renderPanel(payload);
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.convorealPortalPayload) {
-      renderPanel(changes.convorealPortalPayload.newValue || {});
+      const payload = changes.convorealPortalPayload.newValue || {};
+      hasPayload = !!(payload.portals && payload.portals[PORTAL] && payload.portals[PORTAL].length > 0);
+      // A fresh send from the CRM pops the panel open so the handoff
+      // is visible without hunting for the button.
+      panelExpanded = true;
+      renderPanel(payload);
     }
   });
 })();
