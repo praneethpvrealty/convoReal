@@ -1383,9 +1383,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             touch devices) expands the full title. */}
         {starredProps.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 -mt-1">
-            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
-              <Star className="size-3 text-amber-400 fill-amber-400" />
+            <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
+              <Star className="size-3 text-amber-400 fill-amber-400 mr-1" />
               Interested in:
+              <InfoHint text="These quick filters are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6). Tap a chip to see contacts who showed interest in that property — from the property form's interested-contacts links and logged portal/email inquiries. Unstar the property in Inventory and its chip disappears." />
             </span>
             {starredProps.map((p) => {
               const active = filterInterestProperty === p.id;
@@ -1414,7 +1415,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     // so the expand isn't covered by the browser menu.
                     if (expanded || chipPressFired.current) e.preventDefault();
                   }}
-                  title={p.title}
+                  title={`${p.title}\n\nHere because you starred it in Inventory — click to filter contacts who showed interest; unstar to remove.`}
                   style={{ WebkitTouchCallout: 'none' }}
                   className={cn(
                     'group flex items-center overflow-hidden rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold transition-all cursor-pointer select-none',
