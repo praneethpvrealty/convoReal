@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 
 interface ImportModalProps {
   open: boolean;
@@ -22,6 +23,7 @@ interface ImportModalProps {
 interface ParsedRow {
   phone: string;
   name?: string;
+  name_tag?: string;
   email?: string;
   company?: string;
   tags?: string;
@@ -51,6 +53,9 @@ function parseCSV(text: string): ParsedRow[] {
   if (phoneIdx === -1) return [];
 
   const nameIdx = headers.indexOf('name');
+  const nameTagIdx = headers.indexOf('name_tag') >= 0
+    ? headers.indexOf('name_tag')
+    : headers.indexOf('name tag');
   const emailIdx = headers.indexOf('email');
   const companyIdx = headers.indexOf('company');
   const tagsIdx = headers.indexOf('tags');
@@ -100,9 +105,16 @@ function parseCSV(text: string): ParsedRow[] {
     const minBudgetRaw = minBudgetIdx >= 0 ? values[minBudgetIdx]?.replace(/["']/g, '').trim() : undefined;
     const maxBudgetRaw = maxBudgetIdx >= 0 ? values[maxBudgetIdx]?.replace(/["']/g, '').trim() : undefined;
 
+    const rawName = nameIdx >= 0 ? values[nameIdx]?.replace(/["']/g, '').trim() || undefined : undefined;
+    const explicitTag = nameTagIdx >= 0 ? values[nameTagIdx]?.replace(/["']/g, '').trim() || undefined : undefined;
+    // No explicit tag column → suggest splitting a trailing qualifier off the
+    // name ("Nataraj Bank DSA" → "Nataraj" + tag "Bank DSA").
+    const split = !explicitTag && rawName ? suggestNameTagSplit(rawName) : null;
+
     rows.push({
       phone,
-      name: nameIdx >= 0 ? values[nameIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
+      name: split ? split.name : rawName,
+      name_tag: explicitTag ?? split?.nameTag ?? undefined,
       email: emailIdx >= 0 ? values[emailIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
       company: companyIdx >= 0 ? values[companyIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
       tags: tagsIdx >= 0 ? values[tagsIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
@@ -140,9 +152,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
   }
 
   function handleDownloadSample() {
-    const headers = 'phone,name,email,company,tags,areas_of_interest,min_budget,max_budget,preferences\n';
-    const sampleRow1 = '+919876543210,John Doe,john@example.com,Acme Corp,"Hot, Buyer",Whitefield,10000000,15000000,Looking for a 3 BHK premium apartment in Whitefield\n';
-    const sampleRow2 = '+918765432109,Jane Smith,jane@example.com,Global Realty,"Warm, Agent",HSR Layout,20000000,25000000,Has clients looking for villas in HSR Layout\n';
+    const headers = 'phone,name,name_tag,email,company,tags,areas_of_interest,min_budget,max_budget,preferences\n';
+    const sampleRow1 = '+919876543210,John Doe,Bank DSA,john@example.com,Acme Corp,"Hot, Buyer",Whitefield,10000000,15000000,Looking for a 3 BHK premium apartment in Whitefield\n';
+    const sampleRow2 = '+918765432109,Jane Smith,,jane@example.com,Global Realty,"Warm, Agent",HSR Layout,20000000,25000000,Has clients looking for villas in HSR Layout\n';
     const csvContent = headers + sampleRow1 + sampleRow2;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -268,7 +280,8 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           <DialogTitle className="text-white">Import Contacts</DialogTitle>
           <DialogDescription className="text-slate-400">
             Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
-            name, email, company.{" "}
+            name, name_tag, email, company. Trailing qualifiers in names (e.g.
+            &quot;Nataraj Bank DSA&quot;) are auto-split into the CRM-only Name Tag.{" "}
             <button
               type="button"
               onClick={handleDownloadSample}
@@ -369,6 +382,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                     <tr className="bg-slate-800">
                       <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Phone</th>
                       <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Name</th>
+                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Name Tag</th>
                       <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Tags</th>
                       <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Areas</th>
                       <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Budget</th>
@@ -384,6 +398,15 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                         <tr key={i} className="border-t border-slate-700/50">
                           <td className="px-3 py-1.5 text-slate-300">{row.phone}</td>
                           <td className="px-3 py-1.5 text-slate-300 font-medium">{row.name || '-'}</td>
+                          <td className="px-3 py-1.5">
+                            {row.name_tag ? (
+                              <span className="inline-flex items-center bg-slate-700/40 border border-slate-600/50 text-slate-300 px-1.5 py-0.5 rounded text-[10px]">
+                                {row.name_tag}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">-</span>
+                            )}
+                          </td>
                           <td className="px-3 py-1.5 text-slate-400">{row.tags || '-'}</td>
                           <td className="px-3 py-1.5 text-slate-400 font-mono text-[10px]">{row.areas_of_interest || '-'}</td>
                           <td className="px-3 py-1.5 text-slate-350">{budgetLabel}</td>

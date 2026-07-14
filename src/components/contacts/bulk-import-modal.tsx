@@ -22,6 +22,9 @@ import { Check, Loader2 } from 'lucide-react';
 
 export interface BulkImportContact {
   name: string;
+  /** Quick-recall qualifier split off the phonebook name (e.g. "Bank DSA").
+   *  Shown only inside the CRM; outbound messages use `name` alone. */
+  name_tag: string;
   phone: string;
   email: string;
   classification: 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others';
@@ -74,7 +77,7 @@ export function BulkImportModal({
     );
   };
 
-  const updateContactField = (index: number, field: 'name' | 'phone' | 'email', value: string) => {
+  const updateContactField = (index: number, field: 'name' | 'name_tag' | 'phone' | 'email', value: string) => {
     setContacts(
       contacts.map((c, i) =>
         i === index ? { ...c, [field]: value } : c
@@ -126,6 +129,12 @@ export function BulkImportModal({
                   />
                 </TableHead>
                 <TableHead className="text-slate-300 font-semibold">Name</TableHead>
+                <TableHead className="text-slate-300 font-semibold">
+                  Name Tag
+                  <span className="block text-[10px] font-normal text-slate-500 normal-case">
+                    CRM-only label — not sent in messages
+                  </span>
+                </TableHead>
                 <TableHead className="text-slate-300 font-semibold">Phone</TableHead>
                 <TableHead className="text-slate-300 font-semibold">Email</TableHead>
                 <TableHead className="text-slate-300 font-semibold w-40">Classification</TableHead>
@@ -154,6 +163,20 @@ export function BulkImportModal({
                       onChange={(e) => updateContactField(index, 'name', e.target.value)}
                       className="bg-transparent border-0 focus:ring-0 focus:border-0 p-0 text-white w-full text-sm font-medium focus:underline"
                       placeholder="Name"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <input
+                      type="text"
+                      value={contact.name_tag}
+                      onChange={(e) => updateContactField(index, 'name_tag', e.target.value)}
+                      className={`border-0 focus:ring-0 focus:border-0 text-sm w-full focus:underline rounded px-1.5 py-0.5 ${
+                        contact.name_tag
+                          ? 'bg-slate-800/80 text-slate-300'
+                          : 'bg-transparent text-slate-500'
+                      }`}
+                      placeholder="—"
+                      title="Auto-suggested from the phonebook name — edit or clear as needed"
                     />
                   </TableCell>
                   <TableCell>

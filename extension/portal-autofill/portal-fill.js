@@ -86,7 +86,39 @@
     setTimeout(() => { el.style.outline = ''; }, 3000);
   }
 
-  function fillTextFields(fields) {
+  // City / locality / society inputs on the portals are typeaheads:
+  // typing alone doesn't count — a suggestion must be clicked to
+  // commit the value (and often to reveal the next input).
+  const TYPEAHEAD_FIELDS = new Set(['City', 'Locality', 'Project / Society']);
+
+  /** After typing into a typeahead, click the suggestion that best
+   *  matches our value: exact text first (plain "Bangalore" beats
+   *  "Bangalore East"), then prefix. Only considers options rendered
+   *  directly below the input so wizard sidebars etc. can't match. */
+  function commitTypeahead(input, value) {
+    const want = normalizedText(value);
+    const ir = input.getBoundingClientRect();
+    const options = [...document.querySelectorAll('[role="option"], li, [class*="suggest" i] *, [class*="autocomplete" i] *, [class*="dropdown" i] li')]
+      .filter((el) => {
+        if (el.closest(`#${PANEL_ID}`)) return false;
+        if (el.childElementCount > 3) return false;
+        const r = el.getBoundingClientRect();
+        if (r.width < 60 || r.height < 14 || r.height > 80) return false;
+        // Must sit in the dropdown zone under the input.
+        return r.top >= ir.bottom - 4 && r.top <= ir.bottom + 420 && r.left < ir.right && r.right > ir.left - 60;
+      });
+
+    let best = options.find((el) => normalizedText(el.textContent) === want);
+    if (!best) best = options.find((el) => normalizedText(el.textContent).startsWith(want));
+    if (best) {
+      best.click();
+      flashOutline(input);
+      return true;
+    }
+    return false;
+  }
+
+  async function fillTextFields(fields) {
     const candidates = [...document.querySelectorAll('input, textarea')].filter(isFillable);
     const used = new Set();
     let filled = 0;
@@ -117,6 +149,13 @@
           used.add(best);
           flashOutline(best);
           filled++;
+          if (TYPEAHEAD_FIELDS.has(field.label)) {
+            // Give the SPA a beat to render suggestions, pick ours,
+            // then another beat for the next input to appear.
+            await sleep(700);
+            commitTypeahead(best, field.value);
+            await sleep(400);
+          }
         } catch {
           // Portal blocked the write — the copy button still covers it.
         }
@@ -215,7 +254,7 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   async function autofill(fields) {
-    let done = fillTextFields(fields);
+    let done = await fillTextFields(fields);
     // Chips first-to-last: each click can reveal the next section, so
     // pause briefly and re-scan between clicks, then run a second text
     // pass over whatever the selections revealed.
@@ -225,7 +264,7 @@
         await sleep(450);
       }
     }
-    done += fillTextFields(fields);
+    done += await fillTextFields(fields);
     return done;
   }
 
@@ -316,7 +355,7 @@
       body.appendChild(list);
 
       body.appendChild(el('div', 'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
-        'Autofill fills text fields and selects matching chips (Sell, property type, BHK). Re-run it on each wizard step, fix anything it missed, review, then submit.'));
+        'Autofill fills text fields, selects matching chips (Sell, property type, BHK), and picks city/locality suggestions. Re-run it on each wizard step, fix anything it missed, review, then submit.'));
     }
 
     let collapsed = false;

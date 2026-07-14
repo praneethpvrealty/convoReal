@@ -60,6 +60,7 @@ import { ImportModal } from '@/components/contacts/import-modal';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { CalendarDays } from 'lucide-react';
@@ -1077,15 +1078,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
       if (picked.length === 1) {
         const c = picked[0];
-        const name = c.name?.[0] || '';
+        const rawName = c.name?.[0] || '';
+        const split = suggestNameTagSplit(rawName);
         const phone = c.tel?.[0] || '';
         const email = c.email?.[0] || '';
-        
+
         setEditContact({
           id: '',
           user_id: user?.id || '',
           phone: normalizePhoneWithCountryCode(phone) || phone,
-          name,
+          name: split?.name ?? rawName,
+          name_tag: split?.nameTag ?? null,
           email,
           company: '',
           classification: 'Others',
@@ -1098,13 +1101,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         setFormOpen(true);
       } else {
         setBulkImportContacts(
-          picked.map((c) => ({
-            name: c.name?.[0] || '',
-            phone: c.tel?.[0] ? (normalizePhoneWithCountryCode(c.tel[0]) || c.tel[0]) : '',
-            email: c.email?.[0] || '',
-            classification: 'Others' as const,
-            selected: true,
-          }))
+          picked.map((c) => {
+            const rawName = c.name?.[0] || '';
+            const split = suggestNameTagSplit(rawName);
+            return {
+              name: split?.name ?? rawName,
+              name_tag: split?.nameTag ?? '',
+              phone: c.tel?.[0] ? (normalizePhoneWithCountryCode(c.tel[0]) || c.tel[0]) : '',
+              email: c.email?.[0] || '',
+              classification: 'Others' as const,
+              selected: true,
+            };
+          })
         );
         setBulkImportOpen(true);
       }
@@ -1128,6 +1136,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         account_id: accountId,
         user_id: user?.id || null,
         name: c.name,
+        name_tag: c.name_tag.trim() || null,
         phone: normalizePhoneWithCountryCode(c.phone) || c.phone,
         email: c.email || null,
         classification: c.classification,

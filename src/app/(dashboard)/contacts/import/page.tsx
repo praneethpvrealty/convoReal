@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { Loader2, Smartphone, AlertCircle } from 'lucide-react';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import type { Contact } from '@/types';
 
 // Helper parser for shared contact payloads
@@ -94,12 +95,14 @@ function ImportSharedContactContent() {
     }
 
     const parsed = parseSharedData(title, text, url);
+    const split = suggestNameTagSplit(parsed.name);
 
     setContactData({
       id: '',
       user_id: user?.id || '',
       phone: parsed.phone,
-      name: parsed.name,
+      name: split?.name ?? parsed.name,
+      name_tag: split?.nameTag ?? null,
       email: parsed.email,
       company: '',
       classification: 'Others',

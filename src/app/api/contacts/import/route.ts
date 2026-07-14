@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     interface ImportRow {
       phone?: string;
       name?: string;
+      name_tag?: string;
       email?: string;
       company?: string;
       tags?: string;
@@ -108,6 +109,7 @@ export async function POST(request: Request) {
         account_id: ctx.accountId,
         phone: row.phone.trim(),
         name: typeof row.name === 'string' ? row.name.trim() || null : null,
+        name_tag: typeof row.name_tag === 'string' ? row.name_tag.trim() || null : null,
         email: typeof row.email === 'string' ? row.email.trim() || null : null,
         company: typeof row.company === 'string' ? row.company.trim() || null : null,
         classification: 'Buyer' as const, // Default to Buyer
