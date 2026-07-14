@@ -44,6 +44,7 @@ import { PropertyShareDialog } from '@/components/inventory/property-share-dialo
 import { PropertyEmailShareDialog } from '@/components/inventory/property-email-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { localCache } from '@/lib/cache-store';
+import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { InfoHint } from '@/components/ui/info-hint';
 
@@ -470,6 +471,51 @@ export default function InventoryPage() {
     }
   }
 
+  // Toggle the Contacts-page interest-filter star. The server enforces
+  // the cap too; this pre-check just gives a friendlier local error.
+  async function handleToggleStar(property: Property) {
+    try {
+      if (!property.is_starred) {
+        const supabaseClient = createClient();
+        const { count } = await supabaseClient
+          .from('properties')
+          .select('id', { count: 'exact', head: true })
+          .eq('account_id', accountId)
+          .eq('is_starred', true);
+        if ((count ?? 0) >= STARRED_PROPERTY_CAP) {
+          toast.error(`You can star up to ${STARRED_PROPERTY_CAP} properties. Unstar one from Inventory first.`);
+          return;
+        }
+      }
+
+      const response = await fetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          is_starred: !property.is_starred,
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to update star');
+      }
+
+      toast.success(
+        property.is_starred
+          ? 'Removed from Contacts quick filters'
+          : `Starred — now a quick filter on the Contacts page (${property.property_code || property.title})`
+      );
+      localCache.clear();
+      fetchProperties();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to update star';
+      toast.error(message);
+    }
+  }
+
   // Approve a "Pending Review" WhatsApp-submitted listing — publishes it,
   // syncs to the WhatsApp catalog, and sends a WhatsApp notification to
   // the tagged owner contact (if one is set on the property).
@@ -753,6 +799,7 @@ export default function InventoryPage() {
         onEdit={handleEditClick}
         onDelete={handleDeleteClick}
         onTogglePublish={handleTogglePublish}
+        onToggleStar={handleToggleStar}
         canEdit={canEdit}
         onFlyer={handleFlyerClick}
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}

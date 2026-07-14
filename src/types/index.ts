@@ -812,6 +812,8 @@ export interface Property {
   facing_direction?: string;
   nearby_highlights?: string[];
   is_published: boolean;
+  /** Account-wide star: shown as an interest-filter chip on Contacts (capped at 6). */
+  is_starred?: boolean;
   features: string[];
   images: string[];
   documents?: string[];

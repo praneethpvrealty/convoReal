@@ -22,6 +22,7 @@ import {
   ArchiveRestore,
   Megaphone,
   Mail,
+  Star,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -50,6 +51,7 @@ interface PropertyListProps {
   onEdit: (property: Property) => void;
   onDelete: (property: Property) => void;
   onTogglePublish: (property: Property) => Promise<void>;
+  onToggleStar?: (property: Property) => Promise<void>;
   canEdit: boolean;
   onFlyer?: (property: Property) => void;
   onPromote?: (property: Property) => void;
@@ -68,6 +70,7 @@ export function PropertyList({
   onEdit,
   onDelete,
   onTogglePublish,
+  onToggleStar,
   canEdit,
   onFlyer,
   onPromote,
@@ -153,6 +156,18 @@ export function PropertyList({
       await onTogglePublish(property);
     } finally {
       setTogglingId(null);
+    }
+  }
+
+  const [starringId, setStarringId] = useState<string | null>(null);
+
+  async function handleToggleStar(property: Property) {
+    if (!onToggleStar) return;
+    setStarringId(property.id);
+    try {
+      await onToggleStar(property);
+    } finally {
+      setStarringId(null);
     }
   }
 
@@ -264,7 +279,30 @@ export function PropertyList({
               </div>
 
               {/* Publication Status Overlay */}
-              <div className="absolute top-3 right-3">
+              <div className="absolute top-3 right-3 flex flex-col gap-1.5">
+                {onToggleStar && (
+                  <button
+                    type="button"
+                    disabled={!canEdit || starringId === property.id}
+                    onClick={() => handleToggleStar(property)}
+                    className={`flex items-center justify-center p-2 rounded-full backdrop-blur-md transition-all ${
+                      property.is_starred
+                        ? 'bg-amber-500/95 text-slate-950 hover:bg-amber-400'
+                        : 'bg-slate-950/80 text-slate-400 hover:text-amber-400'
+                    } border border-slate-800/60 disabled:opacity-50`}
+                    title={
+                      property.is_starred
+                        ? 'Starred — shown as an interest filter on Contacts. Click to unstar.'
+                        : 'Star — pin as an interest filter chip on the Contacts page'
+                    }
+                  >
+                    {starringId === property.id ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Star className={`size-3.5 ${property.is_starred ? 'fill-current' : ''}`} />
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!canEdit || togglingId === property.id}

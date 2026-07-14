@@ -41,6 +41,7 @@ import {
   Trash2,
   Loader2,
   Users,
+  Star,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
@@ -72,6 +73,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { parsePropertyQuery } from '@/lib/search-parser';
+import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { localCache } from '@/lib/cache-store';
 
 const PAGE_SIZE = 25;
@@ -420,6 +422,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [filterMinBudget, setFilterMinBudget] = useState<string>('All');
   const [filterMaxBudget, setFilterMaxBudget] = useState<string>('All');
   const [filterArea, setFilterArea] = useState<string>('All');
+  // Starred-property interest chips (fed from Inventory stars): the
+  // selected chip narrows the list to contacts who showed interest in
+  // that property (last_inquired_property_id ∪ contact_property_inquiries).
+  const [starredProps, setStarredProps] = useState<{ id: string; property_code: string | null; title: string }[]>([]);
+  const [filterInterestProperty, setFilterInterestProperty] = useState<string>('All');
   // All unique areas across all contacts for the area filter dropdown
   const [allAreas, setAllAreas] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>('created_desc');
@@ -513,6 +520,32 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   }, [accountId]);
 
+  // Load the account's starred properties for the quick-filter chips.
+  // Errors (e.g. migration 120 not applied yet) just hide the chips.
+  const fetchStarredProps = useCallback(async () => {
+    if (!accountId) return;
+    const supabaseClient = createClient();
+    const { data } = await supabaseClient
+      .from('properties')
+      .select('id, property_code, title')
+      .eq('account_id', accountId)
+      .eq('is_starred', true)
+      .order('updated_at', { ascending: false })
+      .limit(STARRED_PROPERTY_CAP);
+    setStarredProps(data || []);
+  }, [accountId]);
+
+  useEffect(() => {
+    fetchStarredProps();
+  }, [fetchStarredProps]);
+
+  // If the active chip's property was unstarred elsewhere, drop the filter.
+  useEffect(() => {
+    if (filterInterestProperty !== 'All' && !starredProps.some((p) => p.id === filterInterestProperty)) {
+      setFilterInterestProperty('All');
+    }
+  }, [starredProps, filterInterestProperty]);
+
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
     const supabaseClient = createClient();
@@ -520,7 +553,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${debouncedSearch}`;
+    const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${filterInterestProperty}-${debouncedSearch}`;
     const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number; transactedCount: number; marketActiveCount: number }>(cacheKey);
 
     if (cached) {
@@ -632,6 +665,33 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         
         if (tagContactIds.length > 0) {
           query = query.in('id', tagContactIds);
+        } else {
+          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+      }
+
+      if (filterInterestProperty !== 'All') {
+        // Interest = the property form's "interested contacts" link OR a
+        // recorded inquiry (portal lead email, manual log) for this property.
+        const [inquiryRes, lastInquiredRes] = await Promise.all([
+          supabaseClient
+            .from('contact_property_inquiries')
+            .select('contact_id')
+            .eq('property_id', filterInterestProperty),
+          supabaseClient
+            .from('contacts')
+            .select('id')
+            .eq('account_id', accountId)
+            .eq('last_inquired_property_id', filterInterestProperty),
+        ]);
+        const interestedIds = Array.from(
+          new Set([
+            ...(inquiryRes.data?.map((r) => r.contact_id) || []),
+            ...(lastInquiredRes.data?.map((r) => r.id) || []),
+          ].filter(Boolean))
+        );
+        if (interestedIds.length > 0) {
+          query = query.in('id', interestedIds);
         } else {
           query = query.eq('id', '00000000-0000-0000-0000-000000000000');
         }
@@ -939,6 +999,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     filterMinBudget,
     filterMaxBudget,
     filterArea,
+    filterInterestProperty,
     sortBy,
   ]);
 
@@ -1280,6 +1341,45 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             </Select>
           </div>
         </div>
+
+        {/* Starred-property interest chips — starred in Inventory, each
+            chip filters to contacts who showed interest in that listing.
+            The label is the property code; hovering expands the full title. */}
+        {starredProps.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 -mt-1">
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
+              <Star className="size-3 text-amber-400 fill-amber-400" />
+              Interested in:
+            </span>
+            {starredProps.map((p) => {
+              const active = filterInterestProperty === p.id;
+              const label = p.property_code || p.title.split(/\s+/).slice(0, 2).join(' ');
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => {
+                    setFilterInterestProperty(active ? 'All' : p.id);
+                    setPage(0);
+                  }}
+                  title={p.title}
+                  className={cn(
+                    'group flex items-center overflow-hidden rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold transition-all cursor-pointer',
+                    active
+                      ? 'border-amber-500/60 bg-amber-500/15 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
+                      : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-300'
+                  )}
+                >
+                  <span className="whitespace-nowrap">{label}</span>
+                  <span className="max-w-0 overflow-hidden whitespace-nowrap font-sans font-medium text-slate-400 transition-all duration-300 ease-out group-hover:max-w-[260px] group-hover:pl-1.5">
+                    {p.title}
+                  </span>
+                  {active && <X className="ml-1 size-3 shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Filters Dialog Drawer */}
         <Dialog open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>

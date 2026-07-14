@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
+import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 
 // GET /api/properties/[id]
 // Returns a single property with full relations (owner + interested_contacts)
@@ -101,6 +102,7 @@ export async function PUT(
       state,
       project,
       is_published,
+      is_starred,
       features,
       images,
       land_zone,
@@ -275,6 +277,26 @@ export async function PUT(
 
     if (is_published !== undefined) {
       updateData.is_published = typeof is_published === "boolean" ? is_published : false;
+    }
+
+    if (is_starred !== undefined) {
+      const nextStarred = is_starred === true;
+      if (nextStarred) {
+        // Cap enforced server-side so racing clients can't exceed it.
+        const { count } = await ctx.supabase
+          .from("properties")
+          .select("id", { count: "exact", head: true })
+          .eq("account_id", ctx.accountId)
+          .eq("is_starred", true)
+          .neq("id", id);
+        if ((count ?? 0) >= STARRED_PROPERTY_CAP) {
+          return NextResponse.json(
+            { error: `You can star up to ${STARRED_PROPERTY_CAP} properties. Unstar one first.` },
+            { status: 400 }
+          );
+        }
+      }
+      updateData.is_starred = nextStarred;
     }
 
     if (features !== undefined) {
