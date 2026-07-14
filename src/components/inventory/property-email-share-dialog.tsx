@@ -332,17 +332,17 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
 
             {/* Body */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                 <Label htmlFor="email-share-body" className="text-slate-300">Body</Label>
                 <button
                   type="button"
                   onClick={draftWithAi}
                   disabled={drafting}
-                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 disabled:opacity-50 transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 disabled:opacity-50 transition-colors shrink-0"
                 >
-                  {drafting ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-                  {drafting ? 'Drafting...' : 'Draft with AI'}
-                  <span className="text-[10px] font-mono text-slate-500 border border-slate-800 rounded px-1 py-0.5">
+                  {drafting ? <Loader2 className="size-3.5 animate-spin shrink-0" /> : <Sparkles className="size-3.5 shrink-0" />}
+                  <span className="whitespace-nowrap">{drafting ? 'Drafting...' : 'Draft with AI'}</span>
+                  <span className="text-[10px] font-mono text-slate-500 border border-slate-800 rounded px-1 py-0.5 whitespace-nowrap">
                     {AI_FEATURE_COSTS.share_email} cr
                   </span>
                 </button>
