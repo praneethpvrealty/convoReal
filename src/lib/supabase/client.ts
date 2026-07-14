@@ -40,13 +40,16 @@ async function resilientNavigatorLock<R>(
   fn: () => Promise<R>,
 ): Promise<R> {
   if (acquireTimeout === 0) return navigatorLock(name, 0, fn)
-  // Cap even caller-specified waits (auth-js defaults to 5000ms) — the
-  // fallback path makes a longer wait pointless, and the shorter wait is
-  // what keeps us ahead of the AuthProvider safety timer.
+  // Cap every wait at LOCK_ACQUIRE_TIMEOUT_MS. In practice acquireTimeout
+  // arrives as `undefined` here (supabase-js explicitly forwards its
+  // destructured-but-unset lockAcquireTimeout, clobbering auth-js's 5000
+  // default in the settings merge), and navigatorLock only arms its
+  // abort timer for values > 0 — undefined/NaN/-1 all mean "wait
+  // forever", which is exactly the wedge we're fixing.
   const waitMs =
-    acquireTimeout < 0
-      ? LOCK_ACQUIRE_TIMEOUT_MS
-      : Math.min(acquireTimeout, LOCK_ACQUIRE_TIMEOUT_MS)
+    Number.isFinite(acquireTimeout) && acquireTimeout > 0
+      ? Math.min(acquireTimeout, LOCK_ACQUIRE_TIMEOUT_MS)
+      : LOCK_ACQUIRE_TIMEOUT_MS
   try {
     return await navigatorLock(name, waitMs, fn)
   } catch (err) {

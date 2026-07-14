@@ -24,6 +24,7 @@ import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
+import { tryHandleOwnerScheduling } from '@/lib/calendar/whatsapp-scheduler';
 import {
   validateDraft,
   validateContactDraftsContainer,
@@ -407,11 +408,12 @@ async function sendContactDraftPreview(
  * Returns true if the message was handled/consumed by the chatbot engine, false otherwise.
  */
 export async function processOwnerChatbotMessage(
-  message: { 
-    id: string; 
-    type: string; 
+  message: {
+    id: string;
+    type: string;
     image?: { id: string; mime_type: string };
     document?: { id: string; mime_type: string; filename?: string };
+    audio?: { id: string; mime_type: string };
     interactive?: {
       type: 'button_reply' | 'list_reply';
       button_reply?: { id: string; title: string };
@@ -552,6 +554,30 @@ export async function processOwnerChatbotMessage(
       inboundMediaMime = mimeType;
     }
     return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
+  }
+
+  // 1.7. Calendar scheduling intercept — voice notes and scheduling
+  // texts ("remind me...", "site visit tomorrow 4pm", "today") go to
+  // the calendar, but never while a draft session is mid-flight so
+  // intake corrections aren't hijacked. tryHandleOwnerScheduling has
+  // its own strict pre-filter and returns false for anything that
+  // should continue into the intake flows below.
+  if (!propSession && !contactSession) {
+    try {
+      const scheduled = await tryHandleOwnerScheduling({
+        message,
+        contentText: cleanedText || null,
+        contactRecord,
+        conversation,
+        accountId,
+        userId,
+        accessToken,
+        phoneNumberId,
+      });
+      if (scheduled) return true;
+    } catch (err) {
+      console.error('[chatbot-engine] scheduling intercept failed, falling through to intake:', err);
+    }
   }
 
   // 1.8. Quick Task Switch / Fresh Ingestion Intercept

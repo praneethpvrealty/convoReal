@@ -1,5 +1,10 @@
 import { NextResponse } from 'next/server'
 import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder'
+import {
+  sendAgentEventReminders,
+  sendDailyScheduleDigests,
+  sendOverdueNudges,
+} from '@/lib/calendar/agent-reminders'
 
 export async function GET(request: Request) {
   const expected = process.env.AUTOMATION_CRON_SECRET
@@ -12,7 +17,12 @@ export async function GET(request: Request) {
   }
 
   try {
+    // Client-facing template reminders, then the three agent-facing
+    // passes: pre-event brief, morning digest, overdue nudge.
     await checkAndSendAppointmentReminders()
+    await sendAgentEventReminders()
+    await sendDailyScheduleDigests()
+    await sendOverdueNudges()
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[Appointments Cron] Check failed:', error)

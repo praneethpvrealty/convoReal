@@ -142,6 +142,17 @@ export async function generateJson(prompt: string, systemInstruction?: string): 
   return generateContentRaw(contents, systemInstruction, true);
 }
 
+/**
+ * JSON-mode generation over mixed parts (text + inline media such as a
+ * voice-note audio buffer). Used by the calendar event parser to
+ * transcribe-and-extract in a single call.
+ */
+export async function generateJsonFromParts(parts: GeminiPart[], systemInstruction?: string): Promise<string> {
+  return generateContentRaw([{ parts }], systemInstruction, true);
+}
+
+export type { GeminiPart };
+
 /** Must match the vector(768) column in copilot_qa_cache. */
 export const EMBEDDING_DIMS = 768;
 const EMBEDDING_MODEL = "gemini-embedding-001";

@@ -18,7 +18,11 @@ import {
   CalendarDays,
   ListTodo,
   MessageSquare,
-  Pencil
+  Pencil,
+  Users,
+  LayoutGrid,
+  Columns3,
+  AudioLines,
 } from "lucide-react";
 import { toast } from "sonner";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -26,31 +30,18 @@ import { SearchableContactSelect } from "@/components/ui/searchable-contact-sele
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
 import { InfoHint } from "@/components/ui/info-hint";
 import { FavoriteButton } from "@/components/layout/favorite-button";
-
-interface Appointment {
-  id: string;
-  account_id: string;
-  user_id: string;
-  title: string;
-  description: string | null;
-  start_time: string;
-  end_time: string;
-  location: string | null;
-  status: "scheduled" | "completed" | "cancelled";
-  contact_id: string | null;
-  property_id: string | null;
-  contact?: {
-    id: string;
-    name: string;
-    phone: string;
-  } | null;
-  property?: {
-    id: string;
-    title: string;
-    location: string | null;
-    sublocality: string | null;
-  } | null;
-}
+import { SmartAddBar, ConfirmedEventDraft } from "@/components/calendar/smart-add-bar";
+import { TeamView } from "@/components/calendar/team-view";
+import { WeekView } from "@/components/calendar/week-view";
+import {
+  CalendarEvent,
+  TeamMember,
+  EVENT_TYPES,
+  EVENT_TYPE_KEYS,
+  EventTypeKey,
+  eventTypeMeta,
+  memberInitials,
+} from "@/components/calendar/event-types";
 
 interface Todo {
   id: string;
@@ -73,6 +64,7 @@ interface Todo {
     sublocality: string | null;
   } | null;
   isAppointment?: boolean;
+  eventType?: EventTypeKey;
 }
 
 interface SimpleContact {
@@ -88,16 +80,24 @@ interface SimpleProperty {
   sublocality: string | null;
 }
 
+type ViewMode = "month" | "week" | "team";
+
 export default function CalendarPage() {
   const supabase = createClient();
-  const { accountId } = useAuth();
+  const { accountId, user } = useAuth();
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [view, setView] = useState<ViewMode>("month");
+  const [appointments, setAppointments] = useState<CalendarEvent[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [contacts, setContacts] = useState<SimpleContact[]>([]);
   const [properties, setProperties] = useState<SimpleProperty[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [typeFilter, setTypeFilter] = useState<EventTypeKey | "all">("all");
+  const [memberFilter, setMemberFilter] = useState<string>("all");
 
   const searchParams = useSearchParams();
   const [todoFilter, setTodoFilter] = useState<"all" | "priority">("all");
@@ -112,7 +112,7 @@ export default function CalendarPage() {
 
   // Modals state
   const [isApptModalOpen, setIsApptModalOpen] = useState(false);
-  const [selectedAppt, setSelectedAppt] = useState<Appointment | null>(null);
+  const [selectedAppt, setSelectedAppt] = useState<CalendarEvent | null>(null);
 
   // Appointment Form state
   const [apptTitle, setApptTitle] = useState("");
@@ -123,6 +123,8 @@ export default function CalendarPage() {
   const [apptEndTime, setApptEndTime] = useState("");
   const [apptLocation, setApptLocation] = useState("");
   const [apptStatus, setApptStatus] = useState<"scheduled" | "completed" | "cancelled">("scheduled");
+  const [apptEventType, setApptEventType] = useState<EventTypeKey>("meeting");
+  const [apptAssignedTo, setApptAssignedTo] = useState("");
 
   // Todo Form state
   const [todoTitle, setTodoTitle] = useState("");
@@ -146,76 +148,71 @@ export default function CalendarPage() {
   // Fetch appointments and todos
   const loadData = useCallback(async () => {
     try {
-      console.log('[CALENDAR PAGE] loadData starting, accountId:', accountId);
       setLoading(true);
 
-      // Fetch appointments
-      console.log('[CALENDAR PAGE] Fetching appointments...');
       const { data: appts, error: apptError } = await supabase
         .from("appointments")
         .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("start_time", { ascending: true });
 
-      if (apptError) {
-        console.error('[CALENDAR PAGE] Appointments fetch error:', apptError);
-        throw apptError;
-      }
-      console.log('[CALENDAR PAGE] Appointments fetched:', appts?.length || 0);
-      setAppointments(appts || []);
+      if (apptError) throw apptError;
+      setAppointments((appts || []) as CalendarEvent[]);
 
-      // Fetch todos
-      console.log('[CALENDAR PAGE] Fetching todos...');
       const { data: todoList, error: todoError } = await supabase
         .from("todos")
         .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("created_at", { ascending: true });
 
-      if (todoError) {
-        console.error('[CALENDAR PAGE] Todos fetch error:', todoError);
-        throw todoError;
-      }
-      console.log('[CALENDAR PAGE] Todos fetched:', todoList?.length || 0);
+      if (todoError) throw todoError;
       setTodos(todoList || []);
 
-      // Fetch contacts
-      console.log('[CALENDAR PAGE] Fetching contacts...');
       const { data: contactsList } = await supabase
         .from("contacts")
         .select("id, name, phone")
         .eq("account_id", accountId)
         .order("name");
-      console.log('[CALENDAR PAGE] Contacts fetched:', contactsList?.length || 0);
       setContacts(contactsList || []);
 
-      // Fetch properties
-      console.log('[CALENDAR PAGE] Fetching properties...');
       const { data: propsList } = await supabase
         .from("properties")
         .select("id, title, location, sublocality")
         .eq("account_id", accountId)
         .order("title");
-      console.log('[CALENDAR PAGE] Properties fetched:', propsList?.length || 0);
       setProperties(propsList || []);
     } catch (err) {
-      console.error('[CALENDAR PAGE] loadData caught error:', err);
+      console.error("[CALENDAR PAGE] loadData caught error:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || "Failed to load calendar data");
     } finally {
-      console.log('[CALENDAR PAGE] loadData finally block, setting loading to false.');
       setLoading(false);
     }
   }, [accountId, supabase]);
 
   useEffect(() => {
-    console.log('[CALENDAR PAGE] useEffect running, accountId:', accountId);
     if (accountId) {
       loadData();
-    } else {
-      console.warn('[CALENDAR PAGE] useEffect skipped because accountId is falsy:', accountId);
     }
   }, [accountId, loadData]);
+
+  // Team roster for lanes, assignee select, and initials badges.
+  useEffect(() => {
+    if (!accountId) return;
+    fetch("/api/account/members")
+      .then((res) => (res.ok ? res.json() : { members: [] }))
+      .then((json) => {
+        const rows = (json.members || []) as Array<{
+          user_id: string;
+          full_name: string;
+          avatar_url: string | null;
+          org_role?: string;
+          team_id: string | null;
+        }>;
+        setMembers(rows.map((r) => ({ ...r, full_name: r.full_name || "Member" })));
+      })
+      .catch(() => setMembers([]));
+  }, [accountId]);
 
   // Calendar math
   const year = currentDate.getFullYear();
@@ -232,8 +229,7 @@ export default function CalendarPage() {
 
   const calendarCells = useMemo(() => {
     const cells = [];
-    
-    // Add prev month trailing days
+
     for (let i = firstDayIndex - 1; i >= 0; i--) {
       cells.push({
         day: prevDaysInMonth - i,
@@ -242,7 +238,6 @@ export default function CalendarPage() {
       });
     }
 
-    // Add current month days
     for (let i = 1; i <= daysInMonth; i++) {
       cells.push({
         day: i,
@@ -251,7 +246,6 @@ export default function CalendarPage() {
       });
     }
 
-    // Add next month leading days to complete grid (multiples of 7)
     const remaining = 42 - cells.length; // 6 rows of 7 days = 42
     for (let i = 1; i <= remaining; i++) {
       cells.push({
@@ -264,20 +258,30 @@ export default function CalendarPage() {
     return cells;
   }, [year, month, firstDayIndex, daysInMonth, prevDaysInMonth]);
 
+  // View-level filters applied to every calendar surface.
+  const filteredAppointments = useMemo(() => {
+    return appointments.filter((appt) => {
+      if (typeFilter !== "all" && (appt.event_type || "other") !== typeFilter) return false;
+      if (memberFilter !== "all" && (appt.assigned_to || appt.user_id) !== memberFilter) return false;
+      return true;
+    });
+  }, [appointments, typeFilter, memberFilter]);
+
   // Combine appointments and todos for the To-Do task list
   const combinedTodos = useMemo(() => {
-    const apptTodos: (Todo & { isAppointment?: boolean })[] = appointments.map((appt) => ({
+    const apptTodos: Todo[] = appointments.map((appt) => ({
       id: appt.id,
-      title: `[Schedule] ${appt.title}`,
+      title: `[${eventTypeMeta(appt.event_type).label}] ${appt.title}`,
       description: appt.description,
       due_date: appt.start_time,
-      priority: "medium",
+      priority: "medium" as const,
       completed: appt.status === "completed" || appt.status === "cancelled",
       contact_id: appt.contact_id,
       property_id: appt.property_id,
       contact: appt.contact,
       property: appt.property,
       isAppointment: true,
+      eventType: appt.event_type,
     }));
 
     const all = [...todos, ...apptTodos];
@@ -297,30 +301,47 @@ export default function CalendarPage() {
 
   // Group appointments by date string
   const appointmentsByDate = useMemo(() => {
-    const map: Record<string, Appointment[]> = {};
-    appointments.forEach((appt) => {
+    const map: Record<string, CalendarEvent[]> = {};
+    filteredAppointments.forEach((appt) => {
       const dateStr = new Date(appt.start_time).toDateString();
       if (!map[dateStr]) map[dateStr] = [];
       map[dateStr].push(appt);
     });
     return map;
-  }, [appointments]);
+  }, [filteredAppointments]);
 
   // Date Nav handlers
-  const handlePrevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
+  const handlePrev = () => {
+    if (view === "month") {
+      setCurrentDate(new Date(year, month - 1, 1));
+    } else {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() - 7);
+      setCurrentDate(d);
+    }
   };
 
-  const handleNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
+  const handleNext = () => {
+    if (view === "month") {
+      setCurrentDate(new Date(year, month + 1, 1));
+    } else {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + 7);
+      setCurrentDate(d);
+    }
   };
 
   const handleToday = () => {
     setCurrentDate(new Date());
   };
 
+  const formatDateTimeLocal = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   // Appointment modal edit/create
-  const openNewApptModal = (date?: Date) => {
+  const openNewApptModal = (date?: Date, assignedTo?: string) => {
     setSelectedAppt(null);
     setApptTitle("");
     setApptDesc("");
@@ -328,23 +349,20 @@ export default function CalendarPage() {
     setApptPropertyId("");
     setApptLocation("");
     setApptStatus("scheduled");
+    setApptEventType("meeting");
+    setApptAssignedTo(assignedTo || user?.id || "");
 
     const start = date ? new Date(date) : new Date();
     start.setHours(10, 0, 0, 0); // Default to 10:00 AM
     const end = new Date(start);
     end.setHours(11, 0, 0, 0); // Default 1 hour duration
 
-    // Format for datetime-local value (YYYY-MM-DDTHH:MM)
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const formatDateTime = (d: Date) => 
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-    setApptStartTime(formatDateTime(start));
-    setApptEndTime(formatDateTime(end));
+    setApptStartTime(formatDateTimeLocal(start));
+    setApptEndTime(formatDateTimeLocal(end));
     setIsApptModalOpen(true);
   };
 
-  const openEditApptModal = (appt: Appointment) => {
+  const openEditApptModal = (appt: CalendarEvent) => {
     setSelectedAppt(appt);
     setApptTitle(appt.title);
     setApptDesc(appt.description || "");
@@ -352,35 +370,29 @@ export default function CalendarPage() {
     setApptPropertyId(appt.property_id || "");
     setApptLocation(appt.location || "");
     setApptStatus(appt.status);
-
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const formatDateTime = (d: Date) => 
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
-    setApptStartTime(formatDateTime(new Date(appt.start_time)));
-    setApptEndTime(formatDateTime(new Date(appt.end_time)));
+    setApptEventType(appt.event_type || "meeting");
+    setApptAssignedTo(appt.assigned_to || appt.user_id || "");
+    setApptStartTime(formatDateTimeLocal(new Date(appt.start_time)));
+    setApptEndTime(formatDateTimeLocal(new Date(appt.end_time)));
     setIsApptModalOpen(true);
   };
 
   const saveAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[CALENDAR SAVE] saveAppointment triggered!');
     if (!apptTitle.trim()) {
       toast.error("Please enter a title");
       return;
     }
 
     try {
-      console.log('[CALENDAR SAVE] payload prep, apptStartTime:', apptStartTime, 'apptEndTime:', apptEndTime);
-      
       const parseDateTimeString = (str: string): Date => {
         const parsed = new Date(str);
         if (!isNaN(parsed.getTime())) return parsed;
         try {
           const [datePart, timePart] = str.split('T');
-          const [year, month, day] = datePart.split('-').map(Number);
+          const [y, m, d] = datePart.split('-').map(Number);
           const [hours, minutes] = timePart.split(':').map(Number);
-          return new Date(year, month - 1, day, hours, minutes);
+          return new Date(y, m - 1, d, hours, minutes);
         } catch {
           return new Date(str);
         }
@@ -402,28 +414,23 @@ export default function CalendarPage() {
         status: apptStatus,
         contact_id: apptContactId || null,
         property_id: apptPropertyId || null,
+        event_type: apptEventType,
+        assigned_to: apptAssignedTo || user?.id || null,
       };
-      console.log('[CALENDAR SAVE] payload ready:', payload);
 
       if (selectedAppt) {
-        console.log('[CALENDAR SAVE] updating appointment, id:', selectedAppt.id);
         const { error } = await supabase
           .from("appointments")
           .update(payload)
           .eq("id", selectedAppt.id)
           .eq("account_id", accountId);
 
-        if (error) {
-          console.error('[CALENDAR SAVE] update error:', error);
-          throw error;
-        }
+        if (error) throw error;
         toast.success("Appointment updated successfully");
       } else {
-        console.log('[CALENDAR SAVE] creating appointment, accountId:', accountId);
         const userRes = await supabase.auth.getUser();
-        console.log('[CALENDAR SAVE] getUser response:', userRes);
         const userId = userRes.data.user?.id;
-        
+
         if (!userId) {
           throw new Error("User session not found. Please re-login.");
         }
@@ -434,25 +441,23 @@ export default function CalendarPage() {
             ...payload,
             account_id: accountId,
             user_id: userId,
+            source: "web",
           });
 
-        if (error) {
-          console.error('[CALENDAR SAVE] insert error:', error);
-          throw error;
-        }
+        if (error) throw error;
         toast.success("Appointment scheduled successfully");
       }
 
       setIsApptModalOpen(false);
       loadData();
     } catch (err) {
-      console.error('[CALENDAR SAVE] caught error:', err);
+      console.error("[CALENDAR SAVE] caught error:", err);
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || "Failed to save appointment");
     }
   };
 
-  const deleteAppointment = async (apptToDelete?: Appointment) => {
+  const deleteAppointment = async (apptToDelete?: CalendarEvent) => {
     const target = apptToDelete || selectedAppt;
     if (!target) return;
     if (!confirm(`Are you sure you want to cancel and delete "${target.title}"?`)) return;
@@ -471,6 +476,57 @@ export default function CalendarPage() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       toast.error(errorMessage || "Failed to delete appointment");
+    }
+  };
+
+  // Smart add bar → one-tap create from parsed natural language / voice.
+  const handleSmartConfirm = async (draft: ConfirmedEventDraft) => {
+    try {
+      const userId = user?.id || (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("User session not found. Please re-login.");
+
+      if (draft.kind === "appointment" && draft.start_time) {
+        const { error } = await supabase.from("appointments").insert({
+          account_id: accountId,
+          user_id: userId,
+          assigned_to: draft.assigned_to || userId,
+          title: draft.title,
+          description: draft.notes,
+          event_type: draft.event_type,
+          start_time: draft.start_time,
+          end_time: draft.end_time || draft.start_time,
+          location: draft.location,
+          status: "scheduled",
+          contact_id: draft.contact_id,
+          property_id: draft.property_id,
+          source: draft.source,
+          transcript: draft.transcript,
+        });
+        if (error) throw error;
+        toast.success("Event added to the calendar");
+        setCurrentDate(new Date(draft.start_time));
+      } else {
+        const { error } = await supabase.from("todos").insert({
+          account_id: accountId,
+          user_id: userId,
+          assigned_to: draft.assigned_to || userId,
+          title: draft.title,
+          description: draft.notes,
+          due_date: draft.start_time,
+          priority: draft.priority,
+          completed: false,
+          contact_id: draft.contact_id,
+          property_id: draft.property_id,
+          source: draft.source,
+        });
+        if (error) throw error;
+        toast.success("Task added");
+      }
+      loadData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      toast.error(errorMessage || "Failed to save");
+      throw err;
     }
   };
 
@@ -831,6 +887,17 @@ export default function CalendarPage() {
     }
   };
 
+  const memberByUserId = useMemo(() => {
+    const map: Record<string, TeamMember> = {};
+    for (const m of members) map[m.user_id] = m;
+    return map;
+  }, [members]);
+
+  const headerLabel =
+    view === "month"
+      ? `${monthNames[month]} ${year}`
+      : currentDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+
   return (
     <div className="space-y-6 relative overflow-hidden h-full flex flex-col">
       {/* Header */}
@@ -840,605 +907,762 @@ export default function CalendarPage() {
             Calendar
           </h1>
           <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Manage site visits, follow-up callbacks, and track operational deadlines.
+            Log site visits, calls, and follow-ups by typing or speaking — and see the whole team&apos;s day at a glance.
           </p>
         </div>
         <FavoriteButton label="Calendar" href="/calendar" icon="Calendar" />
       </div>
 
-      <div className="flex flex-col gap-6 lg:h-full lg:flex-row overflow-hidden flex-1">
-        {/* ── Left Side: Interactive Calendar Monthly View ────────────────── */}
-        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur">
-        {/* Calendar Header Nav */}
-        <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-3">
-            <CalendarIcon className="h-6 w-6 text-primary" />
-            <h1 className="text-xl font-bold text-white sm:text-2xl flex items-center">
-              {monthNames[month]} {year}
-              <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls." />
-            </h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleToday}
-              className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
-            >
-              Today
-            </button>
-            <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-1">
-              <button
-                onClick={handlePrevMonth}
-                aria-label="Previous month"
-                className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                onClick={handleNextMonth}
-                aria-label="Next month"
-                className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-            <button
-              onClick={() => openNewApptModal()}
-              className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Schedule
-            </button>
-          </div>
-        </div>
-
-        {/* Days of the Week headings */}
-        <div className="grid grid-cols-7 border-b border-slate-800 pb-2 text-center text-xs font-bold uppercase tracking-wider text-slate-400">
-          <div>Sun</div>
-          <div>Mon</div>
-          <div>Tue</div>
-          <div>Wed</div>
-          <div>Thu</div>
-          <div>Fri</div>
-          <div>Sat</div>
-        </div>
-
-        {/* Calendar Day Grid */}
-        <div className="grid flex-1 grid-cols-7 grid-rows-6 gap-px bg-slate-800/40 mt-1 min-h-[420px]">
-          {loading ? (
-            <div className="col-span-7 row-span-6 flex items-center justify-center bg-slate-900/10">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-            </div>
-          ) : (
-            calendarCells.map((cell, idx) => {
-              const dateStr = cell.date.toDateString();
-              const cellAppts = appointmentsByDate[dateStr] || [];
-              const isToday = new Date().toDateString() === dateStr;
-
-              return (
-                <div
-                  key={idx}
-                  onClick={() => openNewApptModal(cell.date)}
-                  className={cn(
-                    "group relative flex flex-col min-h-[70px] bg-slate-950 p-2 transition-colors hover:bg-slate-900/60 cursor-pointer overflow-hidden",
-                    !cell.isCurrentMonth && "opacity-45"
-                  )}
-                >
-                  {/* Day Number Label */}
-                  <span
-                    className={cn(
-                      "text-xs font-bold inline-flex items-center justify-center h-5 w-5 rounded-full mb-1",
-                      isToday
-                        ? "bg-primary text-primary-foreground font-black"
-                        : "text-slate-400 group-hover:text-white"
-                    )}
-                  >
-                    {cell.day}
-                  </span>
-
-                  {/* Appointments indicators inside cell */}
-                  <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px]">
-                    {cellAppts.map((appt) => (
-                      <div
-                        key={appt.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditApptModal(appt);
-                        }}
-                        className={cn(
-                          "truncate text-[10px] px-1.5 py-0.5 rounded border leading-snug cursor-pointer transition-colors",
-                          appt.status === "completed"
-                            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20"
-                            : appt.status === "cancelled"
-                              ? "bg-rose-500/10 border-rose-500/30 text-rose-400 line-through hover:bg-rose-500/20"
-                              : "bg-primary/10 border-primary/30 text-primary hover:bg-primary/20"
-                        )}
-                      >
-                        {appt.title}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+      {/* Smart quick-add (text + voice) */}
+      <div className="relative z-30">
+        <SmartAddBar onConfirm={handleSmartConfirm} />
       </div>
 
-      {/* ── Right Side: Interactive To-Do Checklist Panel ────────────────── */}
-      <div className="flex w-full flex-col gap-6 lg:w-80 shrink-0">
-        {/* To-Do panel */}
-        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur overflow-hidden">
-          <div className="mb-4 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <ListTodo className="h-5 w-5 text-primary" />
-              <h2 className="text-sm font-bold text-white flex items-center">
-                To-Do Task List
-                <InfoHint text="A checklist of operational tasks. You can tag contacts using '@' or properties using '#' directly in task titles." />
-              </h2>
+      <div className="flex flex-col gap-6 lg:h-full lg:flex-row overflow-hidden flex-1">
+        {/* ── Left Side: Calendar views ────────────────── */}
+        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-0">
+          {/* Calendar Header Nav */}
+          <div className="mb-4 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
+            <div className="flex items-center gap-3">
+              <CalendarIcon className="h-6 w-6 text-primary" />
+              <h1 className="text-xl font-bold text-white sm:text-2xl flex items-center">
+                {headerLabel}
+                <InfoHint text="Navigate and schedule site visits, client appointments, or phone calls. Use the Team view to see every member's lane for the day." />
+              </h1>
             </div>
-            <select
-              value={todoFilter}
-              onChange={(e) => setTodoFilter(e.target.value as "all" | "priority")}
-              className="rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10px] font-bold text-slate-400 focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Tasks</option>
-              <option value="priority">Priority Only</option>
-            </select>
-          </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* View switcher */}
+              <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-0.5">
+                {([
+                  { key: "month", label: "Month", icon: LayoutGrid },
+                  { key: "week", label: "Week", icon: Columns3 },
+                  { key: "team", label: "Team", icon: Users },
+                ] as { key: ViewMode; label: string; icon: typeof Users }[]).map((v) => (
+                  <button
+                    key={v.key}
+                    onClick={() => setView(v.key)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors",
+                      view === v.key ? "bg-primary/15 text-primary" : "text-slate-400 hover:text-white"
+                    )}
+                  >
+                    <v.icon className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{v.label}</span>
+                  </button>
+                ))}
+              </div>
 
-          {/* Quick task add form */}
-          <form onSubmit={saveTodo} className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4 relative">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Add new task..."
-                value={todoTitle}
-                onChange={handleTodoTitleChange}
-                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-              />
-
-              {/* Autocomplete dropdown overlay */}
-              {mentionType && (
-                <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-1 shadow-xl">
-                  {mentionType === "contact" ? (
-                    filteredContacts.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-slate-500">No matching contacts</div>
-                    ) : (
-                      filteredContacts.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => selectMention(c.name, c.id, "contact")}
-                          className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
-                        >
-                          {c.name} ({c.phone})
-                        </button>
-                      ))
-                    )
-                  ) : (
-                    filteredProperties.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-slate-500">No matching properties</div>
-                    ) : (
-                      filteredProperties.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => selectMention(p.title, p.id, "property")}
-                          className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
-                        >
-                          {p.title}
-                        </button>
-                      ))
-                    )
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={todoPriority}
-                onChange={(e) => setTodoPriority(e.target.value as "low" | "medium" | "high")}
-                className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-300 focus:border-primary focus:outline-none"
-              >
-                <option value="low">Low Priority</option>
-                <option value="medium">Medium Priority</option>
-                <option value="high">High Priority</option>
-              </select>
               <button
-                type="submit"
-                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                onClick={handleToday}
+                className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
               >
-                Add
+                Today
+              </button>
+              <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950 p-1">
+                <button
+                  onClick={handlePrev}
+                  aria-label="Previous"
+                  className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={handleNext}
+                  aria-label="Next"
+                  className="rounded p-1 text-slate-400 hover:bg-slate-850 hover:text-white"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <button
+                onClick={() => openNewApptModal()}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Schedule
               </button>
             </div>
-          </form>
+          </div>
 
-          {/* Task checklist */}
-          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-            {combinedTodos.length === 0 ? (
-              <div className="flex h-32 flex-col items-center justify-center text-center text-slate-500">
-                <p className="text-xs">No pending tasks!</p>
-              </div>
-            ) : (
-              combinedTodos.map((todo) => (
-                <div
-                  key={todo.id}
+          {/* Type legend + member filter */}
+          <div className="mb-4 flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => setTypeFilter("all")}
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                typeFilter === "all"
+                  ? "border-primary/50 bg-primary/15 text-primary"
+                  : "border-slate-800 text-slate-400 hover:text-white"
+              )}
+            >
+              All
+            </button>
+            {EVENT_TYPE_KEYS.map((key) => {
+              const meta = EVENT_TYPES[key];
+              return (
+                <button
+                  key={key}
+                  onClick={() => setTypeFilter(typeFilter === key ? "all" : key)}
                   className={cn(
-                    "group flex items-start justify-between gap-3 p-2.5 rounded-lg border bg-slate-950/40 transition-colors hover:bg-slate-950/80",
-                    todo.completed ? "border-slate-800 opacity-60" : "border-slate-800/80"
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                    typeFilter === key ? meta.chip : "border-slate-800 text-slate-500 hover:text-white"
                   )}
                 >
-                  <button
-                    onClick={() => toggleTodo(todo)}
-                    className="flex shrink-0 items-start pt-0.5 text-slate-400 hover:text-white"
-                  >
-                    {todo.completed ? (
-                      <CheckCircle className="h-4 w-4 text-emerald-400" />
-                    ) : (
-                      <Circle className="h-4 w-4" />
-                    )}
-                  </button>
-
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={cn(
-                        "text-xs font-semibold text-white leading-normal break-words",
-                        todo.completed && "line-through text-slate-500 font-normal"
-                      )}
-                    >
-                      {renderTodoTitle(todo)}
-                    </p>
-                    {todo.description && (
-                      <p
-                        className={cn(
-                          "text-[10px] text-slate-400 mt-1 break-words line-clamp-2 leading-relaxed group-hover:line-clamp-none transition-all duration-300",
-                          todo.completed && "line-through text-slate-650"
-                        )}
-                      >
-                        {todo.description}
-                      </p>
-                    )}
-                    {todo.priority && !todo.completed && (
-                      <span
-                        className={cn(
-                          "inline-block rounded px-1.5 py-0.5 text-[8px] font-bold uppercase mt-1",
-                          todo.priority === "high"
-                            ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
-                            : todo.priority === "medium"
-                              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                              : "bg-slate-800 text-slate-400"
-                        )}
-                      >
-                        {todo.priority}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {todo.contact_id && (
-                      <button
-                        onClick={() => handleGoToChat(todo.contact_id!)}
-                        className="text-slate-500 hover:text-emerald-400 transition-colors p-0.5"
-                        title="Go to WhatsApp Chat Inbox"
-                        aria-label="Open Chat"
-                      >
-                        <MessageSquare className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => {
-                        if (todo.isAppointment) {
-                          const appt = appointments.find((a) => a.id === todo.id);
-                          if (appt) openEditApptModal(appt);
-                        } else {
-                          openEditTodoModal(todo);
-                        }
-                      }}
-                      className="text-slate-500 hover:text-white transition-colors p-0.5"
-                      title="Edit task"
-                      aria-label="Edit task"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (todo.isAppointment) {
-                          const appt = appointments.find((a) => a.id === todo.id);
-                          if (appt) deleteAppointment(appt);
-                        } else {
-                          deleteTodo(todo.id);
-                        }
-                      }}
-                      className="text-slate-500 hover:text-rose-450 transition-colors p-0.5"
-                      title="Delete task"
-                      aria-label="Delete task"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))
+                  <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
+                  {meta.label}
+                </button>
+              );
+            })}
+            {members.length > 1 && (
+              <select
+                value={memberFilter}
+                onChange={(e) => setMemberFilter(e.target.value)}
+                className="ml-auto rounded-lg border border-slate-800 bg-slate-950 px-2 py-1 text-[10px] font-bold text-slate-400 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Everyone</option>
+                {members.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.full_name}
+                  </option>
+                ))}
+              </select>
             )}
           </div>
-        </div>
-      </div>
 
-      {/* ── Appointment Edit/Create Dialog Modal Overlay ────────────────── */}
-      {isApptModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-primary" />
-                {selectedAppt ? "Edit Schedule" : "Schedule Appointment"}
-              </h3>
-              <button
-                onClick={() => setIsApptModalOpen(false)}
-                className="text-slate-400 hover:text-white"
-                aria-label="Close modal"
+          {loading ? (
+            <div className="flex flex-1 items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : view === "team" ? (
+            <TeamView
+              events={filteredAppointments}
+              members={memberFilter === "all" ? members : members.filter((m) => m.user_id === memberFilter)}
+              selectedDate={currentDate}
+              onSelectDate={setCurrentDate}
+              onEventClick={openEditApptModal}
+              onSlotClick={(date, assignedTo) => openNewApptModal(date, assignedTo)}
+            />
+          ) : view === "week" ? (
+            <WeekView
+              events={filteredAppointments}
+              members={members}
+              selectedDate={currentDate}
+              onEventClick={openEditApptModal}
+              onSlotClick={(date) => openNewApptModal(date)}
+            />
+          ) : (
+            <>
+              {/* Days of the Week headings */}
+              <div className="grid grid-cols-7 border-b border-slate-800 pb-2 text-center text-xs font-bold uppercase tracking-wider text-slate-400">
+                <div>Sun</div>
+                <div>Mon</div>
+                <div>Tue</div>
+                <div>Wed</div>
+                <div>Thu</div>
+                <div>Fri</div>
+                <div>Sat</div>
+              </div>
+
+              {/* Calendar Day Grid */}
+              <div className="grid flex-1 grid-cols-7 grid-rows-6 gap-px bg-slate-800/40 mt-1 min-h-[420px]">
+                {calendarCells.map((cell, idx) => {
+                  const dateStr = cell.date.toDateString();
+                  const cellAppts = appointmentsByDate[dateStr] || [];
+                  const isToday = new Date().toDateString() === dateStr;
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => openNewApptModal(cell.date)}
+                      className={cn(
+                        "group relative flex flex-col min-h-[70px] bg-slate-950 p-2 transition-colors hover:bg-slate-900/60 cursor-pointer overflow-hidden",
+                        !cell.isCurrentMonth && "opacity-45"
+                      )}
+                    >
+                      {/* Day Number Label */}
+                      <span
+                        className={cn(
+                          "text-xs font-bold inline-flex items-center justify-center h-5 w-5 rounded-full mb-1",
+                          isToday
+                            ? "bg-primary text-primary-foreground font-black"
+                            : "text-slate-400 group-hover:text-white"
+                        )}
+                      >
+                        {cell.day}
+                      </span>
+
+                      {/* Appointments indicators inside cell */}
+                      <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px]">
+                        {cellAppts.map((appt) => {
+                          const meta = eventTypeMeta(appt.event_type);
+                          const assignee = memberByUserId[appt.assigned_to || appt.user_id];
+                          return (
+                            <div
+                              key={appt.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditApptModal(appt);
+                              }}
+                              className={cn(
+                                "flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border leading-snug cursor-pointer transition-colors",
+                                meta.chip,
+                                appt.status === "completed" && "opacity-60",
+                                appt.status === "cancelled" && "line-through opacity-50"
+                              )}
+                            >
+                              <meta.icon className="h-2.5 w-2.5 shrink-0" />
+                              <span className="truncate flex-1">{appt.title}</span>
+                              {members.length > 1 && assignee && (
+                                <span
+                                  className="rounded bg-slate-900/70 px-1 text-[8px] font-bold shrink-0"
+                                  title={assignee.full_name}
+                                >
+                                  {memberInitials(assignee.full_name)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* ── Right Side: Interactive To-Do Checklist Panel ────────────────── */}
+        <div className="flex w-full flex-col gap-6 lg:w-80 shrink-0">
+          {/* To-Do panel */}
+          <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur overflow-hidden">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <ListTodo className="h-5 w-5 text-primary" />
+                <h2 className="text-sm font-bold text-white flex items-center">
+                  To-Do Task List
+                  <InfoHint text="A checklist of operational tasks. You can tag contacts using '@' or properties using '#' directly in task titles." />
+                </h2>
+              </div>
+              <select
+                value={todoFilter}
+                onChange={(e) => setTodoFilter(e.target.value as "all" | "priority")}
+                className="rounded border border-slate-800 bg-slate-950 px-2 py-0.5 text-[10px] font-bold text-slate-400 focus:outline-none cursor-pointer"
               >
-                <X className="h-5 w-5" />
-              </button>
+                <option value="all">All Tasks</option>
+                <option value="priority">Priority Only</option>
+              </select>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={saveAppointment} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Visit / Title *
-                </label>
+            {/* Quick task add form */}
+            <form onSubmit={saveTodo} className="mb-4 flex flex-col gap-2 border-b border-slate-800 pb-4 relative">
+              <div className="relative">
                 <input
                   type="text"
-                  required
-                  placeholder="e.g. Site Visit - JP Nagar Plot"
-                  value={apptTitle}
-                  onChange={(e) => setApptTitle(e.target.value)}
+                  placeholder="Add new task..."
+                  value={todoTitle}
+                  onChange={handleTodoTitleChange}
                   className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
                 />
+
+                {/* Autocomplete dropdown overlay */}
+                {mentionType && (
+                  <div className="absolute left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-800 bg-slate-950 p-1 shadow-xl">
+                    {mentionType === "contact" ? (
+                      filteredContacts.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-slate-500">No matching contacts</div>
+                      ) : (
+                        filteredContacts.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => selectMention(c.name, c.id, "contact")}
+                            className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
+                          >
+                            {c.name} ({c.phone})
+                          </button>
+                        ))
+                      )
+                    ) : (
+                      filteredProperties.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-slate-500">No matching properties</div>
+                      ) : (
+                        filteredProperties.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => selectMention(p.title, p.id, "property")}
+                            className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
+                          >
+                            {p.title}
+                          </button>
+                        ))
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={todoPriority}
+                  onChange={(e) => setTodoPriority(e.target.value as "low" | "medium" | "high")}
+                  className="flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-300 focus:border-primary focus:outline-none"
+                >
+                  <option value="low">Low Priority</option>
+                  <option value="medium">Medium Priority</option>
+                  <option value="high">High Priority</option>
+                </select>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  Add
+                </button>
+              </div>
+            </form>
+
+            {/* Task checklist */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+              {combinedTodos.length === 0 ? (
+                <div className="flex h-32 flex-col items-center justify-center text-center text-slate-500">
+                  <p className="text-xs">No pending tasks!</p>
+                </div>
+              ) : (
+                combinedTodos.map((todo) => (
+                  <div
+                    key={todo.id}
+                    className={cn(
+                      "group flex items-start justify-between gap-3 p-2.5 rounded-lg border bg-slate-950/40 transition-colors hover:bg-slate-950/80",
+                      todo.completed ? "border-slate-800 opacity-60" : "border-slate-800/80"
+                    )}
+                  >
+                    <button
+                      onClick={() => toggleTodo(todo)}
+                      className="flex shrink-0 items-start pt-0.5 text-slate-400 hover:text-white"
+                    >
+                      {todo.completed ? (
+                        <CheckCircle className="h-4 w-4 text-emerald-400" />
+                      ) : (
+                        <Circle className="h-4 w-4" />
+                      )}
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className={cn(
+                          "text-xs font-semibold text-white leading-normal break-words",
+                          todo.completed && "line-through text-slate-500 font-normal"
+                        )}
+                      >
+                        {renderTodoTitle(todo)}
+                      </p>
+                      {todo.description && (
+                        <p
+                          className={cn(
+                            "text-[10px] text-slate-400 mt-1 break-words line-clamp-2 leading-relaxed group-hover:line-clamp-none transition-all duration-300",
+                            todo.completed && "line-through text-slate-650"
+                          )}
+                        >
+                          {todo.description}
+                        </p>
+                      )}
+                      {todo.priority && !todo.completed && (
+                        <span
+                          className={cn(
+                            "inline-block rounded px-1.5 py-0.5 text-[8px] font-bold uppercase mt-1",
+                            todo.priority === "high"
+                              ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+                              : todo.priority === "medium"
+                                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                                : "bg-slate-800 text-slate-400"
+                          )}
+                        >
+                          {todo.priority}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {todo.contact_id && (
+                        <button
+                          onClick={() => handleGoToChat(todo.contact_id!)}
+                          className="text-slate-500 hover:text-emerald-400 transition-colors p-0.5"
+                          title="Go to WhatsApp Chat Inbox"
+                          aria-label="Open Chat"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (todo.isAppointment) {
+                            const appt = appointments.find((a) => a.id === todo.id);
+                            if (appt) openEditApptModal(appt);
+                          } else {
+                            openEditTodoModal(todo);
+                          }
+                        }}
+                        className="text-slate-500 hover:text-white transition-colors p-0.5"
+                        title="Edit task"
+                        aria-label="Edit task"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (todo.isAppointment) {
+                            const appt = appointments.find((a) => a.id === todo.id);
+                            if (appt) deleteAppointment(appt);
+                          } else {
+                            deleteTodo(todo.id);
+                          }
+                        }}
+                        className="text-slate-500 hover:text-rose-450 transition-colors p-0.5"
+                        title="Delete task"
+                        aria-label="Delete task"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Appointment Edit/Create Dialog Modal Overlay ────────────────── */}
+        {isApptModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
+            <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
+              {/* Modal Header */}
+              <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5 text-primary" />
+                  {selectedAppt ? "Edit Schedule" : "Schedule Appointment"}
+                </h3>
+                <button
+                  onClick={() => setIsApptModalOpen(false)}
+                  className="text-slate-400 hover:text-white"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Modal Form */}
+              <form onSubmit={saveAppointment} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Link Client / Contact
+                    Visit / Title *
                   </label>
-                  <SearchableContactSelect
-                    contacts={contacts}
-                    value={apptContactId || null}
-                    onChange={(val) => setApptContactId(val || "")}
-                    placeholder="Search contact..."
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Site Visit - JP Nagar Plot"
+                    value={apptTitle}
+                    onChange={(e) => setApptTitle(e.target.value)}
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                  />
+                </div>
+
+                {/* Event type chips */}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                    Activity Type
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {EVENT_TYPE_KEYS.map((key) => {
+                      const meta = EVENT_TYPES[key];
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setApptEventType(key)}
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-colors",
+                            apptEventType === key ? meta.chip : "border-slate-800 text-slate-500 hover:text-white"
+                          )}
+                        >
+                          <meta.icon className="h-3 w-3" />
+                          {meta.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {members.length > 1 && (
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Assign To
+                    </label>
+                    <select
+                      value={apptAssignedTo}
+                      onChange={(e) => setApptAssignedTo(e.target.value)}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    >
+                      {members.map((m) => (
+                        <option key={m.user_id} value={m.user_id}>
+                          {m.full_name}
+                          {m.user_id === user?.id ? " (me)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Link Client / Contact
+                    </label>
+                    <SearchableContactSelect
+                      contacts={contacts}
+                      value={apptContactId || null}
+                      onChange={(val) => setApptContactId(val || "")}
+                      placeholder="Search contact..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Link Property Listing
+                    </label>
+                    <SearchablePropertySelect
+                      properties={properties}
+                      value={apptPropertyId || null}
+                      onChange={(val) => setApptPropertyId(val || "")}
+                      placeholder="Search property..."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Start Time *
+                    </label>
+                    <DateTimePicker
+                      value={apptStartTime}
+                      onChange={(val) => setApptStartTime(val)}
+                      align="left"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      End Time *
+                    </label>
+                    <DateTimePicker
+                      value={apptEndTime}
+                      onChange={(val) => setApptEndTime(val)}
+                      align="right"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                    Location / Meeting Link
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. JP Nagar 5th Phase, or Google Meet URL"
+                    value={apptLocation}
+                    onChange={(e) => setApptLocation(e.target.value)}
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Link Property Listing
+                    Notes / Description
                   </label>
-                  <SearchablePropertySelect
-                    properties={properties}
-                    value={apptPropertyId || null}
-                    onChange={(val) => setApptPropertyId(val || "")}
-                    placeholder="Search property..."
+                  <textarea
+                    placeholder="Additional details regarding the client's interests, host requirements..."
+                    value={apptDesc}
+                    onChange={(e) => setApptDesc(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
                   />
                 </div>
+
+                {selectedAppt?.transcript && (
+                  <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+                    <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      <AudioLines className="h-3 w-3" />
+                      Logged {selectedAppt.source === "voice" ? "by voice" : "via WhatsApp"}
+                    </p>
+                    <p className="mt-1 text-[11px] italic text-slate-400">&ldquo;{selectedAppt.transcript}&rdquo;</p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between border-t border-slate-800 pt-4 mt-2">
+                  <div>
+                    {selectedAppt && (
+                      <button
+                        type="button"
+                        onClick={() => deleteAppointment()}
+                        className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete Visit
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    {selectedAppt && (
+                      <select
+                        value={apptStatus}
+                        onChange={(e) => setApptStatus(e.target.value as "scheduled" | "completed" | "cancelled")}
+                        className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                      >
+                        <option value="scheduled">Scheduled</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    )}
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ── Todo Edit Dialog Modal Overlay ────────────────── */}
+        {isTodoModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
+            <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
+              {/* Modal Header */}
+              <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <ListTodo className="h-5 w-5 text-primary" />
+                  Edit Task
+                </h3>
+                <button
+                  onClick={() => setIsTodoModalOpen(false)}
+                  className="text-slate-400 hover:text-white"
+                  aria-label="Close modal"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Modal Form */}
+              <form onSubmit={updateTodo} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Start Time *
+                    Task Name *
                   </label>
-                  <DateTimePicker
-                    value={apptStartTime}
-                    onChange={(val) => setApptStartTime(val)}
-                    align="left"
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Call @Customer name"
+                    value={editTodoTitle}
+                    onChange={(e) => setEditTodoTitle(e.target.value)}
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    End Time *
+                    Description / Notes
                   </label>
-                  <DateTimePicker
-                    value={apptEndTime}
-                    onChange={(val) => setApptEndTime(val)}
-                    align="right"
+                  <textarea
+                    placeholder="Task details..."
+                    value={editTodoDesc}
+                    onChange={(e) => setEditTodoDesc(e.target.value)}
+                    rows={3}
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Location / Meeting Link
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. JP Nagar 5th Phase, or Google Meet URL"
-                  value={apptLocation}
-                  onChange={(e) => setApptLocation(e.target.value)}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                />
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Due Date
+                    </label>
+                    <input
+                      type="date"
+                      value={editTodoDueDate}
+                      onChange={(e) => setEditTodoDueDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Notes / Description
-                </label>
-                <textarea
-                  placeholder="Additional details regarding the client's interests, host requirements..."
-                  value={apptDesc}
-                  onChange={(e) => setApptDesc(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Priority
+                    </label>
+                    <select
+                      value={editTodoPriority}
+                      onChange={(e) => setEditTodoPriority(e.target.value as "low" | "medium" | "high")}
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                    >
+                      <option value="low">Low Priority</option>
+                      <option value="medium">Medium Priority</option>
+                      <option value="high">High Priority</option>
+                    </select>
+                  </div>
+                </div>
 
-              <div className="flex items-center justify-between border-t border-slate-800 pt-4 mt-2">
-                <div>
-                  {selectedAppt && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="edit-todo-completed"
+                    checked={editTodoCompleted}
+                    onChange={(e) => setEditTodoCompleted(e.target.checked)}
+                    className="rounded border-slate-700 bg-slate-950 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
+                  />
+                  <label htmlFor="edit-todo-completed" className="text-sm font-semibold text-slate-350 cursor-pointer select-none">
+                    Mark as Completed
+                  </label>
+                </div>
+
+                <div className="flex items-center justify-between border-t border-slate-800 pt-4 mt-2">
+                  <div>
                     <button
                       type="button"
-                      onClick={() => deleteAppointment()}
+                      onClick={() => {
+                        if (confirm("Are you sure you want to delete this task?")) {
+                          deleteTodo(selectedTodo!.id);
+                          setIsTodoModalOpen(false);
+                        }
+                      }}
                       className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                      Delete Visit
+                      Delete Task
                     </button>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {selectedAppt && (
-                    <select
-                      value={apptStatus}
-                      onChange={(e) => setApptStatus(e.target.value as "scheduled" | "completed" | "cancelled")}
-                      className="rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsTodoModalOpen(false)}
+                      className="rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
                     >
-                      <option value="scheduled">Scheduled</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  )}
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                  >
-                    Save Changes
-                  </button>
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                    >
+                      Save Changes
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ── Todo Edit Dialog Modal Overlay ────────────────── */}
-      {isTodoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg rounded-xl border border-slate-800 bg-slate-900 p-6 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
-            {/* Modal Header */}
-            <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <ListTodo className="h-5 w-5 text-primary" />
-                Edit Task
-              </h3>
-              <button
-                onClick={() => setIsTodoModalOpen(false)}
-                className="text-slate-400 hover:text-white"
-                aria-label="Close modal"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              </form>
             </div>
-
-            {/* Modal Form */}
-            <form onSubmit={updateTodo} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Task Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Call @Customer name"
-                  value={editTodoTitle}
-                  onChange={(e) => setEditTodoTitle(e.target.value)}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Description / Notes
-                </label>
-                <textarea
-                  placeholder="Task details..."
-                  value={editTodoDesc}
-                  onChange={(e) => setEditTodoDesc(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Due Date
-                  </label>
-                  <input
-                    type="date"
-                    value={editTodoDueDate}
-                    onChange={(e) => setEditTodoDueDate(e.target.value)}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    Priority
-                  </label>
-                  <select
-                    value={editTodoPriority}
-                    onChange={(e) => setEditTodoPriority(e.target.value as "low" | "medium" | "high")}
-                    className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
-                  >
-                    <option value="low">Low Priority</option>
-                    <option value="medium">Medium Priority</option>
-                    <option value="high">High Priority</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="edit-todo-completed"
-                  checked={editTodoCompleted}
-                  onChange={(e) => setEditTodoCompleted(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-950 text-primary focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
-                />
-                <label htmlFor="edit-todo-completed" className="text-sm font-semibold text-slate-350 cursor-pointer select-none">
-                  Mark as Completed
-                </label>
-              </div>
-
-              <div className="flex items-center justify-between border-t border-slate-800 pt-4 mt-2">
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm("Are you sure you want to delete this task?")) {
-                        deleteTodo(selectedTodo!.id);
-                        setIsTodoModalOpen(false);
-                      }
-                    }}
-                    className="flex items-center gap-1 text-xs text-rose-500 hover:text-rose-400"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete Task
-                  </button>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsTodoModalOpen(false)}
-                    className="rounded-lg border border-slate-800 bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-300 hover:bg-slate-850 hover:text-white"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            </form>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
     </div>
   );
 }
