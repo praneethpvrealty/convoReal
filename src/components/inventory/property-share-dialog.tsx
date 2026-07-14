@@ -36,6 +36,13 @@ import {
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import {
+  buildPropertyShareMessage,
+  buildShareTargets,
+  type ShareDetailLevel,
+  type ShareTone,
+} from '@/lib/share-message-builder';
+import { MessageCircle, Mail, RotateCcw, User, Handshake, Megaphone } from 'lucide-react';
 
 interface PropertyShareDialogProps {
   open: boolean;
@@ -91,10 +98,16 @@ export function PropertyShareDialog({
   const [metaCatalogSyncedAt, setMetaCatalogSyncedAt] = useState<string | null>(null);
   const [metaCatalogError, setMetaCatalogError] = useState<string | null>(null);
   const [indexingTimeLeft, setIndexingTimeLeft] = useState<number>(0);
-  const [messageStyle, setMessageStyle] = useState<'professional' | 'casual' | 'friendly' | 'custom'>('professional');
-  const [customMessage, setCustomMessage] = useState('');
+  const [messageStyle, setMessageStyle] = useState<ShareTone>('professional');
   const [copiedMessage, setCopiedMessage] = useState(false);
-  const [copiedAgent, setCopiedAgent] = useState(false);
+  // Who the share is for: tabs on the first step. 'client' and 'agent'
+  // compose an external message; 'crm' hosts the in-CRM send flows
+  // (greeting / templates / catalog card).
+  const [audienceTab, setAudienceTab] = useState<'client' | 'agent' | 'crm'>('client');
+  const [detailLevel, setDetailLevel] = useState<ShareDetailLevel>('standard');
+  // User edits to the composed message; null = follow the auto-generated
+  // text. Reset whenever any composer input changes.
+  const [messageDraft, setMessageDraft] = useState<string | null>(null);
 
   useEffect(() => {
     if (!metaCatalogSyncedAt) {
@@ -161,66 +174,33 @@ export function PropertyShareDialog({
     }).format(amount);
   }, [property, currency]);
 
-  // Generate shareable message based on style and property details
-  const generateShareMessage = useCallback(() => {
+  // Composed outbound message for the active tab, rebuilt from the
+  // audience + tone + detail-level pickers (share-message-builder).
+  const autoMessage = useMemo(() => {
     if (!property) return '';
-    
-    const showcaseUrl = typeof window !== 'undefined' 
-      ? `${window.location.origin}/?property_id=${property.id}` 
-      : `/?property_id=${property.id}`;
-    
-    const title = property.title || 'this property';
-    const price = formattedPrice || 'Price on request';
-    const location = [property.sublocality, property.city, property.state].filter(Boolean).join(', ') || property.location || '';
-    const type = property.type || '';
-    const beds = property.bedrooms ? `${property.bedrooms} BHK` : '';
-    const area = property.area_sqft ? `${property.area_sqft} ${property.area_unit || 'Sq.Ft.'}` : '';
-    const agentName = profile?.full_name || '';
-    const agentPhone = profile?.phone || '';
-    const signOff = agentName ? `Best regards, ${agentName}` : 'Best regards';
-    const signOffWithPhone = agentPhone ? `${signOff}\n${agentPhone}` : signOff;
-    
-    const details = [beds, type, area, location].filter(Boolean).join(' | ');
-    
-    switch (messageStyle) {
-      case 'professional':
-        return `Hi,\n\nI wanted to share a property listing that might interest you:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nFor complete details, photos, and location map, please visit:\n${showcaseUrl}\n\nFeel free to reach out if you have any questions.\n\n${signOffWithPhone}`;
-      
-      case 'casual':
-        return `Hey!\n\nCheck out this property I found:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nHere's the link with all the details:\n${showcaseUrl}\n\nLet me know what you think!`;
-      
-      case 'friendly':
-        return `Hello! 👋\n\nI thought you might be interested in this property:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\nYou can see all the details, photos, and the exact location here:\n${showcaseUrl}\n\nHappy to help if you'd like to know more!`;
-      
-      case 'custom':
-        return customMessage || `Hi,\n\n${title}\n${showcaseUrl}`;
-      
-      default:
-        return `Hi,\n\n${title}\n${showcaseUrl}`;
-    }
-  }, [property, formattedPrice, messageStyle, customMessage, profile]);
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const url =
+      audienceTab === 'agent'
+        ? `${origin}/?property_id=${property.id}&mode=view`
+        : `${origin}/?property_id=${property.id}`;
+    return buildPropertyShareMessage({
+      property,
+      url,
+      audience: audienceTab === 'agent' ? 'agent' : 'client',
+      detail: detailLevel,
+      tone: messageStyle,
+      currency,
+      agentName: profile?.full_name || undefined,
+      agentPhone: profile?.phone || undefined,
+    });
+  }, [property, audienceTab, detailLevel, messageStyle, currency, profile]);
 
-  // Generate co-broker / agent message with agent-mode URL
-  const generateAgentMessage = useCallback(() => {
-    if (!property) return '';
-    const title = property.title || 'this property';
-    const price = formattedPrice || 'Price on request';
-    const location = [property.sublocality, property.city, property.state].filter(Boolean).join(', ') || property.location || '';
-    const type = property.type || '';
-    const beds = property.bedrooms ? `${property.bedrooms} BHK` : '';
-    const area = property.area_sqft ? `${property.area_sqft} ${property.area_unit || 'Sq.Ft.'}` : '';
-    const agentName = profile?.full_name || '';
-    const agentPhone = profile?.phone || '';
-    const details = [beds, type, area, location].filter(Boolean).join(' | ');
-    const signOff = agentName ? `Regards, ${agentName}` : 'Regards';
-    const signOffWithPhone = agentPhone ? `${signOff}\n${agentPhone}` : signOff;
+  // Any composer input change discards manual edits back to auto text.
+  useEffect(() => {
+    setMessageDraft(null);
+  }, [audienceTab, detailLevel, messageStyle, property?.id]);
 
-    const agentUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/?property_id=${property.id}&mode=view`
-      : `/?property_id=${property.id}&mode=view`;
-
-    return `Hi,\n\nThis property is handpicked matching your requirements — check out all the details, photos, and location map:\n\n*${title}*\n${details ? `${details}\n` : ''}*Price: ${price}*\n\n👇 *Click the link below to view photos, location map, and full details:*\n${agentUrl}\n\n${signOffWithPhone}`;
-  }, [property, formattedPrice, profile]);
+  const currentMessage = messageDraft ?? autoMessage;
 
   // Get showcase URL for copying
   const showcaseUrl = useMemo(() => {
@@ -987,306 +967,274 @@ export function PropertyShareDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* STEP 0: Public Showcase Link (default first step) */}
+        {/* STEP 0: compose & share externally, or hand off to CRM flows */}
         {broadcastStep === 'link' && (
           <div className="space-y-4 flex flex-col flex-1 min-h-0">
-            <div className="bg-slate-950/20 border border-slate-850 p-4 rounded-xl space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  🔗 Share Property Details
-                </h3>
-                <Button
-                  variant="outline"
-                  size="xs"
-                  onClick={() => {
-                    const showcaseUrl = `${window.location.origin}/?property_id=${property.id}`;
-                    window.open(showcaseUrl, '_blank');
-                  }}
-                  className="h-7 border-slate-800 hover:bg-slate-850 text-xs px-2.5 flex items-center gap-1"
+            {/* Audience tabs — the first decision is WHO this goes to */}
+            <div className="grid grid-cols-3 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
+              {([
+                { key: 'client', label: 'To Client', desc: 'Showcase page with inquiry form', icon: User },
+                { key: 'agent', label: 'To Co-Broker', desc: 'Clean page, no inquiry forms', icon: Handshake },
+                { key: 'crm', label: 'Send from CRM', desc: 'Templates · greeting · catalog', icon: Megaphone },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setAudienceTab(tab.key)}
+                  className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 transition-all ${
+                    audienceTab === tab.key
+                      ? 'bg-primary/15 text-primary border border-primary/40'
+                      : 'text-slate-400 hover:text-white border border-transparent'
+                  }`}
                 >
-                  <ExternalLink className="size-3" />
-                  Preview Page
-                </Button>
-              </div>
-              
-              <p className="text-xs text-slate-400">
-                Share this property with a personalized message. The link includes full details, photos, and maps.
-              </p>
+                  <tab.icon className="size-4" />
+                  <span className="text-xs font-bold">{tab.label}</span>
+                  <span className="text-[9px] text-slate-500 hidden sm:block">{tab.desc}</span>
+                </button>
+              ))}
+            </div>
 
-              {/* Message Style Selector */}
-              <div className="space-y-2">
-                <Label className="text-slate-300 text-[11px] font-semibold">Message Style</Label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[
-                    { value: 'professional', label: 'Professional', icon: '💼' },
-                    { value: 'casual', label: 'Casual', icon: '👋' },
-                    { value: 'friendly', label: 'Friendly', icon: '😊' },
-                    { value: 'custom', label: 'Custom', icon: '✏️' },
-                  ].map((style) => (
-                    <button
-                      key={style.value}
-                      type="button"
-                      onClick={() => setMessageStyle(style.value as typeof messageStyle)}
-                      className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-[10px] font-medium transition-all ${
-                        messageStyle === style.value
-                          ? 'bg-primary/10 border-primary/50 text-primary'
-                          : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
-                      }`}
-                    >
-                      <span className="text-sm">{style.icon}</span>
-                      {style.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {audienceTab !== 'crm' && (
+              <div className="bg-slate-950/20 border border-slate-850 p-4 rounded-xl space-y-4">
+                <p className="text-xs text-slate-400">
+                  {audienceTab === 'agent'
+                    ? 'Message for fellow agents — the link opens a clean detail page (full specs, photos, map — no inquiry forms), so they can present it to their clients independently.'
+                    : 'Message for a buyer/client — the link opens your public showcase page with photos, map, and an inquiry form.'}
+                </p>
 
-              {/* Message Preview / Editor */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="text-slate-300 text-[11px] font-semibold">
-                    {messageStyle === 'custom' ? 'Your Message' : 'Message Preview'}
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    {messageStyle === 'custom' && customMessage && (
+                {/* Tone (client only) */}
+                {audienceTab === 'client' && (
+                  <div className="space-y-2">
+                    <Label className="text-slate-300 text-[11px] font-semibold">Tone</Label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: 'professional', label: 'Professional', icon: '💼' },
+                        { value: 'casual', label: 'Casual', icon: '👋' },
+                        { value: 'friendly', label: 'Friendly', icon: '😊' },
+                      ].map((style) => (
+                        <button
+                          key={style.value}
+                          type="button"
+                          onClick={() => setMessageStyle(style.value as ShareTone)}
+                          className={`flex items-center justify-center gap-1.5 p-2 rounded-lg border text-[10px] font-medium transition-all ${
+                            messageStyle === style.value
+                              ? 'bg-primary/10 border-primary/50 text-primary'
+                              : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          <span className="text-sm">{style.icon}</span>
+                          {style.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Detail level */}
+                <div className="space-y-2">
+                  <Label className="text-slate-300 text-[11px] font-semibold">How much detail?</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { value: 'quick', label: 'Quick', hint: 'Title + price + link' },
+                      { value: 'standard', label: 'Standard', hint: 'Headline specs + link' },
+                      { value: 'complete', label: 'Complete', hint: 'Everything in the message' },
+                    ] as const).map((lvl) => (
                       <button
+                        key={lvl.value}
                         type="button"
-                        onClick={() => setCustomMessage('')}
-                        className="text-[10px] text-slate-500 hover:text-white flex items-center gap-1"
+                        onClick={() => setDetailLevel(lvl.value)}
+                        className={`flex flex-col items-center gap-0.5 p-2 rounded-lg border transition-all ${
+                          detailLevel === lvl.value
+                            ? 'bg-primary/10 border-primary/50 text-primary'
+                            : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600'
+                        }`}
                       >
-                        <X className="size-3" />
-                        Clear
+                        <span className="text-[11px] font-bold">{lvl.label}</span>
+                        <span className="text-[9px] text-slate-500">{lvl.hint}</span>
                       </button>
-                    )}
-                    <span className="text-[10px] text-slate-500">
-                      {messageStyle === 'custom' ? 'Edit your message' : 'Auto-generated with property details'}
-                    </span>
+                    ))}
                   </div>
                 </div>
-                <div className="relative">
-                  <textarea
-                    readOnly={messageStyle !== 'custom'}
-                    value={messageStyle === 'custom' ? customMessage : generateShareMessage()}
-                    onChange={(e) => setCustomMessage(e.target.value)}
-                    placeholder="Type your custom message here..."
-                    rows={6}
-                    className={`w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 ${
-                      messageStyle === 'custom' ? 'cursor-text pr-8' : 'cursor-default'
-                    }`}
-                  />
-                  {messageStyle === 'custom' && customMessage && (
-                    <button
-                      type="button"
-                      onClick={() => setCustomMessage('')}
-                      className="absolute right-2 top-2 p-1 rounded-md text-slate-500 hover:text-white hover:bg-slate-700 transition-colors"
-                    >
-                      <X className="size-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
 
-              {/* Public Showcase Link */}
-              <div className="space-y-2">
-                <Label className="text-slate-300 text-[11px] font-semibold">Property Link</Label>
+                {/* Editable message */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-slate-300 text-[11px] font-semibold">Message — tap to edit</Label>
+                    {messageDraft !== null ? (
+                      <button
+                        type="button"
+                        onClick={() => setMessageDraft(null)}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                      >
+                        <RotateCcw className="size-3" />
+                        Reset edits
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-slate-500">Auto-generated from the listing</span>
+                    )}
+                  </div>
+                  <textarea
+                    value={currentMessage}
+                    onChange={(e) => setMessageDraft(e.target.value)}
+                    rows={detailLevel === 'complete' ? 12 : 7}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
+                  />
+                </div>
+
+                {/* Link + copy */}
                 <div className="flex gap-2">
                   <Input
                     readOnly
-                    value={showcaseUrl}
-                    className="bg-slate-800/50 border-slate-700 text-xs h-9 text-slate-300 select-all font-mono"
+                    value={audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl}
+                    className="bg-slate-800/50 border-slate-700 text-xs h-9 text-slate-300 select-all font-mono flex-1"
                   />
+                  <Button
+                    onClick={async () => {
+                      await navigator.clipboard.writeText(audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl);
+                      setCopiedLink(true);
+                      toast.success('Link copied!');
+                      setTimeout(() => setCopiedLink(false), 2000);
+                    }}
+                    variant="outline"
+                    className="border-slate-700 hover:bg-slate-800 text-slate-300 text-xs h-9 px-3 shrink-0 flex items-center gap-1.5"
+                  >
+                    {copiedLink ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                    Link
+                  </Button>
+                  <Button
+                    onClick={() => window.open(audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl, '_blank')}
+                    variant="outline"
+                    className="border-slate-700 hover:bg-slate-800 text-slate-300 text-xs h-9 px-3 shrink-0 flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="size-3.5" />
+                    Preview
+                  </Button>
                 </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Button
-                  onClick={async () => {
-                    const message = messageStyle === 'custom' ? customMessage : generateShareMessage();
-                    await navigator.clipboard.writeText(message);
-                    setCopiedMessage(true);
-                    toast.success('Message + Link copied! Paste it in WhatsApp or any app.');
-                    setTimeout(() => setCopiedMessage(false), 2000);
-                  }}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                >
-                  {copiedMessage ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                  {copiedMessage ? 'Copied!' : 'Copy Message + Link'}
-                </Button>
-                <Button
-                  onClick={async () => {
-                    if (typeof navigator !== 'undefined' && navigator.share) {
-                      try {
-                        const message = messageStyle === 'custom' ? customMessage : generateShareMessage();
-                        // Don't include url separately - it's already in the message
-                        await navigator.share({
-                          title: property.title || 'Property Details',
-                          text: message,
-                        });
-                        toast.success('Shared successfully!');
-                      } catch (err) {
-                        if ((err as Error).name !== 'AbortError') {
-                          toast.error('Failed to share');
-                        }
-                      }
-                    } else {
-                      // Fallback: copy to clipboard
-                      const message = messageStyle === 'custom' ? customMessage : generateShareMessage();
-                      await navigator.clipboard.writeText(message);
-                      toast.success('Copied! Your browser does not support native sharing.');
-                    }
-                  }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                >
-                  <Share2 className="size-3.5" />
-                  Share
-                </Button>
-                <Button
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(showcaseUrl);
-                    setCopiedLink(true);
-                    toast.success('Link copied to clipboard!');
-                    setTimeout(() => setCopiedLink(false), 2000);
-                  }}
-                  variant="outline"
-                  className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                >
-                  {copiedLink ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                  {copiedLink ? 'Copied!' : 'Copy Link Only'}
-                </Button>
-                <Button
-                  onClick={() => {
-                    window.open(showcaseUrl, '_blank');
-                  }}
-                  variant="outline"
-                  className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                >
-                  <ExternalLink className="size-3.5" />
-                  View Page
-                </Button>
-              </div>
-
-              {!property.is_published && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-[11px] text-amber-400 flex items-start gap-2">
-                  <span className="text-xs">⚠️</span>
-                  <div>
-                    <span className="font-bold block">Listing is Private / Unpublished</span>
-                    To allow public visitors to view this showcase page, make sure the property is set to <strong>Published</strong> on the inventory page.
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* ── Co-Broker / Agent Share ── */}
-            <div className="bg-slate-900/50 border border-blue-500/20 p-4 rounded-xl space-y-3">
-              <h3 className="text-xs font-bold text-blue-300 uppercase tracking-wider flex items-center gap-1.5">
-                🤝 Share with Complete Details
-              </h3>
-              <p className="text-xs text-slate-400">
-                Share full property details with other agents so they can present it to their clients independently.
-                Share a clean property detail page with full specs, photos, and location map — no inquiry forms or buttons.
-              </p>
-
-              {/* Agent message preview */}
-              <textarea
-                readOnly
-                value={generateAgentMessage()}
-                rows={5}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 resize-none cursor-default"
-              />
-
-              {/* Agent link */}
-              <div className="flex gap-2">
-                <input
-                  readOnly
-                  value={agentShowcaseUrl}
-                  className="flex-1 rounded-md border border-slate-700 bg-slate-800/50 px-3 h-9 text-xs text-slate-300 font-mono select-all"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                <Button
-                  onClick={async () => {
-                    const msg = generateAgentMessage();
-                    await navigator.clipboard.writeText(msg);
-                    setCopiedAgent(true);
-                    toast.success('Agent message + link copied!');
-                    setTimeout(() => setCopiedAgent(false), 2000);
-                  }}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                >
-                  {copiedAgent ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-                  {copiedAgent ? 'Copied!' : 'Copy Message + Link'}
-                </Button>
-                <Button
-                  onClick={async () => {
-                    const shareData: ShareData = {
-                      title: property.title || 'Property Details',
-                      text: generateAgentMessage(),
-                    };
-
-                    // Try to attach the property thumbnail image if available
-                    const imageUrl = property.images?.find((img) => img.trim().length > 0);
-                    if (imageUrl && typeof navigator !== 'undefined' && 'canShare' in navigator) {
-                      try {
-                        const response = await fetch(imageUrl);
-                        const blob = await response.blob();
-                        const sanitizedTitle = (property.title || 'property')
-                          .replace(/[^a-zA-Z0-9\s_-]/g, '')
-                          .trim()
-                          .replace(/\s+/g, '_')
-                          .slice(0, 50);
-                        const file = new File([blob], `${sanitizedTitle || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
-                        if (navigator.canShare({ files: [file] })) {
-                          shareData.files = [file];
-                        }
-                      } catch {
-                        // Image fetch failed — continue with text-only share
-                      }
-                    }
-
-                    if (typeof navigator !== 'undefined' && navigator.share) {
-                      try {
-                        await navigator.share(shareData);
-                      } catch (err) {
-                        if ((err as Error).name !== 'AbortError') {
-                          // If sharing with files failed, fall back to text-only share
-                          if (shareData.files) {
-                            try {
-                              await navigator.share({
-                                title: shareData.title,
-                                text: shareData.text,
-                              });
-                            } catch (fallbackErr) {
-                              if ((fallbackErr as Error).name !== 'AbortError') {
-                                toast.error('Failed to share');
+                {/* Direct share targets */}
+                <div className="space-y-2 pt-1">
+                  <Label className="text-slate-300 text-[11px] font-semibold">Send via</Label>
+                  {(() => {
+                    const activeUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
+                    const targets = buildShareTargets(currentMessage, activeUrl, property.title || 'Property Details');
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          onClick={() => window.open(targets.whatsapp, '_blank', 'noopener')}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                        >
+                          <MessageCircle className="size-3.5" />
+                          WhatsApp
+                        </Button>
+                        <Button
+                          onClick={() => window.open(targets.telegram, '_blank', 'noopener')}
+                          className="bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                        >
+                          <Send className="size-3.5" />
+                          Telegram
+                        </Button>
+                        <Button
+                          onClick={() => { window.location.href = targets.email; }}
+                          variant="outline"
+                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                        >
+                          <Mail className="size-3.5" />
+                          Email
+                        </Button>
+                        <Button
+                          onClick={() => { window.location.href = targets.sms; }}
+                          variant="outline"
+                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                        >
+                          <Smartphone className="size-3.5" />
+                          SMS
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            await navigator.clipboard.writeText(currentMessage);
+                            setCopiedMessage(true);
+                            toast.success('Message + link copied! Paste it in any app.');
+                            setTimeout(() => setCopiedMessage(false), 2000);
+                          }}
+                          variant="outline"
+                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                        >
+                          {copiedMessage ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                          {copiedMessage ? 'Copied!' : 'Copy Message'}
+                        </Button>
+                        <Button
+                          onClick={async () => {
+                            const shareData: ShareData = {
+                              title: property.title || 'Property Details',
+                              text: currentMessage,
+                            };
+                            // Attach the cover photo when the platform supports file sharing.
+                            const imageUrl = property.images?.find((img) => img.trim().length > 0);
+                            if (imageUrl && typeof navigator !== 'undefined' && 'canShare' in navigator) {
+                              try {
+                                const response = await fetch(imageUrl);
+                                const blob = await response.blob();
+                                const sanitizedTitle = (property.title || 'property')
+                                  .replace(/[^a-zA-Z0-9\s_-]/g, '')
+                                  .trim()
+                                  .replace(/\s+/g, '_')
+                                  .slice(0, 50);
+                                const file = new File([blob], `${sanitizedTitle || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
+                                if (navigator.canShare({ files: [file] })) {
+                                  shareData.files = [file];
+                                }
+                              } catch {
+                                // Image fetch failed — continue with text-only share
                               }
                             }
-                          } else {
-                            toast.error('Failed to share');
-                          }
-                        }
-                      }
-                    } else {
-                      await navigator.clipboard.writeText(generateAgentMessage());
-                      toast.success('Copied to clipboard!');
-                    }
-                  }}
-                  className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                >
-                  <Share2 className="size-3.5" />
-                  Share
-                </Button>
-                <Button
-                  onClick={() => window.open(agentShowcaseUrl, '_blank')}
-                  variant="outline"
-                  className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
-                >
-                  <ExternalLink className="size-3.5" />
-                  Preview
-                </Button>
-              </div>
-            </div>
+                            if (typeof navigator !== 'undefined' && navigator.share) {
+                              try {
+                                await navigator.share(shareData);
+                              } catch (err) {
+                                if ((err as Error).name !== 'AbortError') {
+                                  if (shareData.files) {
+                                    try {
+                                      await navigator.share({ title: shareData.title, text: shareData.text });
+                                    } catch (fallbackErr) {
+                                      if ((fallbackErr as Error).name !== 'AbortError') {
+                                        toast.error('Failed to share');
+                                      }
+                                    }
+                                  } else {
+                                    toast.error('Failed to share');
+                                  }
+                                }
+                              }
+                            } else {
+                              await navigator.clipboard.writeText(currentMessage);
+                              toast.success('Copied! Your browser does not support native sharing.');
+                            }
+                          }}
+                          variant="outline"
+                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                        >
+                          <Share2 className="size-3.5" />
+                          More apps…
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                </div>
 
+                {!property.is_published && audienceTab === 'client' && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-[11px] text-amber-400 flex items-start gap-2">
+                    <span className="text-xs">⚠️</span>
+                    <div>
+                      <span className="font-bold block">Listing is Private / Unpublished</span>
+                      To allow public visitors to view this showcase page, make sure the property is set to <strong>Published</strong> on the inventory page.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {audienceTab === 'crm' && (
+              <>
             <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                 👋 Send Interactive Greeting First
@@ -1417,6 +1365,8 @@ export function PropertyShareDialog({
                   </Button>
                 </div>
               </div>
+            )}
+              </>
             )}
 
             <div className="border-t border-slate-800 pt-3.5 flex justify-end">
