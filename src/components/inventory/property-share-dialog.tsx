@@ -42,7 +42,7 @@ import {
   type ShareDetailLevel,
   type ShareTone,
 } from '@/lib/share-message-builder';
-import { MessageCircle, Mail, RotateCcw, User, Handshake, Megaphone } from 'lucide-react';
+import { MessageCircle, Mail, RotateCcw, User, Handshake, Megaphone, Image as ImageIcon } from 'lucide-react';
 
 interface PropertyShareDialogProps {
   open: boolean;
@@ -201,6 +201,29 @@ export function PropertyShareDialog({
   }, [audienceTab, detailLevel, messageStyle, property?.id]);
 
   const currentMessage = messageDraft ?? autoMessage;
+
+  // Default (cover) photo as a File, for attaching to native shares
+  // and clipboard copies. Null when the listing has no photos or the
+  // fetch fails — callers fall back to text-only.
+  const fetchCoverImageFile = useCallback(async (): Promise<File | null> => {
+    const imageUrl = property?.images?.find((img) => img.trim().length > 0);
+    if (!imageUrl) return null;
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const sanitizedTitle = (property?.title || 'property')
+        .replace(/[^a-zA-Z0-9\s_-]/g, '')
+        .trim()
+        .replace(/\s+/g, '_')
+        .slice(0, 50);
+      return new File([blob], `${sanitizedTitle || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
+    } catch {
+      return null;
+    }
+  }, [property]);
+
+  const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
+  const [copyingPhoto, setCopyingPhoto] = useState(false);
 
   // Get showcase URL for copying
   const showcaseUrl = useMemo(() => {
@@ -1113,17 +1136,54 @@ export function PropertyShareDialog({
 
                 {/* Direct share targets */}
                 <div className="space-y-2 pt-1">
-                  <Label className="text-slate-300 text-[11px] font-semibold">Send via</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label className="text-slate-300 text-[11px] font-semibold">Send via</Label>
+                    <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                      <ImageIcon className="size-3" />
+                      Cover photo attaches on mobile; on desktop the link preview shows it — or use Copy Photo.
+                    </span>
+                  </div>
                   {(() => {
                     const activeUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
                     const targets = buildShareTargets(currentMessage, activeUrl, property.title || 'Property Details');
                     return (
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          onClick={() => window.open(targets.whatsapp, '_blank', 'noopener')}
+                          disabled={sharingWhatsApp}
+                          onClick={async () => {
+                            // Where the platform can share files (Android/iOS,
+                            // macOS Safari), send photo + caption through the
+                            // native sheet so the cover image lands inside the
+                            // WhatsApp message. Elsewhere fall back to wa.me —
+                            // the link preview (OG image) still shows the photo.
+                            setSharingWhatsApp(true);
+                            try {
+                              const file = await fetchCoverImageFile();
+                              if (
+                                file &&
+                                typeof navigator !== 'undefined' &&
+                                'canShare' in navigator &&
+                                navigator.canShare({ files: [file] })
+                              ) {
+                                try {
+                                  await navigator.share({
+                                    files: [file],
+                                    text: currentMessage,
+                                    title: property.title || 'Property Details',
+                                  });
+                                  return;
+                                } catch (err) {
+                                  if ((err as Error).name === 'AbortError') return;
+                                }
+                              }
+                              window.open(targets.whatsapp, '_blank', 'noopener');
+                            } finally {
+                              setSharingWhatsApp(false);
+                            }
+                          }}
                           className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
                         >
-                          <MessageCircle className="size-3.5" />
+                          {sharingWhatsApp ? <Loader2 className="size-3.5 animate-spin" /> : <MessageCircle className="size-3.5" />}
                           WhatsApp
                         </Button>
                         <Button
@@ -1163,29 +1223,54 @@ export function PropertyShareDialog({
                           {copiedMessage ? 'Copied!' : 'Copy Message'}
                         </Button>
                         <Button
+                          disabled={copyingPhoto || !(property.images || []).some((img) => img.trim().length > 0)}
+                          onClick={async () => {
+                            // Clipboard images must be PNG in Chromium — convert
+                            // the (usually JPEG) cover photo via canvas first.
+                            setCopyingPhoto(true);
+                            try {
+                              const file = await fetchCoverImageFile();
+                              if (!file) {
+                                toast.error('No photo on this listing.');
+                                return;
+                              }
+                              const bitmap = await createImageBitmap(file);
+                              const canvas = document.createElement('canvas');
+                              canvas.width = bitmap.width;
+                              canvas.height = bitmap.height;
+                              canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+                              const pngBlob = await new Promise<Blob>((resolve, reject) =>
+                                canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('convert failed'))), 'image/png')
+                              );
+                              await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+                              toast.success('Photo copied — paste it into the chat with Ctrl/Cmd+V.');
+                            } catch {
+                              toast.error('Could not copy the photo — your browser may not support image clipboard.');
+                            } finally {
+                              setCopyingPhoto(false);
+                            }
+                          }}
+                          variant="outline"
+                          className="border-slate-700 hover:bg-slate-800 text-slate-300 font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                        >
+                          {copyingPhoto ? <Loader2 className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}
+                          Copy Photo
+                        </Button>
+                        <Button
                           onClick={async () => {
                             const shareData: ShareData = {
                               title: property.title || 'Property Details',
                               text: currentMessage,
                             };
                             // Attach the cover photo when the platform supports file sharing.
-                            const imageUrl = property.images?.find((img) => img.trim().length > 0);
-                            if (imageUrl && typeof navigator !== 'undefined' && 'canShare' in navigator) {
-                              try {
-                                const response = await fetch(imageUrl);
-                                const blob = await response.blob();
-                                const sanitizedTitle = (property.title || 'property')
-                                  .replace(/[^a-zA-Z0-9\s_-]/g, '')
-                                  .trim()
-                                  .replace(/\s+/g, '_')
-                                  .slice(0, 50);
-                                const file = new File([blob], `${sanitizedTitle || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
-                                if (navigator.canShare({ files: [file] })) {
-                                  shareData.files = [file];
-                                }
-                              } catch {
-                                // Image fetch failed — continue with text-only share
-                              }
+                            const file = await fetchCoverImageFile();
+                            if (
+                              file &&
+                              typeof navigator !== 'undefined' &&
+                              'canShare' in navigator &&
+                              navigator.canShare({ files: [file] })
+                            ) {
+                              shareData.files = [file];
                             }
                             if (typeof navigator !== 'undefined' && navigator.share) {
                               try {
