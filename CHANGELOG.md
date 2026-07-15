@@ -13,6 +13,29 @@ and polish.
 
 ### Added
 
+- **Owner property status digests.** Property owners/sellers get an
+  automatic WhatsApp update about buyer activity on their listings —
+  new enquiries, shortlisted buyers (pipeline entries), scheduled site
+  visits, and showcase views — at a per-account cadence (daily, or
+  weekly on Monday mornings IST), and **only when there's new
+  activity** in the period.
+  - **Consent-first**: before anything recurring, each owner gets a
+    one-time consent request (Yes/No buttons) — digests flow only after
+    they say yes, and the owner's choice always overrides the account
+    setting. They can flip it anytime by replying "STOP UPDATES" /
+    "START UPDATES".
+  - Delivery is template-first (`owner_digest_consent` +
+    `owner_property_digest`, both Utility) with a free-form upgrade when
+    the owner's 24h window is open; one-click template submission from
+    Settings.
+  - Configure in Settings → WhatsApp → "Owner Property Digest";
+    cron at `/api/cron/owner-digest` (registered in vercel.json),
+    deduped per IST day via the `owner_digest_log` ledger.
+
+**Migration required**: `supabase/migrations/126_owner_property_digest.sql`
+(adds `owner_digest_settings`, `owner_digest_log`, and
+`contacts.owner_digest_consent` / `owner_digest_consent_requested_at`).
+
 - **Native WhatsApp Flows — buyer preference intake.** Buyers can now
   fill/update their budget, locality, property-type and expected-ROI
   preferences inside a WhatsApp form screen (a native Meta Flow), instead

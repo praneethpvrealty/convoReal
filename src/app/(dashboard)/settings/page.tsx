@@ -20,6 +20,7 @@ import {
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { WhatsAppFlowsCard } from '@/components/settings/whatsapp-flows-card';
+import { OwnerDigestCard } from '@/components/settings/owner-digest-card';
 import { MetaAdsTab } from '@/components/settings/meta-ads-tab';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
@@ -226,6 +227,7 @@ export default function SettingsPage() {
           <TabsContent value="whatsapp" className="mt-0 space-y-6" data-tour="whatsapp-config-form">
             <WhatsAppConfig />
             <WhatsAppFlowsCard />
+            <OwnerDigestCard />
           </TabsContent>
 
           {metaAdsEnabled && (

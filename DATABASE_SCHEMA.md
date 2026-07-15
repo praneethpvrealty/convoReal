@@ -176,6 +176,20 @@ One row per flow message sent to a contact; maps Meta's opaque `flow_token` back
 - `status` (TEXT): `'sent' | 'opened' | 'completed' | 'expired' | 'cancelled'`.
 - `prefill` (JSONB) / `response` (JSONB), `expires_at`, `completed_at`.
 
+#### 15d. `owner_digest_settings` (migration 126)
+Per-account cadence for WhatsApp status digests to property owners.
+- `id` (UUID, PK), `account_id` (UUID, FK, UNIQUE).
+- `frequency` (TEXT): `'off' | 'daily' | 'weekly'` (weekly = Monday IST).
+
+#### 15e. `owner_digest_log` (migration 126)
+Dedup ledger — one row per digest attempted per owner per IST day (insert-as-claim, like `agent_digest_log`).
+- `id` (UUID, PK), `account_id`, `owner_contact_id` (FKs).
+- `digest_date` (DATE), `period_start` / `period_end` (TIMESTAMPTZ).
+- `stats` (JSONB): per-property counters snapshot.
+- `channel` (TEXT): `'freeform' | 'template' | 'consent_requested' | 'failed' | 'skipped_no_template'`.
+- *Unique Constraint*: `UNIQUE(account_id, owner_contact_id, digest_date)`.
+- Related (migration 126): `contacts.owner_digest_consent` (TEXT `'pending' | 'granted' | 'declined'`, set only by the owner's own WhatsApp reply — always overrides the account setting) and `contacts.owner_digest_consent_requested_at` (TIMESTAMPTZ, one-time consent ask).
+
 ---
 
 ### Group E: Calendar & Checklists
