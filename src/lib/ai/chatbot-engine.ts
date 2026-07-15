@@ -416,9 +416,10 @@ export async function processOwnerChatbotMessage(
     document?: { id: string; mime_type: string; filename?: string };
     audio?: { id: string; mime_type: string };
     interactive?: {
-      type: 'button_reply' | 'list_reply';
+      type: 'button_reply' | 'list_reply' | 'nfm_reply';
       button_reply?: { id: string; title: string };
       list_reply?: { id: string; title: string; description?: string };
+      nfm_reply?: { name?: string; body?: string; response_json: string };
     };
   },
   contentText: string | null,
@@ -1967,9 +1968,10 @@ export async function processExternalListingMessage(
     type: string;
     image?: { id: string; mime_type: string };
     interactive?: {
-      type: 'button_reply' | 'list_reply';
+      type: 'button_reply' | 'list_reply' | 'nfm_reply';
       button_reply?: { id: string; title: string };
       list_reply?: { id: string; title: string; description?: string };
+      nfm_reply?: { name?: string; body?: string; response_json: string };
     };
   },
   contentText: string | null,
