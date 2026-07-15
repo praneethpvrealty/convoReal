@@ -5,7 +5,9 @@ import {
   hasUpdates,
   buildOwnerDigestSummaryLine,
   buildOwnerDigestMessage,
+  buildConsentRequestMessage,
   parseOwnerDigestCommand,
+  CONSENT_BUTTONS,
   istHour,
   type OwnerDigest,
 } from './owner-digest';
@@ -157,10 +159,41 @@ describe('parseOwnerDigestCommand', () => {
     expect(parseOwnerDigestCommand('resume updates')).toBe('start');
   });
 
+  it('maps the consent Yes/No quick replies to grant/decline', () => {
+    expect(parseOwnerDigestCommand('Yes, send me updates')).toBe('start');
+    expect(parseOwnerDigestCommand('No, thanks')).toBe('stop');
+  });
+
   it('ignores normal conversation', () => {
     expect(parseOwnerDigestCommand('please stop calling about updates')).toBeNull();
     expect(parseOwnerDigestCommand('stop')).toBeNull();
     expect(parseOwnerDigestCommand('any update?')).toBeNull();
+    expect(parseOwnerDigestCommand('no')).toBeNull();
+    expect(parseOwnerDigestCommand('yes')).toBeNull();
     expect(parseOwnerDigestCommand(null)).toBeNull();
+  });
+});
+
+describe('buildConsentRequestMessage', () => {
+  it('greets by first name and asks for consent with the control hint', () => {
+    const msg = buildConsentRequestMessage(digest());
+    expect(msg).toContain('Hi Gopi');
+    expect(msg).toContain('your 2 listings');
+    expect(msg).toContain('Would you like to receive');
+    expect(msg).toContain('STOP UPDATES');
+  });
+
+  it('uses singular phrasing for one listing', () => {
+    const single = digest({ properties: [digest().properties[0]] });
+    expect(buildConsentRequestMessage(single)).toContain('your listing');
+  });
+});
+
+describe('CONSENT_BUTTONS', () => {
+  it('button titles stay within the 20-char interactive limit and round-trip through the parser', () => {
+    for (const btn of CONSENT_BUTTONS) {
+      expect(btn.title.length).toBeLessThanOrEqual(20);
+      expect(parseOwnerDigestCommand(btn.title)).not.toBeNull();
+    }
   });
 });

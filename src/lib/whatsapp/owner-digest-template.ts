@@ -45,6 +45,50 @@ export function buildOwnerDigestTemplatePayload(): TemplatePayload {
   };
 }
 
+// ── Consent request template ──────────────────────────────────────
+// Sent ONCE per owner before any digest — the consent-first gate.
+// Quick replies land back in the webhook as button text and move
+// contacts.owner_digest_consent to granted/declined.
+
+export const OWNER_DIGEST_CONSENT_TEMPLATE_NAME = 'owner_digest_consent'
+
+export const CONSENT_YES_TEXT = 'Yes, send me updates'
+export const CONSENT_NO_TEXT = 'No, thanks'
+
+export function buildOwnerDigestConsentTemplatePayload(): TemplatePayload {
+  return {
+    name: OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
+    category: 'Utility',
+    language: 'en_US',
+    body_text: [
+      'Hi {{1}}, buyers have been showing interest in {{2}}.',
+      '',
+      'Would you like to receive a short WhatsApp status update (new enquiries, shortlists and scheduled site visits) whenever there is fresh buyer activity on your property?',
+      '',
+      'You can change your mind anytime by replying STOP UPDATES or START UPDATES.',
+    ].join('\n'),
+    buttons: [
+      { type: 'QUICK_REPLY', text: CONSENT_YES_TEXT },
+      { type: 'QUICK_REPLY', text: CONSENT_NO_TEXT },
+    ],
+    sample_values: {
+      body: ['Gopi', 'your listing'],
+    },
+  }
+}
+
+/** Body params {{1}}..{{2}}: first name, listings phrase. */
+export function buildOwnerDigestConsentParams(
+  contactName: string | null | undefined,
+  propertyCount: number
+): [name: string, listings: string] {
+  const firstName = contactName?.trim().split(/\s+/)[0] || 'there'
+  return [
+    sanitizeTemplateParam(firstName),
+    sanitizeTemplateParam(propertyCount === 1 ? 'your listing' : `your ${propertyCount} listings`),
+  ]
+}
+
 /**
  * Body params {{1}}..{{3}}: first name, listings phrase (with period),
  * compact activity summary. Every param is guaranteed non-empty (Meta

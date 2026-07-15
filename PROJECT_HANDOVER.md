@@ -134,8 +134,8 @@ wacrm/
 9. **Owner Property Status Digests (Migration 126)**:
    - Daily/weekly WhatsApp digests to property owners (`properties.owner_contact_id`) summarizing buyer activity per listing: new enquiries (`contact_property_inquiries`), shortlisted buyers (new `deals`), scheduled site visits (`appointments` `event_type='site_visit'`), showcase views (`showcase_events`). Sent only when a period has activity.
    - Engine in `src/lib/owners/owner-digest.ts` (pure helpers unit-tested); cron `/api/cron/owner-digest` (vercel.json, 10:00 IST) with insert-as-claim dedup in `owner_digest_log`.
-   - Template-first delivery (`owner_property_digest` Utility template, `src/lib/whatsapp/owner-digest-template.ts`) with free-form upgrade when the 24h window is open.
-   - Owner control via WhatsApp replies "STOP UPDATES"/"START UPDATES" (webhook-handler → `contacts.owner_digest_opt_out`); account cadence via Settings → WhatsApp "Owner Property Digest" card (`owner-digest-card.tsx`, `owner_digest_settings` table).
+   - Template-first delivery (`owner_property_digest` + `owner_digest_consent` Utility templates, `src/lib/whatsapp/owner-digest-template.ts`) with free-form upgrade when the 24h window is open.
+   - **Consent-first & owner-authoritative**: each owner gets a one-time Yes/No consent request before any digest; `contacts.owner_digest_consent` ('pending'/'granted'/'declined') is set ONLY by the owner's own WhatsApp reply ("START UPDATES"/"STOP UPDATES" or the quick-reply buttons, handled in webhook-handler) and always overrides the account cadence set in Settings → WhatsApp "Owner Property Digest" (`owner-digest-card.tsx`, `owner_digest_settings` table).
 10. **Chatbot Concurrent Image-Upload Debounce**:
    - Implemented `sendPropertyDraftPreviewDebounced` in `chatbot-engine.ts`.
    - Pauses confirmation preview dispatches for 4 seconds, compares update timestamps in `property_draft_sessions`, and ensures only the last concurrent thread triggers a single compiled preview draft card (preventing duplicate or intermediate replies during concurrent multi-photo/document uploads).

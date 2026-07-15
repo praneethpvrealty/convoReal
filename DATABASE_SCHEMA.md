@@ -186,9 +186,9 @@ Dedup ledger — one row per digest attempted per owner per IST day (insert-as-c
 - `id` (UUID, PK), `account_id`, `owner_contact_id` (FKs).
 - `digest_date` (DATE), `period_start` / `period_end` (TIMESTAMPTZ).
 - `stats` (JSONB): per-property counters snapshot.
-- `channel` (TEXT): `'freeform' | 'template' | 'failed' | 'skipped_no_template'`.
+- `channel` (TEXT): `'freeform' | 'template' | 'consent_requested' | 'failed' | 'skipped_no_template'`.
 - *Unique Constraint*: `UNIQUE(account_id, owner_contact_id, digest_date)`.
-- Related: `contacts.owner_digest_opt_out` (BOOLEAN, migration 126) — owner paused digests via WhatsApp reply.
+- Related (migration 126): `contacts.owner_digest_consent` (TEXT `'pending' | 'granted' | 'declined'`, set only by the owner's own WhatsApp reply — always overrides the account setting) and `contacts.owner_digest_consent_requested_at` (TIMESTAMPTZ, one-time consent ask).
 
 ---
 

@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS owner_digest_log (
   period_end TIMESTAMPTZ NOT NULL,
   -- Per-property stats snapshot: [{property_id,title,inquiries,shortlisted,visits,views}]
   stats JSONB NOT NULL DEFAULT '[]'::jsonb,
-  -- 'freeform' | 'template' | 'failed' | 'skipped_no_template'
+  -- 'freeform' | 'template' | 'consent_requested' | 'failed' | 'skipped_no_template'
   channel TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(account_id, owner_contact_id, digest_date)
@@ -76,11 +76,22 @@ CREATE POLICY owner_digest_log_modify ON owner_digest_log FOR ALL USING (
   is_account_member(account_id, 'agent')
 );
 
--- Owner-side control: contacts can pause/resume their own digests by
--- replying "STOP UPDATES" / "START UPDATES" (or the template's quick
--- reply button) — no login required.
+-- Owner-side control — CONSENT-FIRST and the owner's choice always
+-- overrides the account setting. Before any digest goes out, the owner
+-- gets a one-time consent request on WhatsApp; digests flow only after
+-- they say yes. They can flip the decision anytime by replying
+-- "START UPDATES" / "STOP UPDATES" (or the quick-reply buttons) — no
+-- login required. Agents cannot force 'granted': only the owner's own
+-- WhatsApp reply moves the state.
+--   'pending'  — never asked, or asked and not yet answered
+--   'granted'  — owner said yes; digests are sent
+--   'declined' — owner said no; nothing is sent
 ALTER TABLE contacts
-  ADD COLUMN IF NOT EXISTS owner_digest_opt_out BOOLEAN NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS owner_digest_consent TEXT NOT NULL DEFAULT 'pending'
+    CHECK (owner_digest_consent IN ('pending', 'granted', 'declined')),
+  ADD COLUMN IF NOT EXISTS owner_digest_consent_requested_at TIMESTAMPTZ;
 
-COMMENT ON COLUMN contacts.owner_digest_opt_out IS
-  'Owner/seller opted out of periodic property status digests via WhatsApp reply.';
+COMMENT ON COLUMN contacts.owner_digest_consent IS
+  'Owner/seller consent for property status digests (pending/granted/declined). Set ONLY by the owner''s own WhatsApp reply.';
+COMMENT ON COLUMN contacts.owner_digest_consent_requested_at IS
+  'When the one-time consent request message was sent (never re-asked automatically).';

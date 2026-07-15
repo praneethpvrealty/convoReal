@@ -3,7 +3,11 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder'
 import {
   OWNER_DIGEST_TEMPLATE_NAME,
+  OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
+  CONSENT_YES_TEXT,
+  CONSENT_NO_TEXT,
   buildOwnerDigestParams,
+  buildOwnerDigestConsentParams,
 } from '@/lib/whatsapp/owner-digest-template'
 import type { MessageTemplate } from '@/types'
 
@@ -162,13 +166,17 @@ export function buildOwnerDigestMessage(digest: OwnerDigest, periodLabel: string
   return lines.join('\n')
 }
 
-/** Owner-side WhatsApp control commands ("their dashboard" is the chat). */
+/** Owner-side WhatsApp control commands ("their dashboard" is the chat).
+ *  Covers free-text STOP/START phrasing plus the consent request's
+ *  Yes/No quick-reply buttons (which arrive as their button text). */
 export function parseOwnerDigestCommand(
   text: string | null | undefined
 ): 'stop' | 'start' | null {
   if (!text) return null
   const cleaned = text.trim().toLowerCase()
   if (cleaned.length > 40) return null
+  if (cleaned === CONSENT_YES_TEXT.toLowerCase()) return 'start'
+  if (cleaned === CONSENT_NO_TEXT.toLowerCase()) return 'stop'
   if (/^(stop|pause)\s+(property\s+)?updates?$/.test(cleaned)) return 'stop'
   if (/^(start|resume)\s+(property\s+)?updates?$/.test(cleaned)) return 'start'
   return null
@@ -227,11 +235,126 @@ interface AccountRunSummary {
   accountId: string
   owners: number
   sent: number
+  consentRequested: number
   skippedNoUpdates: number
-  skippedOptOut: number
+  skippedDeclined: number
+  skippedAwaitingConsent: number
   skippedAlreadySent: number
   skippedNoTemplate: number
   failed: number
+}
+
+/** Freeform consent request (open 24h window). Pure — unit tested. */
+export function buildConsentRequestMessage(digest: OwnerDigest): string {
+  const firstName = digest.name?.trim().split(/\s+/)[0] || 'there'
+  const listingPhrase =
+    digest.properties.length === 1 ? 'your listing' : `your ${digest.properties.length} listings`
+  return [
+    `Hi ${firstName}, buyers have been showing interest in ${listingPhrase}. 👀`,
+    '',
+    'Would you like to receive a short WhatsApp status update (new enquiries, shortlists and scheduled site visits) whenever there is fresh buyer activity on your property?',
+    '',
+    '_You can change your mind anytime by replying STOP UPDATES or START UPDATES._',
+  ].join('\n')
+}
+
+/** Interactive button ids for the freeform consent request. The reply
+ *  titles round-trip through parseOwnerDigestCommand, so ids are only
+ *  informational. */
+export const CONSENT_BUTTONS = [
+  { id: 'owner_digest_yes', title: CONSENT_YES_TEXT },
+  { id: 'owner_digest_no', title: CONSENT_NO_TEXT },
+]
+
+type ConsentOutcome = 'sent' | 'no_template' | 'already_claimed' | 'failed'
+
+async function sendConsentRequest(
+  db: SupabaseClient,
+  args: {
+    accountId: string
+    digest: OwnerDigest
+    period: DigestPeriod
+    consentTemplate: MessageTemplate | null
+  }
+): Promise<ConsentOutcome> {
+  const { accountId, digest, period, consentTemplate } = args
+
+  // The consent request claims the owner's day slot too — one message
+  // per owner per day, whichever kind it is.
+  const { data: claim, error: claimErr } = await db
+    .from('owner_digest_log')
+    .insert({
+      account_id: accountId,
+      owner_contact_id: digest.contactId,
+      digest_date: period.digestDate,
+      period_start: period.startIso,
+      period_end: period.endIso,
+      stats: digest.properties,
+      channel: 'consent_requested',
+    })
+    .select('id')
+    .single()
+  if (claimErr || !claim) {
+    return claimErr?.code === '23505' ? 'already_claimed' : 'failed'
+  }
+
+  const markRequested = () =>
+    db
+      .from('contacts')
+      .update({
+        owner_digest_consent_requested_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', digest.contactId)
+      .eq('account_id', accountId)
+
+  const open = await isSessionOpen(db, accountId, digest.contactId)
+  if (open) {
+    const res = await sendWhatsAppMessageAndPersist({
+      accountId,
+      contactId: digest.contactId,
+      kind: 'interactive',
+      interactiveType: 'buttons',
+      senderType: 'bot',
+      interactiveBody: buildConsentRequestMessage(digest),
+      interactiveButtons: CONSENT_BUTTONS,
+    })
+    if (!res.success) {
+      await db.from('owner_digest_log').update({ channel: 'failed' }).eq('id', claim.id)
+      return 'failed'
+    }
+    await markRequested()
+    return 'sent'
+  }
+
+  if (!consentTemplate) {
+    await db
+      .from('owner_digest_log')
+      .update({ channel: 'skipped_no_template' })
+      .eq('id', claim.id)
+    return 'no_template'
+  }
+
+  const params = buildOwnerDigestConsentParams(digest.name, digest.properties.length)
+  const bodyParams = truncateParametersToBudget(consentTemplate.body_text, [...params])
+  const res = await sendWhatsAppMessageAndPersist({
+    accountId,
+    contactId: digest.contactId,
+    kind: 'template',
+    senderType: 'bot',
+    templateName: consentTemplate.name,
+    templateLanguage: consentTemplate.language || 'en_US',
+    templateParams: bodyParams,
+    messageParams: { body: bodyParams },
+    templateRow: consentTemplate,
+    text: resolveTemplateBodyText(consentTemplate.body_text, bodyParams),
+  })
+  if (!res.success) {
+    await db.from('owner_digest_log').update({ channel: 'failed' }).eq('id', claim.id)
+    return 'failed'
+  }
+  await markRequested()
+  return 'sent'
 }
 
 async function gatherAccountDigests(
@@ -374,8 +497,10 @@ export async function sendOwnerStatusDigests(options?: {
       accountId,
       owners: 0,
       sent: 0,
+      consentRequested: 0,
       skippedNoUpdates: 0,
-      skippedOptOut: 0,
+      skippedDeclined: 0,
+      skippedAwaitingConsent: 0,
       skippedAlreadySent: 0,
       skippedNoTemplate: 0,
       failed: 0,
@@ -389,28 +514,34 @@ export async function sendOwnerStatusDigests(options?: {
       if (digests.length === 0) continue
 
       // Owner contact details (phone for send, name for greeting,
-      // opt-out flag for the WhatsApp STOP control).
+      // consent state for the consent-first gate).
       const ownerIds = digests.map((d) => d.contactId)
       const { data: ownerRows } = await db
         .from('contacts')
-        .select('id, name, phone, owner_digest_opt_out')
+        .select('id, name, phone, owner_digest_consent, owner_digest_consent_requested_at')
         .eq('account_id', accountId)
         .in('id', ownerIds)
       const ownerById = new Map(
         (ownerRows || []).map((c) => [c.id as string, c as Record<string, unknown>])
       )
 
-      // Latest approved digest template — looked up once per account.
-      const { data: latestTemplateRow } = await db
-        .from('message_templates')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('name', OWNER_DIGEST_TEMPLATE_NAME)
-        .order('last_submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      const latestTemplate = latestTemplateRow as MessageTemplate | null
-      const digestTemplate = latestTemplate?.status === 'APPROVED' ? latestTemplate : null
+      // Latest approved templates — looked up once per account.
+      const approvedTemplate = async (name: string): Promise<MessageTemplate | null> => {
+        const { data: row } = await db
+          .from('message_templates')
+          .select('*')
+          .eq('account_id', accountId)
+          .eq('name', name)
+          .order('last_submitted_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        const template = row as MessageTemplate | null
+        return template?.status === 'APPROVED' ? template : null
+      }
+      const [digestTemplate, consentTemplate] = await Promise.all([
+        approvedTemplate(OWNER_DIGEST_TEMPLATE_NAME),
+        approvedTemplate(OWNER_DIGEST_CONSENT_TEMPLATE_NAME),
+      ])
 
       let sentThisRun = 0
       for (const digest of digests) {
@@ -422,11 +553,39 @@ export async function sendOwnerStatusDigests(options?: {
         }
         const owner = ownerById.get(digest.contactId)
         if (!owner || !owner.phone) continue
-        if (owner.owner_digest_opt_out === true) {
-          summary.skippedOptOut++
+        // Consent-first: the owner's choice ALWAYS overrides the account
+        // setting. declined → never send; pending → ask once, then wait.
+        const consent = (owner.owner_digest_consent as string | null) ?? 'pending'
+        if (consent === 'declined') {
+          summary.skippedDeclined++
           continue
         }
         digest.name = (owner.name as string | null) ?? null
+
+        if (consent !== 'granted') {
+          if (owner.owner_digest_consent_requested_at) {
+            // Asked before, no answer yet — stay silent, never re-ask.
+            summary.skippedAwaitingConsent++
+            continue
+          }
+          const outcome = await sendConsentRequest(db, {
+            accountId,
+            digest,
+            period,
+            consentTemplate,
+          })
+          if (outcome === 'sent') {
+            summary.consentRequested++
+            sentThisRun++
+          } else if (outcome === 'no_template') {
+            summary.skippedNoTemplate++
+          } else if (outcome === 'already_claimed') {
+            summary.skippedAlreadySent++
+          } else {
+            summary.failed++
+          }
+          continue
+        }
 
         // Insert-as-claim dedup: the UNIQUE(account, owner, day) row is
         // claimed BEFORE sending; a racing tick loses with 23505.
@@ -521,8 +680,10 @@ export async function sendOwnerStatusDigests(options?: {
 }
 
 /**
- * Toggle an owner's digest subscription from a WhatsApp reply.
- * Returns the confirmation text to send back, or null when the toggle
+ * Record the owner's digest decision from their WhatsApp reply — the
+ * ONLY code path that can set consent to granted/declined, which is
+ * what makes the owner's choice authoritative over any account setting.
+ * Returns the confirmation text to send back, or null when the update
  * failed (caller stays silent).
  */
 export async function applyOwnerDigestCommand(args: {
@@ -535,16 +696,16 @@ export async function applyOwnerDigestCommand(args: {
   const { error } = await db
     .from('contacts')
     .update({
-      owner_digest_opt_out: args.command === 'stop',
+      owner_digest_consent: args.command === 'stop' ? 'declined' : 'granted',
       updated_at: new Date().toISOString(),
     })
     .eq('id', args.contactId)
     .eq('account_id', args.accountId)
   if (error) {
-    console.error('[owner-digest] opt-out toggle failed:', error.message)
+    console.error('[owner-digest] consent update failed:', error.message)
     return null
   }
   return args.command === 'stop'
-    ? "You won't receive property status updates anymore. Reply START UPDATES anytime to resume."
-    : "✅ You're back on! You'll receive property status updates when there's new buyer activity."
+    ? "Understood — you won't receive property status updates. Reply START UPDATES anytime if you change your mind."
+    : "✅ Great! You'll receive a short status update whenever there's new buyer activity on your property. Reply STOP UPDATES anytime to pause."
 }

@@ -18,18 +18,46 @@ import {
 import { BellRing, Loader2 } from 'lucide-react';
 import {
   OWNER_DIGEST_TEMPLATE_NAME,
+  OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
   buildOwnerDigestTemplatePayload,
+  buildOwnerDigestConsentTemplatePayload,
 } from '@/lib/whatsapp/owner-digest-template';
+import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 
 /**
  * Settings card for the Owner Property Digest — periodic WhatsApp
  * status updates to property owners/sellers (new enquiries, shortlists,
- * scheduled site visits, showcase views on their listings). Digests are
- * sent only when there is new activity; owners can pause anytime by
- * replying "STOP UPDATES".
+ * scheduled site visits, showcase views on their listings).
+ *
+ * Consent-first: before any digest, each owner gets a one-time consent
+ * request; digests flow only after they reply yes, and their choice
+ * always overrides this account-level setting. Digests are sent only
+ * when there's new activity in the period.
  */
 
 type Frequency = 'off' | 'daily' | 'weekly';
+
+interface TemplateSlot {
+  name: string;
+  label: string;
+  description: string;
+  buildPayload: () => TemplatePayload;
+}
+
+const TEMPLATE_SLOTS: TemplateSlot[] = [
+  {
+    name: OWNER_DIGEST_CONSENT_TEMPLATE_NAME,
+    label: 'Consent request',
+    description: 'Asks each owner once whether they want updates (Yes/No buttons).',
+    buildPayload: buildOwnerDigestConsentTemplatePayload,
+  },
+  {
+    name: OWNER_DIGEST_TEMPLATE_NAME,
+    label: 'Status digest',
+    description: 'The recurring activity summary sent to owners who said yes.',
+    buildPayload: buildOwnerDigestTemplatePayload,
+  },
+];
 
 export function OwnerDigestCard() {
   const supabase = createClient();
@@ -38,13 +66,13 @@ export function OwnerDigestCard() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [frequency, setFrequency] = useState<Frequency>('off');
-  const [templateStatus, setTemplateStatus] = useState<string | null>(null);
-  const [submittingTemplate, setSubmittingTemplate] = useState(false);
+  const [templateStatus, setTemplateStatus] = useState<Record<string, string | null>>({});
+  const [submitting, setSubmitting] = useState<string | null>(null);
 
   const loadState = useCallback(async () => {
     if (!accountId) return;
     try {
-      const [{ data: settings }, { data: template }] = await Promise.all([
+      const [{ data: settings }, { data: templates }] = await Promise.all([
         supabase
           .from('owner_digest_settings')
           .select('frequency')
@@ -52,15 +80,21 @@ export function OwnerDigestCard() {
           .maybeSingle(),
         supabase
           .from('message_templates')
-          .select('status')
+          .select('name, status, last_submitted_at')
           .eq('account_id', accountId)
-          .eq('name', OWNER_DIGEST_TEMPLATE_NAME)
-          .order('last_submitted_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .in(
+            'name',
+            TEMPLATE_SLOTS.map((t) => t.name)
+          )
+          .order('last_submitted_at', { ascending: false }),
       ]);
       if (settings?.frequency) setFrequency(settings.frequency as Frequency);
-      setTemplateStatus(template?.status ?? null);
+      const statuses: Record<string, string | null> = {};
+      for (const row of templates || []) {
+        // Rows are newest-first; keep the first status seen per name.
+        if (!(row.name in statuses)) statuses[row.name] = row.status;
+      }
+      setTemplateStatus(statuses);
     } finally {
       setLoading(false);
     }
@@ -85,9 +119,7 @@ export function OwnerDigestCard() {
         );
       if (error) throw error;
       toast.success(
-        value === 'off'
-          ? 'Owner digests turned off'
-          : `Owner digests set to ${value}`
+        value === 'off' ? 'Owner digests turned off' : `Owner digests set to ${value}`
       );
     } catch (err) {
       setFrequency(previous);
@@ -98,66 +130,61 @@ export function OwnerDigestCard() {
     }
   };
 
-  // One-click create/resubmit of the owner_property_digest Utility
-  // template — same flow as the Match Radar alert template. Owners
-  // rarely have an open 24h window, so digests need this approved.
-  const handleSubmitTemplate = async () => {
-    setSubmittingTemplate(true);
+  // One-click create/resubmit — same flow as the Match Radar alert
+  // template. Owners rarely have an open 24h window, so both templates
+  // need Meta approval for the feature to reach them.
+  const handleSubmitTemplate = async (slot: TemplateSlot) => {
+    setSubmitting(slot.name);
     try {
-      const payload = buildOwnerDigestTemplatePayload();
       const res = await fetch('/api/whatsapp/templates/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(slot.buildPayload()),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Template submission failed');
-      setTemplateStatus('PENDING');
-      toast.success(
-        'Template submitted to Meta — digests go out automatically once it is approved.'
-      );
+      setTemplateStatus((prev) => ({ ...prev, [slot.name]: 'PENDING' }));
+      toast.success(`${slot.label} template submitted to Meta for approval.`);
     } catch (err) {
       console.error('[owner-digest] template submit failed:', err);
       toast.error(err instanceof Error ? err.message : 'Template submission failed');
     } finally {
-      setSubmittingTemplate(false);
+      setSubmitting(null);
     }
   };
 
-  const templateBadge =
-    templateStatus === 'APPROVED' ? (
+  const statusBadge = (status: string | null | undefined) =>
+    status === 'APPROVED' ? (
       <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-        Template approved
+        Approved
       </Badge>
-    ) : templateStatus === 'PENDING' ? (
+    ) : status === 'PENDING' ? (
       <Badge className="bg-amber-500/15 text-amber-400 border border-amber-500/30">
-        Template pending approval
+        Pending approval
       </Badge>
-    ) : templateStatus ? (
+    ) : status ? (
       <Badge className="bg-red-500/15 text-red-400 border border-red-500/30">
-        Template {templateStatus.toLowerCase()}
+        {status.toLowerCase()}
       </Badge>
     ) : (
       <Badge variant="outline" className="border-slate-600 text-slate-400">
-        Template not created
+        Not created
       </Badge>
     );
 
   return (
     <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
       <CardHeader>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <BellRing className="size-4 text-primary" />
-            <CardTitle className="text-white">Owner Property Digest</CardTitle>
-          </div>
-          {!loading && templateBadge}
+        <div className="flex items-center gap-2">
+          <BellRing className="size-4 text-primary" />
+          <CardTitle className="text-white">Owner Property Digest</CardTitle>
         </div>
         <CardDescription className="text-slate-400">
           Automatic WhatsApp status updates to property owners/sellers: new enquiries,
-          shortlisted buyers, scheduled site visits and showcase views on their
-          listings. Sent only when there&apos;s new activity — owners can reply
-          &quot;STOP UPDATES&quot; to pause anytime.
+          shortlisted buyers, scheduled site visits and showcase views on their listings.
+          Consent-first — each owner is asked once before anything is sent, digests go out
+          only when there&apos;s new activity, and the owner&apos;s reply
+          (&quot;STOP UPDATES&quot; / &quot;START UPDATES&quot;) always overrides this setting.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -185,32 +212,48 @@ export function OwnerDigestCard() {
               </Select>
             </div>
 
-            {frequency !== 'off' && templateStatus !== 'APPROVED' && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200 space-y-3">
-                <p>
-                  Owners usually haven&apos;t messaged you in the last 24 hours, so
-                  digests need the pre-approved{' '}
-                  <span className="font-mono text-xs">{OWNER_DIGEST_TEMPLATE_NAME}</span>{' '}
-                  Utility template. Submit it once — Meta approval typically takes
-                  minutes to a few hours.
+            {frequency !== 'off' && (
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+                <p className="text-sm text-slate-300">
+                  Owners usually haven&apos;t messaged you in the last 24 hours, so both
+                  messages below need pre-approved Utility templates. Submit each once —
+                  Meta approval typically takes minutes to a few hours.
                 </p>
-                <Button
-                  size="sm"
-                  onClick={handleSubmitTemplate}
-                  disabled={submittingTemplate || templateStatus === 'PENDING'}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                >
-                  {submittingTemplate ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : templateStatus === 'PENDING' ? (
-                    'Waiting for Meta approval'
-                  ) : (
-                    'Submit digest template to Meta'
-                  )}
-                </Button>
+                {TEMPLATE_SLOTS.map((slot) => {
+                  const status = templateStatus[slot.name] ?? null;
+                  return (
+                    <div
+                      key={slot.name}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm text-white">{slot.label}</p>
+                        <p className="text-xs text-slate-400">{slot.description}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {statusBadge(status)}
+                        {status !== 'APPROVED' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleSubmitTemplate(slot)}
+                            disabled={submitting !== null || status === 'PENDING'}
+                            className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+                          >
+                            {submitting === slot.name ? (
+                              <>
+                                <Loader2 className="size-4 animate-spin" />
+                                Submitting...
+                              </>
+                            ) : (
+                              'Submit to Meta'
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </>

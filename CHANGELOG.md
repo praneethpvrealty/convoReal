@@ -19,19 +19,22 @@ and polish.
   visits, and showcase views — at a per-account cadence (daily, or
   weekly on Monday mornings IST), and **only when there's new
   activity** in the period.
-  - Delivery is template-first (`owner_property_digest`, Utility) with
-    a free-form upgrade when the owner's 24h window is open; one-click
-    template submission from Settings.
-  - Owners control it from the chat itself: replying "STOP UPDATES" /
-    "START UPDATES" (or the template's "Pause updates" quick reply)
-    toggles their subscription instantly.
+  - **Consent-first**: before anything recurring, each owner gets a
+    one-time consent request (Yes/No buttons) — digests flow only after
+    they say yes, and the owner's choice always overrides the account
+    setting. They can flip it anytime by replying "STOP UPDATES" /
+    "START UPDATES".
+  - Delivery is template-first (`owner_digest_consent` +
+    `owner_property_digest`, both Utility) with a free-form upgrade when
+    the owner's 24h window is open; one-click template submission from
+    Settings.
   - Configure in Settings → WhatsApp → "Owner Property Digest";
     cron at `/api/cron/owner-digest` (registered in vercel.json),
     deduped per IST day via the `owner_digest_log` ledger.
 
 **Migration required**: `supabase/migrations/126_owner_property_digest.sql`
 (adds `owner_digest_settings`, `owner_digest_log`, and
-`contacts.owner_digest_opt_out`).
+`contacts.owner_digest_consent` / `owner_digest_consent_requested_at`).
 
 - **Native WhatsApp Flows — buyer preference intake.** Buyers can now
   fill/update their budget, locality, property-type and expected-ROI
