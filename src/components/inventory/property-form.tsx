@@ -139,6 +139,17 @@ export const AREA_UNITS = [
   "Ground"
 ];
 
+// Frontage/depth are always in feet, so land-area linking must convert
+// through the selected unit.
+const SQFT_PER_AREA_UNIT: Record<string, number> = {
+  "Sq.Ft.": 1,
+  "Sq.Mtr.": 10.7639,
+  "Acre": 43560,
+  "Gunta": 1089,
+  "Cent": 435.6,
+  "Ground": 2400,
+};
+
 interface PropertyFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1254,6 +1265,8 @@ export function PropertyForm({
 
   useEffect(() => {
     if (open) {
+      userTypedDims.current = { landArea: false, frontage: false, depth: false };
+      derivedDims.current = { landArea: false, frontage: false, depth: false };
       if (property) {
         setTitle(property.title);
         setDescription(property.description ?? '');
@@ -1535,59 +1548,82 @@ export function PropertyForm({
 
 
 
-  // Helpers to update land area and dimensions on direct user input to prevent deadlocks
+  // Land area / frontage / depth are linked (area = frontage x depth). Two
+  // invariants keep auto-calculation from fighting the user:
+  //  1. Never overwrite a value the user typed this session — only fields that
+  //     are empty, prefilled from the record, or previously auto-derived.
+  //  2. While the user types in one field, keep deriving the SAME target field
+  //     (tracked via `derived`) so an auto-filled value never becomes the
+  //     anchor for the next keystroke.
+  const userTypedDims = useRef({ landArea: false, frontage: false, depth: false });
+  const derivedDims = useRef({ landArea: false, frontage: false, depth: false });
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const sqftFactor = () => SQFT_PER_AREA_UNIT[landAreaUnit] ?? 1;
+
+  const markDimTyped = (field: 'landArea' | 'frontage' | 'depth', val: string) => {
+    userTypedDims.current[field] = val.trim() !== '';
+    derivedDims.current[field] = false;
+  };
+
   const handleLandAreaChange = (val: string) => {
     setLandArea(val);
+    markDimTyped('landArea', val);
     if (!isLand) return;
-    const aNum = Number(val);
+    const typed = userTypedDims.current;
+    const derived = derivedDims.current;
+    const aSqft = Number(val) * sqftFactor();
     const fNum = Number(frontage);
     const dNum = Number(depth);
+    if (!val || isNaN(aSqft) || aSqft <= 0) return;
 
-    if (val && !isNaN(aNum) && aNum > 0) {
-      if (frontage && !depth && !isNaN(fNum) && fNum > 0) {
-        const calculatedDepth = Math.round((aNum / fNum) * 100) / 100;
-        setDepth(String(calculatedDepth));
-      } else if (depth && !frontage && !isNaN(dNum) && dNum > 0) {
-        const calculatedFrontage = Math.round((aNum / dNum) * 100) / 100;
-        setFrontage(String(calculatedFrontage));
-      }
-    }
+    const deriveFrontage = () => { setFrontage(String(round2(aSqft / dNum))); derived.frontage = true; };
+    const deriveDepth = () => { setDepth(String(round2(aSqft / fNum))); derived.depth = true; };
+
+    if (derived.frontage && dNum > 0) deriveFrontage();
+    else if (derived.depth && fNum > 0) deriveDepth();
+    else if (!typed.depth && fNum > 0 && !derived.frontage) deriveDepth();
+    else if (!typed.frontage && dNum > 0) deriveFrontage();
   };
 
   const handleFrontageChange = (val: string) => {
     setFrontage(val);
+    markDimTyped('frontage', val);
     if (!isLand) return;
+    const typed = userTypedDims.current;
+    const derived = derivedDims.current;
     const fNum = Number(val);
     const dNum = Number(depth);
-    const aNum = Number(landArea);
+    const aSqft = Number(landArea) * sqftFactor();
+    if (!val || isNaN(fNum) || fNum <= 0) return;
 
-    if (val && !isNaN(fNum) && fNum > 0) {
-      if (depth && !isNaN(dNum) && dNum > 0) {
-        const calculatedArea = fNum * dNum;
-        setLandArea(String(calculatedArea));
-      } else if (landArea && !isNaN(aNum) && aNum > 0) {
-        const calculatedDepth = Math.round((aNum / fNum) * 100) / 100;
-        setDepth(String(calculatedDepth));
-      }
-    }
+    const deriveArea = () => { setLandArea(String(round2((fNum * dNum) / sqftFactor()))); derived.landArea = true; };
+    const deriveDepth = () => { setDepth(String(round2(aSqft / fNum))); derived.depth = true; };
+
+    if (derived.landArea && dNum > 0) deriveArea();
+    else if (derived.depth && aSqft > 0) deriveDepth();
+    else if (!typed.depth && aSqft > 0 && !derived.landArea) deriveDepth();
+    else if (!typed.landArea && dNum > 0) deriveArea();
   };
 
   const handleDepthChange = (val: string) => {
     setDepth(val);
+    markDimTyped('depth', val);
     if (!isLand) return;
+    const typed = userTypedDims.current;
+    const derived = derivedDims.current;
     const dNum = Number(val);
     const fNum = Number(frontage);
-    const aNum = Number(landArea);
+    const aSqft = Number(landArea) * sqftFactor();
+    if (!val || isNaN(dNum) || dNum <= 0) return;
 
-    if (val && !isNaN(dNum) && dNum > 0) {
-      if (frontage && !isNaN(fNum) && fNum > 0) {
-        const calculatedArea = fNum * dNum;
-        setLandArea(String(calculatedArea));
-      } else if (landArea && !isNaN(aNum) && aNum > 0) {
-        const calculatedFrontage = Math.round((aNum / dNum) * 100) / 100;
-        setFrontage(String(calculatedFrontage));
-      }
-    }
+    const deriveArea = () => { setLandArea(String(round2((fNum * dNum) / sqftFactor()))); derived.landArea = true; };
+    const deriveFrontage = () => { setFrontage(String(round2(aSqft / dNum))); derived.frontage = true; };
+
+    if (derived.landArea && fNum > 0) deriveArea();
+    else if (derived.frontage && aSqft > 0) deriveFrontage();
+    else if (!typed.frontage && aSqft > 0 && !derived.landArea) deriveFrontage();
+    else if (!typed.landArea && fNum > 0) deriveArea();
   };
 
   const filteredAmenities = useMemo(() => {
