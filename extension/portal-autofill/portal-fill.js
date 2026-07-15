@@ -35,11 +35,27 @@
     Bedrooms: ['bedroom', 'bhk'],
     Bathrooms: ['bathroom', 'bath'],
     'Project / Society': ['society', 'project name', 'building name'],
+    'Age of Property': ['age of property', 'property age'],
+    // Length before Width before Facing Road in the payload: "width"
+    // alone also matches the facing-road input, so the plain Width
+    // field must claim its input first (DOM order breaks the tie).
+    Length: ['length'],
+    Width: ['width'],
+    'Width of Facing Road': ['width of facing road', 'facing road', 'road width'],
+  };
+
+  // Housing's "Building / Apartment / Society Name" contains the word
+  // "society", which is also a Locality hint — a locality must never
+  // be typed into a building-name box (only real societies match its
+  // suggestions; 'Project / Society' still targets it via its own hints).
+  const FIELD_ANTIHINTS = {
+    Locality: ['building', 'apartment', 'flat no', 'house no'],
   };
 
   const NUMERIC_FIELDS = new Set([
     'Expected Price', 'Monthly Rent', 'Maintenance', 'Security Deposit / Advance',
     'Built-up Area', 'Plot Area', 'Bedrooms', 'Bathrooms',
+    'Age of Property', 'Length', 'Width', 'Width of Facing Road',
   ]);
 
   /** "₹45 Cr" → "45000000 0" is wrong — portals want raw numbers.
@@ -102,6 +118,28 @@
     el.click();
   }
 
+  /** 99acres suggestion rows only bind their data item on hover —
+   *  mousedown on an unhovered row crashes their handler and nothing
+   *  commits. Hover first, like a real mouse would. */
+  function simulateHover(el) {
+    const opts = { bubbles: true, cancelable: true, view: window };
+    try { el.dispatchEvent(new PointerEvent('pointerover', opts)); } catch { /* older Chrome */ }
+    el.dispatchEvent(new MouseEvent('mouseover', opts));
+    el.dispatchEvent(new MouseEvent('mouseenter', { cancelable: true, view: window }));
+  }
+
+  /** Key events carrying keyCode/which too — jQuery-era handlers
+   *  (MagicBricks) read e.keyCode, which KeyboardEvent inits ignore. */
+  function keyEvent(type, ch) {
+    const ev = new KeyboardEvent(type, { key: ch, bubbles: true, cancelable: true });
+    const code = ch.length === 1 ? ch.toUpperCase().charCodeAt(0) : 0;
+    try {
+      Object.defineProperty(ev, 'keyCode', { get: () => code });
+      Object.defineProperty(ev, 'which', { get: () => code });
+    } catch { /* frozen event — key-only handlers still work */ }
+    return ev;
+  }
+
   /** Climb from a matched text node to its full suggestion row, so
    *  the bolded "Bangalore" inside the "Bangalore East" row is judged
    *  by the whole row's text, not just the bold fragment. */
@@ -119,69 +157,119 @@
 
   /** MagicBricks only fetches typeahead suggestions on key events —
    *  a synthetic input event alone never opens the dropdown (and MB
-   *  then clears the uncommitted text on validation). Type character
-   *  by character with keydown/keyup around each value update. */
+   *  then clears the uncommitted text on validation). Click + focus
+   *  first (some dropdowns open on click, pre-listing every city),
+   *  then type character by character with keydown/keyup around each
+   *  value update. */
   async function typeLikeUser(el, value) {
+    simulateClick(el);
     el.focus();
     nativeSet(el, '');
     let text = '';
     for (const ch of value) {
       text += ch;
-      const key = { key: ch, bubbles: true, cancelable: true };
-      el.dispatchEvent(new KeyboardEvent('keydown', key));
-      el.dispatchEvent(new KeyboardEvent('keypress', key));
+      el.dispatchEvent(keyEvent('keydown', ch));
+      el.dispatchEvent(keyEvent('keypress', ch));
       nativeSet(el, text);
-      el.dispatchEvent(new KeyboardEvent('keyup', key));
-      await sleep(30);
+      el.dispatchEvent(keyEvent('keyup', ch));
+      await sleep(25);
     }
   }
 
-  /** After typing into a typeahead, click the suggestion whose ROW
-   *  text best matches our value: exact ("Bangalore" beats "Bangalore
-   *  East"), then prefix ("Koramangala, Bangalore South"). Suggestions
-   *  render async, so poll instead of a single fixed wait. Only
-   *  considers elements in the dropdown zone under the input. Returns
-   *  true only when the click verifiably committed: the dropdown row
-   *  went away and the input kept a value (or was swapped out). */
+  /** All suggestion rows for a typeahead, deduped. Starts from
+   *  elements in the visible zone under the input, then widens to the
+   *  full list container — locality lists run hundreds of rows deep
+   *  ("Koramangala, Hosur Road, ..." sits 25 rows down on 99acres),
+   *  far past the visible fold. */
+  function suggestionRows(input) {
+    const ir = input.getBoundingClientRect();
+    const near = [...document.querySelectorAll('[role="option"], li, a, div, span, p, b, strong')]
+      .filter((el) => {
+        if (el.childElementCount > 3) return false;
+        if (el.closest(`#${PANEL_ID}`)) return false;
+        const text = normalizedText(el.textContent);
+        if (!text || text.length > 120) return false;
+        const r = el.getBoundingClientRect();
+        if (r.width < 40 || r.height < 12 || r.height > 90) return false;
+        // Must sit in the dropdown zone under the input.
+        return r.top >= ir.bottom - 4 && r.top <= ir.bottom + 440 && r.left < ir.right + 40 && r.right > ir.left - 60;
+      });
+
+    const rows = new Map();
+    const addRow = (row) => {
+      if (rows.has(row) || row.contains(input)) return;
+      const text = normalizedText(row.textContent);
+      if (!text || text.length > 120) return;
+      // Handlers may live on an inner anchor/option rather than the
+      // row itself — prefer it as the event target.
+      const target = row.querySelector('a, [role="option"], button') || row;
+      rows.set(row, { row, target, text });
+    };
+    for (const leaf of near) addRow(suggestionRow(leaf, input));
+
+    // Widen to siblings of the visible rows (the scrolled-out tail).
+    for (const row of [...rows.keys()]) {
+      const parent = row.parentElement;
+      if (parent) for (const sibling of parent.children) addRow(sibling);
+    }
+    return [...rows.values()];
+  }
+
+  /** Best row for a value: exact ("Bangalore" beats "Bangalore East"),
+   *  then comma boundary ("Koramangala, Hosur Road" beats "Koramangala
+   *  Industrial Layout"), then plain prefix. */
+  function pickSuggestion(rows, want) {
+    return rows.find((c) => c.text === want)
+      || rows.find((c) => c.text.startsWith(`${want},`))
+      || rows.find((c) => c.text.startsWith(`${want} `))
+      || rows.find((c) => c.text.startsWith(want))
+      || null;
+  }
+
+  /** After typing into a typeahead, hover then press the suggestion
+   *  matching our value. Returns 'committed' when the click verifiably
+   *  landed (row gone, input kept a value), 'nomatch' when suggestions
+   *  rendered but ours isn't among them (retyping won't change that),
+   *  or 'norows' when no dropdown ever appeared. */
   async function commitTypeahead(input, value) {
     const want = normalizedText(value);
-    if (!want) return false;
+    if (!want) return 'nomatch';
 
-    for (let attempt = 0; attempt < 8; attempt++) {
-      await sleep(attempt === 0 ? 600 : 350);
-      const ir = input.getBoundingClientRect();
-      const leaves = [...document.querySelectorAll('[role="option"], li, a, div, span, p, b, strong')]
-        .filter((el) => {
-          if (el.childElementCount > 3) return false;
-          if (el.closest(`#${PANEL_ID}`)) return false;
-          const text = normalizedText(el.textContent);
-          if (!text || text.length > 90) return false;
-          const r = el.getBoundingClientRect();
-          if (r.width < 40 || r.height < 12 || r.height > 90) return false;
-          // Must sit in the dropdown zone under the input.
-          return r.top >= ir.bottom - 4 && r.top <= ir.bottom + 440 && r.left < ir.right + 40 && r.right > ir.left - 60;
-        })
-        .map((leaf) => ({ leaf, rowText: normalizedText(suggestionRow(leaf, input).textContent) }));
+    let sawRows = false;
+    let staleRounds = 0;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      await sleep(attempt === 0 ? 450 : 300);
+      const rows = suggestionRows(input);
+      if (rows.length === 0) continue;
+      sawRows = true;
 
-      const hit = leaves.find((c) => c.rowText === want)
-        || leaves.find((c) => c.rowText.startsWith(want));
-      if (hit) {
-        simulateClick(hit.leaf);
-        await sleep(500);
-        const rowGone = !document.contains(hit.leaf) || hit.leaf.getBoundingClientRect().height === 0;
-        const inputOk = !document.contains(input) || normalizedText(input.value);
-        if (rowGone && inputOk) {
-          if (document.contains(input)) flashOutline(input);
-          return true;
-        }
-        // Click didn't register (dropdown still open) or the portal
-        // cleared the text — keep polling / let the caller retype.
+      const hit = pickSuggestion(rows, want);
+      if (!hit) {
+        // Rendered, but no matching row — give the list one more
+        // refresh, then stop wasting time.
+        if (++staleRounds >= 2) return 'nomatch';
+        continue;
+      }
+
+      hit.row.scrollIntoView({ block: 'nearest' });
+      simulateHover(hit.target);
+      // The hover re-render can replace the node — re-find by text.
+      await sleep(250);
+      const fresh = pickSuggestion(suggestionRows(input), want) || hit;
+      simulateClick(fresh.target);
+      await sleep(450);
+
+      const rowGone = !document.contains(fresh.row) || fresh.row.getBoundingClientRect().height === 0;
+      const inputOk = !document.contains(input) || normalizedText(input.value);
+      if (rowGone && inputOk) {
+        if (document.contains(input)) flashOutline(input);
+        return 'committed';
       }
     }
-    return false;
+    return sawRows ? 'nomatch' : 'norows';
   }
 
-  async function fillTextFields(fields, settled) {
+  async function fillTextFields(fields, handled) {
     const used = new Set();
     let filled = 0;
     let committedTypeahead = false;
@@ -189,9 +277,10 @@
     for (const field of fields) {
       const hints = FIELD_HINTS[field.label];
       if (!hints) continue;
-      // Typeaheads committed in an earlier pass must not be retyped —
-      // refilling the city would clear the locality picked after it.
-      if (settled.has(field.label)) continue;
+      // Typeaheads already attempted in an earlier pass are skipped:
+      // retyping a committed city would clear the locality picked
+      // after it, and redoing a failed one just repeats the slow poll.
+      if (handled.has(field.label)) continue;
       const isTypeahead = TYPEAHEAD_FIELDS.has(field.label);
       const value = NUMERIC_FIELDS.has(field.label) ? numericValue(field.label, field.value) : field.value;
 
@@ -210,6 +299,8 @@
           if (used.has(el) || (el.value === value && !isTypeahead)) continue;
           const ctx = contextText(el);
           if (!ctx) continue;
+          const antihints = FIELD_ANTIHINTS[field.label];
+          if (antihints && antihints.some((h) => ctx.includes(h))) continue;
           let score = 0;
           hints.forEach((hint, idx) => {
             if (ctx.includes(hint)) score = Math.max(score, hints.length - idx + (hint.length > 6 ? 1 : 0));
@@ -225,18 +316,20 @@
       if (best && bestScore > 0) {
         try {
           if (isTypeahead) {
-            // Type with real key events, and if the suggestion click
-            // didn't verifiably commit (portal cleared the text or the
-            // dropdown never closed), retype once and try again.
-            let committed = false;
-            for (let round = 0; round < 2 && !committed; round++) {
+            // Type with real key events; retype once more only if no
+            // dropdown appeared at all (a focus/click quirk) — when
+            // suggestions rendered without our value, retrying is
+            // pointless and just slow.
+            await typeLikeUser(best, value);
+            let result = await commitTypeahead(best, field.value);
+            if (result === 'norows') {
               await typeLikeUser(best, value);
-              committed = await commitTypeahead(best, field.value);
+              result = await commitTypeahead(best, field.value);
             }
             used.add(best);
-            if (committed || normalizedText(best.value)) filled++;
-            if (committed) {
-              settled.add(field.label);
+            handled.add(field.label);
+            if (result === 'committed' || normalizedText(best.value)) filled++;
+            if (result === 'committed') {
               committedTypeahead = true;
               // Beat for the portal to reveal the next input.
               await sleep(400);
@@ -310,6 +403,21 @@
     const facing = normalizedText(get('Facing'));
     if (facing) targets.push({ synonyms: [facing], scope: /facing/ });
 
+    // Housing mandatory chips (also match 99acres/MB wording where the
+    // same question exists).
+    const txn = normalizedText(get('Transaction Type'));
+    if (txn) targets.push({ synonyms: txn === 'resale' ? ['resale'] : ['new booking', 'new property'] });
+    const possession = normalizedText(get('Possession Status'));
+    if (possession) {
+      targets.push({
+        synonyms: possession === 'immediate' ? ['immediate', 'ready to move'] : ['in future', 'under construction'],
+      });
+    }
+    const boundary = normalizedText(get('Boundary Wall'));
+    if (boundary) targets.push({ synonyms: [boundary], scope: /boundary/ });
+    const openSides = normalizedText(get('Open Sides'));
+    if (openSides) targets.push({ synonyms: [openSides], scope: /open side/ });
+
     return targets;
   }
 
@@ -339,7 +447,7 @@
       if (matches.length > 0) {
         const el = matches[0];
         try {
-          el.click();
+          simulateClick(el);
           flashOutline(el);
           return true;
         } catch {
@@ -396,6 +504,19 @@
     const facing = normalizedText(get('Facing'));
     if (facing) jobs.push({ hints: ['facing'], synonyms: [facing] });
 
+    const AREA_UNIT_SYNONYMS = {
+      sqft: ['sq. ft.', 'sq.ft.', 'sq ft', 'sqft', 'square feet'],
+      sqyd: ['sq. yd.', 'sq yd', 'sqyd', 'square yards', 'gaj'],
+      sqm: ['sq. m.', 'sq m', 'sqm', 'square meter', 'square metre'],
+      acre: ['acres', 'acre'],
+      acres: ['acres', 'acre'],
+      cent: ['cents', 'cent'],
+      cents: ['cents', 'cent'],
+      guntha: ['guntha', 'gunta'],
+    };
+    const areaUnit = normalizedText(get('Area Unit')).replace(/[^a-z]/g, '');
+    if (areaUnit) jobs.push({ hints: ['area unit', 'unit'], synonyms: AREA_UNIT_SYNONYMS[areaUnit] || [areaUnit] });
+
     const selects = [...document.querySelectorAll('select')].filter((el) => {
       if (el.disabled || el.closest(`#${PANEL_ID}`)) return false;
       const r = el.getBoundingClientRect();
@@ -430,8 +551,8 @@
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   async function autofill(fields) {
-    const settled = new Set();
-    let done = await fillTextFields(fields, settled);
+    const handled = new Set();
+    let done = await fillTextFields(fields, handled);
     done += fillSelects(fields);
     // Chips first-to-last: each click can reveal the next section, so
     // pause briefly and re-scan between clicks, then sweep selects and
@@ -443,7 +564,7 @@
       }
     }
     done += fillSelects(fields);
-    done += await fillTextFields(fields, settled);
+    done += await fillTextFields(fields, handled);
     return done;
   }
 
@@ -594,20 +715,35 @@
     syncVisibility();
   }
 
+  let lastPayload = {};
+
   chrome.storage.local.get('convorealPortalPayload', ({ convorealPortalPayload }) => {
-    const payload = convorealPortalPayload || {};
-    hasPayload = !!(payload.portals && payload.portals[PORTAL] && payload.portals[PORTAL].length > 0);
-    renderPanel(payload);
+    lastPayload = convorealPortalPayload || {};
+    hasPayload = !!(lastPayload.portals && lastPayload.portals[PORTAL] && lastPayload.portals[PORTAL].length > 0);
+    renderPanel(lastPayload);
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.convorealPortalPayload) {
-      const payload = changes.convorealPortalPayload.newValue || {};
-      hasPayload = !!(payload.portals && payload.portals[PORTAL] && payload.portals[PORTAL].length > 0);
+      lastPayload = changes.convorealPortalPayload.newValue || {};
+      hasPayload = !!(lastPayload.portals && lastPayload.portals[PORTAL] && lastPayload.portals[PORTAL].length > 0);
       // A fresh send from the CRM pops the panel open so the handoff
       // is visible without hunting for the button.
       panelExpanded = true;
-      renderPanel(payload);
+      renderPanel(lastPayload);
     }
   });
+
+  // SPA portals (seller.housing.com) re-render <body> on route changes
+  // and wipe injected nodes — put the panel back when that happens.
+  setInterval(() => {
+    try {
+      if (!chrome.runtime?.id) return; // extension was reloaded; this copy is orphaned
+    } catch {
+      return;
+    }
+    if (!document.getElementById(LAUNCHER_ID) || !document.getElementById(PANEL_ID)) {
+      renderPanel(lastPayload);
+    }
+  }, 1500);
 })();

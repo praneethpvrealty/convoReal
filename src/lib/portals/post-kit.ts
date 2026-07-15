@@ -80,6 +80,52 @@ function areaValue(property: Property): string {
   return val ? `${val} ${unit}` : '';
 }
 
+/** "100x150", "100 x 150 ft", "40X60" → plot length/width. */
+export function parseDimensions(dimensions?: string | null): { length: string; width: string } | null {
+  if (!dimensions) return null;
+  const m = dimensions.match(/(\d+(?:\.\d+)?)\s*(?:ft|feet)?\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
+  if (!m) return null;
+  return { length: m[1], width: m[2] };
+}
+
+function roadWidthFeet(property: Property): string {
+  if (!property.road_width) return '';
+  const unit = (property.road_width_unit || 'ft').toLowerCase();
+  const metres = unit === 'm' || unit.startsWith('met');
+  return String(metres ? Math.round(property.road_width * 3.281) : property.road_width);
+}
+
+/** Housing.com marks these mandatory on its post form but the CRM
+ *  doesn't model them all — send review-and-fix defaults so autofill
+ *  completes the step (1-yr age, resale, immediate possession), plus
+ *  plot extras derived from dimensions/road width where the CRM has
+ *  real data. The agent reviews everything on the portal before
+ *  submitting. */
+function housingExtras(property: Property): PortalField[] {
+  const land = isLand(property);
+  const unit = (land ? property.land_area_unit : property.area_unit) || 'sqft';
+  const dims = parseDimensions(property.dimensions);
+  return [
+    { label: 'Transaction Type', value: 'Resale' },
+    { label: 'Possession Status', value: 'Immediate' },
+    { label: 'Age of Property', value: '1' },
+    { label: 'Area Unit', value: unit },
+    ...(land && dims
+      ? [
+          { label: 'Length', value: dims.length },
+          { label: 'Width', value: dims.width },
+        ]
+      : []),
+    ...(land && property.road_width ? [{ label: 'Width of Facing Road', value: roadWidthFeet(property) }] : []),
+    ...(land
+      ? [
+          { label: 'Boundary Wall', value: 'Yes' },
+          { label: 'Open Sides', value: '1' },
+        ]
+      : []),
+  ];
+}
+
 function priceValue(property: Property, currency: string): string {
   if (property.listing_type === 'Rent' || property.listing_type === 'Built to Suit') {
     return formatShareAmount(property.rent_per_month, currency);
@@ -151,6 +197,7 @@ export function buildPortalFields(property: Property, portal: PortalKey, currenc
     ...(property.listing_type === 'Rent' && property.advance
       ? [{ label: 'Security Deposit / Advance', value: formatShareAmount(property.advance, currency) }]
       : []),
+    ...(portal === 'housing' ? housingExtras(property) : []),
     { label: 'Description', value: buildPortalDescription(property, portal) },
   ];
 

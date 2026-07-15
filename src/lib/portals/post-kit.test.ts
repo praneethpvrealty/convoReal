@@ -5,6 +5,7 @@ import {
   clampText,
   buildPortalDescription,
   buildPortalFields,
+  parseDimensions,
 } from './post-kit';
 
 const saleProperty = {
@@ -85,5 +86,51 @@ describe('buildPortalFields', () => {
     const fields = buildPortalFields(saleProperty, 'housing');
     expect(fields.some((f) => f.label === 'Bedrooms')).toBe(false);
     expect(fields.every((f) => f.value.trim().length > 0)).toBe(true);
+  });
+
+  it('adds Housing mandatory defaults, derived plot extras — housing only', () => {
+    const withDims = { ...saleProperty, dimensions: '100 x 150 ft' } as unknown as Property;
+    const fields = buildPortalFields(withDims, 'housing');
+    const get = (label: string) => fields.find((f) => f.label === label)?.value;
+    expect(get('Transaction Type')).toBe('Resale');
+    expect(get('Possession Status')).toBe('Immediate');
+    expect(get('Age of Property')).toBe('1');
+    expect(get('Area Unit')).toBe('sqft');
+    expect(get('Length')).toBe('100');
+    expect(get('Width')).toBe('150');
+    expect(get('Width of Facing Road')).toBe('60');
+    expect(get('Boundary Wall')).toBe('Yes');
+    expect(get('Open Sides')).toBe('1');
+    // Extras stay ahead of the description, and off other portals.
+    const labels = fields.map((f) => f.label);
+    expect(labels.indexOf('Transaction Type')).toBeLessThan(labels.indexOf('Description'));
+    expect(buildPortalFields(withDims, '99acres').some((f) => f.label === 'Age of Property')).toBe(false);
+  });
+
+  it('converts metre road width to feet and skips plot extras for non-land', () => {
+    const metres = { ...saleProperty, dimensions: '30x45', road_width: 12, road_width_unit: 'm' } as unknown as Property;
+    expect(buildPortalFields(metres, 'housing').find((f) => f.label === 'Width of Facing Road')!.value).toBe('39');
+
+    const flat = {
+      ...saleProperty,
+      type: '3 BHK Apartment',
+      area_sqft: 1850,
+      area_unit: 'Sq.Ft.',
+      land_area: null,
+    } as unknown as Property;
+    const flatFields = buildPortalFields(flat, 'housing');
+    expect(flatFields.some((f) => f.label === 'Boundary Wall')).toBe(false);
+    expect(flatFields.some((f) => f.label === 'Length')).toBe(false);
+    expect(flatFields.find((f) => f.label === 'Age of Property')!.value).toBe('1');
+  });
+});
+
+describe('parseDimensions', () => {
+  it('parses common dimension formats', () => {
+    expect(parseDimensions('100 x 150')).toEqual({ length: '100', width: '150' });
+    expect(parseDimensions('40X60')).toEqual({ length: '40', width: '60' });
+    expect(parseDimensions('100ft x 150ft')).toEqual({ length: '100', width: '150' });
+    expect(parseDimensions('irregular')).toBeNull();
+    expect(parseDimensions(undefined)).toBeNull();
   });
 });
