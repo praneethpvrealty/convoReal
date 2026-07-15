@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, Property } from '@/types';
-import { POPULAR_SUBLOCALITIES } from '@/lib/data/real-estate-data';
+import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import {
   Dialog,
   DialogContent,
@@ -26,8 +26,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-
-const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
 
 const PROPERTY_INTEREST_OPTIONS = [
   'Vacant plot',
@@ -108,17 +106,8 @@ export function ContactForm({
   const [strictAreaMatch, setStrictAreaMatch] = useState(false);
   const [areasOfInterest, setAreasOfInterest] = useState<string[]>([]);
   const [areasText, setAreasText] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
   const [propertyInterests, setPropertyInterests] = useState<string[]>([]);
   const [minRoi, setMinRoi] = useState('');
-  const [localitiesDb, setLocalitiesDb] = useState<{ major: string[] } | null>(null);
-
-  async function ensureLocalitiesLoaded() {
-    if (!localitiesDb) {
-      const db = await import('@/lib/data/bengaluru-localities');
-      setLocalitiesDb({ major: db.getMajorAreas() });
-    }
-  }
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
@@ -260,51 +249,6 @@ export function ContactForm({
          (c.phone && c.phone.includes(referrer)))
     ).slice(0, 5);
   }, [contacts, referrer, contact]);
-
-  const activeQuery = useMemo(() => {
-    const segments = areasText.split(',');
-    return segments.length > 0 ? segments[segments.length - 1].trim() : '';
-  }, [areasText]);
-
-  const matchingSublocalities = useMemo(() => {
-    if (!activeQuery) return [];
-    const dataset = localitiesDb?.major || POPULAR_SUBLOCALITIES;
-    return dataset.filter(area =>
-      area.toLowerCase().includes(activeQuery.toLowerCase())
-    ).slice(0, 10);
-  }, [activeQuery, localitiesDb]);
-
-  function handleAreasTextChange(val: string) {
-    setAreasText(val);
-    const parsed = val.split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-    const unique = Array.from(new Set(parsed));
-    setAreasOfInterest(unique);
-  }
-
-  function handleToggleArea(area: string) {
-    const isChecked = areasOfInterest.includes(area);
-    let updated: string[];
-    if (isChecked) {
-      updated = areasOfInterest.filter(a => a !== area);
-    } else {
-      const cleanList = areasOfInterest.filter(a => a.toLowerCase() !== activeQuery.toLowerCase());
-      updated = [...cleanList, area];
-    }
-    setAreasOfInterest(updated);
-    setAreasText(updated.join(', ') + (updated.length > 0 ? ', ' : ''));
-  }
-
-  function handleAddSuggestion(area: string) {
-    if (!areasOfInterest.includes(area)) {
-      const updated = [...areasOfInterest, area];
-      setAreasOfInterest(updated);
-      setAreasText(updated.join(', ') + (updated.length > 0 ? ', ' : ''));
-    }
-  }
-
-
 
   const handleSwapSecondaryToPrimary = (idx: number) => {
     const currentPrimary = phone;
@@ -798,76 +742,15 @@ export function ContactForm({
               {/* Areas of Interest */}
               <div className="space-y-2">
                 <Label className="text-slate-300">Areas of Interest</Label>
-                
-                <div className="relative">
-                  <Input
-                    value={areasText}
-                    onChange={(e) => {
-                      ensureLocalitiesLoaded();
-                      handleAreasTextChange(e.target.value);
-                    }}
-                    onFocus={() => {
-                      ensureLocalitiesLoaded();
-                      setIsFocused(true);
-                    }}
-                    onBlur={() => {
-                      // Slight delay to allow clicking on dropdown items
-                      setTimeout(() => setIsFocused(false), 200);
-                    }}
-                    placeholder="Type area (e.g. Whitefield, Koramangala)..."
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
-                  />
 
-                  {isFocused && matchingSublocalities.length > 0 && (
-                    <div 
-                      className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
-                      onMouseDown={(e) => {
-                        // Prevent input blur so checks can be toggled without losing focus
-                        e.preventDefault();
-                      }}
-                    >
-                      <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-850 mb-1">
-                        Matching Sublocalities:
-                      </div>
-                      {matchingSublocalities.map((area) => {
-                        const isChecked = areasOfInterest.includes(area);
-                        return (
-                          <label
-                            key={area}
-                            className="flex items-center gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer select-none"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => handleToggleArea(area)}
-                              className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
-                            />
-                            <span>{area}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* Suggestions Bank */}
-                <div className="flex flex-wrap gap-1 pt-1.5">
-                  <span className="text-[10px] text-slate-500 font-semibold w-full">Quick Add Suggestions:</span>
-                  {SUGGESTED_AREAS.map(area => {
-                    const exists = areasOfInterest.includes(area);
-                    return (
-                      <button
-                        key={area}
-                        type="button"
-                        disabled={exists}
-                        onClick={() => handleAddSuggestion(area)}
-                        className="text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-400"
-                      >
-                        +{area}
-                      </button>
-                    );
-                  })}
-                </div>
+                <AreasOfInterestInput
+                  areasText={areasText}
+                  areasOfInterest={areasOfInterest}
+                  onChange={(text, areas) => {
+                    setAreasText(text);
+                    setAreasOfInterest(areas);
+                  }}
+                />
 
                 {/* Strict Area Match Checkbox */}
                 <div className="flex items-center space-x-2 pt-2">
