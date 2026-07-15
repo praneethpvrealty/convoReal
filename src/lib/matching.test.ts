@@ -504,6 +504,57 @@ describe('getMatchingContacts', () => {
       expect(resultsWhitefield.map(r => r.contact.id)).not.toContain('c-strict');
     });
 
+    it('radius-matches areas outside the static locality table via stored Google coordinates', () => {
+      // "Surya City Phase 2" is not in BANGALORE_LOCALITIES_COORDS — without
+      // stored coordinates it can only substring-match. With coordinates it
+      // must participate in proximity matching.
+      const contactNear = createTestContact({
+        id: 'c-geo-near',
+        areas_of_interest: ['Surya City Phase 2'],
+        areas_of_interest_geo: [{ name: 'Surya City Phase 2', lat: 12.98, lng: 77.76 }],
+        strict_area_match: true,
+      });
+      const contactFar = createTestContact({
+        id: 'c-geo-far',
+        areas_of_interest: ['Surya City Phase 2'],
+        areas_of_interest_geo: [{ name: 'Surya City Phase 2', lat: 13.5, lng: 78.3 }], // ~85 km away
+        strict_area_match: false,
+      });
+
+      const property = createTestProperty({
+        sublocality: 'Some Unknown Layout',
+        latitude: 12.97,
+        longitude: 77.75,
+        type: 'Flat/ Apartment',
+      });
+
+      const results = getMatchingContacts(property, [contactNear, contactFar]);
+      // ~1.6 km away → matches even with strict (5 km) radius
+      expect(results.map(r => r.contact.id)).toContain('c-geo-near');
+      // ~85 km away → outside even the relaxed 20 km radius
+      expect(results.map(r => r.contact.id)).not.toContain('c-geo-far');
+    });
+
+    it('prefers contact-stored coordinates over the static locality table', () => {
+      // Static table places Indiranagar ~3.6 km from Kasturi Nagar (a match),
+      // but the contact's stored coordinates for "Indiranagar" point far away
+      // — the stored coordinates must win.
+      const contact = createTestContact({
+        id: 'c-geo-override',
+        areas_of_interest: ['Indiranagar'],
+        areas_of_interest_geo: [{ name: 'Indiranagar', lat: 13.5, lng: 78.3 }],
+        strict_area_match: false,
+      });
+
+      const kasturiNagarProp = createTestProperty({
+        sublocality: 'Kasturi Nagar',
+        type: 'Flat/ Apartment',
+      });
+
+      const results = getMatchingContacts(kasturiNagarProp, [contact]);
+      expect(results.map(r => r.contact.id)).not.toContain('c-geo-override');
+    });
+
     it('allows a 20% budget gap tolerance on the minimum budget side', () => {
       const contact = createTestContact({
         min_budget: 500000000, // 50 Cr
