@@ -131,7 +131,12 @@ wacrm/
    - Per-tenant encrypted data-exchange endpoint at `/api/whatsapp/flows/endpoint/[accountId]` (ping health checks, INIT prefill, data_exchange save, Meta error codes 421/427/432).
    - Lifecycle service `src/lib/whatsapp/meta-flow-service.ts`: keypair generation + registration (`/{phone_number_id}/whatsapp_business_encryption`), flow create/asset upload/publish on Meta, one-live-session-per-contact flow tokens (`whatsapp_meta_flow_sessions`), idempotent response application.
    - Triggers: buyer texts "update my preferences" (or `update_preferences` button) → `webhook-handler.ts` sends the flow; agents can send via `POST /api/whatsapp/flows/send`; setup/publish via `POST /api/whatsapp/flows/setup` or the "WhatsApp Flows" card in Settings → WhatsApp (`src/components/settings/whatsapp-flows-card.tsx`). Completed forms arrive as `interactive.nfm_reply` webhooks → contact updated + chat confirmation.
-9. **Chatbot Concurrent Image-Upload Debounce**:
+9. **Owner Property Status Digests (Migration 126)**:
+   - Daily/weekly WhatsApp digests to property owners (`properties.owner_contact_id`) summarizing buyer activity per listing: new enquiries (`contact_property_inquiries`), shortlisted buyers (new `deals`), scheduled site visits (`appointments` `event_type='site_visit'`), showcase views (`showcase_events`). Sent only when a period has activity.
+   - Engine in `src/lib/owners/owner-digest.ts` (pure helpers unit-tested); cron `/api/cron/owner-digest` (vercel.json, 10:00 IST) with insert-as-claim dedup in `owner_digest_log`.
+   - Template-first delivery (`owner_property_digest` Utility template, `src/lib/whatsapp/owner-digest-template.ts`) with free-form upgrade when the 24h window is open.
+   - Owner control via WhatsApp replies "STOP UPDATES"/"START UPDATES" (webhook-handler → `contacts.owner_digest_opt_out`); account cadence via Settings → WhatsApp "Owner Property Digest" card (`owner-digest-card.tsx`, `owner_digest_settings` table).
+10. **Chatbot Concurrent Image-Upload Debounce**:
    - Implemented `sendPropertyDraftPreviewDebounced` in `chatbot-engine.ts`.
    - Pauses confirmation preview dispatches for 4 seconds, compares update timestamps in `property_draft_sessions`, and ensures only the last concurrent thread triggers a single compiled preview draft card (preventing duplicate or intermediate replies during concurrent multi-photo/document uploads).
 

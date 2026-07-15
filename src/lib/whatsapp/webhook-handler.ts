@@ -22,6 +22,10 @@ import {
   summarizePreferenceUpdate,
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
+import {
+  parseOwnerDigestCommand,
+  applyOwnerDigestCommand,
+} from '@/lib/owners/owner-digest'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
@@ -891,6 +895,31 @@ async function processMessage(
       conversation.id
     )
     return
+  }
+
+  // Owner digest subscription control — "STOP UPDATES" / "START UPDATES"
+  // free text, or the digest template's "Pause updates" quick-reply
+  // button (which arrives as message.button.text). The chat itself is
+  // the owner's control panel: no login needed, works anytime.
+  const digestCommand = parseOwnerDigestCommand(message.button?.text ?? contentText)
+  if (digestCommand) {
+    const confirmation = await applyOwnerDigestCommand({
+      command: digestCommand,
+      accountId,
+      contactId: contactRecord.id,
+    })
+    if (confirmation) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: confirmation,
+      })
+      return
+    }
   }
 
   // Seller listing funnel: a message carrying a web-submission code is
