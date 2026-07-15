@@ -7,8 +7,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings } from '@/types';
-import { POPULAR_SUBLOCALITIES } from '@/lib/data/real-estate-data';
 import { PropertyForm } from '@/components/inventory/property-form';
+import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import {
   Sheet,
   SheetContent,
@@ -62,8 +62,6 @@ import { LogExternalShareDialog } from '@/components/contacts/log-external-share
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 
-const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
-
 const PROPERTY_INTEREST_OPTIONS = [
   'Vacant plot',
   'Vacant building',
@@ -108,14 +106,25 @@ export function ContactDetailView({
   const [currency, setCurrency] = useState('INR');
   const [contact, setContact] = useState<Contact | null>(null);
   const autoMapAttemptedRef = useRef<Record<string, boolean>>({});
+  // Which contact the edit fields were last initialized from. Refetches for
+  // the same contact (after a save, approve, auto-map, ...) must NOT re-sync
+  // the edit fields — that would wipe unsaved edits on the other tabs.
+  const initializedContactIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       autoMapAttemptedRef.current = {};
+      // Closing the panel discards unsaved edits: re-sync on next open.
+      initializedContactIdRef.current = null;
     }
   }, [open]);
-  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setActiveTab('details');
+  }, [contactId]);
   const [copiedPhone, setCopiedPhone] = useState(false);
+  // Controlled so the active tab survives re-renders and refetches
+  const [activeTab, setActiveTab] = useState('details');
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [logShareOpen, setLogShareOpen] = useState(false);
@@ -149,6 +158,19 @@ export function ContactDetailView({
     }
   }, [supabase]);
   const [editClassification, setEditClassification] = useState<'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others'>('Others');
+
+  // A classification change can hide the active tab's trigger — fall back
+  useEffect(() => {
+    if (activeTab === 'preferences' && editClassification !== 'Buyer') {
+      setActiveTab('details');
+    }
+    if (
+      activeTab === 'properties' &&
+      !['Owner', 'Seller', 'Agent', 'Developer', 'Buyer', 'Owner & Buyer'].includes(editClassification)
+    ) {
+      setActiveTab('details');
+    }
+  }, [activeTab, editClassification]);
   const [editLeadTemp, setEditLeadTemp] = useState<'HOT' | 'COLD' | 'Not Responding' | 'Dead' | ''>('');
   const [editLastInquiredPropertyId, setEditLastInquiredPropertyId] = useState<string | null>(null);
   const [allProperties, setAllProperties] = useState<Property[]>([]);
@@ -188,17 +210,8 @@ export function ContactDetailView({
   const [editStrictAreaMatch, setEditStrictAreaMatch] = useState(false);
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
   const [editAreasText, setEditAreasText] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
   const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
   const [editMinRoi, setEditMinRoi] = useState('');
-  const [localitiesDb, setLocalitiesDb] = useState<{ major: string[] } | null>(null);
-
-  async function ensureLocalitiesLoaded() {
-    if (!localitiesDb) {
-      const db = await import('@/lib/data/bengaluru-localities');
-      setLocalitiesDb({ major: db.getMajorAreas() });
-    }
-  }
   const [savingPreferences, setSavingPreferences] = useState(false);
 
   // Tags tab
@@ -251,7 +264,9 @@ export function ContactDetailView({
 
   const fetchContact = useCallback(async () => {
     if (!contactId) return;
-    setLoading(true);
+    // Show the spinner only when switching to a different contact; refetches
+    // of the current contact keep the tree mounted (and the active tab).
+    setContact(prev => (prev && prev.id !== contactId ? null : prev));
 
     const { data } = await supabase
       .from('contacts')
@@ -261,30 +276,37 @@ export function ContactDetailView({
 
     if (data) {
       setContact(data);
-      setEditName(data.name ?? '');
-      setEditNameTag(data.name_tag ?? '');
-      setEditPhone(data.phone);
-      setEditSecondaryPhones(data.secondary_phones ?? []);
-      setEditEmail(data.email ?? '');
-      setEditCompany(data.company ?? '');
-      setEditSource(data.source ?? '');
-      setEditClassification((data as Contact).classification ?? 'Others');
-      setEditLeadTemp((data as Contact).lead_temp ?? '');
-      setEditLastInquiredPropertyId(data.last_inquired_property_id ?? null);
-      setEditReferrer(data.referrer ?? '');
-      setEditReferrerContactId(data.referrer_contact_id ?? null);
-      setEditRequirements(data.requirements ?? '');
-      setEditMinBudget(data.min_budget ? String(data.min_budget) : '');
-      setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
-      setEditNoBudget(!!data.no_budget);
-      setEditStrictAreaMatch(!!data.strict_area_match);
-      const initialAreas = data.areas_of_interest ?? [];
-      setEditAreasOfInterest(initialAreas);
-      setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
-      setEditPropertyInterests(data.property_interests ?? []);
-      setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
-      setEditDob(data.dob ?? '');
-      setEditFeedbackStatus((data as Contact).feedback_status ?? 'not_requested');
+
+      // Initialize the edit fields only when a different contact loads.
+      // Refetches for the same contact (after saving one tab, approving,
+      // auto-mapping, ...) must not overwrite unsaved edits on other tabs.
+      if (initializedContactIdRef.current !== data.id) {
+        initializedContactIdRef.current = data.id;
+        setEditName(data.name ?? '');
+        setEditNameTag(data.name_tag ?? '');
+        setEditPhone(data.phone);
+        setEditSecondaryPhones(data.secondary_phones ?? []);
+        setEditEmail(data.email ?? '');
+        setEditCompany(data.company ?? '');
+        setEditSource(data.source ?? '');
+        setEditClassification((data as Contact).classification ?? 'Others');
+        setEditLeadTemp((data as Contact).lead_temp ?? '');
+        setEditLastInquiredPropertyId(data.last_inquired_property_id ?? null);
+        setEditReferrer(data.referrer ?? '');
+        setEditReferrerContactId(data.referrer_contact_id ?? null);
+        setEditRequirements(data.requirements ?? '');
+        setEditMinBudget(data.min_budget ? String(data.min_budget) : '');
+        setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
+        setEditNoBudget(!!data.no_budget);
+        setEditStrictAreaMatch(!!data.strict_area_match);
+        const initialAreas = data.areas_of_interest ?? [];
+        setEditAreasOfInterest(initialAreas);
+        setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
+        setEditPropertyInterests(data.property_interests ?? []);
+        setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
+        setEditDob(data.dob ?? '');
+        setEditFeedbackStatus((data as Contact).feedback_status ?? 'not_requested');
+      }
 
       // Fetch last inquired property details (for backward compatibility)
       if (data.last_inquired_property_id) {
@@ -315,7 +337,6 @@ export function ContactDetailView({
         setInquiredProperties([]);
       }
     }
-    setLoading(false);
   }, [contactId, supabase]);
 
   const fetchAssociatedProperties = useCallback(async () => {
@@ -1016,6 +1037,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.error('Failed to update contact');
     } else {
       toast.success('Contact updated');
+      // Reflect server-side phone normalization locally — the refetch below
+      // intentionally no longer overwrites edit fields.
+      setEditPhone(normalizedPrimary);
+      setEditSecondaryPhones(normalizedSecondary);
       fetchContact();
       onUpdated();
     }
@@ -1175,49 +1200,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   }
 
-  const activeQuery = useMemo(() => {
-    const segments = editAreasText.split(',');
-    return segments.length > 0 ? segments[segments.length - 1].trim() : '';
-  }, [editAreasText]);
-
-  const matchingSublocalities = useMemo(() => {
-    if (!activeQuery) return [];
-    const dataset = localitiesDb?.major || POPULAR_SUBLOCALITIES;
-    return dataset.filter(area =>
-      area.toLowerCase().includes(activeQuery.toLowerCase())
-    ).slice(0, 10);
-  }, [activeQuery, localitiesDb]);
-
-  function handleAreasTextChange(val: string) {
-    setEditAreasText(val);
-    const parsed = val.split(',')
-      .map(s => s.trim())
-      .filter(s => s.length > 0);
-    const unique = Array.from(new Set(parsed));
-    setEditAreasOfInterest(unique);
-  }
-
-  function handleToggleArea(area: string) {
-    const isChecked = editAreasOfInterest.includes(area);
-    let updated: string[];
-    if (isChecked) {
-      updated = editAreasOfInterest.filter(a => a !== area);
-    } else {
-      const cleanList = editAreasOfInterest.filter(a => a.toLowerCase() !== activeQuery.toLowerCase());
-      updated = [...cleanList, area];
-    }
-    setEditAreasOfInterest(updated);
-    setEditAreasText(updated.join(', ') + (updated.length > 0 ? ', ' : ''));
-  }
-
-  function handleAddSuggestion(area: string) {
-    if (!editAreasOfInterest.includes(area)) {
-      const updated = [...editAreasOfInterest, area];
-      setEditAreasOfInterest(updated);
-      setEditAreasText(updated.join(', ') + (updated.length > 0 ? ', ' : ''));
-    }
-  }
-
   async function savePreferences() {
     if (!contactId) return;
     setSavingPreferences(true);
@@ -1364,7 +1346,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         side="right"
         className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg w-full p-0"
       >
-        {loading || !contact ? (
+        {!contact ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="size-6 animate-spin text-primary" />
           </div>
@@ -1513,7 +1495,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </div>
             )}
 
-            <Tabs defaultValue="details" className="flex-1 flex flex-col min-h-0">
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(String(v))}
+              className="flex-1 flex flex-col min-h-0"
+            >
               <TabsList className="bg-slate-800/50 border-b border-slate-700 mx-0 px-4 mt-3 overflow-x-auto flex-nowrap scrollbar-none justify-start w-full rounded-none">
                 <TabsTrigger
                   value="details"
@@ -1570,7 +1556,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </TabsList>
 
               {/* Details Tab */}
-              <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent value="details" className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
                   <div className="grid grid-cols-5 gap-2">
                     <div className="space-y-1.5 col-span-3">
@@ -1967,6 +1954,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </div>
                   )}
 
+                </div>
+                </div>
+
+                {/* Sticky save footer — always visible while editing */}
+                <div className="shrink-0 px-4 py-2.5 border-t border-slate-800 bg-slate-900">
                   <Button
                     onClick={saveDetails}
                     disabled={savingDetails}
@@ -1985,7 +1977,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Preferences Tab */}
               {editClassification === 'Buyer' && (
-                <TabsContent value="preferences" className="flex-1 overflow-y-auto px-4 py-3">
+                <TabsContent value="preferences" className="flex-1 min-h-0 flex flex-col">
+                  <div className="flex-1 overflow-y-auto px-4 py-3">
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
@@ -2055,76 +2048,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     {/* Areas of Interest */}
                     <div className="space-y-2">
                       <Label className="text-slate-400 text-xs font-semibold">Areas of Interest</Label>
-                      
-                      <div className="relative">
-                        <Input
-                          value={editAreasText}
-                          onChange={(e) => {
-                            ensureLocalitiesLoaded();
-                            handleAreasTextChange(e.target.value);
-                          }}
-                          onFocus={() => {
-                            ensureLocalitiesLoaded();
-                            setIsFocused(true);
-                          }}
-                          onBlur={() => {
-                            // Slight delay to allow clicking on dropdown items
-                            setTimeout(() => setIsFocused(false), 200);
-                          }}
-                          placeholder="Type area (e.g. Whitefield, Koramangala)..."
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs w-full focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-0"
-                        />
 
-                        {isFocused && matchingSublocalities.length > 0 && (
-                          <div 
-                            className="absolute z-50 w-full mt-1 bg-slate-900 border border-slate-700 rounded-md shadow-lg max-h-48 overflow-y-auto p-1 space-y-0.5"
-                            onMouseDown={(e) => {
-                              // Prevent input blur so checks can be toggled without losing focus
-                              e.preventDefault();
-                            }}
-                          >
-                            <div className="text-[10px] text-slate-500 font-semibold px-2 py-1 border-b border-slate-850 mb-1">
-                              Matching Sublocalities:
-                            </div>
-                            {matchingSublocalities.map((area) => {
-                              const isChecked = editAreasOfInterest.includes(area);
-                              return (
-                                <label
-                                  key={area}
-                                  className="flex items-center gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer select-none"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={() => handleToggleArea(area)}
-                                    className="rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 size-3.5"
-                                  />
-                                  <span>{area}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Suggestions Bank */}
-                      <div className="flex flex-wrap gap-1 pt-1.5">
-                        <span className="text-[10px] text-slate-500 font-semibold w-full">Quick Add Suggestions:</span>
-                        {SUGGESTED_AREAS.map(area => {
-                          const exists = editAreasOfInterest.includes(area);
-                          return (
-                            <button
-                              key={area}
-                              type="button"
-                              disabled={exists}
-                              onClick={() => handleAddSuggestion(area)}
-                              className="text-[10px] px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-400"
-                            >
-                              +{area}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <AreasOfInterestInput
+                        areasText={editAreasText}
+                        areasOfInterest={editAreasOfInterest}
+                        onChange={(text, areas) => {
+                          setEditAreasText(text);
+                          setEditAreasOfInterest(areas);
+                        }}
+                      />
 
                       {/* Strict Area Match Checkbox */}
                       <div className="flex items-center space-x-2 pt-2">
@@ -2168,10 +2100,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       </div>
                     </div>
 
+                  </div>
+                  </div>
+
+                  {/* Sticky save footer — always visible while editing */}
+                  <div className="shrink-0 px-4 py-2.5 border-t border-slate-800 bg-slate-900">
                     <Button
                       onClick={savePreferences}
                       disabled={savingPreferences}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full mt-2"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
                       size="sm"
                     >
                       {savingPreferences ? (
@@ -2563,7 +2500,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               </TabsContent>
 
               {/* Custom Fields Tab */}
-              <TabsContent value="custom" className="flex-1 overflow-y-auto px-4 py-3">
+              <TabsContent value="custom" className="flex-1 min-h-0 flex flex-col">
+                <div className="flex-1 overflow-y-auto px-4 py-3">
                 {loadingCustom ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="size-5 animate-spin text-slate-500" />
@@ -2592,6 +2530,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         />
                       </div>
                     ))}
+                  </div>
+                )}
+                </div>
+
+                {!loadingCustom && customFields.length > 0 && (
+                  <div className="shrink-0 px-4 py-2.5 border-t border-slate-800 bg-slate-900">
                     <Button
                       onClick={saveCustomFields}
                       disabled={savingCustom}
