@@ -5,6 +5,7 @@ import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-hel
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
 import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 import { boundingBox, haversineKm } from "@/lib/geo";
+import { localityStemProbe, textContainsLocality } from "@/lib/locality-match";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 
 const MAX_LIMIT = 100;
@@ -17,6 +18,16 @@ type SortField = typeof ALLOWED_SORT_FIELDS[number];
 const NEAR_SEARCH_CAP = 500;
 const DEFAULT_RADIUS_KM = 5;
 const MAX_RADIUS_KM = 50;
+
+// Rows without stored coordinates are invisible to the bounding-box
+// tier no matter how close they physically are, so near-search geocodes
+// a bounded batch of them on the fly (and persists the result).
+const GEOCODE_FALLBACK_CAP = 20;
+
+// Price-bounded searches imply buy/rent intent — JV/JD deals are priced
+// in share percentages, not a sale amount — unless the query itself
+// asks for JV/JD listings.
+const JV_INTENT = /\bjv\b|\bjd\b|\bjoint\s*(?:venture|development)\b/i;
 
 /** PostgREST .or() filter values break on these characters — keep the
  *  locality's primary token only (e.g. "HSR Layout" from
@@ -51,6 +62,41 @@ function areaFilter(op: "gte" | "lte", sqft: number): string {
     branches.push(`and(land_area_unit.eq."${unit}",land_area.${op}.${threshold})`);
   }
   return branches.join(",");
+}
+
+/**
+ * Best-effort on-the-fly geocode for near-search candidates that have
+ * no stored coordinates. Successful lookups are persisted (RLS
+ * permitting) so each row is geocoded at most once; failures leave the
+ * row name-match-only, exactly as before.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
+  return Promise.all(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rows.map(async (row: any) => {
+      const address = [row.location, row.city, row.state]
+        .filter((part: unknown) => typeof part === "string" && part.trim())
+        .join(", ");
+      if (!address) return row;
+      try {
+        const geo = await geocodeAddress(address);
+        if (!geo) return row;
+        await supabase
+          .from("properties")
+          .update({
+            latitude: geo.latitude,
+            longitude: geo.longitude,
+            locality_place_id: row.locality_place_id || geo.place_id,
+          })
+          .eq("id", row.id);
+        return { ...row, latitude: geo.latitude, longitude: geo.longitude };
+      } catch (err) {
+        console.warn("[GET /api/properties] On-the-fly geocode failed:", err);
+        return row;
+      }
+    })
+  );
 }
 
 // GET /api/properties
@@ -99,12 +145,13 @@ export async function GET(request: Request) {
     // two tiered-location candidate queries.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const applyFilters = (query: any) => {
+      let priceBounded = false;
       if (search) {
         // Parse natural language search: "3 BHK villa in Whitefield under 2 Cr"
         const parsed = parsePropertyQuery(search);
 
-        if (parsed.minPrice !== null) query = query.gte("price", parsed.minPrice);
-        if (parsed.maxPrice !== null) query = query.lte("price", parsed.maxPrice);
+        if (parsed.minPrice !== null) { query = query.gte("price", parsed.minPrice); priceBounded = true; }
+        if (parsed.maxPrice !== null) { query = query.lte("price", parsed.maxPrice); priceBounded = true; }
         if (parsed.minArea !== null) query = query.or(areaFilter("gte", parsed.minArea));
         if (parsed.maxArea !== null) query = query.or(areaFilter("lte", parsed.maxArea));
         if (parsed.bedrooms !== null) query = query.eq("bedrooms", parsed.bedrooms);
@@ -125,6 +172,12 @@ export async function GET(request: Request) {
         // picked from autocomplete (the tiered search owns location then).
         if (!hasNear && parsed.locations.length > 0 && !parsed.remainingSearch) {
           const locFilters = parsed.locations
+            // Probe the locality stem too, so "in Suryanagar" also
+            // matches rows stored as "Surya Nagar" / "Surya City".
+            .flatMap(loc => {
+              const stem = localityStemProbe(loc);
+              return stem ? [loc, stem] : [loc];
+            })
             .map(loc => {
               const clean = loc.replace(/"/g, '\\"');
               return `location.ilike."%${clean}%",sublocality.ilike."%${clean}%",city.ilike."%${clean}%"`;
@@ -171,11 +224,20 @@ export async function GET(request: Request) {
 
       if (minPrice !== null && minPrice !== "") {
         const min = Number(minPrice);
-        if (!isNaN(min)) query = query.gte("price", min);
+        if (!isNaN(min)) { query = query.gte("price", min); priceBounded = true; }
       }
       if (maxPrice !== null && maxPrice !== "") {
         const max = Number(maxPrice);
-        if (!isNaN(max)) query = query.lte("price", max);
+        if (!isNaN(max)) { query = query.lte("price", max); priceBounded = true; }
+      }
+
+      // JV/JD listings save with a nominal price of 0 when no project
+      // value is known (see POST below), so any max-price bound would
+      // surface every JV deal. Keep them — and other rows with no
+      // recorded price — out of price-bounded searches unless the
+      // caller filtered to JV/JD or asked for JV in the query itself.
+      if (priceBounded && listingType !== "JV/JD" && !JV_INTENT.test(search)) {
+        query = query.neq("listing_type", "JV/JD").gt("price", 0);
       }
 
       return query;
@@ -190,13 +252,21 @@ export async function GET(request: Request) {
       const exactParts: string[] = [];
       if (nearPlaceId) exactParts.push(`locality_place_id.eq.${nearPlaceId}`);
       if (nearLabel) {
-        const term = `%${nearLabel}%`;
-        exactParts.push(
-          `locality_canonical.ilike.${term}`,
-          `sublocality.ilike.${term}`,
-          `location.ilike.${term}`,
-          `project.ilike.${term}`
-        );
+        // Fetch by the raw label plus its locality stem ("Suryanagar" →
+        // "surya", which also catches "Surya City" rows). Over-fetch is
+        // fine — textContainsLocality gates what counts as exact below.
+        const probes = [nearLabel];
+        const stem = localityStemProbe(nearLabel);
+        if (stem) probes.push(stem);
+        for (const probe of probes) {
+          const term = `%${probe}%`;
+          exactParts.push(
+            `locality_canonical.ilike.${term}`,
+            `sublocality.ilike.${term}`,
+            `location.ilike.${term}`,
+            `project.ilike.${term}`
+          );
+        }
       }
 
       // Tier 2 candidates: coordinates inside the radius bounding box.
@@ -223,17 +293,49 @@ export async function GET(request: Request) {
           )
         : Promise.resolve({ data: [], error: null });
 
-      const [exactRes, nearbyRes] = await Promise.all([exactQuery, nearbyQuery]);
+      // Tier 3 candidates: rows that were never geocoded (intake saved
+      // without a Maps key, geocode failure, pre-backfill data) can never
+      // appear in the bounding-box tier however close they physically
+      // are. Geocode a bounded batch on the fly and persist the coords
+      // so the radius search self-heals over time.
+      const ungeocodedQuery = hasGoogleMapsKey()
+        ? applyFilters(
+            ctx.supabase
+              .from("properties")
+              .select(SELECT_COLUMNS)
+              .eq("account_id", ctx.accountId)
+              .is("latitude", null)
+              .not("location", "is", null)
+              .limit(GEOCODE_FALLBACK_CAP)
+          )
+        : Promise.resolve({ data: [], error: null });
+
+      const [exactRes, nearbyRes, ungeocodedRes] = await Promise.all([
+        exactQuery,
+        nearbyQuery,
+        ungeocodedQuery,
+      ]);
       const queryError = exactRes.error || nearbyRes.error;
       if (queryError) {
         console.error("[GET /api/properties] Near-search select error:", queryError);
         return NextResponse.json({ error: "Failed to fetch properties" }, { status: 500 });
       }
 
-      const nearLabelLc = nearLabel.toLowerCase();
+      // The healing tier is best-effort — a failure here must not take
+      // down the whole search.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let geocodedRows: any[] = [];
+      if (ungeocodedRes.error) {
+        console.warn("[GET /api/properties] Ungeocoded-tier select error:", ungeocodedRes.error);
+      } else if ((ungeocodedRes.data || []).length > 0) {
+        geocodedRows = await geocodeRowsOnTheFly(ctx.supabase, ungeocodedRes.data || []);
+      }
+
+      // Geocoded rows go first so their freshly resolved coordinates win
+      // over the coordinate-less duplicates from the exact tier.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const byId = new Map<string, any>();
-      for (const row of [...(exactRes.data || []), ...(nearbyRes.data || [])]) {
+      for (const row of [...geocodedRows, ...(exactRes.data || []), ...(nearbyRes.data || [])]) {
         if (!byId.has(row.id)) byId.set(row.id, row);
       }
 
@@ -246,9 +348,9 @@ export async function GET(request: Request) {
 
         const isExact =
           (nearPlaceId && row.locality_place_id === nearPlaceId) ||
-          (nearLabelLc &&
+          (nearLabel &&
             [row.locality_canonical, row.sublocality, row.location, row.project].some(
-              (f: string | null) => f && f.toLowerCase().includes(nearLabelLc)
+              (f: string | null) => f && textContainsLocality(f, nearLabel)
             ));
 
         if (!isExact && (distanceKm === null || distanceKm > radiusKm)) return [];
