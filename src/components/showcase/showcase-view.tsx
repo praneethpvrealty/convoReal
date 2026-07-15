@@ -1447,7 +1447,7 @@ export function ShowcaseView({
          {/* Property Detail Modal */}
       {selectedProperty && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-          <div className="relative max-w-4xl w-full bg-slate-900/85 border border-slate-900/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col lg:flex-row my-8 animate-zoom-in max-h-[90vh] backdrop-blur-xl">
+          <div className="relative max-w-4xl w-full bg-slate-900/85 border border-slate-900/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col lg:flex-row my-8 animate-zoom-in max-h-[90dvh] backdrop-blur-xl">
             
             {/* Close Button */}
             <button
@@ -1457,8 +1457,9 @@ export function ShowcaseView({
               <X className="size-4" />
             </button>
 
-            {/* Left Pane: Gallery */}
-            <div className="w-full lg:w-[50%] h-[300px] lg:h-auto bg-slate-950 relative flex flex-col min-h-[300px]">
+            {/* Left Pane: Gallery — shrink-0 so the details pane below
+                can't squeeze it (or its thumbnail strip) on mobile. */}
+            <div className="w-full lg:w-[50%] h-[300px] lg:h-auto bg-slate-950 relative flex flex-col min-h-[300px] shrink-0 lg:shrink">
               {selectedProperty.images && selectedProperty.images.length > 0 ? (
                 <>
                   {/* Main Viewer */}
@@ -1530,8 +1531,12 @@ export function ShowcaseView({
               )}
             </div>
 
-            {/* Right Pane: Details & Form */}
-            <div className="w-full lg:w-[50%] p-6 flex flex-col justify-between overflow-y-auto max-h-none lg:max-h-[90vh]">
+            {/* Right Pane: Details & Form. On mobile this must take the
+                REMAINING card height (flex-1 min-h-0) so overflow-y-auto
+                actually scrolls — with max-h-none the implicit
+                min-height:auto let it grow past the clipped 90vh card,
+                making everything below the fold unreachable. */}
+            <div className="w-full lg:w-[50%] p-6 flex flex-col justify-between overflow-y-auto flex-1 min-h-0 lg:flex-none lg:max-h-[90dvh]">
               
               {/* Header Info */}
               <div className="space-y-4">

@@ -715,16 +715,22 @@ export async function POST(request: Request) {
         .update(updatePayload)
         .eq('id', existingContact.id);
 
-      // Insert all matched properties into junction table
+      // Record the inquiry in the junction table. One portal email is an
+      // inquiry about ONE listing — matchedPropertyIds is a ranked list of
+      // guesses for which listing that is, so only the top match is
+      // recorded. Inserting every fuzzy match (score >= 2) tagged contacts
+      // with type-only near-misses across the whole inventory.
       if (matchedPropertyIds.length > 0) {
-        const inquiries = matchedPropertyIds.map(propertyId => ({
-          contact_id: existingContact.id,
-          property_id: propertyId,
-          inquiry_source: parsed.source,
-        }));
         await supabase
           .from('contact_property_inquiries')
-          .upsert(inquiries, { onConflict: 'contact_id,property_id' });
+          .upsert(
+            {
+              contact_id: existingContact.id,
+              property_id: matchedPropertyIds[0],
+              inquiry_source: parsed.source,
+            },
+            { onConflict: 'contact_id,property_id' }
+          );
       }
 
       // Auto-assign tags based on property interests and budget
@@ -885,16 +891,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    // Insert all matched properties into junction table
+    // Record the inquiry in the junction table — top-scored match only,
+    // same reasoning as the existing-contact branch above.
     if (matchedPropertyIds.length > 0 && newContact) {
-      const inquiries = matchedPropertyIds.map(propertyId => ({
-        contact_id: newContact.id,
-        property_id: propertyId,
-        inquiry_source: parsed.source,
-      }));
       await supabase
         .from('contact_property_inquiries')
-        .upsert(inquiries, { onConflict: 'contact_id,property_id' });
+        .upsert(
+          {
+            contact_id: newContact.id,
+            property_id: matchedPropertyIds[0],
+            inquiry_source: parsed.source,
+          },
+          { onConflict: 'contact_id,property_id' }
+        );
     }
 
     // Auto-assign tags based on property interests and budget

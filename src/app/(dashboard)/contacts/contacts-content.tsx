@@ -427,7 +427,28 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // selected chip narrows the list to contacts who showed interest in
   // that property (last_inquired_property_id ∪ contact_property_inquiries).
   const [starredProps, setStarredProps] = useState<{ id: string; property_code: string | null; title: string }[]>([]);
-  const [filterInterestProperty, setFilterInterestProperty] = useState<string>('All');
+  // Tracks whether the starred-properties fetch has completed at least
+  // once — the unstar-guard below must not run against the initial empty
+  // array, or it would wipe a filter restored from the URL on refresh.
+  const [starredLoaded, setStarredLoaded] = useState(false);
+  // Seeded from ?interest= so a refresh (or shared link) keeps the chip.
+  const [filterInterestProperty, setFilterInterestProperty] = useState<string>(
+    () => searchParams?.get('interest') || 'All'
+  );
+
+  // Single entry point for changing the interest chip: updates state and
+  // mirrors it into the ?interest= URL param (history.replaceState, like
+  // the inbox, to avoid a router round-trip on every chip tap).
+  const applyInterestFilter = useCallback((id: string) => {
+    setFilterInterestProperty(id);
+    setPage(0);
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (id === 'All') params.delete('interest');
+    else params.set('interest', id);
+    const qs = params.toString();
+    window.history.replaceState(null, '', `/contacts${qs ? `?${qs}` : ''}`);
+  }, []);
   // Touch equivalent of the chip's hover-expand: long-press (~450ms)
   // reveals the full property title for 3s. A completed long-press
   // must NOT also toggle the filter, so the click that follows it is
@@ -560,6 +581,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       .order('updated_at', { ascending: false })
       .limit(STARRED_PROPERTY_CAP);
     setStarredProps(data || []);
+    setStarredLoaded(true);
   }, [accountId]);
 
   useEffect(() => {
@@ -567,11 +589,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   }, [fetchStarredProps]);
 
   // If the active chip's property was unstarred elsewhere, drop the filter.
+  // Waits for the first starred-props fetch so a URL-restored filter isn't
+  // cleared against the initial empty array.
   useEffect(() => {
+    if (!starredLoaded) return;
     if (filterInterestProperty !== 'All' && !starredProps.some((p) => p.id === filterInterestProperty)) {
-      setFilterInterestProperty('All');
+      applyInterestFilter('All');
     }
-  }, [starredProps, filterInterestProperty]);
+  }, [starredLoaded, starredProps, filterInterestProperty, applyInterestFilter]);
 
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
@@ -698,13 +723,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       }
 
       if (filterInterestProperty !== 'All') {
-        // Interest = the property form's "interested contacts" link OR a
-        // recorded inquiry (portal lead email, manual log) for this property.
+        // First-choice interest only: the contact's primary inquiry
+        // (last_inquired_property_id — set by the property form's
+        // interested-contacts link and by the portal-email webhook's
+        // top-scored match) OR a manual log from the contact detail view.
+        // Non-Manual junction rows are excluded — the webhook historically
+        // recorded every fuzzy match (score >= 2), so a type-only near-miss
+        // could drag unrelated contacts into the chip.
         const [inquiryRes, lastInquiredRes] = await Promise.all([
           supabaseClient
             .from('contact_property_inquiries')
             .select('contact_id')
-            .eq('property_id', filterInterestProperty),
+            .eq('property_id', filterInterestProperty)
+            .eq('inquiry_source', 'Manual'),
           supabaseClient
             .from('contacts')
             .select('id')
@@ -1202,7 +1233,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const handleDetailOpenChange = (open: boolean) => {
     setDetailOpen(open);
     if (!open) {
-      const params = new URLSearchParams(searchParams?.toString() || '');
+      // Read from window.location, not useSearchParams — the interest-chip
+      // filter updates the URL via history.replaceState, which the hook
+      // doesn't see, and a stale snapshot here would wipe ?interest=.
+      const params = new URLSearchParams(window.location.search);
       params.delete('contactId');
       const queryString = params.toString();
       router.push(`/contacts${queryString ? `?${queryString}` : ''}`, { scroll: false });
@@ -1386,7 +1420,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
               <Star className="size-3 text-amber-400 fill-amber-400 mr-1" />
               Interested in:
-              <InfoHint text="These quick filters are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6). Tap a chip to see contacts who showed interest in that property — from the property form's interested-contacts links and logged portal/email inquiries. Unstar the property in Inventory and its chip disappears." />
+              <InfoHint text="These quick filters are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6). Tap a chip to see contacts whose first-choice interest is that property — linked as interested on the property form, top match of a portal/email inquiry, or manually logged on the contact. The active chip survives a page refresh. Unstar the property in Inventory and its chip disappears." />
             </span>
             {starredProps.map((p) => {
               const active = filterInterestProperty === p.id;
@@ -1403,8 +1437,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       chipPressFired.current = false;
                       return;
                     }
-                    setFilterInterestProperty(active ? 'All' : p.id);
-                    setPage(0);
+                    applyInterestFilter(active ? 'All' : p.id);
                   }}
                   onTouchStart={() => beginChipPress(p.id)}
                   onTouchEnd={endChipPress}
@@ -1415,7 +1448,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     // so the expand isn't covered by the browser menu.
                     if (expanded || chipPressFired.current) e.preventDefault();
                   }}
-                  title={`${p.title}\n\nHere because you starred it in Inventory — click to filter contacts who showed interest; unstar to remove.`}
+                  title={`${p.title}\n\nHere because you starred it in Inventory — click to filter contacts whose first-choice interest is this property; unstar to remove.`}
                   style={{ WebkitTouchCallout: 'none' }}
                   className={cn(
                     'group flex items-center overflow-hidden rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold transition-all cursor-pointer select-none',

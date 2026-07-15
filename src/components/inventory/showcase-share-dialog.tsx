@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -14,8 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Share2, Copy, Check, ExternalLink, MessageCircle, Search, Smartphone, UserCheck, X } from 'lucide-react';
-import type { ShowcaseSettings } from '@/types';
+import { Share2, Copy, Check, ExternalLink, MessageCircle, Search, Smartphone, UserCheck, X, User, Handshake, ClipboardList, Send, Loader2, Sparkles } from 'lucide-react';
+import type { MessageTemplate, Property, ShowcaseSettings } from '@/types';
+import { buildInventorySummary } from '@/lib/inventory-summary-builder';
+import {
+  buildInventoryUpdateTemplatePayload,
+  buildInventoryUpdateParams,
+  INVENTORY_UPDATE_TEMPLATE_NAME,
+} from '@/lib/whatsapp/inventory-update-template';
 
 interface PickerContact {
   id: string;
@@ -57,6 +63,11 @@ export function ShowcaseShareDialog({
   const [copiedWithMessage, setCopiedWithMessage] = useState(false);
   const [includeSearch, setIncludeSearch] = useState(true);
 
+  // WHO the link is for — mirrors the property share dialog. Clients get
+  // the teaser showcase (masked address, inquiry funnel); co-brokers get
+  // the complete clean view (mode=view: full specs + map, no forms).
+  const [audienceTab, setAudienceTab] = useState<'client' | 'agent'>('client');
+
   // "Send personally" picker — each contact gets a link tagged with
   // ?v=<contactId> so their showcase activity shows up by name in Pulse.
   const [contacts, setContacts] = useState<PickerContact[]>([]);
@@ -75,8 +86,21 @@ If any property catches your eye, I'd be happy to help with details, schedule a 
 
 Best regards`;
 
+  const defaultBrokerMessage = `Hi {name}! 🤝
 
-  const [passionateMessage, setPassionateMessage] = useState(defaultPassionateMessage);
+Sharing our current inventory — the link opens the complete catalog with full specs, photos, and map locations, so you can evaluate and present to your clients directly:
+
+{portalUrl}
+
+Open to co-broking on all of these. Ping me for commission terms, documents, or site visits.
+
+Best regards`;
+
+  // One editable draft per audience so switching tabs doesn't clobber edits.
+  const [clientMessage, setClientMessage] = useState(defaultPassionateMessage);
+  const [brokerMessage, setBrokerMessage] = useState(defaultBrokerMessage);
+  const passionateMessage = audienceTab === 'agent' ? brokerMessage : clientMessage;
+  const setPassionateMessage = audienceTab === 'agent' ? setBrokerMessage : setClientMessage;
 
   useEffect(() => {
     if (!open || !accountId) return;
@@ -147,8 +171,200 @@ Best regards`;
       urlObj.searchParams.set('search', activeSearch.trim());
     }
 
+    // Co-broker shares open the complete clean view (full specs + map,
+    // no inquiry forms). Plain param — a default, not access control.
+    if (audienceTab === 'agent') {
+      urlObj.searchParams.set('mode', 'view');
+    }
+
     return urlObj.toString();
-  }, [accountId, shareCategory, showcaseSettings, includeSearch, activeSearch]);
+  }, [accountId, shareCategory, showcaseSettings, includeSearch, activeSearch, audienceTab]);
+
+  // ── WhatsApp inventory summary ────────────────────────────────
+  // Published listings for the category-grouped digest; fetched once
+  // per dialog open (newest first, same visibility rules as the
+  // public showcase: published + Available).
+  const [summaryProperties, setSummaryProperties] = useState<Property[] | null>(null);
+  const [copiedSummary, setCopiedSummary] = useState(false);
+
+  useEffect(() => {
+    if (!open || !accountId) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (cancelled) return;
+      const db = createClient();
+      void db
+        .from('properties')
+        .select('id, title, type, listing_type, price, rent_per_month, rental_income, roi, area_sqft, area_unit, land_area, land_area_unit, bedrooms, sublocality, city')
+        .eq('account_id', accountId)
+        .eq('is_published', true)
+        .eq('status', 'Available')
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (cancelled) return;
+          if (error) {
+            console.error('[showcase-share] summary listings load failed:', error);
+            setSummaryProperties([]);
+          } else {
+            setSummaryProperties((data ?? []) as unknown as Property[]);
+          }
+        });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, accountId]);
+
+  const autoSummary = useMemo(() => {
+    if (!summaryProperties) return '';
+    return buildInventorySummary(summaryProperties, {
+      portalUrl: generatedLink,
+      category: shareCategory,
+    });
+  }, [summaryProperties, generatedLink, shareCategory]);
+
+  // Manual edits survive until an input (category/audience) changes the
+  // auto text: the draft remembers which auto text it was based on, and a
+  // mismatch silently discards it — no reset effect required.
+  const [summaryDraft, setSummaryDraft] = useState<{ base: string; text: string } | null>(null);
+  const summaryMessage = summaryDraft?.base === autoSummary ? summaryDraft.text : autoSummary;
+
+  const handleCopySummary = async () => {
+    try {
+      await navigator.clipboard.writeText(summaryMessage);
+      setCopiedSummary(true);
+      toast.success('Inventory summary copied to clipboard!');
+      setTimeout(() => setCopiedSummary(false), 2000);
+    } catch (err) {
+      toast.error('Failed to copy summary');
+      console.error(err);
+    }
+  };
+
+  const handleWhatsAppSummary = () => {
+    // No phone number → WhatsApp opens its chat picker, so the digest can
+    // go to a group or broadcast list (like the shout-out messages agents
+    // already post).
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(summaryMessage)}`, '_blank');
+  };
+
+  const handleShareSummary = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'Inventory Summary', text: summaryMessage });
+      } else {
+        await navigator.clipboard.writeText(summaryMessage);
+        toast.success('Summary copied to clipboard!');
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        toast.error('Failed to share');
+        console.error(err);
+      }
+    }
+  };
+
+  // ── CRM template sending ─────────────────────────────────────
+  // The inventory_update Marketing template lets the digest go out from
+  // the account's own WhatsApp Business number — replies land in the
+  // ConvoReal Inbox (24h window opens, copilot takes over), instead of
+  // leaking the conversation to the agent's personal WhatsApp.
+  const [crmTemplate, setCrmTemplate] = useState<MessageTemplate | null>(null);
+  const [crmTemplateChecked, setCrmTemplateChecked] = useState(false);
+  const [submittingCrmTemplate, setSubmittingCrmTemplate] = useState(false);
+  const [crmSendingContactId, setCrmSendingContactId] = useState<string | null>(null);
+  const [crmSentContactIds, setCrmSentContactIds] = useState<Set<string>>(new Set());
+
+  const fetchCrmTemplate = useCallback(async () => {
+    if (!accountId) return;
+    const db = createClient();
+    const { data } = await db
+      .from('message_templates')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('name', INVENTORY_UPDATE_TEMPLATE_NAME)
+      .order('last_submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setCrmTemplate((data as MessageTemplate | null) || null);
+    setCrmTemplateChecked(true);
+  }, [accountId]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) void fetchCrmTemplate();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, fetchCrmTemplate]);
+
+  const crmTemplateApproved = crmTemplate?.status === 'APPROVED';
+
+  const handleSubmitCrmTemplate = async () => {
+    setSubmittingCrmTemplate(true);
+    try {
+      const payload = buildInventoryUpdateTemplatePayload(window.location.origin);
+      const res = await fetch('/api/whatsapp/templates/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Template submission failed');
+      toast.success('Template submitted to Meta — sending unlocks once it is approved (usually within minutes to a few hours).');
+      await fetchCrmTemplate();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+      console.error('[showcase-share] template submit failed:', err);
+    } finally {
+      setSubmittingCrmTemplate(false);
+    }
+  };
+
+  const handleCrmSendPersonal = async (contact: PickerContact) => {
+    if (!crmTemplate || !accountId) return;
+    setCrmSendingContactId(contact.id);
+    try {
+      const [residential, commercial, farmAndLand] = buildInventoryUpdateParams(summaryProperties ?? []);
+      const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
+      // Dynamic URL-button suffix → tracked, personalised portal open.
+      const buttonParams: Record<number, string> = {};
+      (crmTemplate.buttons ?? []).forEach((btn, idx) => {
+        if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+          buttonParams[idx] = `?ref=${accountId}&v=${contact.id}`;
+        }
+      });
+      const res = await fetch('/api/whatsapp/broadcast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipients: [
+            {
+              phone: contact.phone,
+              params: [firstName, residential, commercial, farmAndLand],
+              ...(Object.keys(buttonParams).length > 0 ? { messageParams: { buttonParams } } : {}),
+            },
+          ],
+          template_name: crmTemplate.name,
+          template_language: crmTemplate.language || 'en_US',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      const result = data.results?.[0];
+      if (result?.status === 'failed') throw new Error(result.error || 'Delivery failure');
+      setCrmSentContactIds((prev) => new Set(prev).add(contact.id));
+      toast.success(`Inventory update sent to ${contact.name || contact.phone} from your business number — replies land in your Inbox.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send via CRM');
+      console.error('[showcase-share] CRM send failed:', err);
+    } finally {
+      setCrmSendingContactId(null);
+    }
+  };
 
   /** Same portal link, tagged with the contact so Pulse events carry
    *  their identity (`v=` is read by the showcase tracker, never used
@@ -236,7 +452,7 @@ Best regards`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-xl">
+      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="border-b border-slate-800 pb-3 mb-2">
           <DialogTitle className="text-white flex items-center gap-2 text-lg font-black tracking-tight">
             <Share2 className="size-5 text-primary" />
@@ -248,6 +464,34 @@ Best regards`;
         </DialogHeader>
 
         <div className="space-y-5 py-3">
+          {/* Audience tabs — the first decision is WHO this goes to */}
+          <div className="grid grid-cols-2 gap-1 rounded-xl border border-slate-800 bg-slate-950 p-1">
+            {([
+              { key: 'client', label: 'To Clients', desc: 'Teaser — masked address, inquiry funnel', icon: User },
+              { key: 'agent', label: 'To Co-Brokers', desc: 'Complete info — specs, photos & map', icon: Handshake },
+            ] as const).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setAudienceTab(tab.key)}
+                className={`flex flex-col items-center gap-0.5 rounded-lg px-2 py-2 transition-all cursor-pointer ${
+                  audienceTab === tab.key
+                    ? 'bg-primary/15 text-primary border border-primary/40'
+                    : 'text-slate-400 hover:text-white border border-transparent'
+                }`}
+              >
+                <tab.icon className="size-4" />
+                <span className="text-xs font-bold">{tab.label}</span>
+                <span className="text-[9px] text-slate-500 hidden sm:block">{tab.desc}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-slate-500 font-medium -mt-3">
+            {audienceTab === 'agent'
+              ? 'Co-broker links open the complete catalog — full specs, photos, and map locations, without inquiry forms — so partners can evaluate and present listings independently.'
+              : 'Client links open the teaser showcase — exact addresses stay masked until they inquire, so every serious viewer becomes a captured lead.'}
+          </p>
+
           {/* Category Filter Options */}
           <div className="space-y-2">
             <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider">
@@ -362,6 +606,132 @@ Best regards`;
             </div>
           </div>
 
+          {/* WhatsApp inventory summary — category-grouped digest */}
+          <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">
+            <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider block flex items-center gap-2">
+              <ClipboardList className="size-3.5 text-sky-400" />
+              Inventory summary
+            </Label>
+            <p className="text-[11px] text-slate-500 font-medium">
+              A WhatsApp-ready digest of your published listings — grouped by
+              Residential / Commercial / Agricultural with price, size, rent &
+              ROI where available. Follows the category filter above; edit
+              freely before sending to a group or broadcast list.
+            </p>
+            {summaryProperties === null ? (
+              <div className="h-24 rounded-lg bg-slate-900 animate-pulse" />
+            ) : summaryMessage ? (
+              <>
+                <Textarea
+                  value={summaryMessage}
+                  onChange={(e) => setSummaryDraft({ base: autoSummary, text: e.target.value })}
+                  className="bg-slate-900 border-slate-800 text-xs text-slate-200 min-h-[160px] max-h-[280px] overflow-y-auto font-mono resize-none"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => void handleCopySummary()}
+                    className="flex-1 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-xs py-2.5 flex items-center justify-center gap-2"
+                  >
+                    {copiedSummary ? (
+                      <>
+                        <Check className="size-3.5" />
+                        Copied!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="size-3.5" />
+                        Copy Summary
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={handleWhatsAppSummary}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs py-2.5 px-4 flex items-center justify-center gap-2"
+                  >
+                    <Smartphone className="size-3.5" />
+                    WhatsApp
+                  </Button>
+                  <Button
+                    onClick={() => void handleShareSummary()}
+                    variant="outline"
+                    className="border-sky-600 hover:bg-sky-600/20 text-sky-400 font-semibold text-xs py-2.5 px-4 flex items-center justify-center gap-2"
+                  >
+                    <Share2 className="size-3.5" />
+                    Share
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <p className="py-3 text-center text-xs font-medium text-slate-500">
+                No published listings{shareCategory !== 'All' ? ` in ${shareCategory}` : ''} to summarise yet.
+              </p>
+            )}
+
+            {/* CRM template status — the preferred send path */}
+            {crmTemplateChecked && (
+              <div className="border border-primary/25 bg-primary/5 rounded-lg p-3 space-y-2">
+                <p className="text-[11px] font-bold text-primary flex items-center gap-1.5">
+                  <Sparkles className="size-3.5" />
+                  Send from your WhatsApp Business number
+                </p>
+                {crmTemplateApproved ? (
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Template approved ✅ — use the <strong className="text-primary">CRM</strong> button
+                    next to any contact below. They get a personalised inventory snapshot with a
+                    tracked showcase link and quick-reply buttons; their reply opens a conversation
+                    in your <strong className="text-slate-300">Inbox</strong> where the copilot takes over.
+                  </p>
+                ) : crmTemplate?.status === 'PENDING' ? (
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Template submitted — waiting for Meta approval (usually minutes to a few hours).
+                    CRM sending unlocks automatically once approved.
+                  </p>
+                ) : crmTemplate?.status === 'REJECTED' ? (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-rose-400 leading-relaxed">
+                      Meta rejected the template{crmTemplate.rejection_reason ? `: ${crmTemplate.rejection_reason}` : ''}.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => void handleSubmitCrmTemplate()}
+                      disabled={submittingCrmTemplate}
+                      className="h-8 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      {submittingCrmTemplate ? <Loader2 className="size-3.5 animate-spin" /> : 'Resubmit template'}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      One-time setup: submit the ready-made <code className="bg-slate-950 px-1 py-0.5 rounded text-primary">inventory_update</code> template
+                      for Meta approval. After that, inventory updates go out from your business
+                      number — every reply lands in your Inbox instead of your personal WhatsApp,
+                      and every link click is tracked by name in Pulse.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={() => void handleSubmitCrmTemplate()}
+                      disabled={submittingCrmTemplate}
+                      className="h-8 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1.5"
+                    >
+                      {submittingCrmTemplate ? (
+                        <>
+                          <Loader2 className="size-3.5 animate-spin" />
+                          Submitting…
+                        </>
+                      ) : (
+                        <>
+                          <Send className="size-3.5" />
+                          Create & submit template
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Send personally — per-contact tracked links */}
           <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-xl space-y-3">
             <Label className="text-slate-350 text-xs font-bold uppercase tracking-wider block flex items-center gap-2">
@@ -421,6 +791,24 @@ Best regards`;
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
+                      {crmTemplateApproved && (
+                        <Button
+                          size="sm"
+                          onClick={() => void handleCrmSendPersonal(contact)}
+                          disabled={crmSendingContactId !== null}
+                          title="Send the inventory update template from your WhatsApp Business number — replies land in your Inbox"
+                          className="h-7 px-2.5 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1"
+                        >
+                          {crmSendingContactId === contact.id ? (
+                            <Loader2 className="size-3 animate-spin" />
+                          ) : crmSentContactIds.has(contact.id) ? (
+                            <Check className="size-3" />
+                          ) : (
+                            <Send className="size-3" />
+                          )}
+                          CRM
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         onClick={() => handleWhatsAppPersonal(contact)}

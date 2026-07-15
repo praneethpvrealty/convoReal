@@ -422,13 +422,17 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
   });
 
-  // Attach agent details, strip documents
+  // Attach agent details, strip documents. In buyer mode the UI promises
+  // "street address & map pin hidden until inquiry" — so the pin must be
+  // kept out of the serialized payload too (it's readable via view-source),
+  // not just left unrendered. Agent mode (mode=view) keeps it for the map.
   const propertiesWithAgent = propertiesList.map((prop) => {
     const agent = prop.user_id ? userIdToAgentMap[prop.user_id] : null;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { documents: _documents, ...publicProp } = prop;
+    const { documents: _documents, google_map_link, ...publicProp } = prop;
     return {
       ...publicProp,
+      google_map_link: isAgentMode ? google_map_link : null,
       agent_details: agent || null,
     };
   });
