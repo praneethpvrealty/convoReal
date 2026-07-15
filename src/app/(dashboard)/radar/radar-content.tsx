@@ -10,14 +10,13 @@ import {
   User,
   Building,
   AlertTriangle,
-  ExternalLink,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { PropertyShareDialog } from "@/components/inventory/property-share-dialog";
 import { loadMatchEvents } from "@/lib/radar/queries";
+import { buildPropertyAlertTemplatePayload } from "@/lib/whatsapp/property-alert-template";
 import type { MatchEvent, Property } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
 
@@ -36,13 +35,15 @@ export default function RadarPage() {
   // Checked state for targets within each event card
   const [checkedTargets, setCheckedTargets] = useState<CheckedState>({});
 
-  // WhatsApp window closed modal state
-  const [windowClosedTargets, setWindowClosedTargets] = useState<{
+  // Recipients that couldn't be reached because they're outside the 24h
+  // window AND the new_property_alert template isn't approved yet —
+  // sending is template-first, so this only appears until the one-time
+  // template setup is done.
+  const [templateMissingTargets, setTemplateMissingTargets] = useState<{
     [eventId: string]: Array<{ id: string; name: string }>;
   }>({});
-
-  // Active property for template share dialog fallback
-  const [shareProperty, setShareProperty] = useState<Property | null>(null);
+  const [alertTemplateStatus, setAlertTemplateStatus] = useState<string | null>(null);
+  const [submittingAlertTemplate, setSubmittingAlertTemplate] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -57,7 +58,7 @@ export default function RadarPage() {
         initialChecked[evt.id] = new Set(evt.matches.map((m) => m.id));
       });
       setCheckedTargets(initialChecked);
-      setWindowClosedTargets({});
+      setTemplateMissingTargets({});
     } catch (err: unknown) {
       console.error("[radar] fetch failed:", err);
       toast.error("Failed to load Match Radar feed");
@@ -142,20 +143,25 @@ export default function RadarPage() {
         throw new Error(data.error || "Broadcast dispatch failed");
       }
 
-      const { sent, windowClosed, failed, results } = data;
+      const { sent, sentViaTemplate, templateMissing, failed, results } = data;
+      setAlertTemplateStatus(data.alertTemplateStatus ?? null);
 
       // Handle outcomes
       if (sent > 0) {
-        toast.success(`Successfully sent WhatsApp alerts to ${sent} contacts!`);
+        toast.success(
+          sentViaTemplate > 0
+            ? `Sent ${sent} WhatsApp alert${sent === 1 ? "" : "s"} — ${sentViaTemplate} via the approved template (outside the 24h window).`
+            : `Successfully sent WhatsApp alerts to ${sent} contact${sent === 1 ? "" : "s"}!`,
+        );
       }
       if (failed > 0) {
         toast.error(`Failed to send alerts to ${failed} contacts.`);
       }
 
-      if (windowClosed > 0) {
-        // Collect target names that returned windowClosed
-        const closedDetails = (results as Array<{ id: string; status: string }>)
-          .filter((r) => r.status === "windowClosed")
+      if (templateMissing > 0) {
+        // Contacts outside the 24h window with no approved template yet.
+        const missingDetails = (results as Array<{ id: string; status: string }>)
+          .filter((r) => r.status === "templateMissing")
           .map((r) => {
             const matchInfo = event.matches.find((m) => m.id === r.id);
             return {
@@ -164,18 +170,18 @@ export default function RadarPage() {
             };
           });
 
-        setWindowClosedTargets((prev) => ({
+        setTemplateMissingTargets((prev) => ({
           ...prev,
-          [event.id]: closedDetails,
+          [event.id]: missingDetails,
         }));
 
         toast.warning(
-          `${windowClosed} contact${windowClosed === 1 ? "" : "s"} had expired session windows.`,
+          `${templateMissing} contact${templateMissing === 1 ? "" : "s"} need${templateMissing === 1 ? "s" : ""} the one-time template setup below.`,
         );
       }
 
       // If everything was sent successfully, refresh feed (or auto-remove card if status is updated to sent)
-      if (sent > 0 && windowClosed === 0) {
+      if (sent > 0 && templateMissing === 0) {
         setEvents((prev) => (prev ? prev.filter((e) => e.id !== event.id) : null));
       }
     } catch (err: unknown) {
@@ -184,6 +190,32 @@ export default function RadarPage() {
       toast.error(msg);
     } finally {
       setSendingId(null);
+    }
+  };
+
+  // One-click create/resubmit of the new_property_alert template. After
+  // Meta approves it (minutes to a few hours), Send Match Alert reaches
+  // out-of-window contacts automatically — no manual fallback.
+  const handleSubmitAlertTemplate = async () => {
+    setSubmittingAlertTemplate(true);
+    try {
+      const payload = buildPropertyAlertTemplatePayload(window.location.origin);
+      const res = await fetch("/api/whatsapp/templates/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Template submission failed");
+      setAlertTemplateStatus("PENDING");
+      toast.success(
+        "Template submitted to Meta — once approved, hit Send Match Alert again and these contacts go out automatically.",
+      );
+    } catch (err) {
+      console.error("[radar] template submit failed:", err);
+      toast.error(err instanceof Error ? err.message : "Template submission failed");
+    } finally {
+      setSubmittingAlertTemplate(false);
     }
   };
 
@@ -419,35 +451,44 @@ export default function RadarPage() {
                       </div>
                     </div>
 
-                    {/* Expired Window Warnings */}
-                    {windowClosedTargets[evt.id] && windowClosedTargets[evt.id].length > 0 && (
+                    {/* One-time template setup — only shows when out-of-window
+                        contacts couldn't be reached because new_property_alert
+                        isn't approved yet. Once it is, sends are automatic. */}
+                    {templateMissingTargets[evt.id] && templateMissingTargets[evt.id].length > 0 && (
                       <div className="bg-amber-950/20 border border-amber-900/50 rounded-xl p-3.5 space-y-2 animate-fade-in">
                         <p className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5 leading-tight">
                           <AlertTriangle className="size-4 shrink-0" />
-                          <span>WhatsApp session window closed for the following contacts. Standard free-form broadcasts will fail. Route them through the template flow instead:</span>
+                          <span>
+                            {templateMissingTargets[evt.id].map((t) => t.name).join(", ")}{" "}
+                            {templateMissingTargets[evt.id].length === 1 ? "is" : "are"} outside the
+                            24-hour WhatsApp window. Alerts to them go out via the pre-approved{" "}
+                            <code className="bg-slate-950 px-1 py-0.5 rounded">new_property_alert</code>{" "}
+                            template —{" "}
+                            {alertTemplateStatus === "PENDING"
+                              ? "yours is waiting for Meta approval. Hit Send Match Alert again once it's approved."
+                              : alertTemplateStatus === "REJECTED"
+                                ? "yours was rejected by Meta. Resubmit it below."
+                                : "a one-time setup you haven't done yet."}
+                          </span>
                         </p>
-                        <div className="flex flex-wrap gap-1.5 pt-0.5">
-                          {windowClosedTargets[evt.id].map((target) => (
-                            <Button
-                              key={target.id}
-                              variant="outline"
-                              size="xs"
-                              onClick={() => {
-                                if (evt.kind === "new_property" && evt.property) {
-                                  setShareProperty(evt.property);
-                                } else {
-                                  // For buyer_updated: lookup property object
-                                  // We can safely lookup target properties
-                                  toast.error("Opening sharing builder...");
-                                }
-                              }}
-                              className="text-[10px] h-7 border-amber-900 hover:bg-amber-950/40 text-amber-300 font-bold flex items-center gap-1 rounded-lg cursor-pointer"
-                            >
-                              <ExternalLink className="size-3" />
-                              Send template to {target.name}
-                            </Button>
-                          ))}
-                        </div>
+                        {alertTemplateStatus !== "PENDING" && (
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => void handleSubmitAlertTemplate()}
+                            disabled={submittingAlertTemplate}
+                            className="text-[10px] h-7 border-amber-900 hover:bg-amber-950/40 text-amber-300 font-bold flex items-center gap-1 rounded-lg cursor-pointer"
+                          >
+                            {submittingAlertTemplate ? (
+                              <RefreshCw className="size-3 animate-spin" />
+                            ) : (
+                              <Send className="size-3" />
+                            )}
+                            {alertTemplateStatus === "REJECTED"
+                              ? "Resubmit template"
+                              : "Create & submit template"}
+                          </Button>
+                        )}
                       </div>
                     )}
 
@@ -480,16 +521,6 @@ export default function RadarPage() {
         </div>
       )}
 
-      {/* Property Share Template Fallback Dialog */}
-      {shareProperty && (
-        <PropertyShareDialog
-          property={shareProperty}
-          open={!!shareProperty}
-          onOpenChange={(open) => {
-            if (!open) setShareProperty(null);
-          }}
-        />
-      )}
     </div>
   );
 }

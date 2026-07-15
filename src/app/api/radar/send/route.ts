@@ -3,7 +3,12 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
-import type { MatchEvent, Property } from '@/types';
+import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
+import {
+  buildPropertyAlertParams,
+  PROPERTY_ALERT_TEMPLATE_NAME,
+} from '@/lib/whatsapp/property-alert-template';
+import type { MatchEvent, MessageTemplate, Property } from '@/types';
 
 // POST /api/radar/send
 // Body: { eventId: string, targetIds: string[] }
@@ -14,12 +19,14 @@ import type { MatchEvent, Property } from '@/types';
 //   - kind 'buyer_updated': targetIds are property ids → the event's
 //     contact gets one message per selected property.
 //
-// WhatsApp constraint honored per recipient: free-form messages are only
-// deliverable inside the 24-hour customer-service window (the recipient
-// messaged you in the last 24h). Recipients outside the window are NOT
-// sent to; they come back as `windowClosed` so the UI can route the agent
-// to the share dialog's template flow instead. This keeps Radar's one-tap
-// honest instead of silently failing at Meta.
+// Channel selection per recipient (template-first strategy): radar
+// targets almost never have an open 24-hour service window — they're
+// matched buyers, not active chats — so the pre-approved
+// `new_property_alert` template is the default delivery path. An open
+// window upgrades the send to the richer free-form message (photo +
+// full details). Only when the window is closed AND the template isn't
+// approved yet does a recipient come back unsent (`templateMissing`),
+// and the UI offers the one-click template setup.
 
 function adminClient() {
   return createServiceClient(
@@ -29,6 +36,15 @@ function adminClient() {
 }
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// Same local helper as the broadcast route / broadcasts sender — renders
+// the template body with params for the persisted message text.
+function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
+  return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
+    const idx = parseInt(numberStr) - 1;
+    return idx >= 0 && idx < params.length ? params[idx] : match;
+  });
+}
 
 function formatPriceINR(amount: number): string {
   if (!amount || isNaN(amount)) return '';
@@ -119,9 +135,92 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const results: Array<{
       id: string;
-      status: 'sent' | 'windowClosed' | 'failed';
+      status: 'sent' | 'templateMissing' | 'failed';
+      channel?: 'freeform' | 'template';
       error?: string;
     }> = [];
+
+    // Latest approved alert template (template-first channel). The
+    // latest row of ANY status is also surfaced so the UI can tell
+    // "not created yet" apart from "pending Meta approval".
+    const { data: latestTemplateRow } = await db
+      .from('message_templates')
+      .select('*')
+      .eq('account_id', ctx.accountId)
+      .eq('name', PROPERTY_ALERT_TEMPLATE_NAME)
+      .order('last_submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const latestTemplate = latestTemplateRow as MessageTemplate | null;
+    const alertTemplate = latestTemplate?.status === 'APPROVED' ? latestTemplate : null;
+
+    /** One alert to one contact: free-form when the window is open,
+     *  template otherwise. */
+    const sendAlert = async (
+      contactId: string,
+      contactName: string | null,
+      property: Property,
+    ): Promise<{ status: 'sent' | 'templateMissing' | 'failed'; channel?: 'freeform' | 'template'; error?: string }> => {
+      const open = await isSessionOpen(db, ctx.accountId, contactId);
+
+      if (open) {
+        const firstImage = (property.images || []).find((img) => img && img.trim());
+        if (firstImage) {
+          await sendWhatsAppMessageAndPersist({
+            accountId: ctx.accountId,
+            userId: ctx.userId,
+            contactId,
+            kind: 'media',
+            mediaKind: 'image',
+            mediaLink: firstImage,
+            mediaCaption: property.title,
+            senderType: 'agent',
+          });
+        }
+        const res = await sendWhatsAppMessageAndPersist({
+          accountId: ctx.accountId,
+          userId: ctx.userId,
+          contactId,
+          kind: 'text',
+          text: propertyMessage(property, baseUrl, contactId),
+          senderType: 'agent',
+        });
+        return res.success
+          ? { status: 'sent', channel: 'freeform' }
+          : { status: 'failed', error: res.error };
+      }
+
+      if (!alertTemplate) return { status: 'templateMissing' };
+
+      const params = buildPropertyAlertParams(contactName, property);
+      const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [...params]);
+      const buttonParams: Record<number, string> = {};
+      (alertTemplate.buttons ?? []).forEach((btn, idx) => {
+        if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+          // v= attributes portal opens to this contact in Showcase Pulse.
+          buttonParams[idx] = `?property_id=${property.id}&v=${contactId}`;
+        }
+      });
+      const res = await sendWhatsAppMessageAndPersist({
+        accountId: ctx.accountId,
+        userId: ctx.userId,
+        contactId,
+        kind: 'template',
+        senderType: 'agent',
+        templateName: alertTemplate.name,
+        templateLanguage: alertTemplate.language || 'en_US',
+        templateParams: bodyParams,
+        messageParams: {
+          body: bodyParams,
+          ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+        },
+        templateRow: alertTemplate,
+        text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),
+      });
+      return res.success
+        ? { status: 'sent', channel: 'template' }
+        : { status: 'failed', error: res.error };
+    };
 
     if (typedEvent.kind === 'new_property') {
       if (!typedEvent.property_id) {
@@ -137,94 +236,48 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Property no longer exists' }, { status: 410 });
       }
       const typedProperty = property as Property;
-      const firstImage = (typedProperty.images || []).find((img) => img && img.trim());
+
+      // Contact names feed the template's {{1}} — one query for all targets.
+      const { data: contactRows } = await db
+        .from('contacts')
+        .select('id, name')
+        .eq('account_id', ctx.accountId)
+        .in('id', targets);
+      const nameById = new Map((contactRows || []).map((c) => [c.id as string, c.name as string | null]));
 
       for (const contactId of targets) {
-        const open = await isSessionOpen(db, ctx.accountId, contactId);
-        if (!open) {
-          results.push({ id: contactId, status: 'windowClosed' });
-          continue;
-        }
-        const text = propertyMessage(typedProperty, baseUrl, contactId);
-        if (firstImage) {
-          await sendWhatsAppMessageAndPersist({
-            accountId: ctx.accountId,
-            userId: ctx.userId,
-            contactId,
-            kind: 'media',
-            mediaKind: 'image',
-            mediaLink: firstImage,
-            mediaCaption: typedProperty.title,
-            senderType: 'agent',
-          });
-        }
-        const res = await sendWhatsAppMessageAndPersist({
-          accountId: ctx.accountId,
-          userId: ctx.userId,
-          contactId,
-          kind: 'text',
-          text,
-          senderType: 'agent',
-        });
-        results.push(
-          res.success
-            ? { id: contactId, status: 'sent' }
-            : { id: contactId, status: 'failed', error: res.error },
-        );
+        const outcome = await sendAlert(contactId, nameById.get(contactId) ?? null, typedProperty);
+        results.push({ id: contactId, ...outcome });
       }
     } else {
       // buyer_updated: send each selected property to the event's contact
       if (!typedEvent.contact_id) {
         return NextResponse.json({ error: 'Event has no contact' }, { status: 400 });
       }
-      const open = await isSessionOpen(db, ctx.accountId, typedEvent.contact_id);
-      if (!open) {
-        return NextResponse.json({
-          results: targets.map((id) => ({ id, status: 'windowClosed' as const })),
-          sent: 0,
-          windowClosed: targets.length,
-          failed: 0,
-        });
-      }
 
-      const { data: properties } = await db
-        .from('properties')
-        .select('*')
-        .eq('account_id', ctx.accountId)
-        .in('id', targets);
+      const [{ data: contactRow }, { data: properties }] = await Promise.all([
+        db
+          .from('contacts')
+          .select('id, name')
+          .eq('account_id', ctx.accountId)
+          .eq('id', typedEvent.contact_id)
+          .maybeSingle(),
+        db.from('properties').select('*').eq('account_id', ctx.accountId).in('id', targets),
+      ]);
 
       for (const property of (properties || []) as Property[]) {
-        const firstImage = (property.images || []).find((img) => img && img.trim());
-        if (firstImage) {
-          await sendWhatsAppMessageAndPersist({
-            accountId: ctx.accountId,
-            userId: ctx.userId,
-            contactId: typedEvent.contact_id,
-            kind: 'media',
-            mediaKind: 'image',
-            mediaLink: firstImage,
-            mediaCaption: property.title,
-            senderType: 'agent',
-          });
-        }
-        const res = await sendWhatsAppMessageAndPersist({
-          accountId: ctx.accountId,
-          userId: ctx.userId,
-          contactId: typedEvent.contact_id,
-          kind: 'text',
-          text: propertyMessage(property, baseUrl, typedEvent.contact_id),
-          senderType: 'agent',
-        });
-        results.push(
-          res.success
-            ? { id: property.id, status: 'sent' }
-            : { id: property.id, status: 'failed', error: res.error },
+        const outcome = await sendAlert(
+          typedEvent.contact_id,
+          (contactRow?.name as string | null) ?? null,
+          property,
         );
+        results.push({ id: property.id, ...outcome });
       }
     }
 
     const sent = results.filter((r) => r.status === 'sent').length;
-    const windowClosed = results.filter((r) => r.status === 'windowClosed').length;
+    const sentViaTemplate = results.filter((r) => r.channel === 'template').length;
+    const templateMissing = results.filter((r) => r.status === 'templateMissing').length;
     const failed = results.filter((r) => r.status === 'failed').length;
 
     if (sent > 0) {
@@ -240,7 +293,16 @@ export async function POST(request: NextRequest) {
         .eq('account_id', ctx.accountId);
     }
 
-    return NextResponse.json({ results, sent, windowClosed, failed });
+    return NextResponse.json({
+      results,
+      sent,
+      sentViaTemplate,
+      templateMissing,
+      failed,
+      // Lets the UI distinguish "template not created" from "waiting on
+      // Meta approval" when templateMissing > 0.
+      alertTemplateStatus: latestTemplate?.status ?? null,
+    });
   } catch (err) {
     console.error('[POST /api/radar/send] Unexpected error:', err);
     return toErrorResponse(err);

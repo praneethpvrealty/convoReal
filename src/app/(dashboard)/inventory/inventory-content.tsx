@@ -30,6 +30,7 @@ import {
   ChevronRight,
   Share2,
   Archive,
+  RefreshCw,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
@@ -46,6 +47,7 @@ import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialo
 import { localCache } from '@/lib/cache-store';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
+import { PortalSyncDialog } from '@/components/inventory/portal-sync-dialog';
 import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -119,6 +121,7 @@ export default function InventoryPage() {
   const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
   const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
   const [portalOpen, setPortalOpen] = useState(false);
+  const [portalSyncOpen, setPortalSyncOpen] = useState(false);
   const [portalProperty, setPortalProperty] = useState<Property | null>(null);
   const [portalBadges, setPortalBadges] = useState<Record<string, string[]>>({});
 
@@ -641,6 +644,15 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {canEdit && (
+            <Button
+              onClick={() => setPortalSyncOpen(true)}
+              variant="outline"
+              className="border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-sm flex items-center gap-2 shadow"
+            >
+              <RefreshCw className="size-4 text-primary" /> Portal Sync
+            </Button>
+          )}
           <Button
             onClick={() => setShowcaseShareOpen(true)}
             variant="outline"
@@ -898,6 +910,18 @@ export default function InventoryPage() {
         property={portalProperty}
         currency={currency}
         onSaved={fetchPortalBadges}
+      />
+
+      {/* Portal Inventory Sync Dialog */}
+      <PortalSyncDialog
+        open={portalSyncOpen}
+        onOpenChange={setPortalSyncOpen}
+        onImported={() => {
+          localCache.clear();
+          fetchProperties();
+          fetchGlobalStats();
+          fetchPortalBadges();
+        }}
       />
 
       {/* Share Showcase Portal Dialog */}
