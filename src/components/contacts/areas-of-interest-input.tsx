@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { MapPin, Loader2 } from 'lucide-react';
 import { POPULAR_SUBLOCALITIES } from '@/lib/data/real-estate-data';
+import type { AreaOfInterestGeo } from '@/types';
 
 export const SUGGESTED_AREAS = ['Whitefield', 'Koramangala', 'Not specific', 'East Bangalore', 'Indiranagar', 'Jayanagar'];
 
@@ -18,6 +19,10 @@ interface AreasOfInterestInputProps {
   areasOfInterest: string[];
   /** Fires with both the raw comma-separated text and the parsed area list. */
   onChange: (areasText: string, areasOfInterest: string[]) => void;
+  /** Fires when a Google Maps pick resolves to coordinates, so callers can
+   *  persist them for proximity matching. Best-effort — a failed details
+   *  lookup keeps the area name without coordinates. */
+  onPickGeo?: (geo: AreaOfInterestGeo) => void;
 }
 
 /**
@@ -26,7 +31,7 @@ interface AreasOfInterestInputProps {
  * through /api/maps/* so the key stays server-side; degrades silently
  * when the proxy answers 501), and quick-add chips.
  */
-export function AreasOfInterestInput({ areasText, areasOfInterest, onChange }: AreasOfInterestInputProps) {
+export function AreasOfInterestInput({ areasText, areasOfInterest, onChange, onPickGeo }: AreasOfInterestInputProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [localitiesDb, setLocalitiesDb] = useState<{ major: string[] } | null>(null);
   const [googleSuggestions, setGoogleSuggestions] = useState<GoogleSuggestion[]>([]);
@@ -118,13 +123,33 @@ export function AreasOfInterestInput({ areasText, areasOfInterest, onChange }: A
     commit(updated);
   }
 
-  function pickGoogleArea(area: string) {
+  async function pickGoogleArea(s: GoogleSuggestion) {
+    const area = s.main_text;
     const cleanList = areasOfInterest.filter(
       a => a.toLowerCase() !== activeQuery.toLowerCase() && a.toLowerCase() !== area.toLowerCase()
     );
     commit([...cleanList, area]);
     setGoogleSuggestions([]);
-    sessionRef.current = null; // a pick ends the Google billing session
+    const session = sessionRef.current;
+    sessionRef.current = null; // the details pick below closes the billing session
+
+    // Resolve coordinates so proximity matching works for this area.
+    // Best-effort: on failure the plain name is kept.
+    if (!onPickGeo) return;
+    try {
+      const res = await fetch(
+        `/api/maps/place-details?place_id=${encodeURIComponent(s.place_id)}${session ? `&session=${session}` : ''}`
+      );
+      if (!res.ok) return;
+      const { place } = (await res.json()) as {
+        place: { latitude: number; longitude: number };
+      };
+      if (Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude)) {
+        onPickGeo({ name: area, lat: place.latitude, lng: place.longitude });
+      }
+    } catch {
+      // keep the name-only area
+    }
   }
 
   function addSuggestion(area: string) {
@@ -206,7 +231,7 @@ export function AreasOfInterestInput({ areasText, areasOfInterest, onChange }: A
                   <button
                     key={s.place_id}
                     type="button"
-                    onClick={() => pickGoogleArea(s.main_text)}
+                    onClick={() => pickGoogleArea(s)}
                     className="w-full flex items-start gap-2 px-2 py-1 hover:bg-slate-800 rounded text-xs text-slate-200 cursor-pointer text-left"
                   >
                     <MapPin className="size-3 text-primary mt-0.5 shrink-0" />

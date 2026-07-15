@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactTag, Property } from '@/types';
+import type { Contact, Tag, ContactTag, Property, AreaOfInterestGeo } from '@/types';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Dialog,
   DialogContent,
@@ -106,6 +107,7 @@ export function ContactForm({
   const [strictAreaMatch, setStrictAreaMatch] = useState(false);
   const [areasOfInterest, setAreasOfInterest] = useState<string[]>([]);
   const [areasText, setAreasText] = useState('');
+  const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>([]);
   const [propertyInterests, setPropertyInterests] = useState<string[]>([]);
   const [minRoi, setMinRoi] = useState('');
 
@@ -191,6 +193,7 @@ export function ContactForm({
       const initialAreas = contact?.areas_of_interest ?? [];
       setAreasOfInterest(initialAreas);
       setAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
+      setAreasGeo(contact?.areas_of_interest_geo ?? []);
       setPropertyInterests(contact?.property_interests ?? []);
       setMinRoi(contact?.min_roi ? String(contact.min_roi) : '');
       setSource(contact?.source ?? '');
@@ -315,6 +318,7 @@ export function ContactForm({
         no_budget: noBudget,
         strict_area_match: strictAreaMatch,
         areas_of_interest: areasOfInterest,
+        areas_of_interest_geo: pruneAreasGeo(areasGeo, areasOfInterest),
         property_interests: propertyInterests,
         min_roi: minRoi ? Number(minRoi) : null,
         source: source.trim() || null,
@@ -750,6 +754,12 @@ export function ContactForm({
                     setAreasText(text);
                     setAreasOfInterest(areas);
                   }}
+                  onPickGeo={(geo) =>
+                    setAreasGeo((prev) => [
+                      ...prev.filter((g) => g.name.toLowerCase() !== geo.name.toLowerCase()),
+                      geo,
+                    ])
+                  }
                 />
 
                 {/* Strict Area Match Checkbox */}

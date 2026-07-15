@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
+import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
 
 // POST /api/contacts — create a new contact with tags, notes, and property links
 // in a single server-side transaction (replaces the multi-step client writes in contact-form.tsx).
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     const {
       name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
-      min_budget, max_budget, no_budget, areas_of_interest,
+      min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo,
       property_interests, min_roi, source, dob, feedback_status,
       strict_area_match,
       // Related entities
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
       max_budget: typeof max_budget === 'number' ? max_budget : null,
       no_budget: typeof no_budget === 'boolean' ? no_budget : false,
       areas_of_interest: Array.isArray(areas_of_interest) ? areas_of_interest : [],
+      areas_of_interest_geo: sanitizeAreasGeo(areas_of_interest_geo),
       property_interests: Array.isArray(property_interests) ? property_interests : [],
       min_roi: typeof min_roi === 'number' ? min_roi : null,
       source: typeof source === 'string' ? source.trim() || null : null,

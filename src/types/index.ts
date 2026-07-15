@@ -107,6 +107,14 @@ export interface AccountInvitation {
   accepted_by_user_id: string | null;
 }
 
+/** Coordinates for one area of interest, resolved via Google Places
+ *  (migration 126). `name` matches the entry in areas_of_interest. */
+export interface AreaOfInterestGeo {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Contact {
   id: string;
   user_id: string;
@@ -125,6 +133,9 @@ export interface Contact {
   max_budget?: number;
   no_budget?: boolean;
   areas_of_interest?: string[];
+  /** Coordinates for Google-picked areas_of_interest entries (migration 126);
+   *  proximity matching falls back to the static locality table otherwise. */
+  areas_of_interest_geo?: AreaOfInterestGeo[] | null;
   property_interests?: string[];
   status?: 'active' | 'pending_review';
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;

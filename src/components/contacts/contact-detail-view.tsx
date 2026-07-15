@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings } from '@/types';
+import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Sheet,
   SheetContent,
@@ -210,6 +211,7 @@ export function ContactDetailView({
   const [editStrictAreaMatch, setEditStrictAreaMatch] = useState(false);
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
   const [editAreasText, setEditAreasText] = useState('');
+  const [editAreasGeo, setEditAreasGeo] = useState<AreaOfInterestGeo[]>([]);
   const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
   const [editMinRoi, setEditMinRoi] = useState('');
   const [savingPreferences, setSavingPreferences] = useState(false);
@@ -302,6 +304,7 @@ export function ContactDetailView({
         const initialAreas = data.areas_of_interest ?? [];
         setEditAreasOfInterest(initialAreas);
         setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
+        setEditAreasGeo((data as Contact).areas_of_interest_geo ?? []);
         setEditPropertyInterests(data.property_interests ?? []);
         setEditMinRoi(data.min_roi ? String(data.min_roi) : '');
         setEditDob(data.dob ?? '');
@@ -1204,6 +1207,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     if (!contactId) return;
     setSavingPreferences(true);
 
+    // Coordinates for areas removed from the list are dropped with them
+    const prunedAreasGeo = pruneAreasGeo(editAreasGeo, editAreasOfInterest);
+
     const { error } = await supabase
       .from('contacts')
       .update({
@@ -1212,6 +1218,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         no_budget: editNoBudget,
         strict_area_match: editStrictAreaMatch,
         areas_of_interest: editAreasOfInterest,
+        areas_of_interest_geo: prunedAreasGeo,
         property_interests: editPropertyInterests,
         min_roi: editMinRoi ? Number(editMinRoi) : null,
         updated_at: new Date().toISOString(),
@@ -1222,6 +1229,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.error('Failed to update preferences');
     } else {
       toast.success('Real estate preferences updated');
+      setEditAreasGeo(prunedAreasGeo);
       fetchContact();
       onUpdated();
     }
@@ -2056,6 +2064,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           setEditAreasText(text);
                           setEditAreasOfInterest(areas);
                         }}
+                        onPickGeo={(geo) =>
+                          setEditAreasGeo((prev) => [
+                            ...prev.filter((g) => g.name.toLowerCase() !== geo.name.toLowerCase()),
+                            geo,
+                          ])
+                        }
                       />
 
                       {/* Strict Area Match Checkbox */}

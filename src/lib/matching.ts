@@ -500,6 +500,15 @@ export function getMatchingContacts(
     const explicitAreas = (contact.areas_of_interest || [])
       .map(cleanArea)
       .filter((a) => !AREA_PLACEHOLDERS.includes(a));
+
+    // Google-resolved coordinates saved with the contact take precedence over
+    // the static locality table, so areas outside it still radius-match.
+    const contactAreaCoords: Record<string, { lat: number; lng: number }> = {};
+    for (const g of contact.areas_of_interest_geo || []) {
+      if (g?.name && Number.isFinite(g.lat) && Number.isFinite(g.lng)) {
+        contactAreaCoords[cleanArea(g.name)] = { lat: g.lat, lng: g.lng };
+      }
+    }
     const aiAreas = (contact.pref_areas || []).map(cleanArea).filter(Boolean);
     const wantedAreas = [...new Set([...explicitAreas, ...aiAreas])].filter(
       (a) => !isNegated(combinedText, a)
@@ -531,7 +540,7 @@ export function getMatchingContacts(
         const maxAllowedDistance = contact.strict_area_match ? 5 : 20;
         
         for (const area of wantedAreas) {
-          const areaCoords = BANGALORE_LOCALITIES_COORDS[area];
+          const areaCoords = contactAreaCoords[area] ?? BANGALORE_LOCALITIES_COORDS[area];
           if (areaCoords) {
             checkedProximity = true;
             const dist = calculateHaversineDistance(pLat, pLng, areaCoords.lat, areaCoords.lng);
