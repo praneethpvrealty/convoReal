@@ -36,6 +36,7 @@
     Bathrooms: ['bathroom', 'bath'],
     'Project / Society': ['society', 'project name', 'building name'],
     'Age of Property': ['age of property', 'property age'],
+    Brokerage: ['brokerage'],
     // Length before Width before Facing Road in the payload: "width"
     // alone also matches the facing-road input, so the plain Width
     // field must claim its input first (DOM order breaks the tie).
@@ -55,7 +56,7 @@
   const NUMERIC_FIELDS = new Set([
     'Expected Price', 'Monthly Rent', 'Maintenance', 'Security Deposit / Advance',
     'Built-up Area', 'Plot Area', 'Bedrooms', 'Bathrooms',
-    'Age of Property', 'Length', 'Width', 'Width of Facing Road',
+    'Age of Property', 'Length', 'Width', 'Width of Facing Road', 'Brokerage',
   ]);
 
   /** "₹45 Cr" → "45000000 0" is wrong — portals want raw numbers.
@@ -415,6 +416,8 @@
     }
     const boundary = normalizedText(get('Boundary Wall'));
     if (boundary) targets.push({ synonyms: [boundary], scope: /boundary/ });
+    const chargeBrokerage = normalizedText(get('Charge Brokerage'));
+    if (chargeBrokerage) targets.push({ synonyms: [chargeBrokerage], scope: /brokerage/ });
     const openSides = normalizedText(get('Open Sides'));
     if (openSides) targets.push({ synonyms: [openSides], scope: /open side/ });
 

@@ -96,6 +96,8 @@ describe('buildPortalFields', () => {
     expect(get('Possession Status')).toBe('Immediate');
     expect(get('Age of Property')).toBe('1');
     expect(get('Area Unit')).toBe('sqft');
+    expect(get('Charge Brokerage')).toBe('Yes');
+    expect(get('Brokerage')).toBe('₹45 Lakhs'); // 1% of ₹45 Cr
     expect(get('Length')).toBe('100');
     expect(get('Width')).toBe('150');
     expect(get('Width of Facing Road')).toBe('60');
@@ -122,6 +124,20 @@ describe('buildPortalFields', () => {
     expect(flatFields.some((f) => f.label === 'Boundary Wall')).toBe(false);
     expect(flatFields.some((f) => f.label === 'Length')).toBe(false);
     expect(flatFields.find((f) => f.label === 'Age of Property')!.value).toBe('1');
+  });
+
+  it('defaults brokerage to one month rent on rental listings', () => {
+    const rental = {
+      ...saleProperty,
+      listing_type: 'Rent',
+      rent_per_month: 85000,
+      type: '3 BHK Apartment',
+      area_sqft: 1850,
+      land_area: null,
+    } as unknown as Property;
+    const fields = buildPortalFields(rental, 'housing');
+    expect(fields.find((f) => f.label === 'Charge Brokerage')!.value).toBe('Yes');
+    expect(fields.find((f) => f.label === 'Brokerage')!.value).toBe('₹85,000');
   });
 });
 

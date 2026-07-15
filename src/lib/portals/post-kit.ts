@@ -101,15 +101,24 @@ function roadWidthFeet(property: Property): string {
  *  plot extras derived from dimensions/road width where the CRM has
  *  real data. The agent reviews everything on the portal before
  *  submitting. */
-function housingExtras(property: Property): PortalField[] {
+function housingExtras(property: Property, currency: string): PortalField[] {
   const land = isLand(property);
   const unit = (land ? property.land_area_unit : property.area_unit) || 'sqft';
   const dims = parseDimensions(property.dimensions);
+  // Default brokerage: 1% of price on sale, one month's rent on rent.
+  const rental = property.listing_type === 'Rent' || property.listing_type === 'Built to Suit';
+  const brokerage = rental ? property.rent_per_month || 0 : Math.round((property.price || 0) * 0.01);
   return [
     { label: 'Transaction Type', value: 'Resale' },
     { label: 'Possession Status', value: 'Immediate' },
     { label: 'Age of Property', value: '1' },
     { label: 'Area Unit', value: unit },
+    ...(brokerage > 0
+      ? [
+          { label: 'Charge Brokerage', value: 'Yes' },
+          { label: 'Brokerage', value: formatShareAmount(brokerage, currency) },
+        ]
+      : []),
     ...(land && dims
       ? [
           { label: 'Length', value: dims.length },
@@ -197,7 +206,7 @@ export function buildPortalFields(property: Property, portal: PortalKey, currenc
     ...(property.listing_type === 'Rent' && property.advance
       ? [{ label: 'Security Deposit / Advance', value: formatShareAmount(property.advance, currency) }]
       : []),
-    ...(portal === 'housing' ? housingExtras(property) : []),
+    ...(portal === 'housing' ? housingExtras(property, currency) : []),
     { label: 'Description', value: buildPortalDescription(property, portal) },
   ];
 
