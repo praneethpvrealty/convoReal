@@ -20,6 +20,9 @@ and polish.
   - Texting "update my preferences" (or tapping an `update_preferences`
     button) sends the form; submissions save straight onto the contact
     and get a confirmation summary in the chat thread.
+  - Settings → WhatsApp now has a **WhatsApp Flows** card showing the
+    flow's publish status with a one-click "Set Up & Publish Preference
+    Flow" button (and re-sync after updates).
   - `POST /api/whatsapp/flows/setup` — one-click create/publish of the
     flow on Meta for the tenant's WABA: generates and registers the
     RSA-2048 encryption keypair, uploads the Flow JSON, publishes, and

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
+import { WhatsAppFlowsCard } from '@/components/settings/whatsapp-flows-card';
 import { MetaAdsTab } from '@/components/settings/meta-ads-tab';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
@@ -222,8 +223,9 @@ export default function SettingsPage() {
             <SessionsCard />
           </TabsContent>
 
-          <TabsContent value="whatsapp" className="mt-0" data-tour="whatsapp-config-form">
+          <TabsContent value="whatsapp" className="mt-0 space-y-6" data-tour="whatsapp-config-form">
             <WhatsAppConfig />
+            <WhatsAppFlowsCard />
           </TabsContent>
 
           {metaAdsEnabled && (
