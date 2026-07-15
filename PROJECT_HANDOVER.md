@@ -125,7 +125,13 @@ wacrm/
    - Added template auto-reply dropdown selectors and rich visual preview cards in Settings (`other-settings.tsx`).
 7. **Forwarding Verification Link Parser**:
    - Expanded verification link extraction regex inside `route.ts` to capture Google forwarding confirmations from `mail-settings.google.com` (which personal Gmail accounts use).
-8. **Chatbot Concurrent Image-Upload Debounce**:
+8. **Native WhatsApp Flows — Buyer Preference Intake (Migration 125)**:
+   - Endpoint-backed Meta Flow (form screens inside WhatsApp) letting buyers fill/update budget, localities, property types, and expected min ROI.
+   - Flow JSON blueprint, prefill and response mapping in `src/lib/whatsapp/preference-flow.ts`; Meta Flows crypto handshake (RSA-OAEP SHA-256 + AES-GCM with flipped-IV responses) in `src/lib/whatsapp/flow-crypto.ts`.
+   - Per-tenant encrypted data-exchange endpoint at `/api/whatsapp/flows/endpoint/[accountId]` (ping health checks, INIT prefill, data_exchange save, Meta error codes 421/427/432).
+   - Lifecycle service `src/lib/whatsapp/meta-flow-service.ts`: keypair generation + registration (`/{phone_number_id}/whatsapp_business_encryption`), flow create/asset upload/publish on Meta, one-live-session-per-contact flow tokens (`whatsapp_meta_flow_sessions`), idempotent response application.
+   - Triggers: buyer texts "update my preferences" (or `update_preferences` button) → `webhook-handler.ts` sends the flow; agents can send via `POST /api/whatsapp/flows/send`; setup/publish via `POST /api/whatsapp/flows/setup` or the "WhatsApp Flows" card in Settings → WhatsApp (`src/components/settings/whatsapp-flows-card.tsx`). Completed forms arrive as `interactive.nfm_reply` webhooks → contact updated + chat confirmation.
+9. **Chatbot Concurrent Image-Upload Debounce**:
    - Implemented `sendPropertyDraftPreviewDebounced` in `chatbot-engine.ts`.
    - Pauses confirmation preview dispatches for 4 seconds, compares update timestamps in `property_draft_sessions`, and ensures only the last concurrent thread triggers a single compiled preview draft card (preventing duplicate or intermediate replies during concurrent multi-photo/document uploads).
 

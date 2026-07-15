@@ -21,11 +21,11 @@ To build the definitive, WhatsApp-first CRM for independent real estate agencies
 
 ---
 
-### Milestone 2: Interactive Webhook Webflows & Automated Template Management (MOSTLY DONE)
+### Milestone 2: Interactive Webhook Webflows & Automated Template Management (DONE)
 *Reduce chat friction by migrating text conversations into structured WhatsApp buttons and selection flows.*
 - [x] **Meta Template Sync**: Auto-fetch approved templates from Meta Graph API to sync text layouts, headers, and media options. (`src/app/api/whatsapp/templates/sync/route.ts`)
 - [x] **Interactive Buttons**: Replace textual confirmation steps in chatbot flows with Meta Cloud API Interactive Reply Buttons. (`src/lib/whatsapp/meta-api.ts`, used in `chatbot-engine.ts` and `flows/engine.ts`)
-- [ ] **WhatsApp Interactive Flows**: Allow buyers to fill/update their budget and locality preferences directly inside WhatsApp using form screen flows. Note: only the custom menu-tree flow builder (`src/lib/flows/*`) exists today — no native Meta Flows form-screen JSON/encryption endpoint.
+- [x] **WhatsApp Interactive Flows**: Buyers fill/update their budget and locality preferences directly inside WhatsApp using native Meta form-screen flows. Endpoint-backed: Flow JSON blueprint + prefill/response mapping (`src/lib/whatsapp/preference-flow.ts`), encrypted data-exchange endpoint with RSA-OAEP/AES-GCM handshake (`src/app/api/whatsapp/flows/endpoint/[accountId]/route.ts`, `src/lib/whatsapp/flow-crypto.ts`), Meta lifecycle (create/upload/publish + key registration) in `src/lib/whatsapp/meta-flow-service.ts`, `nfm_reply` webhook handling + "update my preferences" trigger in `webhook-handler.ts`. (migration 125)
 - [x] **Outbound Broadcast Queue**: Implement dynamic retries with exponential backoffs for throttled or failed Meta Graph API outbound requests. (`src/lib/broadcasts/sender.ts:357-401`, migration 075)
 
 ---

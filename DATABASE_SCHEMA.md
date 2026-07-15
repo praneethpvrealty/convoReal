@@ -157,7 +157,24 @@ Approved WhatsApp message templates.
 #### 15. `whatsapp_config`
 WhatsApp Cloud API access parameters.
 - `id`, `account_id`, `phone_number_id`, `waba_id`, `access_token`.
+- `flows_private_key` / `flows_public_key` / `flows_key_registered_at`: RSA-2048 keypair for the native Meta Flows encrypted data-exchange endpoint (private key stored AES-256-GCM encrypted). (migration 125)
 - *Unique Constraint*: `UNIQUE(account_id)` (One configured number per company).
+
+#### 15b. `whatsapp_meta_flows` (migration 125)
+Registry of native Meta WhatsApp Flows (form-screen flows) created per account via the Graph API. Distinct from the in-app chatbot flow builder tables (`flows` / `flow_runs`).
+- `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`).
+- `flow_key` (TEXT): internal blueprint id, e.g. `'preference_intake'`.
+- `meta_flow_id` (TEXT): Meta's flow id.
+- `status` (TEXT): `'draft' | 'published' | 'deprecated' | 'error'`.
+- `flow_json_version`, `last_synced_at`, `last_error`.
+- *Unique Constraint*: `UNIQUE(account_id, flow_key)`.
+
+#### 15c. `whatsapp_meta_flow_sessions` (migration 125)
+One row per flow message sent to a contact; maps Meta's opaque `flow_token` back to tenant + contact.
+- `id` (UUID, PK), `account_id`, `contact_id` (FKs).
+- `flow_key` (TEXT), `flow_token` (TEXT, UNIQUE).
+- `status` (TEXT): `'sent' | 'opened' | 'completed' | 'expired' | 'cancelled'`.
+- `prefill` (JSONB) / `response` (JSONB), `expires_at`, `completed_at`.
 
 ---
 

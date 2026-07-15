@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   INTERACTIVE_LIMITS,
+  sendFlowMessage,
   sendInteractiveButtons,
   sendInteractiveList,
   sendTemplateMessage,
@@ -402,3 +403,88 @@ describe("sendTemplateMessage — language fallback retry", () => {
   });
 });
 
+
+describe("sendFlowMessage", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(neverFetch));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const FLOW_ARGS = {
+    ...BASE_ARGS,
+    flowId: "1234567890",
+    flowToken: "tok-abc",
+    flowCta: "Update preferences",
+  } as const;
+
+  it("rejects a missing flowId / flowToken / flowCta", async () => {
+    await expect(sendFlowMessage({ ...FLOW_ARGS, flowId: "" })).rejects.toThrow(
+      /requires flowId/
+    );
+    await expect(sendFlowMessage({ ...FLOW_ARGS, flowToken: "" })).rejects.toThrow(
+      /requires flowToken/
+    );
+    await expect(sendFlowMessage({ ...FLOW_ARGS, flowCta: "" })).rejects.toThrow(
+      /requires flowCta/
+    );
+  });
+
+  it("rejects a CTA longer than 30 chars", async () => {
+    await expect(
+      sendFlowMessage({ ...FLOW_ARGS, flowCta: "x".repeat(31) })
+    ).rejects.toThrow(/exceeds 30 chars/);
+  });
+
+  it("rejects navigate mode without a target screen", async () => {
+    await expect(
+      sendFlowMessage({ ...FLOW_ARGS, flowAction: "navigate" })
+    ).rejects.toThrow(/requires flowActionPayload.screen/);
+  });
+
+  it("rejects a flowActionPayload in data_exchange mode", async () => {
+    await expect(
+      sendFlowMessage({
+        ...FLOW_ARGS,
+        flowAction: "data_exchange",
+        flowActionPayload: { screen: "PREFERENCES" },
+      })
+    ).rejects.toThrow(/only valid with flow_action "navigate"/);
+  });
+
+  it("sends the documented interactive flow payload", async () => {
+    let captured: unknown = null;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init: RequestInit) => {
+        captured = JSON.parse(String(init.body));
+        return new Response(
+          JSON.stringify({ messages: [{ id: "wamid.FLOW1" }] }),
+          { status: 200 }
+        );
+      })
+    );
+
+    const result = await sendFlowMessage({ ...FLOW_ARGS, footerText: "1 min" });
+    expect(result.messageId).toBe("wamid.FLOW1");
+
+    const body = captured as Record<string, unknown>;
+    const interactive = body.interactive as Record<string, unknown>;
+    expect(body.type).toBe("interactive");
+    expect(interactive.type).toBe("flow");
+    const action = interactive.action as {
+      name: string;
+      parameters: Record<string, unknown>;
+    };
+    expect(action.name).toBe("flow");
+    expect(action.parameters).toEqual({
+      flow_message_version: "3",
+      flow_token: "tok-abc",
+      flow_id: "1234567890",
+      flow_cta: "Update preferences",
+      mode: "published",
+      flow_action: "data_exchange",
+    });
+  });
+});

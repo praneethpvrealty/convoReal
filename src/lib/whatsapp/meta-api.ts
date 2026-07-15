@@ -1236,6 +1236,121 @@ function validateInteractiveHeaderFooter(
 }
 
 // ============================================================
+// Native Meta WhatsApp Flows (form-screen flows)
+// ============================================================
+
+export interface FlowActionPayload {
+  /** Screen id to open first (navigate mode only). */
+  screen: string
+  /** Prefill data matching the screen's data schema. */
+  data?: Record<string, unknown>
+}
+
+export interface SendFlowMessageArgs {
+  phoneNumberId: string
+  accessToken: string
+  to: string
+  bodyText: string
+  headerText?: string
+  footerText?: string
+  /** Meta's flow id (whatsapp_meta_flows.meta_flow_id). */
+  flowId: string
+  /**
+   * Opaque per-send token. Echoed back on every data-exchange endpoint
+   * call and in the final nfm_reply webhook — must map to a
+   * whatsapp_meta_flow_sessions row.
+   */
+  flowToken: string
+  /** Label of the button that opens the flow (≤ 30 chars). */
+  flowCta: string
+  /** 'draft' lets you test an unpublished flow. Defaults to published. */
+  mode?: 'published' | 'draft'
+  /**
+   * 'data_exchange' (default): the endpoint's INIT response provides the
+   * first screen. 'navigate': flowActionPayload provides screen + data.
+   */
+  flowAction?: 'navigate' | 'data_exchange'
+  flowActionPayload?: FlowActionPayload
+  contextMessageId?: string
+}
+
+const FLOW_CTA_MAX_LENGTH = 30
+
+/**
+ * Send an interactive Flow message — the bubble shows a CTA button that
+ * opens a native full-screen form inside WhatsApp. The completed form
+ * arrives as a webhook message with `interactive.nfm_reply.response_json`.
+ */
+export async function sendFlowMessage(
+  args: SendFlowMessageArgs
+): Promise<MetaSendResult> {
+  const {
+    phoneNumberId, accessToken, to,
+    bodyText, headerText, footerText,
+    flowId, flowToken, flowCta,
+    mode, flowAction, flowActionPayload, contextMessageId,
+  } = args
+
+  validateInteractiveBody(bodyText)
+  validateInteractiveHeaderFooter(headerText, footerText)
+  if (!flowId) throw new Error('Flow message requires flowId.')
+  if (!flowToken) throw new Error('Flow message requires flowToken.')
+  if (!flowCta) throw new Error('Flow message requires flowCta.')
+  if (flowCta.length > FLOW_CTA_MAX_LENGTH) {
+    throw new Error(`Flow CTA "${flowCta}" exceeds ${FLOW_CTA_MAX_LENGTH} chars.`)
+  }
+  const resolvedAction = flowAction ?? 'data_exchange'
+  if (resolvedAction === 'navigate' && !flowActionPayload?.screen) {
+    throw new Error('Flow message with flow_action "navigate" requires flowActionPayload.screen.')
+  }
+  if (resolvedAction === 'data_exchange' && flowActionPayload) {
+    throw new Error('flowActionPayload is only valid with flow_action "navigate".')
+  }
+
+  const parameters: Record<string, unknown> = {
+    flow_message_version: '3',
+    flow_token: flowToken,
+    flow_id: flowId,
+    flow_cta: flowCta,
+    mode: mode ?? 'published',
+    flow_action: resolvedAction,
+  }
+  if (flowActionPayload) parameters.flow_action_payload = flowActionPayload
+
+  const interactive: Record<string, unknown> = {
+    type: 'flow',
+    body: { text: bodyText },
+    action: { name: 'flow', parameters },
+  }
+  if (headerText) interactive.header = { type: 'text', text: headerText }
+  if (footerText) interactive.footer = { text: footerText }
+
+  const body: Record<string, unknown> = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive,
+  }
+  if (contextMessageId) body.context = { message_id: contextMessageId }
+
+  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    await throwMetaError(response, `Meta API error: ${response.status}`)
+  }
+  const data = await response.json()
+  return { messageId: data.messages[0].id }
+}
+
+// ============================================================
 // Media
 // ============================================================
 

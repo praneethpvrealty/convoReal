@@ -6,9 +6,11 @@ import {
   sendInteractiveButtons,
   sendInteractiveList,
   sendProductMessage,
+  sendFlowMessage,
   type MediaKind,
   type InteractiveButton,
   type InteractiveListSection,
+  type FlowActionPayload,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
@@ -52,11 +54,18 @@ export interface SendWhatsAppAndPersistArgs {
   mediaLink?: string | null
   mediaCaption?: string | null
   mediaFilename?: string | null
-  interactiveType?: 'buttons' | 'list' | null
+  interactiveType?: 'buttons' | 'list' | 'flow' | null
   interactiveBody?: string | null
   interactiveButtons?: InteractiveButton[] | null
   interactiveButtonLabel?: string | null
   interactiveSections?: InteractiveListSection[] | null
+  // Native Meta Flow fields (interactiveType 'flow')
+  flowId?: string | null
+  flowToken?: string | null
+  flowCta?: string | null
+  flowMode?: 'published' | 'draft' | null
+  flowAction?: 'navigate' | 'data_exchange' | null
+  flowActionPayload?: FlowActionPayload | null
   headerText?: string | null
   footerText?: string | null
   productCatalogId?: string | null
@@ -231,7 +240,27 @@ export async function sendWhatsAppMessageAndPersist(
 
         case 'interactive':
           if (!args.interactiveBody) throw new Error('interactiveBody is required')
-          if (args.interactiveType === 'buttons') {
+          if (args.interactiveType === 'flow') {
+            if (!args.flowId || !args.flowToken || !args.flowCta) {
+              throw new Error('flowId, flowToken and flowCta are required')
+            }
+            const resultFlow = await sendFlowMessage({
+              phoneNumberId,
+              accessToken,
+              to: phone,
+              bodyText: args.interactiveBody,
+              headerText: args.headerText || undefined,
+              footerText: args.footerText || undefined,
+              flowId: args.flowId,
+              flowToken: args.flowToken,
+              flowCta: args.flowCta,
+              mode: args.flowMode || undefined,
+              flowAction: args.flowAction || undefined,
+              flowActionPayload: args.flowActionPayload || undefined,
+              contextMessageId: args.contextMessageId || undefined,
+            })
+            return resultFlow.messageId
+          } else if (args.interactiveType === 'buttons') {
             if (!args.interactiveButtons) throw new Error('interactiveButtons are required')
             const resultBtn = await sendInteractiveButtons({
               phoneNumberId,

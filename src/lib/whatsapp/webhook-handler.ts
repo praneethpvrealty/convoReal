@@ -10,6 +10,18 @@ import {
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
+import {
+  applyPreferenceFlowResponse,
+  sendPreferenceFlowToContact,
+  getPublishedPreferenceFlow,
+} from '@/lib/whatsapp/meta-flow-service'
+import {
+  isPreferenceFlowRequestText,
+  parsePreferenceFormValues,
+  preferenceFormToContactUpdate,
+  summarizePreferenceUpdate,
+  PREFERENCE_FLOW_BUTTON_ID,
+} from '@/lib/whatsapp/preference-flow'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
@@ -50,9 +62,11 @@ export interface WhatsAppMessage {
     vcard: string
   }>
   interactive?: {
-    type: 'button_reply' | 'list_reply'
+    type: 'button_reply' | 'list_reply' | 'nfm_reply'
     button_reply?: { id: string; title: string }
     list_reply?: { id: string; title: string; description?: string }
+    /** Completed native Meta Flow (form-screen) submission. */
+    nfm_reply?: { name?: string; body?: string; response_json: string }
   }
   context?: { id: string }
   // Present only on the FIRST inbound message of a thread the buyer
@@ -701,7 +715,7 @@ async function processMessage(
     return
   }
 
-  const { contentText, mediaUrl, mediaType, interactiveReplyId } =
+  const { contentText, mediaUrl, mediaType, interactiveReplyId, nfmResponseJson } =
     await parseMessageContent(message, accessToken)
 
   // Org hierarchy routing (migration 082/083) — only for conversations
@@ -863,6 +877,21 @@ async function processMessage(
   }
 
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // Completed native Meta Flow (form-screen) submission — e.g. the
+  // Buyer Preference Intake form. The encrypted data-exchange endpoint
+  // has usually already persisted the values at submit time; this path
+  // is the idempotent fallback plus the in-chat confirmation.
+  if (nfmResponseJson) {
+    await handlePreferenceFlowNfmReply(
+      nfmResponseJson,
+      accountId,
+      configOwnerUserId,
+      contactRecord.id,
+      conversation.id
+    )
+    return
+  }
 
   // Seller listing funnel: a message carrying a web-submission code is
   // the reverse-verification step — process it and stop (don't fall
@@ -1139,6 +1168,22 @@ async function processMessage(
     if (handled) return
   }
 
+  // Buyer asked to update their preferences (free text like "update my
+  // preferences" or the update_preferences button) — send the native
+  // Meta Flow form if this account has one published. Falls through to
+  // normal handling when the flow isn't set up, so accounts without the
+  // feature see no behavior change.
+  if (
+    isPreferenceFlowRequestText(contentText) ||
+    interactiveReplyId === PREFERENCE_FLOW_BUTTON_ID
+  ) {
+    const handledPreferenceFlow = await handlePreferenceFlowTrigger(
+      accountId,
+      contactRecord.id
+    )
+    if (handledPreferenceFlow) return
+  }
+
   // Check for update intent
   const updateIntent = parseUpdateIntent(contentText || '')
   if (updateIntent && updateIntent.type) {
@@ -1262,6 +1307,8 @@ async function parseMessageContent(
   mediaUrl: string | null
   mediaType: string | null
   interactiveReplyId: string | null
+  /** Raw response_json of a completed native Meta Flow (nfm_reply). */
+  nfmResponseJson: string | null
 }> {
   const buildMediaUrl = (mediaId: string): string => {
     // Build the proxy URL without pre-verifying with Meta.
@@ -1275,6 +1322,7 @@ async function parseMessageContent(
     mediaUrl: null,
     mediaType: null,
     interactiveReplyId: null,
+    nfmResponseJson: null,
   }
 
   switch (message.type) {
@@ -1358,6 +1406,14 @@ async function parseMessageContent(
       return { ...empty, contentText: '[Button message]' }
 
     case 'interactive': {
+      if (message.interactive?.type === 'nfm_reply' && message.interactive.nfm_reply) {
+        return {
+          ...empty,
+          contentText:
+            message.interactive.nfm_reply.body || '📋 Form submitted',
+          nfmResponseJson: message.interactive.nfm_reply.response_json,
+        }
+      }
       const reply =
         message.interactive?.button_reply ?? message.interactive?.list_reply
       if (reply?.id) {
@@ -1795,6 +1851,95 @@ const CONTACT_UPDATABLE_FIELDS: UpdateField[] = [
 ]
 
 // Parse update intent from message text
+/**
+ * Send the Buyer Preference Intake flow when a buyer asks for it.
+ * Returns true when the flow message was sent (message consumed);
+ * false when the account has no published flow or the send failed,
+ * letting the message fall through to normal handling.
+ */
+async function handlePreferenceFlowTrigger(
+  accountId: string,
+  contactId: string
+): Promise<boolean> {
+  try {
+    const flow = await getPublishedPreferenceFlow(accountId)
+    if (!flow) return false
+
+    const result = await sendPreferenceFlowToContact({
+      accountId,
+      contactId,
+      senderType: 'bot',
+    })
+    if (!result.success) {
+      console.error(`[webhook] Preference flow send failed: ${result.error}`)
+      return false
+    }
+    console.log(`[webhook] Sent preference flow to contact ${contactId}`)
+    return true
+  } catch (err) {
+    console.error('[webhook] Preference flow trigger error:', err)
+    return false
+  }
+}
+
+/**
+ * Handle the nfm_reply webhook for a completed preference form.
+ * Persists the values (no-op if the encrypted endpoint already did at
+ * submit time) and sends the in-chat confirmation summary.
+ */
+async function handlePreferenceFlowNfmReply(
+  responseJson: string,
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string
+) {
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(responseJson)
+  } catch {
+    console.error('[webhook] nfm_reply response_json is not valid JSON')
+    return
+  }
+
+  const flowToken = typeof parsed.flow_token === 'string' ? parsed.flow_token : null
+  if (!flowToken) {
+    console.warn('[webhook] nfm_reply without flow_token — ignoring')
+    return
+  }
+
+  const result = await applyPreferenceFlowResponse({
+    flowToken,
+    values: parsed,
+    expectedAccountId: accountId,
+  })
+
+  if (!result.applied && !result.alreadyCompleted) {
+    console.error(`[webhook] Preference flow reply rejected: ${result.error}`)
+    return
+  }
+  if (result.session && result.session.contact_id !== contactId) {
+    console.error('[webhook] Preference flow token belongs to a different contact — ignoring')
+    return
+  }
+
+  // The endpoint's data_exchange response usually saved the values
+  // already (alreadyCompleted); recompute the summary from the reply
+  // payload so the confirmation always reflects what was submitted.
+  const update =
+    result.update ?? preferenceFormToContactUpdate(parsePreferenceFormValues(parsed))
+
+  await sendWhatsAppMessageAndPersist({
+    accountId,
+    userId: configOwnerUserId,
+    contactId,
+    conversationId,
+    kind: 'text',
+    senderType: 'bot',
+    text: summarizePreferenceUpdate(update),
+  })
+}
+
 function parseUpdateIntent(text: string): {
   type: 'property' | 'contact' | null
   identifier?: string

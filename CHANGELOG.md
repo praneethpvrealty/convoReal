@@ -11,6 +11,33 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **Native WhatsApp Flows — buyer preference intake.** Buyers can now
+  fill/update their budget, locality, property-type and expected-ROI
+  preferences inside a WhatsApp form screen (a native Meta Flow), instead
+  of a back-and-forth text conversation.
+  - Texting "update my preferences" (or tapping an `update_preferences`
+    button) sends the form; submissions save straight onto the contact
+    and get a confirmation summary in the chat thread.
+  - Settings → WhatsApp now has a **WhatsApp Flows** card showing the
+    flow's publish status with a one-click "Set Up & Publish Preference
+    Flow" button (and re-sync after updates).
+  - `POST /api/whatsapp/flows/setup` — one-click create/publish of the
+    flow on Meta for the tenant's WABA: generates and registers the
+    RSA-2048 encryption keypair, uploads the Flow JSON, publishes, and
+    records it in the new `whatsapp_meta_flows` registry.
+  - `POST /api/whatsapp/flows/send` — agent-initiated send to a contact.
+  - New per-tenant encrypted data-exchange endpoint
+    (`/api/whatsapp/flows/endpoint/[accountId]`) implementing Meta's
+    Flows crypto handshake (RSA-OAEP + AES-GCM, flipped-IV responses),
+    health-check pings, prefill on open (INIT) and submit handling.
+  - Requires the official Meta Cloud API integration (not sandbox).
+
+**Migration required**: `supabase/migrations/125_whatsapp_meta_flows.sql`
+(adds `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions`, and flow
+encryption-key columns on `whatsapp_config`).
+
 Foundation for multi-user accounts. Every wacrm install becomes
 multi-tenant on the database side: a single user's signup creates a
 fresh "account", and every row is scoped to that account rather than
