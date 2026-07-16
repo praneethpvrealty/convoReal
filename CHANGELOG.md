@@ -13,6 +13,31 @@ and polish.
 
 ### Added
 
+- **Showcase Pulse: dedupe, filters, and an anonymous-visitor nudge.**
+  Further Pulse timeline polish on top of the identity-stitching /
+  scroll fixes below:
+  - **Duplicate collapsing**: consecutive events for the same session,
+    event type, and property within 5 minutes now collapse into one
+    row with a `×N` repeat badge instead of N separate lines
+    (`src/lib/pulse/dedupe-feed.ts`).
+  - **Filter pills**: All Activity / Property Views / Identified Only,
+    above the timeline.
+  - **Anonymous-visitor nudge**: when 60%+ of a feed of 5+ events has
+    no attributed contact, a banner points the agent at Inventory →
+    Share Showcase → "Send personally" — the one flow that reliably
+    gets a name attached.
+
+- **Showcase page: next-step CTAs for visitors.** Two cards under the
+  hero on the public showcase (`src/components/showcase/
+  showcase-view.tsx`) nudge visitors toward the two things the agent
+  most wants from them:
+  - **"Get Deal Alerts"** — opens the existing requirements modal
+    (already feeds Match Radar for future property matches); framed
+    as never missing a hot or urgently-priced listing.
+  - **"List My Property"** — links to the previously-unlinked `/list`
+    self-serve submission page (`src/app/list/page.tsx`), for visitors
+    who have their own property to sell or rent.
+
 - **Showcase Pulse: fewer "Anonymous Guest" entries, and a scrollable
   timeline.** Two fixes to the visitor activity feed (Dashboard →
   Pulse):
