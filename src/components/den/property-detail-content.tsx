@@ -35,6 +35,7 @@ export function DenPropertyDetailContent() {
   const [rent, setRent] = useState("");
   const [maintenance, setMaintenance] = useState("");
   const [advance, setAdvance] = useState("");
+  const [minBid, setMinBid] = useState("");
 
   useEffect(() => {
     fetch(`/api/den/properties/${propertyId}`)
@@ -49,6 +50,7 @@ export function DenPropertyDetailContent() {
           setRent(p.rent_per_month ? String(p.rent_per_month) : "");
           setMaintenance(p.maintenance ? String(p.maintenance) : "");
           setAdvance(p.advance ? String(p.advance) : "");
+          setMinBid((p as { min_bid?: number | null }).min_bid ? String((p as { min_bid?: number | null }).min_bid) : "");
         }
         setLoading(false);
       })
@@ -79,6 +81,7 @@ export function DenPropertyDetailContent() {
               advance: num(advance),
             }
           : { price: num(price) ?? 0 }),
+        min_bid: num(minBid),
       }),
     });
     setSaving(false);
@@ -240,6 +243,16 @@ export function DenPropertyDetailContent() {
                   <Input id="d-price" inputMode="numeric" value={price} onChange={(e) => setPrice(e.target.value)} />
                 </div>
               )}
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="d-min-bid" className="text-xs font-bold">Minimum offer (₹, optional)</Label>
+                <Input
+                  id="d-min-bid"
+                  inputMode="numeric"
+                  placeholder="Offers below this are refused"
+                  value={minBid}
+                  onChange={(e) => setMinBid(e.target.value)}
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="d-description" className="text-xs font-bold">Description</Label>

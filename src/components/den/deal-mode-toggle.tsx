@@ -44,7 +44,7 @@ const CONFIRM_COPY: Record<DealMode, { title: string; body: string; cta: string 
   off: {
     title: "Turn Deal Mode off?",
     body:
-      "Your property leaves the matching pool and buyers will no longer discover it or place offers. Any conversations already unlocked stay unlocked.",
+      "Your property leaves the matching pool and buyers will no longer discover it or place offers. Offers still awaiting your response will expire automatically after 48 hours. Any conversations already unlocked stay unlocked.",
     cta: "Turn off",
   },
 };

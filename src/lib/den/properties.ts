@@ -80,6 +80,7 @@ export const DEN_PROPERTY_SELECT = [
   "deal_mode",
   "deal_mode_updated_at",
   "deal_mode_set_by",
+  "min_bid",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -95,6 +96,7 @@ export const DEN_EDITABLE_FIELDS = [
   "maintenance",
   "advance",
   "gst",
+  "min_bid",
   "features",
   "nearby_highlights",
 ] as const;

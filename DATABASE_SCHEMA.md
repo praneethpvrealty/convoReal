@@ -305,6 +305,15 @@ them by construction; their data access happens through `/api/den/*`
   `credits_burned` via the standard wallet (`burn_credits_tx`, feature
   `match_unlock`). Member SELECT via `is_account_member`; writes
   service-role only (`/api/match-unlocks`).
+- `property_bids` + `property_bid_events` (migration 134): FREE offers
+  after unlock (`unlock_id` NOT NULL is the entry ticket). Lifecycle
+  pending → accepted/rejected/countered/withdrawn/expired, all via
+  atomic conditional updates in service-role routes; contact details
+  are mutually revealed only on accept. SELECT for both the bidder and
+  the owning agency (`is_account_member` on either account); the Den
+  owner reads through `/api/den/bids`. `properties.min_bid` is the
+  owner's optional offer floor. Expiry cron `/api/cron/den-bids-expiry`
+  (deadline + 48h deal-mode-off grace).
 
 ---
 

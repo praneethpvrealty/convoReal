@@ -31,6 +31,182 @@ interface UnlockedPayload {
   managing_agency: string | null;
 }
 
+interface MyBid {
+  id: string;
+  amount: number;
+  status: "pending" | "accepted" | "rejected" | "countered" | "withdrawn" | "expired";
+  counter_amount: number | null;
+  counter_message: string | null;
+}
+
+/** Place / track this account's offer on an unlocked property. */
+function BidWidget({
+  propertyId,
+  listingType,
+  minBid,
+}: {
+  propertyId: string;
+  listingType: string;
+  minBid: number | null;
+}) {
+  const [bid, setBid] = useState<MyBid | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/bids?property_id=${propertyId}`)
+      .then((res) => (res.ok ? res.json() : { bids: [] }))
+      .then((body) => {
+        if (cancelled) return;
+        const live = (body.bids || []).find((b: MyBid) =>
+          ["pending", "countered", "accepted"].includes(b.status),
+        );
+        setBid(live || null);
+        setLoaded(true);
+      })
+      .catch(() => !cancelled && setLoaded(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [propertyId]);
+
+  const place = async () => {
+    const value = Number(amount.replace(/[,\s]/g, ""));
+    if (!Number.isFinite(value) || value <= 0) {
+      toast.error("Enter a valid offer amount");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/bids", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: propertyId, amount: value, message: message.trim() || undefined }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(body?.error || "Could not place the offer");
+        return;
+      }
+      setBid(body.bid as MyBid);
+      toast.success("Offer sent to the owner!");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const act = async (path: "withdraw" | "accept-counter") => {
+    if (!bid) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/bids/${bid.id}/${path}`, { method: "POST" });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(body?.error || "Could not update the offer");
+        return;
+      }
+      setBid(path === "withdraw" ? null : (body.bid as MyBid));
+      toast.success(path === "withdraw" ? "Offer withdrawn." : "Deal agreed at the counter price!");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  if (bid) {
+    return (
+      <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+        <p className="text-xs font-black text-slate-200">
+          Your offer: {formatValue(bid.amount)}
+          {listingType === "Rent" ? " /mo" : ""}
+          <span className="ml-2 text-[10px] font-bold text-slate-400 uppercase">{bid.status}</span>
+        </p>
+        {bid.status === "countered" && bid.counter_amount && (
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-bold text-sky-400">
+              Owner countered at {formatValue(bid.counter_amount)}
+              {bid.counter_message ? ` — “${bid.counter_message}”` : ""}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                disabled={busy}
+                onClick={() => act("accept-counter")}
+                className="h-7 flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold rounded-lg cursor-pointer"
+              >
+                Accept counter
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => act("withdraw")}
+                className="h-7 text-[11px] font-bold rounded-lg cursor-pointer"
+              >
+                Walk away
+              </Button>
+            </div>
+          </div>
+        )}
+        {bid.status === "pending" && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => act("withdraw")}
+            className="h-7 text-[11px] font-bold rounded-lg cursor-pointer"
+          >
+            Withdraw offer
+          </Button>
+        )}
+        {bid.status === "accepted" && (
+          <p className="text-[11px] font-bold text-emerald-400">
+            🎉 Accepted — take it forward with the owner directly.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3 space-y-2">
+      <p className="text-xs font-black text-slate-200">Place an offer (free)</p>
+      {minBid ? (
+        <p className="text-[10px] font-semibold text-slate-500">
+          Owner considers offers from {formatValue(minBid)}.
+        </p>
+      ) : null}
+      <input
+        type="text"
+        inputMode="numeric"
+        placeholder={listingType === "Rent" ? "Monthly rent you're offering (₹)" : "Your offer (₹)"}
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        className="w-full h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-primary"
+      />
+      <input
+        type="text"
+        placeholder="Message to the owner (optional)"
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        className="w-full h-8 rounded-lg border border-slate-800 bg-slate-950 px-2.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-primary"
+      />
+      <Button
+        size="sm"
+        disabled={busy}
+        onClick={place}
+        className="w-full h-8 text-[11px] font-bold rounded-lg cursor-pointer"
+      >
+        {busy ? "Sending…" : "Send offer to owner"}
+      </Button>
+    </div>
+  );
+}
+
 function formatValue(v: unknown): string {
   const n = Number(v);
   if (!n || Number.isNaN(n)) return "Not specified";
@@ -237,6 +413,13 @@ export function DirectOwnerCard({
                   </p>
                 )}
               </div>
+              {event.property_id && (
+                <BidWidget
+                  propertyId={event.property_id}
+                  listingType={String(property.listing_type || "Sale")}
+                  minBid={Number(property.min_bid) || null}
+                />
+              )}
             </>
           )}
         </div>

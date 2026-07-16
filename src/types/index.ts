@@ -915,6 +915,8 @@ export interface Property {
   deal_mode?: 'off' | 'soft' | 'aggressive';
   deal_mode_updated_at?: string | null;
   deal_mode_set_by?: 'owner' | 'staff' | null;
+  /** Owner's optional floor for Deal Mode offers (migration 134). */
+  min_bid?: number | null;
   agent_details?: {
     id: string;
     name: string;

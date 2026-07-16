@@ -25,10 +25,10 @@
 // ============================================================
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Contact, MatchEventTarget, MessageTemplate, Property } from "@/types";
+import type { Contact, MatchEventTarget, Property } from "@/types";
 import { getMatchingContacts, type MatchDetails } from "@/lib/matching";
-import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
 import { buildMaskedPropertySnapshot, type MaskedPropertySnapshot } from "./masking";
+import { sendDenNotification } from "./notify";
 
 const MIN_SCORE = 60;
 const MAX_TARGETS = 12;
@@ -40,7 +40,6 @@ const MAX_CONTACTS = 20_000;
 const DEDUPE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 /** Meta rate-limit safety cap on aggressive pings per sweep run. */
 const MAX_NOTIFICATIONS_PER_RUN = 100;
-const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export const DEN_MATCH_ALERT_TEMPLATE_NAME = "den_match_alert";
 
@@ -108,7 +107,6 @@ export async function runDealModeSweep(
   if (contactsByAccount.size === 0) return summary;
 
   let notifyBudget = MAX_NOTIFICATIONS_PER_RUN;
-  const templateCache = new Map<string, MessageTemplate | null>();
 
   for (const property of pool as Property[]) {
     const snapshot = buildMaskedPropertySnapshot(property);
@@ -146,7 +144,7 @@ export async function runDealModeSweep(
       if (outcome === "created" && property.deal_mode === "aggressive" && notifyBudget > 0) {
         for (const result of results) {
           if (notifyBudget <= 0) break;
-          const sent = await notifyBuyer(db, buyerAccountId, result.contact, result.score, snapshot, templateCache);
+          const sent = await notifyBuyer(db, buyerAccountId, result.contact, result.score, snapshot);
           if (sent) {
             summary.notified++;
             notifyBudget--;
@@ -218,96 +216,25 @@ function buildAlertText(score: number, snapshot: MaskedPropertySnapshot): string
   );
 }
 
-async function isSessionOpen(
-  db: SupabaseClient,
-  accountId: string,
-  contactId: string,
-): Promise<boolean> {
-  const { data: conv } = await db
-    .from("conversations")
-    .select("id")
-    .eq("account_id", accountId)
-    .eq("contact_id", contactId)
-    .maybeSingle();
-  if (!conv) return false;
-  const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
-  const { count } = await db
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .eq("conversation_id", conv.id)
-    .eq("sender_type", "customer")
-    .gte("created_at", since);
-  return (count ?? 0) > 0;
-}
-
-async function approvedTemplate(
-  db: SupabaseClient,
-  accountId: string,
-  cache: Map<string, MessageTemplate | null>,
-): Promise<MessageTemplate | null> {
-  if (cache.has(accountId)) return cache.get(accountId) ?? null;
-  const { data: row } = await db
-    .from("message_templates")
-    .select("*")
-    .eq("account_id", accountId)
-    .eq("name", DEN_MATCH_ALERT_TEMPLATE_NAME)
-    .order("last_submitted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const template = row as MessageTemplate | null;
-  const approved = template?.status === "APPROVED" ? template : null;
-  cache.set(accountId, approved);
-  return approved;
-}
-
 async function notifyBuyer(
   db: SupabaseClient,
   accountId: string,
   contact: Contact,
   score: number,
   snapshot: MaskedPropertySnapshot,
-  templateCache: Map<string, MessageTemplate | null>,
 ): Promise<boolean> {
-  try {
-    if (!contact.phone) return false;
-
-    const open = await isSessionOpen(db, accountId, contact.id);
-    if (open) {
-      const res = await sendWhatsAppMessageAndPersist({
-        accountId,
-        contactId: contact.id,
-        kind: "text",
-        senderType: "bot",
-        text: buildAlertText(score, snapshot),
-      });
-      return res.success;
-    }
-
-    const template = await approvedTemplate(db, accountId, templateCache);
-    if (!template) return false; // radar card still shows — no spam without a template
-
-    const what = snapshot.bedrooms ? `${snapshot.bedrooms} BHK ${snapshot.type}` : snapshot.type;
-    const params = [
+  if (!contact.phone) return false;
+  const what = snapshot.bedrooms ? `${snapshot.bedrooms} BHK ${snapshot.type}` : snapshot.type;
+  return sendDenNotification(db, {
+    accountId,
+    contactId: contact.id,
+    text: buildAlertText(score, snapshot),
+    templateName: DEN_MATCH_ALERT_TEMPLATE_NAME,
+    templateParams: [
       contact.name?.trim().split(/\s+/)[0] || "there",
       what,
       snapshot.locality || snapshot.city || "your preferred area",
       `${score}%`,
-    ];
-    const res = await sendWhatsAppMessageAndPersist({
-      accountId,
-      contactId: contact.id,
-      kind: "template",
-      senderType: "bot",
-      templateName: template.name,
-      templateLanguage: template.language || "en_US",
-      templateParams: params,
-      messageParams: { body: params },
-      templateRow: template,
-      text: buildAlertText(score, snapshot),
-    });
-    return res.success;
-  } catch (err) {
-    console.error("[deal-mode-sweep] notify failed (non-fatal):", err);
-    return false;
-  }
+    ],
+  });
 }

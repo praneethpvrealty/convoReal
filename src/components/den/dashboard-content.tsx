@@ -14,6 +14,7 @@ import {
   Building2,
   CalendarCheck,
   Eye,
+  HandCoins,
   MessageCircle,
   Plus,
   Star,
@@ -49,7 +50,26 @@ export function DenDashboardContent() {
   // Which window the loaded `data` belongs to — differing from `days`
   // means a fetch for the new window is still in flight.
   const [loadedDays, setLoadedDays] = useState<number | null>(null);
+  const [pendingOffers, setPendingOffers] = useState(0);
   const loading = loadedDays !== days;
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/den/bids")
+      .then((res) => (res.ok ? res.json() : { bids: [] }))
+      .then((body) => {
+        if (!cancelled) {
+          const live = (body.bids || []).filter(
+            (b: { status: string }) => b.status === "pending",
+          );
+          setPendingOffers(live.length);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +134,18 @@ export function DenDashboardContent() {
           </Link>
         </div>
       </div>
+
+      {pendingOffers > 0 && (
+        <Link
+          href="/den/bids"
+          className="flex items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 transition-colors hover:bg-amber-500/15"
+        >
+          <HandCoins className="h-5 w-5 shrink-0 text-amber-600" />
+          <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+            {pendingOffers} offer{pendingOffers === 1 ? "" : "s"} waiting for your response →
+          </p>
+        </Link>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {stats.map((stat) => (

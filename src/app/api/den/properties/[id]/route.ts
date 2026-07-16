@@ -24,7 +24,7 @@ export const GET = withDenAuth(async (ctx, _req, routeCtx) => {
   return NextResponse.json({ property: { ...property, agency_name: agency?.agencyName ?? null } });
 });
 
-const NUMERIC_EDITABLE = new Set(["price", "rent_per_month", "maintenance", "advance", "gst"]);
+const NUMERIC_EDITABLE = new Set(["price", "rent_per_month", "maintenance", "advance", "gst", "min_bid"]);
 const STRING_EDITABLE = new Set(["title", "description"]);
 const ARRAY_EDITABLE = new Set(["features", "nearby_highlights"]);
 
