@@ -13,6 +13,20 @@ and polish.
 
 ### Added
 
+- **On-brand 404 / error pages.** The stock "This page could not be
+  found" is replaced everywhere with real-estate-flavored copy in a
+  shared "unreliable agent" voice, plus the static house glyph from
+  the new loader family (`src/components/ui/property-house-glyph.tsx`)
+  so it visually matches.
+  - `src/app/not-found.tsx` / `error.tsx` — public 404 and error
+    boundary ("Site Visit Cancelled" / "Our Agent Is Running Late").
+  - `src/app/global-error.tsx` — deliberately dependency-free fallback
+    for a root-layout crash.
+  - `src/app/(dashboard)/not-found.tsx` / `error.tsx` — in-app variants
+    that render inside the sidebar shell for signed-in users
+    ("This Listing Walked Off the Market" / "Hold On, Just Wrapping
+    Up a Call").
+
 - **Real-estate-themed loading states.** Two on-brand replacements for
   the generic spinner, both pure SVG/CSS (no icon-library dependency)
   and driven by the same `--primary`/`--card` tokens as the rest of the
