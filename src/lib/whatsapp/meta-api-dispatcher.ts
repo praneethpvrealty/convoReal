@@ -88,6 +88,24 @@ export async function sendWhatsAppMessageAndPersist(
   const db = args.customDbClient || defaultAdminClient()
   const { accountId, userId, contactId, conversationId, toPhone } = args
 
+  // contacts.user_id and conversations.user_id are still NOT NULL — a
+  // legacy holdover from the pre-account tenancy model (see migration
+  // 017_account_sharing.sql). System-initiated sends (cron digests,
+  // bot replies) have no acting user, so fall back to the account
+  // owner rather than `null`, which violates that constraint. Lazy and
+  // cached: only queried if a new row actually needs creating.
+  let ownerUserId: string | undefined
+  const resolveOwnerUserId = async (): Promise<string | null> => {
+    if (ownerUserId) return ownerUserId
+    const { data } = await db
+      .from('accounts')
+      .select('owner_user_id')
+      .eq('id', accountId)
+      .maybeSingle()
+    ownerUserId = data?.owner_user_id || undefined
+    return ownerUserId || null
+  }
+
   try {
     let resolvedContactId = contactId
     let resolvedConversationId = conversationId
@@ -120,7 +138,7 @@ export async function sendWhatsAppMessageAndPersist(
           .from('contacts')
           .insert({
             account_id: accountId,
-            user_id: userId || null,
+            user_id: userId || (await resolveOwnerUserId()),
             phone: targetPhone,
             name: targetPhone,
           })
@@ -162,7 +180,7 @@ export async function sendWhatsAppMessageAndPersist(
           .from('conversations')
           .insert({
             account_id: accountId,
-            user_id: userId || null,
+            user_id: userId || (await resolveOwnerUserId()),
             contact_id: resolvedContactId,
           })
           .select()

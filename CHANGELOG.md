@@ -143,6 +143,15 @@ as the sole owner of their own account and sees identical data.
   types and `buildPreferencePrefillData` to emit real numbers (`0` as
   the "not set yet" sentinel, since a number field can't be `''`).
   Re-validated against Meta after the fix: zero validation_errors.
+- **System-initiated WhatsApp sends (owner-update digests, bot replies)
+  crashed with "null value in column "user_id" of relation
+  "conversations" violates not-null constraint"** whenever the
+  recipient didn't already have a conversation row. `user_id` on
+  `contacts`/`conversations` is still `NOT NULL` — a legacy holdover
+  from the pre-account tenancy model — but `sendWhatsAppMessageAndPersist`
+  (`src/lib/whatsapp/meta-api-dispatcher.ts`) fell back to `null` when
+  no acting user triggered the send. Now falls back to the account's
+  `owner_user_id` instead.
 
 ### Changed
 
