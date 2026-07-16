@@ -117,7 +117,7 @@ describe("buildPreferenceFlowJson", () => {
 });
 
 describe("buildPreferencePrefillData", () => {
-  it("stringifies current contact preferences", () => {
+  it("passes through current contact preferences as numbers", () => {
     const data = buildPreferencePrefillData({
       min_budget: 5000000,
       max_budget: 20000000,
@@ -125,17 +125,19 @@ describe("buildPreferencePrefillData", () => {
       property_interests: ["Vacant plot"],
       min_roi: 4.5,
     });
-    expect(data.min_budget).toBe("5000000");
-    expect(data.max_budget).toBe("20000000");
+    expect(data.min_budget).toBe(5000000);
+    expect(data.max_budget).toBe(20000000);
     expect(data.areas).toBe("JP Nagar, Jayanagar");
-    expect(data.min_roi).toBe("4.5");
+    expect(data.min_roi).toBe(4.5);
     expect(data.selected_property_types).toEqual(["Vacant plot"]);
     expect(data.property_type_options).toEqual(PROPERTY_INTEREST_FLOW_OPTIONS);
   });
 
-  it("handles a contact with no preferences set", () => {
+  it("defaults unset numeric preferences to 0 (schema requires a number, not '')", () => {
     const data = buildPreferencePrefillData({});
-    expect(data.min_budget).toBe("");
+    expect(data.min_budget).toBe(0);
+    expect(data.max_budget).toBe(0);
+    expect(data.min_roi).toBe(0);
     expect(data.areas).toBe("");
     expect(data.selected_property_types).toEqual([]);
   });

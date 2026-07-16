@@ -59,10 +59,17 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
         title: 'My Preferences',
         terminal: true,
         data: {
-          min_budget: { type: 'string', __example__: '5000000' },
-          max_budget: { type: 'string', __example__: '20000000' },
+          // Numeric, not string — these feed TextInputs with
+          // 'input-type': 'number' via the Form's init-values map, and
+          // Meta's publish validation rejects a string here ("Expected
+          // property 'min_budget' to be of type 'number' but found
+          // 'string'"). 0 is the "not set yet" sentinel (see
+          // buildPreferencePrefillData) since the schema doesn't allow
+          // an empty string for a number field.
+          min_budget: { type: 'number', __example__: 5000000 },
+          max_budget: { type: 'number', __example__: 20000000 },
           areas: { type: 'string', __example__: 'JP Nagar, Jayanagar' },
-          min_roi: { type: 'string', __example__: '4.5' },
+          min_roi: { type: 'number', __example__: 4.5 },
           selected_property_types: {
             type: 'array',
             items: { type: 'string' },
@@ -184,10 +191,14 @@ export function buildPreferencePrefillData(
 ): Record<string, unknown> {
   const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id))
   return {
-    min_budget: contact.min_budget != null ? String(contact.min_budget) : '',
-    max_budget: contact.max_budget != null ? String(contact.max_budget) : '',
+    // 0 means "not set yet" — the screen's data schema declares these
+    // as type 'number' (Meta rejects a string here), so an empty
+    // string isn't a valid "no value" sentinel the way it is for the
+    // TextArea-backed `areas` field below.
+    min_budget: contact.min_budget ?? 0,
+    max_budget: contact.max_budget ?? 0,
     areas: (contact.areas_of_interest || []).join(', '),
-    min_roi: contact.min_roi != null ? String(contact.min_roi) : '',
+    min_roi: contact.min_roi ?? 0,
     selected_property_types: (contact.property_interests || []).filter((p) =>
       knownIds.has(p)
     ),

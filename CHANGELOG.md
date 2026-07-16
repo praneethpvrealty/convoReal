@@ -133,6 +133,16 @@ as the sole owner of their own account and sees identical data.
   component; ours are Form-wrapped, so the bindings now live on the
   Form's `init-values` map instead (`src/lib/whatsapp/
   preference-flow.ts`).
+- **WhatsApp preference flow JSON also failed Meta's publish
+  validation** on `min_budget`/`max_budget`/`min_roi`
+  ("Expected property 'min_budget' to be of type 'number' but found
+  'string'.") — caught by running the new "Validate Against Meta"
+  check (above) against a real WABA. Those three screen-data fields
+  fed `TextInput`s with `'input-type': 'number'`, so Meta requires the
+  schema type to be `'number'`, not `'string'`. Changed the schema
+  types and `buildPreferencePrefillData` to emit real numbers (`0` as
+  the "not set yet" sentinel, since a number field can't be `''`).
+  Re-validated against Meta after the fix: zero validation_errors.
 
 ### Changed
 
