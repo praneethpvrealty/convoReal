@@ -59,10 +59,16 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
         title: 'My Preferences',
         terminal: true,
         data: {
-          min_budget: { type: 'string', __example__: '5000000' },
-          max_budget: { type: 'string', __example__: '20000000' },
+          // Bound to TextInput "input-type": "number" below — Meta's
+          // publish validator cross-checks the two and rejects a
+          // 'string'-typed data field feeding a number input
+          // ("Expected property 'min_budget' to be of type 'number'
+          // but found 'string'."). __example__ must be a real JSON
+          // number, not a numeric string.
+          min_budget: { type: 'number', __example__: 5000000 },
+          max_budget: { type: 'number', __example__: 20000000 },
           areas: { type: 'string', __example__: 'JP Nagar, Jayanagar' },
-          min_roi: { type: 'string', __example__: '4.5' },
+          min_roi: { type: 'number', __example__: 4.5 },
           selected_property_types: {
             type: 'array',
             items: { type: 'string' },
@@ -178,21 +184,28 @@ export interface ContactPreferenceSource {
 /**
  * Screen data returned from the endpoint on INIT. Keys must match the
  * screen's `data` schema in buildPreferenceFlowJson.
+ *
+ * min_budget/max_budget/min_roi are declared `type: 'number'` in that
+ * schema (see the comment there), so they're emitted as real JS
+ * numbers here — never a numeric string — and omitted entirely when
+ * the contact has no value, rather than sent as `''`, which isn't a
+ * valid `number`.
  */
 export function buildPreferencePrefillData(
   contact: ContactPreferenceSource
 ): Record<string, unknown> {
   const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id))
-  return {
-    min_budget: contact.min_budget != null ? String(contact.min_budget) : '',
-    max_budget: contact.max_budget != null ? String(contact.max_budget) : '',
+  const data: Record<string, unknown> = {
     areas: (contact.areas_of_interest || []).join(', '),
-    min_roi: contact.min_roi != null ? String(contact.min_roi) : '',
     selected_property_types: (contact.property_interests || []).filter((p) =>
       knownIds.has(p)
     ),
     property_type_options: PROPERTY_INTEREST_FLOW_OPTIONS,
   }
+  if (contact.min_budget != null) data.min_budget = contact.min_budget
+  if (contact.max_budget != null) data.max_budget = contact.max_budget
+  if (contact.min_roi != null) data.min_roi = contact.min_roi
+  return data
 }
 
 // ── Response parsing (data_exchange / nfm_reply) ──────────────────

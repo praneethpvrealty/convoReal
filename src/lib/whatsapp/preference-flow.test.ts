@@ -75,8 +75,36 @@ describe("buildPreferenceFlowJson", () => {
 
   it("keeps the screen data schema in sync with the prefill builder", () => {
     const { screen } = getScreen();
-    const prefill = buildPreferencePrefillData({});
+    // A fully populated contact so every optional key is present —
+    // buildPreferencePrefillData omits number fields when unset (see
+    // its own describe block), so an empty contact would under-count.
+    const prefill = buildPreferencePrefillData({
+      min_budget: 5000000,
+      max_budget: 20000000,
+      areas_of_interest: ["JP Nagar"],
+      property_interests: ["Vacant plot"],
+      min_roi: 4.5,
+    });
     expect(Object.keys(prefill).sort()).toEqual(Object.keys(screen.data).sort());
+  });
+
+  it("declares 'number' schema type for every field bound to a number TextInput (Meta cross-checks the two)", () => {
+    // Regression test: Meta's publish-time validation rejects a
+    // 'string'-typed data field feeding an "input-type": "number"
+    // TextInput ("Expected property 'min_budget' to be of type
+    // 'number' but found 'string'.") — and rejects a non-numeric
+    // __example__ the same way.
+    const { screen } = getScreen();
+    const form = getForm();
+    for (const child of form.children!) {
+      if (child.type === "TextInput" && (child as { "input-type"?: string })["input-type"] === "number") {
+        const fieldSchema = screen.data[child.name as string] as
+          | { type?: string; __example__?: unknown }
+          | undefined;
+        expect(fieldSchema?.type).toBe("number");
+        expect(typeof fieldSchema?.__example__).toBe("number");
+      }
+    }
   });
 
   it("prefills via the Form's init-values, never per-field init-value (Meta rejects that combination)", () => {
@@ -117,7 +145,7 @@ describe("buildPreferenceFlowJson", () => {
 });
 
 describe("buildPreferencePrefillData", () => {
-  it("stringifies current contact preferences", () => {
+  it("returns real numbers for budget/ROI fields, matching their 'number' schema type", () => {
     const data = buildPreferencePrefillData({
       min_budget: 5000000,
       max_budget: 20000000,
@@ -125,17 +153,20 @@ describe("buildPreferencePrefillData", () => {
       property_interests: ["Vacant plot"],
       min_roi: 4.5,
     });
-    expect(data.min_budget).toBe("5000000");
-    expect(data.max_budget).toBe("20000000");
+    expect(data.min_budget).toBe(5000000);
+    expect(typeof data.min_budget).toBe("number");
+    expect(data.max_budget).toBe(20000000);
     expect(data.areas).toBe("JP Nagar, Jayanagar");
-    expect(data.min_roi).toBe("4.5");
+    expect(data.min_roi).toBe(4.5);
     expect(data.selected_property_types).toEqual(["Vacant plot"]);
     expect(data.property_type_options).toEqual(PROPERTY_INTEREST_FLOW_OPTIONS);
   });
 
-  it("handles a contact with no preferences set", () => {
+  it("omits unset number fields rather than sending '' (invalid for a 'number'-typed field)", () => {
     const data = buildPreferencePrefillData({});
-    expect(data.min_budget).toBe("");
+    expect("min_budget" in data).toBe(false);
+    expect("max_budget" in data).toBe(false);
+    expect("min_roi" in data).toBe(false);
     expect(data.areas).toBe("");
     expect(data.selected_property_types).toEqual([]);
   });
