@@ -50,6 +50,13 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
             hasMissingEmail,
           });
           window.location.href = "/profile-setup";
+        } else if (!user.phone || !user.phone_confirmed_at) {
+          // ConvoReal is WhatsApp-based: every account needs an
+          // OTP-verified WhatsApp number. Checked on auth.users, so
+          // it's once per ACCOUNT — a Google sign-in whose account
+          // already verified is never asked again.
+          console.warn('[SHELL GATE] WhatsApp number unverified, redirecting to verify-phone...');
+          window.location.href = "/verify-phone";
         }
       }
     }

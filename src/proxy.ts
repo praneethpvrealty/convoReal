@@ -130,7 +130,7 @@ export async function proxy(request: NextRequest) {
   // when auth was unavailable (timeout/network): the dashboard shell
   // client-side redirects genuinely signed-out users, so a Supabase
   // blip doesn't bounce a valid session to /login.
-  const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings']
+  const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings', '/verify-phone']
   if (!user && !authUnavailable && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'

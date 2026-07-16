@@ -326,6 +326,14 @@ them by construction; their data access happens through `/api/den/*`
   (release requires BOTH parties' confirmation); one active escrow per
   room via partial unique index. SELECT for both party accounts; writes
   service-role only.
+- **Verified WhatsApp phone hard-wiring** (migration 136): source of
+  truth is `auth.users.phone` + `phone_confirmed_at` (set only by
+  WhatsApp OTP). `sync_verified_phone_to_profile` trigger mirrors the
+  verified number onto `profiles.phone`; `profiles_phone_guard`
+  rejects any client-side phone write ("phone can only be changed
+  through WhatsApp OTP verification"). The dashboard shell gates on
+  `phone_confirmed_at` (once per account — Google re-logins are never
+  re-asked) via `/verify-phone`.
 
 ---
 

@@ -9,7 +9,14 @@ import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { WhatsappPhoneVerify } from '@/components/auth/whatsapp-phone-verify';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Avatar,
   AvatarFallback,
@@ -43,19 +50,18 @@ export function ProfileForm() {
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
   const [pendingAvatar, setPendingAvatar] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [saving, setSaving] = useState(false);
   const [emailChangePending, setEmailChangePending] = useState(false);
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
 
   // Seed form state once the profile loads.
   useEffect(() => {
     if (!profile) return;
     setFullName(profile.full_name ?? '');
     setEmail(profile.email ?? '');
-    setPhone(profile?.phone ?? '');
   }, [profile]);
 
   // Cleanup object URLs to avoid leaks.
@@ -118,9 +124,6 @@ export function ProfileForm() {
       return;
     }
 
-    const trimmedPhone = phone.trim();
-    const normalizedPhoneVal = trimmedPhone ? normalizePhoneWithCountryCode(trimmedPhone) : '';
-
     setSaving(true);
     try {
       let nextAvatarUrl: string | null = profile.avatar_url ?? null;
@@ -148,13 +151,15 @@ export function ProfileForm() {
         nextAvatarUrl = null;
       }
 
-      // Persist name + avatar + phone to profiles.
+      // Persist name + avatar to profiles. Phone is NOT written here —
+      // it's OTP-verified through Supabase Auth and mirrored onto
+      // profiles.phone by a DB trigger (migration 136); a direct write
+      // would be rejected by the profiles_phone_guard trigger.
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
-          phone: normalizedPhoneVal,
         })
         .eq('user_id', user.id);
       if (updateError) {
@@ -205,7 +210,6 @@ export function ProfileForm() {
     !!profile &&
     (fullName.trim() !== (profile.full_name ?? '') ||
       email.trim().toLowerCase() !== (profile.email ?? '').toLowerCase() ||
-      phone.trim() !== (profile.phone ?? '') ||
       pendingAvatar !== null ||
       removeAvatar);
 
@@ -316,21 +320,32 @@ export function ProfileForm() {
             )}
           </div>
 
-          {/* Phone */}
+          {/* Phone — verified via WhatsApp OTP only, never free text.
+              profiles.phone mirrors the verified auth phone (trigger,
+              migration 136). */}
           <div className="space-y-2">
-            <Label htmlFor="profile-phone" className="text-slate-200">
-              Phone number
-            </Label>
-            <Input
-              id="profile-phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+91 XXXXX XXXXX"
-              disabled={saving}
-            />
+            <Label className="text-slate-200">WhatsApp number</Label>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="tel"
+                value={profile?.phone ?? ''}
+                placeholder="Not verified yet"
+                readOnly
+                disabled
+                className="max-w-xs"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={saving}
+                onClick={() => setPhoneDialogOpen(true)}
+              >
+                {profile?.phone ? 'Change number' : 'Verify number'}
+              </Button>
+            </div>
             <p className="text-xs text-slate-500">
-              Used for matching your WhatsApp messages to sync property listings.
+              ConvoReal is a WhatsApp-based platform — this verified number is where your
+              enquiries, alerts and listing sync arrive. Changing it requires a WhatsApp OTP.
             </p>
           </div>
 
@@ -379,6 +394,30 @@ export function ProfileForm() {
             </Button>
           </div>
         </form>
+
+        <Dialog open={phoneDialogOpen} onOpenChange={setPhoneDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {profile?.phone ? 'Change your WhatsApp number' : 'Verify your WhatsApp number'}
+              </DialogTitle>
+              <DialogDescription>
+                ConvoReal runs on WhatsApp, so every number change is confirmed with a one-time
+                code sent to the new number.
+              </DialogDescription>
+            </DialogHeader>
+            <WhatsappPhoneVerify
+              idPrefix="settings-phone"
+              onVerified={async () => {
+                setPhoneDialogOpen(false);
+                // The DB trigger has mirrored the verified number onto
+                // profiles.phone — just refetch to show it.
+                await refreshProfile();
+                toast.success('WhatsApp number verified.');
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       </CardContent>
     </Card>
   );
