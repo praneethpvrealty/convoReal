@@ -385,14 +385,21 @@ html[data-theme="rose"] {
   animation: dot-bounce 1.2s ease-in-out infinite;
 }
 
-/* App-wide fallback — the real brand mark — convoreal-loader.tsx */
-@keyframes cr-ring-pulse {
-  0%   { transform: scale(0.65); opacity: 0.5; }
-  100% { transform: scale(1.85); opacity: 0; }
+/* App-wide fallback — the real brand mark — convoreal-loader.tsx.
+ * Payment-gateway style: the tile holds still while an indeterminate
+ * arc spins around it. Two stacked animations drive the arc: the
+ * whole <svg> rotates at constant speed while the arc's dash length
+ * grows and collapses (circumference at r=45 is ~283), so it appears
+ * to chase itself around the track. */
+@keyframes cr-orbit-spin { to { transform: rotate(360deg); } }
+@keyframes cr-orbit-arc {
+  0%   { stroke-dasharray: 2 281; stroke-dashoffset: 0; }
+  50%  { stroke-dasharray: 175 108; stroke-dashoffset: -55; }
+  100% { stroke-dasharray: 2 281; stroke-dashoffset: -283; }
 }
 @keyframes cr-tile-breathe {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.06); }
+  50%      { transform: scale(1.04); }
 }
 @keyframes cr-sheen-sweep {
   0%, 100% { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
@@ -400,42 +407,56 @@ html[data-theme="rose"] {
   50%      { opacity: 0.5; }
   70%      { transform: translateX(220%) skewX(-20deg); opacity: 0; }
 }
-@keyframes cr-word-fade {
-  0%, 100% { opacity: 0.45; }
-  50%      { opacity: 1; }
+@keyframes cr-dot-blink {
+  0%, 60%, 100% { opacity: 0.2; }
+  30%           { opacity: 1; }
 }
 .convoreal-loader { position: relative; display: inline-flex; align-items: center; justify-content: center; }
-.convoreal-loader .cr-ring {
+.convoreal-loader .cr-orbit {
   position: absolute;
   inset: 0;
-  border: 2px solid var(--primary);
-  animation: cr-ring-pulse 2.2s ease-out infinite;
+  transform-origin: center;
+  animation: cr-orbit-spin 1.3s linear infinite;
+}
+.convoreal-loader .cr-orbit-track {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 3.5;
+  opacity: 0.15;
+}
+.convoreal-loader .cr-orbit-arc {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  animation: cr-orbit-arc 1.8s ease-in-out infinite;
 }
 .convoreal-loader .cr-tile {
   position: relative;
   z-index: 1;
-  width: 100%;
-  height: 100%;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-  animation: cr-tile-breathe 2.2s ease-in-out infinite;
+  animation: cr-tile-breathe 2.6s ease-in-out infinite;
 }
 .convoreal-loader .cr-tile svg { position: relative; z-index: 1; }
 .convoreal-loader .cr-sheen {
   position: absolute;
   inset: -20% -60%;
   background: linear-gradient(75deg, transparent 40%, rgba(255, 255, 255, 0.6) 50%, transparent 60%);
-  animation: cr-sheen-sweep 2.2s ease-in-out infinite;
+  animation: cr-sheen-sweep 2.6s ease-in-out infinite;
 }
 .cr-word {
   font-weight: 800;
   font-size: 0.8rem;
   letter-spacing: -0.01em;
   color: #ffffff;
-  animation: cr-word-fade 2.2s ease-in-out infinite;
+}
+.cr-ellipsis span {
+  display: inline-block;
+  animation: cr-dot-blink 1.4s ease-in-out infinite;
 }
 
 /* Pulse — heartbeat-loader.tsx */
@@ -588,10 +609,11 @@ html[data-theme="rose"] {
 @media (prefers-reduced-motion: reduce) {
   .msg-loader .bubble-out,
   .msg-loader .dot,
-  .convoreal-loader .cr-ring,
+  .convoreal-loader .cr-orbit,
+  .convoreal-loader .cr-orbit-arc,
   .convoreal-loader .cr-tile,
   .convoreal-loader .cr-sheen,
-  .cr-word,
+  .cr-ellipsis span,
   .heartbeat-loader .ekg-sweep,
   .heartbeat-loader .ekg-dot,
   .radar-sweep-loader .sweep-group,
@@ -606,9 +628,9 @@ html[data-theme="rose"] {
     animation: none;
   }
   .msg-loader .bubble-out { opacity: 1; }
-  .convoreal-loader .cr-ring { transform: scale(1.2); opacity: 0.3; }
+  .convoreal-loader .cr-orbit-arc { stroke-dasharray: 70 213; }
   .convoreal-loader .cr-sheen { opacity: 0; }
-  .cr-word { opacity: 1; }
+  .cr-ellipsis span { opacity: 1; }
   .heartbeat-loader .ekg-sweep { stroke-dashoffset: 0; opacity: 0.7; }
   .radar-sweep-loader .blip { opacity: 0.6; }
   .checklist-loader .cl-check { stroke-dashoffset: 0; opacity: 0.7; }
