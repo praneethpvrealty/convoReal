@@ -13,6 +13,17 @@ and polish.
 
 ### Added
 
+- **New building-construction themed loader for the property
+  inventory list, paired with the ConvoReal wordmark like every other
+  page loader.** `PropertyConstructionLoader`
+  (`src/components/ui/property-construction-loader.tsx`) — a crane
+  swinging beside a building that rises floor by floor, then fades to
+  rebuild. Replaces the radar-pin loader on Inventory's "Loading
+  property inventory" state, now shown alongside `ConvoRealLoader`
+  underneath it, matching the `[themed icon] + ConvoRealLoader + text`
+  convention already used on Pipelines, Contacts, Pulse, and other
+  pages.
+
 - **Name Tag now shows next to a contact's name everywhere, not just 3
   places.** `contacts.name_tag` (a short internal qualifier like "Bank
   DSA", migration 122) previously only rendered in the Contacts list,

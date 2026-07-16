@@ -269,10 +269,11 @@ html[data-theme="rose"] {
 }
 
 /* ============================================================
- * Property loaders — src/components/ui/property-radar-loader.tsx
- * and property-blueprint-loader.tsx. Pure CSS/SVG, no icon
- * dependency, driven by --primary/--card so both follow whichever
- * of the 5 accent themes is active. See each component for usage.
+ * Property loaders — src/components/ui/property-radar-loader.tsx,
+ * property-blueprint-loader.tsx, and property-construction-loader.tsx.
+ * Pure CSS/SVG, no icon dependency, driven by --primary/--card so all
+ * three follow whichever of the 5 accent themes is active. See each
+ * component for usage.
  * ============================================================ */
 
 @keyframes pin-bob {
@@ -339,6 +340,48 @@ html[data-theme="rose"] {
 .blueprint-loader .h-door    { animation: bp-door 3.2s ease-in-out infinite; }
 .blueprint-loader .h-window  { animation: bp-window 3.2s ease-in-out infinite; }
 
+@keyframes con-swing {
+  0%, 100% { transform: rotate(-4deg); }
+  50%      { transform: rotate(4deg); }
+}
+@keyframes con-floor-cycle {
+  0%   { opacity: 0; transform: translateY(8px); }
+  10%  { opacity: 1; transform: translateY(0); }
+  85%  { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(8px); }
+}
+
+.construction-loader .con-ground {
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.25;
+}
+.construction-loader .con-mast,
+.construction-loader .con-jib,
+.construction-loader .con-counterjib,
+.construction-loader .con-cable {
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.construction-loader .con-hook { fill: var(--primary); }
+.construction-loader .con-arm {
+  transform-origin: 14px 8px;
+  animation: con-swing 2.4s ease-in-out infinite;
+}
+.construction-loader .con-floor {
+  fill: var(--primary);
+  stroke: var(--card);
+  stroke-width: 1;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: con-floor-cycle 3.6s ease-in-out infinite;
+}
+.construction-loader .con-floor-1 { animation-delay: 0s; }
+.construction-loader .con-floor-2 { animation-delay: 0.3s; }
+.construction-loader .con-floor-3 { animation-delay: 0.6s; }
+
 @media (prefers-reduced-motion: reduce) {
   .pin-loader .pin-group,
   .pin-loader .ring {
@@ -352,6 +395,14 @@ html[data-theme="rose"] {
     animation: none;
     stroke-dashoffset: 0;
     opacity: 1;
+  }
+  .construction-loader .con-arm,
+  .construction-loader .con-floor {
+    animation: none;
+  }
+  .construction-loader .con-floor {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
