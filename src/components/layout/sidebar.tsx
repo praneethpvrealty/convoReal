@@ -20,6 +20,7 @@ import {
   UserCog,
   Users,
   UsersRound,
+  Waypoints,
   Workflow,
   X,
   Home,
@@ -94,6 +95,7 @@ const navItems: NavItem[] = [
   { href: "/inventory", label: "Inventory", icon: Home },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/inbox", label: "Inbox", icon: MessageSquare },
+  { href: "/journey", label: "Journey", icon: Waypoints, beta: true },
   { href: "/automations", label: "Automations", icon: Workflow },
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
 ];

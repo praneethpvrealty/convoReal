@@ -13,6 +13,7 @@ import type {
   MessageTemplate,
   Profile,
 } from "@/types";
+import Link from "next/link";
 import {
   MessageSquare,
   ChevronDown,
@@ -23,6 +24,7 @@ import {
   RefreshCw,
   Archive,
   ArchiveRestore,
+  Waypoints,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -860,6 +862,16 @@ export function MessageThread({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Journey mind map — this contact's property funnel. */}
+          <Link
+            href={`/journey?contact=${contact.id}`}
+            aria-label="Open journey mind map"
+            title="Journey map"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-primary"
+          >
+            <Waypoints className="h-3.5 w-3.5" />
+          </Link>
+
           {/* Manual refresh — forces a refetch of the messages + the
               conversation list (the parent bumps its resyncToken). Useful
               when realtime missed an event or the agent just wants to be
