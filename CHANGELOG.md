@@ -213,6 +213,18 @@ as the sole owner of their own account and sees identical data.
 
 ### Fixed
 
+- **Favoriting a Contacts quick-filter (e.g. "Needs Review") favorited
+  the whole unfiltered Contacts list instead.** The quick-filter tabs
+  (All Contacts / Needs Review / Transacted / Active Buyers) were
+  plain component state with no URL param, so the page-level Favorite
+  star — which only knows the URL — could never tell them apart, and
+  the filter itself reset to "All Contacts" on every reload anyway.
+  Synced the active quick-filter to a `?filter=` param
+  (`src/app/(dashboard)/contacts/contacts-content.tsx`), and the
+  Favorite button now labels/links the exact filtered view, e.g.
+  "Contacts — Needs Review" → `/contacts?filter=pending_review`
+  (`src/app/(dashboard)/contacts/page.tsx`).
+
 - **Property Documents upload showed a plain spinner while Property
   Images (right above it, same form) showed the themed loading
   animation.** Both are "Uploading..." buttons in the property form's
