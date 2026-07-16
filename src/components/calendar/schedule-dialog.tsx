@@ -66,6 +66,7 @@ export function ScheduleDialog({
   const [endTime, setEndTime] = useState('');
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
+  const [agenda, setAgenda] = useState('');
 
   // Fetch contacts and properties
   const loadOptions = useCallback(async () => {
@@ -102,6 +103,7 @@ export function ScheduleDialog({
       setSelectedPropertyId(propertyId || '');
       setLocation('');
       setNotes('');
+      setAgenda('');
 
       // Setup default times (e.g. today starting in 1 hour, duration 1 hour)
       const now = new Date();
@@ -182,6 +184,7 @@ export function ScheduleDialog({
         start_time: new Date(startTime).toISOString(),
         end_time: new Date(endTime).toISOString(),
         location: location.trim() || null,
+        agenda: agenda.trim() || null,
         status: 'scheduled',
         contact_id: selectedContactIds[0] || null,
         contact_ids: selectedContactIds,
@@ -293,6 +296,20 @@ export function ScheduleDialog({
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               className="bg-slate-800 border-slate-700 text-white h-9 text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="agenda" className="text-slate-400 text-xs">
+              Agenda — sent in the pre-event reminder
+            </Label>
+            <Textarea
+              id="agenda"
+              placeholder="Points to discuss, decisions needed..."
+              value={agenda}
+              onChange={(e) => setAgenda(e.target.value)}
+              rows={2}
+              className="bg-slate-800 border-slate-700 text-white text-sm resize-y"
             />
           </div>
 

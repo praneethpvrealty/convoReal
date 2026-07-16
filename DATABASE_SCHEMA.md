@@ -206,6 +206,7 @@ Calendar bookings and site viewings.
 - `property_id` (UUID, FK -> `properties`): Listing being viewed.
 - `status` (TEXT): CHECK constraint `('scheduled', 'completed', 'cancelled')`.
 - `reminder_morning_sent` / `reminder_1h_sent` (BOOLEAN, migration 127): Client WhatsApp reminder flags — morning-of (~7 AM IST) and one-hour-before sends that go to every contact in `contact_ids`. Supersede the older `reminder_24h_sent` / `reminder_2h_sent` flags.
+- `agenda` / `minutes` / `outcome` (TEXT, migration 128): Type-specific structured notes — pre-event agenda (meetings, calls, follow-ups, document work; included in the assignee's pre-event brief), post-event minutes (meetings, calls), and post-event outcome (site visits, follow-ups, document work). Per-type visibility config lives in `src/components/calendar/event-types.ts`.
 
 #### 16b. `appointment_reminder_log` (migration 127)
 Per-recipient delivery claims for client appointment reminders — one row per `(appointment_id, contact_id, reminder_type)` (UNIQUE). The cron inserts a claim before each WhatsApp send and deletes it if the send fails, so partial failures retry only the missed recipients without duplicating the delivered ones.

@@ -48,9 +48,13 @@ import {
   EVENT_TYPES,
   EVENT_TYPE_KEYS,
   EventTypeKey,
+  EventFieldKey,
+  eventTypeFields,
   eventTypeMeta,
   memberInitials,
 } from "@/components/calendar/event-types";
+
+const EMPTY_EXTRAS: Record<EventFieldKey, string> = { agenda: "", minutes: "", outcome: "" };
 
 interface Todo {
   id: string;
@@ -136,6 +140,8 @@ export default function CalendarPage() {
   const [apptStatus, setApptStatus] = useState<"scheduled" | "completed" | "cancelled">("scheduled");
   const [apptEventType, setApptEventType] = useState<EventTypeKey>("meeting");
   const [apptAssignedTo, setApptAssignedTo] = useState("");
+  // Type-specific structured notes (agenda / minutes / outcome).
+  const [apptExtras, setApptExtras] = useState<Record<EventFieldKey, string>>({ ...EMPTY_EXTRAS });
 
   // Todo Form state
   const [todoTitle, setTodoTitle] = useState("");
@@ -362,6 +368,7 @@ export default function CalendarPage() {
     setApptStatus("scheduled");
     setApptEventType("meeting");
     setApptAssignedTo(assignedTo || user?.id || "");
+    setApptExtras({ ...EMPTY_EXTRAS });
 
     const start = date ? new Date(date) : new Date();
     start.setHours(10, 0, 0, 0); // Default to 10:00 AM
@@ -389,6 +396,11 @@ export default function CalendarPage() {
     setApptStatus(appt.status);
     setApptEventType(appt.event_type || "meeting");
     setApptAssignedTo(appt.assigned_to || appt.user_id || "");
+    setApptExtras({
+      agenda: appt.agenda || "",
+      minutes: appt.minutes || "",
+      outcome: appt.outcome || "",
+    });
     setApptStartTime(formatDateTimeLocal(new Date(appt.start_time)));
     setApptEndTime(formatDateTimeLocal(new Date(appt.end_time)));
     setIsApptModalOpen(true);
@@ -422,9 +434,19 @@ export default function CalendarPage() {
         throw new Error("Invalid start or end date selection.");
       }
 
+      // Only persist the note fields that apply to the chosen event
+      // type — switching e.g. a meeting to a site visit clears the
+      // agenda/minutes that no longer belong on it.
+      const applicableFields = eventTypeFields(apptEventType).map((f) => f.key);
+      const extraOrNull = (key: EventFieldKey) =>
+        applicableFields.includes(key) ? apptExtras[key].trim() || null : null;
+
       const payload = {
         title: apptTitle,
         description: apptDesc || null,
+        agenda: extraOrNull("agenda"),
+        minutes: extraOrNull("minutes"),
+        outcome: extraOrNull("outcome"),
         start_time: startDate.toISOString(),
         end_time: endDate.toISOString(),
         location: apptLocation || null,
@@ -1571,6 +1593,37 @@ export default function CalendarPage() {
                     className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
                   />
                 </div>
+
+                {/* Type-specific notes: agenda before the event, minutes /
+                    outcome once it exists. Post fields only show when
+                    editing — there's nothing to log before it happens. */}
+                {eventTypeFields(apptEventType)
+                  .filter((f) => f.phase === "pre" || !!selectedAppt)
+                  .map((f) => (
+                    <div key={f.key}>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        {f.label}
+                        {f.phase === "pre" ? (
+                          <span className="ml-1.5 normal-case font-semibold text-slate-500">
+                            — sent in the pre-event reminder
+                          </span>
+                        ) : (
+                          <span className="ml-1.5 normal-case font-semibold text-slate-500">
+                            — fill in after the event
+                          </span>
+                        )}
+                      </label>
+                      <textarea
+                        placeholder={f.placeholder}
+                        value={apptExtras[f.key]}
+                        onChange={(e) =>
+                          setApptExtras((prev) => ({ ...prev, [f.key]: e.target.value }))
+                        }
+                        rows={2}
+                        className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  ))}
 
                 {selectedAppt?.transcript && (
                   <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">

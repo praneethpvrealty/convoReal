@@ -55,6 +55,7 @@ interface ReminderAppointment {
   start_time: string;
   end_time: string;
   location: string | null;
+  agenda?: string | null;
   contact_ids?: string[] | null;
   contact: { id: string; name: string | null; phone: string | null } | null;
   property: { id: string; title: string | null; location: string | null } | null;
@@ -100,7 +101,7 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
 
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location)')
+    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location)')
     .eq('status', 'scheduled')
     .eq('agent_reminder_sent', false)
     .gt('start_time', now.toISOString())
@@ -149,6 +150,7 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       ),
       appt.property?.title ? `🏠 ${appt.property.title}` : null,
       appt.location ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}` : null,
+      appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
       '',
       '_Reply *today* for your full schedule._',
     ].filter((l): l is string => l !== null);
@@ -312,7 +314,7 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       `🤔 *How did it go?*`,
       `${emoji} ${appt.title}${appt.contact?.name ? ` with ${appt.contact.name}` : ''} was scheduled for ${istTime(appt.start_time)} and is still open.`,
       '',
-      'Mark it *Completed* on the Calendar page — or reschedule it if it slipped.',
+      'Mark it *Completed* on the Calendar page and log the minutes / outcome while it\'s fresh — or reschedule it if it slipped.',
     ].join('\n');
 
     const result = await sendWhatsAppMessageAndPersist({
