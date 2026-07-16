@@ -2811,6 +2811,67 @@ export function PropertyForm({
                     </div>
                   )}
 
+                  {/* FLOOR-WISE RENT ROLL (pre-leased commercial) */}
+                  {floorTenancies.length > 0 && (
+                    <div className="space-y-2.5">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Floor-wise Tenancy (Rent Roll)</h4>
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/10 overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-850 bg-slate-950/30 text-left text-slate-450">
+                              <th className="p-2.5 font-semibold">Floor / Unit</th>
+                              <th className="p-2.5 font-semibold">Tenant</th>
+                              <th className="p-2.5 font-semibold text-right">Area (Sq.Ft.)</th>
+                              <th className="p-2.5 font-semibold text-right">Rent (excl. GST)</th>
+                              <th className="p-2.5 font-semibold">Lease</th>
+                              <th className="p-2.5 font-semibold text-right">Lock-in</th>
+                              <th className="p-2.5 font-semibold">Maintenance</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-850">
+                            {floorTenancies.map((ft, idx) => (
+                              <tr key={idx} className="text-slate-200">
+                                <td className="p-2.5 font-bold text-white">
+                                  {ft.floor || `Floor ${idx + 1}`}
+                                  {ft.notes && (
+                                    <p className="text-[10px] text-slate-450 font-medium mt-0.5">{ft.notes}</p>
+                                  )}
+                                </td>
+                                <td className="p-2.5">{ft.tenant_name || '—'}</td>
+                                <td className="p-2.5 text-right">
+                                  {ft.area_sqft ? Number(ft.area_sqft).toLocaleString('en-IN') : '—'}
+                                </td>
+                                <td className="p-2.5 text-right font-bold text-emerald-400">
+                                  {ft.monthly_rent ? formatCurrency(Number(ft.monthly_rent), currency) : '—'}
+                                </td>
+                                <td className="p-2.5 whitespace-nowrap">
+                                  {ft.lease_start || ft.lease_end
+                                    ? `${ft.lease_start || '…'} → ${ft.lease_end || '…'}`
+                                    : '—'}
+                                </td>
+                                <td className="p-2.5 text-right">
+                                  {ft.lock_in_months ? `${ft.lock_in_months} mo` : '—'}
+                                </td>
+                                <td className="p-2.5">{ft.maintenance || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          {floorRentTotal > 0 && (
+                            <tfoot>
+                              <tr className="border-t border-slate-850 bg-slate-950/30">
+                                <td className="p-2.5 font-bold text-white" colSpan={3}>Total monthly rent</td>
+                                <td className="p-2.5 text-right font-black text-primary">
+                                  {formatCurrency(floorRentTotal, currency)}
+                                </td>
+                                <td className="p-2.5 text-[10px] text-slate-450" colSpan={3}>excluding GST</td>
+                              </tr>
+                            </tfoot>
+                          )}
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 7. NEARBY LANDMARKS */}
                   {nearbyHighlights && nearbyHighlights.length > 0 && (
                     <div className="space-y-2">
