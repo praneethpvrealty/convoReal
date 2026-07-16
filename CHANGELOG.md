@@ -13,6 +13,20 @@ and polish.
 
 ### Added
 
+- **Validate WhatsApp Flow JSON directly against Meta.** Settings →
+  WhatsApp → WhatsApp Flows now has a "Validate Against Meta" button
+  alongside Publish. It uploads the Buyer Preference Intake Flow JSON
+  to Meta's asset validator and reports the real result — without
+  publishing — so a change to the flow blueprint
+  (`src/lib/whatsapp/preference-flow.ts`) can be checked against Meta's
+  actual component rules before going live, instead of relying only on
+  hand-coded assumptions in unit tests (as happened with the
+  `init-value`-inside-`Form` bug fixed above).
+  - `validatePreferenceFlowJson` (`src/lib/whatsapp/meta-flow-service.ts`)
+    — creates the flow container on Meta if needed but never calls
+    `/publish`.
+  - `POST /api/whatsapp/flows/validate` — new route backing the button.
+
 - **On-brand 404 / error pages.** The stock "This page could not be
   found" is replaced everywhere with real-estate-flavored copy in a
   shared "unreliable agent" voice, plus the static house glyph from
@@ -119,6 +133,16 @@ as the sole owner of their own account and sees identical data.
   component; ours are Form-wrapped, so the bindings now live on the
   Form's `init-values` map instead (`src/lib/whatsapp/
   preference-flow.ts`).
+- **WhatsApp preference flow JSON also failed Meta's publish
+  validation** on `min_budget`/`max_budget`/`min_roi`
+  ("Expected property 'min_budget' to be of type 'number' but found
+  'string'.") — caught by running the new "Validate Against Meta"
+  check (above) against a real WABA. Those three screen-data fields
+  fed `TextInput`s with `'input-type': 'number'`, so Meta requires the
+  schema type to be `'number'`, not `'string'`. Changed the schema
+  types and `buildPreferencePrefillData` to emit real numbers (`0` as
+  the "not set yet" sentinel, since a number field can't be `''`).
+  Re-validated against Meta after the fix: zero validation_errors.
 
 ### Changed
 

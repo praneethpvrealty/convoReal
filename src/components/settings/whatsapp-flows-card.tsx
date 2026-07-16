@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Copy, FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
+import { Copy, FileSpreadsheet, Loader2, RefreshCw, ShieldCheck } from 'lucide-react';
 
 /**
  * Settings card for native Meta WhatsApp Flows (form screens inside
@@ -28,9 +28,15 @@ interface MetaFlowStatus {
   endpoint_uri: string;
 }
 
+interface FlowValidationResult {
+  valid: boolean;
+  errors: Array<{ message: string; line_start?: number }>;
+}
+
 export function WhatsAppFlowsCard() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [validating, setValidating] = useState(false);
   const [status, setStatus] = useState<MetaFlowStatus | null>(null);
 
   const loadStatus = useCallback(async () => {
@@ -65,6 +71,30 @@ export function WhatsAppFlowsCard() {
     } finally {
       setPublishing(false);
       await loadStatus();
+    }
+  };
+
+  const handleValidate = async () => {
+    setValidating(true);
+    try {
+      const res = await fetch('/api/whatsapp/flows/validate', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Failed to validate the flow JSON against Meta');
+        return;
+      }
+      const result = data as FlowValidationResult;
+      if (result.valid) {
+        toast.success('Meta accepted the flow JSON — no validation errors');
+      } else {
+        toast.error(
+          `Meta rejected the flow JSON: ${result.errors.map((e) => e.message).join('; ')}`
+        );
+      }
+    } catch {
+      toast.error('Failed to validate the flow JSON against Meta');
+    } finally {
+      setValidating(false);
     }
   };
 
@@ -176,8 +206,26 @@ export function WhatsAppFlowsCard() {
 
             <div className="flex flex-wrap gap-3">
               <Button
+                variant="outline"
+                onClick={handleValidate}
+                disabled={validating || publishing}
+                className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
+              >
+                {validating ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Validating...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="size-4" />
+                    Validate Against Meta
+                  </>
+                )}
+              </Button>
+              <Button
                 onClick={handlePublish}
-                disabled={publishing}
+                disabled={publishing || validating}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {publishing ? (
@@ -195,6 +243,11 @@ export function WhatsAppFlowsCard() {
                 )}
               </Button>
             </div>
+            <p className="text-xs text-slate-500">
+              Validate checks the current flow JSON against Meta&apos;s real validator
+              without publishing — safe to run any time, including on an already-live
+              flow.
+            </p>
           </>
         )}
       </CardContent>
