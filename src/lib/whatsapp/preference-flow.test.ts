@@ -21,6 +21,8 @@ type FlowComponent = {
   name?: string;
   label?: string;
   children?: FlowComponent[];
+  "init-value"?: unknown;
+  "init-values"?: Record<string, unknown>;
   "on-click-action"?: { name: string; payload: Record<string, string> };
 };
 
@@ -75,6 +77,30 @@ describe("buildPreferenceFlowJson", () => {
     const { screen } = getScreen();
     const prefill = buildPreferencePrefillData({});
     expect(Object.keys(prefill).sort()).toEqual(Object.keys(screen.data).sort());
+  });
+
+  it("prefills via the Form's init-values, never per-field init-value (Meta rejects that combination)", () => {
+    // Regression test: Meta's publish-time validation rejects
+    // "init-value" on TextInput/TextArea/CheckboxGroup when they're
+    // wrapped in a Form ("Property 'init-value' is not allowed in
+    // 'TextInput' component."). Form-wrapped fields must be prefilled
+    // via the Form's own "init-values" map instead.
+    const form = getForm();
+    const fieldNames = form
+      .children!.filter((c) => c.type !== "Footer")
+      .map((c) => c.name as string);
+
+    for (const child of form.children!) {
+      if (child.type !== "Footer") {
+        expect(child["init-value"]).toBeUndefined();
+      }
+    }
+
+    expect(form["init-values"]).toBeDefined();
+    expect(Object.keys(form["init-values"]!).sort()).toEqual(fieldNames.sort());
+    for (const name of fieldNames) {
+      expect(form["init-values"]![name]).toBe(`\${data.${name === "property_types" ? "selected_property_types" : name}}`);
+    }
   });
 
   it("stays within Meta's component label limits", () => {
