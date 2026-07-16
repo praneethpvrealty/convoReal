@@ -414,7 +414,25 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<'active' | 'pending_review' | 'transacted' | 'market_active'>('active');
+  type QuickFilterTab = 'active' | 'pending_review' | 'transacted' | 'market_active';
+  const [activeTab, setActiveTab] = useState<QuickFilterTab>('active');
+
+  /** Keeps the quick-filter tab (All/Needs Review/Transacted/Active Buyers)
+   *  in the URL — so it survives a refresh, can be shared, and so the
+   *  page-level Favorite button (contacts/page.tsx) can capture exactly
+   *  this view instead of always favoriting the default "All Contacts". */
+  const setActiveTabAndSync = (tab: QuickFilterTab) => {
+    setActiveTab(tab);
+    setPage(0);
+    const params = new URLSearchParams(searchParams?.toString());
+    if (tab === 'active') {
+      params.delete('filter');
+    } else {
+      params.set('filter', tab);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false });
+  };
   const [activeCount, setActiveCount] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   const [transactedCount, setTransactedCount] = useState(0);
@@ -503,6 +521,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const tagParam = searchParams?.get('tag');
     if (tagParam) {
       setFilterTag(tagParam);
+    }
+    const filterParam = searchParams?.get('filter');
+    if (
+      filterParam === 'active' ||
+      filterParam === 'pending_review' ||
+      filterParam === 'transacted' ||
+      filterParam === 'market_active'
+    ) {
+      setActiveTab(filterParam);
     }
   }, [searchParams]);
 
@@ -1686,10 +1713,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         {/* Tab Switcher */}
         <div className="flex bg-slate-900/60 p-1 border border-slate-800 rounded-lg self-start gap-1 flex-wrap">
           <button
-            onClick={() => {
-              setActiveTab('active');
-              setPage(0);
-            }}
+            onClick={() => setActiveTabAndSync('active')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
               activeTab === 'active'
                 ? 'bg-slate-800 text-primary shadow-sm'
@@ -1699,10 +1723,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             All Contacts ({activeCount})
           </button>
           <button
-            onClick={() => {
-              setActiveTab('pending_review');
-              setPage(0);
-            }}
+            onClick={() => setActiveTabAndSync('pending_review')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
               activeTab === 'pending_review'
                 ? 'bg-slate-800 text-amber-400 shadow-sm'
@@ -1717,10 +1738,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             )}
           </button>
           <button
-            onClick={() => {
-              setActiveTab('transacted');
-              setPage(0);
-            }}
+            onClick={() => setActiveTabAndSync('transacted')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
               activeTab === 'transacted'
                 ? 'bg-slate-800 text-emerald-400 shadow-sm'
@@ -1730,10 +1748,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             Transacted ({transactedCount})
           </button>
           <button
-            onClick={() => {
-              setActiveTab('market_active');
-              setPage(0);
-            }}
+            onClick={() => setActiveTabAndSync('market_active')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
               activeTab === 'market_active'
                 ? 'bg-slate-800 text-blue-400 shadow-sm'

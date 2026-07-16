@@ -15,6 +15,16 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "agents", label: "Agents" },
 ];
 
+/** Mirrors the quick-filter tabs in contacts-content.tsx (All Contacts is
+ *  the default and has no `filter` param). Used so the page-level
+ *  Favorite button captures the exact filtered view — e.g. "Needs
+ *  Review" — instead of always favoriting the unfiltered list. */
+const QUICK_FILTER_LABELS: Record<string, string> = {
+  pending_review: "Needs Review",
+  transacted: "Transacted",
+  market_active: "Active Buyers",
+};
+
 export default function ContactsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -24,6 +34,8 @@ export default function ContactsPage() {
     return TABS.some((t) => t.id === tab) ? tab : "list";
   }, [searchParams]);
 
+  const quickFilter = searchParams.get("filter");
+
   const tabMeta = useMemo(() => {
     switch (activeTab) {
       case "requirements":
@@ -31,10 +43,16 @@ export default function ContactsPage() {
       case "agents":
         return { label: "Agents", href: "/contacts?tab=agents", icon: "UsersRound" };
       case "list":
-      default:
-        return { label: "Contacts", href: "/contacts", icon: "Users" };
+      default: {
+        const filterLabel = quickFilter ? QUICK_FILTER_LABELS[quickFilter] : undefined;
+        return {
+          label: filterLabel ? `Contacts — ${filterLabel}` : "Contacts",
+          href: quickFilter ? `/contacts?filter=${quickFilter}` : "/contacts",
+          icon: "Users",
+        };
+      }
     }
-  }, [activeTab]);
+  }, [activeTab, quickFilter]);
 
   const handleTabChange = (tab: TabId) => {
     router.push(`/contacts?tab=${tab}`, { scroll: false });
