@@ -25,15 +25,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { PLAN_ORDER, PLAN_CONFIG } from '@/lib/billing/plan-config';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 
 const MarketplaceTab = dynamic(() => import('./marketplace-tab'), {
   ssr: false,
   loading: () => (
     <div className="flex h-96 items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-slate-400">Loading Marketplace...</p>
-      </div>
+      <ConvoRealLoader size={48} label="Loading Marketplace" />
     </div>
   ),
 });
@@ -496,10 +494,7 @@ export default function AdminDashboardPage() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-slate-400">Loading Admin Dashboard...</p>
-        </div>
+        <ConvoRealLoader size={48} label="Loading Admin Dashboard" />
       </div>
     );
   }

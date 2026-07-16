@@ -11,7 +11,7 @@ import { CreditTopup } from "@/components/settings/CreditTopup";
 import { CopilotProvider } from "@/components/copilot/copilot-context";
 import { CopilotWidget } from "@/components/copilot/copilot-widget";
 import { TourOverlay } from "@/components/copilot/tour-overlay";
-import { BrandPulseLoader } from "@/components/ui/brand-pulse-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
 // Auth-gated dashboard shell. Extracted from the layout so the layout
 // itself can stay a server component and export metadata (noindex) —
@@ -58,10 +58,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <BrandPulseLoader size={64} label="Loading" />
-          <p className="text-sm text-slate-400">Loading...</p>
-        </div>
+        <ConvoRealLoader size={56} label="Loading" wordmark />
       </div>
     );
   }

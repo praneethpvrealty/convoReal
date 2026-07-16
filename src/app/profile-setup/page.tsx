@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -94,10 +95,7 @@ function ProfileSetupPageInner() {
   if (authLoading || profileLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-slate-400">Loading Profile Setup...</p>
-        </div>
+        <ConvoRealLoader size={56} label="Loading Profile Setup" wordmark />
       </div>
     );
   }

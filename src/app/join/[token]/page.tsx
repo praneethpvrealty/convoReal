@@ -52,6 +52,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { createClient } from '@/lib/supabase/client';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 
 interface PeekOk {
   ok: true;
@@ -222,7 +223,7 @@ export default function JoinPage() {
     return (
       <Card className="w-full max-w-md border-slate-800 bg-slate-900">
         <CardContent className="flex flex-col items-center gap-3 py-12">
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <ConvoRealLoader size={48} label="Verifying invitation" wordmark />
           <p className="text-sm text-slate-400">Verifying invitation…</p>
         </CardContent>
       </Card>

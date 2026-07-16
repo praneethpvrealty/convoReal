@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PropertyForm } from '@/components/inventory/property-form';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import {
   Building,
   Phone,
@@ -259,7 +260,7 @@ export default function AgentsPage() {
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {loadingAgents ? (
             <div className="flex items-center justify-center py-10">
-              <Loader2 className="size-6 animate-spin text-primary" />
+              <ConvoRealLoader size={32} label="Loading agents" />
             </div>
           ) : filteredAgents.length === 0 ? (
             <div className="text-center py-10 text-slate-500 text-xs">
@@ -395,7 +396,7 @@ export default function AgentsPage() {
                 <div className="flex-1 overflow-y-auto min-h-0">
                   {loadingProperties ? (
                     <div className="flex items-center justify-center py-20">
-                      <Loader2 className="size-8 animate-spin text-primary" />
+                      <ConvoRealLoader size={44} label="Loading properties" />
                     </div>
                   ) : properties.length === 0 ? (
                     <div className="text-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/20 max-w-lg mx-auto mt-4">
@@ -545,7 +546,7 @@ export default function AgentsPage() {
                   <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
                     {loadingNotes ? (
                       <div className="flex items-center justify-center py-6">
-                        <Loader2 className="size-5 animate-spin text-slate-600" />
+                        <ConvoRealLoader size={28} label="Loading notes" />
                       </div>
                     ) : notes.length === 0 ? (
                       <p className="text-slate-500 text-[11px] text-center py-6">No notes recorded yet</p>

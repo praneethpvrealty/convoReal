@@ -356,7 +356,7 @@ html[data-theme="rose"] {
 }
 
 /* ============================================================
- * Page loaders — src/components/ui/{message-bubble,brand-pulse,
+ * Page loaders — src/components/ui/{message-bubble,convoreal,
  * heartbeat,radar-sweep,contact-card,pipeline-stage,calendar,
  * checklist,signal-wave,flow-node}-loader.tsx. Same rules as the
  * property loaders above: pure CSS/SVG, colored by --primary/--card
@@ -385,26 +385,57 @@ html[data-theme="rose"] {
   animation: dot-bounce 1.2s ease-in-out infinite;
 }
 
-/* App-wide fallback — brand-pulse-loader.tsx */
-@keyframes bp-breathe {
+/* App-wide fallback — the real brand mark — convoreal-loader.tsx */
+@keyframes cr-ring-pulse {
+  0%   { transform: scale(0.65); opacity: 0.5; }
+  100% { transform: scale(1.85); opacity: 0; }
+}
+@keyframes cr-tile-breathe {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.12); }
+  50%      { transform: scale(1.06); }
 }
-@keyframes bp-ring-pulse {
-  0%   { r: 14; opacity: 0.5; }
-  100% { r: 56; opacity: 0; }
+@keyframes cr-sheen-sweep {
+  0%, 100% { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
+  15%      { opacity: 0.5; }
+  50%      { opacity: 0.5; }
+  70%      { transform: translateX(220%) skewX(-20deg); opacity: 0; }
 }
-.brand-pulse-loader .bp-core {
-  fill: var(--primary);
-  transform-origin: 60px 60px;
-  animation: bp-breathe 2.4s ease-in-out infinite;
+@keyframes cr-word-fade {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 1; }
 }
-.brand-pulse-loader .bp-ring {
-  fill: none;
-  stroke: var(--primary);
-  stroke-width: 2;
-  transform-origin: 60px 60px;
-  animation: bp-ring-pulse 2.4s ease-out infinite;
+.convoreal-loader { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.convoreal-loader .cr-ring {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--primary);
+  animation: cr-ring-pulse 2.2s ease-out infinite;
+}
+.convoreal-loader .cr-tile {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+  animation: cr-tile-breathe 2.2s ease-in-out infinite;
+}
+.convoreal-loader .cr-tile svg { position: relative; z-index: 1; }
+.convoreal-loader .cr-sheen {
+  position: absolute;
+  inset: -20% -60%;
+  background: linear-gradient(75deg, transparent 40%, rgba(255, 255, 255, 0.6) 50%, transparent 60%);
+  animation: cr-sheen-sweep 2.2s ease-in-out infinite;
+}
+.cr-word {
+  font-weight: 800;
+  font-size: 0.8rem;
+  letter-spacing: -0.01em;
+  color: #ffffff;
+  animation: cr-word-fade 2.2s ease-in-out infinite;
 }
 
 /* Pulse — heartbeat-loader.tsx */
@@ -557,8 +588,10 @@ html[data-theme="rose"] {
 @media (prefers-reduced-motion: reduce) {
   .msg-loader .bubble-out,
   .msg-loader .dot,
-  .brand-pulse-loader .bp-core,
-  .brand-pulse-loader .bp-ring,
+  .convoreal-loader .cr-ring,
+  .convoreal-loader .cr-tile,
+  .convoreal-loader .cr-sheen,
+  .cr-word,
   .heartbeat-loader .ekg-sweep,
   .heartbeat-loader .ekg-dot,
   .radar-sweep-loader .sweep-group,
@@ -573,7 +606,9 @@ html[data-theme="rose"] {
     animation: none;
   }
   .msg-loader .bubble-out { opacity: 1; }
-  .brand-pulse-loader .bp-ring { r: 30; opacity: 0.3; }
+  .convoreal-loader .cr-ring { transform: scale(1.2); opacity: 0.3; }
+  .convoreal-loader .cr-sheen { opacity: 0; }
+  .cr-word { opacity: 1; }
   .heartbeat-loader .ekg-sweep { stroke-dashoffset: 0; opacity: 0.7; }
   .radar-sweep-loader .blip { opacity: 0.6; }
   .checklist-loader .cl-check { stroke-dashoffset: 0; opacity: 0.7; }
