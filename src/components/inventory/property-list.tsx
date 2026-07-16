@@ -32,7 +32,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { PropertyRadarLoader } from '@/components/ui/property-radar-loader';
+import { PropertyConstructionLoader } from '@/components/ui/property-construction-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 
 const highlightIcons: Record<string, string> = {
@@ -183,7 +184,8 @@ export function PropertyList({
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-        <PropertyRadarLoader size={72} label="Loading property inventory" className="mb-4" />
+        <PropertyConstructionLoader size={104} label="Loading property inventory" className="mb-3" />
+        <ConvoRealLoader size={20} className="mb-2" />
         <p className="text-sm">Loading property inventory...</p>
       </div>
     );
