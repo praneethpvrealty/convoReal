@@ -7,6 +7,7 @@ import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 import { boundingBox, haversineKm } from "@/lib/geo";
 import { localityStemProbe, textContainsLocality } from "@/lib/locality-match";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
+import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -475,6 +476,7 @@ export async function POST(request: Request) {
       google_map_link,
       rental_income,
       roi,
+      floor_tenancies,
       listing_source,
       // rental fields
       listing_type,
@@ -586,6 +588,7 @@ export async function POST(request: Request) {
       google_map_link: typeof google_map_link === "string" ? google_map_link.trim() : null,
       rental_income: typeof rental_income === "number" ? rental_income : null,
       roi: typeof roi === "number" ? roi : null,
+      floor_tenancies: sanitizeFloorTenancies(floor_tenancies),
       listing_source: listing_source === "agent" ? "agent" : "owner",
       listing_type: parsedListingType,
       rent_per_month: typeof rent_per_month === "number" ? rent_per_month : null,

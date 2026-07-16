@@ -841,6 +841,10 @@ export interface Property {
   interested_contacts?: Contact[];
   rental_income?: number | null;
   roi?: number | null;
+  /** Floor-wise rent roll for pre-leased commercial buildings
+   *  (migration 130) — CRM-only, never shown on the public showcase.
+   *  Shape: src/lib/inventory/floor-tenancies.ts FloorTenancy[]. */
+  floor_tenancies?: import('@/lib/inventory/floor-tenancies').FloorTenancy[] | null;
   listing_source?: 'owner' | 'agent' | 'whatsapp_lister' | 'web_lister';
   agent_details?: {
     id: string;

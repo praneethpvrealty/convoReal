@@ -112,6 +112,7 @@ Real estate inventory catalog.
 - `images` (TEXT[]): Array of asset URLs.
 - `rental_income` (NUMERIC): Monthly rental income yield.
 - `roi` (NUMERIC): Yearly rental yield % (`(rental_income * 12) / price * 100`).
+- `floor_tenancies` (JSONB, migration 130): Floor-wise rent roll for pre-leased commercial buildings — array of `{ floor, area_sqft, tenant_name, monthly_rent (excl. GST), lease_start, lease_end, lock_in_months, maintenance, notes }`. CRM-only, never shown on the public showcase. Validation: `src/lib/inventory/floor-tenancies.ts`.
 - `listing_source` (TEXT): CHECK constraint `('owner', 'agent')`.
 - `owner_contact_id` (UUID, FK -> `contacts`): Link to property owner's contact card.
 - `status` (TEXT): e.g. `'Available'`, `'Sold'`, `'Rented'`.

@@ -4,6 +4,7 @@ import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
+import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
 
 // GET /api/properties/[id]
 // Returns a single property with full relations (owner + interested_contacts)
@@ -116,6 +117,7 @@ export async function PUT(
       google_map_link,
       rental_income,
       roi,
+      floor_tenancies,
       listing_source,
       // rental fields
       listing_type,
@@ -365,6 +367,10 @@ export async function PUT(
 
     if (roi !== undefined) {
       updateData.roi = typeof roi === "number" ? roi : null;
+    }
+
+    if (floor_tenancies !== undefined) {
+      updateData.floor_tenancies = sanitizeFloorTenancies(floor_tenancies);
     }
 
     if (listing_source !== undefined) {

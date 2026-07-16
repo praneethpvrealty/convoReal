@@ -361,6 +361,39 @@ export function PropertyForm({
     return Number(((r * 12) / p * 100).toFixed(2));
   }, [price, rentalIncome]);
 
+  // Floor-wise tenancy (rent roll) for pre-leased commercial buildings
+  // under sale — string drafts of lib/inventory/floor-tenancies rows.
+  interface FloorTenancyDraft {
+    floor: string;
+    tenant_name: string;
+    area_sqft: string;
+    monthly_rent: string;
+    lease_start: string;
+    lease_end: string;
+    lock_in_months: string;
+    maintenance: string;
+    notes: string;
+  }
+  const emptyFloorTenancy: FloorTenancyDraft = {
+    floor: '',
+    tenant_name: '',
+    area_sqft: '',
+    monthly_rent: '',
+    lease_start: '',
+    lease_end: '',
+    lock_in_months: '',
+    maintenance: '',
+    notes: '',
+  };
+  const [floorTenancies, setFloorTenancies] = useState<FloorTenancyDraft[]>([]);
+  const updateFloorTenancy = (idx: number, key: keyof FloorTenancyDraft, value: string) => {
+    setFloorTenancies((prev) => prev.map((ft, i) => (i === idx ? { ...ft, [key]: value } : ft)));
+  };
+  const floorRentTotal = useMemo(
+    () => floorTenancies.reduce((sum, ft) => sum + (Number(ft.monthly_rent) || 0), 0),
+    [floorTenancies]
+  );
+
 
 
   interface AutoCompleteProject {
@@ -1287,6 +1320,19 @@ export function PropertyForm({
         setBtsLockInYears(property.bts_lock_in_years !== null && property.bts_lock_in_years !== undefined ? String(property.bts_lock_in_years) : '');
         setBtsEscalationPercent(property.bts_escalation_percent !== null && property.bts_escalation_percent !== undefined ? String(property.bts_escalation_percent) : '');
         setRentalIncome(property.rental_income !== null && property.rental_income !== undefined ? String(property.rental_income) : '');
+        setFloorTenancies(
+          (property.floor_tenancies || []).map((ft) => ({
+            floor: ft.floor || '',
+            tenant_name: ft.tenant_name || '',
+            area_sqft: ft.area_sqft !== null && ft.area_sqft !== undefined ? String(ft.area_sqft) : '',
+            monthly_rent: ft.monthly_rent !== null && ft.monthly_rent !== undefined ? String(ft.monthly_rent) : '',
+            lease_start: ft.lease_start || '',
+            lease_end: ft.lease_end || '',
+            lock_in_months: ft.lock_in_months !== null && ft.lock_in_months !== undefined ? String(ft.lock_in_months) : '',
+            maintenance: ft.maintenance || '',
+            notes: ft.notes || '',
+          }))
+        );
         setType(property.type);
         setStatus(property.status);
         setSoldPrice(property.sold_price !== null && property.sold_price !== undefined ? String(property.sold_price) : '');
@@ -1425,6 +1471,7 @@ export function PropertyForm({
         setBtsLockInYears('');
         setBtsEscalationPercent('');
         setRentalIncome('');
+        setFloorTenancies([]);
         setType('Flat/ Apartment');
         setStatus('Available');
         setBedrooms('');
@@ -2165,6 +2212,21 @@ export function PropertyForm({
         google_map_link: googleMapLink.trim() || null,
         rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
         roi: hasCommercialFields && roiValue !== null ? roiValue : null,
+        // Server-side sanitizeFloorTenancies() drops empty rows and
+        // re-validates every value.
+        floor_tenancies: hasCommercialFields
+          ? floorTenancies.map((ft) => ({
+              floor: ft.floor.trim(),
+              tenant_name: ft.tenant_name.trim() || null,
+              area_sqft: ft.area_sqft.trim() !== '' && !Number.isNaN(Number(ft.area_sqft)) ? Number(ft.area_sqft) : null,
+              monthly_rent: ft.monthly_rent.trim() !== '' && !Number.isNaN(Number(ft.monthly_rent)) ? Number(ft.monthly_rent) : null,
+              lease_start: ft.lease_start || null,
+              lease_end: ft.lease_end || null,
+              lock_in_months: ft.lock_in_months.trim() !== '' && !Number.isNaN(Number(ft.lock_in_months)) ? Number(ft.lock_in_months) : null,
+              maintenance: ft.maintenance.trim() || null,
+              notes: ft.notes.trim() || null,
+            }))
+          : [],
         notes: notes.trim() || null,
         // Coordinates from the Google Maps pick; nulls tell the server to
         // geocode the (possibly changed) location text instead.
@@ -3794,6 +3856,146 @@ export function PropertyForm({
                     )}
                   </div>
                 </div>
+
+                {/* Floor-wise Tenancy (Rent Roll) — pre-leased commercial
+                    buildings under sale: tenant, rent (excl. GST), lease
+                    window, lock-in and maintenance per floor. */}
+                {hasCommercialFields && (
+                  <div className="space-y-4 p-4 rounded-lg border border-slate-800 bg-slate-950/20">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-white">Floor-wise Tenancy (Rent Roll)</h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          For pre-leased buildings — tenant, rent (excluding GST), lease period, lock-in and maintenance per floor. Internal to your CRM; never shown on the showcase.
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setFloorTenancies((prev) => [...prev, { ...emptyFloorTenancy }])}
+                        className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 shrink-0"
+                      >
+                        <Plus className="size-3.5 mr-1" />
+                        Add Floor
+                      </Button>
+                    </div>
+
+                    {floorTenancies.map((ft, idx) => (
+                      <div key={idx} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            Floor / Unit {idx + 1}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setFloorTenancies((prev) => prev.filter((_, i) => i !== idx))}
+                            className="text-slate-500 hover:text-rose-400 transition-colors"
+                            aria-label={`Remove floor ${idx + 1}`}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Floor / Unit</Label>
+                            <Input
+                              value={ft.floor}
+                              onChange={(e) => updateFloorTenancy(idx, 'floor', e.target.value)}
+                              placeholder="e.g. 2nd + 3rd Floor"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Tenant Name</Label>
+                            <Input
+                              value={ft.tenant_name}
+                              onChange={(e) => updateFloorTenancy(idx, 'tenant_name', e.target.value)}
+                              placeholder="e.g. Ramada Hospitality"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Area (Sq.Ft.)</Label>
+                            <Input
+                              type="number"
+                              value={ft.area_sqft}
+                              onChange={(e) => updateFloorTenancy(idx, 'area_sqft', e.target.value)}
+                              placeholder="10000"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Monthly Rent (₹, excl. GST)</Label>
+                            <Input
+                              type="number"
+                              value={ft.monthly_rent}
+                              onChange={(e) => updateFloorTenancy(idx, 'monthly_rent', e.target.value)}
+                              placeholder="1350000"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Lease Start</Label>
+                            <Input
+                              type="date"
+                              value={ft.lease_start}
+                              onChange={(e) => updateFloorTenancy(idx, 'lease_start', e.target.value)}
+                              className="bg-slate-800 border-slate-700 text-white h-8 text-xs [color-scheme:dark]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Lease End</Label>
+                            <Input
+                              type="date"
+                              value={ft.lease_end}
+                              onChange={(e) => updateFloorTenancy(idx, 'lease_end', e.target.value)}
+                              className="bg-slate-800 border-slate-700 text-white h-8 text-xs [color-scheme:dark]"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Lock-in (months)</Label>
+                            <Input
+                              type="number"
+                              value={ft.lock_in_months}
+                              onChange={(e) => updateFloorTenancy(idx, 'lock_in_months', e.target.value)}
+                              placeholder="36"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Maintenance</Label>
+                            <Input
+                              value={ft.maintenance}
+                              onChange={(e) => updateFloorTenancy(idx, 'maintenance', e.target.value)}
+                              placeholder="e.g. ₹5/sqft, by tenant"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-slate-400 text-[11px]">Usage / Notes</Label>
+                          <Input
+                            value={ft.notes}
+                            onChange={(e) => updateFloorTenancy(idx, 'notes', e.target.value)}
+                            placeholder="e.g. 3-Star Hotel · 27 rooms · convention centre (400 seats)"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                          />
+                        </div>
+                      </div>
+                    ))}
+
+                    {floorTenancies.length > 0 && floorRentTotal > 0 && (
+                      <p className="text-xs font-semibold text-slate-300">
+                        Total monthly rent:{' '}
+                        <span className="text-primary">{formatCurrency(floorRentTotal, currency)}</span>{' '}
+                        <span className="text-slate-500 font-medium">(excluding GST)</span>
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Area & Specification Fields */}
                 <div className="space-y-4 p-4 rounded-lg border border-slate-800 bg-slate-950/20">

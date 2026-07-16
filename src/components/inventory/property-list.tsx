@@ -2,6 +2,7 @@
 
 import { useState, ElementType } from 'react';
 import type { Property } from '@/types';
+import { totalMonthlyRent } from '@/lib/inventory/floor-tenancies';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -531,6 +532,24 @@ export function PropertyList({
                         {property.roi ? (
                           <div>
                             ROI (Yield): <span className="text-primary font-semibold">{property.roi}%</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {/* Floor-wise rent roll (pre-leased commercial) */}
+                    {property.floor_tenancies && property.floor_tenancies.length > 0 ? (
+                      <div className="flex justify-between flex-wrap gap-y-2 border-t border-slate-800/45 pt-1.5">
+                        <div>
+                          Rent Roll:{' '}
+                          <span className="text-slate-200">
+                            {property.floor_tenancies.length} floor{property.floor_tenancies.length > 1 ? 's' : ''}
+                            {property.floor_tenancies.some((ft) => ft.tenant_name) ? ' tenanted' : ''}
+                          </span>
+                        </div>
+                        {totalMonthlyRent(property.floor_tenancies) ? (
+                          <div>
+                            <span className="text-slate-200">{formatPrice(totalMonthlyRent(property.floor_tenancies)!)}/mo</span>{' '}
+                            <span className="text-slate-500">excl. GST</span>
                           </div>
                         ) : null}
                       </div>
