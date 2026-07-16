@@ -26,6 +26,7 @@ import {
   AudioLines,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CalendarLoader } from "@/components/ui/calendar-loader";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SearchableContactSelect } from "@/components/ui/searchable-contact-select";
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
@@ -1040,7 +1041,7 @@ export default function CalendarPage() {
 
           {loading ? (
             <div className="flex flex-1 items-center justify-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <CalendarLoader size={64} label="Loading calendar" />
             </div>
           ) : view === "team" ? (
             <TeamView

@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Loader2 } from "lucide-react"
+import { FlowNodeLoader } from "@/components/ui/flow-node-loader"
 
 import {
   AutomationBuilder,
@@ -65,7 +65,7 @@ export default function EditAutomationPage({
   if (!initial) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <FlowNodeLoader size={96} label="Loading automation" />
       </div>
     )
   }

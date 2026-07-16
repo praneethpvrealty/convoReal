@@ -354,3 +354,229 @@ html[data-theme="rose"] {
     opacity: 1;
   }
 }
+
+/* ============================================================
+ * Page loaders — src/components/ui/{message-bubble,brand-pulse,
+ * heartbeat,radar-sweep,contact-card,pipeline-stage,calendar,
+ * checklist,signal-wave,flow-node}-loader.tsx. Same rules as the
+ * property loaders above: pure CSS/SVG, colored by --primary/--card
+ * only, reduced-motion fallback at the bottom.
+ * ============================================================ */
+
+/* Inbox — message-bubble-loader.tsx */
+@keyframes dot-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30%           { transform: translateY(-5px); opacity: 1; }
+}
+@keyframes bubble-pop {
+  0%, 100% { opacity: 0; transform: scale(0.7) translateY(6px); }
+  20%, 55% { opacity: 1; transform: scale(1) translateY(0); }
+  75%      { opacity: 0; transform: scale(0.9) translateY(-3px); }
+}
+.msg-loader .bubble-in { fill: var(--card); stroke: var(--primary); stroke-width: 2; }
+.msg-loader .bubble-out {
+  fill: var(--primary);
+  transform-origin: 78px 19px;
+  animation: bubble-pop 2.6s ease-in-out infinite;
+}
+.msg-loader .dot {
+  fill: var(--primary);
+  transform-origin: center;
+  animation: dot-bounce 1.2s ease-in-out infinite;
+}
+
+/* App-wide fallback — brand-pulse-loader.tsx */
+@keyframes bp-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+@keyframes bp-ring-pulse {
+  0%   { r: 14; opacity: 0.5; }
+  100% { r: 56; opacity: 0; }
+}
+.brand-pulse-loader .bp-core {
+  fill: var(--primary);
+  transform-origin: 60px 60px;
+  animation: bp-breathe 2.4s ease-in-out infinite;
+}
+.brand-pulse-loader .bp-ring {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+  transform-origin: 60px 60px;
+  animation: bp-ring-pulse 2.4s ease-out infinite;
+}
+
+/* Pulse — heartbeat-loader.tsx */
+@keyframes ekg-sweep {
+  0%   { stroke-dashoffset: 1; opacity: 1; }
+  55%  { stroke-dashoffset: 0; opacity: 1; }
+  85%  { opacity: 1; }
+  100% { opacity: 0; stroke-dashoffset: 1; }
+}
+@keyframes ekg-dot-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.3); }
+}
+.heartbeat-loader path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.heartbeat-loader .ekg-track { stroke: var(--primary); stroke-width: 2; opacity: 0.15; }
+.heartbeat-loader .ekg-sweep {
+  stroke: var(--primary);
+  stroke-width: 2.5;
+  stroke-dasharray: 1;
+  animation: ekg-sweep 1.8s ease-in-out infinite;
+}
+.heartbeat-loader .ekg-dot {
+  fill: var(--primary);
+  transform-origin: 156px 32px;
+  animation: ekg-dot-pulse 1.8s ease-in-out infinite;
+}
+
+/* Radar — radar-sweep-loader.tsx */
+@keyframes radar-spin { to { transform: rotate(360deg); } }
+@keyframes radar-blip {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
+}
+.radar-sweep-loader .scope-ring { fill: none; stroke: var(--primary); stroke-width: 1.5; opacity: 0.2; }
+.radar-sweep-loader .sweep-group {
+  transform-origin: 60px 60px;
+  animation: radar-spin 3s linear infinite;
+}
+.radar-sweep-loader .sweep-line { stroke: var(--primary); stroke-width: 1.5; }
+.radar-sweep-loader .blip {
+  fill: var(--primary);
+  animation: radar-blip 3s ease-in-out infinite;
+}
+
+/* Contacts — contact-card-loader.tsx */
+@keyframes card-scan {
+  0%   { transform: translateY(0); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(50px); opacity: 0; }
+}
+.contact-card-loader .card-body { fill: var(--card); stroke: var(--primary); stroke-width: 2; }
+.contact-card-loader .card-avatar { fill: var(--primary); opacity: 0.55; }
+.contact-card-loader .card-line { fill: var(--primary); opacity: 0.3; }
+.contact-card-loader .card-scan {
+  fill: var(--primary);
+  animation: card-scan 2.2s ease-in-out infinite;
+}
+
+/* Pipelines — pipeline-stage-loader.tsx */
+@keyframes stage-slide {
+  0%, 8%   { transform: translate(9px, 15px); }
+  30%      { transform: translate(31px, 8px); }
+  42%, 50% { transform: translate(53px, 15px); }
+  64%      { transform: translate(75px, 8px); }
+  76%, 92% { transform: translate(97px, 15px); }
+  100%     { transform: translate(9px, 15px); }
+}
+.pipeline-stage-loader .stage-col { fill: none; stroke: var(--primary); stroke-width: 1.5; opacity: 0.25; }
+.pipeline-stage-loader .stage-card {
+  fill: var(--primary);
+  animation: stage-slide 3.2s ease-in-out infinite;
+}
+
+/* Calendar — calendar-loader.tsx */
+@keyframes today-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.25); }
+}
+.calendar-loader .cal-tab { fill: var(--primary); }
+.calendar-loader .cal-body { fill: var(--card); stroke: var(--primary); stroke-width: 2; }
+.calendar-loader .cal-header { fill: var(--primary); opacity: 0.9; }
+.calendar-loader .cal-cell { fill: var(--primary); opacity: 0.18; }
+.calendar-loader .cal-today {
+  opacity: 1;
+  transform-origin: center;
+  animation: today-pulse 1.8s ease-in-out infinite;
+}
+
+/* Requirements — checklist-loader.tsx */
+@keyframes check-tick {
+  0%   { stroke-dashoffset: 1; opacity: 0; }
+  8%   { opacity: 1; }
+  28%  { stroke-dashoffset: 0; opacity: 1; }
+  75%  { opacity: 1; }
+  90%  { opacity: 0; stroke-dashoffset: 0; }
+  100% { opacity: 0; stroke-dashoffset: 1; }
+}
+.checklist-loader .cl-clip { fill: var(--primary); }
+.checklist-loader .cl-board { fill: var(--card); stroke: var(--primary); stroke-width: 2; }
+.checklist-loader .cl-box { fill: none; stroke: var(--primary); stroke-width: 1.5; opacity: 0.4; }
+.checklist-loader .cl-text { fill: var(--primary); opacity: 0.25; }
+.checklist-loader .cl-check {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: check-tick 2.4s ease-in-out infinite;
+}
+
+/* Broadcasts & Ads — signal-wave-loader.tsx */
+@keyframes wave-pulse {
+  0%   { r: 6; opacity: 0.6; }
+  100% { r: 34; opacity: 0; }
+}
+.signal-wave-loader .horn-shape { fill: var(--primary); }
+.signal-wave-loader .horn-handle { fill: var(--primary); }
+.signal-wave-loader .wave-ring {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2;
+  animation: wave-pulse 1.8s ease-out infinite;
+}
+
+/* Automations & Flows — flow-node-loader.tsx */
+@keyframes flow-travel {
+  0%   { transform: translateX(0); opacity: 0; }
+  6%   { opacity: 1; }
+  94%  { opacity: 1; }
+  100% { transform: translateX(110px); opacity: 0; }
+}
+@keyframes flow-node-flash {
+  0%, 100% { fill: var(--card); }
+  15%      { fill: var(--primary); }
+}
+.flow-node-loader .flow-line { stroke: var(--primary); stroke-width: 2; opacity: 0.25; }
+.flow-node-loader .flow-node {
+  stroke: var(--primary);
+  stroke-width: 2;
+  fill: var(--card);
+  animation: flow-node-flash 2.4s ease-in-out infinite;
+}
+.flow-node-loader .flow-pulse {
+  fill: var(--primary);
+  animation: flow-travel 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .msg-loader .bubble-out,
+  .msg-loader .dot,
+  .brand-pulse-loader .bp-core,
+  .brand-pulse-loader .bp-ring,
+  .heartbeat-loader .ekg-sweep,
+  .heartbeat-loader .ekg-dot,
+  .radar-sweep-loader .sweep-group,
+  .radar-sweep-loader .blip,
+  .contact-card-loader .card-scan,
+  .pipeline-stage-loader .stage-card,
+  .calendar-loader .cal-today,
+  .checklist-loader .cl-check,
+  .signal-wave-loader .wave-ring,
+  .flow-node-loader .flow-node,
+  .flow-node-loader .flow-pulse {
+    animation: none;
+  }
+  .msg-loader .bubble-out { opacity: 1; }
+  .brand-pulse-loader .bp-ring { r: 30; opacity: 0.3; }
+  .heartbeat-loader .ekg-sweep { stroke-dashoffset: 0; opacity: 0.7; }
+  .radar-sweep-loader .blip { opacity: 0.6; }
+  .checklist-loader .cl-check { stroke-dashoffset: 0; opacity: 0.7; }
+  .signal-wave-loader .wave-ring { r: 18; opacity: 0.3; }
+  .flow-node-loader .flow-pulse { opacity: 0; }
+}

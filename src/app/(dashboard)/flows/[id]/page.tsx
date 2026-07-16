@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { FlowEditorShell } from "@/components/flows/flow-editor-shell";
+import { FlowNodeLoader } from "@/components/ui/flow-node-loader";
 import type { FlowRow, FlowNodeRow } from "@/lib/flows/types";
 
 /**
@@ -65,7 +65,7 @@ export default function FlowEditorPage() {
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+        <FlowNodeLoader size={96} label="Loading flow" />
       </div>
     );
   }

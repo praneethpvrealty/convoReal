@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -279,7 +280,7 @@ export default function BroadcastDetailPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <SignalWaveLoader size={56} label="Loading broadcast" />
       </div>
     );
   }

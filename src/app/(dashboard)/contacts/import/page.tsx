@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import { Loader2, Smartphone, AlertCircle } from 'lucide-react';
+import { Smartphone, AlertCircle } from 'lucide-react';
+import { ContactCardLoader } from '@/components/ui/contact-card-loader';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import type { Contact } from '@/types';
@@ -116,7 +117,7 @@ function ImportSharedContactContent() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
-        <Loader2 className="size-8 animate-spin text-primary" />
+        <ContactCardLoader size={56} label="Processing shared contact data" />
         <p className="text-slate-400 text-sm">Processing shared contact data...</p>
       </div>
     );
@@ -169,7 +170,7 @@ export default function ImportSharedContactPage() {
     <Suspense
       fallback={
         <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
-          <Loader2 className="size-8 animate-spin text-primary" />
+          <ContactCardLoader size={56} label="Loading import page" />
           <p className="text-slate-400 text-sm">Loading import page...</p>
         </div>
       }
