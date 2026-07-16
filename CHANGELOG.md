@@ -100,6 +100,26 @@ this release is wiring with no behaviour change on its own. Existing
 self-hosted instances keep working: every existing user is backfilled
 as the sole owner of their own account and sees identical data.
 
+### Fixed
+
+- **Calendar voice logging ("tap the mic and say it") was silently
+  broken for every visitor.** A site-wide `Permissions-Policy:
+  microphone=()` header (`next.config.ts`) unconditionally vetoed
+  microphone access before the browser's own per-site permission
+  prompt could matter — no amount of allowing the mic in Chrome would
+  have worked. Scoped the policy to `microphone=(self)`. Also stopped
+  masking the real cause behind a single "access denied" toast:
+  `src/components/calendar/mic-error.ts` now maps `NotFoundError` /
+  `NotReadableError` / etc. to a message that names the actual problem
+  and, for genuine permission denials, points at the address-bar
+  site-info icon rather than the OS-level toggle.
+- **WhatsApp preference flow JSON failed Meta's publish validation**
+  ("Property 'init-value' is not allowed in 'TextInput' component.").
+  Per-field `init-value` is only valid on inputs outside a `Form`
+  component; ours are Form-wrapped, so the bindings now live on the
+  Form's `init-values` map instead (`src/lib/whatsapp/
+  preference-flow.ts`).
+
 ### Changed
 
 - **Tenancy moves from per-user to per-account.** RLS on every

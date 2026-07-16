@@ -90,6 +90,20 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
             {
               type: 'Form',
               name: 'preference_form',
+              // Inputs are wrapped in a Form (v4.0+), so per-field
+              // "init-value" is invalid here — Meta rejects it at
+              // publish time ("Property 'init-value' is not allowed
+              // in 'TextInput' component."). Form-wrapped children
+              // are prefilled via the Form's own "init-values" map
+              // instead; each entry still supports the same
+              // ${data.xxx} template binding.
+              'init-values': {
+                min_budget: '${data.min_budget}',
+                max_budget: '${data.max_budget}',
+                areas: '${data.areas}',
+                property_types: '${data.selected_property_types}',
+                min_roi: '${data.min_roi}',
+              },
               children: [
                 {
                   type: 'TextInput',
@@ -97,7 +111,6 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
                   label: 'Minimum budget (INR)',
                   'input-type': 'number',
                   required: false,
-                  'init-value': '${data.min_budget}',
                 },
                 {
                   type: 'TextInput',
@@ -105,7 +118,6 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
                   label: 'Maximum budget (INR)',
                   'input-type': 'number',
                   required: false,
-                  'init-value': '${data.max_budget}',
                 },
                 {
                   type: 'TextArea',
@@ -113,14 +125,12 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
                   label: 'Preferred localities',
                   'helper-text': 'Separate multiple localities with commas',
                   required: false,
-                  'init-value': '${data.areas}',
                 },
                 {
                   type: 'CheckboxGroup',
                   name: 'property_types',
                   label: 'Property types',
                   'data-source': '${data.property_type_options}',
-                  'init-value': '${data.selected_property_types}',
                   required: false,
                 },
                 {
@@ -129,7 +139,6 @@ export function buildPreferenceFlowJson(): Record<string, unknown> {
                   label: 'Expected min ROI (%)',
                   'input-type': 'number',
                   required: false,
-                  'init-value': '${data.min_roi}',
                 },
                 {
                   type: 'Footer',

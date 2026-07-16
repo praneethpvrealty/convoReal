@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Mic, Sparkles, Square, Loader2, X, Check, Calendar as CalendarIcon, ListTodo, User, Home, MapPin, AudioLines } from "lucide-react";
 import { toast } from "sonner";
 import { eventTypeMeta } from "./event-types";
+import { microphoneErrorMessage } from "./mic-error";
 
 interface ParseResponse {
   draft: {
@@ -118,8 +119,8 @@ export function SmartAddBar({ onConfirm }: SmartAddBarProps) {
       recorderRef.current = recorder;
       recorder.start();
       setRecording(true);
-    } catch {
-      toast.error("Microphone access denied. Allow the mic to log events by voice.");
+    } catch (err) {
+      toast.error(microphoneErrorMessage(err));
     }
   };
 
