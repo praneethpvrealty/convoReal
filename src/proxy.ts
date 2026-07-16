@@ -137,11 +137,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // API routes that need auth (not webhooks). Also fails open when auth
-  // was unavailable — every route handler calls getUser()/requireRole
-  // itself, so this gate is an early-exit optimisation, not the boundary.
+  // API routes that need auth (not webhooks, and not Meta's Flows
+  // data-exchange endpoint — /api/whatsapp/flows/endpoint/[accountId]
+  // is called directly by Meta with no browser session at all, for
+  // health-check pings as well as real INIT/data_exchange traffic once
+  // published. It authenticates itself via HMAC signature + RSA/AES
+  // encryption (see webhook-signature.ts / flow-crypto.ts) — gating it
+  // here made Meta's health check (and the flow itself) permanently
+  // fail with 401 before the route handler ever ran).
+  // Also fails open when auth was unavailable — every route handler
+  // calls getUser()/requireRole itself, so this gate is an early-exit
+  // optimisation, not the boundary.
   if (!user && !authUnavailable && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
-      !request.nextUrl.pathname.includes('/webhook')) {
+      !request.nextUrl.pathname.includes('/webhook') &&
+      !request.nextUrl.pathname.startsWith('/api/whatsapp/flows/endpoint/')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
