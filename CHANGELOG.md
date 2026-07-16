@@ -13,6 +13,29 @@ and polish.
 
 ### Added
 
+- **Journey mind map** (**migration required**: `131_journey_mindmap.sql`) —
+  a new `/journey` canvas that renders one relationship's full funnel as
+  a mind map instead of a kanban. Open a buyer's journey and their card
+  fans out to every property shared with them, each property tracing
+  left-to-right through the stages it has reached (Shared → Shortlisted
+  → Visited → Owner Meeting → Token & Legal → Registration → Brokerage
+  Paid — fully customisable per account: rename, recolor, reorder,
+  add/remove stages). Columns render only up to the furthest stage any
+  item has reached; properties that fell out of the running stay visible
+  at the stage where they died, in red, with the drop reason on the
+  card. The same rows read in reverse give the seller view: open a
+  property's journey to see every interested contact racing through the
+  same stages. Click any node for a detail sheet with a stage progress
+  rail, an append-only event timeline, and advance / move / drop-with-
+  reason / reactivate / remove actions; hover a frontier card for a
+  one-click advance. Buyer journeys can bulk-import the contact's
+  existing property inquiries as the first stage. Entry points: sidebar
+  ("Journey"), the contact panel's "Journey Map" action, a journey icon
+  in the inbox thread header, and a "Journey" button on inventory rows.
+  Built on the same React Flow canvas stack as the chatbot flow editor.
+  New tables: `journey_stages`, `journey_items`, `journey_events` (all
+  RLS-scoped per account).
+
 - **New building-construction themed loader for the property
   inventory list, paired with the ConvoReal wordmark like every other
   page loader.** `PropertyConstructionLoader`

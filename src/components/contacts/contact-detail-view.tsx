@@ -48,6 +48,7 @@ import {
   PhoneMissed,
   Clock,
   ArrowUp,
+  Waypoints,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -1430,6 +1431,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     >
                       <Share2 className="size-3 text-amber-400" />
                       Share Listing
+                    </button>
+                    <button
+                      onClick={() => router.push(`/journey?contact=${contact.id}`)}
+                      className="flex items-center gap-1.5 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10 border border-sky-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                    >
+                      <Waypoints className="size-3 text-sky-400" />
+                      Journey Map
                     </button>
                     <button
                       onClick={() => setGreetingsOpen(true)}

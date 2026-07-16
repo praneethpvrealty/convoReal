@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, ElementType } from 'react';
+import { useRouter } from 'next/navigation';
 import type { Property } from '@/types';
 import { totalMonthlyRent } from '@/lib/inventory/floor-tenancies';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import {
   Mail,
   Star,
   Globe,
+  Waypoints,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -91,6 +93,7 @@ export function PropertyList({
   onArchive,
   currency = 'INR',
 }: PropertyListProps) {
+  const router = useRouter();
   const [decidingId, setDecidingId] = useState<string | null>(null);
 
   async function handleApprove(property: Property) {
@@ -753,6 +756,24 @@ export function PropertyList({
                       <TooltipContent side="top">Share property listing</TooltipContent>
                     </Tooltip>
                   )}
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/journey?property=${property.id}`)}
+                          className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                        />
+                      }
+                    >
+                      <>
+                        <Waypoints className="size-3.5 mr-1.5 text-sky-400" /> Journey
+                      </>
+                    </TooltipTrigger>
+                    <TooltipContent side="top">Mind map of interested contacts</TooltipContent>
+                  </Tooltip>
                   {onEmailShare && (
                     <Tooltip>
                       <TooltipTrigger

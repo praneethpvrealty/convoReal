@@ -251,6 +251,12 @@ Used by `chatbot-engine.ts` to store half-parsed details from conversations whil
 CRM sale opportunities.
 - `id`, `account_id`, `contact_id`, `stage_id`, `title`, `amount` (NUMERIC), `brokerage_percent` / `brokerage_amount`, `property_id` (UUID, FK -> `properties`).
 
+#### 22. Journey Mind Map (migration 131)
+Per-(contact × property) funnel tracking behind the `/journey` canvas — records where every shared property/interested contact stands and where the dropped ones fell off.
+- `journey_stages`: `id`, `account_id`, `name`, `color`, `position`. Account-level ordered stage list, customisable; app-seeds Shared → Shortlisted → Visited → Owner Meeting → Token & Legal → Registration → Brokerage Paid on first visit.
+- `journey_items`: `id`, `account_id`, `contact_id`, `property_id`, `stage_id` (furthest stage reached, FK RESTRICT), `status` (`active`/`dropped`), `drop_reason`, `dropped_at`, `notes`, `created_by`. UNIQUE(account_id, contact_id, property_id).
+- `journey_events`: append-only history per item — `event_type` (`added`/`advanced`/`moved`/`dropped`/`reactivated`), `from_stage_id`, `to_stage_id`, `reason`, `created_by`.
+
 ---
 
 ### Group H: Automation & Marketing Flows

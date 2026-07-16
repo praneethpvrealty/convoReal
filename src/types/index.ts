@@ -543,6 +543,61 @@ export interface Deal {
   brokerage_amount?: number | null;
 }
 
+// ── Journey Mind Map (migration 131) ────────────────────────
+
+export interface JourneyStage {
+  id: string;
+  account_id: string;
+  name: string;
+  color: string;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type JourneyItemStatus = 'active' | 'dropped';
+
+/** One contact×property pair on the Journey mind map. `stage_id` is the
+ *  FURTHEST stage reached; status 'dropped' means it exited at that
+ *  stage (with `drop_reason`). Buyer view groups by contact_id, seller
+ *  view groups by property_id — same rows, both directions. */
+export interface JourneyItem {
+  id: string;
+  account_id: string;
+  contact_id: string;
+  property_id: string;
+  stage_id: string;
+  status: JourneyItemStatus;
+  drop_reason?: string | null;
+  dropped_at?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Hydrated by page queries, not stored columns. */
+  contact?: Contact | null;
+  property?: Property | null;
+}
+
+export type JourneyEventType =
+  | 'added'
+  | 'advanced'
+  | 'moved'
+  | 'dropped'
+  | 'reactivated';
+
+export interface JourneyEvent {
+  id: string;
+  account_id: string;
+  item_id: string;
+  event_type: JourneyEventType;
+  from_stage_id?: string | null;
+  to_stage_id?: string | null;
+  reason?: string | null;
+  created_by?: string | null;
+  created_at: string;
+}
+
 export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
 export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'rate_limited';
 
