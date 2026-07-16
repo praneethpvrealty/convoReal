@@ -266,6 +266,34 @@ Per-(contact × property) funnel tracking behind the `/journey` canvas — recor
 - `automation_pending_executions`: Queue for delayed actions.
 - `flows` / `flow_nodes` / `flow_runs` / `flow_run_events`: WhatsApp interactive tree flows.
 
+### Group I: Owners Den (migrations 131–132)
+
+The Owners Den is the authenticated portal for property owners — a parallel
+identity class to staff. A Den user is an `auth.users` row with **no
+`profiles` row**, so every `is_account_member()`-based RLS policy denies
+them by construction; their data access happens through `/api/den/*`
+(service role + explicit owner scoping via `src/lib/den/auth.ts`).
+
+- `den_users`: One row per Den login. `auth_user_id` (unique, → auth.users),
+  verified WhatsApp `phone` + `phone_normalized` (last-10 digits), display
+  name and notification preferences (`notify_matches`, `notify_bids`,
+  `digest_frequency`). Self-select/update RLS only; inserts are
+  service-role.
+- `den_contact_links`: Bridge from a Den user to tenant-scoped `contacts`
+  rows matched by phone (one per account — the same owner may be managed by
+  several agencies). `status` active/revoked; unique `(den_user_id,
+  contact_id)`.
+- `find_den_owner_contacts(p_phone_last10)`: SECURITY DEFINER lookup used by
+  the linking flow — digit-normalized phone match + owner classification
+  (or referenced by any `properties.owner_contact_id`).
+- `properties.deal_mode` (`off`/`soft`/`aggressive`, + `deal_mode_updated_at`,
+  `deal_mode_set_by`): the owner's sell-readiness switch. Partial index
+  `idx_properties_deal_pool` backs the cross-tenant matching sweep
+  (`deal_mode <> 'off' AND is_published`).
+- `handle_new_user()` gains an early-exit guard: signups carrying
+  `raw_user_meta_data->>'app_context' = 'den'` skip staff account/profile
+  bootstrap entirely.
+
 ---
 
 ## 3. Database Indexes Strategy

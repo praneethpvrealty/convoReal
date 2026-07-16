@@ -357,17 +357,30 @@ async function sendConsentRequest(
   return 'sent'
 }
 
-async function gatherAccountDigests(
+/**
+ * Per-owner activity stats for one account. Exported for the Owners
+ * Den dashboard (GET /api/den/dashboard), which calls it per linked
+ * account with `ownerContactIds` narrowing to just that Den user's
+ * contact — the WhatsApp digest run passes no filter and keeps its
+ * original every-owner behavior.
+ */
+export async function gatherOwnerDigests(
   db: SupabaseClient,
   accountId: string,
-  period: DigestPeriod
+  period: DigestPeriod,
+  ownerContactIds?: string[]
 ): Promise<OwnerDigest[]> {
+  if (ownerContactIds && ownerContactIds.length === 0) return []
+
   // Every listing with a known owner contact.
-  const { data: properties } = await db
+  let propertiesQuery = db
     .from('properties')
     .select('id, title, owner_contact_id')
     .eq('account_id', accountId)
-    .not('owner_contact_id', 'is', null)
+  propertiesQuery = ownerContactIds
+    ? propertiesQuery.in('owner_contact_id', ownerContactIds)
+    : propertiesQuery.not('owner_contact_id', 'is', null)
+  const { data: properties } = await propertiesQuery
   if (!properties || properties.length === 0) return []
 
   const propertyIds = properties.map((p) => p.id as string)
@@ -509,7 +522,7 @@ export async function sendOwnerStatusDigests(options?: {
 
     try {
       const period = digestPeriod(frequency, now)
-      const digests = await gatherAccountDigests(db, accountId, period)
+      const digests = await gatherOwnerDigests(db, accountId, period)
       summary.owners = digests.length
       if (digests.length === 0) continue
 

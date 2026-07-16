@@ -901,6 +901,12 @@ export interface Property {
    *  Shape: src/lib/inventory/floor-tenancies.ts FloorTenancy[]. */
   floor_tenancies?: import('@/lib/inventory/floor-tenancies').FloorTenancy[] | null;
   listing_source?: 'owner' | 'agent' | 'whatsapp_lister' | 'web_lister';
+  /** Owners Den sell-readiness flag (migration 132). 'soft' = quietly
+   *  open to offers (masked matching pool only), 'aggressive' =
+   *  actively selling (matched buyers notified immediately). */
+  deal_mode?: 'off' | 'soft' | 'aggressive';
+  deal_mode_updated_at?: string | null;
+  deal_mode_set_by?: 'owner' | 'staff' | null;
   agent_details?: {
     id: string;
     name: string;
