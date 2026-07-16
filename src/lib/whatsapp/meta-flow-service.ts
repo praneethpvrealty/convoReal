@@ -351,6 +351,122 @@ export async function setupPreferenceFlow(args: {
   return finalRow as MetaFlowRow
 }
 
+// ── Direct validation against Meta ────────────────────────────────
+
+export interface FlowValidationResult {
+  valid: boolean
+  errors: Array<{ message: string; line_start?: number }>
+}
+
+/**
+ * Upload the current Buyer Preference Intake Flow JSON to Meta and
+ * report back whatever Meta's own validator says — the same check
+ * `setupPreferenceFlow` relies on, without the publish step. Lets a
+ * hand-authored assumption about Meta's component rules (see the caps
+ * asserted in preference-flow.test.ts) be checked against the real
+ * thing instead of drifting silently until a live publish fails.
+ *
+ * Creates the flow container on Meta if this account doesn't have one
+ * yet (mirrors setupPreferenceFlow step 1), but always leaves it in
+ * draft — nothing here ever calls /publish, so this is safe to run at
+ * any time, including against a flow that's already live.
+ */
+export async function validatePreferenceFlowJson(args: {
+  accountId: string
+  db?: SupabaseClient
+}): Promise<FlowValidationResult> {
+  const db = args.db || supabaseAdmin()
+  const { accountId } = args
+  const cfg = await loadOfficialConfig(db, accountId)
+  const accessToken = decrypt(cfg.access_token!)
+
+  const { data: existingRow } = await db
+    .from('whatsapp_meta_flows')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('flow_key', PREFERENCE_FLOW_KEY)
+    .maybeSingle()
+  let metaFlowId = (existingRow as MetaFlowRow | null)?.meta_flow_id || null
+
+  const metaFetch = async (path: string, init: RequestInit, what: string) => {
+    const response = await fetch(`${META_API_BASE}/${path}`, init)
+    let json: Record<string, unknown> = {}
+    try {
+      json = await response.json()
+    } catch {
+      // fall through with empty body
+    }
+    if (!response.ok) {
+      const err = json as { error?: { message?: string } }
+      throw new Error(`${what} failed: ${err.error?.message || `HTTP ${response.status}`}`)
+    }
+    return json
+  }
+
+  if (!metaFlowId) {
+    const created = await metaFetch(
+      `${cfg.waba_id}/flows`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: PREFERENCE_FLOW_NAME,
+          categories: ['LEAD_GENERATION'],
+          endpoint_uri: flowsEndpointUri(accountId),
+        }),
+      },
+      'Creating flow on Meta'
+    )
+    metaFlowId = String((created as { id?: string }).id || '')
+    if (!metaFlowId) {
+      throw new Error('Meta did not return a flow id on creation.')
+    }
+    await db
+      .from('whatsapp_meta_flows')
+      .upsert(
+        {
+          account_id: accountId,
+          flow_key: PREFERENCE_FLOW_KEY,
+          name: PREFERENCE_FLOW_NAME,
+          status: 'draft',
+          meta_flow_id: metaFlowId,
+          flow_json_version: PREFERENCE_FLOW_JSON_VERSION,
+        },
+        { onConflict: 'account_id,flow_key' }
+      )
+  }
+
+  const flowJson = JSON.stringify(buildPreferenceFlowJson())
+  const form = new FormData()
+  form.append('file', new Blob([flowJson], { type: 'application/json' }), 'flow.json')
+  form.append('name', 'flow.json')
+  form.append('asset_type', 'FLOW_JSON')
+
+  const uploadResult = (await metaFetch(
+    `${metaFlowId}/assets`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: form,
+    },
+    'Uploading flow JSON for validation'
+  )) as {
+    validation_errors?: Array<{ error?: string; message?: string; line_start?: number }>
+  }
+
+  const errors = (uploadResult.validation_errors || [])
+    .filter(Boolean)
+    .map((e) => ({
+      message: e.message || e.error || 'Unknown validation error',
+      line_start: e.line_start,
+    }))
+
+  return { valid: errors.length === 0, errors }
+}
+
 // ── Sessions & sending ────────────────────────────────────────────
 
 export interface FlowSessionRow {

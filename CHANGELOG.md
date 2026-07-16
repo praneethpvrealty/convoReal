@@ -13,6 +13,20 @@ and polish.
 
 ### Added
 
+- **Validate WhatsApp Flow JSON directly against Meta.** Settings →
+  WhatsApp → WhatsApp Flows now has a "Validate Against Meta" button
+  alongside Publish. It uploads the Buyer Preference Intake Flow JSON
+  to Meta's asset validator and reports the real result — without
+  publishing — so a change to the flow blueprint
+  (`src/lib/whatsapp/preference-flow.ts`) can be checked against Meta's
+  actual component rules before going live, instead of relying only on
+  hand-coded assumptions in unit tests (as happened with the
+  `init-value`-inside-`Form` bug fixed above).
+  - `validatePreferenceFlowJson` (`src/lib/whatsapp/meta-flow-service.ts`)
+    — creates the flow container on Meta if needed but never calls
+    `/publish`.
+  - `POST /api/whatsapp/flows/validate` — new route backing the button.
+
 - **On-brand 404 / error pages.** The stock "This page could not be
   found" is replaced everywhere with real-estate-flavored copy in a
   shared "unreliable agent" voice, plus the static house glyph from
