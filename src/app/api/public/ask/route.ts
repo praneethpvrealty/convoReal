@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     // Capture the lead regardless of whether we answer with AI — the
     // buyer gave us a phone number. Best-effort; never blocks the reply.
-    void captureLead(db, property, phone, body?.visitor_name, question);
+    void captureLead(db, property, phone, body?.visitor_name, question, sessionKey);
 
     if (!burnCovered) {
       return NextResponse.json({ answer: null, escalate_whatsapp: true, message: HANDOFF_MESSAGE });
@@ -167,6 +167,7 @@ async function captureLead(
   phone: string,
   name: string | undefined,
   question: string,
+  sessionKey: string,
 ): Promise<void> {
   try {
     let userId = property.user_id;
@@ -203,6 +204,22 @@ async function captureLead(
       user_id: userId,
       note_text: `Showcase Q&A — asked about "${property.title}": "${question.slice(0, 280)}"`,
     });
+
+    // Retroactive stitching: the buyer just revealed who they are, so
+    // their earlier "Anonymous Guest" Pulse events from the same browser
+    // session can now show up under their name too. Same pattern as the
+    // ref/v= stitching in /api/public/showcase-events. Only null rows
+    // are touched — a session already attributed to another contact is
+    // never rewritten.
+    const { error: stitchError } = await db
+      .from('showcase_events')
+      .update({ contact_id: contactId })
+      .eq('account_id', property.account_id)
+      .eq('session_key', sessionKey)
+      .is('contact_id', null);
+    if (stitchError) {
+      console.error('[POST /api/public/ask] Pulse session stitch failed (non-fatal):', stitchError);
+    }
   } catch (err) {
     console.error('[POST /api/public/ask] lead capture failed (non-fatal):', err);
   }

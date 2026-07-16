@@ -6,7 +6,7 @@ import { findOrCreateContact } from "@/lib/contacts/find-or-create";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, phone, email, message, propertyId, propertyTitle, propertyCode, accountId, referrerContactId } = body;
+    const { name, phone, email, message, propertyId, propertyTitle, propertyCode, accountId, referrerContactId, sessionKey } = body;
 
     if (!accountId) {
       return NextResponse.json(
@@ -103,6 +103,25 @@ export async function POST(request: Request) {
     } catch (err) {
       console.error("[POST /api/public/inquiry] Contact find-or-create failed:", err);
       return NextResponse.json({ error: "Failed to process inquiry" }, { status: 500 });
+    }
+
+    // Retroactive stitching: this visitor just revealed who they are, so
+    // their earlier "Anonymous Guest" Pulse events from the same browser
+    // session (tracked via the same showcase_session_key in localStorage)
+    // can now show up under their name too. Same pattern as the ref/v=
+    // stitching in /api/public/showcase-events. Only null rows are
+    // touched — a session already attributed to another contact is never
+    // rewritten.
+    if (typeof sessionKey === "string" && sessionKey.trim()) {
+      const { error: stitchError } = await admin
+        .from("showcase_events")
+        .update({ contact_id: contactId })
+        .eq("account_id", accountId)
+        .eq("session_key", sessionKey.trim().slice(0, 64))
+        .is("contact_id", null);
+      if (stitchError) {
+        console.error("[POST /api/public/inquiry] Pulse session stitch failed (non-fatal):", stitchError);
+      }
     }
 
     // 3. Add inquiry details as a contact note

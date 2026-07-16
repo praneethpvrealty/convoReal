@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Send, MessageCircle, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 
 interface AskPropertyChatProps {
   accountId: string;
@@ -36,18 +37,6 @@ interface AskResponse {
 
 const SUGGESTIONS = ['Is the price negotiable?', "What's nearby?", 'What amenities does it have?'];
 
-function getSessionKey(): string {
-  try {
-    const existing = localStorage.getItem('showcase_session_key');
-    if (existing) return existing;
-    const fresh = crypto.randomUUID();
-    localStorage.setItem('showcase_session_key', fresh);
-    return fresh;
-  } catch {
-    return crypto.randomUUID();
-  }
-}
-
 export function AskPropertyChat({
   accountId,
   propertyId,
@@ -63,7 +52,7 @@ export function AskPropertyChat({
   const [needsPhone, setNeedsPhone] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState('');
   const [loading, setLoading] = useState(false);
-  const sessionKey = useMemo(getSessionKey, []);
+  const sessionKey = useMemo(getShowcaseSessionKey, []);
   const threadRef = useRef<HTMLDivElement>(null);
 
   const scrollToEnd = () => {
