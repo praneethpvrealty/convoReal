@@ -58,7 +58,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-950">
-        <ConvoRealLoader size={56} label="Loading" wordmark />
+        <ConvoRealLoader size={30} label="Loading" />
       </div>
     );
   }

@@ -223,7 +223,7 @@ export default function JoinPage() {
     return (
       <Card className="w-full max-w-md border-slate-800 bg-slate-900">
         <CardContent className="flex flex-col items-center gap-3 py-12">
-          <ConvoRealLoader size={48} label="Verifying invitation" wordmark />
+          <ConvoRealLoader size={26} label="Verifying invitation" />
           <p className="text-sm text-slate-400">Verifying invitation…</p>
         </CardContent>
       </Card>

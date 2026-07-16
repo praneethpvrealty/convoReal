@@ -31,7 +31,7 @@ const MarketplaceTab = dynamic(() => import('./marketplace-tab'), {
   ssr: false,
   loading: () => (
     <div className="flex h-96 items-center justify-center">
-      <ConvoRealLoader size={48} label="Loading Marketplace" />
+      <ConvoRealLoader size={26} label="Loading Marketplace" />
     </div>
   ),
 });
@@ -494,7 +494,7 @@ export default function AdminDashboardPage() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <ConvoRealLoader size={48} label="Loading Admin Dashboard" />
+        <ConvoRealLoader size={26} label="Loading Admin Dashboard" />
       </div>
     );
   }

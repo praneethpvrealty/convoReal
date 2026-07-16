@@ -95,7 +95,7 @@ function ProfileSetupPageInner() {
   if (authLoading || profileLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <ConvoRealLoader size={56} label="Loading Profile Setup" wordmark />
+        <ConvoRealLoader size={30} label="Loading Profile Setup" />
       </div>
     );
   }
