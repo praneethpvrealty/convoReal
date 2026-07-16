@@ -234,6 +234,47 @@ export function classificationFromNameSuffix(
   return ROLE_SUFFIX_TO_CLASSIFICATION[match[1].toLowerCase()] ?? null;
 }
 
+/**
+ * True when the email reads as an inbound inquiry about the
+ * RECIPIENT'S own listing — "…would like to talk to you regarding
+ * your plot", "is interested in your property", Housing's "We have
+ * received a contact request from our user", etc.
+ */
+export function isInquiryAboutOwnListing(text: string): boolean {
+  if (!text) return false;
+  return (
+    /\b(?:regarding|about|interested in|interest in|enquir(?:y|ing)\s+(?:for|about|on)?|inquir(?:y|ing)\s+(?:for|about|on)?)\s*your\s+(?:plot|property|properties|villa|house|flat|apartment|listing|land|office|shop|showroom|site|project|ad(?:vertisement)?)/i.test(text) ||
+    /contact request from our user/i.test(text) ||
+    /(?:they are|is|are) awaiting your resp/i.test(text)
+  );
+}
+
+/**
+ * Deal-aware classification for a portal lead. On inquiry emails
+ * about the recipient's OWN listing, the "(Owner)"/"(Seller)" name
+ * suffix describes the inquirer's portal account type — NOT their
+ * role in this deal. Someone whose Housing account says "Owner" but
+ * who is asking about your plot is a buyer lead, so ownership-type
+ * suffixes collapse to Buyer in that context. "(Broker)"/"(Agent)"
+ * keeps classifying as Agent — knowing the inquirer is another agent
+ * is real signal either way.
+ */
+export function classifyPortalLead(
+  rawName: string,
+  contextText: string,
+): 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | null {
+  const fromSuffix = classificationFromNameSuffix(rawName);
+  if (!fromSuffix) return null;
+  if (
+    fromSuffix !== 'Agent' &&
+    fromSuffix !== 'Buyer' &&
+    isInquiryAboutOwnListing(contextText)
+  ) {
+    return 'Buyer';
+  }
+  return fromSuffix;
+}
+
 // Extractor rules for different portals
 export function parsePortalLead(subject: string, bodyText: string, html: string) {
   // If the body text contains HTML tags, convert it to clean plain text first

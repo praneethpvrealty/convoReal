@@ -7,7 +7,7 @@ import {
   decodeQuotedPrintable,
   isValidContactName,
   stripOwnerSuffix,
-  classificationFromNameSuffix,
+  classifyPortalLead,
   parseBudgetToINR,
   parsePortalLead,
 } from './email-parser';
@@ -24,6 +24,8 @@ export {
   stripHtmlToText,
   stripOwnerSuffix,
   classificationFromNameSuffix,
+  classifyPortalLead,
+  isInquiryAboutOwnListing,
   parsePortalLead,
 } from './email-parser';
 
@@ -419,8 +421,11 @@ export async function POST(request: Request) {
 
     // Read the role suffix (e.g. "Jaffar (Broker)") before stripping it —
     // it's the only signal we have for classifying the contact correctly
-    // instead of defaulting every email lead to 'Buyer'.
-    const classificationFromSuffix = classificationFromNameSuffix(parsed.name);
+    // instead of defaulting every email lead to 'Buyer'. Deal-aware: on
+    // an inquiry about the recipient's OWN listing ("…regarding your
+    // plot"), an "(Owner)" suffix is the inquirer's portal account type,
+    // not their role in this deal — they classify as Buyer.
+    const classificationFromSuffix = classifyPortalLead(parsed.name, `${subject}\n${bodyText}`);
 
     // Strip owner/developer/builder suffixes from name
     // e.g. "Kg Subramanian (Owner)" -> "Kg Subramanian"

@@ -108,6 +108,8 @@ import {
   checkIsNonLeadEmail,
   stripOwnerSuffix,
   classificationFromNameSuffix,
+  classifyPortalLead,
+  isInquiryAboutOwnListing,
   checkLocationMatch,
   POST
 } from './route';
@@ -479,6 +481,68 @@ Content-Transfer-Encoding: quoted-printable
     it('returns null when there is no role suffix, so the caller can apply its own default', () => {
       expect(classificationFromNameSuffix('No Suffix')).toBeNull();
       expect(classificationFromNameSuffix('')).toBeNull();
+    });
+  });
+
+  describe('classifyPortalLead', () => {
+    // The Housing email that misclassified M L Srivastava: "(Owner)"
+    // is the inquirer's PORTAL account type, but they are asking about
+    // the recipient's own plot — for this deal they are a buyer.
+    const housingInquiryEmail = `
+      Hi Price,
+      We have received a contact request from our user:
+      Name: M L Srivastava (Owner)
+      who would like to talk to you regarding your plot:
+      Residential Plot
+      Devanahalli
+      4200 sq. ft.
+      ₹ 4.4 Cr
+      Property ID: 17443808
+      They are awaiting your reponse, please connect with them.
+    `;
+
+    it('classifies an "(Owner)"-suffixed inquirer about YOUR listing as a Buyer', () => {
+      expect(classifyPortalLead('M L Srivastava (Owner)', housingInquiryEmail)).toBe('Buyer');
+    });
+
+    it('collapses all ownership-type suffixes to Buyer on own-listing inquiries', () => {
+      const ctx = 'A user is interested in your Property.';
+      expect(classifyPortalLead('X (Owner)', ctx)).toBe('Buyer');
+      expect(classifyPortalLead('X (Landlord)', ctx)).toBe('Buyer');
+      expect(classifyPortalLead('X (Seller)', ctx)).toBe('Buyer');
+      expect(classifyPortalLead('Acme (Developer)', ctx)).toBe('Buyer');
+      expect(classifyPortalLead('Acme (Builder)', ctx)).toBe('Buyer');
+    });
+
+    it('keeps Agent classification even on own-listing inquiries — knowing the inquirer is an agent is real signal', () => {
+      expect(classifyPortalLead('Jaffar (Broker)', housingInquiryEmail)).toBe('Agent');
+      expect(classifyPortalLead('Robert Smith (Agent)', housingInquiryEmail)).toBe('Agent');
+    });
+
+    it('keeps the suffix mapping when the email is NOT an inquiry about your own listing', () => {
+      const ownerLeadEmail = 'An owner has posted a new property for sale in Devanahalli. Name: Kg Subramanian (Owner)';
+      expect(classifyPortalLead('Kg Subramanian (Owner)', ownerLeadEmail)).toBe('Owner');
+    });
+
+    it('returns null when there is no role suffix', () => {
+      expect(classifyPortalLead('No Suffix', housingInquiryEmail)).toBeNull();
+    });
+  });
+
+  describe('isInquiryAboutOwnListing', () => {
+    it('detects the Housing "contact request from our user" phrasing', () => {
+      expect(isInquiryAboutOwnListing('We have received a contact request from our user')).toBe(true);
+    });
+
+    it('detects "regarding your <property-type>" phrasing', () => {
+      expect(isInquiryAboutOwnListing('who would like to talk to you regarding your plot:')).toBe(true);
+      expect(isInquiryAboutOwnListing('is interested in your Property')).toBe(true);
+      expect(isInquiryAboutOwnListing('enquiry for your villa in Whitefield')).toBe(true);
+    });
+
+    it('does not fire on owner-lead marketplace emails', () => {
+      expect(isInquiryAboutOwnListing('An owner has posted a new property for sale')).toBe(false);
+      expect(isInquiryAboutOwnListing('')).toBe(false);
     });
   });
 
