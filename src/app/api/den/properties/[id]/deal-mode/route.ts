@@ -12,6 +12,7 @@ import { NextResponse } from "next/server";
 
 import { UserFacingError } from "@/lib/auth/account";
 import { withDenAuth, denAdmin } from "@/lib/den/auth";
+import { runDealModeSweep } from "@/lib/den/matching-sweep";
 import { DEAL_MODES, loadOwnedProperty, type DealMode } from "@/lib/den/properties";
 
 export const PUT = withDenAuth(async (ctx, req, routeCtx) => {
@@ -38,6 +39,16 @@ export const PUT = withDenAuth(async (ctx, req, routeCtx) => {
   if (error) {
     console.error("[den deal-mode PUT] update failed:", error);
     return NextResponse.json({ error: "Could not update Deal Mode" }, { status: 500 });
+  }
+
+  // Aggressive means "alert matching buyers NOW" — sweep just this
+  // property immediately instead of waiting for the cron. Soft mode
+  // rides the next scheduled sweep. Fire-and-forget: a sweep failure
+  // must never fail the toggle.
+  if (dealMode === "aggressive" && existing.is_published) {
+    runDealModeSweep(db, { propertyId: id }).catch((err) =>
+      console.error("[den deal-mode PUT] immediate sweep failed:", err),
+    );
   }
 
   return NextResponse.json({

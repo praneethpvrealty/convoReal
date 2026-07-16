@@ -293,6 +293,18 @@ them by construction; their data access happens through `/api/den/*`
 - `handle_new_user()` gains an early-exit guard: signups carrying
   `raw_user_meta_data->>'app_context' = 'den'` skip staff account/profile
   bootstrap entirely.
+- `match_events.source` (`internal`/`deal_mode`) + `subject_snapshot`
+  (migration 133): Deal Mode properties are matched CROSS-TENANT against
+  other accounts' Buyer/Agent contacts by the sweep
+  (`/api/cron/deal-mode-matching`); the resulting event lives in the
+  buyer's account and carries a MASKED property snapshot
+  (`src/lib/den/masking.ts`) — the buyer cannot join the foreign property
+  row through RLS.
+- `den_match_unlocks` (migration 133): the paid reveal. One row per
+  (buyer account, property), UNIQUE-constrained against double billing;
+  `credits_burned` via the standard wallet (`burn_credits_tx`, feature
+  `match_unlock`). Member SELECT via `is_account_member`; writes
+  service-role only (`/api/match-unlocks`).
 
 ---
 

@@ -203,7 +203,15 @@ export interface MatchEvent {
   sent_at: string | null;
   created_at: string;
   updated_at: string;
-  /** Hydrated by page queries, not stored columns. */
+  /** 'deal_mode' = cross-tenant Owners Den event (migration 133): the
+   *  subject property belongs to ANOTHER tenant and is only visible
+   *  through subject_snapshot until unlocked. */
+  source?: 'internal' | 'deal_mode';
+  /** Masked property snapshot for deal_mode events — see
+   *  src/lib/den/masking.ts MaskedPropertySnapshot. */
+  subject_snapshot?: import('@/lib/den/masking').MaskedPropertySnapshot | null;
+  /** Hydrated by page queries, not stored columns. For deal_mode
+   *  events this stays null (RLS blocks the cross-tenant join). */
   property?: Property | null;
   contact?: Contact | null;
 }

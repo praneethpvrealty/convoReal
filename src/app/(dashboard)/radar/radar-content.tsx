@@ -20,6 +20,7 @@ import { buildPropertyAlertTemplatePayload } from "@/lib/whatsapp/property-alert
 import type { MatchEvent, Property } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import { DirectOwnerCard } from "@/components/radar/direct-owner-card";
 import { RadarSweepLoader } from "@/components/ui/radar-sweep-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
@@ -271,7 +272,19 @@ export default function RadarPage() {
         </div>
       ) : (
         <div className="space-y-5">
-          {events.map((evt) => {
+          {/* Direct Owner properties (Owners Den deal_mode events) —
+              cross-tenant masked cards with the credits unlock gate. */}
+          {events
+            .filter((evt) => evt.source === "deal_mode")
+            .map((evt) => (
+              <DirectOwnerCard
+                key={evt.id}
+                event={evt}
+                onDismiss={handleDismiss}
+                dismissing={dismissingId === evt.id}
+              />
+            ))}
+          {events.filter((evt) => evt.source !== "deal_mode").map((evt) => {
             const allTargetIds = evt.matches.map((m) => m.id);
             const selectedIds = checkedTargets[evt.id] || new Set<string>();
             const isAllChecked = allTargetIds.every((id) => selectedIds.has(id));
