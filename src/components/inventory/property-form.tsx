@@ -61,6 +61,7 @@ import {
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
@@ -2811,6 +2812,7 @@ export function PropertyForm({
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-white text-sm">{owner.name || 'Unnamed Owner'}</span>
+                                <NameTagBadge tag={owner.name_tag} />
                                 <Badge className="bg-slate-950 text-slate-400 border border-slate-800 text-[9px] px-1.5 py-0">
                                   {owner.classification || 'Owner'}
                                 </Badge>
@@ -4407,8 +4409,9 @@ export function PropertyForm({
                                   ownerContactId === contact.id ? 'bg-primary/20 text-primary' : 'text-white'
                                 }`}
                               >
-                                <span className="truncate">
-                                  {contact.name || 'Unnamed'} ({contact.phone})
+                                <span className="truncate flex items-center gap-1.5">
+                                  <span className="truncate">{contact.name || 'Unnamed'} ({contact.phone})</span>
+                                  <NameTagBadge tag={contact.name_tag} />
                                 </span>
                                 <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                                   contact.classification === 'Agent' ? 'bg-blue-500/20 text-blue-400' :
@@ -4497,8 +4500,9 @@ export function PropertyForm({
                                   className="flex w-full items-center justify-between rounded px-2.5 py-1.5 text-left text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
                                 >
                                   <div className="truncate pr-4">
-                                    <span className="font-semibold block truncate text-slate-200">
-                                      {c.name || 'Unnamed'} ({c.phone})
+                                    <span className="font-semibold flex items-center gap-1.5 truncate text-slate-200">
+                                      <span className="truncate">{c.name || 'Unnamed'} ({c.phone})</span>
+                                      <NameTagBadge tag={c.name_tag} />
                                     </span>
                                     <span className="text-[10px] text-slate-500 block truncate">
                                       Classification: {c.classification}
@@ -4544,6 +4548,7 @@ export function PropertyForm({
                                     <span className="font-bold text-slate-200">
                                       {c.name || 'Unnamed'}
                                     </span>
+                                    <NameTagBadge tag={c.name_tag} />
                                     <span className="text-slate-500 text-[10px]">
                                       ({c.phone})
                                     </span>
@@ -4751,6 +4756,7 @@ export function PropertyForm({
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-0">
                                       <h4 className="text-sm font-bold text-white truncate">{c.name || 'Unnamed Contact'}</h4>
+                                      <NameTagBadge tag={c.name_tag} />
                                       <span className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${
                                         c.classification === 'Buyer'
                                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
@@ -5211,7 +5217,10 @@ export function PropertyForm({
                              }}
                              className="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs text-slate-200 truncate flex items-center justify-between"
                            >
-                             <span className="font-semibold">{contact.name || 'Unnamed'}</span>
+                             <span className="font-semibold flex items-center gap-1.5">
+                               {contact.name || 'Unnamed'}
+                               <NameTagBadge tag={contact.name_tag} />
+                             </span>
                              <span className="text-[10px] text-slate-400 font-mono">{contact.phone}</span>
                            </button>
                          ))
@@ -5264,7 +5273,10 @@ export function PropertyForm({
                {selectedShareContact && (
                  <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-3.5 space-y-1 text-xs">
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Selected Recipient Info</p>
-                   <p className="text-white font-bold">{selectedShareContact.name || 'Unnamed'}</p>
+                   <p className="text-white font-bold flex items-center gap-1.5">
+                     {selectedShareContact.name || 'Unnamed'}
+                     <NameTagBadge tag={selectedShareContact.name_tag} />
+                   </p>
                    <p className="text-slate-400 font-mono text-[11px]">WhatsApp: {selectedShareContact.phone}</p>
                    {selectedShareContact.email && (
                      <p className="text-slate-400 text-[11px]">Email: {selectedShareContact.email}</p>

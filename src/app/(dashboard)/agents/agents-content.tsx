@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
@@ -285,8 +286,9 @@ export default function AgentsPage() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-xs truncate text-white">
-                      {agent.name || 'Unnamed Agent'}
+                    <div className="font-medium text-xs truncate text-white flex items-center gap-1.5">
+                      <span className="truncate">{agent.name || 'Unnamed Agent'}</span>
+                      <NameTagBadge tag={agent.name_tag} />
                     </div>
                     {agent.company && (
                       <div className="text-[10px] text-slate-400 truncate mt-0.5">
@@ -321,6 +323,7 @@ export default function AgentsPage() {
                     <h2 className="text-lg font-bold text-white">
                       {selectedAgent.name || 'Unnamed Agent'}
                     </h2>
+                    <NameTagBadge tag={selectedAgent.name_tag} />
                     <span className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[9px] uppercase tracking-wider font-semibold text-sky-400">
                       Agent
                     </span>

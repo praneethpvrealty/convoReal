@@ -6,6 +6,7 @@ import { GitMerge, Phone, Mail, ChevronDown, ChevronUp, Loader2, Check, RefreshC
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ interface DuplicateContact {
   source: string | null;
   classification: string | null;
   created_at: string;
+  name_tag?: string | null;
 }
 
 interface DuplicateGroup {
@@ -204,7 +206,10 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
                         key={c.id}
                         className="bg-slate-800/60 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs"
                       >
-                        <div className="font-medium text-white">{c.name || '(no name)'}</div>
+                        <div className="font-medium text-white flex items-center gap-1.5">
+                          <span className="truncate">{c.name || '(no name)'}</span>
+                          <NameTagBadge tag={c.name_tag} />
+                        </div>
                         <div className="text-slate-400 mt-0.5">
                           {c.source || c.classification || 'Unknown source'} ·{' '}
                           {new Date(c.created_at).toLocaleDateString('en-IN')}
@@ -261,7 +266,10 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
                     {targetId === c.id && <Check className="h-2.5 w-2.5 text-white" />}
                   </div>
                   <div className="min-w-0">
-                    <div className="font-medium text-white text-sm">{c.name || '(no name)'}</div>
+                    <div className="font-medium text-white text-sm flex items-center gap-1.5">
+                      <span className="truncate">{c.name || '(no name)'}</span>
+                      <NameTagBadge tag={c.name_tag} />
+                    </div>
                     <div className="text-xs text-slate-400 mt-0.5 flex flex-wrap gap-x-3">
                       <span>{c.phone}</span>
                       {c.email && <span>{c.email}</span>}

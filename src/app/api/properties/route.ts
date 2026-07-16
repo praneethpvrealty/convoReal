@@ -139,7 +139,7 @@ export async function GET(request: Request) {
     const to = from + limit - 1;
 
     const SELECT_COLUMNS =
-      "*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)";
+      "*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)";
 
     // Shared filter chain used by both the plain listing query and the
     // two tiered-location candidate queries.
@@ -655,7 +655,7 @@ export async function POST(request: Request) {
     // Fetch the final created property with relations
     const { data: finalData, error: fetchError } = await ctx.supabase
       .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)")
       .eq("id", rawData.id)
       .eq("account_id", ctx.accountId)
       .single();

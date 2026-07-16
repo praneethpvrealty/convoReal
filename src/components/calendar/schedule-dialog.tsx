@@ -27,6 +27,7 @@ interface SimpleContact {
   name: string;
   phone: string;
   last_inquired_property_id?: string | null;
+  name_tag?: string | null;
 }
 
 interface SimpleProperty {
@@ -75,7 +76,7 @@ export function ScheduleDialog({
       const [contactsRes, propertiesRes] = await Promise.all([
         supabase
           .from('contacts')
-          .select('id, name, phone, last_inquired_property_id')
+          .select('id, name, phone, last_inquired_property_id, name_tag')
           .eq('account_id', accountId)
           .eq('status', 'active')
           .order('name'),

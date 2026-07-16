@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   Loader2,
   Users,
@@ -1692,6 +1693,7 @@ export function PropertyShareDialog({
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <h4 className="text-xs font-bold text-white truncate">{c.name || 'Unnamed'}</h4>
+                            <NameTagBadge tag={c.name_tag} />
                             <span
                               className={`inline-flex items-center rounded px-1.5 py-0.2 text-[9px] font-bold shrink-0 ${c.classification === 'Buyer'
                                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'

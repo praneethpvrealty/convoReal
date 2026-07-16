@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { InfoHint } from '@/components/ui/info-hint'
+import { NameTagBadge } from '@/components/contacts/name-tag-badge'
 import {
   endOfLocalDay,
   loadExpiringSessions,
@@ -623,6 +624,7 @@ export default function TodayPage() {
                         <span className="text-sm font-black text-white truncate">
                           {contact.name || contact.phone}
                         </span>
+                        <NameTagBadge tag={contact.name_tag} />
                         <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[9px] font-bold text-amber-400">
                           {silentLabel(daysSilent)}
                         </span>

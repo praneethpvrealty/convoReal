@@ -4,10 +4,13 @@ import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { NameTagBadge } from "@/components/contacts/name-tag-badge"
 
 interface ActiveUser {
   id: string
   name: string
+  /** Only set for client-sourced entries — team members (profiles) have no name_tag. */
+  nameTag?: string | null
   role: string
   status: "Online" | "Away" | "Offline"
   action: string
@@ -62,7 +65,7 @@ export function ActiveUsers() {
         // 2. Fetch active clients (contacts) in the current account
         const { data: clientData } = await supabase
           .from("contacts")
-          .select("id, name, phone, classification, requirements, updated_at")
+          .select("id, name, name_tag, phone, classification, requirements, updated_at")
           .eq("account_id", accountId || "")
           .order("updated_at", { ascending: false })
           .limit(5)
@@ -135,6 +138,7 @@ export function ActiveUsers() {
             activeList.push({
               id: client.id,
               name,
+              nameTag: client.name_tag,
               role: client.classification || "Client",
               status,
               action,
@@ -204,7 +208,10 @@ export function ActiveUsers() {
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-black text-white truncate">{u.name}</span>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-xs font-black text-white truncate">{u.name}</span>
+                  <NameTagBadge tag={u.nameTag} />
+                </span>
                 <span className={`inline-flex items-center gap-1 text-[10px] font-bold ${
                   u.status === "Online" 
                     ? "text-emerald-400" 

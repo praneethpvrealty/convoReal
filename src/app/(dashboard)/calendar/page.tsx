@@ -38,6 +38,7 @@ import {
 } from "@/lib/calendar/auto-link";
 import { InfoHint } from "@/components/ui/info-hint";
 import { FavoriteButton } from "@/components/layout/favorite-button";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { SmartAddBar, ConfirmedEventDraft } from "@/components/calendar/smart-add-bar";
 import { TeamView } from "@/components/calendar/team-view";
 import { WeekView } from "@/components/calendar/week-view";
@@ -85,6 +86,7 @@ interface SimpleContact {
   name: string;
   phone: string;
   last_inquired_property_id?: string | null;
+  name_tag?: string | null;
 }
 
 interface SimpleProperty {
@@ -169,7 +171,7 @@ export default function CalendarPage() {
 
       const { data: appts, error: apptError } = await supabase
         .from("appointments")
-        .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
+        .select("*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("start_time", { ascending: true });
 
@@ -178,7 +180,7 @@ export default function CalendarPage() {
 
       const { data: todoList, error: todoError } = await supabase
         .from("todos")
-        .select("*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)")
+        .select("*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, location, sublocality)")
         .eq("account_id", accountId)
         .order("created_at", { ascending: true });
 
@@ -187,7 +189,7 @@ export default function CalendarPage() {
 
       const { data: contactsList } = await supabase
         .from("contacts")
-        .select("id, name, phone, last_inquired_property_id")
+        .select("id, name, phone, last_inquired_property_id, name_tag")
         .eq("account_id", accountId)
         .order("name");
       setContacts(contactsList || []);
@@ -1282,7 +1284,9 @@ export default function CalendarPage() {
                             onClick={() => selectMention(c.name, c.id, "contact")}
                             className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
                           >
-                            {c.name} ({c.phone})
+                            <span className="inline-flex items-center gap-1.5">
+                              {c.name} ({c.phone}) <NameTagBadge tag={c.name_tag} />
+                            </span>
                           </button>
                         ))
                       )

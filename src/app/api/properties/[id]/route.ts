@@ -24,7 +24,7 @@ export async function GET(
 
     const { data, error } = await ctx.supabase
       .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -521,7 +521,7 @@ export async function PUT(
     // Fetch the updated property with relations
     const { data: finalData, error: fetchErr } = await ctx.supabase
       .from("properties")
-      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification)")
+      .select("*, owner:contacts!properties_owner_contact_id_fkey(name, phone, classification, name_tag), interested_contacts:contacts!contacts_last_inquired_property_id_fkey(id, name, phone, classification, name_tag)")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .single();

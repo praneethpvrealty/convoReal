@@ -20,6 +20,7 @@ import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 /**
  * Run history viewer.
@@ -47,7 +48,7 @@ interface RunRow {
   end_reason: string | null;
   vars: Record<string, unknown>;
   reprompt_count: number;
-  contact: { id: string; name: string | null; phone: string } | null;
+  contact: { id: string; name: string | null; phone: string; name_tag?: string | null } | null;
 }
 
 interface EventRow {
@@ -247,6 +248,7 @@ function RunCard({
             <span className="truncate text-sm font-medium text-white">
               {contactLabel}
             </span>
+            <NameTagBadge tag={run.contact?.name_tag} />
             <Badge variant="outline" className={cn("gap-1", meta.classes)}>
               <StatusIcon className="h-3 w-3" />
               {meta.label}

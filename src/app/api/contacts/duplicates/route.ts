@@ -16,6 +16,7 @@ export interface DuplicateContact {
   classification: string | null;
   created_at: string;
   conversation_count: number;
+  name_tag?: string | null;
 }
 
 export interface DuplicateGroup {
@@ -31,7 +32,7 @@ export async function GET() {
     // Pull all non-merged contacts with phone + email
     const { data: contacts, error } = await ctx.supabase
       .from('contacts')
-      .select('id, name, phone, email, source, classification, created_at')
+      .select('id, name, phone, email, source, classification, created_at, name_tag')
       .eq('account_id', ctx.accountId)
       .eq('is_merged', false)
       .not('phone', 'is', null)
@@ -80,6 +81,7 @@ export async function GET() {
           classification: r.classification,
           created_at: r.created_at,
           conversation_count: 0,
+          name_tag: r.name_tag,
         })),
       });
     }
@@ -101,6 +103,7 @@ export async function GET() {
           classification: r.classification,
           created_at: r.created_at,
           conversation_count: 0,
+          name_tag: r.name_tag,
         })),
       });
     }

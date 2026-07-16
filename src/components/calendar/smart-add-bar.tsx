@@ -6,6 +6,7 @@ import { Mic, Sparkles, Square, Loader2, X, Check, Calendar as CalendarIcon, Lis
 import { toast } from "sonner";
 import { eventTypeMeta } from "./event-types";
 import { microphoneErrorMessage } from "./mic-error";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 interface ParseResponse {
   draft: {
@@ -23,7 +24,7 @@ interface ParseResponse {
   resolved: {
     start_time: string | null;
     end_time: string | null;
-    contact: { id: string; name: string; phone: string } | null;
+    contact: { id: string; name: string; phone: string; name_tag?: string | null } | null;
     property: { id: string; title: string } | null;
     assignee: { user_id: string; full_name: string | null } | null;
   } | null;
@@ -252,6 +253,7 @@ export function SmartAddBar({ onConfirm }: SmartAddBarProps) {
             {preview.resolved?.contact && (
               <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-400">
                 <User className="h-3 w-3" /> {preview.resolved.contact.name}
+                <NameTagBadge tag={preview.resolved.contact.name_tag} />
               </span>
             )}
             {!preview.resolved?.contact && preview.draft.contact_name && (

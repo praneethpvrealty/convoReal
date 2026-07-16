@@ -3,11 +3,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check } from 'lucide-react';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 
 interface Contact {
   id: string;
   name: string;
   phone: string;
+  name_tag?: string | null;
 }
 
 interface SearchableContactSelectProps {
@@ -96,10 +98,6 @@ export function SearchableContactSelect({
     }
   }, [isOpen]);
 
-  const triggerLabel = selectedContact
-    ? `${selectedContact.name} (${selectedContact.phone})`
-    : placeholder;
-
   const dropdownContent = isOpen && dropdownPosition ? (
     <div
       ref={dropdownRef}
@@ -172,7 +170,10 @@ export function SearchableContactSelect({
                 }`}
               >
                 <div className="min-w-0 pr-3 flex-1">
-                  <span className="font-bold truncate block">{contact.name}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-bold truncate block min-w-0 flex-1">{contact.name}</span>
+                    <NameTagBadge tag={contact.name_tag} />
+                  </div>
                   <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
                     📞 {contact.phone}
                   </p>
@@ -195,8 +196,15 @@ export function SearchableContactSelect({
         onClick={() => setIsOpen(!isOpen)}
         className="flex h-9.5 w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white shadow-sm transition-colors hover:bg-slate-750 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed font-medium text-left"
       >
-        <span className="truncate pr-4 select-none">
-          {triggerLabel}
+        <span className="flex items-center gap-1.5 min-w-0 pr-4 select-none">
+          {selectedContact ? (
+            <>
+              <span className="truncate">{selectedContact.name} ({selectedContact.phone})</span>
+              <NameTagBadge tag={selectedContact.name_tag} />
+            </>
+          ) : (
+            <span className="truncate">{placeholder}</span>
+          )}
         </span>
         <ChevronDown className={`size-3.5 shrink-0 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>

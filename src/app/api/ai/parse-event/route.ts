@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     const [{ data: contacts }, { data: properties }] = await Promise.all([
       ctx.supabase
         .from('contacts')
-        .select('id, name, phone, last_inquired_property_id')
+        .select('id, name, phone, last_inquired_property_id, name_tag')
         .eq('account_id', ctx.accountId),
       ctx.supabase
         .from('properties')
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
         resolved: {
           start_time: startIso,
           end_time: endIso,
-          contact: contact ? { id: contact.id, name: contact.name, phone: contact.phone } : null,
+          contact: contact ? { id: contact.id, name: contact.name, phone: contact.phone, name_tag: contact.name_tag } : null,
           property: property ? { id: property.id, title: property.title } : null,
           assignee: assignee ? { user_id: assignee.id, full_name: assignee.full_name } : null,
         },
