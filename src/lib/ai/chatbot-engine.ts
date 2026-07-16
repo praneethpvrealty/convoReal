@@ -14,11 +14,12 @@ import {
 } from '@/lib/ai/gemini';
 import { uploadPropertyImage, uploadPropertyDocument } from '@/lib/storage/upload';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
-import { 
-  sendTextMessage, 
-  downloadMedia, 
+import {
+  sendTextMessage,
+  downloadMedia,
   getMediaUrl,
-  sendInteractiveButtons
+  sendInteractiveButtons,
+  sendReactionMessage
 } from '@/lib/whatsapp/meta-api';
 import { autoSyncPropertyCatalogIfNeeded } from '@/lib/whatsapp/catalog-sync-helper';
 import { extractImagesFromPdf } from '@/lib/pdf/image-extractor';
@@ -239,6 +240,45 @@ async function sendPropertyDraftPreview(
   await saveBotMessage(conversationId, reply, sendRes.messageId);
 }
 
+// How long the draft must sit quiet before the confirmation card goes
+// out. Media arrivals "touch" the session immediately (see
+// reactToInboundMessage / touchDraftSession below), so while an album
+// is still streaming in, every earlier preview thread sees a newer
+// write and yields — the user gets ONE final card, not one per photo.
+const DRAFT_PREVIEW_DEBOUNCE_MS = 8000;
+
+/** Lightweight per-media ack: a reaction on the user's own message
+ *  (⏳ while uploading, ✅ when attached) instead of a chat bubble.
+ *  Best-effort — a failed reaction never blocks the upload. */
+async function reactToInboundMessage(
+  phoneNumberId: string,
+  accessToken: string,
+  to: string,
+  targetMessageId: string | undefined,
+  emoji: string
+): Promise<void> {
+  if (!targetMessageId) return;
+  try {
+    await sendReactionMessage({ phoneNumberId, accessToken, to, targetMessageId, emoji });
+  } catch (err) {
+    console.warn('[chatbot-engine] media ack reaction failed (non-fatal):', err);
+  }
+}
+
+/** Touch the draft session's updated_at BEFORE the slow media
+ *  download/upload, so any older pending preview thread sees a newer
+ *  write and yields its confirmation card to this one. */
+async function touchDraftSession(sessionId: string): Promise<void> {
+  try {
+    await supabaseAdmin()
+      .from('property_draft_sessions')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', sessionId);
+  } catch (err) {
+    console.warn('[chatbot-engine] draft arrival touch failed (non-fatal):', err);
+  }
+}
+
 async function sendPropertyDraftPreviewDebounced(
   sessionId: string,
   updatedAtString: string,
@@ -249,8 +289,8 @@ async function sendPropertyDraftPreviewDebounced(
   conversationId: string
 ): Promise<void> {
   try {
-    // Wait 4 seconds for concurrent uploads/messages to settle
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+    // Wait for concurrent uploads/messages to settle
+    await new Promise((resolve) => setTimeout(resolve, DRAFT_PREVIEW_DEBOUNCE_MS));
 
     // Query database to see if a newer update was made
     const { data: currentSession } = await supabaseAdmin()
@@ -277,10 +317,13 @@ async function sendPropertyDraftPreviewDebounced(
     const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
     const missingFields = validation.missingFields;
 
-    // Customize header count of images
+    // Customize header counts — this thread may be summarizing several
+    // attachments that landed after the header string was built.
     let finalHeader = header;
     if (header.includes('Photo added successfully') || header.includes('Photos added successfully')) {
       finalHeader = `📸 *Photos added successfully!* Total photos attached: *${latestDraft.images.length}*.`;
+    } else if (header.includes('Document added successfully') || header.includes('Documents added successfully')) {
+      finalHeader = `📄 *Documents added successfully!* Total documents attached: *${(latestDraft.documents || []).length}*.`;
     }
 
     await sendPropertyDraftPreview(
@@ -879,15 +922,11 @@ export async function processOwnerChatbotMessage(
 
     // Handle image upload inside active session
     if (message.type === 'image' && message.image?.id) {
-      // Prompt user that we are downloading/uploading
-      const uploadMsg = "⏳ _Uploading photo to draft listing... Please wait._";
-      const uploadSendRes = await sendTextMessage({
-        phoneNumberId,
-        accessToken,
-        to: contactRecord.phone,
-        text: uploadMsg
-      });
-      await saveBotMessage(conversation.id, uploadMsg, uploadSendRes.messageId);
+      // Ack with a ⏳ reaction on the photo itself (no chat bubble per
+      // photo) and touch the session so pending preview threads yield —
+      // an album ends as ONE confirmation card, not one per photo.
+      await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+      await touchDraftSession(propSession.id);
 
       try {
         const mediaId = message.image.id;
@@ -955,13 +994,16 @@ export async function processOwnerChatbotMessage(
 
         const savedTime = finalUpdateData[0].updated_at;
 
+        // Flip the ⏳ to ✅ on the user's photo — the only per-photo ack.
+        void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+
         sendPropertyDraftPreviewDebounced(
           propSession.id,
           savedTime,
           phoneNumberId,
           accessToken,
           contactRecord.phone,
-          `📸 *Photo added successfully!* Total photos attached: *${updatedDraft.images.length}*.`,
+          `📸 *Photos added successfully!* Total photos attached: *${updatedDraft.images.length}*.`,
           conversation.id
         );
         return true;
@@ -970,21 +1012,27 @@ export async function processOwnerChatbotMessage(
         const reply = "❌ *Failed to upload image.* Please verify the photo format and try again.";
         const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        // Our arrival touch may have silenced an earlier thread's card —
+        // fire a recovery preview so the album still ends with one card.
+        sendPropertyDraftPreviewDebounced(
+          propSession.id,
+          new Date().toISOString(),
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          '📝 *Draft Listing:*',
+          conversation.id
+        );
         return true;
       }
     }
 
     // Handle document upload inside active session
     if (message.type === 'document' && message.document?.id) {
-      // Prompt user that we are downloading/uploading
-      const uploadMsg = "⏳ _Uploading document to draft listing... Please wait._";
-      const uploadSendRes = await sendTextMessage({
-        phoneNumberId,
-        accessToken,
-        to: contactRecord.phone,
-        text: uploadMsg
-      });
-      await saveBotMessage(conversation.id, uploadMsg, uploadSendRes.messageId);
+      // Same lightweight ack pattern as photos: react + touch, no
+      // per-document chat bubble.
+      await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+      await touchDraftSession(propSession.id);
 
       try {
         const { buffer, mimeType } = await loadInboundMedia();
@@ -1050,13 +1098,15 @@ export async function processOwnerChatbotMessage(
 
         const savedTime = finalUpdateData[0].updated_at;
 
+        void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+
         sendPropertyDraftPreviewDebounced(
           propSession.id,
           savedTime,
           phoneNumberId,
           accessToken,
           contactRecord.phone,
-          `📄 *Document added successfully!* Total documents attached: *${(updatedDraft.documents || []).length}*.`,
+          `📄 *Documents added successfully!* Total documents attached: *${(updatedDraft.documents || []).length}*.`,
           conversation.id
         );
         return true;
@@ -1065,6 +1115,15 @@ export async function processOwnerChatbotMessage(
         const reply = "❌ *Failed to upload document.* Please try again.";
         const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
+        sendPropertyDraftPreviewDebounced(
+          propSession.id,
+          new Date().toISOString(),
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          '📝 *Draft Listing:*',
+          conversation.id
+        );
         return true;
       }
     }
@@ -2148,14 +2207,10 @@ export async function processExternalListingMessage(
 
   // Handle image upload inside active session
   if (message.type === 'image' && message.image?.id) {
-    const uploadMsg = "⏳ _Uploading photo to draft listing... Please wait._";
-    const uploadSendRes = await sendTextMessage({
-      phoneNumberId,
-      accessToken,
-      to: contactRecord.phone,
-      text: uploadMsg
-    });
-    await saveBotMessage(conversation.id, uploadMsg, uploadSendRes.messageId);
+    // React + touch instead of a per-photo chat bubble — see the owner
+    // intake image branch for the full rationale.
+    await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+    await touchDraftSession(propSession.id);
 
     try {
       const mediaId = message.image.id;
@@ -2222,13 +2277,15 @@ export async function processExternalListingMessage(
 
       const savedTime = finalUpdateData[0].updated_at;
 
+      void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+
       sendPropertyDraftPreviewDebounced(
         propSession.id,
         savedTime,
         phoneNumberId,
         accessToken,
         contactRecord.phone,
-        `📸 *Photo added successfully!* Total photos attached: *${updatedDraft.images.length}*.`,
+        `📸 *Photos added successfully!* Total photos attached: *${updatedDraft.images.length}*.`,
         conversation.id
       );
       return true;
@@ -2237,6 +2294,15 @@ export async function processExternalListingMessage(
       const reply = "❌ *Failed to upload image.* Please verify the photo format and try again.";
       const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      sendPropertyDraftPreviewDebounced(
+        propSession.id,
+        new Date().toISOString(),
+        phoneNumberId,
+        accessToken,
+        contactRecord.phone,
+        '📝 *Draft Listing:*',
+        conversation.id
+      );
       return true;
     }
   }
