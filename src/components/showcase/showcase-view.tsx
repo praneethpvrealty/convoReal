@@ -28,6 +28,8 @@ import {
   Share2,
   ThumbsUp,
   ThumbsDown,
+  Bell,
+  Home,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -1060,6 +1062,51 @@ export function ShowcaseView({
           <p className="mt-4 text-sm sm:text-base text-slate-400 font-medium leading-relaxed">
             Browse through our handpicked collection of premium villa plots, residential land, apartments, and commercial spaces. Managed directly by property owners and agents.
           </p>
+        </div>
+
+        {/* Next-step CTAs — get alerted on hot deals, or list your own property */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="size-11 rounded-xl bg-primary/15 flex items-center justify-center text-primary shrink-0">
+              <Bell className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-black text-white">Never miss a hot or urgent deal</h3>
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                Tell us your budget and locality — we&apos;ll message you on WhatsApp the moment a matching or urgently-priced listing goes live.
+              </p>
+            </div>
+            <Button
+              onClick={openRequirementsModal}
+              className="w-full sm:w-auto shrink-0 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold px-4 cursor-pointer"
+            >
+              Get Deal Alerts
+            </Button>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="size-11 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-400 shrink-0">
+              <Home className="size-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-black text-white">Have a property to sell or rent?</h3>
+              <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">
+                List it in minutes — paste the details, add photos, and we&apos;ll verify you on WhatsApp. Or just message us and we&apos;ll walk you through it.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto shrink-0">
+              <a
+                href={`/list?ref=${accountId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackPixelEvent('Lead', { inquiry_type: 'list_property_click' })}
+              >
+                <Button className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 cursor-pointer">
+                  List My Property
+                </Button>
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* Filter Controls Bar */}

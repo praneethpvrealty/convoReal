@@ -15,6 +15,8 @@ import {
   Users,
   Building,
   TrendingUp,
+  UserCheck,
+  ArrowRight,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -28,8 +30,22 @@ import {
   type PulseStats,
   type HydratedShowcaseEvent,
 } from "@/lib/pulse/queries";
+import { dedupeConsecutiveEvents } from "@/lib/pulse/dedupe-feed";
 import { HeartbeatLoader } from "@/components/ui/heartbeat-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
+
+type FeedFilter = "all" | "property_views" | "identified";
+
+const FEED_FILTERS: Array<{ key: FeedFilter; label: string }> = [
+  { key: "all", label: "All Activity" },
+  { key: "property_views", label: "Property Views" },
+  { key: "identified", label: "Identified Only" },
+];
+
+// Below this share of anonymous events (and this minimum feed size), the
+// timeline nudges the agent toward per-contact tracked links instead.
+const ANONYMOUS_NUDGE_THRESHOLD = 0.6;
+const ANONYMOUS_NUDGE_MIN_EVENTS = 5;
 
 export default function PulsePage() {
   const router = useRouter();
@@ -38,6 +54,7 @@ export default function PulsePage() {
   const [feed, setFeed] = useState<HydratedShowcaseEvent[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
 
   const fetchStatsAndFeed = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -177,6 +194,18 @@ export default function PulsePage() {
     return new Date(isoString).toLocaleDateString([], { month: "short", day: "numeric" });
   };
 
+  const filteredFeed = (feed ?? []).filter((evt) => {
+    if (feedFilter === "identified") return !!evt.contact;
+    if (feedFilter === "property_views") return evt.event_type !== "open";
+    return true;
+  });
+  const dedupedFeed = dedupeConsecutiveEvents(filteredFeed);
+
+  const anonymousCount = (feed ?? []).filter((evt) => !evt.contact).length;
+  const showAnonymousNudge =
+    (feed?.length ?? 0) >= ANONYMOUS_NUDGE_MIN_EVENTS &&
+    anonymousCount / (feed?.length ?? 1) >= ANONYMOUS_NUDGE_THRESHOLD;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -257,23 +286,63 @@ export default function PulsePage() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Left/Middle: Live Engagement timeline */}
             <div className="lg:col-span-8 rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
-              <div>
-                <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
-                  <TrendingUp className="size-4 text-primary" />
-                  Live Event Timeline
-                  <InfoHint text="Real-time feed of clicks, swipes, map taps, and page views from your shared Showcase links." />
-                </h2>
-                <p className="text-[11px] text-slate-500 mt-0.5">Chronological clickstream of shared link activity.</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-wider flex items-center gap-2">
+                    <TrendingUp className="size-4 text-primary" />
+                    Live Event Timeline
+                    <InfoHint text="Real-time feed of clicks, swipes, map taps, and page views from your shared Showcase links." />
+                  </h2>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Chronological clickstream of shared link activity.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {FEED_FILTERS.map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setFeedFilter(f.key)}
+                      className={`text-[10px] px-2.5 py-1.5 rounded-lg border transition-all cursor-pointer font-bold ${
+                        feedFilter === f.key
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {showAnonymousNudge && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/inventory")}
+                  className="w-full flex items-center gap-2.5 rounded-lg border border-primary/25 bg-primary/5 px-3.5 py-2.5 text-left cursor-pointer hover:bg-primary/10 transition-all group"
+                >
+                  <UserCheck className="size-4 text-primary shrink-0" />
+                  <span className="text-[11px] text-slate-300 leading-relaxed">
+                    Most of this activity is <strong className="text-white">Anonymous</strong>.
+                    Send links personally from{" "}
+                    <strong className="text-primary">Inventory → Share Showcase → Send personally</strong>{" "}
+                    to see visitors by name here.
+                  </span>
+                  <ArrowRight className="size-3.5 text-primary shrink-0 ml-auto group-hover:translate-x-0.5 transition-transform" />
+                </button>
+              )}
 
               {!feed || feed.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
                   <Activity className="size-8 mx-auto text-slate-650 mb-3 animate-pulse" />
                   <p className="text-xs font-bold text-slate-500">No clicks or engagement events logged yet</p>
                 </div>
+              ) : dedupedFeed.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center">
+                  <Activity className="size-8 mx-auto text-slate-650 mb-3" />
+                  <p className="text-xs font-bold text-slate-500">No events match this filter</p>
+                </div>
               ) : (
                 <div className="relative border-l border-slate-800 ml-3 pl-5 space-y-5 py-2 max-h-[600px] overflow-y-auto pr-2">
-                  {feed.map((evt) => {
+                  {dedupedFeed.map((evt) => {
                     const avatarInit = evt.contact
                       ? (evt.contact.name || evt.contact.phone).charAt(0).toUpperCase()
                       : "?";
@@ -309,6 +378,12 @@ export default function PulsePage() {
                                 <span className="font-mono text-[9px] bg-slate-950/40 px-1 py-0.2 rounded">
                                   {evt.session_key.slice(0, 8)}
                                 </span>
+                                {evt.repeatCount > 1 && (
+                                  <>
+                                    <span>•</span>
+                                    <span className="text-primary">×{evt.repeatCount}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
