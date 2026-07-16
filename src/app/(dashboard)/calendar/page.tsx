@@ -29,8 +29,13 @@ import { toast } from "sonner";
 import { CalendarLoader } from "@/components/ui/calendar-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { SearchableContactSelect } from "@/components/ui/searchable-contact-select";
+import { SearchableContactMultiSelect } from "@/components/ui/searchable-contact-multi-select";
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
+import {
+  autoLinkContactProperty,
+  linkedContactForProperty,
+  linkedPropertyForContacts,
+} from "@/lib/calendar/auto-link";
 import { InfoHint } from "@/components/ui/info-hint";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 import { SmartAddBar, ConfirmedEventDraft } from "@/components/calendar/smart-add-bar";
@@ -75,11 +80,13 @@ interface SimpleContact {
   id: string;
   name: string;
   phone: string;
+  last_inquired_property_id?: string | null;
 }
 
 interface SimpleProperty {
   id: string;
   title: string;
+  property_code?: string | null;
   location: string | null;
   sublocality: string | null;
 }
@@ -121,7 +128,7 @@ export default function CalendarPage() {
   // Appointment Form state
   const [apptTitle, setApptTitle] = useState("");
   const [apptDesc, setApptDesc] = useState("");
-  const [apptContactId, setApptContactId] = useState("");
+  const [apptContactIds, setApptContactIds] = useState<string[]>([]);
   const [apptPropertyId, setApptPropertyId] = useState("");
   const [apptStartTime, setApptStartTime] = useState("");
   const [apptEndTime, setApptEndTime] = useState("");
@@ -174,14 +181,14 @@ export default function CalendarPage() {
 
       const { data: contactsList } = await supabase
         .from("contacts")
-        .select("id, name, phone")
+        .select("id, name, phone, last_inquired_property_id")
         .eq("account_id", accountId)
         .order("name");
       setContacts(contactsList || []);
 
       const { data: propsList } = await supabase
         .from("properties")
-        .select("id, title, location, sublocality")
+        .select("id, title, property_code, location, sublocality")
         .eq("account_id", accountId)
         .order("title");
       setProperties(propsList || []);
@@ -349,7 +356,7 @@ export default function CalendarPage() {
     setSelectedAppt(null);
     setApptTitle("");
     setApptDesc("");
-    setApptContactId("");
+    setApptContactIds([]);
     setApptPropertyId("");
     setApptLocation("");
     setApptStatus("scheduled");
@@ -370,7 +377,13 @@ export default function CalendarPage() {
     setSelectedAppt(appt);
     setApptTitle(appt.title);
     setApptDesc(appt.description || "");
-    setApptContactId(appt.contact_id || "");
+    setApptContactIds(
+      appt.contact_ids && appt.contact_ids.length > 0
+        ? appt.contact_ids
+        : appt.contact_id
+          ? [appt.contact_id]
+          : []
+    );
     setApptPropertyId(appt.property_id || "");
     setApptLocation(appt.location || "");
     setApptStatus(appt.status);
@@ -416,7 +429,10 @@ export default function CalendarPage() {
         end_time: endDate.toISOString(),
         location: apptLocation || null,
         status: apptStatus,
-        contact_id: apptContactId || null,
+        // First pick stays the primary contact for everything that
+        // still reads the single column; the array carries them all.
+        contact_id: apptContactIds[0] || null,
+        contact_ids: apptContactIds,
         property_id: apptPropertyId || null,
         event_type: apptEventType,
         assigned_to: apptAssignedTo || user?.id || null,
@@ -502,6 +518,7 @@ export default function CalendarPage() {
           location: draft.location,
           status: "scheduled",
           contact_id: draft.contact_id,
+          contact_ids: draft.contact_id ? [draft.contact_id] : [],
           property_id: draft.property_id,
           source: draft.source,
           transcript: draft.transcript,
@@ -547,7 +564,11 @@ export default function CalendarPage() {
     if (mentionType !== "property") return [];
     const searchVal = mentionSearch.toLowerCase();
     return properties
-      .filter((p) => p.title.toLowerCase().includes(searchVal))
+      .filter(
+        (p) =>
+          p.title.toLowerCase().includes(searchVal) ||
+          (p.property_code || "").toLowerCase().includes(searchVal)
+      )
       .slice(0, 5);
   }, [properties, mentionType, mentionSearch]);
 
@@ -683,7 +704,7 @@ export default function CalendarPage() {
 
   // Helper to extract/resolve mentions
   const resolveMentions = useCallback((title: string) => {
-    let finalContactId = null;
+    let finalContactId: string | null = null;
     const sortedContacts = [...contacts].sort((a, b) => b.name.length - a.name.length);
     for (const c of sortedContacts) {
       if (title.toLowerCase().includes(`@${c.name.toLowerCase()}`)) {
@@ -702,27 +723,69 @@ export default function CalendarPage() {
       }
     }
 
-    let finalPropertyId = null;
+    let finalPropertyId: string | null = null;
     const sortedProps = [...properties].sort((a, b) => b.title.length - a.title.length);
     for (const p of sortedProps) {
-      if (title.toLowerCase().includes(`#${p.title.toLowerCase()}`)) {
+      if (
+        title.toLowerCase().includes(`#${p.title.toLowerCase()}`) ||
+        (p.property_code && title.toLowerCase().includes(`#${p.property_code.toLowerCase()}`))
+      ) {
         finalPropertyId = p.id;
         break;
       }
     }
     if (!finalPropertyId) {
-      const propertyMentionMatch = title.match(/#([A-Za-z0-9_]+)/);
+      const propertyMentionMatch = title.match(/#([A-Za-z0-9_-]+)/);
       if (propertyMentionMatch) {
         const query = propertyMentionMatch[1].toLowerCase();
-        const matchedProp = properties.find((p) => p.title.toLowerCase().includes(query));
+        const matchedProp = properties.find(
+          (p) =>
+            p.title.toLowerCase().includes(query) ||
+            (p.property_code || "").toLowerCase().includes(query)
+        );
         if (matchedProp) {
           finalPropertyId = matchedProp.id;
         }
       }
     }
 
-    return { contactId: finalContactId, propertyId: finalPropertyId };
+    // Bidirectional auto-link: tagging a contact pulls in the property
+    // they inquired about, and tagging a property pulls in the contact
+    // linked to it.
+    const linked = autoLinkContactProperty(
+      finalContactId ? contacts.find((c) => c.id === finalContactId) || null : null,
+      finalPropertyId ? properties.find((p) => p.id === finalPropertyId) || null : null,
+      contacts,
+      properties
+    );
+
+    return { contactId: linked.contact?.id || null, propertyId: linked.property?.id || null };
   }, [contacts, properties]);
+
+  // Appointment modal pickers with the same bidirectional auto-link:
+  // picking a contact fills the property they inquired about, picking
+  // a property pulls in the contact linked to it.
+  const handleApptContactsChange = (ids: string[]) => {
+    setApptContactIds(ids);
+    if (!apptPropertyId) {
+      const hit = linkedPropertyForContacts(ids, contacts, properties);
+      if (hit) {
+        setApptPropertyId(hit.property.id);
+        toast.info(`Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`);
+      }
+    }
+  };
+
+  const handleApptPropertyChange = (val: string | null) => {
+    setApptPropertyId(val || "");
+    if (val && apptContactIds.length === 0) {
+      const linked = linkedContactForProperty(val, contacts);
+      if (linked) {
+        setApptContactIds([linked.id]);
+        toast.info(`Added ${linked.name} — they inquired about this property`);
+      }
+    }
+  };
 
   // Todo CRUD handlers
   const saveTodo = async (e: React.FormEvent) => {
@@ -1212,7 +1275,7 @@ export default function CalendarPage() {
                             onClick={() => selectMention(p.title, p.id, "property")}
                             className="w-full text-left px-3 py-1.5 text-xs text-slate-300 rounded hover:bg-slate-800 hover:text-white"
                           >
-                            {p.title}
+                            {p.property_code ? `[${p.property_code}] ` : ""}{p.title}
                           </button>
                         ))
                       )
@@ -1433,14 +1496,17 @@ export default function CalendarPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      Link Client / Contact
+                      Link Contacts (buyer, agent…)
                     </label>
-                    <SearchableContactSelect
+                    <SearchableContactMultiSelect
                       contacts={contacts}
-                      value={apptContactId || null}
-                      onChange={(val) => setApptContactId(val || "")}
-                      placeholder="Search contact..."
+                      value={apptContactIds}
+                      onChange={handleApptContactsChange}
+                      placeholder="Search contacts..."
                     />
+                    <p className="mt-1 text-[10px] text-slate-500 font-medium">
+                      Reminders go to every linked contact — 7 AM on the day &amp; 1 hour before.
+                    </p>
                   </div>
 
                   <div>
@@ -1450,8 +1516,8 @@ export default function CalendarPage() {
                     <SearchablePropertySelect
                       properties={properties}
                       value={apptPropertyId || null}
-                      onChange={(val) => setApptPropertyId(val || "")}
-                      placeholder="Search property..."
+                      onChange={handleApptPropertyChange}
+                      placeholder="Search by title or ID..."
                     />
                   </div>
                 </div>

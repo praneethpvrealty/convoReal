@@ -20,7 +20,7 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
-import { formatAgendaMessage, istDayWindow } from '@/lib/calendar/whatsapp-scheduler';
+import { formatAgendaMessage, istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -55,8 +55,22 @@ interface ReminderAppointment {
   start_time: string;
   end_time: string;
   location: string | null;
+  contact_ids?: string[] | null;
   contact: { id: string; name: string | null; phone: string | null } | null;
   property: { id: string; title: string | null; location: string | null } | null;
+}
+
+/** Every attendee on the event — the contact_ids parties, with the
+ *  legacy single contact as fallback — for the assignee's brief. */
+function attendeesOf(
+  appt: ReminderAppointment,
+  contactById: Map<string, { id: string; name: string | null; phone: string | null }>
+): { name: string | null; phone: string | null }[] {
+  const ids = new Set<string>(appt.contact_ids || []);
+  if (appt.contact?.id) ids.add(appt.contact.id);
+  return [...ids]
+    .map((id) => (appt.contact?.id === id ? appt.contact : contactById.get(id)))
+    .filter((c): c is { id: string; name: string | null; phone: string | null } => !!c);
 }
 
 async function loadAssigneePhones(
@@ -86,7 +100,7 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
 
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, contact:contacts(id, name, phone), property:properties(id, title, location)')
+    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location)')
     .eq('status', 'scheduled')
     .eq('agent_reminder_sent', false)
     .gt('start_time', now.toISOString())
@@ -103,6 +117,20 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
     [...new Set(rows.map((a) => a.assigned_to || a.user_id).filter(Boolean))] as string[]
   );
 
+  // Attendees beyond the primary contact (multi-contact events) need
+  // their own lookup — the join above only covers contact_id.
+  const extraContactIds = [
+    ...new Set(rows.flatMap((a) => (a.contact_ids || []).filter((id) => id !== a.contact?.id))),
+  ];
+  const contactById = new Map<string, { id: string; name: string | null; phone: string | null }>();
+  if (extraContactIds.length > 0) {
+    const { data: extraContacts } = await admin
+      .from('contacts')
+      .select('id, name, phone')
+      .in('id', extraContactIds);
+    for (const c of extraContacts || []) contactById.set(c.id, c);
+  }
+
   for (const appt of rows) {
     const assigneeId = appt.assigned_to || appt.user_id;
     const assignee = assigneeId ? assignees.get(assigneeId) : undefined;
@@ -116,7 +144,9 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
     const lines = [
       `⏰ *Coming up at ${istTime(appt.start_time)}*`,
       `${emoji} ${appt.title}`,
-      appt.contact?.name ? `👤 ${appt.contact.name}${appt.contact.phone ? ` — ${appt.contact.phone}` : ''}` : null,
+      ...attendeesOf(appt, contactById).map(
+        (c) => `👤 ${c.name || 'Contact'}${c.phone ? ` — ${c.phone}` : ''}`
+      ),
       appt.property?.title ? `🏠 ${appt.property.title}` : null,
       appt.location ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}` : null,
       '',
@@ -146,9 +176,7 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
 export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<void> {
   const admin = supabaseAdmin();
 
-  const istHour = Number(
-    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hour12: false }).format(now)
-  );
+  const istHour = istHourOf(now);
   if (istHour < 7 || istHour >= 11) return;
 
   const { startIso, endIso, label } = istDayWindow(now);

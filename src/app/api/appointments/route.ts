@@ -72,6 +72,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const {
       contact_id,
+      contact_ids,
       property_id,
       title,
       description,
@@ -80,6 +81,15 @@ export async function POST(request: Request) {
       location,
       status,
     } = body
+
+    // Accept either shape: a contact_ids array, a single contact_id,
+    // or both. contact_id stays the primary (first) contact.
+    const allContactIds: string[] = Array.isArray(contact_ids)
+      ? contact_ids.filter((id: unknown): id is string => typeof id === 'string')
+      : []
+    if (contact_id && !allContactIds.includes(contact_id)) {
+      allContactIds.unshift(contact_id)
+    }
 
     if (!title || !start_time || !end_time) {
       return NextResponse.json(
@@ -93,7 +103,8 @@ export async function POST(request: Request) {
       .insert({
         account_id: accountId,
         user_id: user.id,
-        contact_id: contact_id || null,
+        contact_id: allContactIds[0] || null,
+        contact_ids: allContactIds,
         property_id: property_id || null,
         title,
         description: description || null,

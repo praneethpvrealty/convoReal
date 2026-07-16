@@ -18,16 +18,22 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, CalendarDays } from 'lucide-react';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
+import { SearchableContactMultiSelect } from '@/components/ui/searchable-contact-multi-select';
+import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
+import { linkedContactForProperty, linkedPropertyForContacts } from '@/lib/calendar/auto-link';
 
 interface SimpleContact {
   id: string;
   name: string;
   phone: string;
+  last_inquired_property_id?: string | null;
 }
 
 interface SimpleProperty {
   id: string;
   title: string;
+  property_code?: string | null;
+  location?: string | null;
 }
 
 interface ScheduleDialogProps {
@@ -54,7 +60,7 @@ export function ScheduleDialog({
 
   // Form fields
   const [title, setTitle] = useState('');
-  const [selectedContactId, setSelectedContactId] = useState('');
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -68,13 +74,13 @@ export function ScheduleDialog({
       const [contactsRes, propertiesRes] = await Promise.all([
         supabase
           .from('contacts')
-          .select('id, name, phone')
+          .select('id, name, phone, last_inquired_property_id')
           .eq('account_id', accountId)
           .eq('status', 'active')
           .order('name'),
         supabase
           .from('properties')
-          .select('id, title')
+          .select('id, title, property_code, location')
           .eq('account_id', accountId)
           .order('title'),
       ]);
@@ -92,7 +98,7 @@ export function ScheduleDialog({
 
       // Reset form states
       setTitle('');
-      setSelectedContactId(contactId || '');
+      setSelectedContactIds(contactId ? [contactId] : []);
       setSelectedPropertyId(propertyId || '');
       setLocation('');
       setNotes('');
@@ -112,10 +118,10 @@ export function ScheduleDialog({
     }
   }, [open, accountId, contactId, propertyId, loadOptions]);
 
-  // Keep selectedContactId updated if contactId prop changes
+  // Keep selection updated if contactId prop changes
   useEffect(() => {
     if (contactId) {
-      setSelectedContactId(contactId);
+      setSelectedContactIds((prev) => (prev.includes(contactId) ? prev : [contactId, ...prev]));
     }
   }, [contactId]);
 
@@ -125,6 +131,30 @@ export function ScheduleDialog({
       setSelectedPropertyId(propertyId);
     }
   }, [propertyId]);
+
+  // Bidirectional auto-link: picking a contact fills the property they
+  // inquired about; picking a property pulls in the contact linked to it.
+  const handleContactsChange = (ids: string[]) => {
+    setSelectedContactIds(ids);
+    if (!selectedPropertyId) {
+      const hit = linkedPropertyForContacts(ids, contacts, properties);
+      if (hit) {
+        setSelectedPropertyId(hit.property.id);
+        toast.info(`Linked property "${hit.property.title}" from ${hit.contact.name}'s inquiry`);
+      }
+    }
+  };
+
+  const handlePropertyChange = (val: string | null) => {
+    setSelectedPropertyId(val || '');
+    if (val && selectedContactIds.length === 0) {
+      const linked = linkedContactForProperty(val, contacts);
+      if (linked) {
+        setSelectedContactIds([linked.id]);
+        toast.info(`Added ${linked.name} — they inquired about this property`);
+      }
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,7 +183,8 @@ export function ScheduleDialog({
         end_time: new Date(endTime).toISOString(),
         location: location.trim() || null,
         status: 'scheduled',
-        contact_id: selectedContactId || null,
+        contact_id: selectedContactIds[0] || null,
+        contact_ids: selectedContactIds,
         property_id: selectedPropertyId || null,
       });
 
@@ -200,43 +231,31 @@ export function ScheduleDialog({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="contact" className="text-slate-400 text-xs">
-                Link Client / Contact
+              <Label className="text-slate-400 text-xs">
+                Link Contacts (buyer, agent…)
               </Label>
-              <select
-                id="contact"
-                value={selectedContactId}
-                onChange={(e) => setSelectedContactId(e.target.value)}
-                disabled={!!contactId}
-                className="w-full h-9 rounded-lg border border-slate-700 bg-slate-800 px-3 text-sm text-white focus:border-primary focus:outline-none disabled:opacity-60"
-              >
-                <option value="">-- Select Contact --</option>
-                {contacts.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.phone})
-                  </option>
-                ))}
-              </select>
+              <SearchableContactMultiSelect
+                contacts={contacts}
+                value={selectedContactIds}
+                onChange={handleContactsChange}
+                placeholder="Search contacts..."
+              />
+              <p className="text-[10px] text-slate-500 font-medium">
+                Reminders go to every linked contact — 7 AM on the day &amp; 1 hour before.
+              </p>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="property" className="text-slate-400 text-xs">
+              <Label className="text-slate-400 text-xs">
                 Link Property Listing
               </Label>
-              <select
-                id="property"
-                value={selectedPropertyId}
-                onChange={(e) => setSelectedPropertyId(e.target.value)}
+              <SearchablePropertySelect
+                properties={properties}
+                value={selectedPropertyId || null}
+                onChange={handlePropertyChange}
+                placeholder="Search by title or ID..."
                 disabled={!!propertyId}
-                className="w-full h-9 rounded-lg border border-slate-700 bg-slate-800 px-3 text-sm text-white focus:border-primary focus:outline-none disabled:opacity-60"
-              >
-                <option value="">-- Select Property --</option>
-                {properties.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
           </div>
 

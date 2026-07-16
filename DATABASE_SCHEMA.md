@@ -201,9 +201,16 @@ Calendar bookings and site viewings.
 - `title` (TEXT) / `description` (TEXT).
 - `start_time` / `end_time` (TIMESTAMPTZ).
 - `location` (TEXT).
-- `contact_id` (UUID, FK -> `contacts`): Client attending.
+- `contact_id` (UUID, FK -> `contacts`): Primary client attending (mirrors the first element of `contact_ids`, enforced by the `trg_sync_appointment_contacts` trigger).
+- `contact_ids` (UUID[], migration 127): Every contact attached to the event (buyer, partner agent, owner…). GIN-indexed.
 - `property_id` (UUID, FK -> `properties`): Listing being viewed.
 - `status` (TEXT): CHECK constraint `('scheduled', 'completed', 'cancelled')`.
+- `reminder_morning_sent` / `reminder_1h_sent` (BOOLEAN, migration 127): Client WhatsApp reminder flags — morning-of (~7 AM IST) and one-hour-before sends that go to every contact in `contact_ids`. Supersede the older `reminder_24h_sent` / `reminder_2h_sent` flags.
+
+#### 16b. `appointment_reminder_log` (migration 127)
+Per-recipient delivery claims for client appointment reminders — one row per `(appointment_id, contact_id, reminder_type)` (UNIQUE). The cron inserts a claim before each WhatsApp send and deletes it if the send fails, so partial failures retry only the missed recipients without duplicating the delivered ones.
+- `account_id` / `appointment_id` / `contact_id` (UUID FKs, CASCADE).
+- `reminder_type` (TEXT): CHECK `('morning', '1h')`.
 
 #### 17. `todos`
 Tasks list with reference linkages.

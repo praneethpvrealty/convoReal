@@ -21,6 +21,7 @@ import {
   istLocalToUtcIso,
   type ParsedEventDraft,
 } from '@/lib/calendar/event-parse';
+import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -103,6 +104,14 @@ export function formatAgendaMessage(dateLabel: string, events: AgendaEvent[], to
   }
 
   return lines.join('\n');
+}
+
+/** Current hour-of-day in IST (0-23). hourCycle 'h23' avoids the
+ *  Intl quirk where hour12:false can render midnight as "24". */
+export function istHourOf(now: Date = new Date()): number {
+  return Number(
+    new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', hourCycle: 'h23' }).format(now)
+  );
 }
 
 /** IST midnight-to-midnight window for a given instant. */
@@ -291,15 +300,19 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
 
   // Resolve references against tenant data.
   const [{ data: contacts }, { data: properties }] = await Promise.all([
-    admin.from('contacts').select('id, name, phone').eq('account_id', accountId),
-    admin.from('properties').select('id, title, location, sublocality').eq('account_id', accountId),
+    admin.from('contacts').select('id, name, phone, last_inquired_property_id').eq('account_id', accountId),
+    admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
   ]);
 
-  const contact = resolveByName(draft.contact_name, contacts || [], (c) => c.name || '');
-  const property = resolveByName(
-    draft.property_hint,
-    properties || [],
-    (p) => `${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
+  const { contact, property } = autoLinkContactProperty(
+    resolveByName(draft.contact_name, contacts || [], (c) => c.name || ''),
+    resolveByName(
+      draft.property_hint,
+      properties || [],
+      (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
+    ),
+    contacts || [],
+    properties || []
   );
   const assignee = resolveByName(
     draft.assignee_name,
@@ -331,6 +344,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       location: draft.location,
       status: 'scheduled',
       contact_id: contact?.id || null,
+      contact_ids: contact ? [contact.id] : [],
       property_id: property?.id || null,
       source,
       transcript,

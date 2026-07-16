@@ -86,6 +86,8 @@ export interface CalendarEvent {
   location: string | null;
   status: "scheduled" | "completed" | "cancelled";
   contact_id: string | null;
+  /** Every contact attached to the event; contact_id mirrors the first. */
+  contact_ids?: string[] | null;
   property_id: string | null;
   contact?: { id: string; name: string; phone: string } | null;
   property?: { id: string; title: string; location: string | null; sublocality: string | null } | null;

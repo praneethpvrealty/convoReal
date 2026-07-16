@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { parseEventFromInput, resolveByName, istLocalToUtcIso } from '@/lib/calendar/event-parse';
+import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 
 // POST /api/ai/parse-event
 // Turns a natural-language scheduling request (typed text or a
@@ -71,15 +72,25 @@ export async function POST(request: NextRequest) {
     }
 
     const [{ data: contacts }, { data: properties }] = await Promise.all([
-      ctx.supabase.from('contacts').select('id, name, phone').eq('account_id', ctx.accountId),
-      ctx.supabase.from('properties').select('id, title, location, sublocality').eq('account_id', ctx.accountId),
+      ctx.supabase
+        .from('contacts')
+        .select('id, name, phone, last_inquired_property_id')
+        .eq('account_id', ctx.accountId),
+      ctx.supabase
+        .from('properties')
+        .select('id, title, property_code, location, sublocality')
+        .eq('account_id', ctx.accountId),
     ]);
 
-    const contact = resolveByName(draft.contact_name, contacts || [], (c) => c.name || '');
-    const property = resolveByName(
-      draft.property_hint,
+    const { contact, property } = autoLinkContactProperty(
+      resolveByName(draft.contact_name, contacts || [], (c) => c.name || ''),
+      resolveByName(
+        draft.property_hint,
+        properties || [],
+        (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`,
+      ),
+      contacts || [],
       properties || [],
-      (p) => `${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`,
     );
     const assignee = resolveByName(
       draft.assignee_name,
