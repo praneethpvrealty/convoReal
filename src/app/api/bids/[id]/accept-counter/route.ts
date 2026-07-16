@@ -6,6 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireRole, toErrorResponse, UserFacingError } from "@/lib/auth/account";
 import { denAdmin } from "@/lib/den/auth";
 import { appendBidEvent, transitionBid } from "@/lib/den/bids";
+import { openDealRoom } from "@/lib/den/token-safe";
 
 export async function POST(
   _req: NextRequest,
@@ -37,6 +38,14 @@ export async function POST(
     }
     await appendBidEvent(db, id, "bidder", "counter_accepted", {
       amount: bid.counter_amount,
+    });
+
+    await openDealRoom(db, {
+      id: updated.id,
+      property_id: updated.property_id,
+      owner_account_id: updated.owner_account_id,
+      bidder_account_id: updated.bidder_account_id,
+      amount: updated.amount,
     });
 
     return NextResponse.json({ bid: updated });

@@ -314,6 +314,18 @@ them by construction; their data access happens through `/api/den/*`
   owner reads through `/api/den/bids`. `properties.min_bid` is the
   owner's optional offer floor. Expiry cron `/api/cron/den-bids-expiry`
   (deadline + 48h deal-mode-off grace).
+- `deal_rooms` + `token_escrows` (migration 135): a room opens per
+  ACCEPTED bid (unique bid_id) — meeting scheduling plus optional
+  **Token Safe** for the post-meeting token payment (bayana). Token
+  money is real ₹ (minor units), never credits, and the platform never
+  holds funds: providers are record-keeping today (`manual_escrow`,
+  `direct` receipt) with licensed partners (Escrowpay/Castler) plugging
+  in via the adapter in `src/lib/den/token-safe.ts` and the
+  signature-verified webhook `/api/webhooks/token-safe`. Escrow
+  lifecycle proposed → accepted → funded → released/refunded/disputed
+  (release requires BOTH parties' confirmation); one active escrow per
+  room via partial unique index. SELECT for both party accounts; writes
+  service-role only.
 
 ---
 

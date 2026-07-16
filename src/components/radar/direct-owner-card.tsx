@@ -23,6 +23,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { matchUnlockCost } from "@/lib/den/costs";
+import { TokenSafePanel, type TokenEscrow } from "@/components/den/token-safe-panel";
 import type { MatchEvent } from "@/types";
 
 interface UnlockedPayload {
@@ -164,9 +165,12 @@ function BidWidget({
           </Button>
         )}
         {bid.status === "accepted" && (
-          <p className="text-[11px] font-bold text-emerald-400">
-            🎉 Accepted — take it forward with the owner directly.
-          </p>
+          <div className="space-y-2">
+            <p className="text-[11px] font-bold text-emerald-400">
+              🎉 Accepted — take it forward with the owner directly.
+            </p>
+            <BidderDealRoom bidId={bid.id} />
+          </div>
         )}
       </div>
     );
@@ -204,6 +208,41 @@ function BidWidget({
         {busy ? "Sending…" : "Send offer to owner"}
       </Button>
     </div>
+  );
+}
+
+/** Bidder side of the deal room (opens on acceptance): Token Safe. */
+function BidderDealRoom({ bidId }: { bidId: string }) {
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [escrow, setEscrow] = useState<TokenEscrow | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/deal-rooms?bid_id=${bidId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (cancelled) return;
+        if (body?.room?.id) {
+          setRoomId(body.room.id as string);
+          setEscrow((body.escrow as TokenEscrow) ?? null);
+        }
+        setLoaded(true);
+      })
+      .catch(() => !cancelled && setLoaded(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [bidId]);
+
+  if (!loaded || !roomId) return null;
+  return (
+    <TokenSafePanel
+      role="bidder"
+      endpoint={`/api/deal-rooms/${roomId}/token-safe`}
+      escrow={escrow}
+      onChanged={(next) => setEscrow(next)}
+    />
   );
 }
 

@@ -20,7 +20,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Building2, HandCoins, Phone, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Building2, HandCoins, Handshake, Phone, ShieldCheck } from "lucide-react";
 
 interface DenBid {
   id: string;
@@ -37,6 +38,7 @@ interface DenBid {
   created_at: string;
   bidder_agency: string;
   bidder_contact: { name: string | null; phone: string | null } | null;
+  deal_room_id: string | null;
 }
 
 const STATUS_META: Record<DenBid["status"], { label: string; className: string }> = {
@@ -276,6 +278,15 @@ function BidCard({
               </a>
             )}
           </div>
+        )}
+        {bid.status === "accepted" && bid.deal_room_id && (
+          <Link
+            href={`/den/deal-rooms/${bid.deal_room_id}`}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-black text-primary transition-colors hover:bg-primary/15"
+          >
+            <Handshake className="h-3.5 w-3.5" />
+            Open deal room — schedule the meeting &amp; secure the token
+          </Link>
         )}
 
         {isLive && (

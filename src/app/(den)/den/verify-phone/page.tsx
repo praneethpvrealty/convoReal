@@ -33,10 +33,12 @@ export default function DenVerifyPhonePage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const supabase = createClient();
 
   useEffect(() => {
     (async () => {
+      // Created lazily — module/body-level creation breaks static
+      // prerendering of this page (no env vars at build time).
+      const supabase = createClient();
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -72,6 +74,7 @@ export default function DenVerifyPhonePage() {
       return;
     }
     setLoading(true);
+    const supabase = createClient();
     const { error } = await supabase.auth.updateUser({ phone: p });
     if (error) {
       setError(error.message);
@@ -89,6 +92,7 @@ export default function DenVerifyPhonePage() {
     const p = cleanPhone();
     if (!p) return;
     setLoading(true);
+    const supabase = createClient();
     const { error } = await supabase.auth.verifyOtp({
       phone: p,
       token: otp.trim(),

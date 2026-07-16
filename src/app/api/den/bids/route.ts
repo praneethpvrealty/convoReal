@@ -43,6 +43,13 @@ export const GET = withDenAuth(async (ctx) => {
   const propertyById = new Map((properties || []).map((p) => [p.id as string, p]));
 
   // Accepted bids reveal the bidding side's contact person.
+  // Accepted bids have a deal room (Token Safe lives there).
+  const acceptedBidIds = rows.filter((b) => b.status === "accepted").map((b) => b.id as string);
+  const { data: rooms } = acceptedBidIds.length
+    ? await db.from("deal_rooms").select("id, bid_id").in("bid_id", acceptedBidIds)
+    : { data: [] as { id: string; bid_id: string }[] };
+  const roomByBid = new Map((rooms || []).map((r) => [r.bid_id as string, r.id as string]));
+
   const acceptedContactIds = rows
     .filter((b) => b.status === "accepted" && b.bidder_contact_id)
     .map((b) => b.bidder_contact_id as string);
@@ -78,6 +85,7 @@ export const GET = withDenAuth(async (ctx) => {
       bidder_contact: revealed
         ? { name: revealed.name ?? null, phone: revealed.phone ?? null }
         : null,
+      deal_room_id: roomByBid.get(bid.id as string) ?? null,
     };
   });
 

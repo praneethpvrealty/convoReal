@@ -39,7 +39,6 @@ export default function DenLoginPage() {
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
-  const supabase = createClient();
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -97,6 +96,9 @@ export default function DenLoginPage() {
       return;
     }
     setLoading(true);
+    // Created lazily — module/body-level creation breaks static
+    // prerendering of this page (no env vars at build time).
+    const supabase = createClient();
     // app_context 'den' keeps first-time Den signups out of the staff
     // account bootstrap (handle_new_user guard, migration 131).
     const { error } = await supabase.auth.signInWithOtp({
@@ -120,6 +122,7 @@ export default function DenLoginPage() {
     const cleanPhone = cleanPhoneInput(phone);
     if (!cleanPhone) return;
     setLoading(true);
+    const supabase = createClient();
     const { data, error } = await supabase.auth.verifyOtp({
       phone: cleanPhone,
       token: otpValues.join("").trim(),
@@ -138,6 +141,7 @@ export default function DenLoginPage() {
   const handleGoogleLogin = async () => {
     setError(null);
     setLoading(true);
+    const supabase = createClient();
     const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/den/verify-phone")}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",

@@ -15,6 +15,7 @@ import { UserFacingError } from "@/lib/auth/account";
 import { withDenAuth, denAdmin } from "@/lib/den/auth";
 import { appendBidEvent, notifyBidderOfOutcome, transitionBid, type BidRow } from "@/lib/den/bids";
 import { loadOwnedProperty } from "@/lib/den/properties";
+import { openDealRoom } from "@/lib/den/token-safe";
 
 export const POST = withDenAuth(async (ctx, req, routeCtx) => {
   const { id } = await routeCtx.params;
@@ -43,7 +44,17 @@ export const POST = withDenAuth(async (ctx, req, routeCtx) => {
   let updated: BidRow | null = null;
   if (action === "accept") {
     updated = await transitionBid(db, id, ["pending", "countered"], "accepted");
-    if (updated) await appendBidEvent(db, id, "owner", "accepted", { amount: updated.amount });
+    if (updated) {
+      await appendBidEvent(db, id, "owner", "accepted", { amount: updated.amount });
+      // Acceptance opens the deal room (meeting + optional Token Safe).
+      await openDealRoom(db, {
+        id: updated.id,
+        property_id: updated.property_id,
+        owner_account_id: updated.owner_account_id,
+        bidder_account_id: updated.bidder_account_id,
+        amount: updated.amount,
+      });
+    }
   } else if (action === "reject") {
     updated = await transitionBid(db, id, ["pending", "countered"], "rejected");
     if (updated) await appendBidEvent(db, id, "owner", "rejected");
