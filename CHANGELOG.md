@@ -13,6 +13,22 @@ and polish.
 
 ### Added
 
+- **Real-estate-themed loading states.** Two on-brand replacements for
+  the generic spinner, both pure SVG/CSS (no icon-library dependency)
+  and driven by the same `--primary`/`--card` tokens as the rest of the
+  UI, so they follow whichever of the 5 accent themes is active.
+  - `PropertyRadarLoader` (`src/components/ui/property-radar-loader.tsx`)
+    — a map pin broadcasting expanding rings, echoing Match Radar's
+    "still searching" language. Now used for the inventory list's
+    loading state and the WhatsApp broadcast "Sending..." step.
+  - `PropertyBlueprintLoader`
+    (`src/components/ui/property-blueprint-loader.tsx`) — a
+    single-stroke house that draws itself (outline → door → window)
+    then fades to redraw. Now used for the AI flyer image-generation
+    overlay and the property-image upload button.
+  - Both respect `prefers-reduced-motion` (freeze on a static frame)
+    and expose `role="status"` / `aria-label` for screen readers.
+
 - **Owner property status digests.** Property owners/sellers get an
   automatic WhatsApp update about buyer activity on their listings —
   new enquiries, shortlisted buyers (pipeline entries), scheduled site

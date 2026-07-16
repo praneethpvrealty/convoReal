@@ -20,6 +20,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { PropertyRadarLoader } from '@/components/ui/property-radar-loader';
+import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-loader';
 import {
   Loader2,
   Plus,
@@ -4145,7 +4147,7 @@ export function PropertyForm({
                         >
                           {uploadingImage ? (
                             <>
-                              <Loader2 className="size-3 animate-spin" /> Uploading...
+                              <PropertyBlueprintLoader size={14} label="Uploading" /> Uploading...
                             </>
                           ) : (
                             <>
@@ -5035,7 +5037,7 @@ export function PropertyForm({
                   {/* STEP 3: Sending Status */}
                   {broadcastStep === 'sending' && (
                     <div className="flex flex-col items-center justify-center py-16 space-y-4">
-                      <Loader2 className="size-10 animate-spin text-primary" />
+                      <PropertyRadarLoader size={80} label="Sending WhatsApp broadcast" />
                       <div className="text-center">
                         <h4 className="text-sm font-semibold text-white">Sending WhatsApp Broadcast</h4>
                         <p className="text-xs text-slate-500 mt-1">Dispatching messages to {selectedContactIds.length} recipients. Please do not close this modal.</p>

@@ -31,6 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { PropertyRadarLoader } from '@/components/ui/property-radar-loader';
 
 const highlightIcons: Record<string, string> = {
   'School': '🏫',
@@ -180,7 +181,7 @@ export function PropertyList({
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-        <Loader2 className="size-8 animate-spin text-primary mb-4" />
+        <PropertyRadarLoader size={72} label="Loading property inventory" className="mb-4" />
         <p className="text-sm">Loading property inventory...</p>
       </div>
     );

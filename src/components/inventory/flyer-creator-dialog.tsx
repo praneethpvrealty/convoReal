@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDING } from '@/config/branding';
+import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-loader';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { useTopupModal } from '@/components/layout/topup-modal-context';
 import {
@@ -755,7 +756,7 @@ export function FlyerCreatorDialog({
               />
               {generatingAiImage && (
                 <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-center p-6 gap-3 select-none">
-                  <RefreshCw className="size-8 animate-spin text-primary" />
+                  <PropertyBlueprintLoader size={56} label="Generating your image" />
                   <p className="text-sm font-bold text-white">Imagen 4 is generating your image...</p>
                   <p className="text-xs text-slate-400">Usually takes 4-7 seconds. Please wait.</p>
                 </div>
