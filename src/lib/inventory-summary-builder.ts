@@ -24,6 +24,7 @@ const TYPE_SHORT_LABELS: Record<string, string> = {
   'Office in IT Park/ SEZ': 'Office (IT Park)',
   'Commercial Shop': 'Shop',
   'Commercial Showroom': 'Showroom',
+  'Commercial Building': 'Commercial Bldg',
   'Commercial Land': 'Commercial Land',
   'Warehouse/ Godown': 'Warehouse',
   'Agricultural Land': 'Agri Land',

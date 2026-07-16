@@ -1,5 +1,6 @@
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { PROPERTY_TYPE_VALUES, normalizePropertyType } from '@/lib/property-types';
+import { sanitizeFloorTenancies, type FloorTenancy } from '@/lib/inventory/floor-tenancies';
 import { logAiCall } from '@/lib/ai/call-log';
 
 export { PROPERTY_TYPE_VALUES, normalizePropertyType };
@@ -356,6 +357,24 @@ function extractBedroomsFromText(text: string | null | undefined): number | null
   return match ? parseInt(match[1], 10) : null;
 }
 
+/**
+ * Deterministic backstop for 'type': strong whole-building signals in
+ * the raw input ("mixed-use", "commercial development/complex/building")
+ * override whatever unit-level enum the model picked. Such documents
+ * routinely list the units inside (hotel, offices, penthouse…), and the
+ * model tends to latch onto one of those — a 55,000 sqft mixed-use
+ * development was seen coming back as 'Flat/ Apartment'.
+ */
+function detectCommercialBuilding(text: string | null | undefined): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('mixed use') ||
+    lower.includes('mixed-use') ||
+    /commercial\s*(building|complex|development)/.test(lower)
+  );
+}
+
 export interface ParsedPropertyDraft {
   title: string | null;
   price: number | null;
@@ -374,6 +393,7 @@ export interface ParsedPropertyDraft {
     | "Office in IT Park/ SEZ"
     | "Commercial Shop"
     | "Commercial Showroom"
+    | "Commercial Building"
     | "Commercial Land"
     | "Warehouse/ Godown"
     | "Industrial Land"
@@ -409,6 +429,8 @@ export interface ParsedPropertyDraft {
   maintenance: number | null;
   advance: number | null;
   gst: number | null;
+  /** Floor-wise rent roll for pre-leased commercial buildings. */
+  floor_tenancies?: FloorTenancy[] | null;
 }
 
 /**
@@ -549,7 +571,7 @@ export async function parseListingFromImageOrText(
     "  \"title\": \"A descriptive title (e.g. '3 BHK Apartment in HSR Layout' or '30x40 Residential Plot in Devanahalli') or null\",\n" +
     "  \"price\": Numeric price in INR (e.g. if text says '1.2 Cr' or '120 Lakhs', price is 12000000) or null,\n" +
     "  \"location\": \"Exact location or address or null\",\n" +
-    "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
+    "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
     "  \"sublocality\": \"Sublocality or neighborhood name or null\",\n" +
     "  \"city\": \"City name (default 'Bangalore')\",\n" +
     "  \"state\": \"State name (default 'Karnataka')\",\n" +
@@ -572,7 +594,8 @@ export async function parseListingFromImageOrText(
     "  \"rent_per_month\": Numeric monthly rent in INR (e.g. 'rent 40k' -> 40000) or null,\n" +
     "  \"maintenance\": Numeric monthly maintenance charges in INR or null,\n" +
     "  \"advance\": Numeric security deposit / advance in INR (e.g. 'advance 2.5 L' -> 250000) or null,\n" +
-    "  \"gst\": Numeric GST percentage (e.g. '18% GST' -> 18) or flat GST amount in INR or null\n" +
+    "  \"gst\": Numeric GST percentage (e.g. '18% GST' -> 18) or flat GST amount in INR or null,\n" +
+    "  \"floor_tenancies\": For commercial buildings sold with a floor-wise / unit-wise breakdown (rent roll), an array with one entry per floor or unit that has any rent, tenant, or usage detail: [{\"floor\": \"Ground + First Floor\", \"area_sqft\": 20000 or null, \"tenant_name\": \"tenant/business name or null\", \"monthly_rent\": monthly rent in INR excluding GST (e.g. '₹8,00,000' -> 800000) or null, \"lease_start\": \"YYYY-MM-DD\" or null, \"lease_end\": \"YYYY-MM-DD\" or null, \"lock_in_months\": numeric or null, \"maintenance\": \"maintenance terms or null\", \"notes\": \"usage, e.g. 'Hypermarket' or '3-Star Hotel, 27 rooms'\"}]. Empty array when the input has no floor-wise breakdown\n" +
     "}\n\n" +
     "Important parsing rules:\n" +
     "0. CRITICAL: The 'title' field is a human-readable summary and will often restate details — like BHK count, area, or location — that ALSO belong in their own structured fields below. NEVER treat a detail as 'already handled' just because it appears in the title. You MUST still populate every matching structured field (bedrooms, area_sqft, land_area, location, type, etc.) independently and completely whenever that information is present anywhere in the input, even if it's redundant with the title.\n" +
@@ -586,7 +609,8 @@ export async function parseListingFromImageOrText(
     "8. For Amenities/Features: Extract any amenities, specifications, or internal/external building features of the property (such as wood flooring, modular kitchen, power backup, gym, pool, gated community, library, basement, water supply, fenced boundary, security, etc.) into the `features` array.\n" +
     "9. For Nearby Highlights/Landmark information: Extract any nearby landmarks, highlights, or proximity information (such as near metro station, opposite Starbucks, near shopping mall, hospital, school, tech park, etc.) into the `nearby_highlights` array. Do NOT confuse building details/features with nearby landmarks/highlights.\n" +
     "10. For Listing/Owner Contact details: If the message/image details have any contact person or sender's name (e.g., 'Regards, Ramesh (Agent)' or 'Contact Suresh on 9876543210'), extract their name, phone (if present), and role ('Agent' or 'Owner'). If not mentioned, set to null.\n" +
-    "11. Output MUST be valid JSON.";
+    "11. For whole commercial buildings / mixed-use developments (multiple floors with different uses like hypermarket + hotel + gym): set 'type' to 'Commercial Building', capture each floor/unit in 'floor_tenancies', and set 'rental_income' to the TOTAL monthly rent when stated.\n" +
+    "12. Output MUST be valid JSON.";
 
   const parts: GeminiPart[] = [];
 
@@ -625,7 +649,12 @@ export async function parseListingFromImageOrText(
       // here), fall back to sublocality rather than showing "Missing" when
       // the user clearly gave *some* area/address text.
       location: parsed.location || parsed.sublocality || null,
-      type: normalizePropertyType(parsed.type) as ParsedPropertyDraft["type"],
+      // Deterministic backstop: strong whole-building signals in the raw
+      // input win over a unit-level enum the model may have picked.
+      type:
+        detectCommercialBuilding(text) || detectCommercialBuilding(parsed.title)
+          ? "Commercial Building"
+          : (normalizePropertyType(parsed.type) as ParsedPropertyDraft["type"]),
       sublocality: parsed.sublocality || null,
       city: parsed.city || "Bangalore",
       state: parsed.state || "Karnataka",
@@ -652,7 +681,8 @@ export async function parseListingFromImageOrText(
       rent_per_month: parsed.rent_per_month || null,
       maintenance: parsed.maintenance || null,
       advance: parsed.advance || null,
-      gst: parsed.gst || null
+      gst: parsed.gst || null,
+      floor_tenancies: sanitizeFloorTenancies(parsed.floor_tenancies)
     };
   } catch (err) {
     console.error("[Gemini AI] Error parsing listing details:", err);
@@ -676,7 +706,7 @@ export async function updateListingDraft(
     "Handle updates to amenities (features) and nearby highlights (nearby_highlights) intelligently (e.g. if the user says 'add Gym to amenities', add 'Gym' to the features array; if they say 'add HSR Metro to landmarks', add 'HSR Metro' to the nearby_highlights array).\n" +
     "Handle updates to listing/owner contact details intelligently (e.g. if the user says 'contact name is Ramesh' or 'owner phone is 9876543210', update owner_contact_name or owner_contact_phone respectively).\n" +
     "Handle updates to location intelligently: if the user says 'location is X', 'Location - X', 'located in X', or similar, set the top-level 'location' field to X. 'location' is a required primary address field, separate from 'sublocality' — never leave it unset when the user has given any area/address text, even if you also record a more specific 'sublocality'.\n" +
-    "Handle updates to property type intelligently: if the user says 'type is X', 'Type - X', or describes the property category in any way, map it to the closest matching value from this exact list: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others'. For example, 'Type - Residential old house' or 'its an old independent house' both map to 'Residential House'; 'PG for girls' or 'paying guest accommodation' maps to 'PG/ Hostel'. Never leave 'type' null when the user has specified any property category — always pick the closest match from the list above rather than leaving it unset.\n" +
+    "Handle updates to property type intelligently: if the user says 'type is X', 'Type - X', or describes the property category in any way, map it to the closest matching value from this exact list: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others'. For example, 'Type - Residential old house' or 'its an old independent house' both map to 'Residential House'; 'PG for girls' or 'paying guest accommodation' maps to 'PG/ Hostel'. Never leave 'type' null when the user has specified any property category — always pick the closest match from the list above rather than leaving it unset.\n" +
     "Handle updates to bedrooms intelligently: 'X BHK' or 'X bhk' means bedrooms = X. Always update 'bedrooms' when a BHK count is given.\n" +
     "Handle updates to area intelligently: 'area_sqft' is the BUILT-UP/carpet area of a structure; 'land_area' (with 'land_area_unit') is the SITE/PLOT size. If the user gives a 'plot'/'site'/land size figure, set 'land_area', not 'area_sqft' — even for a house/villa on that plot.\n" +
     "Include fields for rental vertical updates: listing_type ('Sale' or 'Rent'), rent_per_month, maintenance, advance, and gst.\n" +
@@ -703,6 +733,12 @@ export async function updateListingDraft(
       // Same idea for 'bedrooms' — fall back to extracting "X BHK" from
       // the raw correction text if the model didn't set it.
       bedrooms: parsed.bedrooms ?? currentDraft.bedrooms ?? extractBedroomsFromText(updateRequest) ?? null,
+      // Re-validate the rent roll if the update touched it; otherwise
+      // keep the prior rows.
+      floor_tenancies:
+        parsed.floor_tenancies !== undefined
+          ? sanitizeFloorTenancies(parsed.floor_tenancies)
+          : currentDraft.floor_tenancies ?? null,
       // Retain images and other fields if they were omitted in the response
       images: currentDraft.images || []
     };

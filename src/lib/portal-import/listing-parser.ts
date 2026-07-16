@@ -123,6 +123,7 @@ const TYPE_PATTERNS: Array<[RegExp, string]> = [
   [/industrial\s*building/i, 'Industrial Building'],
   [/warehouse|godown/i, 'Warehouse/ Godown'],
   [/commercial\s*(land|plot)/i, 'Commercial Land'],
+  [/mixed[\s-]*use|commercial\s*(building|complex|development)|hypermarket|\bhotel\b/i, 'Commercial Building'],
   [/office\s*space|commercial\s*office|it\s*park|sez/i, 'Commercial Office Space'],
   [/showroom/i, 'Commercial Showroom'],
   [/\bshop\b|retail/i, 'Commercial Shop'],

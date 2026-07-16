@@ -518,7 +518,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
         intro_text: "🏦 *Rent Yielding Buildings*\n\nHere are our current listings:",
         empty_text: "🏦 *Rent Yielding Buildings*\n\nSorry, no rent yielding building listings are currently available. Our team will reach out when something suitable is listed.",
         limit: 5,
-        filter_types: ["Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop", "Commercial Showroom", "Warehouse/ Godown"],
+        filter_types: ["Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop", "Commercial Showroom", "Commercial Building", "Warehouse/ Godown"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
       } as SendPropertyListingsNodeConfig,

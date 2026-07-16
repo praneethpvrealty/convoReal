@@ -183,6 +183,7 @@ const TYPE_TO_GROUP: Record<string, SubtypeGroup> = {
   'Office in IT Park/ SEZ': 'commercial-space',
   'Commercial Shop': 'commercial-space',
   'Commercial Showroom': 'commercial-space',
+  'Commercial Building': 'commercial-space',
   'Warehouse/ Godown': 'commercial-space',
   'Commercial Land': 'commercial-plot',
   'Industrial Land': 'industrial',

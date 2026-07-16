@@ -447,6 +447,7 @@ export function PropertyForm({
     'Office in IT Park/ SEZ',
     'Commercial Shop',
     'Commercial Showroom',
+    'Commercial Building',
     'Commercial Land',
     'Warehouse/ Godown',
     'Industrial Land',
@@ -3522,6 +3523,7 @@ export function PropertyForm({
                         <option value="Office in IT Park/ SEZ">Office in IT Park/ SEZ</option>
                         <option value="Commercial Shop">Commercial Shop</option>
                         <option value="Commercial Showroom">Commercial Showroom</option>
+                        <option value="Commercial Building">Commercial Building (Mixed-Use)</option>
                         <option value="Commercial Land">Commercial Land</option>
                         <option value="Warehouse/ Godown">Warehouse/ Godown</option>
                         <option value="Industrial Land">Industrial Land</option>

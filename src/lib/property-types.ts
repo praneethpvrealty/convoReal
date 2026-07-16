@@ -8,8 +8,9 @@ export const PROPERTY_TYPE_VALUES = [
   "Flat/ Apartment", "Residential House", "Villa", "Builder Floor Apartment",
   "Residential Land/ Plot", "Penthouse", "Studio Apartment", "Residential PG building",
   "PG/ Hostel", "Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop",
-  "Commercial Showroom", "Commercial Land", "Warehouse/ Godown", "Industrial Land",
-  "Industrial Building", "Industrial Shed", "Agricultural Land", "Farm House", "Others",
+  "Commercial Showroom", "Commercial Building", "Commercial Land", "Warehouse/ Godown",
+  "Industrial Land", "Industrial Building", "Industrial Shed", "Agricultural Land",
+  "Farm House", "Others",
 ] as const;
 
 /**
@@ -25,6 +26,21 @@ export function normalizePropertyType(raw: string | null | undefined): string | 
   if (exact) return exact;
 
   const lower = trimmed.toLowerCase();
+  // Whole commercial buildings / mixed-use developments — must run
+  // FIRST: their descriptions routinely mention the unit types inside
+  // ("…with Hotel, Offices, Gym & Penthouse"), and any of those
+  // keywords would otherwise win even though the asset being sold is
+  // the building itself.
+  if (lower.includes("mixed use") || lower.includes("mixed-use")) return "Commercial Building";
+  if (
+    lower.includes("commercial") &&
+    (lower.includes("building") || lower.includes("complex") || lower.includes("development"))
+  ) {
+    return "Commercial Building";
+  }
+  if (lower.includes("hotel") || lower.includes("hypermarket") || (lower.includes("mall") && !lower.includes("small"))) {
+    return "Commercial Building";
+  }
   if (lower.includes("hostel")) return "PG/ Hostel";
   if (/\bpg\b/i.test(trimmed) || lower.includes("paying guest")) {
     return lower.includes("building") ? "Residential PG building" : "PG/ Hostel";

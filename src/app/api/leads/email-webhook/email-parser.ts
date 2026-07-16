@@ -614,6 +614,15 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
 
 export function extractPropertyType(text: string): string | null {
   const lower = text.toLowerCase();
+  // Whole commercial buildings / mixed-use developments — before the
+  // office/shop/apartment keywords they typically also mention.
+  if (
+    lower.includes('mixed use') ||
+    lower.includes('mixed-use') ||
+    /commercial\s*(building|complex|development)/.test(lower)
+  ) {
+    return 'Commercial Building';
+  }
   if (lower.includes('industrial land') || lower.includes('industrial plot')) return 'Industrial Land';
   if (lower.includes('industrial building') || lower.includes('industry building')) return 'Industrial Building';
   if (lower.includes('industrial shed') || lower.includes('industrial factory')) return 'Industrial Shed';

@@ -13,6 +13,7 @@ import {
   normalizeClassification
 } from '@/lib/ai/gemini';
 import { uploadPropertyImage, uploadPropertyDocument } from '@/lib/storage/upload';
+import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
 import { 
   sendTextMessage, 
   downloadMedia, 
@@ -762,6 +763,7 @@ export async function processOwnerChatbotMessage(
           documents: draft.documents || [],
           rental_income: parseNumeric(draft.rental_income),
           roi: parseNumeric(draft.roi),
+          floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
           google_map_link: draft.google_map_link,
           land_area: parseNumeric(draft.land_area),
           land_area_unit: draft.land_area_unit || 'Sq.Ft.',
@@ -1741,6 +1743,9 @@ export async function processOwnerChatbotMessage(
                     land_area_unit: latestDraft.land_area_unit || parsedDraft.land_area_unit,
                     rental_income: latestDraft.rental_income || parsedDraft.rental_income,
                     roi: latestDraft.roi || parsedDraft.roi,
+                    floor_tenancies: latestDraft.floor_tenancies?.length
+                      ? latestDraft.floor_tenancies
+                      : parsedDraft.floor_tenancies || [],
                     owner_contact_name: latestDraft.owner_contact_name || parsedDraft.owner_contact_name,
                     owner_contact_phone: latestDraft.owner_contact_phone || parsedDraft.owner_contact_phone,
                     owner_contact_role: latestDraft.owner_contact_role || parsedDraft.owner_contact_role,
@@ -2088,6 +2093,7 @@ export async function processExternalListingMessage(
         documents: draft.documents || [],
         rental_income: draft.rental_income,
         roi: draft.roi,
+        floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
         google_map_link: draft.google_map_link,
         land_area: draft.land_area,
         land_area_unit: draft.land_area_unit || 'Sq.Ft.',

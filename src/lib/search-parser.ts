@@ -16,6 +16,7 @@ export const CATEGORY_SUBTYPES: Record<string, string[]> = {
     "Office in IT Park/ SEZ",
     "Commercial Shop",
     "Commercial Showroom",
+    "Commercial Building",
     "Commercial Land",
     "Warehouse/ Godown",
     "Industrial Land",
@@ -219,7 +220,8 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     { pattern: /\bshops?\b/i,                                types: ['Commercial Shop','Commercial Showroom'] },
     { pattern: /\bwarehouse[s]?\b|\bgodowns?\b/i,            types: ['Warehouse/ Godown'] },
     { pattern: /\bindustrial\s+(?:shed|building)s?\b/i,      types: ['Industrial Building','Industrial Shed'] },
-    { pattern: /\bcommercial\b/i,                            types: ['Commercial','Commercial Office Space','Office in IT Park/ SEZ','Commercial Shop','Commercial Showroom','Commercial Land','Warehouse/ Godown','Industrial Land','Industrial Building','Industrial Shed'] },
+    { pattern: /\bmixed[\s-]*use\b|\bcommercial\s+(?:building|complex|development)s?\b/i, types: ['Commercial Building'] },
+    { pattern: /\bcommercial\b/i,                            types: ['Commercial','Commercial Office Space','Office in IT Park/ SEZ','Commercial Shop','Commercial Showroom','Commercial Building','Commercial Land','Warehouse/ Godown','Industrial Land','Industrial Building','Industrial Shed'] },
     { pattern: /\bresidential\b/i,                           types: ['Residential','Flat/ Apartment','Residential House','Villa','Builder Floor Apartment','Residential Land/ Plot','Penthouse','Studio Apartment'] },
     { pattern: /\bagricultural\b/i,                          types: ['Agricultural','Agricultural Land','Farm House'] },
   ];
