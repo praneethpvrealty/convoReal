@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 interface TeamViewProps {
   events: CalendarEvent[];
@@ -157,7 +158,11 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                             )}
                             <span className="font-mono text-[9px] opacity-80">{formatTimeShort(ev.start_time)}</span>
                             <span className="truncate">{ev.title}</span>
-                            {ev.contact?.name && <span className="hidden opacity-70 sm:inline truncate">· {ev.contact.name}</span>}
+                            {ev.contact?.name && (
+                              <span className="hidden opacity-70 sm:inline-flex sm:items-center sm:gap-1 truncate">
+                                · {ev.contact.name}<NameTagBadge tag={ev.contact.name_tag} />
+                              </span>
+                            )}
                           </button>
                         );
                       })}

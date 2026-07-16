@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
 import { Button } from '@/components/ui/button';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   Table,
   TableBody,
@@ -541,7 +542,10 @@ export default function BroadcastDetailPage() {
                   return (
                     <TableRow key={recipient.id} className="border-slate-800">
                       <TableCell className="font-medium text-white">
-                        {recipient.contact?.name ?? 'Unknown'}
+                        <div className="flex items-center gap-1.5">
+                          <span>{recipient.contact?.name ?? 'Unknown'}</span>
+                          <NameTagBadge tag={recipient.contact?.name_tag} />
+                        </div>
                       </TableCell>
                       <TableCell className="text-slate-300">
                         {recipient.contact?.phone ?? '-'}

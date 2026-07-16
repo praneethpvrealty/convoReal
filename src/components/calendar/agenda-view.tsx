@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ChevronDown, MapPin, User, Home, CheckCircle2 } from "lucide-react";
 import { CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 interface AgendaViewProps {
   events: CalendarEvent[];
@@ -82,7 +83,7 @@ export function AgendaView({ events, members, onEventClick }: AgendaViewProps) {
           </span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-slate-500">
             {ev.contact?.name && (
-              <span className="inline-flex items-center gap-1"><User className="h-2.5 w-2.5" />{ev.contact.name}</span>
+              <span className="inline-flex items-center gap-1"><User className="h-2.5 w-2.5" />{ev.contact.name}<NameTagBadge tag={ev.contact.name_tag} /></span>
             )}
             {ev.property?.title && (
               <span className="inline-flex items-center gap-1"><Home className="h-2.5 w-2.5" />{ev.property.title}</span>

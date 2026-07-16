@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Sheet,
@@ -1785,8 +1786,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             }}
                             className="w-full text-left flex items-center justify-between px-2 py-1.5 hover:bg-slate-800 rounded text-xs text-slate-200"
                           >
-                            <div>
+                            <div className="flex items-center gap-1.5">
                               <span className="font-semibold">{c.name || 'Unnamed'}</span>
+                              <NameTagBadge tag={c.name_tag} />
                               <span className="text-slate-400 ml-1.5 text-[10px]">({c.phone})</span>
                             </div>
                             <span className="text-[10px] bg-slate-800 px-1 py-0.5 rounded text-slate-400 font-bold">

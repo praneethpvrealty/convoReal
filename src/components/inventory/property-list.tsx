@@ -32,6 +32,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { PropertyRadarLoader } from '@/components/ui/property-radar-loader';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 
 const highlightIcons: Record<string, string> = {
   'School': '🏫',
@@ -409,7 +410,10 @@ export function PropertyList({
                       <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                         {property.owner.classification || 'Owner'}:
                       </span>
-                      <span className="text-slate-350 font-semibold">{property.owner.name || 'Unnamed'}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-slate-350 font-semibold">{property.owner.name || 'Unnamed'}</span>
+                        <NameTagBadge tag={property.owner.name_tag} />
+                      </span>
                     </div>
                   )}
                 </div>
@@ -624,8 +628,9 @@ export function PropertyList({
                           key={contact.id}
                           className="flex items-center justify-between text-xs bg-slate-950/20 px-2.5 py-1 rounded border border-slate-800/40 hover:border-slate-800 transition-all"
                         >
-                          <span className="font-semibold text-slate-200 truncate max-w-[120px]" title={contact.name}>
-                            👤 {contact.name || 'Unnamed'}
+                          <span className="flex items-center gap-1.5 font-semibold text-slate-200 truncate max-w-[150px]" title={contact.name}>
+                            <span className="truncate">👤 {contact.name || 'Unnamed'}</span>
+                            <NameTagBadge tag={contact.name_tag} />
                           </span>
                           <div className="flex items-center gap-1.5 font-semibold">
                             <span className="text-slate-450 font-mono text-[10px]">{contact.phone}</span>

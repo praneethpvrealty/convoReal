@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Share2, Copy, Check, ExternalLink, MessageCircle, Search, Smartphone, UserCheck, X, User, Handshake, ClipboardList, Send, Loader2, Sparkles } from 'lucide-react';
 import type { MessageTemplate, Property, ShowcaseSettings } from '@/types';
 import { buildInventorySummary } from '@/lib/inventory-summary-builder';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import {
   buildInventoryUpdateTemplatePayload,
   buildInventoryUpdateParams,
@@ -27,6 +28,7 @@ interface PickerContact {
   id: string;
   name: string | null;
   phone: string;
+  name_tag?: string | null;
 }
 
 interface ShowcaseShareDialogProps {
@@ -114,7 +116,7 @@ Best regards`;
       const db = createClient();
       void db
         .from('contacts')
-        .select('id, name, phone')
+        .select('id, name, phone, name_tag')
         .eq('account_id', accountId)
         .eq('status', 'active')
         .order('name')
@@ -781,8 +783,9 @@ Best regards`;
                     className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <span className="text-xs font-bold text-white truncate block">
-                        {contact.name || contact.phone}
+                      <span className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                        <span className="truncate">{contact.name || contact.phone}</span>
+                        <NameTagBadge tag={contact.name_tag} />
                       </span>
                       {contact.name && (
                         <span className="text-[10px] text-slate-500 font-medium truncate block">

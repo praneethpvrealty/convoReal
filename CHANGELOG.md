@@ -13,6 +13,24 @@ and polish.
 
 ### Added
 
+- **Name Tag now shows next to a contact's name everywhere, not just 3
+  places.** `contacts.name_tag` (a short internal qualifier like "Bank
+  DSA", migration 122) previously only rendered in the Contacts list,
+  contact detail view, and inbox sidebar. Extracted a shared
+  `NameTagBadge` component (`src/components/contacts/name-tag-badge.tsx`)
+  and wired it into every other place a contact's name is displayed:
+  Agents Directory (list + detail), inbox conversation list and thread
+  header, pipeline kanban cards, broadcast recipient tables, calendar
+  (agenda/team views, smart-add preview, mention picker), Today page,
+  Match Radar and Pulse event feeds, the dashboard's Active Users
+  widget, property owner/interested-contact displays and every
+  share-contact dialog, the shared searchable-contact picker
+  components, global command-palette search, duplicate-contact
+  merging, referrer autocompletes, and automation/flow run logs. Several
+  of these needed `name_tag` added to their underlying Supabase
+  `.select()` queries and local TypeScript interfaces — it was silently
+  absent from the data, not just the UI, in those spots.
+
 - **Showcase Pulse: dedupe, filters, and an anonymous-visitor nudge.**
   Further Pulse timeline polish on top of the identity-stitching /
   scroll fixes below:

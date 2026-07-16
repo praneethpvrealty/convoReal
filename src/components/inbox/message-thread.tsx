@@ -40,6 +40,7 @@ import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
 import { MessageBubbleLoader } from "@/components/ui/message-bubble-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { toast } from "sonner";
 
 interface ReplyDraft {
@@ -838,7 +839,10 @@ export function MessageThread({
             {displayName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-white">{displayName}</h2>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h2 className="truncate text-sm font-semibold text-white">{displayName}</h2>
+              {contact.name && <NameTagBadge tag={contact.name_tag} />}
+            </div>
             <p className="truncate text-xs text-slate-400">{contact.phone}</p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so

@@ -21,6 +21,7 @@ import type {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatRelative } from "@/lib/automations/trigger-meta"
+import { NameTagBadge } from "@/components/contacts/name-tag-badge"
 
 export default function AutomationLogsPage({
   params,
@@ -47,7 +48,7 @@ export default function AutomationLogsPage({
             .maybeSingle(),
           supabase
             .from("automation_logs")
-            .select("*, contact:contacts(id, name, phone)")
+            .select("*, contact:contacts(id, name, phone, name_tag)")
             .eq("automation_id", id)
             .order("created_at", { ascending: false })
             .limit(100),
@@ -128,8 +129,11 @@ export default function AutomationLogsPage({
                   )}
                   <StatusBadge status={log.status} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-white">
-                      {log.contact?.name ?? log.contact?.phone ?? "Unknown contact"}
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-white">
+                      <span className="truncate">
+                        {log.contact?.name ?? log.contact?.phone ?? "Unknown contact"}
+                      </span>
+                      <NameTagBadge tag={log.contact?.name_tag} />
                     </div>
                     <div className="truncate text-xs text-slate-500">
                       {log.trigger_event} · {log.steps_executed?.length ?? 0} step

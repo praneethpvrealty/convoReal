@@ -19,6 +19,7 @@ import { loadMatchEvents } from "@/lib/radar/queries";
 import { buildPropertyAlertTemplatePayload } from "@/lib/whatsapp/property-alert-template";
 import type { MatchEvent, Property } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { RadarSweepLoader } from "@/components/ui/radar-sweep-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
@@ -349,8 +350,9 @@ export default function RadarPage() {
                         <div className="flex items-start gap-2">
                           <User className="size-4.5 text-primary shrink-0 mt-0.5" />
                           <div className="min-w-0">
-                            <h4 className="text-sm font-black text-white leading-tight">
+                            <h4 className="text-sm font-black text-white leading-tight flex items-center gap-1.5">
                               {evt.contact.name || evt.contact.phone}
+                              <NameTagBadge tag={evt.contact.name_tag} />
                             </h4>
                             <p className="text-[10px] font-bold text-slate-500 mt-0.5">
                               {evt.contact.phone}

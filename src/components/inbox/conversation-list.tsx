@@ -18,6 +18,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { FavoriteButton } from "@/components/layout/favorite-button";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { MessageBubbleLoader } from "@/components/ui/message-bubble-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
@@ -523,15 +524,18 @@ function ConversationItem({
         {/* Content */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
-            <span className={cn(
-              "truncate text-sm transition-all",
-              isActive
-                ? "font-semibold text-white"
-                : isUnread
-                ? "font-bold text-white text-md tracking-wide"
-                : "font-normal text-slate-400"
-            )}>
-              {displayName}
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className={cn(
+                "truncate text-sm transition-all",
+                isActive
+                  ? "font-semibold text-white"
+                  : isUnread
+                  ? "font-bold text-white text-md tracking-wide"
+                  : "font-normal text-slate-400"
+              )}>
+                {displayName}
+              </span>
+              {contact?.name && <NameTagBadge tag={contact?.name_tag} />}
             </span>
             <span className={cn(
               "shrink-0 text-[10px] transition-all",

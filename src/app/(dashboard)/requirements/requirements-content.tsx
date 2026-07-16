@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ChecklistLoader } from "@/components/ui/checklist-loader"
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
+import { NameTagBadge } from "@/components/contacts/name-tag-badge"
 
 interface Tag {
   id: string
@@ -51,6 +52,7 @@ interface ConsolidatedContact {
   name: string
   phone: string
   email?: string
+  name_tag?: string | null
   classification: "Buyer" | "Agent"
   lead_temp?: "HOT" | "COLD" | "Not Responding" | "Dead" | null
   min_budget?: number
@@ -405,8 +407,9 @@ export default function RequirementsPage() {
                         </AvatarFallback>
                       </Avatar>
                       <div>
-                        <h3 className="text-sm font-black text-white group-hover:text-primary transition-colors">
-                          {c.name}
+                        <h3 className="text-sm font-black text-white group-hover:text-primary transition-colors flex items-center gap-1.5">
+                          <span>{c.name}</span>
+                          <NameTagBadge tag={c.name_tag} />
                         </h3>
                         <p className="text-[10px] text-slate-500 mt-0.5">{c.phone}</p>
                       </div>

@@ -3,11 +3,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check } from 'lucide-react';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 
 interface Contact {
   id: string;
   name: string;
   phone: string;
+  name_tag?: string | null;
 }
 
 interface SearchableContactMultiSelectProps {
@@ -171,7 +173,10 @@ export function SearchableContactMultiSelect({
                 }`}
               >
                 <div className="min-w-0 pr-3 flex-1">
-                  <span className="font-bold truncate block">{contact.name}</span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="font-bold truncate block min-w-0 flex-1">{contact.name}</span>
+                    <NameTagBadge tag={contact.name_tag} />
+                  </div>
                   <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
                     📞 {contact.phone}
                   </p>
@@ -204,6 +209,7 @@ export function SearchableContactMultiSelect({
                 className="inline-flex items-center gap-1 rounded-full border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-400 max-w-full"
               >
                 <span className="truncate">{c.name}</span>
+                <NameTagBadge tag={c.name_tag} />
                 <span
                   role="button"
                   tabIndex={0}

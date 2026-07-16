@@ -24,6 +24,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/currency-utils";
 import { CreditMeter } from "@/components/layout/CreditMeter";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -57,7 +58,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [contactsResults, setContactsResults] = useState<{ id: string; name: string | null; phone: string; email: string | null }[]>([]);
+  const [contactsResults, setContactsResults] = useState<{ id: string; name: string | null; phone: string; email: string | null; name_tag?: string | null }[]>([]);
   const [dealsResults, setDealsResults] = useState<{ id: string; title: string; value: number | null; currency: string }[]>([]);
   const [propertiesResults, setPropertiesResults] = useState<{ id: string; title: string; location: string | null; status: string }[]>([]);
   const [searching, setSearching] = useState(false);
@@ -99,7 +100,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
         const [contactsRes, dealsRes, propertiesRes] = await Promise.all([
           supabase
             .from("contacts")
-            .select("id, name, phone, email")
+            .select("id, name, phone, email, name_tag")
             .eq("account_id", profile?.account_id)
             .eq("is_merged", false)
             .or(`name.ilike.${pattern},phone.ilike.${pattern},email.ilike.${pattern}`)
@@ -211,8 +212,9 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                       className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">
-                          {c.name || "(No Name)"}
+                        <p className="text-sm font-semibold text-white flex items-center gap-1.5 min-w-0">
+                          <span className="truncate">{c.name || "(No Name)"}</span>
+                          <NameTagBadge tag={c.name_tag} />
                         </p>
                         <p className="text-xs text-slate-400 truncate mt-0.5">
                           {c.phone} {c.email ? `· ${c.email}` : ""}

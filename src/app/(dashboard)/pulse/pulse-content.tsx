@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { InfoHint } from "@/components/ui/info-hint";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import {
   loadPulseStats,
   loadPulseFeed,
@@ -141,14 +142,14 @@ export default function PulsePage() {
       case "open":
         return (
           <span>
-            <strong className="text-white">{contactName}</strong> loaded the showcase catalog portal.
+            <strong className="text-white">{contactName}</strong><NameTagBadge tag={event.contact?.name_tag} /> loaded the showcase catalog portal.
           </span>
         );
       case "view_property":
         const dwell = formatDwellTime(event.metadata.duration_ms);
         return (
           <span>
-            <strong className="text-white">{contactName}</strong> viewed details of{" "}
+            <strong className="text-white">{contactName}</strong><NameTagBadge tag={event.contact?.name_tag} /> viewed details of{" "}
             <strong className="text-slate-200">{propertyTitle}</strong>
             {dwell ? <span className="text-emerald-400 font-bold ml-1.5">({dwell})</span> : ""}.
           </span>
@@ -156,21 +157,21 @@ export default function PulsePage() {
       case "gallery":
         return (
           <span>
-            <strong className="text-white">{contactName}</strong> opened the photo gallery for{" "}
+            <strong className="text-white">{contactName}</strong><NameTagBadge tag={event.contact?.name_tag} /> opened the photo gallery for{" "}
             <strong className="text-slate-200">{propertyTitle}</strong>.
           </span>
         );
       case "map_click":
         return (
           <span>
-            <strong className="text-white">{contactName}</strong> clicked the location map pin for{" "}
+            <strong className="text-white">{contactName}</strong><NameTagBadge tag={event.contact?.name_tag} /> clicked the location map pin for{" "}
             <strong className="text-slate-200">{propertyTitle}</strong>.
           </span>
         );
       default:
         return (
           <span>
-            <strong className="text-white">{contactName}</strong> interacted with the showcase link.
+            <strong className="text-white">{contactName}</strong><NameTagBadge tag={event.contact?.name_tag} /> interacted with the showcase link.
           </span>
         );
     }

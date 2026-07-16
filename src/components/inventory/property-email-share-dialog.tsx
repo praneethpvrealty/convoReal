@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { Loader2, Mail, X, Copy, Check, ExternalLink, Paperclip, Search, ImageIcon, Sparkles } from 'lucide-react';
 import { buildPropertyShareEmailContent } from '@/lib/email/property-share-email';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -76,7 +77,7 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
     try {
       const { data, error } = await supabase
         .from('contacts')
-        .select('id, name, email, phone, classification')
+        .select('id, name, email, phone, classification, name_tag')
         .eq('account_id', accountId)
         .eq('status', 'active')
         .not('email', 'is', null)
@@ -292,7 +293,10 @@ export function PropertyEmailShareDialog({ open, onOpenChange, property }: Prope
                         onClick={() => addContactRecipient(c)}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-slate-800 flex items-center justify-between gap-2"
                       >
-                        <span className="text-slate-200 font-medium truncate">{c.name}</span>
+                        <span className="text-slate-200 font-medium truncate flex items-center gap-1.5">
+                          {c.name}
+                          <NameTagBadge tag={c.name_tag} />
+                        </span>
                         <span className="text-slate-500 truncate">{c.email}</span>
                       </button>
                     ))
