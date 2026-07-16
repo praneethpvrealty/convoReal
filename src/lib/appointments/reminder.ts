@@ -23,6 +23,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const HOUR_MS = 60 * 60 * 1000
 
+// Agenda-carrying template variant (seeded DRAFT by migration 129).
+// Used only for accounts whose copy Meta has APPROVED; everyone else
+// stays on the original 5-placeholder template.
+const AGENDA_TEMPLATE_NAME = 'property_visit_reminder_agenda'
+
 type ReminderType = 'morning' | '1h'
 
 interface ReminderContact {
@@ -38,6 +43,7 @@ interface ReminderAppointment {
   title: string
   start_time: string
   location: string | null
+  agenda: string | null
   contact_id: string | null
   contact_ids: string[] | null
   reminder_morning_sent: boolean
@@ -70,6 +76,14 @@ async function loadContacts(
   return map
 }
 
+/** Meta rejects template params containing newlines/tabs, and long
+ *  params can push the rendered body past its limit — flatten the
+ *  free-text agenda into one bounded line. */
+function sanitizeTemplateParam(text: string, max = 300): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
+}
+
 function formatIstTime(iso: string): string {
   return new Date(iso).toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
@@ -93,7 +107,8 @@ async function sendToAllRecipients(
   admin: SupabaseClient,
   appt: ReminderAppointment,
   contacts: Map<string, ReminderContact>,
-  reminderType: ReminderType
+  reminderType: ReminderType,
+  useAgendaTemplate: boolean
 ): Promise<boolean> {
   const reachable = recipientIds(appt)
     .map((id) => contacts.get(id))
@@ -106,6 +121,8 @@ async function sendToAllRecipients(
 
   const accountName = appt.account?.name || 'our team'
   const formattedTime = formatIstTime(appt.start_time)
+  const agendaParam =
+    useAgendaTemplate && appt.agenda ? sanitizeTemplateParam(appt.agenda) : null
 
   let allCovered = true
   for (const contact of reachable) {
@@ -125,7 +142,12 @@ async function sendToAllRecipients(
       continue
     }
 
-    const bodyText = `Hi ${contact.name || 'Client'}, this is a friendly reminder for your scheduled property visit for "${appt.property?.title || appt.title || 'Property visit'}" on ${formattedTime}. Location: ${appt.location || 'Scheduled Location'}. Regards, ${accountName}.`
+    const clientName = contact.name || 'Client'
+    const visitTitle = appt.property?.title || appt.title || 'Property visit'
+    const locationText = appt.location || 'Scheduled Location'
+    const bodyText = agendaParam
+      ? `Hi ${clientName}, this is a friendly reminder for your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda: ${agendaParam}. Regards, ${accountName}.`
+      : `Hi ${clientName}, this is a friendly reminder for your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Regards, ${accountName}.`
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: appt.account_id,
@@ -133,15 +155,11 @@ async function sendToAllRecipients(
       contactId: contact.id,
       kind: 'template',
       senderType: 'agent', // reminders logged as sent by agent
-      templateName: 'property_visit_reminder',
+      templateName: agendaParam ? AGENDA_TEMPLATE_NAME : 'property_visit_reminder',
       templateLanguage: 'en_US',
-      templateParams: [
-        contact.name || 'Client',
-        appt.property?.title || appt.title || 'Property visit',
-        formattedTime,
-        appt.location || 'Scheduled Location',
-        accountName,
-      ],
+      templateParams: agendaParam
+        ? [clientName, visitTitle, formattedTime, locationText, agendaParam, accountName]
+        : [clientName, visitTitle, formattedTime, locationText, accountName],
       text: bodyText, // Store formatted preview text in DB
       customDbClient: admin,
     })
@@ -177,7 +195,7 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, title, start_time, location, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, property:properties(id, title), account:accounts(name)'
+      'id, account_id, user_id, title, start_time, location, agenda, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, property:properties(id, title), account:accounts(name)'
     )
     .eq('status', 'scheduled')
     .gt('start_time', now.toISOString())
@@ -194,6 +212,25 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
   const contacts = await loadContacts(admin, [...new Set(rows.flatMap(recipientIds))])
   if (!contacts) return // transient failure — retry the whole tick later
 
+  // Accounts whose agenda-carrying template variant Meta has approved
+  // get the agenda in client reminders; everyone else stays on the
+  // original template. A lookup failure just means "fall back" — it
+  // must never block the reminders themselves.
+  const agendaAccounts = new Set<string>()
+  const apptsWithAgenda = rows.filter((r) => r.agenda)
+  if (apptsWithAgenda.length > 0) {
+    const { data: agendaTemplates, error: tplErr } = await admin
+      .from('message_templates')
+      .select('account_id')
+      .eq('name', AGENDA_TEMPLATE_NAME)
+      .eq('status', 'APPROVED')
+      .in('account_id', [...new Set(apptsWithAgenda.map((r) => r.account_id))])
+    if (tplErr) {
+      console.warn('[Reminder Cron] agenda template lookup failed, using base template:', tplErr)
+    }
+    for (const t of agendaTemplates || []) agendaAccounts.add(t.account_id as string)
+  }
+
   for (const appt of rows) {
     const msUntilStart = new Date(appt.start_time).getTime() - now.getTime()
     const isDue1h = !appt.reminder_1h_sent && msUntilStart <= HOUR_MS
@@ -207,8 +244,10 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
       msUntilStart > HOUR_MS &&
       new Date(appt.start_time).getTime() < dayEndMs
 
+    const useAgendaTemplate = agendaAccounts.has(appt.account_id)
+
     if (isDue1h) {
-      const covered = await sendToAllRecipients(admin, appt, contacts, '1h')
+      const covered = await sendToAllRecipients(admin, appt, contacts, '1h', useAgendaTemplate)
       if (covered) {
         // An event that got its 1h reminder no longer needs the
         // morning one — mark both so it drops out of the scan.
@@ -218,7 +257,7 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
           .eq('id', appt.id)
       }
     } else if (isDueMorning) {
-      const covered = await sendToAllRecipients(admin, appt, contacts, 'morning')
+      const covered = await sendToAllRecipients(admin, appt, contacts, 'morning', useAgendaTemplate)
       if (covered) {
         await admin.from('appointments').update({ reminder_morning_sent: true }).eq('id', appt.id)
       }
