@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -279,8 +280,9 @@ export default function BroadcastDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
+      <div className="flex h-64 flex-col items-center justify-center gap-3">
         <SignalWaveLoader size={56} label="Loading broadcast" />
+        <ConvoRealLoader size={18} />
       </div>
     );
   }

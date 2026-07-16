@@ -11,6 +11,7 @@ import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { Button } from "@/components/ui/button";
 import { PipelineStageLoader } from "@/components/ui/pipeline-stage-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import {
   Dialog,
   DialogContent,
@@ -561,7 +562,8 @@ export default function PipelinesPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-        <PipelineStageLoader size={104} label="Loading pipeline" className="mb-4" />
+        <PipelineStageLoader size={104} label="Loading pipeline" className="mb-3" />
+        <ConvoRealLoader size={20} className="mb-2" />
         <p className="text-sm">Loading pipeline...</p>
       </div>
     );

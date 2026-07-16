@@ -20,6 +20,7 @@ import { buildPropertyAlertTemplatePayload } from "@/lib/whatsapp/property-alert
 import type { MatchEvent, Property } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
 import { RadarSweepLoader } from "@/components/ui/radar-sweep-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
 interface CheckedState {
   /** Event ID -> Set of target IDs. */
@@ -255,7 +256,8 @@ export default function RadarPage() {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <RadarSweepLoader size={96} label="Scanning for matches" className="mb-4" />
+          <RadarSweepLoader size={96} label="Scanning for matches" className="mb-3" />
+          <ConvoRealLoader size={20} className="mb-2" />
           <p className="text-sm">Scanning for matches...</p>
         </div>
       ) : !events || events.length === 0 ? (

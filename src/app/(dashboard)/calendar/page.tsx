@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CalendarLoader } from "@/components/ui/calendar-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { SearchableContactSelect } from "@/components/ui/searchable-contact-select";
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
@@ -1040,8 +1041,9 @@ export default function CalendarPage() {
           </div>
 
           {loading ? (
-            <div className="flex flex-1 items-center justify-center">
+            <div className="flex flex-1 flex-col items-center justify-center gap-3">
               <CalendarLoader size={64} label="Loading calendar" />
+              <ConvoRealLoader size={18} />
             </div>
           ) : view === "team" ? (
             <TeamView

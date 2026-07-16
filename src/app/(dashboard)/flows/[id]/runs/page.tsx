@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { FlowNodeLoader } from "@/components/ui/flow-node-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -150,8 +151,9 @@ export default function FlowRunsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center gap-3">
         <FlowNodeLoader size={96} label="Loading flow runs" />
+        <ConvoRealLoader size={18} />
       </div>
     );
   }

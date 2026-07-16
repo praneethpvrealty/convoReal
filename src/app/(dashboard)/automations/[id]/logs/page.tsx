@@ -12,6 +12,7 @@ import {
 
 import { createClient } from "@/lib/supabase/client"
 import { FlowNodeLoader } from "@/components/ui/flow-node-loader"
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
 import type {
   Automation,
   AutomationLog,
@@ -75,8 +76,9 @@ export default function AutomationLogsPage({
 
   if (!automation || logs === null) {
     return (
-      <div className="flex h-64 items-center justify-center">
+      <div className="flex h-64 flex-col items-center justify-center gap-3">
         <FlowNodeLoader size={96} label="Loading automation logs" />
+        <ConvoRealLoader size={18} />
       </div>
     )
   }

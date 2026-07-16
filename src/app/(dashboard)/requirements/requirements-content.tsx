@@ -22,6 +22,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ChecklistLoader } from "@/components/ui/checklist-loader"
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
 
 interface Tag {
   id: string
@@ -370,7 +371,8 @@ export default function RequirementsPage() {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20">
             <ChecklistLoader size={64} label="Assembling client requirements" />
-            <p className="mt-4 text-xs text-slate-500 font-medium">Assembling client requirements...</p>
+            <ConvoRealLoader size={18} className="mt-3" />
+            <p className="mt-3 text-xs text-slate-500 font-medium">Assembling client requirements...</p>
           </div>
         ) : filteredData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 border border-slate-800/80 bg-slate-900/25 rounded-2xl">

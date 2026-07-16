@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { FlowNodeLoader } from "@/components/ui/flow-node-loader"
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
 
 import {
   AutomationBuilder,
@@ -64,8 +65,9 @@ export default function EditAutomationPage({
 
   if (!initial) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen flex-col items-center justify-center gap-3">
         <FlowNodeLoader size={96} label="Loading automation" />
+        <ConvoRealLoader size={20} />
       </div>
     )
   }

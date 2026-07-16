@@ -28,6 +28,7 @@ import { openRazorpayCheckout } from "@/lib/marketplace/checkout";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
 import { FlowNodeLoader } from "@/components/ui/flow-node-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import {
   Dialog,
   DialogContent,
@@ -318,8 +319,9 @@ export default function FlowsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full flex-col items-center justify-center gap-3">
         <FlowNodeLoader size={96} label="Loading flows" />
+        <ConvoRealLoader size={18} />
       </div>
     );
   }

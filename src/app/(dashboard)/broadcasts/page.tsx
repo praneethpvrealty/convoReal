@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/table';
 import { Radio, Plus } from 'lucide-react';
 import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { getBroadcastStatus } from '@/lib/broadcast-status';
@@ -133,8 +134,9 @@ export default function BroadcastsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
+      <div className="flex h-64 flex-col items-center justify-center gap-3">
         <SignalWaveLoader size={56} label="Loading broadcasts" />
+        <ConvoRealLoader size={18} />
       </div>
     );
   }

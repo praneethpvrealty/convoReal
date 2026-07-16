@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 import { MessageBubbleLoader } from "@/components/ui/message-bubble-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
 /** Strip WhatsApp formatting markers (*bold*, _italic_, ~strike~) for plain-text previews. */
 function stripWhatsAppFormatting(text: string | null | undefined): string {
@@ -421,8 +422,9 @@ export function ConversationList({
       {/* Conversation Items */}
       <ScrollArea className="flex-1 min-h-0">
         {loading ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-12">
+          <div className="flex flex-col items-center justify-center gap-2.5 py-12">
             <MessageBubbleLoader size={44} label="Loading conversations" />
+            <ConvoRealLoader size={14} />
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">

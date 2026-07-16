@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { Smartphone, AlertCircle } from 'lucide-react';
 import { ContactCardLoader } from '@/components/ui/contact-card-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import type { Contact } from '@/types';
@@ -118,6 +119,7 @@ function ImportSharedContactContent() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
         <ContactCardLoader size={56} label="Processing shared contact data" />
+        <ConvoRealLoader size={16} />
         <p className="text-slate-400 text-sm">Processing shared contact data...</p>
       </div>
     );
@@ -171,6 +173,7 @@ export default function ImportSharedContactPage() {
       fallback={
         <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
           <ContactCardLoader size={56} label="Loading import page" />
+          <ConvoRealLoader size={16} />
           <p className="text-slate-400 text-sm">Loading import page...</p>
         </div>
       }

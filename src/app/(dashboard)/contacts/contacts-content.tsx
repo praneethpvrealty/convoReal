@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { ContactCardLoader } from '@/components/ui/contact-card-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -1817,6 +1818,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 <TableCell colSpan={9} className="text-center py-12">
                   <div className="flex flex-col items-center gap-2">
                     <ContactCardLoader size={56} label="Loading contacts" />
+                    <ConvoRealLoader size={16} />
                     <p className="text-sm text-slate-500">Loading contacts...</p>
                   </div>
                 </TableCell>
