@@ -152,6 +152,18 @@ as the sole owner of their own account and sees identical data.
   (`src/lib/whatsapp/meta-api-dispatcher.ts`) fell back to `null` when
   no acting user triggered the send. Now falls back to the account's
   `owner_user_id` instead.
+- **Meta could never publish the Buyer Preference Intake flow, and
+  once published the flow would have failed for every real buyer.**
+  `src/proxy.ts` (this Next.js version's `middleware.ts`) gated every
+  `/api/whatsapp/*` request behind a logged-in browser session unless
+  the path contained `/webhook`. `/api/whatsapp/flows/endpoint/
+  [accountId]` — the server-to-server callback Meta calls directly for
+  health-check pings, `INIT`, and `data_exchange` — carries no session
+  cookie and doesn't match `/webhook`, so it got a blanket 401 before
+  the route handler (which already authenticates via HMAC signature +
+  RSA/AES encryption) ever ran. That's what kept Meta's publish health
+  check permanently `BLOCKED` with `endpoint_available`. Added an
+  explicit exemption for that one path.
 
 ### Changed
 
