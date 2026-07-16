@@ -16,6 +16,9 @@ import {
   Route,
   Coins,
   Megaphone,
+  Plug,
+  Workflow,
+  Newspaper,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
@@ -45,6 +48,8 @@ import { FavoriteButton } from "@/components/layout/favorite-button";
 const BASE_TAB_VALUES = [
   'profile',
   'whatsapp',
+  // 'templates' stays a valid URL value for old links/favorites, but
+  // it now lives as a sub-tab under WhatsApp (see WHATSAPP_SUBTABS).
   'templates',
   'tags',
   'appearance',
@@ -60,6 +65,21 @@ type TabValue = (typeof TAB_VALUES)[number];
 
 function isTabValue(v: string | null): v is TabValue {
   return !!v && (TAB_VALUES as readonly string[]).includes(v);
+}
+
+// Everything WhatsApp-related lives under one tab, split into
+// sub-tabs (?tab=whatsapp&sub=…): the connection/config page,
+// message templates, WhatsApp Flows, and the owner digest.
+const WHATSAPP_SUBTABS = [
+  { value: 'connection', label: 'Connection', icon: Plug },
+  { value: 'templates', label: 'Templates', icon: MessageSquare },
+  { value: 'flows', label: 'Flows', icon: Workflow },
+  { value: 'digest', label: 'Owner Digest', icon: Newspaper },
+] as const;
+type WhatsAppSub = (typeof WHATSAPP_SUBTABS)[number]['value'];
+
+function isWhatsAppSub(v: string | null): v is WhatsAppSub {
+  return !!v && WHATSAPP_SUBTABS.some((s) => s.value === v);
 }
 
 // Flag key matches what migration 011 introduced. The Members tab
@@ -110,17 +130,37 @@ export default function SettingsPage() {
   // them (feature flag off, plan doesn't include it, or insufficient
   // role — e.g. a stale link or a downgraded plan), fall back to the
   // profile tab silently rather than rendering an empty TabsContent.
+  // Legacy ?tab=templates links/favorites land on the WhatsApp tab
+  // with the Templates sub-tab active.
   const tab: TabValue =
-    (requestedTab === 'members' && !accountSharingEnabled) ||
-    (requestedTab === 'teams' && !teamsEnabled) ||
-    (requestedTab === 'routing' && !routingEnabled) ||
-    (requestedTab === 'ads' && !metaAdsEnabled)
-      ? 'profile'
-      : requestedTab;
+    requestedTab === 'templates'
+      ? 'whatsapp'
+      : (requestedTab === 'members' && !accountSharingEnabled) ||
+          (requestedTab === 'teams' && !teamsEnabled) ||
+          (requestedTab === 'routing' && !routingEnabled) ||
+          (requestedTab === 'ads' && !metaAdsEnabled)
+        ? 'profile'
+        : requestedTab;
+
+  const querySub = searchParams.get('sub');
+  const whatsappSub: WhatsAppSub =
+    requestedTab === 'templates'
+      ? 'templates'
+      : isWhatsAppSub(querySub)
+        ? querySub
+        : 'connection';
 
   const onChange = (next: TabValue) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', next);
+    params.delete('sub');
+    router.replace(`/settings?${params.toString()}`, { scroll: false });
+  };
+
+  const onSubChange = (next: WhatsAppSub) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'whatsapp');
+    params.set('sub', next);
     router.replace(`/settings?${params.toString()}`, { scroll: false });
   };
 
@@ -136,9 +176,9 @@ export default function SettingsPage() {
     {
       label: 'Messaging',
       items: [
+        // Templates moved under WhatsApp as a sub-tab.
         { value: 'whatsapp', label: 'WhatsApp', icon: Settings },
         ...(metaAdsEnabled ? [{ value: 'ads' as TabValue, label: 'Ads', icon: Megaphone }] : []),
-        { value: 'templates', label: 'Templates', icon: MessageSquare },
         { value: 'tags', label: 'Tags', icon: Tag },
       ],
     },
@@ -181,8 +221,12 @@ export default function SettingsPage() {
           </p>
         </div>
         <FavoriteButton
-          label={`Settings: ${tab.charAt(0).toUpperCase() + tab.slice(1)}`}
-          href={`/settings?tab=${tab}`}
+          label={
+            tab === 'whatsapp'
+              ? `Settings: WhatsApp · ${WHATSAPP_SUBTABS.find((s) => s.value === whatsappSub)?.label}`
+              : `Settings: ${tab.charAt(0).toUpperCase() + tab.slice(1)}`
+          }
+          href={tab === 'whatsapp' ? `/settings?tab=whatsapp&sub=${whatsappSub}` : `/settings?tab=${tab}`}
           icon="Settings"
         />
       </div>
@@ -224,10 +268,33 @@ export default function SettingsPage() {
             <SessionsCard />
           </TabsContent>
 
-          <TabsContent value="whatsapp" className="mt-0 space-y-6" data-tour="whatsapp-config-form">
-            <WhatsAppConfig />
-            <WhatsAppFlowsCard />
-            <OwnerDigestCard />
+          <TabsContent value="whatsapp" className="mt-0 space-y-5" data-tour="whatsapp-config-form">
+            {/* WhatsApp sub-navigation: connection, templates, flows,
+                owner digest. Everything WhatsApp lives here instead of
+                one endless scroll + a separate top-level Templates tab. */}
+            <div className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1">
+              {WHATSAPP_SUBTABS.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => onSubChange(value)}
+                  data-tour={`settings-tab-${value === 'templates' ? 'templates' : `whatsapp-${value}`}`}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                    whatsappSub === value
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  )}
+                >
+                  <Icon className="size-3.5 shrink-0" />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {whatsappSub === 'connection' && <WhatsAppConfig />}
+            {whatsappSub === 'templates' && <TemplateManager />}
+            {whatsappSub === 'flows' && <WhatsAppFlowsCard />}
+            {whatsappSub === 'digest' && <OwnerDigestCard />}
           </TabsContent>
 
           {metaAdsEnabled && (
@@ -235,10 +302,6 @@ export default function SettingsPage() {
               <MetaAdsTab />
             </TabsContent>
           )}
-
-          <TabsContent value="templates" className="mt-0">
-            <TemplateManager />
-          </TabsContent>
 
           <TabsContent value="tags" className="mt-0">
             <TagManager />
