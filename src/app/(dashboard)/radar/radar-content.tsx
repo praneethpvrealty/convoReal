@@ -19,6 +19,8 @@ import { loadMatchEvents } from "@/lib/radar/queries";
 import { buildPropertyAlertTemplatePayload } from "@/lib/whatsapp/property-alert-template";
 import type { MatchEvent, Property } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
+import { RadarSweepLoader } from "@/components/ui/radar-sweep-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
 interface CheckedState {
   /** Event ID -> Set of target IDs. */
@@ -253,16 +255,10 @@ export default function RadarPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-4">
-          {[1, 2].map((i) => (
-            <div key={i} className="rounded-xl border border-slate-800 bg-slate-900 p-5 animate-pulse space-y-4">
-              <div className="h-6 w-1/4 bg-slate-800 rounded" />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="h-32 bg-slate-800/60 rounded-xl" />
-                <div className="h-32 bg-slate-800/60 rounded-xl" />
-              </div>
-            </div>
-          ))}
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <RadarSweepLoader size={96} label="Scanning for matches" className="mb-3" />
+          <ConvoRealLoader size={20} className="mb-2" />
+          <p className="text-sm">Scanning for matches...</p>
         </div>
       ) : !events || events.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-800 py-16 text-center bg-slate-900/10">

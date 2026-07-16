@@ -28,6 +28,8 @@ import {
   type PulseStats,
   type HydratedShowcaseEvent,
 } from "@/lib/pulse/queries";
+import { HeartbeatLoader } from "@/components/ui/heartbeat-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 
 export default function PulsePage() {
   const router = useRouter();
@@ -201,16 +203,10 @@ export default function PulsePage() {
       </div>
 
       {loading ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-24 bg-slate-900 border border-slate-800 rounded-xl animate-pulse" />
-            ))}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-8 h-96 bg-slate-900 border border-slate-800 rounded-xl animate-pulse" />
-            <div className="lg:col-span-4 h-96 bg-slate-900 border border-slate-800 rounded-xl animate-pulse" />
-          </div>
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <HeartbeatLoader size={112} label="Loading pulse activity" className="mb-3" />
+          <ConvoRealLoader size={20} className="mb-2" />
+          <p className="text-sm">Reading the pulse...</p>
         </div>
       ) : (
         <>

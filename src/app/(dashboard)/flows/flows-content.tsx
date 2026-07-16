@@ -27,6 +27,8 @@ import { useCan } from "@/hooks/use-can";
 import { openRazorpayCheckout } from "@/lib/marketplace/checkout";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
+import { FlowNodeLoader } from "@/components/ui/flow-node-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import {
   Dialog,
   DialogContent,
@@ -317,8 +319,9 @@ export default function FlowsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <FlowNodeLoader size={96} label="Loading flows" />
+        <ConvoRealLoader size={18} />
       </div>
     );
   }

@@ -10,6 +10,8 @@ import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { Button } from "@/components/ui/button";
+import { PipelineStageLoader } from "@/components/ui/pipeline-stage-loader";
+import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import {
   Dialog,
   DialogContent,
@@ -559,16 +561,10 @@ export default function PipelinesPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="h-8 w-48 animate-pulse rounded bg-slate-800" />
-          <div className="h-9 w-28 animate-pulse rounded-lg bg-slate-800" />
-        </div>
-        <div className="flex gap-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-96 w-72 animate-pulse rounded-xl bg-slate-800/50" />
-          ))}
-        </div>
+      <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+        <PipelineStageLoader size={104} label="Loading pipeline" className="mb-3" />
+        <ConvoRealLoader size={20} className="mb-2" />
+        <p className="text-sm">Loading pipeline...</p>
       </div>
     );
   }

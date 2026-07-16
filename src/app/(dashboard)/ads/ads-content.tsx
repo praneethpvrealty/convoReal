@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Megaphone, Loader2, Pause, Play, Archive, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
+import { Megaphone, Pause, Play, Archive, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
+import { SignalWaveLoader } from '@/components/ui/signal-wave-loader';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -166,8 +168,9 @@ export default function AdsPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
+          <SignalWaveLoader size={52} label="Loading ad campaigns" />
+          <ConvoRealLoader size={16} />
         </div>
       ) : !campaigns || campaigns.length === 0 ? (
         <div className="rounded-lg border py-16 text-center space-y-3">
