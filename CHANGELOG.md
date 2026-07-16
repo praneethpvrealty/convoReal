@@ -13,6 +13,26 @@ and polish.
 
 ### Added
 
+- **Showcase Pulse: fewer "Anonymous Guest" entries, and a scrollable
+  timeline.** Two fixes to the visitor activity feed (Dashboard →
+  Pulse):
+  - **Identity stitching on the two other places a visitor reveals
+    who they are.** The per-contact `?v=` share link already tagged
+    events by name; now the same retroactive stitch (already used
+    there) also fires when a visitor submits the showcase inquiry
+    form (`/api/public/inquiry`) or types their phone into the "Ask
+    about this property" chat (`/api/public/ask`) — their earlier
+    (and future) "Anonymous Guest" events from that browser session
+    get attributed to the real contact once their phone number is
+    known. Extracted the shared session-key helper
+    (`src/lib/pulse/session-key.ts`) that three components were each
+    reimplementing.
+  - **Live Event Timeline no longer forces scrolling through the
+    entire feed to reach Top Listings.** The timeline (up to 100
+    events) now scrolls in its own `max-h-[600px]` panel instead of
+    growing the whole page — most noticeable on mobile, where the two
+    columns stack.
+
 - **Validate WhatsApp Flow JSON directly against Meta.** Settings →
   WhatsApp → WhatsApp Flows now has a "Validate Against Meta" button
   alongside Publish. It uploads the Buyer Preference Intake Flow JSON

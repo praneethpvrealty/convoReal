@@ -5,6 +5,7 @@ import { Loader2, MessageCircle, Upload, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 
 interface ListPropertyFormProps {
   accountId: string;
@@ -16,18 +17,6 @@ interface UploadedImage {
   name: string;
 }
 
-function getSessionKey(): string {
-  try {
-    const existing = localStorage.getItem('showcase_session_key');
-    if (existing) return existing;
-    const fresh = crypto.randomUUID();
-    localStorage.setItem('showcase_session_key', fresh);
-    return fresh;
-  } catch {
-    return crypto.randomUUID();
-  }
-}
-
 export function ListPropertyForm({ accountId, siteName }: ListPropertyFormProps) {
   const [rawText, setRawText] = useState('');
   const [name, setName] = useState('');
@@ -37,7 +26,7 @@ export function ListPropertyForm({ accountId, siteName }: ListPropertyFormProps)
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ code: string; whatsappLink: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const sessionKey = useMemo(getSessionKey, []);
+  const sessionKey = useMemo(getShowcaseSessionKey, []);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;

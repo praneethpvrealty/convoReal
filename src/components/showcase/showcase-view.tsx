@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { createShowcaseTracker } from '@/lib/pulse/tracker';
+import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 import { toast } from 'sonner';
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from '@/lib/search-parser';
 import {
@@ -480,6 +481,7 @@ export function ShowcaseView({
           propertyCode: interestProperty.property_code,
           accountId,
           referrerContactId: interestProperty.agent_details?.id || referrerContactId,
+          sessionKey: getShowcaseSessionKey(),
         }),
       });
 
@@ -544,6 +546,7 @@ export function ShowcaseView({
           propertyCode: property.property_code,
           accountId,
           referrerContactId: property.agent_details?.id || referrerContactId,
+          sessionKey: getShowcaseSessionKey(),
         }),
       });
     } catch (err) {
@@ -838,6 +841,7 @@ export function ShowcaseView({
           propertyCode: selectedProperty.property_code,
           accountId,
           referrerContactId: selectedProperty.agent_details?.id || referrerContactId,
+          sessionKey: getShowcaseSessionKey(),
         }),
       });
 

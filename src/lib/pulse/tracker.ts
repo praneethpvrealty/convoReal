@@ -12,13 +12,14 @@
  * identity must never narrow what the buyer sees.
  */
 
+import { getShowcaseSessionKey } from './session-key';
+
 interface PulseEvent {
   type: 'open' | 'view_property' | 'map_click' | 'gallery';
   property_id?: string;
   metadata?: Record<string, unknown>;
 }
 
-const SESSION_KEY_STORAGE = 'showcase_session_key';
 const FLUSH_AFTER = 5;
 const FLUSH_DELAY_MS = 3000;
 
@@ -35,17 +36,7 @@ export function createShowcaseTracker(
     return { track: () => {}, flush: () => {} };
   }
 
-  let sessionKey: string;
-  try {
-    sessionKey = localStorage.getItem(SESSION_KEY_STORAGE) || '';
-    if (!sessionKey) {
-      sessionKey = crypto.randomUUID();
-      localStorage.setItem(SESSION_KEY_STORAGE, sessionKey);
-    }
-  } catch {
-    // Storage blocked (private mode) — ephemeral per-page session
-    sessionKey = crypto.randomUUID();
-  }
+  const sessionKey = getShowcaseSessionKey();
 
   let queue: PulseEvent[] = [];
   let timer: ReturnType<typeof setTimeout> | null = null;
