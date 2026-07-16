@@ -179,6 +179,13 @@ as the sole owner of their own account and sees identical data.
 
 ### Fixed
 
+- **Property Documents upload showed a plain spinner while Property
+  Images (right above it, same form) showed the themed loading
+  animation.** Both are "Uploading..." buttons in the property form's
+  media section, but only Images was switched over when the
+  real-estate-themed loaders shipped. Documents now uses the same
+  `PropertyBlueprintLoader` (`src/components/inventory/property-form.tsx`).
+
 - **Calendar voice logging ("tap the mic and say it") was silently
   broken for every visitor.** A site-wide `Permissions-Policy:
   microphone=()` header (`next.config.ts`) unconditionally vetoed

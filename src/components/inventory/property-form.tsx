@@ -4504,7 +4504,7 @@ export function PropertyForm({
                         >
                           {uploadingDocument ? (
                             <>
-                              <Loader2 className="size-3 animate-spin" /> Uploading...
+                              <PropertyBlueprintLoader size={14} label="Uploading" /> Uploading...
                             </>
                           ) : (
                             <>
