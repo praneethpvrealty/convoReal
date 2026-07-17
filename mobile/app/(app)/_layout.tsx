@@ -25,6 +25,7 @@ export default function AppLayout() {
       />
       <Stack.Screen name="contact/[id]" options={{ headerShown: true, title: 'Contact' }} />
       <Stack.Screen name="property/[id]" options={{ headerShown: true, title: 'Property' }} />
+      <Stack.Screen name="properties-map" options={{ headerShown: true, title: 'Map' }} />
       <Stack.Screen name="calendar" options={{ headerShown: true, title: 'Calendar' }} />
       <Stack.Screen
         name="appointment-new"
