@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
-  FadeInDown,
+  FadeIn,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -57,7 +57,14 @@ export function PressScale({
   );
 }
 
-/** Staggered list entrance — wrap a row, pass its index. */
+/**
+ * Staggered list entrance — wrap a row, pass its index.
+ *
+ * Opacity-only on purpose: translate-based entering animations
+ * (FadeInDown etc.) can leave rows stuck mid-transform on Android's
+ * new architecture in Expo Go, visually displacing content inside
+ * list cells. Fade never touches layout, so it cannot.
+ */
 export function EnterRow({
   index,
   children,
@@ -66,11 +73,9 @@ export function EnterRow({
   children: React.ReactNode;
 }) {
   // Cap the stagger so deep scroll positions don't wait forever.
-  const delay = Math.min(index, 12) * 36;
+  const delay = Math.min(index, 10) * 26;
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify().damping(16)}>
-      {children}
-    </Animated.View>
+    <Animated.View entering={FadeIn.duration(200).delay(delay)}>{children}</Animated.View>
   );
 }
 
