@@ -565,10 +565,18 @@ export interface JourneyStage {
 
 export type JourneyItemStatus = 'active' | 'dropped';
 
+/** How a journey item landed on the map (migration 138). */
+export type JourneyItemSource =
+  | 'manual'
+  | 'whatsapp_share'
+  | 'chat_import'
+  | 'inquiry_import';
+
 /** One contact×property pair on the Journey mind map. `stage_id` is the
  *  FURTHEST stage reached; status 'dropped' means it exited at that
  *  stage (with `drop_reason`). Buyer view groups by contact_id, seller
- *  view groups by property_id — same rows, both directions. */
+ *  view groups by property_id — same rows, both directions. `hidden`
+ *  items stay off the canvas and wait in the Captured tray. */
 export interface JourneyItem {
   id: string;
   account_id: string;
@@ -576,6 +584,8 @@ export interface JourneyItem {
   property_id: string;
   stage_id: string;
   status: JourneyItemStatus;
+  source: JourneyItemSource;
+  hidden: boolean;
   drop_reason?: string | null;
   dropped_at?: string | null;
   notes?: string | null;
@@ -592,7 +602,9 @@ export type JourneyEventType =
   | 'advanced'
   | 'moved'
   | 'dropped'
-  | 'reactivated';
+  | 'reactivated'
+  | 'hidden'
+  | 'unhidden';
 
 export interface JourneyEvent {
   id: string;

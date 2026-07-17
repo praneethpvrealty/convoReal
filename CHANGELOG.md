@@ -13,6 +13,30 @@ and polish.
 
 ### Added
 
+- **Journey auto-capture of WhatsApp shares + Captured tray**
+  (**migration required**: `138_journey_capture.sql`) — sharing a
+  property to contacts over WhatsApp from the app (template, catalog
+  card, or greeting sends in the Share dialog; also the native
+  WhatsApp button when the dialog was opened for a specific client)
+  now records each contact×property pair on the Journey automatically.
+  Because agents share properties every day, auto-captured pairs do
+  NOT crowd the mind map: they arrive **hidden** and queue in a new
+  **"Captured (N)"** tray on `/journey`, where the agent promotes the
+  ones worth tracking ("Show on map" / "Show all") or removes the
+  noise. Any item already on the map can likewise be tucked away later
+  via **"Hide from map"** in its detail sheet — record and timeline
+  are kept, the card just moves to the tray. Buyer journeys also gain
+  **"Import from chat"**: a retroactive scan of the contact's WhatsApp
+  history (matching showcase links, property codes, and titles — the
+  same logic as the contact panel's "Shared Properties" tab, now
+  extracted to `src/lib/journey/chat-scan.ts`) that puts previously
+  shared properties straight onto the map. Capture is idempotent:
+  re-sharing never duplicates a pair, resurrects a dropped branch, or
+  un-hides a tucked-away one. New columns: `journey_items.source`
+  ('manual' | 'whatsapp_share' | 'chat_import' | 'inquiry_import') and
+  `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
+  event types.
+
 - **Mobile companion app scaffold (`mobile/`)** — Phase 1 of the plan in
   `docs/mobile-app-implementation-plan.md`: an Expo SDK 52 + expo-router
   app (Android-first, iOS-ready) living in this repo as a self-contained

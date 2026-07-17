@@ -35,6 +35,7 @@ import {
   Search,
 } from 'lucide-react';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
+import { captureJourneyItems } from '@/lib/journey/capture';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import {
@@ -695,6 +696,25 @@ export function PropertyShareDialog({
     }
   }, [selectedTemplate, placeholders, property]);
 
+  // Auto-capture a confirmed WhatsApp share onto the Journey mind
+  // map. Fire-and-forget: capture failures must never break or delay
+  // the send flow the agent is watching. Rows arrive hidden — they
+  // queue in /journey's "Captured" tray instead of crowding the
+  // canvas — and re-shares are no-ops (idempotent upsert).
+  function captureSharesToJourney(sentContactIds: string[]) {
+    if (!accountId || !property || sentContactIds.length === 0) return;
+    captureJourneyItems({
+      accountId,
+      userId: user?.id,
+      pairs: sentContactIds.map((contactId) => ({
+        contactId,
+        propertyId: property.id,
+      })),
+      source: 'whatsapp_share',
+      hidden: true,
+    }).catch((err) => console.error('Journey share capture failed:', err));
+  }
+
   // Execute broadcast sharing request
   async function handleSendBroadcast() {
     if (!selectedTemplate || selectedContactIds.length === 0 || !property) return;
@@ -845,6 +865,12 @@ export function PropertyShareDialog({
         };
       });
 
+      captureSharesToJourney(
+        selectedContacts
+          .filter((_, i) => resultsMap[i].status === 'sent')
+          .map((c) => c.id),
+      );
+
       setBroadcastResults(resultsMap);
       setBroadcastStep('results');
       toast.success(`Dispatched WhatsApp messages successfully.`);
@@ -908,6 +934,12 @@ export function PropertyShareDialog({
         };
       });
 
+      captureSharesToJourney(
+        selectedContacts
+          .filter((_, i) => resultsMap[i].status === 'sent')
+          .map((c) => c.id),
+      );
+
       setBroadcastResults(resultsMap);
       setBroadcastStep('results');
       toast.success(`Dispatched WhatsApp catalog product messages successfully.`);
@@ -966,6 +998,12 @@ export function PropertyShareDialog({
           error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
         };
       });
+
+      captureSharesToJourney(
+        selectedContacts
+          .filter((_, i) => resultsMap[i].status === 'sent')
+          .map((c) => c.id),
+      );
 
       setBroadcastResults(resultsMap);
       setBroadcastStep('results');
@@ -1169,6 +1207,16 @@ export function PropertyShareDialog({
                             // share sheet has no WhatsApp target, and the link
                             // preview (OG image) still shows the photo.
                             setSharingWhatsApp(true);
+                            // Journey capture for the native path: there's no
+                            // delivery receipt here, so only attribute the share
+                            // when the dialog was opened FOR a specific client
+                            // (contact panel → Share Listing). A generic share
+                            // could go to anyone — guessing would pollute maps.
+                            const captureNativeShare = () => {
+                              if (audienceTab === 'client' && preSelectedContactId) {
+                                captureSharesToJourney([preSelectedContactId]);
+                              }
+                            };
                             try {
                               const file = isMobileSharePlatform() ? await fetchCoverImageFile() : null;
                               if (
@@ -1183,12 +1231,16 @@ export function PropertyShareDialog({
                                     text: currentMessage,
                                     title: property.title || 'Property Details',
                                   });
+                                  captureNativeShare();
                                   return;
                                 } catch (err) {
+                                  // Abort = user closed the share sheet without
+                                  // sending — nothing to capture.
                                   if ((err as Error).name === 'AbortError') return;
                                 }
                               }
                               window.open(targets.whatsapp, '_blank', 'noopener');
+                              captureNativeShare();
                             } finally {
                               setSharingWhatsApp(false);
                             }

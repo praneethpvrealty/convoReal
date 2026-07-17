@@ -28,6 +28,8 @@ function item(
     property_id: `p-${id}`,
     stage_id: stageId,
     status,
+    source: "manual",
+    hidden: false,
     created_at: createdAt,
     updated_at: createdAt,
   };
