@@ -13,6 +13,29 @@ and polish.
 
 ### Added
 
+- **Mobile companion app scaffold (`mobile/`)** — Phase 1 of the plan in
+  `docs/mobile-app-implementation-plan.md`: an Expo SDK 52 + expo-router
+  app (Android-first, iOS-ready) living in this repo as a self-contained
+  npm project. Ships email/password login against the shared Supabase
+  project (session AES-encrypted at rest, key in Keychain/Keystore), the
+  migration-137 phone-verification gate, a realtime inbox and
+  conversation thread (Supabase Realtime + TanStack Query persisted to
+  AsyncStorage for offline reads), text replies via
+  `POST /api/whatsapp/send`, and a contacts tab with native dialer /
+  WhatsApp deep links. Run it with `cd mobile && npm install && npm
+  start` (see `mobile/README.md`). Root tsconfig/eslint/Vercel configs
+  ignore `mobile/`, so web builds and deploys are unaffected.
+
+- **API routes now accept `Authorization: Bearer <access_token>`** —
+  the mobile app has no cookies, so `createClient()` in
+  `src/lib/supabase/server.ts` (the chokepoint every API route's
+  Supabase client comes from) now attaches a bearer JWT to PostgREST
+  requests (RLS enforced identically to cookie sessions) and validates
+  it via GoTrue, falling back to the existing cookie session when the
+  header is absent or not a JWT (Vercel Cron's `Bearer ${CRON_SECRET}`
+  stays on the cookie path). No per-route changes; web behavior
+  unchanged.
+
 - **Journey mind map** (**migration required**: `131_journey_mindmap.sql`) —
   a new `/journey` canvas that renders one relationship's full funnel as
   a mind map instead of a kanban. Open a buyer's journey and their card

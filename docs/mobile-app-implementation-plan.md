@@ -2,7 +2,9 @@
 
 This document outlines the architectural design, technology stack, and phase-by-phase execution plan for building a companion mobile application (iOS & Android) for the **ConvoReal** platform — a WhatsApp-first CRM for Indian real estate agents.
 
-**Status:** Updated after architectural review July 2026. Incorporates critical fixes for API authentication, offline strategy, push infrastructure, and real-time safety.
+**Status:** Updated July 17, 2026, after a repo audit and kickoff of Phase 1. Incorporates critical fixes for API authentication, offline strategy, push infrastructure, and real-time safety, plus the platform features that landed after the original review (Owners Den, Journey mind map, mandatory OTP phone verification). See [Platform State Audit](#platform-state-audit-july-17-2026) for what is already implemented versus outstanding.
+
+**Repo decision:** The mobile app lives in **this repository** under `mobile/` (monorepo) — see [Repository Strategy](#repository-strategy-monorepo) for the rationale.
 
 The mobile app will focus on delivering:
 1. **Real-time push notifications** for new WhatsApp messages, system alerts, and assigned leads.
@@ -32,6 +34,55 @@ graph TD
     %% Mobile local storage
     App <-->|Sync| LocalStore[(SQLite / WatermelonDB Offline Cache)]
 ```
+
+---
+
+## 🔎 Platform State Audit (July 17, 2026)
+
+A code audit against this plan's prerequisites. Migrations now run through `137_staff_phone_verification.sql`.
+
+| Prerequisite | State | Where |
+| :--- | :--- | :--- |
+| Bearer token user auth | ✅ **Implemented** — `createClient()` in `src/lib/supabase/server.ts` now honors `Authorization: Bearer <access_token>` with cookie fallback, so `getCurrentAccount()` and every route funnelled through it works for the mobile client unchanged | `src/lib/supabase/server.ts`, `src/lib/auth/account.ts` |
+| Media handling | ✅ **Answered** — incoming media is NOT mirrored to Storage; `messages.media_url` stores a relative proxy path `/api/whatsapp/media/{mediaId}` which streams from Meta on demand (`Cache-Control: public, max-age=86400`, `404 MEDIA_UNAVAILABLE` on expiry). The mobile app must prefix the web app's base URL and send the bearer header when fetching media | `src/app/api/whatsapp/media/[mediaId]/route.ts`, `src/lib/whatsapp/webhook-handler.ts` |
+| Realtime channels in use (web) | `messages` + `conversations` (`src/hooks/use-realtime.ts`, `use-total-unread.ts`), `credit_wallets` UPDATEs filtered by `account_id` (`src/hooks/useCredits.ts`), `message_reactions` per conversation (`src/components/inbox/message-thread.tsx`). Mirror these subscriptions on mobile | `src/hooks/*` |
+| `device_push_tokens` table | ❌ Not started (Phase 3) | — |
+| `/api/auth/register-push-token` + unregister | ❌ Not started (Phase 3). `src/app/api/auth/` currently has only `profile-setup`, `reset-password`, `sms-hook` | — |
+| Worker push dispatch (Expo Push/FCM) | ❌ Not started (Phase 3). Worker entry is `src/scripts/queue-worker.ts` (Redis `BLPOP` → `processWebhook()`, dead-letter queue) — push dispatch hooks in there | `src/scripts/queue-worker.ts` |
+| Mobile app scaffold | ✅ **Started** — Expo Router + SDK 52 scaffold under `mobile/` (Phase 1: auth, navigation, API client, query cache) | `mobile/` |
+
+## 🆕 Features Landed After the Original Plan — Mobile Scoping
+
+Three major platform features shipped in July 2026 after this plan was first written. Scoping decisions for the companion app:
+
+### Owners Den (owner portal) — OUT OF SCOPE for v1
+A parallel authenticated portal for **property owners** (a different persona from the agents this companion app serves). Owners are `auth.users` rows with no `profiles` row, authenticate via WhatsApp OTP, and all their data access goes through service-role routes under `/api/den/*` scoped by `src/lib/den/auth.ts`. It spans Deal Mode (`properties.deal_mode`), a cross-tenant matching sweep with paid unlocks (`den_match_unlocks`), free bids (`property_bids`), and Token Safe escrow deal rooms (`deal_rooms`) — migrations 132–136.
+
+**Mobile implication:** the agent companion app does not surface Den screens in v1. However, Den's API-first, token-friendly design (its own OTP auth, no cookie dependency on `profiles`) means a future *owner-facing* mobile app — or a Den section — is a clean add-on rather than a rework. Agent-side artifacts of Den (bid notifications in the inbox, deal-room activity) arrive as normal conversations/notifications and need no special handling.
+
+### Journey mind map (`/journey`) — DEFERRED to a later phase
+A per-(contact × property) funnel canvas (React Flow) backed by `journey_stages` / `journey_items` / `journey_events` (migration 131). Canvas-heavy UI that doesn't translate to a phone screen in v1. **Mobile implication:** Phase 4+ may show a *read-only* journey status line on the contact/conversation screen (current stage per property); the full canvas stays web-only.
+
+### Mandatory OTP-verified WhatsApp number (migration 137) — AFFECTS PHASE 1 AUTH
+Staff signup now requires a WhatsApp-OTP-verified phone; source of truth is `auth.users.phone` + `phone_confirmed_at` (set via Supabase phone OTP through the existing Send-SMS hook `src/app/api/auth/sms-hook/`), with `profiles.phone` a trigger-synced read-only mirror. The web app gates the dashboard on `phone_confirmed_at`.
+
+**Mobile implications:**
+1. The mobile app must apply the same gate after login: if `phone_confirmed_at` is null, route to a native verify-phone screen (mirror of `src/app/verify-phone/page.tsx`) instead of the inbox.
+2. Because every staff user now has a verified WhatsApp number, **phone-OTP login** (enter number → OTP over WhatsApp) is available on mobile via `supabase.auth.signInWithOtp({ phone })` with zero new backend work — a better mobile login UX than email/password. Ship email/password in Phase 1, add phone OTP as fast-follow.
+
+## 📦 Repository Strategy: Monorepo
+
+**Decision: the mobile app lives in this repo under `mobile/`, not a separate repository.**
+
+| Factor | Why monorepo wins here |
+| :--- | :--- |
+| **Shared contracts** | The portability guide requires consuming `src/lib/copilot/tours.ts` and shared TypeScript types *without forking*. In one repo that's an import/path alias; across two repos it needs a published package or git submodule — ongoing overhead for a small team. |
+| **Coordinated changes** | Mobile work repeatedly pairs with web-repo changes (bearer auth, push-token routes, worker dispatch). One repo = one PR, one review, atomic history; two repos = lock-step PRs that drift. |
+| **Single source of truth** | API route shapes, DB types from `supabase/migrations`, and docs stay adjacent to the client that consumes them. |
+| **CI & tooling** | Vercel already builds only the Next.js app (`mobile/` is ignored via `.vercelignore`/project settings); EAS builds happily from a subdirectory (`eas.json` inside `mobile/`). No new pipelines to stand up. |
+| **When to split later** | If a dedicated mobile team forms, release cadences diverge hard, or the repo needs different access control, `mobile/` extracts cleanly with `git subtree split` — nothing about the monorepo choice is one-way. |
+
+The main costs (bigger clone, mixed dependency trees) are minor: `mobile/` keeps its own `package.json` and lockfile, so the two dependency worlds never mix.
 
 ---
 
@@ -98,7 +149,7 @@ The messaging interface is the most critical feature. The app must feel as fast 
   - Check the customer's last incoming message timestamp before flushing the outbox.
   - If outside the window, show the agent: "⚠️ This message can only be sent as a template — switch to template mode or contact manually."
   - Never silently retry outside the window; the API will reject and the agent sees confusing failures.
-* **Media Handling:** WhatsApp media URLs are authenticated and expire after ~24 hours. The app **cannot fetch them directly**. Media must be proxied through `/api/whatsapp/media` (or mirrored to Supabase Storage on ingestion). Verify your queue worker's current media handling and mirror strategy before Phase 2.
+* **Media Handling:** WhatsApp media URLs are authenticated and expire after ~24 hours. The app **cannot fetch them directly**. Media is proxied through `/api/whatsapp/media/{mediaId}` (verified in the July 2026 audit — `messages.media_url` stores the relative proxy path; no Storage mirroring). The app prefixes the base URL, sends the bearer header, and handles `404 MEDIA_UNAVAILABLE` for expired media.
 * **Rich Media:** Support viewing images and parsing template buttons. Use `expo-audio` (not deprecated `expo-av`) for voice note playback.
 
 ### 2. Push Notification Pipeline
@@ -151,7 +202,8 @@ sequenceDiagram
 *   **Supabase Auth & Bearer Tokens:** 
     - Install `@supabase/supabase-js` and configure authentication store with secure keychain caching (`expo-secure-store`).
     - Store the user's access token (JWT) in secure storage.
-    - **Critical: API route wiring** — All Next.js API routes that the mobile app will call must accept `Authorization: Bearer <access_token>` headers. Routes currently relying on Supabase cookies (SSR helper) must be updated to extract the user from the JWT. This is a web-repo workstream that must be done in Phase 1 to unblock Phase 2. See [Update Required: Bearer Token Support](#api-bearer-token-update-required) below.
+    - **API route wiring — ✅ done.** `createClient()` in `src/lib/supabase/server.ts` accepts `Authorization: Bearer <access_token>` with cookie fallback, so all API routes work for the mobile client. See [Bearer Token Support](#api-bearer-token-support--done-july-2026) below.
+*   **Phone Verification Gate:** Mirror the web's mandatory OTP gate (migration 137): after login, if the user's `phone_confirmed_at` is null, route to a native verify-phone screen instead of the inbox. Fast-follow: phone-OTP *login* over WhatsApp via `supabase.auth.signInWithOtp({ phone })` (the Send-SMS hook already delivers OTPs over WhatsApp).
 *   **Basic Navigation:** Implement auth flow (login/logout) and root stack navigation (authenticated ← → unauthenticated).
 *   **Supabase Realtime Basics:** Wire up a simple Supabase Realtime channel subscription to test WebSocket connectivity.
 *   **Style System:** Define unified style system (reusing Tailwind styles with `nativewind` or CSS vars).
@@ -233,15 +285,16 @@ This is simpler than hand-rolling a full sync protocol (cursors, conflict resolu
 
 These items must be completed in the web repo BEFORE or during Phase 1 of mobile development:
 
-### API: Bearer Token Support [REQUIRED]
-**Problem:** Current Next.js API routes authenticate via Supabase cookies (created by SSR helpers). The mobile app will not have cookies; it will send `Authorization: Bearer <access_token>` headers.
+### API: Bearer Token Support ✅ DONE (July 2026)
+**Problem:** Next.js API routes authenticated via Supabase cookies (created by SSR helpers). The mobile app has no cookies; it sends `Authorization: Bearer <access_token>` headers.
 
-**Action:**
-- Audit routes that the mobile app will call: `/api/whatsapp/send`, `/api/contacts/*`, `/api/properties/*`, `/api/auth/*`, `/api/ai/*`.
-- Update each route to extract the user from the JWT in the `Authorization` header, falling back to Supabase cookies (for web compatibility).
-- Add a helper: `extractUserFromAuth(req, opts?)` that tries `Authorization: Bearer` first, then `getUser(req)` (Supabase SSR helper).
-- Ensure RLS policies are still enforced (the JWT should decode to `user.id` and `account_id`; policies must gate on `account_id`).
-- **Estimate:** 1–2 days for a competent TypeScript developer.
+**Implementation (shipped):** Rather than touching every route, the support lives at the single chokepoint all routes share — `createClient()` in `src/lib/supabase/server.ts`. When the incoming request carries `Authorization: Bearer <jwt>`, the returned Supabase client:
+- attaches that JWT to every PostgREST/Storage request (so **RLS is enforced exactly as for cookie sessions** — same anon key, same policies gating on `account_id`), and
+- resolves `supabase.auth.getUser()` against the bearer JWT (validated server-side by GoTrue) instead of the cookie session.
+
+When no bearer header is present, behavior is unchanged (cookie SSR session). This means `getCurrentAccount()` / `requireRole()` and every route built on them — plus routes that call `createClient()` + `auth.getUser()` directly (e.g. the media proxy) — accept mobile bearer tokens with **zero per-route changes**.
+
+**Mobile client contract:** send `Authorization: Bearer <supabase_access_token>` on every `/api/*` call; refresh via `supabase.auth` in the app (`autoRefreshToken`) and always send the *current* access token.
 
 ### API: `/api/auth/register-push-token` & `/api/auth/unregister-push-token` [REQUIRED for Phase 3]
 **What:** Two new POST routes to store and manage device push tokens.
@@ -257,13 +310,13 @@ These items must be completed in the web repo BEFORE or during Phase 1 of mobile
 - Handle errors (invalid token → mark inactive).
 - **Estimate:** 4–6 hours.
 
-### Media Handling [REQUIRED for Phase 2]
-**Question:** How does your queue worker currently handle WhatsApp media URLs? Are media files:
-- Fetched and stored in Supabase Storage?
-- Left as Meta-authenticated URLs (expire after 24 hours)?
-- Proxied through an `/api/media` route?
+### Media Handling ✅ ANSWERED (audit, July 2026)
+**Current approach:** proxy, not mirroring. On ingestion, `webhook-handler.ts` stores a **relative proxy path** in `messages.media_url` (`/api/whatsapp/media/{mediaId}`). The route `src/app/api/whatsapp/media/[mediaId]/route.ts` authenticates the caller, decrypts the account's WhatsApp access token, fetches the binary from Meta on demand, and streams it back with `Cache-Control: public, max-age=86400`. Expired/forwarded media returns `404 MEDIA_UNAVAILABLE`.
 
-**Action:** Verify the current approach. If not storing to Supabase Storage, implement that before Phase 2. The app needs durable, re-fetchable media URLs (not Meta's expiring ones).
+**Mobile requirements (Phase 2):**
+- Prefix the relative `media_url` with the web app's base URL and send the bearer header (the proxy is auth-gated; bearer support now covers it).
+- Cache fetched media on-device (the query cache or `expo-file-system`) since Meta-side media can expire — handle `404 MEDIA_UNAVAILABLE` with a "media no longer available" placeholder, exactly like the web inbox.
+- No Storage mirroring is planned; the proxy pattern is sufficient.
 
 ---
 
@@ -274,8 +327,10 @@ These items must be completed in the web repo BEFORE or during Phase 1 of mobile
 | **Offline-first DB** | No WatermelonDB; TanStack Query + MMKV instead | Keeps app small, no hand-rolled sync protocol, sufficient for agent use case (read-heavy, write-light) |
 | **Credit purchases** | Show balance in app, but direct purchase to web | Avoids Google Play Billing (30% revenue cut) in v1. App is a companion; upsell happens on web. |
 | **Push in Phase 3, not Phase 1** | Defer push notifications until after inbox is stable | Push is complex (tokens, Firebase, deep linking). Getting chat working first = faster iteration. |
-| **Bearer tokens in web repo** | Requires API route updates in existing web repo | Mobile cannot use Supabase cookies; routes must accept JWTs. Best done early to avoid rework. |
+| **Bearer tokens in web repo** | ✅ Shipped at the `createClient()` chokepoint (July 2026) | Mobile cannot use Supabase cookies; one shared helper beats per-route updates. |
 | **No iOS in v1** | Android only for launch; iOS prep in Phase 5 | Smaller scope, faster to market. Code reuse makes iOS follow-up trivial once $99 Apple account is live. |
+| **Monorepo vs separate repo** | Monorepo — app lives in `mobile/` with its own `package.json` | Shared types/`tours.ts` without publishing packages; atomic web+mobile PRs; extractable later via `git subtree split`. |
+| **Owners Den & Journey** | Out of scope / deferred for the agent companion v1 | Den serves a different persona (owners) with its own OTP auth; Journey's canvas UI is web-only. Both documented in [Features Landed After the Original Plan](#-features-landed-after-the-original-plan--mobile-scoping). |
 
 ---
 
