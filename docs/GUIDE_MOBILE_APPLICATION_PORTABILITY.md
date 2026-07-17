@@ -103,12 +103,12 @@ Keep `tours.ts` as the single definition consumed by both clients. Do **not** fo
 it; if a native screen can't host a step, add a platform flag to the step rather
 than duplicating the list.
 
-## API auth caveat (one shared workstream)
+## API auth caveat — ✅ resolved (July 2026)
 
-The copilot endpoints authenticate via `getCurrentAccount()`, which today reads
-the Supabase session from **cookies** (web SSR). The mobile app is token-based, so
-these routes depend on the **Bearer-token support already flagged as REQUIRED** in
-the mobile plan's "Critical Workstreams (Web Repo)" section. Once that lands,
+The copilot endpoints authenticate via `getCurrentAccount()`, which reads the
+Supabase session from cookies (web SSR). The **Bearer-token support this guide
+depended on has landed**: `createClient()` in `src/lib/supabase/server.ts` now
+honors `Authorization: Bearer <access_token>` with cookie fallback, so
 `/api/copilot`, `/api/copilot/nudges`, and `/api/copilot/feedback` work from the
 native client unchanged — no copilot-specific auth work.
 
@@ -121,13 +121,14 @@ native client unchanged — no copilot-specific auth work.
 - **Don't** stand up a separate answer cache. The self-learning store is global
   and server-side, so mobile questions warm the same cache web users benefit from,
   and vice-versa — it gets cheaper across both platforms together.
-- **Don't** hardcode tour steps in native code — consume `tours.ts` (ship it in a
-  shared package, or expose it via a tiny read-only endpoint if the codebases are
-  separate).
+- **Don't** hardcode tour steps in native code — consume `tours.ts` directly. The
+  mobile app lives in this repo under `mobile/` (monorepo — see the implementation
+  plan's "Repository Strategy" section), so this is a path alias / import into
+  `src/lib/copilot/tours.ts`, not a published package.
 
 ## Mobile port checklist
 
-- [ ] Bearer-token auth on the three copilot API routes (shared workstream)
+- [x] Bearer-token auth on the three copilot API routes (shared workstream — shipped July 2026)
 - [ ] `useTourTargets()` registry + `registerTourTarget(id, ref)` on screens
 - [ ] Native tour engine: screen-match + target-measure + advance (port of `copilot-context.tsx`)
 - [ ] SVG spotlight + tooltip component (port of `tour-overlay.tsx`)

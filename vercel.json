@@ -1,5 +1,5 @@
 {
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':!go-ingress' ':!docs' ':!Dockerfile.worker'",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':!go-ingress' ':!docs' ':!Dockerfile.worker' ':!mobile'",
   "buildCommand": "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD) next build",
   "crons": [
     {
