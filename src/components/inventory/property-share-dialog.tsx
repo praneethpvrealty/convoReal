@@ -712,7 +712,11 @@ export function PropertyShareDialog({
       })),
       source: 'whatsapp_share',
       hidden: true,
-    }).catch((err) => console.error('Journey share capture failed:', err));
+    })
+      .then((r) => {
+        if (r.error) console.error('Journey share capture failed:', r.error);
+      })
+      .catch((err) => console.error('Journey share capture failed:', err));
   }
 
   // Execute broadcast sharing request

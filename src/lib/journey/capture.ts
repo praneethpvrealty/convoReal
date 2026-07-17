@@ -61,7 +61,7 @@ export async function ensureJourneyStages(
 
 export interface CaptureJourneyItemsInput {
   accountId: string;
-  /** profiles.id of the acting agent, for created_by / event audit. */
+  /** auth.users.id of the acting agent, for created_by / event audit. */
   userId?: string | null;
   pairs: Array<{ contactId: string; propertyId: string }>;
   source: JourneyItemSource;
@@ -69,10 +69,19 @@ export interface CaptureJourneyItemsInput {
   hidden: boolean;
 }
 
+export interface CaptureResult {
+  /** Rows actually created — 0 with a null error means every pair
+   *  was already on the journey. */
+  created: number;
+  /** Database failure, verbatim — callers surface it so a broken
+   *  capture never masquerades as "nothing new". */
+  error: string | null;
+}
+
 /**
  * Upsert contact×property pairs at the first journey stage, logging an
  * 'added' event for each NEW row. Existing pairs are left completely
- * untouched. Returns how many new rows were created.
+ * untouched.
  */
 export async function captureJourneyItems({
   accountId,
@@ -80,13 +89,15 @@ export async function captureJourneyItems({
   pairs,
   source,
   hidden,
-}: CaptureJourneyItemsInput): Promise<number> {
-  if (pairs.length === 0) return 0;
+}: CaptureJourneyItemsInput): Promise<CaptureResult> {
+  if (pairs.length === 0) return { created: 0, error: null };
   const supabase = createClient();
 
   const stages = await ensureJourneyStages(accountId);
   const firstStage = stages[0];
-  if (!firstStage) return 0;
+  if (!firstStage) {
+    return { created: 0, error: "Journey stages could not be loaded" };
+  }
 
   // Dedupe input pairs (a broadcast can list the same contact twice
   // via merged phones) — the DB constraint would reject the batch
@@ -120,7 +131,7 @@ export async function captureJourneyItems({
 
   if (error) {
     console.error("Journey capture failed:", error.message);
-    return 0;
+    return { created: 0, error: error.message };
   }
 
   const created = data ?? [];
@@ -143,8 +154,10 @@ export async function captureJourneyItems({
       })),
     );
     if (evError) {
+      // Timeline entry is best-effort — the item row is already in;
+      // don't fail the capture over its audit line.
       console.error("Journey capture event log failed:", evError.message);
     }
   }
-  return created.length;
+  return { created: created.length, error: null };
 }

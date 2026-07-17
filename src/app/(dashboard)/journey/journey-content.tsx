@@ -284,7 +284,7 @@ export default function JourneyPage() {
   const handleAddItems = useCallback(
     async (ids: string[], source: JourneyItemSource = "manual") => {
       if (!accountId || !subjectId) return;
-      const count = await captureJourneyItems({
+      const { created, error } = await captureJourneyItems({
         accountId,
         userId: user?.id,
         pairs: ids.map((id) => ({
@@ -296,13 +296,18 @@ export default function JourneyPage() {
         // background capture (WhatsApp shares) arrives hidden.
         hidden: false,
       });
-      if (count === 0) {
-        toast.error("Nothing was added.");
+      if (error) {
+        toast.error(`Failed to add: ${error}`);
+        return;
+      }
+      if (created === 0) {
+        toast.info("Already on the journey — nothing new to add.");
+        await loadJourney();
         return;
       }
       toast.success(
-        `Added ${count} ${mode === "buyer" ? "propert" : "contact"}${
-          count === 1 ? (mode === "buyer" ? "y" : "") : mode === "buyer" ? "ies" : "s"
+        `Added ${created} ${mode === "buyer" ? "propert" : "contact"}${
+          created === 1 ? (mode === "buyer" ? "y" : "") : mode === "buyer" ? "ies" : "s"
         }`,
       );
       await loadJourney();

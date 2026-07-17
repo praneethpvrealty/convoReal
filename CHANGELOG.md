@@ -11,6 +11,20 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Journey: every add/import failed with "Nothing was added."**
+  (**migration required**: `139_journey_created_by_fix.sql`) — the
+  `created_by` columns on `journey_items` / `journey_events`
+  (migration 131) referenced `profiles(id)`, but `profiles.id` is a
+  standalone UUID — the app passes the auth uid (`profiles.user_id`),
+  so every insert violated the FK. Both FKs now point at
+  `auth.users(id)` like the rest of the schema (e.g. migration 077);
+  131 is corrected for fresh installs. Capture/add errors also now
+  surface the real database message in the toast instead of the
+  misleading "Nothing was added." (which is now reserved for genuine
+  "already on the journey" cases).
+
 ### Added
 
 - **Journey auto-capture of WhatsApp shares + Captured tray**

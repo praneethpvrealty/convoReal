@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS journey_items (
   drop_reason TEXT,
   dropped_at TIMESTAMPTZ,
   notes TEXT,
-  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  -- auth uid of the acting agent (NOT profiles.id — that's a
+  -- standalone UUID; see migration 139 which fixed this).
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(account_id, contact_id, property_id)
@@ -115,7 +117,7 @@ CREATE TABLE IF NOT EXISTS journey_events (
   from_stage_id UUID REFERENCES journey_stages(id) ON DELETE SET NULL,
   to_stage_id UUID REFERENCES journey_stages(id) ON DELETE SET NULL,
   reason TEXT,
-  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
