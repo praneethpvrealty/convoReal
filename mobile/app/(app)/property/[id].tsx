@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Link, Stack, useLocalSearchParams } from 'expo-router';
+import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -40,6 +41,8 @@ async function fetchProperty(id: string): Promise<Property | null> {
 export default function PropertyDetailScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const pagerRef = useRef<ScrollView>(null);
+  const [activeImage, setActiveImage] = useState(0);
   const { data: property, isLoading } = useQuery({
     queryKey: ['property', id],
     queryFn: () => fetchProperty(id),
@@ -64,11 +67,13 @@ export default function PropertyDetailScreen() {
   const place = [property.location, property.sublocality, property.city]
     .filter(Boolean)
     .join(', ');
+  const ownerPhone = property.owner?.phone;
 
   return (
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={{ paddingBottom: spacing.xxl }}
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingBottom: 110 }}
     >
       <Stack.Screen
         options={{
@@ -80,20 +85,56 @@ export default function PropertyDetailScreen() {
       />
 
       {property.images?.length ? (
-        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}>
-          {property.images.map((url) => (
-            <Image
-              key={url}
-              source={{ uri: url }}
-              style={{ width: SCREEN_W, height: 240 }}
-              resizeMode="cover"
-            />
-          ))}
-        </ScrollView>
+        <View>
+          <ScrollView
+            ref={pagerRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(e) =>
+              setActiveImage(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
+            }
+          >
+            {property.images.map((url) => (
+              <Image
+                key={url}
+                source={{ uri: url }}
+                style={{ width: SCREEN_W, height: 270 }}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
+          {property.images.length > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.thumbStrip}
+              contentContainerStyle={{ gap: 8 }}
+            >
+              {property.images.slice(0, 8).map((url, i) => (
+                <Pressable
+                  key={url}
+                  onPress={() => {
+                    setActiveImage(i);
+                    pagerRef.current?.scrollTo({ x: i * SCREEN_W, animated: true });
+                  }}
+                >
+                  <Image
+                    source={{ uri: url }}
+                    style={[
+                      styles.thumb,
+                      i === activeImage && { borderColor: '#fff', borderWidth: 2 },
+                    ]}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
+        </View>
       ) : (
         <View
           style={{
-            height: 160,
+            height: 170,
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: colors.primarySoft,
@@ -231,6 +272,47 @@ export default function PropertyDetailScreen() {
         </Text>
       </View>
     </ScrollView>
+
+    {/* Sticky price + CTA bar (reference pattern). */}
+    <View
+      style={[
+        styles.bottomBar,
+        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+      ]}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textFaint, letterSpacing: 0.5 }}>
+          {property.listing_type === 'Rent' ? 'RENT' : 'PRICE'}
+        </Text>
+        <Text style={{ fontSize: 21, fontWeight: '800', color: colors.text, letterSpacing: -0.5 }}>
+          {price}
+        </Text>
+      </View>
+      <Pressable
+        style={({ pressed }) => [
+          styles.ctaButton,
+          { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+        ]}
+        onPress={() =>
+          ownerPhone
+            ? Linking.openURL(`https://wa.me/${ownerPhone.replace(/\D/g, '')}`)
+            : Linking.openURL(
+                property.google_map_link ||
+                  `https://maps.google.com/?q=${encodeURIComponent(property.title)}`
+              )
+        }
+      >
+        <Ionicons
+          name={ownerPhone ? 'logo-whatsapp' : 'map-outline'}
+          size={17}
+          color={colors.onPrimary}
+        />
+        <Text style={{ color: colors.onPrimary, fontSize: 15, fontWeight: '700' }}>
+          {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
+        </Text>
+      </Pressable>
+    </View>
+    </View>
   );
 }
 
@@ -310,5 +392,46 @@ const styles = StyleSheet.create({
     height: 170,
     borderRadius: radius.lg,
     overflow: 'hidden',
+  },
+  thumbStrip: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    bottom: 12,
+  },
+  thumb: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.6)',
+  },
+  bottomBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.xl,
+    paddingTop: 14,
+    paddingBottom: 26,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: -4 },
+  },
+  ctaButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: radius.full,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
   },
 });

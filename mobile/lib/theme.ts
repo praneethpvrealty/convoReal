@@ -1,15 +1,19 @@
 import { useColorScheme } from 'react-native';
 
 /**
- * ConvoReal design tokens — light + dark. The web app is the brand
- * reference (violet #7c3aed); the mobile app adds full dark-mode
- * support. Components read colors via useTheme(), never from a static
- * palette, so every screen adapts to the system scheme.
+ * ConvoReal design tokens — "warm estate" system from the reference
+ * mockups: cream canvas, deep forest-green primary, mint-lime accents,
+ * white photo-first cards, airy radii. Components read colors via
+ * useTheme(), never from a static palette, so every screen adapts to
+ * the system scheme.
  */
 export interface ThemeColors {
   primary: string;
   onPrimary: string;
   primarySoft: string;
+  /** Mint-lime accent — price pins, live chips, highlights. */
+  mint: string;
+  mintText: string;
   background: string;
   surface: string;
   surfaceRaised: string;
@@ -33,65 +37,69 @@ export interface ThemeColors {
 }
 
 export const lightColors: ThemeColors = {
-  primary: '#7c3aed',
+  primary: '#1A4D42',
   onPrimary: '#ffffff',
-  primarySoft: '#f1eafd',
-  background: '#ffffff',
-  surface: '#f6f5fa',
-  surfaceRaised: '#ffffff',
-  border: '#e7e4f0',
-  text: '#17141f',
-  textMuted: '#6b6880',
-  textFaint: '#9a97ab',
-  incomingBubble: '#f2effa',
-  incomingText: '#17141f',
-  outgoingBubble: '#7c3aed',
+  primarySoft: '#E7F2EC',
+  mint: '#D9F3AC',
+  mintText: '#1A4D42',
+  background: '#FAF6F0',
+  surface: '#FFFFFF',
+  surfaceRaised: '#FFFFFF',
+  border: '#EAE4D9',
+  text: '#152220',
+  textMuted: '#69766F',
+  textFaint: '#9AA49C',
+  incomingBubble: '#F1EDE4',
+  incomingText: '#152220',
+  outgoingBubble: '#1A4D42',
   outgoingText: '#ffffff',
-  outgoingMeta: '#dcd0f8',
-  danger: '#dc2626',
-  dangerSoft: '#fdecec',
-  success: '#16a34a',
-  successSoft: '#e9f7ee',
-  warning: '#b45309',
-  warningSoft: '#fdf3e3',
+  outgoingMeta: '#BFDCCB',
+  danger: '#D5493B',
+  dangerSoft: '#FBEBE8',
+  success: '#3E9D63',
+  successSoft: '#E8F5EC',
+  warning: '#B07E1F',
+  warningSoft: '#FBF3E0',
   readTick: '#53bdeb',
-  tabBar: '#ffffff',
+  tabBar: '#FFFFFF',
 };
 
 export const darkColors: ThemeColors = {
-  primary: '#a78bfa',
-  onPrimary: '#1c1526',
-  primarySoft: '#2c2440',
-  background: '#121016',
-  surface: '#1c1922',
-  surfaceRaised: '#232029',
-  border: '#2e2a38',
-  text: '#f2f0f7',
-  textMuted: '#a29fb3',
-  textFaint: '#6f6c80',
-  incomingBubble: '#242030',
-  incomingText: '#f2f0f7',
-  outgoingBubble: '#6d33d8',
+  primary: '#4CBB8B',
+  onPrimary: '#0C1A15',
+  primarySoft: '#1C332B',
+  mint: '#2E4A2B',
+  mintText: '#BFE99B',
+  background: '#0F1513',
+  surface: '#171E1B',
+  surfaceRaised: '#1D2622',
+  border: '#28322D',
+  text: '#EDF2EE',
+  textMuted: '#94A29A',
+  textFaint: '#66736C',
+  incomingBubble: '#1E2823',
+  incomingText: '#EDF2EE',
+  outgoingBubble: '#1F5B49',
   outgoingText: '#ffffff',
-  outgoingMeta: '#cdb9f5',
-  danger: '#f87171',
-  dangerSoft: '#3a2226',
-  success: '#4ade80',
-  successSoft: '#1e3327',
-  warning: '#fbbf24',
-  warningSoft: '#38301c',
+  outgoingMeta: '#A9D4BD',
+  danger: '#F08A7D',
+  dangerSoft: '#3A2320',
+  success: '#5FD394',
+  successSoft: '#1D3327',
+  warning: '#E5B75B',
+  warningSoft: '#37301C',
   readTick: '#53bdeb',
-  tabBar: '#17141d',
+  tabBar: '#151C19',
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
-export const radius = { sm: 8, md: 12, lg: 16, xl: 22, full: 999 } as const;
+export const radius = { sm: 10, md: 14, lg: 20, xl: 26, full: 999 } as const;
 
-/** Brand gradient (violet → fuchsia) — buttons, hero cards, story rings. */
-export const brandGradient = ['#7c3aed', '#c026d3'] as const;
-export const brandGradientDark = ['#8b5cf6', '#d946ef'] as const;
-/** Gradient for the "hot lead" story ring — Instagram-style warm sweep. */
-export const hotGradient = ['#f59e0b', '#ef4444', '#d946ef'] as const;
+/** Brand gradient — deep forest → emerald (hero cards, CTAs). */
+export const brandGradient = ['#1A4D42', '#2E7D5F'] as const;
+export const brandGradientDark = ['#1F5B49', '#35946E'] as const;
+/** Gradient for the "hot lead" story ring — warm sweep. */
+export const hotGradient = ['#E9A23B', '#D5493B', '#B85C9E'] as const;
 
 export function useBrandGradient(): readonly [string, string] {
   const dark = useColorScheme() === 'dark';
@@ -109,7 +117,7 @@ export const classificationColors: Record<string, { light: string; dark: string 
   Owner: { light: '#0e7490', dark: '#67e8f9' },
   Seller: { light: '#a16207', dark: '#fde047' },
   Buyer: { light: '#15803d', dark: '#86efac' },
-  Agent: { light: '#7c3aed', dark: '#c4b5fd' },
+  Agent: { light: '#1A4D42', dark: '#7BD8AE' },
   Developer: { light: '#be185d', dark: '#f9a8d4' },
   'Owner & Buyer': { light: '#0369a1', dark: '#7dd3fc' },
   Others: { light: '#57534e', dark: '#d6d3d1' },
