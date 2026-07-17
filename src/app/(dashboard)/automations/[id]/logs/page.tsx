@@ -77,9 +77,10 @@ export default function AutomationLogsPage({
 
   if (!automation || logs === null) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3">
-        <FlowNodeLoader size={96} label="Loading automation logs" />
-        <ConvoRealLoader size={18} />
+      <div className="flex h-64 flex-col items-center justify-center text-slate-400">
+        <FlowNodeLoader size={104} label="Loading automation logs" className="mb-3" />
+        <ConvoRealLoader size={20} className="mb-2" />
+        <p className="text-sm">Loading automation logs...</p>
       </div>
     )
   }

@@ -258,7 +258,7 @@ export default function RadarPage() {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <RadarSweepLoader size={96} label="Scanning for matches" className="mb-3" />
+          <RadarSweepLoader size={104} label="Scanning for matches" className="mb-3" />
           <ConvoRealLoader size={20} className="mb-2" />
           <p className="text-sm">Scanning for matches...</p>
         </div>

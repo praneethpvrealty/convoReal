@@ -168,9 +168,10 @@ export default function AdsPage() {
       )}
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-          <SignalWaveLoader size={52} label="Loading ad campaigns" />
-          <ConvoRealLoader size={16} />
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <SignalWaveLoader size={104} label="Loading ad campaigns" className="mb-3" />
+          <ConvoRealLoader size={20} className="mb-2" />
+          <p className="text-sm">Loading ad campaigns...</p>
         </div>
       ) : !campaigns || campaigns.length === 0 ? (
         <div className="rounded-lg border py-16 text-center space-y-3">

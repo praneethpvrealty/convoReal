@@ -371,10 +371,10 @@ export default function RequirementsPage() {
       {/* Cards Grid */}
       <div className="relative z-10 flex-1 min-h-0">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <ChecklistLoader size={64} label="Assembling client requirements" />
-            <ConvoRealLoader size={18} className="mt-3" />
-            <p className="mt-3 text-xs text-slate-500 font-medium">Assembling client requirements...</p>
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+            <ChecklistLoader size={104} label="Assembling client requirements" className="mb-3" />
+            <ConvoRealLoader size={20} className="mb-2" />
+            <p className="text-sm">Assembling client requirements...</p>
           </div>
         ) : filteredData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 border border-slate-800/80 bg-slate-900/25 rounded-2xl">

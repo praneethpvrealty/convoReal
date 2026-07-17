@@ -234,7 +234,7 @@ export default function PulsePage() {
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-          <HeartbeatLoader size={112} label="Loading pulse activity" className="mb-3" />
+          <HeartbeatLoader size={104} label="Loading pulse activity" className="mb-3" />
           <ConvoRealLoader size={20} className="mb-2" />
           <p className="text-sm">Reading the pulse...</p>
         </div>

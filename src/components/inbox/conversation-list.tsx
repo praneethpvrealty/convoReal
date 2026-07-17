@@ -423,9 +423,10 @@ export function ConversationList({
       {/* Conversation Items */}
       <ScrollArea className="flex-1 min-h-0">
         {loading ? (
-          <div className="flex flex-col items-center justify-center gap-2.5 py-12">
-            <MessageBubbleLoader size={44} label="Loading conversations" />
-            <ConvoRealLoader size={14} />
+          <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+            <MessageBubbleLoader size={104} label="Loading conversations" className="mb-3" />
+            <ConvoRealLoader size={20} className="mb-2" />
+            <p className="text-sm">Loading conversations...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-12 text-center">

@@ -117,10 +117,10 @@ function ImportSharedContactContent() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
-        <ContactCardLoader size={56} label="Processing shared contact data" />
-        <ConvoRealLoader size={16} />
-        <p className="text-slate-400 text-sm">Processing shared contact data...</p>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400">
+        <ContactCardLoader size={104} label="Processing shared contact data" className="mb-3" />
+        <ConvoRealLoader size={20} className="mb-2" />
+        <p className="text-sm">Processing shared contact data...</p>
       </div>
     );
   }
@@ -171,10 +171,10 @@ export default function ImportSharedContactPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-3">
-          <ContactCardLoader size={56} label="Loading import page" />
-          <ConvoRealLoader size={16} />
-          <p className="text-slate-400 text-sm">Loading import page...</p>
+        <div className="flex flex-col items-center justify-center min-h-[50vh] text-slate-400">
+          <ContactCardLoader size={104} label="Loading import page" className="mb-3" />
+          <ConvoRealLoader size={20} className="mb-2" />
+          <p className="text-sm">Loading import page...</p>
         </div>
       }
     >
