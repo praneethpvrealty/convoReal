@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { radius, useTheme } from '@/lib/theme';
+import { radius, useTheme , fonts } from '@/lib/theme';
 
 const LENGTH = 6;
 
@@ -84,6 +84,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  digit: { fontSize: 22, fontWeight: '700' },
+  digit: { fontSize: 22, fontFamily: fonts.bold },
   hidden: { position: 'absolute', opacity: 0, height: 1, width: 1 },
 });

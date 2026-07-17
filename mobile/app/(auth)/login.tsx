@@ -18,7 +18,7 @@ import { Banner } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useBrandGradient, useTheme } from '@/lib/theme';
+import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
 
@@ -114,7 +114,7 @@ function SegmentButton({
       <Text
         style={{
           fontSize: 14,
-          fontWeight: '700',
+          fontFamily: fonts.bold,
           color: active ? colors.text : colors.textMuted,
         }}
       >
@@ -217,7 +217,7 @@ function WhatsappLogin() {
         <>
           <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
             Enter the code sent to{' '}
-            <Text style={{ fontWeight: '700', color: colors.text }}>
+            <Text style={{ fontFamily: fonts.bold, color: colors.text }}>
               {cleanPhoneInput(phone) ?? phone}
             </Text>
           </Text>
@@ -230,7 +230,7 @@ function WhatsappLogin() {
           />
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
             <Pressable onPress={() => setStage('phone')}>
-              <Text style={{ color: colors.textMuted, fontSize: 13.5, fontWeight: '600' }}>
+              <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: fonts.semibold }}>
                 Change number
               </Text>
             </Pressable>
@@ -239,7 +239,7 @@ function WhatsappLogin() {
                 style={{
                   color: resendIn > 0 ? colors.textFaint : colors.primary,
                   fontSize: 13.5,
-                  fontWeight: '600',
+                  fontFamily: fonts.semibold,
                 }}
               >
                 {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
@@ -352,7 +352,7 @@ function PrimaryButton({
         {busy ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{label}</Text>
+          <Text style={{ color: '#fff', fontSize: 16, fontFamily: fonts.bold }}>{label}</Text>
         )}
       </LinearGradient>
     </Pressable>
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: spacing.xs,
   },
-  wordmark: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
+  wordmark: { fontSize: 34, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   tagline: { fontSize: 15 },
   segment: { flexDirection: 'row', borderRadius: radius.lg, padding: 4, gap: 4 },
   segmentButton: {

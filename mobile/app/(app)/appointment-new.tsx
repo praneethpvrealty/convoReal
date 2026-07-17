@@ -20,7 +20,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { AppointmentType, Contact } from '@/lib/types';
 
 const TYPES: { value: AppointmentType; label: string; icon: string }[] = [
@@ -141,7 +141,7 @@ export default function NewAppointmentScreen() {
                 <Text
                   style={{
                     fontSize: 12.5,
-                    fontWeight: '600',
+                    fontFamily: fonts.semibold,
                     color: active ? colors.primary : colors.textMuted,
                   }}
                 >
@@ -158,7 +158,7 @@ export default function NewAppointmentScreen() {
             onPress={() => setPicker('date')}
           >
             <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>{startLabel}</Text>
+            <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.text }}>{startLabel}</Text>
           </Pressable>
           <Pressable
             style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border, flexGrow: 0 }]}
@@ -189,7 +189,7 @@ export default function NewAppointmentScreen() {
         {contact ? (
           <View style={[styles.contactRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Avatar name={contact.name || contact.phone} size={30} />
-            <Text style={{ flex: 1, fontSize: 14.5, fontWeight: '600', color: colors.text }}>
+            <Text style={{ flex: 1, fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>
               {contact.name || contact.phone}
             </Text>
             <Pressable onPress={() => setContact(null)} hitSlop={8}>
@@ -234,7 +234,7 @@ export default function NewAppointmentScreen() {
           {saving ? (
             <ActivityIndicator color={colors.onPrimary} />
           ) : (
-            <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>
+            <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
               Schedule
             </Text>
           )}

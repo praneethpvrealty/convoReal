@@ -12,7 +12,7 @@ import {
 
 import { Avatar, FilterChip } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
 import type { Broadcast, BroadcastRecipient } from '@/lib/types';
 
 const STATUS_FILTERS = ['All', 'Read', 'Delivered', 'Sent', 'Replied', 'Failed', 'Pending'] as const;
@@ -112,7 +112,7 @@ export default function BroadcastDetailScreen() {
               <View style={[styles.row, { borderBottomColor: colors.border }]}>
                 <Avatar name={name} size={38} />
                 <View style={{ flex: 1, gap: 1 }}>
-                  <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>
+                  <Text style={{ fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>
                     {name}
                   </Text>
                   {item.error_message ? (
@@ -124,7 +124,7 @@ export default function BroadcastDetailScreen() {
                 <Text
                   style={{
                     fontSize: 11.5,
-                    fontWeight: '700',
+                    fontFamily: fonts.bold,
                     textTransform: 'uppercase',
                     color: recipientColor(item.status, colors),
                   }}

@@ -23,7 +23,7 @@ import type { MessageTemplate } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
 import type { Conversation, Message, MessageStatus } from '@/lib/types';
 
 const PAGE_SIZE = 60;
@@ -162,7 +162,7 @@ function ThreadHeader({ title, status }: { title: string; status?: string }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
       <Avatar name={title} size={34} />
       <View>
-        <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+        <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: colors.text }} numberOfLines={1}>
           {title}
         </Text>
         {status ? (
@@ -182,7 +182,7 @@ function DaySeparator({ label }: { label: string }) {
       <Text
         style={{
           fontSize: 11.5,
-          fontWeight: '600',
+          fontFamily: fonts.semibold,
           color: colors.textMuted,
           backgroundColor: colors.surface,
           overflow: 'hidden',
@@ -238,7 +238,7 @@ function MessageBubble({ message }: { message: Message }) {
       ]}
     >
       {isBot ? (
-        <Text style={{ fontSize: 10.5, fontWeight: '700', color: colors.outgoingMeta }}>
+        <Text style={{ fontSize: 10.5, fontFamily: fonts.bold, color: colors.outgoingMeta }}>
           🤖 Bot
         </Text>
       ) : null}

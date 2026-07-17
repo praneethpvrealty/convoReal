@@ -14,7 +14,7 @@ import {
 
 import { Banner } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { MessageTemplate } from '@/lib/types';
 
 /** Highest {{n}} placeholder in a template body. */
@@ -92,7 +92,7 @@ export function TemplatePicker({
             ) : (
               <View style={{ width: 20 }} />
             )}
-            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+            <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: colors.text }}>
               {selected ? selected.name : 'Send a template'}
             </Text>
             <Pressable
@@ -132,7 +132,7 @@ export function TemplatePicker({
                     }}
                   >
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.text }}>
+                      <Text style={{ fontSize: 14.5, fontFamily: fonts.bold, color: colors.text }}>
                         {t.name}
                       </Text>
                       <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={2}>
@@ -172,7 +172,7 @@ export function TemplatePicker({
 
               <View style={[styles.preview, { backgroundColor: colors.incomingBubble }]}>
                 {selected.header_type === 'text' && selected.header_content ? (
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: colors.incomingText }}>
+                  <Text style={{ fontSize: 14, fontFamily: fonts.bold, color: colors.incomingText }}>
                     {selected.header_content}
                   </Text>
                 ) : null}
@@ -197,7 +197,7 @@ export function TemplatePicker({
                 {sending ? (
                   <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                  <Text style={{ color: colors.onPrimary, fontSize: 15.5, fontWeight: '700' }}>
+                  <Text style={{ color: colors.onPrimary, fontSize: 15.5, fontFamily: fonts.bold }}>
                     Send template
                   </Text>
                 )}

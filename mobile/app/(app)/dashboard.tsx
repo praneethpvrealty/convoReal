@@ -13,7 +13,7 @@ import {
 import { AnimatedCounter } from '@/components/motion';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useBrandGradient, useTheme } from '@/lib/theme';
+import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 interface Overview {
   openConversations: number;
@@ -216,7 +216,7 @@ function SectionLabel({ text }: { text: string }) {
     <Text
       style={{
         fontSize: 12.5,
-        fontWeight: '700',
+        fontFamily: fonts.bold,
         textTransform: 'uppercase',
         letterSpacing: 0.4,
         color: colors.textFaint,
@@ -250,7 +250,7 @@ function StatCard({
       ]}
     >
       <Ionicons name={icon} size={18} color={accent ? colors.danger : colors.primary} />
-      <Text style={{ fontSize: 21, fontWeight: '800', color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 21, fontFamily: fonts.extrabold, color: colors.text }}>{value}</Text>
       <Text style={{ fontSize: 12, color: colors.textMuted }}>{label}</Text>
     </View>
   );
@@ -271,10 +271,10 @@ const styles = StyleSheet.create({
   heroLabel: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 11.5,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     letterSpacing: 1.2,
   },
-  heroValue: { color: '#fff', fontSize: 38, fontWeight: '800', letterSpacing: -1 },
+  heroValue: { color: '#fff', fontSize: 38, fontFamily: fonts.extrabold, letterSpacing: -1 },
   heroRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 2 },
   heroPill: {
     flexDirection: 'row',
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  heroPillText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
+  heroPillText: { color: '#fff', fontSize: 12.5, fontFamily: fonts.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
     flexGrow: 1,

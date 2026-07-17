@@ -18,7 +18,7 @@ import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow } from '@/components/motion';
 import { Avatar, ConversationSkeleton, EmptyState, Tag } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
+import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
 /**
@@ -183,7 +183,7 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
           </View>
           <View style={styles.metaRow}>
             {contact.classification ? (
-              <Text style={{ fontSize: 12.5, fontWeight: '600', color: clsColor ?? colors.textMuted }}>
+              <Text style={{ fontSize: 12.5, fontFamily: fonts.semibold, color: clsColor ?? colors.textMuted }}>
                 {contact.classification}
               </Text>
             ) : null}
@@ -213,7 +213,7 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
-  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   search: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, gap: 2 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 16, fontWeight: '700', flexShrink: 1 },
+  name: { fontSize: 16, fontFamily: fonts.bold, flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   action: {
     width: 38,
