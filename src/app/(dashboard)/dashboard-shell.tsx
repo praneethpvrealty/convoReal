@@ -18,7 +18,7 @@ import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 // client components can't export Next's metadata object.
 
 function DashboardShellInner({ children }: { children: React.ReactNode }) {
-  const { user, loading, profile, profileLoading, isAccountArchived, signOut } = useAuth();
+  const { user, loading, profile, profileLoading, profileError, isAccountArchived, signOut, refreshProfile } = useAuth();
 
   // Sidebar drawer state — only used on mobile. On lg+ the sidebar is
   // always visible and this stays at `false` (ignored by the component).
@@ -38,7 +38,13 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
     if (!loading && !user) {
       window.location.href = "/login";
     } else if (!loading && !profileLoading && user) {
-      if (!profile) {
+      if (profileError) {
+        // A failed fetch is not the same as "no profile row" — redirecting
+        // here is what caused the /dashboard <-> /profile-setup loop (see
+        // profileError doc in use-auth.tsx). Stay put; the render below
+        // shows a retry state instead.
+        console.warn('[SHELL GATE] profile fetch failed, holding on dashboard for retry...');
+      } else if (!profile) {
         console.warn('[SHELL GATE] profile not found, redirecting to setup...');
         window.location.href = "/profile-setup";
       } else {
@@ -60,7 +66,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         }
       }
     }
-  }, [user, loading, profile, profileLoading]);
+  }, [user, loading, profile, profileLoading, profileError]);
 
   if (loading) {
     return (
@@ -71,6 +77,30 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) return null;
+
+  if (!profileLoading && profileError) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-slate-950 px-4 text-center">
+        <ConvoRealLoader size={30} />
+        <p className="max-w-sm text-sm text-slate-400">
+          We couldn&apos;t load your profile. This is usually a brief connection
+          hiccup — try again.
+        </p>
+        <button
+          onClick={() => refreshProfile()}
+          className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700"
+        >
+          Retry
+        </button>
+        <button
+          onClick={signOut}
+          className="text-xs text-slate-500 hover:text-slate-300"
+        >
+          Sign out
+        </button>
+      </div>
+    );
+  }
 
   return (
     <CopilotProvider openSidebar={() => setSidebarOpen(true)}>

@@ -68,6 +68,17 @@ interface AuthContextValue {
    * and may take the "not opted in" branch incorrectly.
    */
   profileLoading: boolean;
+  /**
+   * True when the profile row fetch failed (network blip, DB timeout,
+   * RLS hiccup) after retrying — as opposed to a fetch that succeeded
+   * and genuinely found no row. Callers that redirect on `!profile`
+   * (e.g. the dashboard shell sending a profile-less user to
+   * /profile-setup) MUST check this first: treating a failed fetch as
+   * "no profile" sends the user to /profile-setup, which then re-fetches
+   * successfully and sends them back to /dashboard, whose own fetch may
+   * fail again — an infinite redirect loop that never renders anything.
+   */
+  profileError: boolean;
   signOut: () => Promise<void>;
   /** Re-fetch the current user's profile row — call after a save from
    *  the settings form so header/sidebar reflect the change without a
@@ -149,14 +160,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // settles later. Callers that gate on `profile.*` need to know which
   // window they're in — see the type doc above.
   const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState(false);
 
   // Shared across init, auth-state-change listener, and the exposed
   // refreshProfile() callback. Reads the current session's user id and
   // pulls the matching profile row along with its account summary.
+  //
+  // Retries once on failure before giving up — a transient network/DB
+  // blip must not be mistaken for "this user has no profile row", which
+  // is exactly what caused the /dashboard <-> /profile-setup redirect
+  // loop: a failed fetch left `profile` at null, the dashboard shell
+  // read that as "no profile" and redirected to /profile-setup, whose
+  // fresh fetch then succeeded and redirected straight back.
   const fetchProfile = useCallback(async (userId: string) => {
     const supabase = createClient();
     setProfileLoading(true);
-    try {
+    setProfileError(false);
+
+    const attemptFetch = async () => {
       const { data, error } = await supabase
         .from("profiles")
         .select(
@@ -190,7 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               hint: legacyError.hint,
               code: legacyError.code,
             });
-            return;
+            throw legacyError;
           }
 
           if (legacyData) {
@@ -219,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           hint: error.hint,
           code: error.code,
         });
-        return;
+        throw error;
       }
 
       if (data) {
@@ -264,8 +285,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         setAccount(accountRow);
       }
-    } catch (err) {
-      console.error("[AuthProvider] fetchProfile threw:", err);
+      // data === null && error === null: `.maybeSingle()` genuinely
+      // found no row for this user — a real "no profile yet" case, not
+      // a fetch failure. Leave `profile` at null and `profileError`
+      // false so the caller correctly routes to /profile-setup.
+    };
+
+    try {
+      await attemptFetch();
+    } catch {
+      // One retry after a short delay absorbs the transient case
+      // (dropped connection, momentary DB timeout) without a page-level
+      // wait; a second failure is treated as a real error state.
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      try {
+        await attemptFetch();
+      } catch (err) {
+        console.error("[AuthProvider] fetchProfile failed after retry:", err);
+        setProfileError(true);
+      }
     } finally {
       setProfileLoading(false);
     }
@@ -421,6 +459,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         loading,
         profileLoading,
+        profileError,
         signOut,
         refreshProfile,
         account,
@@ -448,6 +487,7 @@ export function useAuth(): AuthContextValue {
       profile: null,
       loading: false,
       profileLoading: false,
+      profileError: false,
       signOut: async () => {
         window.location.href = "/login";
       },
