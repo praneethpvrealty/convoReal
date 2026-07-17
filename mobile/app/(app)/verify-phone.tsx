@@ -1,78 +1,207 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { OtpInput } from '@/components/otp-input';
+import { Banner } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 
 /**
- * Gate screen for accounts without an OTP-verified WhatsApp number
- * (migration 137). v1 sends users to the web flow (/verify-phone) and
- * offers a re-check; the native OTP flow (signInWithOtp / updateUser +
- * verifyOtp over the existing WhatsApp Send-SMS hook) is a Phase 1
- * fast-follow.
+ * Native mirror of the web's WhatsappPhoneVerify (migration 137 gate):
+ * updateUser({ phone }) sends a code over WhatsApp via the Send-SMS
+ * hook; verifyOtp(type 'phone_change') confirms it. On success we
+ * refresh the session so phone_confirmed_at lands in the JWT and the
+ * (app) layout lets the user through.
  */
 export default function VerifyPhoneScreen() {
+  const { colors } = useTheme();
   const setSession = useAuthStore((s) => s.setSession);
-  const [checking, setChecking] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState('');
+  const [stage, setStage] = useState<'phone' | 'code'>('phone');
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  async function recheck() {
-    setChecking(true);
-    // refreshSession re-mints the JWT so phone_confirmed_at set on the
-    // web since login is reflected here; the (app) layout re-evaluates.
-    const { data } = await supabase.auth.refreshSession();
-    if (data.session) {
-      setSession(data.session);
+  async function sendCode() {
+    setError(null);
+    setInfo(null);
+    const cleanPhone = cleanPhoneInput(phone);
+    if (!cleanPhone) {
+      setError('Enter a valid WhatsApp number (e.g. 9900277111 or +919900277111)');
+      return;
     }
-    setChecking(false);
+    setBusy(true);
+    const { error: updateError } = await supabase.auth.updateUser({ phone: cleanPhone });
+    setBusy(false);
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+    setInfo('Code sent to your WhatsApp!');
+    setStage('code');
+    setOtp('');
+  }
+
+  async function verify(code: string) {
+    const cleanPhone = cleanPhoneInput(phone);
+    if (!cleanPhone || busy) return;
+    setError(null);
+    setBusy(true);
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      phone: cleanPhone,
+      token: code,
+      type: 'phone_change',
+    });
+    if (verifyError) {
+      setBusy(false);
+      setError(verifyError.message);
+      setOtp('');
+      return;
+    }
+    // Refresh so phone_confirmed_at is in the session; the layout
+    // guard re-evaluates and routes into the app.
+    const { data } = await supabase.auth.refreshSession();
+    setBusy(false);
+    if (data.session) setSession(data.session);
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <Text style={styles.title}>Verify your WhatsApp number</Text>
-        <Text style={styles.body}>
-          ConvoReal requires every team member to verify their WhatsApp number
-          with a one-time code. Please complete verification in the web app
-          (open <Text style={styles.mono}>/verify-phone</Text> after signing
-          in), then come back and tap the button below.
-        </Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={{ alignItems: 'center', gap: spacing.sm }}>
+            <View style={[styles.iconBadge, { backgroundColor: colors.successSoft }]}>
+              <Ionicons name="logo-whatsapp" size={34} color={colors.success} />
+            </View>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Verify your WhatsApp number
+            </Text>
+            <Text style={[styles.body, { color: colors.textMuted }]}>
+              ConvoReal requires every team member to verify their WhatsApp number
+              with a one-time code before using the CRM.
+            </Text>
+          </View>
 
-        <Pressable style={styles.button} onPress={recheck} disabled={checking}>
-          {checking ? (
-            <ActivityIndicator color="#fff" />
+          {error ? <Banner kind="error" text={error} /> : null}
+          {info && !error ? <Banner kind="success" text={info} /> : null}
+
+          {stage === 'phone' ? (
+            <>
+              <View
+                style={[
+                  styles.field,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Ionicons name="call-outline" size={18} color={colors.textFaint} />
+                <TextInput
+                  style={[styles.fieldInput, { color: colors.text }]}
+                  placeholder="WhatsApp number · e.g. 99002 77111"
+                  placeholderTextColor={colors.textFaint}
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  value={phone}
+                  onChangeText={setPhone}
+                />
+              </View>
+              <Pressable
+                style={[
+                  styles.button,
+                  { backgroundColor: colors.primary, opacity: busy || !phone.trim() ? 0.55 : 1 },
+                ]}
+                disabled={busy || !phone.trim()}
+                onPress={sendCode}
+              >
+                {busy ? (
+                  <ActivityIndicator color={colors.onPrimary} />
+                ) : (
+                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>
+                    Send code on WhatsApp
+                  </Text>
+                )}
+              </Pressable>
+            </>
           ) : (
-            <Text style={styles.buttonText}>I&apos;ve verified — re-check</Text>
+            <>
+              <OtpInput value={otp} onChange={setOtp} onComplete={verify} />
+              <Pressable
+                style={[
+                  styles.button,
+                  { backgroundColor: colors.primary, opacity: busy || otp.length < 6 ? 0.55 : 1 },
+                ]}
+                disabled={busy || otp.length < 6}
+                onPress={() => verify(otp)}
+              >
+                {busy ? (
+                  <ActivityIndicator color={colors.onPrimary} />
+                ) : (
+                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>
+                    Verify
+                  </Text>
+                )}
+              </Pressable>
+              <Pressable onPress={() => setStage('phone')} style={{ alignItems: 'center' }}>
+                <Text style={{ color: colors.textMuted, fontSize: 13.5, fontWeight: '600' }}>
+                  Change number
+                </Text>
+              </Pressable>
+            </>
           )}
-        </Pressable>
 
-        <Pressable style={styles.secondary} onPress={() => supabase.auth.signOut()}>
-          <Text style={styles.secondaryText}>Sign out</Text>
-        </Pressable>
-      </View>
+          <Pressable onPress={() => supabase.auth.signOut()} style={{ alignItems: 'center' }}>
+            <Text style={{ color: colors.textFaint, fontSize: 13.5 }}>Sign out</Text>
+          </Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, justifyContent: 'center', padding: 24, gap: 16 },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  body: { fontSize: 15, color: colors.textMuted, textAlign: 'center', lineHeight: 22 },
-  mono: { fontFamily: 'monospace' as const, color: colors.text },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 14,
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.xl },
+  iconBadge: {
+    width: 68,
+    height: 68,
+    borderRadius: 22,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  secondary: { alignItems: 'center', paddingVertical: 10 },
-  secondaryText: { color: colors.textMuted, fontSize: 15 },
+  title: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  body: { fontSize: 14.5, textAlign: 'center', lineHeight: 21 },
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+  },
+  fieldInput: { flex: 1, paddingVertical: 13, fontSize: 16 },
+  button: {
+    borderRadius: radius.md,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

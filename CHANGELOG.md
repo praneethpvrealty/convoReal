@@ -51,6 +51,19 @@ and polish.
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
 
+- **Mobile app: WhatsApp OTP sign-in + rich UI pass (`mobile/`)** —
+  the companion app now signs in with a WhatsApp one-time code as the
+  primary flow (6-digit code boxes, resend timer; email/password as
+  fallback) — a mobile-first capability the web doesn't have — and the
+  phone-verification gate is a full native OTP flow instead of a
+  redirect-to-web stub. UI rebuilt with a light/dark design system:
+  inbox with search, status/unread filters, live AI-credits chip and
+  skeleton loaders; WhatsApp-style thread with day separators, delivery
+  ticks (✓/✓✓/read), failed-send reasons, bot markers, and images
+  rendered through the auth-gated media proxy with expired-media
+  placeholders; contacts with classification colors; settings with
+  profile, credits and role cards.
+
 - **Mobile companion app scaffold (`mobile/`)** — Phase 1 of the plan in
   `docs/mobile-app-implementation-plan.md`: an Expo SDK 57 + expo-router
   app (Android-first, iOS-ready) living in this repo as a self-contained

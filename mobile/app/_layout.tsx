@@ -5,17 +5,25 @@ import { ActivityIndicator, View } from 'react-native';
 
 import { useAuthListener, useAuthStore } from '@/lib/auth-store';
 import { asyncStoragePersister, queryClient } from '@/lib/query';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/lib/theme';
 
 export default function RootLayout() {
   useAuthListener();
+  const { colors, dark } = useTheme();
   const session = useAuthStore((s) => s.session);
 
   // Session still being restored from secure storage — hold rendering so
   // the (app) guard doesn't flash the login screen for signed-in users.
   if (session === undefined) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.background,
+        }}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -26,11 +34,16 @@ export default function RootLayout() {
       client={queryClient}
       persistOptions={{ persister: asyncStoragePersister }}
     >
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
       </Stack>
-      <StatusBar style="auto" />
+      <StatusBar style={dark ? 'light' : 'dark'} />
     </PersistQueryClientProvider>
   );
 }
