@@ -23,6 +23,7 @@ export default function AppLayout() {
         name="conversation/[id]"
         options={{ headerShown: true, title: 'Conversation' }}
       />
+      <Stack.Screen name="contact/[id]" options={{ headerShown: true, title: 'Contact' }} />
       <Stack.Screen name="verify-phone" />
     </Stack>
   );

@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
-import { useState } from 'react';
+import { Link } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -11,22 +12,67 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar, ConversationSkeleton, EmptyState, Tag } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
+/**
+ * Search parity with the web contacts page (contacts-content.tsx):
+ * plain terms match name, name_tag, phone, email, company, requirements
+ * and classification — PLUS contacts whose TAGS or NOTES match, resolved
+ * to ids first (same technique the web uses for notes).
+ */
 async function fetchContacts(search: string): Promise<Contact[]> {
+  const q = search.trim();
   let query = supabase
     .from('contacts')
-    .select('id, phone, name, name_tag, classification, avatar_url')
+    .select(
+      'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp'
+    )
     .order('created_at', { ascending: false })
     .limit(150);
-  const q = search.trim();
+
   if (q) {
-    query = query.or(`name.ilike.%${q}%,phone.ilike.%${q}%`);
+    const term = `%${q}%`;
+
+    const [tagResult, noteResult] = await Promise.all([
+      supabase.from('tags').select('id').ilike('name', term).limit(25),
+      supabase
+        .from('contact_notes')
+        .select('contact_id')
+        .ilike('note_text', term)
+        .limit(150),
+    ]);
+
+    let tagContactIds: string[] = [];
+    const tagIds = (tagResult.data ?? []).map((t: { id: string }) => t.id);
+    if (tagIds.length > 0) {
+      const { data: taggedRows } = await supabase
+        .from('contact_tags')
+        .select('contact_id')
+        .in('tag_id', tagIds)
+        .limit(150);
+      tagContactIds = (taggedRows ?? []).map((r: { contact_id: string }) => r.contact_id);
+    }
+    const noteContactIds = (noteResult.data ?? []).map(
+      (r: { contact_id: string }) => r.contact_id
+    );
+
+    const matchedIds = Array.from(new Set([...tagContactIds, ...noteContactIds])).slice(0, 150);
+
+    let orFilter =
+      `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},` +
+      `email.ilike.${term},company.ilike.${term},requirements.ilike.${term},` +
+      `classification.ilike.${term}`;
+    if (matchedIds.length > 0) {
+      orFilter += `,id.in.(${matchedIds.join(',')})`;
+    }
+    query = query.or(orFilter);
   }
+
   const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as Contact[];
@@ -34,15 +80,24 @@ async function fetchContacts(search: string): Promise<Contact[]> {
 
 export default function ContactsScreen() {
   const { colors, dark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
+
+  // Debounce so multi-step tag/note lookups don't fire per keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['contacts', search],
-    queryFn: () => fetchContacts(search),
+    queryKey: ['contacts', debounced],
+    queryFn: () => fetchContacts(debounced),
   });
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={[styles.title, { color: colors.text }]}>Contacts</Text>
         <View
           style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}
@@ -50,7 +105,7 @@ export default function ContactsScreen() {
           <Ionicons name="search" size={16} color={colors.textFaint} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name or phone"
+            placeholder="Search name, phone, tag, company…"
             placeholderTextColor={colors.textFaint}
             value={search}
             onChangeText={setSearch}
@@ -71,6 +126,7 @@ export default function ContactsScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={data ?? []}
           keyExtractor={(c) => c.id}
           refreshControl={
@@ -79,10 +135,10 @@ export default function ContactsScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="people-outline"
-              title={search ? 'No matches' : 'No contacts yet'}
+              title={debounced ? 'No matches' : 'No contacts yet'}
               subtitle={
-                search
-                  ? 'Try a different name or number.'
+                debounced
+                  ? 'Searched names, phones, tags, notes, company and requirements.'
                   : 'Contacts are created automatically from WhatsApp conversations and portal leads.'
               }
             />
@@ -102,46 +158,51 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
     : undefined;
 
   return (
-    <View style={[styles.row, { borderBottomColor: colors.border }]}>
-      <Avatar name={name} size={44} />
-      <View style={styles.rowBody}>
-        <View style={styles.nameRow}>
-          <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-            {name}
-          </Text>
-          {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
-        </View>
-        <View style={styles.metaRow}>
-          {contact.classification ? (
-            <Text style={{ fontSize: 12.5, fontWeight: '600', color: clsColor ?? colors.textMuted }}>
-              {contact.classification}
+    <Link href={`/(app)/contact/${contact.id}`} asChild>
+      <Pressable
+        style={[styles.row, { borderBottomColor: colors.border }]}
+        android_ripple={{ color: colors.surface }}
+      >
+        <Avatar name={name} size={44} />
+        <View style={styles.rowBody}>
+          <View style={styles.nameRow}>
+            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+              {name}
             </Text>
-          ) : null}
-          {contact.name ? (
-            <Text style={{ fontSize: 12.5, color: colors.textFaint }}>{contact.phone}</Text>
-          ) : null}
+            {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
+          </View>
+          <View style={styles.metaRow}>
+            {contact.classification ? (
+              <Text style={{ fontSize: 12.5, fontWeight: '600', color: clsColor ?? colors.textMuted }}>
+                {contact.classification}
+              </Text>
+            ) : null}
+            {contact.name ? (
+              <Text style={{ fontSize: 12.5, color: colors.textFaint }}>{contact.phone}</Text>
+            ) : null}
+          </View>
         </View>
-      </View>
-      <Pressable
-        hitSlop={6}
-        onPress={() => Linking.openURL(`tel:${contact.phone}`)}
-        style={[styles.action, { backgroundColor: colors.surface }]}
-      >
-        <Ionicons name="call-outline" size={19} color={colors.primary} />
+        <Pressable
+          hitSlop={6}
+          onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+          style={[styles.action, { backgroundColor: colors.surface }]}
+        >
+          <Ionicons name="call-outline" size={19} color={colors.primary} />
+        </Pressable>
+        <Pressable
+          hitSlop={6}
+          onPress={() => Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)}
+          style={[styles.action, { backgroundColor: colors.surface }]}
+        >
+          <Ionicons name="logo-whatsapp" size={19} color={colors.success} />
+        </Pressable>
       </Pressable>
-      <Pressable
-        hitSlop={6}
-        onPress={() => Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)}
-        style={[styles.action, { backgroundColor: colors.surface }]}
-      >
-        <Ionicons name="logo-whatsapp" size={19} color={colors.success} />
-      </Pressable>
-    </View>
+    </Link>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: spacing.lg, paddingTop: 54, gap: spacing.md, paddingBottom: spacing.md },
+  header: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
   title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   search: {
     flexDirection: 'row',

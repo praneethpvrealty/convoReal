@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   Avatar,
@@ -24,7 +25,7 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
-import { supabase } from '@/lib/supabase';
+import { supabase, uniqueChannel } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Conversation } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
@@ -58,7 +59,7 @@ export default function InboxScreen() {
   useEffect(() => {
     if (!accountId || !userId) return;
     const channel = supabase
-      .channel(`conversations:${accountId}:${userId}`)
+      .channel(uniqueChannel(`conversations:${accountId}:${userId}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
@@ -91,16 +92,17 @@ export default function InboxScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <InboxHeader search={search} onSearch={setSearch} />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={styles.filters}
-      >
-        {FILTERS.map((f) => (
-          <FilterChip key={f} label={f} active={filter === f} onPress={() => setFilter(f)} />
-        ))}
-      </ScrollView>
+      <View style={styles.filtersRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+        >
+          {FILTERS.map((f) => (
+            <FilterChip key={f} label={f} active={filter === f} onPress={() => setFilter(f)} />
+          ))}
+        </ScrollView>
+      </View>
 
       {isLoading ? (
         <View>
@@ -110,6 +112,7 @@ export default function InboxScreen() {
         </View>
       ) : (
         <FlatList
+          style={{ flex: 1 }}
           data={filtered}
           keyExtractor={(c) => c.id}
           refreshControl={
@@ -149,9 +152,15 @@ function InboxHeader({
   onSearch: (v: string) => void;
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const credits = useCredits();
   return (
-    <View style={[styles.header, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.header,
+        { backgroundColor: colors.background, paddingTop: insets.top + spacing.sm },
+      ]}
+    >
       <View style={styles.headerRow}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
         <View
@@ -209,12 +218,11 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 
   return (
     <Link href={`/(app)/conversation/${conversation.id}`} asChild>
+      {/* Static styles only — a style FUNCTION here breaks flex layout
+          when Link (asChild) merges its props onto the Pressable. */}
       <Pressable
-        style={({ pressed }) => [
-          styles.row,
-          { borderBottomColor: colors.border },
-          pressed && { backgroundColor: colors.surface },
-        ]}
+        style={[styles.row, { borderBottomColor: colors.border }]}
+        android_ripple={{ color: colors.surface }}
       >
         <Avatar name={name} />
         <View style={styles.rowBody}>
@@ -261,7 +269,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: spacing.lg, paddingTop: 54, gap: spacing.md },
+  header: { paddingHorizontal: spacing.lg, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerTitle: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   creditsChip: {
@@ -271,6 +279,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 5,
+    // Keep clear of Expo Go's floating dev-menu bubble in the corner.
+    marginRight: spacing.sm,
   },
   search: {
     flexDirection: 'row',
@@ -281,10 +291,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   searchInput: { flex: 1, paddingVertical: 9, fontSize: 14.5 },
+  filtersRow: { height: 52, justifyContent: 'center' },
   filters: {
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
   row: {
     flexDirection: 'row',

@@ -23,6 +23,19 @@ export const supabase = createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
   },
 });
 
+/**
+ * Realtime channel names must be unique per subscription: supabase-js
+ * returns the SAME channel object for an identical name, so two hooks
+ * (or a fast unmount/remount) using one name throw "cannot add
+ * postgres_changes callbacks ... after subscribe()". Always create
+ * channels through this helper.
+ */
+let channelSeq = 0;
+export function uniqueChannel(base: string): string {
+  channelSeq += 1;
+  return `${base}:${channelSeq}`;
+}
+
 // Refresh tokens only while the app is foregrounded (Supabase RN guidance) —
 // a backgrounded JS runtime can't reliably run the refresh timer anyway.
 AppState.addEventListener('change', (state) => {
