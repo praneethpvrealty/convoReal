@@ -65,9 +65,10 @@ export default function EditAutomationPage({
 
   if (!initial) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-3">
-        <FlowNodeLoader size={96} label="Loading automation" />
-        <ConvoRealLoader size={20} />
+      <div className="flex h-screen flex-col items-center justify-center text-slate-400">
+        <FlowNodeLoader size={104} label="Loading automation" className="mb-3" />
+        <ConvoRealLoader size={20} className="mb-2" />
+        <p className="text-sm">Loading automation...</p>
       </div>
     )
   }

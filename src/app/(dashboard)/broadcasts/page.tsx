@@ -134,9 +134,10 @@ export default function BroadcastsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-64 flex-col items-center justify-center gap-3">
-        <SignalWaveLoader size={56} label="Loading broadcasts" />
-        <ConvoRealLoader size={18} />
+      <div className="flex h-64 flex-col items-center justify-center text-slate-400">
+        <SignalWaveLoader size={104} label="Loading broadcasts" className="mb-3" />
+        <ConvoRealLoader size={20} className="mb-2" />
+        <p className="text-sm">Loading broadcasts...</p>
       </div>
     );
   }

@@ -231,6 +231,23 @@ as the sole owner of their own account and sees identical data.
   media section, but only Images was switched over when the
   real-estate-themed loaders shipped. Documents now uses the same
   `PropertyBlueprintLoader` (`src/components/inventory/property-form.tsx`).
+- **Every page's loading state used a different icon size and spacing
+  for its themed loader**, so the loading UI felt inconsistent and easy
+  to miss when hopping between pages (Pulse's heartbeat loader read
+  noticeably bigger than Flows' node loader, Contacts' and the inbox
+  panels' loaders were tiny by comparison, some pages skipped the
+  loading-text line entirely). Standardized every full-page/section
+  themed loader on one layout — 104px icon, 20px `ConvoRealLoader`
+  wordmark directly beneath it, a loading-text line under that — across
+  Pulse, Radar, Flows (list, detail, runs), Automations (edit, logs),
+  Broadcasts (list, detail), Calendar, Requirements, Ads, Contacts
+  (list, import), and the inbox conversation list and message thread.
+  Left untouched: small inline sub-panel spinners nested inside an
+  already-loaded page (e.g. Agents' per-card "loading notes") and the
+  bare wordmark-only loaders used where a page has no themed icon at
+  all (app shell, admin, profile setup, join-by-invite) — both are a
+  deliberately different, smaller category from the noticeable
+  full-page loaders this pass targeted.
 
 - **Calendar voice logging ("tap the mic and say it") was silently
   broken for every visitor.** A site-wide `Permissions-Policy:

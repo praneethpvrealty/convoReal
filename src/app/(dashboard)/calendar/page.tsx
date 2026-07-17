@@ -1128,9 +1128,10 @@ export default function CalendarPage() {
           </div>
 
           {loading ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3">
-              <CalendarLoader size={64} label="Loading calendar" />
-              <ConvoRealLoader size={18} />
+            <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
+              <CalendarLoader size={104} label="Loading calendar" className="mb-3" />
+              <ConvoRealLoader size={20} className="mb-2" />
+              <p className="text-sm">Loading calendar...</p>
             </div>
           ) : view === "team" ? (
             <TeamView
