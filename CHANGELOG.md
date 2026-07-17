@@ -30,6 +30,20 @@ and polish.
 
 ### Fixed
 
+- **Every appointment reminder said "your scheduled property visit,"
+  even for a plain meeting, call, follow-up, or document appointment.**
+  (**migration required**: `140_meeting_reminder_template.sql`) —
+  `src/lib/appointments/reminder.ts` always used the
+  `property_visit_reminder` template regardless of the appointment's
+  `event_type`. Now `event_type === 'site_visit'` keeps that wording;
+  every other type (meeting, call, follow_up, document, other) uses a
+  new neutral pair, `appointment_reminder` /
+  `appointment_reminder_agenda` ("...this is a friendly reminder for
+  your scheduled meeting: ...") — seeded DRAFT for every account, same
+  as the existing agenda variant: submit it from Settings → Templates
+  and wait for Meta's approval before it starts sending for your
+  account.
+
 - **Appointment reminders (morning-of brief, 1-hour-before) never
   actually fired — the cron that sends them had no automatic
   trigger.** `checkAndSendAppointmentReminders()`
