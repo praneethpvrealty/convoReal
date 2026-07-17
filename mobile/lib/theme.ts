@@ -87,6 +87,17 @@ export const darkColors: ThemeColors = {
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radius = { sm: 8, md: 12, lg: 16, xl: 22, full: 999 } as const;
 
+/** Brand gradient (violet → fuchsia) — buttons, hero cards, story rings. */
+export const brandGradient = ['#7c3aed', '#c026d3'] as const;
+export const brandGradientDark = ['#8b5cf6', '#d946ef'] as const;
+/** Gradient for the "hot lead" story ring — Instagram-style warm sweep. */
+export const hotGradient = ['#f59e0b', '#ef4444', '#d946ef'] as const;
+
+export function useBrandGradient(): readonly [string, string] {
+  const dark = useColorScheme() === 'dark';
+  return dark ? brandGradientDark : brandGradient;
+}
+
 export function useTheme(): { colors: ThemeColors; dark: boolean } {
   const scheme = useColorScheme();
   const dark = scheme === 'dark';

@@ -53,6 +53,13 @@ separate repo.
 - ✅ **Journeys (read-only)** — every buyer's per-property stage list from
   the same rows the web mind map renders; canvas stays web-only.
 - ✅ **Full dark-mode support** across every screen (system scheme).
+- ✅ **Design language pass** — brand gradient (violet → fuchsia) identity,
+  floating blur pill tab bar, staggered list entrances + press physics
+  (reanimated), haptic vocabulary (`lib/haptics.ts`), shimmer skeletons,
+  Instagram-style HOT-lead story rings in the inbox, full-bleed photo
+  property cards with gradient scrims, animated stat counters + gradient
+  hero on Overview, confetti when a deal closes Won, and a branded app
+  icon/splash (regenerate via `node scripts/generate-icons.js`).
 - ⏳ Next: pending outbox (offline queue), push notifications (needs
   `device_push_tokens` + worker dispatch — not yet in the web repo),
   media-header templates, property editing, broadcast composing, biometrics.

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,7 +18,7 @@ import { Banner } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useBrandGradient, useTheme } from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
 
@@ -45,9 +46,14 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.hero}>
-            <View style={[styles.logoBadge, { backgroundColor: colors.primarySoft }]}>
-              <Ionicons name="chatbubbles" size={34} color={colors.primary} />
-            </View>
+            <LinearGradient
+              colors={useBrandGradient()}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoBadge}
+            >
+              <Ionicons name="chatbubbles" size={34} color="#fff" />
+            </LinearGradient>
             <Text style={[styles.wordmark, { color: colors.primary }]}>ConvoReal</Text>
             <Text style={[styles.tagline, { color: colors.textMuted }]}>
               WhatsApp CRM for real estate
@@ -328,26 +334,27 @@ function PrimaryButton({
   disabled?: boolean;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const gradient = useBrandGradient();
   return (
     <Pressable
-      style={({ pressed }) => [
-        styles.primaryButton,
-        {
-          backgroundColor: colors.primary,
-          opacity: disabled || busy ? 0.55 : pressed ? 0.85 : 1,
-        },
-      ]}
+      style={({ pressed }) => ({
+        opacity: disabled || busy ? 0.55 : pressed ? 0.85 : 1,
+      })}
       disabled={disabled || busy}
       onPress={onPress}
     >
-      {busy ? (
-        <ActivityIndicator color={colors.onPrimary} />
-      ) : (
-        <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>
-          {label}
-        </Text>
-      )}
+      <LinearGradient
+        colors={gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.primaryButton}
+      >
+        {busy ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{label}</Text>
+        )}
+      </LinearGradient>
     </Pressable>
   );
 }

@@ -14,6 +14,7 @@ import {
 
 import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
+import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
@@ -34,6 +35,7 @@ export default function AutomationsScreen() {
   });
 
   async function toggle(automation: AutomationRow, next: boolean) {
+    haptic.tap();
     setError(null);
     setTogglingId(automation.id);
     try {
