@@ -42,19 +42,40 @@ export async function PUT(
       status,
     } = body
 
+    const updatePayload: Record<string, unknown> = {
+      contact_id: contact_id !== undefined ? contact_id : undefined,
+      property_id: property_id !== undefined ? property_id : undefined,
+      title: title !== undefined ? title : undefined,
+      description: description !== undefined ? description : undefined,
+      start_time: start_time !== undefined ? start_time : undefined,
+      end_time: end_time !== undefined ? end_time : undefined,
+      location: location !== undefined ? location : undefined,
+      status: status !== undefined ? status : undefined,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Moving an appointment to a new time must re-arm its reminders —
+    // otherwise an appointment whose 1h/morning reminder already fired
+    // for its OLD time silently never reminds again after being
+    // rescheduled, since reminder_morning_sent/reminder_1h_sent only
+    // ever get set to true (src/lib/appointments/reminder.ts) and
+    // nothing else resets them.
+    if (start_time !== undefined) {
+      const { data: existing } = await supabase
+        .from('appointments')
+        .select('start_time')
+        .eq('id', id)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      if (existing && new Date(existing.start_time).getTime() !== new Date(start_time).getTime()) {
+        updatePayload.reminder_morning_sent = false
+        updatePayload.reminder_1h_sent = false
+      }
+    }
+
     const { data: appointment, error } = await supabase
       .from('appointments')
-      .update({
-        contact_id: contact_id !== undefined ? contact_id : undefined,
-        property_id: property_id !== undefined ? property_id : undefined,
-        title: title !== undefined ? title : undefined,
-        description: description !== undefined ? description : undefined,
-        start_time: start_time !== undefined ? start_time : undefined,
-        end_time: end_time !== undefined ? end_time : undefined,
-        location: location !== undefined ? location : undefined,
-        status: status !== undefined ? status : undefined,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', id)
       .eq('account_id', accountId)
       .select('*, contact:contacts(id, name, phone), property:properties(id, title, location, sublocality)')
