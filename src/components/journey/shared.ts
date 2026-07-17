@@ -8,6 +8,8 @@
  * rows — only the grouping column differs.
  */
 
+import { differenceInCalendarDays } from "date-fns";
+
 import type { JourneyItem, JourneyStage } from "@/types";
 
 export type JourneyMode = "buyer" | "property";
@@ -61,6 +63,33 @@ export const STAGE_COLOR_CHOICES = [
  */
 export function navigateJourney(url: string) {
   window.history.pushState(null, "", url);
+}
+
+/** Human label for a planned step's expected date — "In 25 days",
+ *  "Tomorrow", "Today", or "3 days overdue" once it slips. */
+export function planEtaLabel(plannedAt: string): {
+  text: string;
+  overdue: boolean;
+} {
+  const days = differenceInCalendarDays(new Date(plannedAt), new Date());
+  if (days > 1) return { text: `In ${days} days`, overdue: false };
+  if (days === 1) return { text: "Tomorrow", overdue: false };
+  if (days === 0) return { text: "Today", overdue: false };
+  return {
+    text: `${-days} day${days === -1 ? "" : "s"} overdue`,
+    overdue: true,
+  };
+}
+
+/** The item's valid planned-stage index: only meaningful for active
+ *  items planning a stage AHEAD of where they are. -1 otherwise. */
+export function plannedIndexOf(
+  item: JourneyItem,
+  stages: JourneyStage[],
+): number {
+  if (item.status !== "active" || !item.planned_stage_id) return -1;
+  const planned = stages.findIndex((s) => s.id === item.planned_stage_id);
+  return planned > stageIndexOf(item, stages) ? planned : -1;
 }
 
 /** Index of an item's furthest-reached stage in the ordered stage

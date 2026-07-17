@@ -11,6 +11,30 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **Journey: planned next steps with expected timelines**
+  (**migration required**: `140_journey_planned_steps.sql`) — an
+  active property/contact on the journey can now carry its expected
+  next move: pick the stage and the date in the item's detail sheet
+  ("Plan next step…"), and the mind map grows a **ghost card** at that
+  stage's column — dashed outline, muted, visibly not-reached-yet —
+  connected to the current card by a **grey dotted line labelled with
+  the timing** ("In 25 days", "Tomorrow", "Today", or an amber
+  "3 days overdue" once it slips). The ghost's column appears even if
+  no item has reached that stage yet. Advancing or moving the item
+  clears the plan automatically (it was for that move); plans can also
+  be edited or cleared from the sheet, and 'planned'/'plan_cleared'
+  events land in the item timeline. New columns:
+  `journey_items.planned_stage_id`, `journey_items.planned_at`.
+
+- **Journey canvas: corner cleanup.** The minimap now renders only on
+  maps with 10+ nodes, hides on phones, sits top-right, and tints
+  nodes by status/stage color (it used to be a large near-empty box
+  fighting the floating AI widget for the bottom corner). The
+  Active/Dropped legend shrank, moved next to the zoom controls, and
+  only appears once something has been dropped.
+
 ### Changed
 
 - **Journey: all journeys in one place.** `/journey` no longer opens a

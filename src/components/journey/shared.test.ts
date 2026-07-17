@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { JourneyItem, JourneyStage } from "@/types";
-import { sortItemsForRows, stageIndexOf } from "./shared";
+import {
+  planEtaLabel,
+  plannedIndexOf,
+  sortItemsForRows,
+  stageIndexOf,
+} from "./shared";
 
 function stage(id: string, position: number): JourneyStage {
   return {
@@ -74,6 +79,33 @@ describe("sortItemsForRows", () => {
       "activeNew",
       "droppedOld",
     ]);
+  });
+
+  it("planEtaLabel renders future, today, and overdue labels", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-17T10:00:00Z"));
+    expect(planEtaLabel("2026-08-11")).toEqual({ text: "In 25 days", overdue: false });
+    expect(planEtaLabel("2026-07-18")).toEqual({ text: "Tomorrow", overdue: false });
+    expect(planEtaLabel("2026-07-17")).toEqual({ text: "Today", overdue: false });
+    expect(planEtaLabel("2026-07-14")).toEqual({ text: "3 days overdue", overdue: true });
+    expect(planEtaLabel("2026-07-16")).toEqual({ text: "1 day overdue", overdue: true });
+    vi.useRealTimers();
+  });
+
+  it("plannedIndexOf only accepts stages ahead of the frontier on active items", () => {
+    const base = item("a", "visited", "active", "2026-01-01");
+    expect(plannedIndexOf({ ...base, planned_stage_id: "token" }, STAGES)).toBe(2);
+    // same/behind the frontier → invalid
+    expect(plannedIndexOf({ ...base, planned_stage_id: "visited" }, STAGES)).toBe(-1);
+    expect(plannedIndexOf({ ...base, planned_stage_id: "shared" }, STAGES)).toBe(-1);
+    // dropped items never show a ghost
+    expect(
+      plannedIndexOf(
+        { ...item("b", "visited", "dropped", "2026-01-01"), planned_stage_id: "token" },
+        STAGES,
+      ),
+    ).toBe(-1);
+    expect(plannedIndexOf(base, STAGES)).toBe(-1);
   });
 
   it("does not mutate the input array", () => {

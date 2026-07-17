@@ -48,6 +48,7 @@ import "@xyflow/react/dist/style.css";
 import {
   Ban,
   Building2,
+  CalendarClock,
   ChevronRight,
   Home,
   MapPin,
@@ -60,6 +61,8 @@ import { cn } from "@/lib/utils";
 import { formatCurrencyShort } from "@/lib/currency-utils";
 import type { Contact, JourneyItem, JourneyStage, Property } from "@/types";
 import {
+  planEtaLabel,
+  plannedIndexOf,
   sortItemsForRows,
   stageIndexOf,
   type JourneyMode,
@@ -99,13 +102,18 @@ interface StageHeaderData extends Record<string, unknown> {
 interface ItemData extends Record<string, unknown> {
   item: JourneyItem;
   mode: JourneyMode;
-  variant: "trace" | "frontier";
+  /** "trace" = passed stage pill, "frontier" = current card,
+   *  "planned" = ghost card for the expected next step. */
+  variant: "trace" | "frontier" | "planned";
   stageColor: string;
   currency: string;
   /** Name of the stage after the item's current one — undefined at
    *  the last stage (nothing to advance into). */
   nextStageName?: string;
   onAdvance?: (item: JourneyItem) => void;
+  /** Planned-ghost fields (variant "planned" only). */
+  plannedStageName?: string;
+  plannedAt?: string | null;
 }
 
 // ── Small display helpers ───────────────────────────────────
@@ -226,10 +234,54 @@ function ItemNode({ data, selected }: NodeProps) {
     currency,
     nextStageName,
     onAdvance,
+    plannedStageName,
+    plannedAt,
   } = data as ItemData;
   const dropped = item.status === "dropped";
   const title = itemTitle(item, mode);
   const code = itemCode(item, mode);
+
+  if (variant === "planned") {
+    // Ghost card — the expected next step, visibly not reached yet:
+    // dashed outline, muted text, expected date underneath.
+    const eta = plannedAt ? planEtaLabel(plannedAt) : null;
+    return (
+      <div
+        className="flex cursor-pointer flex-col justify-center rounded-lg border border-dashed border-slate-600 bg-slate-950/60 px-3 py-2 opacity-80 transition-colors hover:border-slate-400 hover:opacity-100"
+        style={{ width: CARD_W, minHeight: 64 }}
+      >
+        <Handle type="target" position={Position.Left} className={targetHandleCls} />
+        <div className="flex items-center gap-1.5">
+          <CalendarClock className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+          <span className="truncate text-xs font-semibold text-slate-300">
+            {plannedStageName}
+          </span>
+          <span className="ml-auto shrink-0 rounded bg-slate-800/80 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+            Planned
+          </span>
+        </div>
+        {eta && (
+          <div
+            className={cn(
+              "mt-1 pl-5 text-[10px]",
+              eta.overdue ? "font-semibold text-amber-400" : "text-slate-500",
+            )}
+          >
+            {eta.text}
+            {plannedAt && (
+              <span className="ml-1.5 text-slate-600">
+                ·{" "}
+                {new Date(plannedAt).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "short",
+                })}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (variant === "trace") {
     // Compact pill for a stage the item has already passed through.
@@ -270,6 +322,9 @@ function ItemNode({ data, selected }: NodeProps) {
       style={{ width: CARD_W, minHeight: CARD_H }}
     >
       <Handle type="target" position={Position.Left} className={targetHandleCls} />
+      {/* Source handle feeds the planned-step ghost edge when a next
+          step is scheduled; invisible-cheap otherwise. */}
+      <Handle type="source" position={Position.Right} className={sourceHandleCls} />
       {/* Stage accent bar */}
       <span
         className="absolute inset-y-2 left-0 w-1 rounded-r"
@@ -410,9 +465,12 @@ function JourneyCanvasInner({
   const { nodes, edges } = useMemo(() => {
     const rows = sortItemsForRows(items, stages);
     // Furthest column any item has reached — later stages stay off
-    // the map entirely ("show only till the latest stage reached").
+    // the map ("show only till the latest stage reached") — EXCEPT
+    // when a planned next step points further right: its ghost column
+    // must exist to hang the dotted edge on.
     const maxReached = rows.reduce(
-      (max, it) => Math.max(max, stageIndexOf(it, stages)),
+      (max, it) =>
+        Math.max(max, stageIndexOf(it, stages), plannedIndexOf(it, stages)),
       -1,
     );
 
@@ -511,6 +569,51 @@ function JourneyCanvasInner({
                 strokeWidth: 1.5,
                 opacity: dropped ? 0.6 : 1,
               },
+        });
+      }
+
+      // Planned next step — ghost card at the expected stage's column,
+      // hung off the frontier by a grey dotted edge labelled with the
+      // expected timing ("In 25 days"). Not-reached-yet by design.
+      const plannedIdx = plannedIndexOf(item, stages);
+      const plannedStage = plannedIdx >= 0 ? stages[plannedIdx] : null;
+      if (plannedStage) {
+        const ghostId = `item-${item.id}@planned`;
+        const eta = item.planned_at ? planEtaLabel(item.planned_at) : null;
+        nodes.push({
+          id: ghostId,
+          type: "journeyItem",
+          position: { x: colX(plannedIdx), y: rowY + (CARD_H - 64) / 2 },
+          draggable: false,
+          data: {
+            item,
+            mode,
+            variant: "planned",
+            stageColor: plannedStage.color,
+            currency,
+            plannedStageName: plannedStage.name,
+            plannedAt: item.planned_at,
+          } satisfies ItemData,
+        });
+        edges.push({
+          id: `e-${item.id}-planned`,
+          source: `item-${item.id}@${reached}`,
+          target: ghostId,
+          label: eta?.text,
+          labelStyle: {
+            fill: eta?.overdue ? "#fbbf24" : "#94a3b8",
+            fontSize: 10,
+            fontWeight: 600,
+          },
+          labelBgStyle: { fill: "#0f172a" },
+          labelBgPadding: [5, 3] as [number, number],
+          labelBgBorderRadius: 4,
+          style: {
+            stroke: "#64748b",
+            strokeWidth: 1.5,
+            strokeDasharray: "3 5",
+            opacity: 0.75,
+          },
         });
       }
     });

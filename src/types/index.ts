@@ -588,6 +588,10 @@ export interface JourneyItem {
   hidden: boolean;
   drop_reason?: string | null;
   dropped_at?: string | null;
+  /** Planned next step (migration 140) — ghost node on the map until
+   *  reached or cleared; any stage move clears it. */
+  planned_stage_id?: string | null;
+  planned_at?: string | null;
   notes?: string | null;
   created_by?: string | null;
   created_at: string;
@@ -604,7 +608,9 @@ export type JourneyEventType =
   | 'dropped'
   | 'reactivated'
   | 'hidden'
-  | 'unhidden';
+  | 'unhidden'
+  | 'planned'
+  | 'plan_cleared';
 
 export interface JourneyEvent {
   id: string;

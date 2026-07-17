@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Ban,
   Building2,
+  CalendarClock,
   Check,
   ChevronDown,
   Clock,
@@ -28,6 +29,7 @@ import {
   RotateCcw,
   Trash2,
   UserRound,
+  X,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -55,10 +57,12 @@ import type {
   JourneyStage,
 } from "@/types";
 import {
+  planEtaLabel,
   QUICK_DROP_REASONS,
   stageIndexOf,
   type JourneyMode,
 } from "./shared";
+import { Input } from "@/components/ui/input";
 
 const EVENT_LABELS: Record<JourneyEvent["event_type"], string> = {
   added: "Added to journey",
@@ -68,6 +72,8 @@ const EVENT_LABELS: Record<JourneyEvent["event_type"], string> = {
   reactivated: "Reactivated",
   hidden: "Hidden from map",
   unhidden: "Shown on map",
+  planned: "Next step planned",
+  plan_cleared: "Plan cleared",
 };
 
 export interface JourneyItemSheetProps {
@@ -84,6 +90,9 @@ export interface JourneyItemSheetProps {
   onRemove: (item: JourneyItem) => void;
   /** Tuck the item into the Captured tray without deleting anything. */
   onHide: (item: JourneyItem) => void;
+  /** Schedule the expected next stage + date (ghost node on the map). */
+  onPlan: (item: JourneyItem, stageId: string, dateISO: string) => void;
+  onClearPlan: (item: JourneyItem) => void;
 }
 
 export function JourneyItemSheet({
@@ -99,6 +108,8 @@ export function JourneyItemSheet({
   onReactivate,
   onRemove,
   onHide,
+  onPlan,
+  onClearPlan,
 }: JourneyItemSheetProps) {
   const supabase = createClient();
   const open = item !== null;
@@ -108,6 +119,9 @@ export function JourneyItemSheet({
   const [dropFormOpen, setDropFormOpen] = useState(false);
   const [dropReason, setDropReason] = useState("");
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [planFormOpen, setPlanFormOpen] = useState(false);
+  const [planStageId, setPlanStageId] = useState("");
+  const [planDate, setPlanDate] = useState("");
 
   // Reset transient state whenever a different item opens. Deferred
   // setter (matches the repo-wide pattern) so the reset doesn't
@@ -117,6 +131,9 @@ export function JourneyItemSheet({
       setDropFormOpen(false);
       setDropReason("");
       setConfirmRemove(false);
+      setPlanFormOpen(false);
+      setPlanStageId("");
+      setPlanDate("");
     });
   }, [item?.id]);
 
@@ -333,6 +350,122 @@ export function JourneyItemSheet({
                     </DropdownMenu>
                   </div>
 
+                  {/* Planned next step — the ghost node on the map. */}
+                  {item.planned_stage_id && !planFormOpen ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-700 border-dashed bg-slate-900/60 px-3 py-2">
+                      <CalendarClock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1 text-xs">
+                        <span className="font-semibold text-slate-200">
+                          Next: {stageName(item.planned_stage_id)}
+                        </span>
+                        {item.planned_at && (
+                          <span
+                            className={cn(
+                              "ml-1.5",
+                              planEtaLabel(item.planned_at).overdue
+                                ? "font-semibold text-amber-400"
+                                : "text-slate-400",
+                            )}
+                          >
+                            {planEtaLabel(item.planned_at).text} ·{" "}
+                            {new Date(item.planned_at).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlanStageId(item.planned_stage_id ?? "");
+                          setPlanDate(item.planned_at ?? "");
+                          setPlanFormOpen(true);
+                        }}
+                        className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-slate-400 hover:text-white"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Clear planned step"
+                        title="Clear planned step"
+                        onClick={() => onClearPlan(item)}
+                        className="shrink-0 text-slate-500 hover:text-red-400"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : !planFormOpen ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="justify-start"
+                      onClick={() => {
+                        setPlanStageId(stages[reached + 1]?.id ?? "");
+                        setPlanDate("");
+                        setPlanFormOpen(true);
+                      }}
+                    >
+                      <CalendarClock className="h-3.5 w-3.5" />
+                      Plan next step…
+                    </Button>
+                  ) : (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+                      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                        Plan the next step
+                      </p>
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {stages.slice(reached + 1).map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setPlanStageId(s.id)}
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-medium transition-colors",
+                              planStageId === s.id
+                                ? "border-primary bg-primary/15 text-primary"
+                                : "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500",
+                            )}
+                          >
+                            <span
+                              className="h-1.5 w-1.5 rounded-full"
+                              style={{ backgroundColor: s.color }}
+                            />
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                      <Input
+                        type="date"
+                        value={planDate}
+                        min={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setPlanDate(e.target.value)}
+                        className="h-8 border-slate-700 bg-slate-950 text-xs"
+                      />
+                      <div className="mt-2 flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPlanFormOpen(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={!planStageId || !planDate}
+                          onClick={() => {
+                            onPlan(item, planStageId, planDate);
+                            setPlanFormOpen(false);
+                          }}
+                        >
+                          <CalendarClock className="h-3.5 w-3.5" />
+                          Save plan
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {!dropFormOpen ? (
                     <Button
                       variant="ghost"
@@ -438,7 +571,8 @@ export function JourneyItemSheet({
                         {EVENT_LABELS[ev.event_type]}
                       </span>
                       {(ev.event_type === "advanced" ||
-                        ev.event_type === "moved") && (
+                        ev.event_type === "moved" ||
+                        ev.event_type === "planned") && (
                         <span className="text-slate-400">
                           {" "}
                           {stageName(ev.from_stage_id)} →{" "}

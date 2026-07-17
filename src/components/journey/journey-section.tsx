@@ -301,6 +301,10 @@ export function JourneySection({
           status: "active",
           drop_reason: null,
           dropped_at: null,
+          // Any stage move consumes the plan — it was for the next
+          // step, and a stale ghost would just lie on the map.
+          planned_stage_id: null,
+          planned_at: null,
         })
         .eq("id", item.id);
       if (error) {
@@ -383,6 +387,38 @@ export function JourneySection({
       await refresh();
     },
     [supabase, refresh],
+  );
+
+  const handlePlan = useCallback(
+    async (item: JourneyItem, stageId: string, dateISO: string) => {
+      const { error } = await supabase
+        .from("journey_items")
+        .update({ planned_stage_id: stageId, planned_at: dateISO })
+        .eq("id", item.id);
+      if (error) {
+        toast.error(`Failed to save plan: ${error.message}`);
+        return;
+      }
+      await logEvent(item.id, "planned", item.stage_id, stageId, `Expected by ${dateISO}`);
+      await refresh();
+    },
+    [supabase, logEvent, refresh],
+  );
+
+  const handleClearPlan = useCallback(
+    async (item: JourneyItem) => {
+      const { error } = await supabase
+        .from("journey_items")
+        .update({ planned_stage_id: null, planned_at: null })
+        .eq("id", item.id);
+      if (error) {
+        toast.error(`Failed to clear plan: ${error.message}`);
+        return;
+      }
+      await logEvent(item.id, "plan_cleared", item.stage_id, item.planned_stage_id ?? null);
+      await refresh();
+    },
+    [supabase, logEvent, refresh],
   );
 
   const setHiddenFlag = useCallback(
@@ -615,6 +651,8 @@ export function JourneySection({
         onReactivate={handleReactivate}
         onRemove={handleRemove}
         onHide={handleHide}
+        onPlan={handlePlan}
+        onClearPlan={handleClearPlan}
       />
 
       <AddItemsDialog
