@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
-import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils'
+import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -604,6 +604,79 @@ async function flagBroadcastReplyIfAny(accountId: string, contactId: string) {
   }
 }
 
+const REMINDER_RESCHEDULE_BUTTON_TEXT = 'Requesting reschedule'
+
+/**
+ * A tap on the reminder's "Requesting reschedule" quick-reply button
+ * (supabase/migrations/141_reminder_reschedule_buttons.sql) arrives as
+ * message.type === 'button' with context.id pointing at the original
+ * outbound reminder — matched via the wa_message_id reminder.ts
+ * stamps onto appointment_reminder_log after each send. Flags the
+ * appointment and pings the assigned agent on WhatsApp. "Fine 👍"
+ * needs no handling here — it's just logged as a normal message like
+ * any other reply.
+ */
+async function handleReminderButtonReply(
+  message: WhatsAppMessage,
+  accountId: string
+): Promise<void> {
+  if (message.button?.text !== REMINDER_RESCHEDULE_BUTTON_TEXT || !message.context?.id) {
+    return
+  }
+
+  try {
+    const admin = supabaseAdmin()
+    const { data: log } = await admin
+      .from('appointment_reminder_log')
+      .select('appointment_id')
+      .eq('wa_message_id', message.context.id)
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (!log?.appointment_id) return
+
+    const { data: appt } = await admin
+      .from('appointments')
+      .update({ reschedule_requested_at: new Date().toISOString() })
+      .eq('id', log.appointment_id)
+      .select('id, title, start_time, user_id, assigned_to')
+      .maybeSingle()
+    if (!appt) return
+
+    const agentUserId = appt.assigned_to || appt.user_id
+    if (!agentUserId) return
+
+    const { data: agentProfile } = await admin
+      .from('profiles')
+      .select('phone')
+      .eq('user_id', agentUserId)
+      .maybeSingle()
+    if (!agentProfile?.phone) return
+    const agentPhone = sanitizePhoneForMeta(agentProfile.phone)
+    if (!isValidE164(agentPhone)) return
+
+    const formattedTime = new Date(appt.start_time).toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    })
+
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: agentUserId,
+      toPhone: agentPhone,
+      kind: 'text',
+      senderType: 'bot',
+      text: `🔄 Reschedule requested for "${appt.title}" on ${formattedTime}. The client tapped "Requesting reschedule" on their reminder — reach out to find a new time.`,
+    })
+  } catch (err) {
+    console.error('[webhook] handleReminderButtonReply failed:', err)
+  }
+}
+
 async function lookupInternalIdByMetaId(
   metaId: string,
   conversationId: string
@@ -881,6 +954,10 @@ async function processMessage(
   }
 
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  if (message.type === 'button') {
+    await handleReminderButtonReply(message, accountId)
+  }
 
   // Completed native Meta Flow (form-screen) submission — e.g. the
   // Buyer Preference Intake form. The encrypted data-exchange endpoint
