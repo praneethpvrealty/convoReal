@@ -11,6 +11,23 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **Journey: all journeys in one place.** `/journey` no longer opens a
+  bare picker — it now lists **every** journey as a collapsible
+  section (buyers by default; a dropdown at the top switches to
+  property journeys). Each section header shows the subject, its
+  furthest stage, and active / dropped / captured counts; expanding it
+  mounts the full interactive mind map inline — advance, drop, tray,
+  and imports all work without leaving the page. Sections can be
+  hidden from the overview (and restored from a "Hidden journeys"
+  strip at the bottom); expansion and hidden state persist per device.
+  A "New journey" dialog replaces the old picker, and the focused
+  single-journey view (deep links from the contact panel, inbox, and
+  inventory) gains an "All journeys" back button. Internally the whole
+  per-journey experience moved into a reusable `JourneySection`
+  component shared by both views.
+
 ### Fixed
 
 - **Journey: every add/import failed with "Nothing was added."**

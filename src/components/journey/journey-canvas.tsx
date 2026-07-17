@@ -376,6 +376,9 @@ export interface JourneyCanvasProps {
    *  when the canvas itself is empty. */
   capturedCount?: number;
   onOpenCaptured?: () => void;
+  /** Container height utility classes — the focused view fills the
+   *  viewport, embedded overview sections use a fixed band. */
+  heightClass?: string;
 }
 
 export function JourneyCanvas(props: JourneyCanvasProps) {
@@ -400,6 +403,7 @@ function JourneyCanvasInner({
   selectedItemId,
   capturedCount = 0,
   onOpenCaptured,
+  heightClass = "h-[calc(100vh-220px)] min-h-[480px]",
 }: JourneyCanvasProps) {
   const reactFlow = useReactFlow();
 
@@ -535,7 +539,12 @@ function JourneyCanvasInner({
   }, [shapeKey, reactFlow]);
 
   return (
-    <div className="h-[calc(100vh-220px)] min-h-[480px] w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
+    <div
+      className={cn(
+        "w-full overflow-hidden rounded-xl border border-slate-800 bg-slate-950",
+        heightClass,
+      )}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
