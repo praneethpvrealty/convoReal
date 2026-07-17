@@ -8,14 +8,31 @@
     "scheme": "convoreal",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.convoreal.app",
+      "associatedDomains": [
+        "applinks:convoreal.com",
+        "applinks:www.convoreal.com"
+      ]
     },
     "android": {
+      "package": "com.convoreal.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#1A4D42"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "convoreal.com" },
+            { "scheme": "https", "host": "www.convoreal.com" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
