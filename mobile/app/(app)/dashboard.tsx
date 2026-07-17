@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import {
   RefreshControl,
@@ -9,9 +10,10 @@ import {
   View,
 } from 'react-native';
 
+import { AnimatedCounter } from '@/components/motion';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useBrandGradient, useTheme } from '@/lib/theme';
 
 interface Overview {
   openConversations: number;
@@ -117,6 +119,12 @@ export default function DashboardScreen() {
         }}
       />
 
+      <HeroCard
+        value={data?.openDealsValue ?? 0}
+        openCount={data?.openDealsCount ?? 0}
+        wonCount={data?.wonDealsCount ?? 0}
+      />
+
       <SectionLabel text="Today" />
       <View style={styles.grid}>
         <StatCard
@@ -134,26 +142,6 @@ export default function DashboardScreen() {
           icon="calendar-outline"
           label="Appointments"
           value={data ? String(data.appointmentsToday) : '…'}
-        />
-      </View>
-
-      <SectionLabel text="Pipeline" />
-      <View style={styles.grid}>
-        <StatCard
-          icon="trending-up-outline"
-          label="Open deals"
-          value={data ? String(data.openDealsCount) : '…'}
-        />
-        <StatCard
-          icon="cash-outline"
-          label="Pipeline value"
-          value={data ? formatInr(data.openDealsValue) : '…'}
-          wide
-        />
-        <StatCard
-          icon="trophy-outline"
-          label="Deals won"
-          value={data ? String(data.wonDealsCount) : '…'}
         />
       </View>
 
@@ -186,6 +174,39 @@ export default function DashboardScreen() {
         Response-time analytics and the Pulse visitor feed live on the web dashboard.
       </Text>
     </ScrollView>
+  );
+}
+
+function HeroCard({
+  value,
+  openCount,
+  wonCount,
+}: {
+  value: number;
+  openCount: number;
+  wonCount: number;
+}) {
+  const gradient = useBrandGradient();
+  return (
+    <LinearGradient
+      colors={gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.hero}
+    >
+      <Text style={styles.heroLabel}>PIPELINE VALUE</Text>
+      <AnimatedCounter value={value} format={formatInr} style={styles.heroValue} />
+      <View style={styles.heroRow}>
+        <View style={styles.heroPill}>
+          <Ionicons name="trending-up" size={13} color="#fff" />
+          <Text style={styles.heroPillText}>{openCount} open</Text>
+        </View>
+        <View style={styles.heroPill}>
+          <Ionicons name="trophy" size={13} color="#fff" />
+          <Text style={styles.heroPillText}>{wonCount} won</Text>
+        </View>
+      </View>
+    </LinearGradient>
   );
 }
 
@@ -237,6 +258,34 @@ function StatCard({
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  hero: {
+    borderRadius: radius.xl,
+    padding: spacing.xl,
+    gap: 6,
+    elevation: 6,
+    shadowColor: '#7c3aed',
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  heroLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 11.5,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+  },
+  heroValue: { color: '#fff', fontSize: 38, fontWeight: '800', letterSpacing: -1 },
+  heroRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 2 },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  heroPillText: { color: '#fff', fontSize: 12.5, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
     flexGrow: 1,

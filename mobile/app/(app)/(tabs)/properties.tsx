@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   FlatList,
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -15,10 +16,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { EnterRow } from '@/components/motion';
 import { ConversationSkeleton, EmptyState, FilterChip, Tag } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { formatInr } from '@/lib/format';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useBrandGradient, useTheme } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const LISTING_FILTERS = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'] as const;
@@ -123,6 +126,7 @@ export default function PropertiesScreen() {
           style={{ flex: 1 }}
           data={properties}
           keyExtractor={(p) => p.id}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
           onEndReached={() => hasNextPage && fetchNextPage()}
           onEndReachedThreshold={0.4}
           refreshControl={
@@ -139,15 +143,21 @@ export default function PropertiesScreen() {
               }
             />
           }
-          renderItem={({ item }) => <PropertyCard property={item} />}
+          renderItem={({ item, index }) => (
+            <EnterRow index={index}>
+              <PropertyCard property={item} />
+            </EnterRow>
+          )}
         />
       )}
     </View>
   );
 }
 
+/** Full-bleed photo card with a gradient scrim — listing-app grammar. */
 function PropertyCard({ property }: { property: Property }) {
   const { colors } = useTheme();
+  const gradient = useBrandGradient();
   const cover = property.images?.[0];
   const price =
     property.listing_type === 'Rent'
@@ -170,47 +180,49 @@ function PropertyCard({ property }: { property: Property }) {
     <Link href={`/(app)/property/${property.id}`} asChild>
       {/* Slot child requires one flat style object (no arrays). */}
       <Pressable
-        style={StyleSheet.flatten([
-          styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ])}
+        style={StyleSheet.flatten([styles.card, { backgroundColor: colors.surface }])}
         android_ripple={{ color: colors.border }}
       >
-        {cover ? (
-          <Image source={{ uri: cover }} style={styles.cover} resizeMode="cover" />
-        ) : (
-          <View style={[styles.cover, styles.coverEmpty, { backgroundColor: colors.primarySoft }]}>
-            <Ionicons name="home-outline" size={28} color={colors.primary} />
-          </View>
-        )}
-        <View style={styles.cardBody}>
-          <View style={styles.cardTop}>
-            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+        <View style={styles.coverWrap}>
+          {cover ? (
+            <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          ) : (
+            <LinearGradient
+              colors={gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[StyleSheet.absoluteFill, styles.coverEmpty]}
+            >
+              <Ionicons name="home-outline" size={38} color="rgba(255,255,255,0.85)" />
+            </LinearGradient>
+          )}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.72)']}
+            style={styles.scrim}
+          />
+          {property.is_starred ? (
+            <View style={styles.starBadge}>
+              <Ionicons name="star" size={13} color="#fbbf24" />
+            </View>
+          ) : null}
+          <View style={styles.coverText}>
+            <Text style={styles.coverTitle} numberOfLines={1}>
               {property.title}
             </Text>
-            {property.is_starred ? (
-              <Ionicons name="star" size={15} color={colors.warning} />
-            ) : null}
-          </View>
-          {place ? (
-            <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
-              {place}
-            </Text>
-          ) : null}
-          {specs ? (
-            <Text style={{ fontSize: 12.5, color: colors.textFaint }} numberOfLines={1}>
-              {specs}
-            </Text>
-          ) : null}
-          <View style={styles.cardBottom}>
-            <Text style={{ fontSize: 15, fontWeight: '800', color: colors.primary }}>
-              {price ?? '—'}
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 5 }}>
-              {property.listing_type ? <Tag label={property.listing_type} /> : null}
-              {property.status ? <Tag label={property.status} /> : null}
+            <View style={styles.coverMetaRow}>
+              <Text style={styles.coverPlace} numberOfLines={1}>
+                {place || specs || ' '}
+              </Text>
+              <Text style={styles.coverPrice}>{price ?? ''}</Text>
             </View>
           </View>
+        </View>
+        <View style={styles.cardFooter}>
+          <Text style={{ flex: 1, fontSize: 12.5, color: colors.textFaint }} numberOfLines={1}>
+            {specs}
+          </Text>
+          {property.listing_type ? <Tag label={property.listing_type} /> : null}
+          {property.status ? <Tag label={property.status} /> : null}
         </View>
       </Pressable>
     </Link>
@@ -237,23 +249,48 @@ const styles = StyleSheet.create({
   filtersRow: { height: 52, justifyContent: 'center' },
   filters: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: 'center' },
   card: {
-    flexDirection: 'row',
-    gap: spacing.md,
     marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: spacing.sm,
+    marginBottom: spacing.lg,
+    borderRadius: radius.xl,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
-  cover: { width: 96, height: 96, borderRadius: radius.md },
+  coverWrap: { height: 190 },
   coverEmpty: { alignItems: 'center', justifyContent: 'center' },
-  cardBody: { flex: 1, gap: 3, paddingVertical: 2 },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  cardTitle: { flex: 1, fontSize: 15.5, fontWeight: '700' },
-  cardBottom: {
+  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 110 },
+  starBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: radius.full,
+    padding: 6,
+  },
+  coverText: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 10,
+    gap: 2,
+  },
+  coverTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  coverMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 'auto',
+    gap: spacing.sm,
+  },
+  coverPlace: { flex: 1, color: 'rgba(255,255,255,0.85)', fontSize: 12.5 },
+  coverPrice: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
 });

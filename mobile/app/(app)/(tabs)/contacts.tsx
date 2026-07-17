@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { EnterRow } from '@/components/motion';
 import { Avatar, ConversationSkeleton, EmptyState, Tag } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
@@ -129,6 +131,7 @@ export default function ContactsScreen() {
           style={{ flex: 1 }}
           data={data ?? []}
           keyExtractor={(c) => c.id}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
           refreshControl={
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
@@ -143,7 +146,11 @@ export default function ContactsScreen() {
               }
             />
           }
-          renderItem={({ item }) => <ContactRow contact={item} dark={dark} />}
+          renderItem={({ item, index }) => (
+            <EnterRow index={index}>
+              <ContactRow contact={item} dark={dark} />
+            </EnterRow>
+          )}
         />
       )}
     </View>

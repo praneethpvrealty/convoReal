@@ -153,7 +153,7 @@ function InfoRow({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
   title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   card: {
     borderRadius: radius.lg,

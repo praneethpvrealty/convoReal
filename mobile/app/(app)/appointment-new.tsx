@@ -17,6 +17,7 @@ import {
 
 import { Avatar, Banner } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -89,9 +90,11 @@ export default function NewAppointmentScreen() {
     });
     setSaving(false);
     if (insertError) {
+      haptic.warn();
       setError(insertError.message);
       return;
     }
+    haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
     router.back();
   }

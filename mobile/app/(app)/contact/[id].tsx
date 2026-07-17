@@ -17,6 +17,7 @@ import {
 
 import { Avatar, Banner, Tag } from '@/components/ui';
 import { formatInr } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
@@ -199,9 +200,11 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
       .eq('id', contact.id);
     setSaving(false);
     if (updateError) {
+      haptic.warn();
       setError(updateError.message);
       return;
     }
+    haptic.success();
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['conversations'] });

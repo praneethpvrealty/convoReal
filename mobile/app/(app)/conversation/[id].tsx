@@ -18,6 +18,7 @@ import { MediaImage } from '@/components/media-image';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
 import { ApiError, sendTemplateMessage, sendTextMessage } from '@/lib/api';
+import { haptic } from '@/lib/haptics';
 import type { MessageTemplate } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
@@ -311,11 +312,13 @@ function Composer({ conversationId }: { conversationId: string }) {
     if (!text || sending) return;
     setSending(true);
     setError(null);
+    haptic.send();
     try {
       await sendTextMessage(conversationId, text);
       setDraft('');
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
+      haptic.warn();
       // Outside WhatsApp's 24h service window the API rejects free-form
       // text — surface its message rather than silently retrying.
       setError(err instanceof ApiError ? err.message : 'Failed to send — try again.');
@@ -332,6 +335,7 @@ function Composer({ conversationId }: { conversationId: string }) {
     if (sending) return;
     setSending(true);
     setError(null);
+    haptic.send();
     try {
       await sendTemplateMessage({
         conversationId,

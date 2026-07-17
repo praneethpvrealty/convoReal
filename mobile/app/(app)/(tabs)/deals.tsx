@@ -14,8 +14,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { Confetti, EnterRow } from '@/components/motion';
 import { Avatar, ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
 import { formatInr } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -44,6 +47,7 @@ export default function DealsScreen() {
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
+  const [celebrating, setCelebrating] = useState(false);
 
   const { data: pipelines } = useQuery({
     queryKey: ['pipelines'],
@@ -93,6 +97,12 @@ export default function DealsScreen() {
   async function moveDeal(deal: Deal, stage: PipelineStage) {
     setMovingDeal(null);
     const status = statusForStage(stage.name);
+    if (status === 'won') {
+      haptic.success();
+      setCelebrating(true);
+    } else {
+      haptic.tap();
+    }
     const { error } = await supabase
       .from('deals')
       .update({ stage_id: stage.id, status })
@@ -176,6 +186,7 @@ export default function DealsScreen() {
           style={{ flex: 1 }}
           data={stageDeals}
           keyExtractor={(d) => d.id}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
           refreshControl={
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
@@ -186,11 +197,15 @@ export default function DealsScreen() {
               subtitle="Move a deal here or switch stages above."
             />
           }
-          renderItem={({ item }) => (
-            <DealCard deal={item} onMove={() => setMovingDeal(item)} />
+          renderItem={({ item, index }) => (
+            <EnterRow index={index}>
+              <DealCard deal={item} onMove={() => setMovingDeal(item)} />
+            </EnterRow>
           )}
         />
       )}
+
+      {celebrating ? <Confetti onDone={() => setCelebrating(false)} /> : null}
 
       {/* Stage picker for the deal being moved. */}
       <Modal visible={Boolean(movingDeal)} transparent animationType="fade">
