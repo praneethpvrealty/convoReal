@@ -110,6 +110,23 @@ lib/
   types.ts              # trimmed mirrors of src/types (same column names)
 ```
 
+## Deep links
+
+`app/+native-intent.ts` rewrites incoming links to app screens, covering
+the web's URL shapes: `?property_id=` / `?propertyId=` → property,
+`?contactId=` → contact, `?c=` → conversation, plus `/inventory`,
+`/pipelines`, `/calendar`, `/journey`, `/broadcasts`, `/settings`.
+
+- **Scheme links work now**: `convoreal://property/<id>` (test in dev:
+  `npx uri-scheme open "exp://<lan-ip>:8081/--/property/<id>" --android`).
+- **https links** (`https://convoreal.com/?property_id=…` opening the
+  app) are Android App Links / iOS Universal Links: the intent filters
+  and associated domains are declared in `app.json`, and the web serves
+  `/.well-known/assetlinks.json` + `apple-app-site-association` —
+  env-gated on `ANDROID_APP_CERT_SHA256` / `APPLE_TEAM_ID`. They
+  activate with the first EAS build (OS verification needs the real
+  signing cert; Expo Go can never claim your domain).
+
 ## `npm audit` noise
 
 `npm install` reports ~11 moderate vulnerabilities. All of them root at
