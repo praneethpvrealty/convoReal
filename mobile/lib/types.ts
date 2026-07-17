@@ -181,6 +181,81 @@ export interface Appointment {
 }
 
 // ------------------------------------------------------------------
+// Broadcasts (user_id-scoped RLS — you see campaigns YOU created)
+// ------------------------------------------------------------------
+
+export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+
+export interface Broadcast {
+  id: string;
+  name: string;
+  template_name?: string | null;
+  status: BroadcastStatus;
+  scheduled_at?: string | null;
+  total_recipients: number;
+  sent_count: number;
+  delivered_count: number;
+  read_count: number;
+  replied_count: number;
+  failed_count: number;
+  created_at: string;
+}
+
+export interface BroadcastRecipient {
+  id: string;
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'rate_limited';
+  error_message?: string | null;
+  contact?: Contact | null;
+}
+
+// ------------------------------------------------------------------
+// Automations & Flows (user_id-scoped; toggled via API routes)
+// ------------------------------------------------------------------
+
+export interface AutomationRow {
+  id: string;
+  name: string;
+  description?: string | null;
+  trigger_type: string;
+  is_active: boolean;
+  execution_count?: number | null;
+  last_executed_at?: string | null;
+}
+
+export interface FlowRow {
+  id: string;
+  name: string;
+  description?: string | null;
+  status: 'draft' | 'active' | 'archived';
+  trigger_type?: string | null;
+  execution_count?: number | null;
+}
+
+// ------------------------------------------------------------------
+// Journey (account-scoped; read-only list on mobile)
+// ------------------------------------------------------------------
+
+export interface JourneyStage {
+  id: string;
+  name: string;
+  color?: string | null;
+  position: number;
+}
+
+export interface JourneyItem {
+  id: string;
+  contact_id: string;
+  property_id: string;
+  stage_id: string;
+  status: 'active' | 'dropped';
+  drop_reason?: string | null;
+  hidden: boolean;
+  updated_at?: string;
+  contact?: Contact | null;
+  property?: { id: string; title: string } | null;
+}
+
+// ------------------------------------------------------------------
 // WhatsApp templates (message_templates, status APPROVED)
 // ------------------------------------------------------------------
 

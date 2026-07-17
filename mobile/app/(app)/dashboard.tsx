@@ -1,0 +1,249 @@
+import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
+import { Stack } from 'expo-router';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import { formatInr } from '@/lib/format';
+import { supabase } from '@/lib/supabase';
+import { radius, spacing, useTheme } from '@/lib/theme';
+
+interface Overview {
+  openConversations: number;
+  unreadConversations: number;
+  messagesToday: number;
+  contactsTotal: number;
+  hotLeads: number;
+  openDealsCount: number;
+  openDealsValue: number;
+  wonDealsCount: number;
+  appointmentsToday: number;
+  propertiesAvailable: number;
+}
+
+async function fetchOverview(): Promise<Overview> {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  const endOfToday = new Date(startOfToday);
+  endOfToday.setDate(endOfToday.getDate() + 1);
+
+  // head:true count queries — the same technique the web dashboard and
+  // inventory summary use; RLS scopes everything to the account.
+  const [
+    openConv,
+    unreadConv,
+    msgsToday,
+    contacts,
+    hot,
+    openDeals,
+    wonDeals,
+    apptsToday,
+    availableProps,
+  ] = await Promise.all([
+    supabase
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open')
+      .eq('is_archived', false),
+    supabase
+      .from('conversations')
+      .select('id', { count: 'exact', head: true })
+      .gt('unread_count', 0)
+      .eq('is_archived', false),
+    supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', startOfToday.toISOString()),
+    supabase.from('contacts').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('contacts')
+      .select('id', { count: 'exact', head: true })
+      .eq('lead_temp', 'HOT'),
+    supabase.from('deals').select('value').eq('status', 'open'),
+    supabase.from('deals').select('id', { count: 'exact', head: true }).eq('status', 'won'),
+    supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'scheduled')
+      .gte('start_time', startOfToday.toISOString())
+      .lt('start_time', endOfToday.toISOString()),
+    supabase
+      .from('properties')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'Available'),
+  ]);
+
+  const openDealRows = (openDeals.data ?? []) as { value: number | null }[];
+  return {
+    openConversations: openConv.count ?? 0,
+    unreadConversations: unreadConv.count ?? 0,
+    messagesToday: msgsToday.count ?? 0,
+    contactsTotal: contacts.count ?? 0,
+    hotLeads: hot.count ?? 0,
+    openDealsCount: openDealRows.length,
+    openDealsValue: openDealRows.reduce((sum, d) => sum + (d.value ?? 0), 0),
+    wonDealsCount: wonDeals.count ?? 0,
+    appointmentsToday: apptsToday.count ?? 0,
+    propertiesAvailable: availableProps.count ?? 0,
+  };
+}
+
+export default function DashboardScreen() {
+  const { colors } = useTheme();
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: ['overview'],
+    queryFn: fetchOverview,
+  });
+
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: colors.background }}
+      contentContainerStyle={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+      }
+    >
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: 'Overview',
+          headerStyle: { backgroundColor: colors.tabBar },
+          headerTintColor: colors.text,
+        }}
+      />
+
+      <SectionLabel text="Today" />
+      <View style={styles.grid}>
+        <StatCard
+          icon="mail-unread-outline"
+          label="Unread chats"
+          value={data ? String(data.unreadConversations) : '…'}
+          accent
+        />
+        <StatCard
+          icon="chatbox-ellipses-outline"
+          label="Messages today"
+          value={data ? String(data.messagesToday) : '…'}
+        />
+        <StatCard
+          icon="calendar-outline"
+          label="Appointments"
+          value={data ? String(data.appointmentsToday) : '…'}
+        />
+      </View>
+
+      <SectionLabel text="Pipeline" />
+      <View style={styles.grid}>
+        <StatCard
+          icon="trending-up-outline"
+          label="Open deals"
+          value={data ? String(data.openDealsCount) : '…'}
+        />
+        <StatCard
+          icon="cash-outline"
+          label="Pipeline value"
+          value={data ? formatInr(data.openDealsValue) : '…'}
+          wide
+        />
+        <StatCard
+          icon="trophy-outline"
+          label="Deals won"
+          value={data ? String(data.wonDealsCount) : '…'}
+        />
+      </View>
+
+      <SectionLabel text="Book of business" />
+      <View style={styles.grid}>
+        <StatCard
+          icon="people-outline"
+          label="Contacts"
+          value={data ? String(data.contactsTotal) : '…'}
+        />
+        <StatCard
+          icon="flame-outline"
+          label="Hot leads"
+          value={data ? String(data.hotLeads) : '…'}
+          accent
+        />
+        <StatCard
+          icon="home-outline"
+          label="Available listings"
+          value={data ? String(data.propertiesAvailable) : '…'}
+        />
+        <StatCard
+          icon="chatbubbles-outline"
+          label="Open chats"
+          value={data ? String(data.openConversations) : '…'}
+        />
+      </View>
+
+      <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
+        Response-time analytics and the Pulse visitor feed live on the web dashboard.
+      </Text>
+    </ScrollView>
+  );
+}
+
+function SectionLabel({ text }: { text: string }) {
+  const { colors } = useTheme();
+  return (
+    <Text
+      style={{
+        fontSize: 12.5,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+        color: colors.textFaint,
+      }}
+    >
+      {text}
+    </Text>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  accent,
+  wide,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  value: string;
+  accent?: boolean;
+  wide?: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        wide && { flexBasis: '100%' },
+      ]}
+    >
+      <Ionicons name={icon} size={18} color={accent ? colors.danger : colors.primary} />
+      <Text style={{ fontSize: 21, fontWeight: '800', color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 12, color: colors.textMuted }}>{label}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  card: {
+    flexGrow: 1,
+    flexBasis: '30%',
+    gap: 4,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+  },
+});

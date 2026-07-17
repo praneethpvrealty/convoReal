@@ -43,10 +43,19 @@ separate repo.
 - ✅ **Template sending** in the thread — approved-template picker with
   {{n}} variable form and live preview; the answer to WhatsApp's
   24-hour service window. Text-header templates only in v1.
+- ✅ **Overview dashboard** — today's unread/messages/appointments, pipeline
+  value, hot leads, available listings (RLS-scoped count queries).
+- ✅ **Broadcasts (view)** — campaign list with live delivery/read progress
+  (auto-polls while sending) and a per-recipient detail with status
+  filters. Note: RLS is user-scoped — you see campaigns you created.
+- ✅ **Automations & Flows** — toggle your automations on/off (via the
+  validating API route) and see flow statuses; builders stay web-only.
+- ✅ **Journeys (read-only)** — every buyer's per-property stage list from
+  the same rows the web mind map renders; canvas stays web-only.
 - ✅ **Full dark-mode support** across every screen (system scheme).
 - ⏳ Next: pending outbox (offline queue), push notifications (needs
   `device_push_tokens` + worker dispatch — not yet in the web repo),
-  media-header templates, property editing, broadcasts (view), biometrics.
+  media-header templates, property editing, broadcast composing, biometrics.
 
 ## Running it
 

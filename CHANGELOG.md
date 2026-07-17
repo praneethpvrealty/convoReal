@@ -138,6 +138,20 @@ and polish.
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
 
+- **Mobile app: Overview, Broadcasts (view), Automations toggles,
+  Journeys (read-only) (`mobile/`)** — four more web features arrive
+  on mobile via the More tab. Overview: stat cards for today's
+  unread/messages/appointments, open-pipeline value, deals won, hot
+  leads and available listings. Broadcasts: campaign list with live
+  send/delivered/read progress bars (auto-refreshes while a campaign
+  is sending) plus per-recipient status detail with filters —
+  composing stays on the web. Automations: on/off switches driven by
+  the validating `PATCH /api/automations/[id]` route, plus WhatsApp
+  flow statuses — builders stay on the web. Journeys: read-only
+  per-buyer stage lists rendered from the same `journey_items` rows as
+  the web mind map. Billing and Team settings remain deliberately
+  web-only (Play-billing policy and admin surface).
+
 - **Mobile app: core CRM tranche — Inventory, Deals, Calendar,
   Templates (`mobile/`)** — the companion app grows from
   inbox+contacts to the core CRM pillars, in a 5-tab layout (Inbox /

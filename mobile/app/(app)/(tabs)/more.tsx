@@ -10,12 +10,17 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
 
-/** Features that stay on the web (per the mobile plan's scoping). */
+const WORKSPACE_LINKS = [
+  { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
+  { href: '/(app)/calendar', icon: 'calendar-outline', label: 'Calendar & Site Visits' },
+  { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
+  { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
+  { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },
+] as const;
+
+/** Deliberately web-only (billing policy, admin surface, canvas editors). */
 const WEB_ONLY = [
-  { icon: 'git-branch-outline', label: 'Automations & Flow Builder' },
-  { icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
-  { icon: 'map-outline', label: 'Journey Mind Map' },
-  { icon: 'stats-chart-outline', label: 'Dashboard & Pulse Analytics' },
+  { icon: 'construct-outline', label: 'Flow & Automation Builders' },
   { icon: 'card-outline', label: 'Billing & AI Credit Top-ups' },
   { icon: 'people-circle-outline', label: 'Team & Workspace Settings' },
 ] as const;
@@ -67,13 +72,15 @@ export default function MoreScreen() {
 
       <SectionLabel text="Workspace" />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Link href="/(app)/calendar" asChild>
-          <Pressable style={styles.navRow} android_ripple={{ color: colors.border }}>
-            <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-            <Text style={[styles.navLabel, { color: colors.text }]}>Calendar & Site Visits</Text>
-            <Ionicons name="chevron-forward" size={17} color={colors.textFaint} />
-          </Pressable>
-        </Link>
+        {WORKSPACE_LINKS.map((link) => (
+          <Link key={link.href} href={link.href} asChild>
+            <Pressable style={styles.navRow} android_ripple={{ color: colors.border }}>
+              <Ionicons name={link.icon} size={20} color={colors.primary} />
+              <Text style={[styles.navLabel, { color: colors.text }]}>{link.label}</Text>
+              <Ionicons name="chevron-forward" size={17} color={colors.textFaint} />
+            </Pressable>
+          </Link>
+        ))}
       </View>
 
       <SectionLabel text="On the web app" />
