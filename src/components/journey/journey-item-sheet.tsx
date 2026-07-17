@@ -21,6 +21,7 @@ import {
   Check,
   ChevronDown,
   Clock,
+  EyeOff,
   Home,
   MapPin,
   Phone,
@@ -65,6 +66,8 @@ const EVENT_LABELS: Record<JourneyEvent["event_type"], string> = {
   moved: "Moved",
   dropped: "Dropped",
   reactivated: "Reactivated",
+  hidden: "Hidden from map",
+  unhidden: "Shown on map",
 };
 
 export interface JourneyItemSheetProps {
@@ -79,6 +82,8 @@ export interface JourneyItemSheetProps {
   onDrop: (item: JourneyItem, reason: string) => void;
   onReactivate: (item: JourneyItem) => void;
   onRemove: (item: JourneyItem) => void;
+  /** Tuck the item into the Captured tray without deleting anything. */
+  onHide: (item: JourneyItem) => void;
 }
 
 export function JourneyItemSheet({
@@ -93,6 +98,7 @@ export function JourneyItemSheet({
   onDrop,
   onReactivate,
   onRemove,
+  onHide,
 }: JourneyItemSheetProps) {
   const supabase = createClient();
   const open = item !== null;
@@ -464,17 +470,28 @@ export function JourneyItemSheet({
         </div>
 
         {canEdit && (
-          <SheetFooter className="border-t border-slate-800 px-5 py-3 sm:flex-row sm:justify-end">
+          <SheetFooter className="border-t border-slate-800 px-5 py-3 sm:flex-row sm:justify-between">
             {!confirmRemove ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setConfirmRemove(true)}
-                className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Remove from journey
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onHide(item)}
+                  title="Keeps the record and history; the item waits in the Captured tray."
+                >
+                  <EyeOff className="h-3.5 w-3.5" />
+                  Hide from map
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setConfirmRemove(true)}
+                  className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Remove from journey
+                </Button>
+              </>
             ) : (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400">

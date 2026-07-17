@@ -372,6 +372,10 @@ export interface JourneyCanvasProps {
   onAdvance: (item: JourneyItem) => void;
   onAddItems: () => void;
   selectedItemId?: string | null;
+  /** Hidden items waiting in the Captured tray — surfaced as a hint
+   *  when the canvas itself is empty. */
+  capturedCount?: number;
+  onOpenCaptured?: () => void;
 }
 
 export function JourneyCanvas(props: JourneyCanvasProps) {
@@ -394,6 +398,8 @@ function JourneyCanvasInner({
   onAdvance,
   onAddItems,
   selectedItemId,
+  capturedCount = 0,
+  onOpenCaptured,
 }: JourneyCanvasProps) {
   const reactFlow = useReactFlow();
 
@@ -589,19 +595,31 @@ function JourneyCanvasInner({
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-900/80 px-8 py-6 text-center">
               <p className="text-sm text-slate-400">
                 {mode === "buyer"
-                  ? "No properties on this journey yet."
-                  : "No contacts on this journey yet."}
+                  ? "No properties on this journey map yet."
+                  : "No contacts on this journey map yet."}
               </p>
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={onAddItems}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow transition-opacity hover:opacity-90"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {mode === "buyer" ? "Add properties" : "Add contacts"}
-                </button>
-              )}
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={onAddItems}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow transition-opacity hover:opacity-90"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {mode === "buyer" ? "Add properties" : "Add contacts"}
+                  </button>
+                )}
+                {capturedCount > 0 && onOpenCaptured && (
+                  <button
+                    type="button"
+                    onClick={onOpenCaptured}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 shadow transition-colors hover:bg-amber-500/20"
+                  >
+                    Review {capturedCount} captured share
+                    {capturedCount === 1 ? "" : "s"}
+                  </button>
+                )}
+              </div>
             </div>
           </Panel>
         )}

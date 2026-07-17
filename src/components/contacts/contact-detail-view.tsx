@@ -57,6 +57,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getCurrencyIcon } from '@/lib/currency-utils';
+import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { BRANDING } from '@/config/branding';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
@@ -452,37 +453,15 @@ export function ContactDetailView({
 
       if (error) throw error;
 
+      // Shared scan logic with /journey's "Import from chat"
+      // (src/lib/journey/chat-scan.ts): matches by showcase
+      // property_id link, property code, or long exact title.
+      const found = scanMessagesForProperties(messages ?? [], allProperties);
       const sharedProps: Array<Property & { sharedAt: string }> = [];
-      const seenPropIds = new Set<string>();
-
-      if (messages && messages.length > 0) {
-        messages.forEach((msg) => {
-          const text = msg.content_text || '';
-          if (!text) return;
-
-          allProperties.forEach((prop) => {
-            if (seenPropIds.has(prop.id)) return;
-
-            // 1. Check by property_id parameter in showcase link
-            const hasIdLink = text.includes(`property_id=${prop.id}`);
-
-            // 2. Check by property code (e.g. PROP-1002)
-            const hasCode = !!prop.property_code && text.includes(prop.property_code);
-
-            // 3. Check by exact property title (case-insensitive, minimum length to avoid false positives)
-            const cleanTitle = prop.title.trim();
-            const hasTitle = cleanTitle.length > 8 && text.toLowerCase().includes(cleanTitle.toLowerCase());
-
-            if (hasIdLink || hasCode || hasTitle) {
-              seenPropIds.add(prop.id);
-              sharedProps.push({
-                ...prop,
-                sharedAt: msg.created_at,
-              });
-            }
-          });
-        });
-      }
+      found.forEach((sharedAt, propId) => {
+        const prop = allProperties.find((p) => p.id === propId);
+        if (prop) sharedProps.push({ ...prop, sharedAt });
+      });
 
       setSharedProperties(sharedProps);
     } catch (err) {

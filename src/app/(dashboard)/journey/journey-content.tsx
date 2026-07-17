@@ -19,6 +19,8 @@ import {
   ArrowLeftRight,
   Building2,
   Import,
+  Inbox,
+  MessagesSquare,
   SlidersHorizontal,
   UserRound,
   Waypoints,
@@ -35,18 +37,23 @@ import { SearchablePropertySelect } from "@/components/ui/searchable-property-se
 import { FavoriteButton } from "@/components/layout/favorite-button";
 import type {
   Contact,
+  JourneyEventType,
   JourneyItem,
+  JourneyItemSource,
   JourneyStage,
   Property,
 } from "@/types";
+import {
+  captureJourneyItems,
+  ensureJourneyStages,
+} from "@/lib/journey/capture";
+import { scanMessagesForProperties } from "@/lib/journey/chat-scan";
 import { JourneyCanvas } from "@/components/journey/journey-canvas";
 import { JourneyItemSheet } from "@/components/journey/journey-item-sheet";
 import { AddItemsDialog } from "@/components/journey/add-items-dialog";
+import { CapturedTrayDialog } from "@/components/journey/captured-tray-dialog";
 import { StageEditorDialog } from "@/components/journey/stage-editor-dialog";
-import {
-  DEFAULT_JOURNEY_STAGES,
-  type JourneyMode,
-} from "@/components/journey/shared";
+import { type JourneyMode } from "@/components/journey/shared";
 
 export default function JourneyPage() {
   const supabase = createClient();
@@ -77,7 +84,9 @@ export default function JourneyPage() {
   const [selectedItem, setSelectedItem] = useState<JourneyItem | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [stageEditorOpen, setStageEditorOpen] = useState(false);
+  const [trayOpen, setTrayOpen] = useState(false);
   const [importableCount, setImportableCount] = useState(0);
+  const [scanningChat, setScanningChat] = useState(false);
 
   // Guard against StrictMode double-seed, like the kanban does.
   const seedAttempted = useRef(false);
@@ -117,18 +126,13 @@ export default function JourneyPage() {
     let cancelled = false;
     (async () => {
       setStagesLoading(true);
-      let list = await loadStages();
-      if (list.length === 0 && !seedAttempted.current) {
+      // ensureJourneyStages seeds the defaults on first visit — same
+      // helper the WhatsApp share capture uses, so both paths agree.
+      let list: JourneyStage[];
+      if (!seedAttempted.current) {
         seedAttempted.current = true;
-        const { error } = await supabase.from("journey_stages").insert(
-          DEFAULT_JOURNEY_STAGES.map((s, idx) => ({
-            account_id: accountId,
-            name: s.name,
-            color: s.color,
-            position: idx,
-          })),
-        );
-        if (error) console.error("Failed to seed journey stages:", error.message);
+        list = await ensureJourneyStages(accountId);
+      } else {
         list = await loadStages();
       }
       if (!cancelled) {
@@ -139,7 +143,7 @@ export default function JourneyPage() {
     return () => {
       cancelled = true;
     };
-  }, [accountId, loadStages, supabase]);
+  }, [accountId, loadStages]);
 
   const refreshStages = useCallback(async () => {
     setStages(await loadStages());
@@ -191,11 +195,13 @@ export default function JourneyPage() {
   }, [subjectId, loadJourney]);
 
   // Keep the open sheet in sync after a mutation refreshed `items`.
+  // An item that got hidden mid-view closes the sheet — it's no
+  // longer on the canvas the sheet was opened from.
   useEffect(() => {
     if (!selectedItem) return;
     const fresh = items.find((i) => i.id === selectedItem.id);
-    if (fresh && fresh !== selectedItem) setSelectedItem(fresh);
-    if (!fresh) setSelectedItem(null);
+    if (!fresh || fresh.hidden) setSelectedItem(null);
+    else if (fresh !== selectedItem) setSelectedItem(fresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
@@ -255,7 +261,7 @@ export default function JourneyPage() {
   const logEvent = useCallback(
     async (
       itemId: string,
-      eventType: "added" | "advanced" | "moved" | "dropped" | "reactivated",
+      eventType: JourneyEventType,
       fromStageId: string | null,
       toStageId: string | null,
       reason?: string,
@@ -276,37 +282,32 @@ export default function JourneyPage() {
   );
 
   const handleAddItems = useCallback(
-    async (ids: string[]) => {
-      if (!accountId || !subjectId || stages.length === 0) return;
-      const firstStage = stages[0];
-      const payload = ids.map((id) => ({
-        account_id: accountId,
-        contact_id: mode === "buyer" ? subjectId : id,
-        property_id: mode === "buyer" ? id : subjectId,
-        stage_id: firstStage.id,
-        created_by: user?.id ?? null,
-      }));
-      const { data, error } = await supabase
-        .from("journey_items")
-        .insert(payload)
-        .select("id");
-      if (error) {
-        toast.error(`Failed to add: ${error.message}`);
+    async (ids: string[], source: JourneyItemSource = "manual") => {
+      if (!accountId || !subjectId) return;
+      const count = await captureJourneyItems({
+        accountId,
+        userId: user?.id,
+        pairs: ids.map((id) => ({
+          contactId: mode === "buyer" ? subjectId : id,
+          propertyId: mode === "buyer" ? id : subjectId,
+        })),
+        source,
+        // Explicit user action → straight onto the map. Only silent
+        // background capture (WhatsApp shares) arrives hidden.
+        hidden: false,
+      });
+      if (count === 0) {
+        toast.error("Nothing was added.");
         return;
       }
-      await Promise.all(
-        (data ?? []).map((row) =>
-          logEvent(row.id, "added", null, firstStage.id),
-        ),
-      );
       toast.success(
-        `Added ${ids.length} ${mode === "buyer" ? "propert" : "contact"}${
-          ids.length === 1 ? (mode === "buyer" ? "y" : "") : mode === "buyer" ? "ies" : "s"
-        } at ${firstStage.name}`,
+        `Added ${count} ${mode === "buyer" ? "propert" : "contact"}${
+          count === 1 ? (mode === "buyer" ? "y" : "") : mode === "buyer" ? "ies" : "s"
+        }`,
       );
       await loadJourney();
     },
-    [accountId, subjectId, stages, mode, supabase, user?.id, logEvent, loadJourney],
+    [accountId, subjectId, mode, user?.id, loadJourney],
   );
 
   const handleImportInquiries = useCallback(async () => {
@@ -327,8 +328,54 @@ export default function JourneyPage() {
       toast.info("All inquiries are already on the map.");
       return;
     }
-    await handleAddItems(fresh);
+    await handleAddItems(fresh, "inquiry_import");
   }, [mode, subjectId, items, supabase, handleAddItems]);
+
+  // Retroactive sweep: scan the contact's WhatsApp history for
+  // property links / codes / titles and put the hits on the map.
+  // Explicitly clicked, so results land visible (not in the tray).
+  const handleImportFromChat = useCallback(async () => {
+    if (mode !== "buyer" || !subjectId || !accountId || scanningChat) return;
+    setScanningChat(true);
+    try {
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("id")
+        .eq("contact_id", subjectId)
+        .maybeSingle();
+      if (!conv) {
+        toast.info("No WhatsApp conversation with this contact yet.");
+        return;
+      }
+      const [{ data: messages }, { data: props }] = await Promise.all([
+        supabase
+          .from("messages")
+          .select("content_text, created_at")
+          .eq("conversation_id", conv.id)
+          .eq("sender_type", "agent")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("properties")
+          .select("id, property_code, title")
+          .eq("account_id", accountId)
+          .limit(2000),
+      ]);
+      const found = scanMessagesForProperties(messages ?? [], props ?? []);
+      const existing = new Set(items.map((i) => i.property_id));
+      const fresh = Array.from(found.keys()).filter((id) => !existing.has(id));
+      if (fresh.length === 0) {
+        toast.info(
+          found.size > 0
+            ? "Every property shared in chat is already on the journey."
+            : "No shared properties found in the chat history.",
+        );
+        return;
+      }
+      await handleAddItems(fresh, "chat_import");
+    } finally {
+      setScanningChat(false);
+    }
+  }, [mode, subjectId, accountId, scanningChat, supabase, items, handleAddItems]);
 
   const moveItem = useCallback(
     async (
@@ -422,6 +469,68 @@ export default function JourneyPage() {
     [supabase, loadJourney],
   );
 
+  // ── Hide / unhide (Captured tray) ───────────────────────────
+
+  const setHiddenFlag = useCallback(
+    async (item: JourneyItem, hidden: boolean) => {
+      const { error } = await supabase
+        .from("journey_items")
+        .update({ hidden })
+        .eq("id", item.id);
+      if (error) {
+        toast.error(`Failed to update: ${error.message}`);
+        return false;
+      }
+      await logEvent(
+        item.id,
+        hidden ? "hidden" : "unhidden",
+        item.stage_id,
+        item.stage_id,
+      );
+      return true;
+    },
+    [supabase, logEvent],
+  );
+
+  const handleHide = useCallback(
+    async (item: JourneyItem) => {
+      if (await setHiddenFlag(item, true)) {
+        setSelectedItem(null);
+        toast.success("Hidden from the map — find it under Captured.");
+        await loadJourney();
+      }
+    },
+    [setHiddenFlag, loadJourney],
+  );
+
+  const handleShow = useCallback(
+    async (item: JourneyItem) => {
+      if (await setHiddenFlag(item, false)) await loadJourney();
+    },
+    [setHiddenFlag, loadJourney],
+  );
+
+  const handleShowAll = useCallback(async () => {
+    const hiddenItems = items.filter((i) => i.hidden);
+    if (hiddenItems.length === 0) return;
+    const { error } = await supabase
+      .from("journey_items")
+      .update({ hidden: false })
+      .in(
+        "id",
+        hiddenItems.map((i) => i.id),
+      );
+    if (error) {
+      toast.error(`Failed to show all: ${error.message}`);
+      return;
+    }
+    await Promise.all(
+      hiddenItems.map((i) => logEvent(i.id, "unhidden", i.stage_id, i.stage_id)),
+    );
+    setTrayOpen(false);
+    await loadJourney();
+  }, [items, supabase, logEvent, loadJourney]);
+
   // ── Derived ─────────────────────────────────────────────────
   const existingIds = useMemo(
     () =>
@@ -430,6 +539,11 @@ export default function JourneyPage() {
       ),
     [items, mode],
   );
+
+  // Hidden (captured) items wait in the tray; only visible ones render
+  // on the canvas — that's what keeps daily share volume off the map.
+  const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
+  const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);
 
   const subjectName =
     mode === "buyer"
@@ -477,6 +591,28 @@ export default function JourneyPage() {
 
         {subjectId && (
           <div className="flex flex-wrap items-center gap-2">
+            {capturedItems.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTrayOpen(true)}
+                className="border border-amber-500/30 bg-amber-500/5 text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+              >
+                <Inbox className="h-3.5 w-3.5" />
+                Captured ({capturedItems.length})
+              </Button>
+            )}
+            {mode === "buyer" && canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={scanningChat}
+                onClick={handleImportFromChat}
+              >
+                <MessagesSquare className="h-3.5 w-3.5" />
+                {scanningChat ? "Scanning chat…" : "Import from chat"}
+              </Button>
+            )}
             {mode === "buyer" && importableCount > 0 && canEdit && (
               <Button variant="ghost" size="sm" onClick={handleImportInquiries}>
                 <Import className="h-3.5 w-3.5" />
@@ -564,13 +700,15 @@ export default function JourneyPage() {
           contact={subjectContact}
           property={subjectProperty}
           stages={stages}
-          items={items}
+          items={visibleItems}
           currency={currency}
           canEdit={canEdit}
           selectedItemId={selectedItem?.id}
           onSelectItem={setSelectedItem}
           onAdvance={handleAdvance}
           onAddItems={() => setAddOpen(true)}
+          capturedCount={capturedItems.length}
+          onOpenCaptured={() => setTrayOpen(true)}
         />
       )}
 
@@ -585,6 +723,19 @@ export default function JourneyPage() {
         onMoveTo={handleMoveTo}
         onDrop={handleDrop}
         onReactivate={handleReactivate}
+        onRemove={handleRemove}
+        onHide={handleHide}
+      />
+
+      <CapturedTrayDialog
+        open={trayOpen}
+        onOpenChange={setTrayOpen}
+        mode={mode}
+        items={capturedItems}
+        currency={currency}
+        canEdit={canEdit}
+        onShow={handleShow}
+        onShowAll={handleShowAll}
         onRemove={handleRemove}
       />
 
