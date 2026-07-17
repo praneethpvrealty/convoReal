@@ -463,9 +463,21 @@ export default function CalendarPage() {
       };
 
       if (selectedAppt) {
+        // Moving an appointment to a new time must re-arm its
+        // reminders — otherwise one whose 1h/morning reminder already
+        // fired for its OLD time silently never reminds again after
+        // being rescheduled, since reminder_morning_sent/
+        // reminder_1h_sent (src/lib/appointments/reminder.ts) only
+        // ever get set to true and nothing else resets them.
+        const rescheduled =
+          new Date(payload.start_time).getTime() !== new Date(selectedAppt.start_time).getTime();
+        const updatePayload = rescheduled
+          ? { ...payload, reminder_morning_sent: false, reminder_1h_sent: false }
+          : payload;
+
         const { error } = await supabase
           .from("appointments")
-          .update(payload)
+          .update(updatePayload)
           .eq("id", selectedAppt.id)
           .eq("account_id", accountId);
 

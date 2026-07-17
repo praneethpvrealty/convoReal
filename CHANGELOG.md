@@ -30,6 +30,27 @@ and polish.
 
 ### Fixed
 
+- **Appointment reminders (morning-of brief, 1-hour-before) never
+  actually fired — the cron that sends them had no automatic
+  trigger.** `checkAndSendAppointmentReminders()`
+  (`src/lib/appointments/reminder.ts`) only ran when something called
+  `GET /api/appointments/cron`, but that route was never registered in
+  `vercel.json`'s `crons` list (checked its entire git history — it
+  never has been), unlike the 5 other scheduled jobs. Nothing in the
+  repo was ever calling it. Registered it in `vercel.json` on a 15-
+  minute schedule, and brought its auth check in line with the other
+  Vercel-scheduled cron routes — it only recognized a custom
+  `x-cron-secret` header before, but Vercel's own cron invocations send
+  `Authorization: Bearer $CRON_SECRET`, which it would have rejected
+  even once scheduled.
+  Also fixed a related gap while in this code: rescheduling an
+  appointment to a new time never reset `reminder_morning_sent` /
+  `reminder_1h_sent`, so an appointment whose reminder had already
+  fired for its old time would silently never remind again after being
+  moved (`src/app/(dashboard)/calendar/page.tsx`'s edit-appointment
+  save path — the one the Calendar UI actually uses — and the
+  `PUT /api/appointments/[id]` route, for any other caller).
+
 - **Every tab switcher and URL-synced filter no-oped in production.**
   The same-pathname router bug fixed for Journey below turned out to
   affect the whole app: the Contacts / Inventory / Dashboard /
