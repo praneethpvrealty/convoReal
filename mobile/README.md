@@ -1,6 +1,6 @@
 # ConvoReal Mobile (Android / iOS companion app)
 
-React Native + Expo (SDK 52) companion app for the ConvoReal web CRM, per
+React Native + Expo (SDK 54) companion app for the ConvoReal web CRM, per
 [`docs/mobile-app-implementation-plan.md`](../docs/mobile-app-implementation-plan.md).
 This directory is a self-contained npm project inside the monorepo — see the
 plan's "Repository Strategy" section for why the app lives here and not in a
@@ -33,8 +33,11 @@ cp .env.example .env   # fill in Supabase URL/anon key + web app base URL
 npm start              # scan the QR code with Expo Go on Android
 ```
 
-Expo Go (SDK 52) is enough for everything in Phase 1–2. Remote push
-notifications (Phase 3) will require an EAS development build.
+The current Expo Go from the Play Store (SDK 54) is enough for everything
+in Phase 1–2. Remote push notifications (Phase 3) will require an EAS
+development build — Expo Go dropped remote push support on Android in
+SDK 53+, which is also why there's no reason to stay pinned to an older
+SDK.
 
 - `npm run typecheck` — TypeScript
 - `npm run lint` — expo lint
@@ -56,6 +59,20 @@ lib/
   secure-store.ts       # LargeSecureStore (SecureStore 2KB limit workaround)
   types.ts              # trimmed mirrors of src/types (same column names)
 ```
+
+## `npm audit` noise
+
+`npm install` reports ~14 moderate vulnerabilities. All of them root at
+`postcss` inside Expo's **local dev toolchain** (`@expo/metro-config`),
+which runs on a developer's machine during `expo start`/builds. None of
+that code is bundled into the app users install — the other flagged
+packages are only npm chaining "depends on a vulnerable version of" back
+to that root.
+
+**Do not run `npm audit fix --force`** — npm's only offered fix is a
+major Expo SDK jump, a breaking upgrade that must be done deliberately
+(new RN version, new Expo Go), not as an audit side effect. Revisit on
+the next planned SDK bump.
 
 ## Conventions
 
