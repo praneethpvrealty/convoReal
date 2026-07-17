@@ -17,13 +17,22 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Import, Inbox, MessagesSquare } from "lucide-react";
+import {
+  Building2,
+  Import,
+  Inbox,
+  MessagesSquare,
+  Plus,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
+import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import { formatCurrencyShort } from "@/lib/currency-utils";
 import type {
   Contact,
   JourneyEventType,
@@ -447,8 +456,69 @@ export function JourneySection({
   const visibleItems = useMemo(() => items.filter((i) => !i.hidden), [items]);
   const capturedItems = useMemo(() => items.filter((i) => i.hidden), [items]);
 
-  const hasToolbar =
-    capturedItems.length > 0 || (mode === "buyer" && canEdit);
+  const hasToolbar = capturedItems.length > 0 || canEdit;
+
+  const subjectTitle =
+    mode === "buyer"
+      ? subjectContact?.name || subjectContact?.phone || "Contact"
+      : subjectProperty?.title || "Property";
+  const subjectSubtitle =
+    mode === "buyer"
+      ? subjectContact?.phone ?? ""
+      : [
+          subjectProperty?.property_code,
+          subjectProperty?.location,
+          subjectProperty?.price
+            ? formatCurrencyShort(subjectProperty.price, currency)
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+  const toolbarButtons = (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {capturedItems.length > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setTrayOpen(true)}
+          className="h-7 border border-amber-500/30 bg-amber-500/5 px-2.5 text-xs text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+        >
+          <Inbox className="h-3.5 w-3.5" />
+          Captured ({capturedItems.length})
+        </Button>
+      )}
+      {mode === "buyer" && canEdit && (
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={scanningChat}
+          onClick={handleImportFromChat}
+          className="h-7 px-2.5 text-xs"
+        >
+          <MessagesSquare className="h-3.5 w-3.5" />
+          {scanningChat ? "Scanning chat…" : "Import from chat"}
+        </Button>
+      )}
+      {mode === "buyer" && importableCount > 0 && canEdit && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleImportInquiries}
+          className="h-7 px-2.5 text-xs"
+        >
+          <Import className="h-3.5 w-3.5" />
+          Import {importableCount} inquir{importableCount === 1 ? "y" : "ies"}
+        </Button>
+      )}
+      {canEdit && (
+        <Button size="sm" className="h-7 px-2.5 text-xs" onClick={() => setAddOpen(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          {mode === "buyer" ? "Add properties" : "Add contacts"}
+        </Button>
+      )}
+    </div>
+  );
 
   if (itemsLoading && items.length === 0 && !subjectContact && !subjectProperty) {
     return (
@@ -466,43 +536,49 @@ export function JourneySection({
 
   return (
     <div className="space-y-2">
-      {hasToolbar && (
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
-          {capturedItems.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTrayOpen(true)}
-              className="h-7 border border-amber-500/30 bg-amber-500/5 px-2.5 text-xs text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
-            >
-              <Inbox className="h-3.5 w-3.5" />
-              Captured ({capturedItems.length})
-            </Button>
-          )}
-          {mode === "buyer" && canEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={scanningChat}
-              onClick={handleImportFromChat}
-              className="h-7 px-2.5 text-xs"
-            >
-              <MessagesSquare className="h-3.5 w-3.5" />
-              {scanningChat ? "Scanning chat…" : "Import from chat"}
-            </Button>
-          )}
-          {mode === "buyer" && importableCount > 0 && canEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleImportInquiries}
-              className="h-7 px-2.5 text-xs"
-            >
-              <Import className="h-3.5 w-3.5" />
-              Import {importableCount} inquir{importableCount === 1 ? "y" : "ies"}
-            </Button>
-          )}
+      {variant === "full" ? (
+        // Subject bar — WHOSE journey this is, its live counts, and
+        // every action in one row attached to the map (instead of
+        // buttons scattered across disconnected header rows).
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-slate-800 bg-slate-900/40 px-3.5 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              {mode === "buyer" ? (
+                <UserRound className="h-4 w-4 text-primary" />
+              ) : (
+                <Building2 className="h-4 w-4 text-primary" />
+              )}
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-bold text-white">
+                  {subjectTitle}
+                </span>
+                {mode === "buyer" && subjectContact?.name && (
+                  <NameTagBadge tag={subjectContact.name_tag} />
+                )}
+                <span className="hidden shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300 sm:inline">
+                  {visibleItems.filter((i) => i.status === "active").length} active
+                </span>
+                {visibleItems.some((i) => i.status === "dropped") && (
+                  <span className="hidden shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-300 sm:inline">
+                    {visibleItems.filter((i) => i.status === "dropped").length} dropped
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-[11px] text-slate-500">
+                {subjectSubtitle}
+              </p>
+            </div>
+          </div>
+          {toolbarButtons}
         </div>
+      ) : (
+        hasToolbar && (
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            {toolbarButtons}
+          </div>
+        )
       )}
 
       <JourneyCanvas

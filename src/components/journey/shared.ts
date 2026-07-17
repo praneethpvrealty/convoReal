@@ -51,6 +51,23 @@ export const STAGE_COLOR_CHOICES = [
   "#64748b",
 ];
 
+/**
+ * Navigate between journey views (overview ⇄ focused ⇄ mode tabs).
+ *
+ * These are all SAME-PATHNAME navigations (/journey with different
+ * search params), and on this Next.js version the app router swallows
+ * same-pathname client transitions in production builds — router.push,
+ * router.replace, and <Link> all silently no-op (verified against a
+ * production server; dev mode works, which is why it slipped through).
+ * The native History API is the documented escape hatch: Next syncs
+ * pushState into useSearchParams, so the page re-renders correctly.
+ * Cross-pathname entries (inbox → /journey?contact=…) are unaffected
+ * and keep using router/Link.
+ */
+export function navigateJourney(url: string) {
+  window.history.pushState(null, "", url);
+}
+
 /** Index of an item's furthest-reached stage in the ordered stage
  *  list; -1 when the stage was deleted out from under it (defensive —
  *  the editor blocks deleting stages with items). */

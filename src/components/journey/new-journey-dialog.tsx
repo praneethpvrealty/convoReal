@@ -8,7 +8,6 @@
  */
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Building2, UserRound } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
@@ -22,6 +21,7 @@ import {
 import { SearchableContactSelect } from "@/components/ui/searchable-contact-select";
 import { SearchablePropertySelect } from "@/components/ui/searchable-property-select";
 import type { Contact, Property } from "@/types";
+import { navigateJourney } from "./shared";
 
 export function NewJourneyDialog({
   open,
@@ -31,7 +31,6 @@ export function NewJourneyDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const supabase = createClient();
-  const router = useRouter();
   const { accountId } = useAuth();
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -66,9 +65,11 @@ export function NewJourneyDialog({
     };
   }, [open, accountId, loaded, supabase]);
 
+  // Same-pathname navigation (/journey → /journey?…) — must go through
+  // the History API on this Next version; see navigateJourney.
   const go = (path: string) => {
     onOpenChange(false);
-    router.push(path, { scroll: false });
+    navigateJourney(path);
   };
 
   return (

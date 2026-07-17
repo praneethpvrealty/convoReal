@@ -30,6 +30,27 @@ and polish.
 
 ### Fixed
 
+- **Journey: "All journeys" and every view switch silently did nothing
+  in production.** All journey view changes are same-pathname
+  navigations (`/journey` ⇄ `/journey?contact=…` ⇄ `?view=properties`),
+  and the app router swallows same-pathname client transitions in
+  production builds — `router.push`, `router.replace`, and `<Link>`
+  all no-op (verified against a production server with a browser
+  harness; dev mode works, which is how it shipped). Journey-internal
+  navigation now goes through the native History API
+  (`window.history.pushState`), which Next syncs into
+  `useSearchParams` — every transition plus browser back/forward
+  verified working in production mode. Cross-page entries (inbox /
+  contact panel / inventory → journey) were never affected.
+
+- **Journey focused view: consolidated header.** The focused journey
+  now shows a subject bar — whose journey it is (name + phone, or
+  property + price), live active/dropped counts, and ALL actions
+  (Captured tray, Import from chat, Import inquiries, Add) in one row
+  attached to the map — replacing buttons scattered across three
+  disconnected right-aligned rows. The floating "Add" button inside
+  the canvas is gone (it duplicated the toolbar action).
+
 - **Journey: every add/import failed with "Nothing was added."**
   (**migration required**: `139_journey_created_by_fix.sql`) — the
   `created_by` columns on `journey_items` / `journey_events`

@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
@@ -45,11 +45,13 @@ import { ensureJourneyStages } from "@/lib/journey/capture";
 import { JourneySection } from "@/components/journey/journey-section";
 import { JourneyOverview } from "@/components/journey/journey-overview";
 import { StageEditorDialog } from "@/components/journey/stage-editor-dialog";
-import { type JourneyMode } from "@/components/journey/shared";
+import {
+  navigateJourney,
+  type JourneyMode,
+} from "@/components/journey/shared";
 
 export default function JourneyPage() {
   const supabase = createClient();
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { accountId } = useAuth();
   const canEdit = useCan("send-messages");
@@ -160,11 +162,10 @@ export default function JourneyPage() {
               variant="ghost"
               size="sm"
               onClick={() =>
-                router.push(
+                navigateJourney(
                   focusedMode === "property"
                     ? "/journey?view=properties"
                     : "/journey",
-                  { scroll: false },
                 )
               }
             >
@@ -183,16 +184,12 @@ export default function JourneyPage() {
                 <ChevronDown className="h-3 w-3 text-slate-400" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="border-slate-700 bg-slate-900">
-                <DropdownMenuItem
-                  onClick={() => router.push("/journey", { scroll: false })}
-                >
+                <DropdownMenuItem onClick={() => navigateJourney("/journey")}>
                   <UserRound className="h-3.5 w-3.5" />
                   Buyer journeys
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() =>
-                    router.push("/journey?view=properties", { scroll: false })
-                  }
+                  onClick={() => navigateJourney("/journey?view=properties")}
                 >
                   <Building2 className="h-3.5 w-3.5" />
                   Property journeys

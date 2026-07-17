@@ -577,18 +577,6 @@ function JourneyCanvasInner({
           maskColor="rgba(15, 23, 42, 0.7)"
           className="!border !border-slate-700 !bg-slate-900"
         />
-        {canEdit && (
-          <Panel position="top-right" className="!right-4 !top-4">
-            <button
-              type="button"
-              onClick={onAddItems}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-200 shadow-lg transition-colors hover:bg-slate-800"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {mode === "buyer" ? "Add properties" : "Add contacts"}
-            </button>
-          </Panel>
-        )}
         <Panel position="bottom-right" className="!bottom-4 !right-14">
           <div className="flex items-center gap-3 rounded-md border border-slate-800 bg-slate-900/90 px-2.5 py-1.5 text-[10px] text-slate-400">
             <span className="inline-flex items-center gap-1">

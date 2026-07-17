@@ -18,7 +18,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Building2,
   ChevronDown,
@@ -38,7 +37,7 @@ import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import type { Contact, JourneyItem, JourneyStage, Property } from "@/types";
 import { JourneySection } from "./journey-section";
 import { NewJourneyDialog } from "./new-journey-dialog";
-import { stageIndexOf, type JourneyMode } from "./shared";
+import { navigateJourney, stageIndexOf, type JourneyMode } from "./shared";
 
 interface JourneyGroup {
   subjectId: string;
@@ -80,7 +79,6 @@ export function JourneyOverview({
   canEdit: boolean;
 }) {
   const supabase = createClient();
-  const router = useRouter();
   const { accountId } = useAuth();
 
   const hiddenKey = `journey_overview_hidden_${mode}`;
@@ -312,11 +310,10 @@ export function JourneyOverview({
                     aria-label="Open full screen"
                     onClick={(e) => {
                       e.stopPropagation();
-                      router.push(
+                      navigateJourney(
                         mode === "buyer"
                           ? `/journey?contact=${g.subjectId}`
                           : `/journey?property=${g.subjectId}`,
-                        { scroll: false },
                       );
                     }}
                     className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
