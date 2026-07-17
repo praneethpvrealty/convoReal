@@ -244,6 +244,19 @@ and polish.
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
 
+- **Deep links: web URLs open the mobile app** — the app now maps the
+  web's URL shapes to native screens (`mobile/app/+native-intent.ts`):
+  `https://convoreal.com/?property_id=…` → property detail, `?contactId=`
+  → contact, `?c=` → conversation, plus `/inventory`, `/pipelines`,
+  `/calendar`, `/journey`, `/broadcasts`, `/settings`. `convoreal://`
+  scheme links work immediately; https App/Universal Links are fully
+  declared (Android intent filters + iOS associated domains, app ids
+  `com.convoreal.app`) and the web now serves the verification files —
+  `/.well-known/assetlinks.json` and `/.well-known/
+  apple-app-site-association`, env-gated on `ANDROID_APP_CERT_SHA256` /
+  `APPLE_TEAM_ID` — so they activate with the first EAS build's signing
+  cert (OS-level verification can't point at Expo Go).
+
 - **Mobile app: "warm estate" redesign from user-supplied reference
   (`mobile/`)** — full visual system swap to match the chosen design
   direction: cream canvas + deep forest-green primary + mint-lime
