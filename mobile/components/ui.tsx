@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { avatarHue, initials } from '@/lib/format';
-import { hotGradient, radius, spacing, useTheme } from '@/lib/theme';
+import { hotGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
 
 /**
  * Initials avatar with a deterministic hue per contact. `ring` draws
@@ -35,7 +35,7 @@ export function Avatar({
         justifyContent: 'center',
       }}
     >
-      <Text style={{ color: fg, fontWeight: '700', fontSize: size * 0.38 }}>
+      <Text style={{ color: fg, fontFamily: fonts.bold, fontSize: size * 0.38 }}>
         {initials(name)}
       </Text>
     </View>
@@ -84,7 +84,7 @@ export function UnreadBadge({ count }: { count: number }) {
         paddingHorizontal: 6,
       }}
     >
-      <Text style={{ color: colors.onPrimary, fontSize: 12, fontWeight: '700' }}>
+      <Text style={{ color: colors.onPrimary, fontSize: 12, fontFamily: fonts.bold }}>
         {count > 99 ? '99+' : count}
       </Text>
     </View>
@@ -111,7 +111,7 @@ export function FilterChip({
         borderRadius: radius.full,
         overflow: 'hidden',
         fontSize: 13,
-        fontWeight: '600',
+        fontFamily: fonts.semibold,
         backgroundColor: active ? colors.primary : colors.surface,
         color: active ? colors.onPrimary : colors.textMuted,
         borderWidth: StyleSheet.hairlineWidth,
@@ -138,7 +138,7 @@ export function Tag({ label, color }: { label: string; color?: string }) {
         borderColor: colors.border,
       }}
     >
-      <Text style={{ fontSize: 11, fontWeight: '600', color: fg }}>{label}</Text>
+      <Text style={{ fontSize: 11, fontFamily: fonts.semibold, color: fg }}>{label}</Text>
     </View>
   );
 }
@@ -213,7 +213,7 @@ export function EmptyState({
       >
         <Ionicons name={icon} size={32} color={colors.primary} />
       </View>
-      <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text, textAlign: 'center' }}>
+      <Text style={{ fontSize: 17, fontFamily: fonts.bold, color: colors.text, textAlign: 'center' }}>
         {title}
       </Text>
       {subtitle ? (
@@ -242,7 +242,7 @@ export function Banner({ kind, text }: { kind: 'error' | 'info' | 'success'; tex
         paddingVertical: spacing.md,
       }}
     >
-      <Text style={{ color: map[kind].fg, fontSize: 13.5, fontWeight: '600', lineHeight: 19 }}>
+      <Text style={{ color: map[kind].fg, fontSize: 13.5, fontFamily: fonts.semibold, lineHeight: 19 }}>
         {text}
       </Text>
     </View>

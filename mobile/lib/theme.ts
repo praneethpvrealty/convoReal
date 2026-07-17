@@ -1,4 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useColorScheme } from 'react-native';
+import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 /**
  * ConvoReal design tokens — "warm estate" system from the reference
@@ -102,15 +105,51 @@ export const brandGradientDark = ['#1F5B49', '#35946E'] as const;
 export const hotGradient = ['#E9A23B', '#D5493B', '#B85C9E'] as const;
 
 export function useBrandGradient(): readonly [string, string] {
-  const dark = useColorScheme() === 'dark';
+  const { dark } = useTheme();
   return dark ? brandGradientDark : brandGradient;
 }
 
+/**
+ * Appearance override. The reference design IS the light cream look,
+ * so the app is light-first by default rather than following the
+ * system — switchable in More → Appearance.
+ */
+export type AppearanceMode = 'light' | 'dark' | 'system';
+
+interface AppearanceState {
+  mode: AppearanceMode;
+  setMode: (mode: AppearanceMode) => void;
+}
+
+export const useAppearance = create<AppearanceState>()(
+  persist(
+    (set) => ({
+      mode: 'light',
+      setMode: (mode) => set({ mode }),
+    }),
+    { name: 'appearance', storage: createJSONStorage(() => AsyncStorage) }
+  )
+);
+
 export function useTheme(): { colors: ThemeColors; dark: boolean } {
   const scheme = useColorScheme();
-  const dark = scheme === 'dark';
+  const mode = useAppearance((s) => s.mode);
+  const dark = mode === 'dark' || (mode === 'system' && scheme === 'dark');
   return { colors: dark ? darkColors : lightColors, dark };
 }
+
+/**
+ * Brand typeface (Plus Jakarta Sans — the reference's grotesque).
+ * Use the family for the WEIGHT you want; don't combine with
+ * fontWeight (Android would swap back to the system font).
+ */
+export const fonts = {
+  regular: 'PlusJakartaSans_400Regular',
+  medium: 'PlusJakartaSans_500Medium',
+  semibold: 'PlusJakartaSans_600SemiBold',
+  bold: 'PlusJakartaSans_700Bold',
+  extrabold: 'PlusJakartaSans_800ExtraBold',
+} as const;
 
 /** Classification → chip hue, consistent across Contacts/Inbox. */
 export const classificationColors: Record<string, { light: string; dark: string }> = {

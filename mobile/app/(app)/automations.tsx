@@ -16,7 +16,7 @@ import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
 
 export default function AutomationsScreen() {
@@ -100,7 +100,7 @@ export default function AutomationsScreen() {
             style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
           >
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>{a.name}</Text>
+              <Text style={{ fontSize: 15, fontFamily: fonts.bold, color: colors.text }}>{a.name}</Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
                 {a.trigger_type.replace(/_/g, ' ')}
                 {typeof a.execution_count === 'number' ? ` · ran ${a.execution_count}×` : ''}
@@ -134,7 +134,7 @@ export default function AutomationsScreen() {
             style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
           >
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }}>{f.name}</Text>
+              <Text style={{ fontSize: 15, fontFamily: fonts.bold, color: colors.text }}>{f.name}</Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
                 {f.trigger_type ? `${f.trigger_type.replace(/_/g, ' ')} · ` : ''}
                 {typeof f.execution_count === 'number' ? `ran ${f.execution_count}×` : ''}
@@ -143,7 +143,7 @@ export default function AutomationsScreen() {
             <Text
               style={{
                 fontSize: 11.5,
-                fontWeight: '700',
+                fontFamily: fonts.bold,
                 textTransform: 'uppercase',
                 color:
                   f.status === 'active'
@@ -172,7 +172,7 @@ function SectionLabel({ text }: { text: string }) {
     <Text
       style={{
         fontSize: 12.5,
-        fontWeight: '700',
+        fontFamily: fonts.bold,
         textTransform: 'uppercase',
         letterSpacing: 0.4,
         color: colors.textFaint,

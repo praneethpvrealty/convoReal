@@ -19,7 +19,7 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Appointment, AppointmentType } from '@/lib/types';
 
 const TYPE_META: Record<AppointmentType, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
@@ -135,7 +135,7 @@ export default function CalendarScreen() {
           <Pressable onPress={() => shiftMonth(-1)} hitSlop={8}>
             <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
           </Pressable>
-          <Text style={{ fontSize: 17, fontWeight: '800', color: colors.text }}>
+          <Text style={{ fontSize: 17, fontFamily: fonts.extrabold, color: colors.text }}>
             {month.toLocaleDateString([], { month: 'long', year: 'numeric' })}
           </Text>
           <Pressable onPress={() => shiftMonth(1)} hitSlop={8}>
@@ -149,7 +149,7 @@ export default function CalendarScreen() {
               setSelected(today);
             }}
           >
-            <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>Today</Text>
+            <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.primary }}>Today</Text>
           </Pressable>
         </View>
 
@@ -188,7 +188,7 @@ export default function CalendarScreen() {
                       <Text
                         style={{
                           fontSize: 14,
-                          fontWeight: isSelected || isToday ? '800' : '500',
+                          fontFamily: isSelected || isToday ? fonts.extrabold : fonts.medium,
                           color: isSelected ? colors.onPrimary : colors.text,
                         }}
                       >
@@ -287,7 +287,7 @@ function AppointmentCard({
           {appointment.location ? ` · ${appointment.location}` : ''}
         </Text>
         {appointment.contact ? (
-          <Text style={{ fontSize: 12.5, color: colors.primary, fontWeight: '600' }}>
+          <Text style={{ fontSize: 12.5, color: colors.primary, fontFamily: fonts.semibold }}>
             {appointment.contact.name || appointment.contact.phone}
           </Text>
         ) : null}
@@ -296,7 +296,7 @@ function AppointmentCard({
         <Text
           style={{
             fontSize: 11,
-            fontWeight: '700',
+            fontFamily: fonts.bold,
             textTransform: 'uppercase',
             color: appointment.status === 'completed' ? colors.success : colors.danger,
           }}
@@ -390,7 +390,7 @@ function AppointmentDetail({
               <Ionicons name={meta.icon} size={17} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 17, fontWeight: '800', color: colors.text }}>
+              <Text style={{ fontSize: 17, fontFamily: fonts.extrabold, color: colors.text }}>
                 {appointment.title}
               </Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
@@ -446,7 +446,7 @@ function AppointmentDetail({
                     onPress={() => setPicker('date')}
                   >
                     <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: colors.text }}>
+                    <Text style={{ fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text }}>
                       {effectiveStart.toLocaleDateString([], { day: 'numeric', month: 'short' })}
                     </Text>
                   </Pressable>
@@ -455,7 +455,7 @@ function AppointmentDetail({
                     onPress={() => setPicker('time')}
                   >
                     <Ionicons name="time-outline" size={15} color={colors.primary} />
-                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: colors.text }}>
+                    <Text style={{ fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text }}>
                       {effectiveStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   </Pressable>
@@ -540,7 +540,7 @@ function DetailRow({
           fontSize: 14,
           lineHeight: 20,
           color: accent ? colors.primary : colors.text,
-          fontWeight: accent ? '600' : '400',
+          fontFamily: accent ? fonts.semibold : fonts.regular,
         }}
       >
         {text}
@@ -580,7 +580,7 @@ function SheetButton({
       {busy ? (
         <ActivityIndicator size="small" color={textColor} />
       ) : (
-        <Text style={{ fontSize: 13.5, fontWeight: '700', color: textColor }}>{label}</Text>
+        <Text style={{ fontSize: 13.5, fontFamily: fonts.bold, color: textColor }}>{label}</Text>
       )}
     </Pressable>
   );
@@ -595,7 +595,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   weekRow: { flexDirection: 'row' },
-  weekday: { flex: 1, textAlign: 'center', fontSize: 11, fontWeight: '700', paddingVertical: 4 },
+  weekday: { flex: 1, textAlign: 'center', fontSize: 11, fontFamily: fonts.bold, paddingVertical: 4 },
   dayCell: { flex: 1, alignItems: 'center', paddingVertical: 3 },
   dayInner: {
     width: 32,
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
   dot: { width: 4, height: 4, borderRadius: 2 },
   dayLabel: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginTop: spacing.sm,
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardTitle: { fontSize: 15, fontWeight: '700' },
+  cardTitle: { fontSize: 15, fontFamily: fonts.bold },
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
     borderTopLeftRadius: radius.xl,

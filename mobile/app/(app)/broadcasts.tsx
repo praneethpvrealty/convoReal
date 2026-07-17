@@ -13,7 +13,7 @@ import {
 import { EmptyState } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
 import type { Broadcast } from '@/lib/types';
 
 function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
@@ -112,7 +112,7 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
           <Text
             style={{
               fontSize: 11.5,
-              fontWeight: '700',
+              fontFamily: fonts.bold,
               textTransform: 'uppercase',
               color: statusColor(broadcast.status, colors),
             }}
@@ -153,7 +153,7 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
       <Text
         style={{
           fontSize: 15,
-          fontWeight: '800',
+          fontFamily: fonts.extrabold,
           color: danger ? colors.danger : colors.text,
         }}
       >
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  cardTitle: { flex: 1, fontSize: 15.5, fontWeight: '700' },
+  cardTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
   progressTrack: { height: 5, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 3 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },

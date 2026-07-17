@@ -19,7 +19,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { Tag } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Property } from '@/lib/types';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -144,7 +144,8 @@ export default function PropertyDetailScreen() {
         </View>
       )}
 
-      <View style={styles.body}>
+      {/* Content sheet overlaps the hero photo (reference pattern). */}
+      <View style={[styles.body, { backgroundColor: colors.background }]}>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           {property.listing_type ? <Tag label={property.listing_type} /> : null}
           {property.status ? <Tag label={property.status} /> : null}
@@ -159,7 +160,7 @@ export default function PropertyDetailScreen() {
         {place ? (
           <Text style={{ fontSize: 13.5, color: colors.textMuted }}>{place}</Text>
         ) : null}
-        <Text style={{ fontSize: 24, fontWeight: '800', color: colors.primary }}>{price}</Text>
+        <Text style={{ fontSize: 24, fontFamily: fonts.extrabold, color: colors.primary }}>{price}</Text>
 
         <View style={styles.specGrid}>
           <Spec icon="bed-outline" label="Bedrooms" value={numOrDash(property.bedrooms)} />
@@ -208,7 +209,7 @@ export default function PropertyDetailScreen() {
               >
                 <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14.5, fontWeight: '700', color: colors.text }}>
+                  <Text style={{ fontSize: 14.5, fontFamily: fonts.bold, color: colors.text }}>
                     {property.owner.name || property.owner.phone}
                   </Text>
                   {property.owner.name ? (
@@ -261,7 +262,7 @@ export default function PropertyDetailScreen() {
             onPress={() => Linking.openURL(property.google_map_link!)}
           >
             <Ionicons name="map-outline" size={17} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>
+            <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.primary }}>
               Open in Google Maps
             </Text>
           </Pressable>
@@ -281,10 +282,10 @@ export default function PropertyDetailScreen() {
       ]}
     >
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: colors.textFaint, letterSpacing: 0.5 }}>
+        <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: colors.textFaint, letterSpacing: 0.5 }}>
           {property.listing_type === 'Rent' ? 'RENT' : 'PRICE'}
         </Text>
-        <Text style={{ fontSize: 21, fontWeight: '800', color: colors.text, letterSpacing: -0.5 }}>
+        <Text style={{ fontSize: 21, fontFamily: fonts.extrabold, color: colors.text, letterSpacing: -0.5 }}>
           {price}
         </Text>
       </View>
@@ -307,7 +308,7 @@ export default function PropertyDetailScreen() {
           size={17}
           color={colors.onPrimary}
         />
-        <Text style={{ color: colors.onPrimary, fontSize: 15, fontWeight: '700' }}>
+        <Text style={{ color: colors.onPrimary, fontSize: 15, fontFamily: fonts.bold }}>
           {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
         </Text>
       </Pressable>
@@ -334,7 +335,7 @@ function Spec({
     <View style={[styles.spec, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <Ionicons name={icon} size={18} color={colors.primary} />
       <Text style={{ fontSize: 11, color: colors.textFaint }}>{label}</Text>
-      <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 13.5, fontFamily: fonts.bold, color: colors.text }}>{value}</Text>
     </View>
   );
 }
@@ -346,7 +347,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <Text
         style={{
           fontSize: 12.5,
-          fontWeight: '700',
+          fontFamily: fonts.bold,
           textTransform: 'uppercase',
           letterSpacing: 0.4,
           color: colors.textFaint,
@@ -360,8 +361,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const styles = StyleSheet.create({
-  body: { padding: spacing.lg, gap: spacing.md },
-  title: { fontSize: 21, fontWeight: '800', lineHeight: 27 },
+  body: {
+    padding: spacing.lg,
+    paddingTop: spacing.xl,
+    gap: spacing.md,
+    marginTop: -24,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+  },
+  title: { fontSize: 21, fontFamily: fonts.extrabold, lineHeight: 27 },
   specGrid: { flexDirection: 'row', gap: spacing.sm },
   spec: {
     flex: 1,

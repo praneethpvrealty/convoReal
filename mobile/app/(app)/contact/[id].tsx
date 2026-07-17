@@ -20,7 +20,7 @@ import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
+import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
 
 async function fetchContact(id: string): Promise<Contact | null> {
@@ -58,7 +58,7 @@ export default function ContactDetailScreen() {
           headerRight: () =>
             contact ? (
               <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
-                <Text style={{ color: colors.primary, fontSize: 15.5, fontWeight: '700' }}>
+                <Text style={{ color: colors.primary, fontSize: 15.5, fontFamily: fonts.bold }}>
                   {editing ? 'Cancel' : 'Edit'}
                 </Text>
               </Pressable>
@@ -265,7 +265,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
                   <Text
                     style={{
                       fontSize: 13,
-                      fontWeight: '600',
+                      fontFamily: fonts.semibold,
                       color: active ? colors.primary : (hue ?? colors.textMuted),
                     }}
                   >
@@ -285,7 +285,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
           {saving ? (
             <ActivityIndicator color={colors.onPrimary} />
           ) : (
-            <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>
+            <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
               Save changes
             </Text>
           )}
@@ -332,7 +332,7 @@ function ActionButton({
       style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
     >
       <Ionicons name={icon} size={20} color={colors.primary} />
-      <Text style={{ fontSize: 12.5, fontWeight: '600', color: colors.text }}>{label}</Text>
+      <Text style={{ fontSize: 12.5, fontFamily: fonts.semibold, color: colors.text }}>{label}</Text>
     </Pressable>
   );
 }
@@ -352,7 +352,7 @@ function InfoRow({
       <Ionicons name={icon} size={17} color={colors.textMuted} style={{ marginTop: 2 }} />
       <View style={{ flex: 1, gap: 1 }}>
         <Text style={{ fontSize: 12, color: colors.textFaint }}>{label}</Text>
-        <Text style={{ fontSize: 14.5, fontWeight: '500', color: colors.text }}>{value}</Text>
+        <Text style={{ fontSize: 14.5, fontFamily: fonts.medium, color: colors.text }}>{value}</Text>
       </View>
     </View>
   );
@@ -361,7 +361,7 @@ function InfoRow({
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg },
   identity: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  name: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  name: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center' },
   actions: { flexDirection: 'row', gap: spacing.md, justifyContent: 'center' },
   actionButton: {
     alignItems: 'center',
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  fieldLabel: { fontSize: 12.5, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  fieldLabel: { fontSize: 12.5, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,

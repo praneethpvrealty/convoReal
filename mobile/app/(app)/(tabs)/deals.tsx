@@ -21,7 +21,7 @@ import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 
 /** Same status derivation the web kanban applies on stage move. */
@@ -230,7 +230,7 @@ export default function DealsScreen() {
                       backgroundColor: s.color || colors.primary,
                     }}
                   />
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>
+                  <Text style={{ fontSize: 15, fontFamily: fonts.semibold, color: colors.text }}>
                     {s.name}
                   </Text>
                 </Pressable>
@@ -254,7 +254,7 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
           {deal.title}
         </Text>
-        <Text style={{ fontSize: 15, fontWeight: '800', color: colors.primary }}>
+        <Text style={{ fontSize: 15, fontFamily: fonts.extrabold, color: colors.primary }}>
           {formatInr(deal.value)}
         </Text>
       </View>
@@ -285,7 +285,7 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
           <Text
             style={{
               fontSize: 12,
-              fontWeight: '700',
+              fontFamily: fonts.bold,
               color: deal.status === 'won' ? colors.success : colors.danger,
               textTransform: 'uppercase',
             }}
@@ -300,7 +300,7 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
           style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
-          <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.primary }}>
+          <Text style={{ fontSize: 12.5, fontFamily: fonts.bold, color: colors.primary }}>
             Move stage
           </Text>
         </Pressable>
@@ -311,7 +311,7 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   filtersRow: { height: 52, justifyContent: 'center' },
   filters: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: 'center' },
   stageSummary: {
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  cardTitle: { flex: 1, fontSize: 15.5, fontWeight: '700' },
+  cardTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
   linkRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardBottom: {
     flexDirection: 'row',
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 15.5,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
   },

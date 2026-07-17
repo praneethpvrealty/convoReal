@@ -9,7 +9,7 @@ import { apiFetch } from '@/lib/api';
 import { formatInr } from '@/lib/format';
 import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
 import { usePropertySearch } from '@/lib/property-search-store';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const BENGALURU = {
@@ -118,12 +118,12 @@ export default function PropertiesMapScreen() {
         ) : (
           <>
             <Ionicons name="location" size={14} color={colors.primary} />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>
+            <Text style={{ fontSize: 13, fontFamily: fonts.semibold, color: colors.text }}>
               {pinned.length} of {data?.data.length ?? 0} results have map pins
             </Text>
             <View style={{ flex: 1 }} />
             <Pressable onPress={() => router.back()} hitSlop={8}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: colors.primary }}>List</Text>
+              <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.primary }}>List</Text>
             </Pressable>
           </>
         )}
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   },
   pricePinMuted: { backgroundColor: '#E7E4DB' },
   pinDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#1A4D42' },
-  pinText: { fontSize: 11.5, fontWeight: '800', color: '#1A4D42' },
+  pinText: { fontSize: 11.5, fontFamily: fonts.extrabold, color: '#1A4D42' },
   footer: {
     position: 'absolute',
     left: spacing.lg,

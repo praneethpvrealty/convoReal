@@ -35,7 +35,7 @@ import {
   type ListingFilter,
   type NearAnchor,
 } from '@/lib/property-search-store';
-import { radius, spacing, useBrandGradient, useTheme } from '@/lib/theme';
+import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const LISTING_FILTERS: ListingFilter[] = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'];
@@ -197,7 +197,7 @@ export default function PropertiesScreen() {
       {near ? (
         <View style={styles.nearBar}>
           <Ionicons name="location" size={13} color={colors.primary} />
-          <Text style={{ fontSize: 12.5, fontWeight: '700', color: colors.primary }}>
+          <Text style={{ fontSize: 12.5, fontFamily: fonts.bold, color: colors.primary }}>
             {near.label}
           </Text>
           <View style={{ flexDirection: 'row', gap: 6, marginLeft: spacing.sm }}>
@@ -206,7 +206,7 @@ export default function PropertiesScreen() {
                 <Text
                   style={{
                     fontSize: 12,
-                    fontWeight: '700',
+                    fontFamily: fonts.bold,
                     color: near.radiusKm === km ? colors.primary : colors.textFaint,
                     textDecorationLine: near.radiusKm === km ? 'underline' : 'none',
                   }}
@@ -276,7 +276,7 @@ export default function PropertiesScreen() {
                       paddingVertical: 11,
                     }}
                   >
-                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontWeight: '700' }}>
+                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: fonts.bold }}>
                       Search within 25 km
                     </Text>
                   </View>
@@ -328,7 +328,7 @@ function NearMeChip({
       <Text
         style={{
           fontSize: 13,
-          fontWeight: '600',
+          fontFamily: fonts.semibold,
           color: active ? colors.onPrimary : colors.textMuted,
         }}
       >
@@ -421,7 +421,7 @@ function LocalitySearchBox() {
             >
               <Ionicons name="location-outline" size={15} color={colors.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>
+                <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.text }}>
                   {s.main_text}
                 </Text>
                 {s.secondary_text ? (
@@ -535,10 +535,11 @@ function SpecPill({
   label: string;
 }) {
   const { colors } = useTheme();
+  // Reference style: soft filled chips, no border.
   return (
-    <View style={[styles.specPill, { borderColor: colors.border }]}>
+    <View style={[styles.specPill, { backgroundColor: colors.incomingBubble }]}>
       <Ionicons name={icon} size={13} color={colors.textMuted} />
-      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textMuted }} numberOfLines={1}>
+      <Text style={{ fontSize: 12, fontFamily: fonts.semibold, color: colors.textMuted }} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -552,7 +553,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     justifyContent: 'space-between',
   },
-  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   mapButton: {
     width: 34,
     height: 34,
@@ -627,7 +628,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   statusDot: { width: 5, height: 5, borderRadius: 2.5 },
-  statusText: { fontSize: 11.5, fontWeight: '700' },
+  statusText: { fontSize: 11.5, fontFamily: fonts.bold },
   starBadge: {
     position: 'absolute',
     top: 10,
@@ -643,16 +644,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
   },
-  cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
-  cardPrice: { fontSize: 16.5, fontWeight: '800', letterSpacing: -0.3 },
+  cardTitle: { flex: 1, fontSize: 16, fontFamily: fonts.extrabold, letterSpacing: -0.2 },
+  cardPrice: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
   specRow: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
   specPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    borderWidth: 1,
     borderRadius: radius.sm,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
 });

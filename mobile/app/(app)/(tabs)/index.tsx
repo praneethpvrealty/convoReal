@@ -29,7 +29,7 @@ import type { Contact } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Conversation } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
 
@@ -186,7 +186,7 @@ function HotLeadsStrip() {
             <Pressable style={{ alignItems: 'center', gap: 4, width: 62 }}>
               <Avatar name={name} size={50} ring />
               <Text
-                style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted }}
+                style={{ fontSize: 11, fontFamily: fonts.semibold, color: colors.textMuted }}
                 numberOfLines={1}
               >
                 {name.split(/\s+/)[0]}
@@ -244,7 +244,7 @@ function InboxHeader({
           <Text
             style={{
               fontSize: 12.5,
-              fontWeight: '700',
+              fontFamily: fonts.bold,
               color: credits.total === 0 ? colors.danger : colors.mintText,
             }}
           >
@@ -306,7 +306,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
             <Text
               style={{
                 fontSize: 12,
-                fontWeight: unread ? '700' : '400',
+                fontFamily: unread ? fonts.bold : fonts.regular,
                 color: unread ? colors.primary : colors.textFaint,
               }}
             >
@@ -319,7 +319,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
                 flex: 1,
                 fontSize: 14,
                 color: unread ? colors.text : colors.textMuted,
-                fontWeight: unread ? '600' : '400',
+                fontFamily: unread ? fonts.semibold : fonts.regular,
               }}
               numberOfLines={1}
             >
@@ -336,7 +336,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
+  headerTitle: { fontSize: 21, fontFamily: fonts.extrabold, letterSpacing: -0.4 },
   creditsChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -378,5 +378,5 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   nameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 16, fontWeight: '700', flexShrink: 1 },
+  name: { fontSize: 16, fontFamily: fonts.bold, flexShrink: 1 },
 });

@@ -21,7 +21,7 @@ import { ENV } from '@/lib/env';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useBrandGradient, useTheme } from '@/lib/theme';
+import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 interface WalletRow {
   total_credits: number;
@@ -160,7 +160,7 @@ export default function CreditsScreen() {
           style={styles.topupButton}
         >
           <Ionicons name="flash" size={17} color="#fff" />
-          <Text style={{ color: '#fff', fontSize: 15.5, fontWeight: '700' }}>
+          <Text style={{ color: '#fff', fontSize: 15.5, fontFamily: fonts.bold }}>
             Top up on the web
           </Text>
           <Ionicons name="open-outline" size={15} color="rgba(255,255,255,0.8)" />
@@ -195,7 +195,7 @@ export default function CreditsScreen() {
                 />
               </View>
               <View style={{ flex: 1, gap: 1 }}>
-                <Text style={{ fontSize: 13.5, fontWeight: '600', color: colors.text }} numberOfLines={1}>
+                <Text style={{ fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text }} numberOfLines={1}>
                   {tx.description || tx.type.replace(/_/g, ' ')}
                 </Text>
                 <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
@@ -205,7 +205,7 @@ export default function CreditsScreen() {
               <Text
                 style={{
                   fontSize: 14.5,
-                  fontWeight: '800',
+                  fontFamily: fonts.extrabold,
                   color: tx.amount >= 0 ? colors.success : colors.danger,
                 }}
               >
@@ -222,7 +222,7 @@ export default function CreditsScreen() {
               {history.isFetchingNextPage ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={{ fontSize: 13.5, fontWeight: '700', color: colors.primary }}>
+                <Text style={{ fontSize: 13.5, fontFamily: fonts.bold, color: colors.primary }}>
                   Load more
                 </Text>
               )}
@@ -255,7 +255,7 @@ function BreakdownRow({
       <Text
         style={{
           fontSize: 14.5,
-          fontWeight: '700',
+          fontFamily: fonts.bold,
           color: muted ? colors.textFaint : colors.text,
         }}
       >
@@ -280,10 +280,10 @@ const styles = StyleSheet.create({
   heroLabel: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 11.5,
-    fontWeight: '800',
+    fontFamily: fonts.extrabold,
     letterSpacing: 1.2,
   },
-  heroValue: { color: '#fff', fontSize: 40, fontWeight: '800', letterSpacing: -1 },
+  heroValue: { color: '#fff', fontSize: 40, fontFamily: fonts.extrabold, letterSpacing: -1 },
   heroSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12.5 },
   card: {
     borderRadius: radius.lg,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 12.5,
-    fontWeight: '700',
+    fontFamily: fonts.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginTop: spacing.sm,

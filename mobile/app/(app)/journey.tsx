@@ -13,7 +13,7 @@ import {
 import { Avatar, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { JourneyItem, JourneyStage } from '@/lib/types';
 
 /**
@@ -115,7 +115,7 @@ export default function JourneyScreen() {
               <Link href={`/(app)/contact/${group.items[0].contact_id}`} asChild>
                 <Pressable style={styles.cardHeader}>
                   <Avatar name={name} size={36} />
-                  <Text style={{ flex: 1, fontSize: 15.5, fontWeight: '700', color: colors.text }}>
+                  <Text style={{ flex: 1, fontSize: 15.5, fontFamily: fonts.bold, color: colors.text }}>
                     {name}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.textFaint }}>
@@ -150,7 +150,7 @@ export default function JourneyScreen() {
                     <Text
                       style={{
                         fontSize: 11.5,
-                        fontWeight: '700',
+                        fontFamily: fonts.bold,
                         color: dropped ? colors.danger : (stage?.color ?? colors.textMuted),
                       }}
                     >

@@ -18,7 +18,7 @@ import { Banner } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 
 /**
  * Native mirror of the web's WhatsappPhoneVerify (migration 137 gate):
@@ -136,7 +136,7 @@ export default function VerifyPhoneScreen() {
                 {busy ? (
                   <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>
+                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
                     Send code on WhatsApp
                   </Text>
                 )}
@@ -156,13 +156,13 @@ export default function VerifyPhoneScreen() {
                 {busy ? (
                   <ActivityIndicator color={colors.onPrimary} />
                 ) : (
-                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontWeight: '700' }}>
+                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
                     Verify
                   </Text>
                 )}
               </Pressable>
               <Pressable onPress={() => setStage('phone')} style={{ alignItems: 'center' }}>
-                <Text style={{ color: colors.textMuted, fontSize: 13.5, fontWeight: '600' }}>
+                <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: fonts.semibold }}>
                   Change number
                 </Text>
               </Pressable>
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  title: { fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  title: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center' },
   body: { fontSize: 14.5, textAlign: 'center', lineHeight: 21 },
   field: {
     flexDirection: 'row',

@@ -7,7 +7,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import {
+  fonts,
+  radius,
+  spacing,
+  useAppearance,
+  useTheme,
+  type AppearanceMode,
+} from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
 
 const WORKSPACE_LINKS = [
@@ -45,7 +52,7 @@ export default function MoreScreen() {
         <View style={styles.profileRow}>
           <Avatar name={displayName} size={54} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+            <Text style={{ fontSize: 17, fontFamily: fonts.bold, color: colors.text }} numberOfLines={1}>
               {displayName}
             </Text>
             <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>
@@ -53,7 +60,7 @@ export default function MoreScreen() {
             </Text>
           </View>
           <View style={[styles.roleChip, { backgroundColor: colors.primarySoft }]}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>
+            <Text style={{ fontSize: 12, fontFamily: fonts.bold, color: colors.primary }}>
               {profile?.account_role ?? '—'}
             </Text>
           </View>
@@ -83,6 +90,11 @@ export default function MoreScreen() {
         ))}
       </View>
 
+      <SectionLabel text="Appearance" />
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <AppearancePicker />
+      </View>
+
       <SectionLabel text="On the web app" />
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         {WEB_ONLY.map((f) => (
@@ -105,7 +117,7 @@ export default function MoreScreen() {
         onPress={() => supabase.auth.signOut()}
       >
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-        <Text style={{ color: colors.danger, fontSize: 15.5, fontWeight: '700' }}>Sign out</Text>
+        <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: fonts.bold }}>Sign out</Text>
       </Pressable>
 
       <Text style={[styles.footer, { color: colors.textFaint }]}>
@@ -115,13 +127,64 @@ export default function MoreScreen() {
   );
 }
 
+const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string; icon: string }[] = [
+  { value: 'light', label: 'Light', icon: 'sunny-outline' },
+  { value: 'dark', label: 'Dark', icon: 'moon-outline' },
+  { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
+];
+
+/** The reference design is light-first; dark stays a choice. */
+function AppearancePicker() {
+  const { colors } = useTheme();
+  const mode = useAppearance((s) => s.mode);
+  const setMode = useAppearance((s) => s.setMode);
+  return (
+    <View style={{ flexDirection: 'row', padding: spacing.sm, gap: spacing.sm }}>
+      {APPEARANCE_OPTIONS.map((opt) => {
+        const active = mode === opt.value;
+        return (
+          <Pressable
+            key={opt.value}
+            onPress={() => setMode(opt.value)}
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              gap: 4,
+              paddingVertical: 10,
+              borderRadius: radius.md,
+              backgroundColor: active ? colors.primarySoft : 'transparent',
+              borderWidth: active ? 1 : 0,
+              borderColor: colors.primary,
+            }}
+          >
+            <Ionicons
+              name={opt.icon as never}
+              size={18}
+              color={active ? colors.primary : colors.textMuted}
+            />
+            <Text
+              style={{
+                fontSize: 12.5,
+                fontFamily: active ? fonts.bold : fonts.medium,
+                color: active ? colors.primary : colors.textMuted,
+              }}
+            >
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 function SectionLabel({ text }: { text: string }) {
   const { colors } = useTheme();
   return (
     <Text
       style={{
         fontSize: 12.5,
-        fontWeight: '700',
+        fontFamily: fonts.bold,
         textTransform: 'uppercase',
         letterSpacing: 0.4,
         color: colors.textFaint,
@@ -147,14 +210,14 @@ function InfoRow({
     <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
       <Ionicons name={icon} size={18} color={colors.textMuted} />
       <Text style={{ flex: 1, fontSize: 14.5, color: colors.textMuted }}>{label}</Text>
-      <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>{value}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
-  title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   card: {
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
@@ -182,7 +245,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
   },
-  navLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
+  navLabel: { flex: 1, fontSize: 15, fontFamily: fonts.semibold },
   cardHint: {
     fontSize: 12,
     lineHeight: 17,
