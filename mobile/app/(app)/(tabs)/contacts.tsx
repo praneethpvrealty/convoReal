@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -95,6 +95,8 @@ export default function ContactsScreen() {
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['contacts', debounced],
     queryFn: () => fetchContacts(debounced),
+    // Don't wipe the list to skeletons on every keystroke.
+    placeholderData: keepPreviousData,
   });
 
   return (
