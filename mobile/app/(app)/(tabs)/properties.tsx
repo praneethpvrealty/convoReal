@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -70,6 +70,9 @@ export default function PropertiesScreen() {
         last.pagination.page < last.pagination.totalPages
           ? last.pagination.page + 1
           : undefined,
+      // Keep showing the previous results while a new search loads —
+      // otherwise every keystroke wipes the list to skeletons.
+      placeholderData: keepPreviousData,
     });
 
   const properties = data?.pages.flatMap((p) => p.data) ?? [];
@@ -135,10 +138,10 @@ export default function PropertiesScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="home-outline"
-              title={debounced ? 'No matches' : 'No properties yet'}
+              title={debounced || listing !== 'All' ? 'No matches' : 'No properties yet'}
               subtitle={
-                debounced
-                  ? 'Search understands plain language — try an area, budget or BHK count.'
+                debounced || listing !== 'All'
+                  ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
                   : 'Add properties from the web app or by messaging your WhatsApp lister.'
               }
             />
