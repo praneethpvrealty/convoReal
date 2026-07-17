@@ -38,7 +38,7 @@ and polish.
   event types.
 
 - **Mobile companion app scaffold (`mobile/`)** — Phase 1 of the plan in
-  `docs/mobile-app-implementation-plan.md`: an Expo SDK 52 + expo-router
+  `docs/mobile-app-implementation-plan.md`: an Expo SDK 54 + expo-router
   app (Android-first, iOS-ready) living in this repo as a self-contained
   npm project. Ships email/password login against the shared Supabase
   project (session AES-encrypted at rest, key in Keychain/Keystore), the
