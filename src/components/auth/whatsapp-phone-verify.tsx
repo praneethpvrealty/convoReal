@@ -6,7 +6,7 @@
 // Enter number → supabase.auth.updateUser({ phone }) sends a code on
 // WhatsApp (phone_change OTP through the existing Send-SMS hook) →
 // verifyOtp confirms it. On success the verified phone lives on
-// auth.users, and the DB trigger (migration 136) mirrors it onto
+// auth.users, and the DB trigger (migration 137) mirrors it onto
 // profiles.phone — nothing else to persist. Verification is per
 // ACCOUNT: once done, no sign-in method (Google, email, OTP) ever
 // asks again.

@@ -3,7 +3,7 @@
 //
 // The Den mirror of src/lib/auth/account.ts, for the property-owner
 // persona. A Den user is an auth.users row with NO profiles row
-// (migration 131) — every CRM RLS policy denies them by construction.
+// (migration 132) — every CRM RLS policy denies them by construction.
 // Their data access happens exclusively through /api/den/* handlers,
 // which resolve a DenContext here and then query with the
 // service-role client under EXPLICIT owner scoping:

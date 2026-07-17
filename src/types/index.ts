@@ -203,7 +203,7 @@ export interface MatchEvent {
   sent_at: string | null;
   created_at: string;
   updated_at: string;
-  /** 'deal_mode' = cross-tenant Owners Den event (migration 133): the
+  /** 'deal_mode' = cross-tenant Owners Den event (migration 134): the
    *  subject property belongs to ANOTHER tenant and is only visible
    *  through subject_snapshot until unlocked. */
   source?: 'internal' | 'deal_mode';
@@ -909,13 +909,13 @@ export interface Property {
    *  Shape: src/lib/inventory/floor-tenancies.ts FloorTenancy[]. */
   floor_tenancies?: import('@/lib/inventory/floor-tenancies').FloorTenancy[] | null;
   listing_source?: 'owner' | 'agent' | 'whatsapp_lister' | 'web_lister';
-  /** Owners Den sell-readiness flag (migration 132). 'soft' = quietly
+  /** Owners Den sell-readiness flag (migration 133). 'soft' = quietly
    *  open to offers (masked matching pool only), 'aggressive' =
    *  actively selling (matched buyers notified immediately). */
   deal_mode?: 'off' | 'soft' | 'aggressive';
   deal_mode_updated_at?: string | null;
   deal_mode_set_by?: 'owner' | 'staff' | null;
-  /** Owner's optional floor for Deal Mode offers (migration 134). */
+  /** Owner's optional floor for Deal Mode offers (migration 135). */
   min_bid?: number | null;
   agent_details?: {
     id: string;

@@ -1,5 +1,5 @@
 -- ============================================================
--- 133_den_match_unlocks.sql — Deal Mode matching feed + paid unlock.
+-- 134_den_match_unlocks.sql — Deal Mode matching feed + paid unlock.
 --
 -- Phase 2 of the Owners Den: properties with deal_mode on enter a
 -- CROSS-TENANT matching pool. The sweep (src/lib/den/matching-sweep.ts,

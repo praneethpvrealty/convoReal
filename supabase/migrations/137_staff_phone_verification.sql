@@ -1,5 +1,5 @@
 -- ============================================================
--- 136_staff_phone_verification.sql — mandatory verified WhatsApp
+-- 137_staff_phone_verification.sql — mandatory verified WhatsApp
 -- number for staff users, hard-wired at the database.
 --
 -- ConvoReal is a WhatsApp-based platform: profiles.phone is the join

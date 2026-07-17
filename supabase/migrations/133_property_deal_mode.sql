@@ -1,5 +1,5 @@
 -- ============================================================
--- 132_property_deal_mode.sql — owner-controlled "Deal Mode" flag.
+-- 133_property_deal_mode.sql — owner-controlled "Deal Mode" flag.
 --
 -- Deal Mode is the owner's sell-readiness switch, set from the
 -- Owners Den (or by staff on the owner's behalf):

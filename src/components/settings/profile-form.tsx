@@ -153,7 +153,7 @@ export function ProfileForm() {
 
       // Persist name + avatar to profiles. Phone is NOT written here —
       // it's OTP-verified through Supabase Auth and mirrored onto
-      // profiles.phone by a DB trigger (migration 136); a direct write
+      // profiles.phone by a DB trigger (migration 137); a direct write
       // would be rejected by the profiles_phone_guard trigger.
       const { error: updateError } = await supabase
         .from('profiles')
@@ -322,7 +322,7 @@ export function ProfileForm() {
 
           {/* Phone — verified via WhatsApp OTP only, never free text.
               profiles.phone mirrors the verified auth phone (trigger,
-              migration 136). */}
+              migration 137). */}
           <div className="space-y-2">
             <Label className="text-slate-200">WhatsApp number</Label>
             <div className="flex flex-wrap items-center gap-2">

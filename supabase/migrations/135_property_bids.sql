@@ -1,5 +1,5 @@
 -- ============================================================
--- 134_property_bids.sql — Owners Den bids/offers.
+-- 135_property_bids.sql — Owners Den bids/offers.
 --
 -- Phase 3: after unlocking a Deal Mode property (den_match_unlocks),
 -- a buyer/agent account can place a bid. Bids are FREE — the unlock

@@ -1,5 +1,5 @@
 -- ============================================================
--- 131_den_identity.sql — Owners Den identity layer.
+-- 132_den_identity.sql — Owners Den identity layer.
 --
 -- The Owners Den (src/app/(den)/) is the first authenticated surface
 -- for property OWNERS — the people who own the real estate. Until now

@@ -100,7 +100,7 @@ export default function DenLoginPage() {
     // prerendering of this page (no env vars at build time).
     const supabase = createClient();
     // app_context 'den' keeps first-time Den signups out of the staff
-    // account bootstrap (handle_new_user guard, migration 131).
+    // account bootstrap (handle_new_user guard, migration 132).
     const { error } = await supabase.auth.signInWithOtp({
       phone: cleanPhone,
       options: { data: { app_context: "den" } },

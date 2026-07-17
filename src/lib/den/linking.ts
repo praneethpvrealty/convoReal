@@ -6,7 +6,7 @@
 // inherently; Google logins verify via the /den/verify-phone
 // phone_change OTP). Creates/refreshes the den_users row and links it
 // to every tenant's contact that matches the phone AND looks like a
-// property owner (see find_den_owner_contacts, migration 131).
+// property owner (see find_den_owner_contacts, migration 132).
 //
 // Linking is idempotent and re-run lazily on each login — an agency
 // may have added the owner as a contact (or attached properties to
