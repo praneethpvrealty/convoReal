@@ -31,14 +31,22 @@ export interface HydratedShowcaseEvent extends Omit<ShowcaseEvent, 'metadata'> {
 export async function loadPulseStats(db: DB): Promise<PulseStats> {
   const [eventsRes, topPropsRes] = await Promise.all([
     db.from('showcase_events').select('session_key, event_type, metadata'),
-    db.from('showcase_events').select('property_id, session_key').not('property_id', 'is', null)
+    // Only real property views — counting every property-tagged event
+    // (map clicks, gallery swipes) would inflate the Top Listings.
+    db
+      .from('showcase_events')
+      .select('property_id, session_key')
+      .eq('event_type', 'view_property')
+      .not('property_id', 'is', null),
   ]);
 
   if (eventsRes.error) throw eventsRes.error;
   if (topPropsRes.error) throw topPropsRes.error;
 
   const events = eventsRes.data ?? [];
-  const totalViews = events.length;
+  // The dashboard tile promises "every link open counts as one" — so
+  // count only 'open' events, not every beacon the session emitted.
+  const totalViews = events.filter((e) => e.event_type === 'open').length;
 
   const sessions = new Set(events.map((e) => e.session_key));
   const uniqueSessions = sessions.size;
