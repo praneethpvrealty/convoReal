@@ -8,13 +8,33 @@
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
+export const CLASSIFICATIONS = [
+  'Owner',
+  'Seller',
+  'Buyer',
+  'Agent',
+  'Developer',
+  'Owner & Buyer',
+  'Others',
+] as const;
+export type Classification = (typeof CLASSIFICATIONS)[number];
+
 export interface Contact {
   id: string;
   phone: string;
+  secondary_phones?: string[];
   name?: string;
   name_tag?: string | null;
-  classification?: string;
+  email?: string;
+  company?: string;
+  classification?: Classification;
   avatar_url?: string;
+  min_budget?: number | null;
+  max_budget?: number | null;
+  no_budget?: boolean;
+  areas_of_interest?: string[];
+  requirements?: string | null;
+  lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
 }
 
 export interface Conversation {

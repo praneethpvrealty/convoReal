@@ -19,7 +19,7 @@ import { Avatar } from '@/components/ui';
 import { ApiError, sendTextMessage } from '@/lib/api';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
-import { supabase } from '@/lib/supabase';
+import { supabase, uniqueChannel } from '@/lib/supabase';
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import type { Conversation, Message, MessageStatus } from '@/lib/types';
 
@@ -69,7 +69,7 @@ export default function ConversationScreen() {
   useEffect(() => {
     if (!id) return;
     const channel = supabase
-      .channel(`messages:${id}`)
+      .channel(uniqueChannel(`messages:${id}`))
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${id}` },

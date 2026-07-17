@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 
 import { useAuthStore } from './auth-store';
 import { queryClient } from './query';
-import { supabase } from './supabase';
+import { supabase, uniqueChannel } from './supabase';
 
 export interface CreditsState {
   total: number;
@@ -35,8 +35,9 @@ export function useCredits(): CreditsState {
 
   useEffect(() => {
     if (!accountId) return;
+    // Unique name: this hook mounts in Inbox AND Settings concurrently.
     const channel = supabase
-      .channel(`credits:${accountId}`)
+      .channel(uniqueChannel(`credits:${accountId}`))
       .on(
         'postgres_changes',
         {
