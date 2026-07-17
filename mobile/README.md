@@ -57,6 +57,21 @@ lib/
   types.ts              # trimmed mirrors of src/types (same column names)
 ```
 
+## `npm audit` noise
+
+`npm install` reports ~20 vulnerabilities. All of them root at four packages
+in Expo's **local dev toolchain** (`@xmldom/xmldom`, `tar`, `postcss`, `uuid`
+— reached via `@expo/cli`, config-plugins, and Metro config), which run on a
+developer's machine during `expo start`/builds. None of that code is bundled
+into the app users install. The `expo-router`/`expo-linking`/`expo-constants`
+entries are only npm chaining "depends on a vulnerable version of" back to
+those roots.
+
+**Do not run `npm audit fix --force`** — npm's only offered fix is Expo SDK
+57, a breaking major upgrade that undoes the deliberate SDK 52 pin (Expo Go
+push support, see the implementation plan). The advisories resolve with the
+planned SDK upgrade when Phase 2/3 moves to EAS development builds.
+
 ## Conventions
 
 - Direct table **reads** use the Supabase client (RLS scopes them);
