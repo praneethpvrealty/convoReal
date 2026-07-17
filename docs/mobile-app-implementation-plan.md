@@ -49,7 +49,7 @@ A code audit against this plan's prerequisites. Migrations now run through `137_
 | `device_push_tokens` table | ❌ Not started (Phase 3) | — |
 | `/api/auth/register-push-token` + unregister | ❌ Not started (Phase 3). `src/app/api/auth/` currently has only `profile-setup`, `reset-password`, `sms-hook` | — |
 | Worker push dispatch (Expo Push/FCM) | ❌ Not started (Phase 3). Worker entry is `src/scripts/queue-worker.ts` (Redis `BLPOP` → `processWebhook()`, dead-letter queue) — push dispatch hooks in there | `src/scripts/queue-worker.ts` |
-| Mobile app scaffold | ✅ **Started** — Expo Router + SDK 54 scaffold under `mobile/` (Phase 1: auth, navigation, API client, query cache). SDK 54 tracks the Play Store's current Expo Go | `mobile/` |
+| Mobile app scaffold | ✅ **Started** — Expo Router + SDK 57 scaffold under `mobile/` (Phase 1: auth, navigation, API client, query cache). SDK 57 tracks the latest Expo Go | `mobile/` |
 
 ## 🆕 Features Landed After the Original Plan — Mobile Scoping
 
@@ -105,7 +105,7 @@ To maximize code reuse, speed up time-to-market, and leverage the existing TypeS
 
 ### **Zero-Install Development (with Caveats)**
 *   **No Android Studio for scaffolding:** We do not need to install Android Studio for initial development; Expo Router handles project structure.
-*   **Instant Testing in Expo Go:** You scan a QR code, and the app runs on your physical Android phone. The project tracks the SDK of the **current Play Store Expo Go** (SDK 54 as of July 2026) — an older pin forces every device to sideload an outdated Expo Go APK. **Note:** Remote push notifications do NOT work in Expo Go on Android (SDK 53+); you will need an EAS development build for Phase 3 onward regardless of SDK choice.
+*   **Instant Testing in Expo Go:** You scan a QR code, and the app runs on your physical Android phone. The project tracks the **latest stable Expo SDK** (57 as of July 2026), matching the latest Expo Go — Expo Go only supports one SDK at a time, so any pin other than "latest" forces devices to sideload old Expo Go APKs. If a device's Play Store serves a stale Expo Go (check Settings → Supported SDK in the app), install the current APK from [expo.dev/go](https://expo.dev/go). **Note:** Remote push notifications do NOT work in Expo Go on Android (SDK 53+); you will need an EAS development build for Phase 3 onward regardless of SDK choice.
 *   **Cloud Builds:** **EAS (Expo Application Services)** builds the final Android App Bundle (`.aab`) in the cloud. No local build infrastructure needed beyond Node.js.
 *   **Implications:** Plan for a development build setup midway through Phase 2 to avoid build surprises in Phase 3.
 
@@ -197,7 +197,7 @@ sequenceDiagram
 ## 📋 Implementation Phases
 
 ### Phase 1: Foundation, Auth & API Wiring (Weeks 1-3)
-*   **Android-First Scaffold:** Initialize React Native project using **Expo Router** (file-based navigation) on the SDK matching the current Play Store Expo Go (**SDK 54**). Push testing waits for the Phase 3 EAS dev build either way.
+*   **Android-First Scaffold:** Initialize React Native project using **Expo Router** (file-based navigation) on the **latest stable SDK** (57), matching current Expo Go. Push testing waits for the Phase 3 EAS dev build either way.
 *   **Instant Testing:** Configure **Expo Go** for instant testing on Android devices (no Android Studio needed).
 *   **Supabase Auth & Bearer Tokens:** 
     - Install `@supabase/supabase-js` and configure authentication store with secure keychain caching (`expo-secure-store`).
