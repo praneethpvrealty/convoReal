@@ -69,6 +69,37 @@ and polish.
 
 ### Fixed
 
+- **The reminder templates' quick-reply buttons failed Meta's
+  submission check — "Buttons can't have any variables, newlines,
+  emojis or formatting characters."** (**migration required**:
+  `144_reminder_button_no_emoji.sql`) — the "Fine 👍" button
+  (migration 141) had an emoji, which Meta's Quick Reply buttons
+  don't allow (only plain text). Changed to plain "Fine"; the
+  "Requesting reschedule" button was already unaffected. Only
+  rewrites templates that haven't reached Meta yet, same as prior
+  migrations, and clears the stale `submission_error` left by the
+  earlier failed attempt.
+
+- **Three of the four reminder templates couldn't actually be
+  submitted to Meta — "too many variables for its length."**
+  (**migration required**: `143_reminder_template_wording_fix.sql`)
+  — discovered right after the Draft-submit button fix below made
+  submitting them possible at all. Meta (and our own client-side
+  check in `src/lib/whatsapp/template-validators.ts`, which mirrors
+  it) requires at least 3 static words per `{{n}}` variable on a
+  Utility template. `appointment_reminder` (5 vars, 13 static words)
+  and `appointment_reminder_agenda` (6 vars, 14 static words) came up
+  short from this session's own wording; `property_visit_reminder_agenda`
+  (6 vars, 16 static words, migration 129) turned out to have been
+  short since before this session — it was never actually submittable
+  either, just never noticed since nothing offered a way to submit a
+  Draft template until now. Reworded all three with a few added
+  static words each (e.g. "...this is a friendly reminder **that you
+  have** a scheduled meeting..."); `property_visit_reminder` already
+  had exactly enough and is unchanged. `src/lib/appointments/
+  reminder.ts`'s local Inbox-preview copy updated to match each
+  variant word-for-word.
+
 - **A message template stuck in "Draft" (e.g. a migration-seeded one
   like `appointment_reminder`) had no way to actually be submitted to
   Meta.** Settings → WhatsApp → Templates only showed an "Edit"/
@@ -212,6 +243,20 @@ and polish.
   ('manual' | 'whatsapp_share' | 'chat_import' | 'inquiry_import') and
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
+
+- **Mobile app: "warm estate" redesign from user-supplied reference
+  (`mobile/`)** — full visual system swap to match the chosen design
+  direction: cream canvas + deep forest-green primary + mint-lime
+  accents (replacing violet), label-less floating glass tab bar with a
+  filled circle on the active tab, property cards restructured to the
+  reference (photo framed inside a white card, floating mint status /
+  distance chip, title–price row, bordered spec pills), property
+  detail gains a thumbnail strip over the hero pager and a sticky
+  price + CTA bar (WhatsApp Owner / Open Maps), inbox header becomes a
+  greeting ("Hi, {name}") with avatar and a mint credits chip, map
+  markers become mint price pills, and the app icon/splash regenerate
+  in the green identity. All screens shift via the shared token theme;
+  dark mode gets a green-tinted variant.
 
 - **Mobile app: location suite — GPS near-me, locality autocomplete,
   native maps (`mobile/`)** — the phone now does everything the web's

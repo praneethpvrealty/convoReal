@@ -33,7 +33,8 @@ export default function PropertiesMapScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ['properties-map', search.trim(), listing, near],
     queryFn: async () => {
-      const params = buildPropertyParams(1, search.trim(), listing, near);
+      // Page 0 — the properties API is 0-indexed.
+      const params = buildPropertyParams(0, search.trim(), listing, near);
       params.set('limit', '100');
       return apiFetch<PropertiesResponse>(`/api/properties?${params.toString()}`);
     },
@@ -85,25 +86,30 @@ export default function PropertiesMapScreen() {
         userInterfaceStyle={dark ? 'dark' : 'light'}
         showsUserLocation={Boolean(near && !near.place_id)}
       >
-        {pinned.map((p) => (
-          <Marker
-            key={p.id}
-            coordinate={{ latitude: p.latitude, longitude: p.longitude }}
-            title={p.title}
-            description={[
-              p.listing_type === 'Rent'
-                ? p.rent_per_month
-                  ? `${formatInr(p.rent_per_month)}/mo`
-                  : ''
-                : formatInr(p.price),
-              p.sublocality ?? p.city ?? '',
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-            pinColor={p.status === 'Available' ? '#7c3aed' : '#9ca3af'}
-            onCalloutPress={() => router.push(`/(app)/property/${p.id}`)}
-          />
-        ))}
+        {pinned.map((p) => {
+          const price =
+            p.listing_type === 'Rent'
+              ? p.rent_per_month
+                ? `${formatInr(p.rent_per_month)}/mo`
+                : '—'
+              : formatInr(p.price);
+          const available = p.status === 'Available';
+          return (
+            <Marker
+              key={p.id}
+              coordinate={{ latitude: p.latitude, longitude: p.longitude }}
+              title={p.title}
+              description={[price, p.sublocality ?? p.city ?? ''].filter(Boolean).join(' · ')}
+              onCalloutPress={() => router.push(`/(app)/property/${p.id}`)}
+            >
+              {/* Reference-style mint price pill instead of a pin. */}
+              <View style={[styles.pricePin, !available && styles.pricePinMuted]}>
+                <View style={[styles.pinDot, !available && { backgroundColor: '#69766F' }]} />
+                <Text style={[styles.pinText, !available && { color: '#3d453f' }]}>{price}</Text>
+              </View>
+            </Marker>
+          );
+        })}
       </MapView>
 
       <View style={[styles.footer, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
@@ -130,6 +136,25 @@ export default function PropertiesMapScreen() {
 }
 
 const styles = StyleSheet.create({
+  pricePin: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#D9F3AC',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  pricePinMuted: { backgroundColor: '#E7E4DB' },
+  pinDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#1A4D42' },
+  pinText: { fontSize: 11.5, fontWeight: '800', color: '#1A4D42' },
   footer: {
     position: 'absolute',
     left: spacing.lg,

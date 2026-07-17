@@ -209,6 +209,10 @@ function InboxHeader({
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const credits = useCredits();
+  const session = useAuthStore((s) => s.session);
+  const firstName = (session?.user.email?.split('@')[0] ?? 'there').split(/[._-]/)[0];
+  const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+
   return (
     <View
       style={[
@@ -217,28 +221,34 @@ function InboxHeader({
       ]}
     >
       <View style={styles.headerRow}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Inbox</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
+          <Avatar name={displayName} size={42} />
+          <View>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Hi, {displayName}</Text>
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>Your WhatsApp inbox</Text>
+          </View>
+        </View>
         <View
           style={[
             styles.creditsChip,
             {
-              backgroundColor: credits.total === 0 ? colors.dangerSoft : colors.primarySoft,
+              backgroundColor: credits.total === 0 ? colors.dangerSoft : colors.mint,
             },
           ]}
         >
           <Ionicons
             name={credits.total === 0 ? 'lock-closed' : 'flash'}
             size={13}
-            color={credits.total === 0 ? colors.danger : colors.primary}
+            color={credits.total === 0 ? colors.danger : colors.mintText}
           />
           <Text
             style={{
               fontSize: 12.5,
               fontWeight: '700',
-              color: credits.total === 0 ? colors.danger : colors.primary,
+              color: credits.total === 0 ? colors.danger : colors.mintText,
             }}
           >
-            {credits.isLoading ? '…' : `${credits.total} credits`}
+            {credits.isLoading ? '…' : `${credits.total}`}
           </Text>
         </View>
       </View>
@@ -326,7 +336,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
+  headerTitle: { fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
   creditsChip: {
     flexDirection: 'row',
     alignItems: 'center',

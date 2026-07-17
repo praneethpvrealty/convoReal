@@ -157,12 +157,23 @@ async function sendToAllRecipients(
     const clientName = contact.name || 'Client'
     const visitTitle = appt.property?.title || appt.title || (isSiteVisit ? 'Property visit' : 'Appointment')
     const locationText = appt.location || 'Scheduled Location'
-    const kindText = isSiteVisit
-      ? `your scheduled property visit for "${visitTitle}"`
-      : `your scheduled meeting: "${visitTitle}"`
-    const bodyText = agendaParam
-      ? `Hi ${clientName}, this is a friendly reminder for ${kindText} on ${formattedTime}. Location: ${locationText}. Agenda: ${agendaParam}. Regards, ${accountName}.`
-      : `Hi ${clientName}, this is a friendly reminder for ${kindText} on ${formattedTime}. Location: ${locationText}. Regards, ${accountName}.`
+    // Must mirror the four approved template bodies word-for-word —
+    // Meta renders {{n}} positionally against whatever it approved,
+    // so this string is only the local Inbox preview copy, but it
+    // should still read the same as what the client actually got.
+    // (Word counts matter here: each variant needs >=3 static words
+    // per {{n}} to pass Meta's Utility-template density check — see
+    // supabase/migrations/143_reminder_template_wording_fix.sql.)
+    let bodyText: string
+    if (isSiteVisit && !agendaParam) {
+      bodyText = `Hi ${clientName}, this is a friendly reminder for your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Regards, ${accountName}.`
+    } else if (isSiteVisit) {
+      bodyText = `Hi ${clientName}, this is a friendly reminder that you have a scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the visit: ${agendaParam}. Kind regards, ${accountName}.`
+    } else if (!agendaParam) {
+      bodyText = `Hi ${clientName}, this is a friendly reminder that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Kind regards, ${accountName}.`
+    } else {
+      bodyText = `Hi ${clientName}, this is a friendly reminder that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Kind regards, ${accountName}.`
+    }
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId: appt.account_id,
@@ -182,8 +193,8 @@ async function sendToAllRecipients(
     if (result.success) {
       console.log(`[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to contact ${contact.id}`)
       // Record Meta's message id on the claim row so the webhook can
-      // match an inbound "Fine 👍" / "Requesting reschedule" button
-      // tap (its context.id) back to this appointment.
+      // match an inbound "Fine" / "Requesting reschedule" button tap
+      // (its context.id) back to this appointment.
       if (result.whatsappMessageId) {
         await admin
           .from('appointment_reminder_log')
