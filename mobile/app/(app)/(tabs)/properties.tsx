@@ -168,8 +168,12 @@ function PropertyCard({ property }: { property: Property }) {
 
   return (
     <Link href={`/(app)/property/${property.id}`} asChild>
+      {/* Slot child requires one flat style object (no arrays). */}
       <Pressable
-        style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        style={StyleSheet.flatten([
+          styles.card,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ])}
         android_ripple={{ color: colors.border }}
       >
         {cover ? (

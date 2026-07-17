@@ -156,8 +156,12 @@ export default function PropertyDetailScreen() {
         {property.owner ? (
           <Section title="Owner">
             <Link href={`/(app)/contact/${property.owner_contact_id}`} asChild>
+              {/* Slot child requires one flat style object (no arrays). */}
               <Pressable
-                style={[styles.ownerRow, { backgroundColor: colors.surface, borderColor: colors.border }]}
+                style={StyleSheet.flatten([
+                  styles.ownerRow,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ])}
               >
                 <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
                 <View style={{ flex: 1 }}>

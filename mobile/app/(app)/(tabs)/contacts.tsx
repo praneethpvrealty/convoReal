@@ -159,8 +159,9 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
 
   return (
     <Link href={`/(app)/contact/${contact.id}`} asChild>
+      {/* Slot child requires one flat style object (no arrays). */}
       <Pressable
-        style={[styles.row, { borderBottomColor: colors.border }]}
+        style={StyleSheet.flatten([styles.row, { borderBottomColor: colors.border }])}
         android_ripple={{ color: colors.surface }}
       >
         <Avatar name={name} size={44} />
