@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow } from '@/components/motion';
-import { ConversationSkeleton, EmptyState, FilterChip, Tag } from '@/components/ui';
+import { ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
 import {
   apiFetch,
   placeDetails,
@@ -401,7 +401,11 @@ function LocalitySearchBox() {
   );
 }
 
-/** Full-bleed photo card with a gradient scrim — listing-app grammar. */
+/**
+ * Reference-style card: photo framed inside a white card, floating
+ * mint status chip + star on the photo, title/price row, location,
+ * then bordered spec pills (beds / area / type).
+ */
 function PropertyCard({ property }: { property: Property }) {
   const { colors } = useTheme();
   const gradient = useBrandGradient();
@@ -415,13 +419,6 @@ function PropertyCard({ property }: { property: Property }) {
         ? formatInr(property.price)
         : null;
   const place = [property.sublocality, property.city].filter(Boolean).join(', ');
-  const specs = [
-    property.bedrooms ? `${property.bedrooms} BHK` : null,
-    property.area_sqft ? `${property.area_sqft} ${property.area_unit || 'sqft'}` : null,
-    property.type,
-  ]
-    .filter(Boolean)
-    .join(' · ');
 
   return (
     <Link href={`/(app)/property/${property.id}`} asChild>
@@ -443,41 +440,70 @@ function PropertyCard({ property }: { property: Property }) {
               <Ionicons name="home-outline" size={38} color="rgba(255,255,255,0.85)" />
             </LinearGradient>
           )}
-          <LinearGradient colors={['transparent', 'rgba(0,0,0,0.72)']} style={styles.scrim} />
-          {typeof property.distance_km === 'number' ? (
-            <View style={styles.distanceBadge}>
-              <Ionicons name="location" size={11} color="#fff" />
-              <Text style={styles.distanceText}>
-                {property.location_tier === 'exact' ? 'In area' : `${property.distance_km} km`}
+          {property.listing_type || typeof property.distance_km === 'number' ? (
+            <View style={[styles.statusChip, { backgroundColor: colors.mint }]}>
+              <View style={[styles.statusDot, { backgroundColor: colors.mintText }]} />
+              <Text style={[styles.statusText, { color: colors.mintText }]}>
+                {typeof property.distance_km === 'number'
+                  ? property.location_tier === 'exact'
+                    ? 'In area'
+                    : `${property.distance_km} km`
+                  : property.listing_type}
               </Text>
             </View>
           ) : null}
           {property.is_starred ? (
             <View style={styles.starBadge}>
-              <Ionicons name="star" size={13} color="#fbbf24" />
+              <Ionicons name="star" size={13} color="#F5C33B" />
             </View>
           ) : null}
-          <View style={styles.coverText}>
-            <Text style={styles.coverTitle} numberOfLines={1}>
+        </View>
+
+        <View style={styles.cardBody}>
+          <View style={styles.titleRow}>
+            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
               {property.title}
             </Text>
-            <View style={styles.coverMetaRow}>
-              <Text style={styles.coverPlace} numberOfLines={1}>
-                {place || specs || ' '}
-              </Text>
-              <Text style={styles.coverPrice}>{price ?? ''}</Text>
-            </View>
+            <Text style={[styles.cardPrice, { color: colors.text }]}>{price ?? '—'}</Text>
           </View>
-        </View>
-        <View style={styles.cardFooter}>
-          <Text style={{ flex: 1, fontSize: 12.5, color: colors.textFaint }} numberOfLines={1}>
-            {specs}
-          </Text>
-          {property.listing_type ? <Tag label={property.listing_type} /> : null}
-          {property.status ? <Tag label={property.status} /> : null}
+          {place ? (
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
+              {place}
+            </Text>
+          ) : null}
+          <View style={styles.specRow}>
+            {property.bedrooms ? (
+              <SpecPill icon="bed-outline" label={`${property.bedrooms} Beds`} />
+            ) : null}
+            {property.area_sqft ? (
+              <SpecPill
+                icon="resize-outline"
+                label={`${property.area_sqft} ${property.area_unit || 'Sqft'}`}
+              />
+            ) : null}
+            {property.type ? <SpecPill icon="business-outline" label={property.type} /> : null}
+          </View>
         </View>
       </Pressable>
     </Link>
+  );
+}
+
+function SpecPill({
+  icon,
+  label,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={[styles.specPill, { borderColor: colors.border }]}>
+      <Ionicons name={icon} size={13} color={colors.textMuted} />
+      <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textMuted }} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -542,58 +568,53 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
     borderRadius: radius.xl,
-    overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    padding: 10,
+    elevation: 2,
+    shadowColor: '#1A4D42',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
   },
-  coverWrap: { height: 190 },
+  coverWrap: { height: 175, borderRadius: radius.lg, overflow: 'hidden' },
   coverEmpty: { alignItems: 'center', justifyContent: 'center' },
-  scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 110 },
-  starBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderRadius: radius.full,
-    padding: 6,
-  },
-  distanceBadge: {
+  statusChip: {
     position: 'absolute',
     top: 10,
     left: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    gap: 5,
     borderRadius: radius.full,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  distanceText: { color: '#fff', fontSize: 11.5, fontWeight: '700' },
-  coverText: {
+  statusDot: { width: 5, height: 5, borderRadius: 2.5 },
+  statusText: { fontSize: 11.5, fontWeight: '700' },
+  starBadge: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 10,
-    gap: 2,
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: radius.full,
+    padding: 6,
   },
-  coverTitle: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  coverMetaRow: {
+  cardBody: { paddingHorizontal: 6, paddingTop: 10, paddingBottom: 4, gap: 4 },
+  titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.sm,
+    gap: spacing.md,
   },
-  coverPlace: { flex: 1, color: 'rgba(255,255,255,0.85)', fontSize: 12.5 },
-  coverPrice: { color: '#fff', fontSize: 16, fontWeight: '800' },
-  cardFooter: {
+  cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', letterSpacing: -0.2 },
+  cardPrice: { fontSize: 16.5, fontWeight: '800', letterSpacing: -0.3 },
+  specRow: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
+  specPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: radius.sm,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
   },
 });

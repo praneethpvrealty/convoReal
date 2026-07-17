@@ -6,8 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const { PNG } = require('pngjs');
 
-const VIOLET = [124, 58, 237];
-const FUCHSIA = [192, 38, 211];
+const VIOLET = [26, 77, 66];
+const FUCHSIA = [46, 125, 95];
 
 function lerp(a, b, t) {
   return Math.round(a + (b - a) * t);

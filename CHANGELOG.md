@@ -218,6 +218,20 @@ and polish.
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
 
+- **Mobile app: "warm estate" redesign from user-supplied reference
+  (`mobile/`)** — full visual system swap to match the chosen design
+  direction: cream canvas + deep forest-green primary + mint-lime
+  accents (replacing violet), label-less floating glass tab bar with a
+  filled circle on the active tab, property cards restructured to the
+  reference (photo framed inside a white card, floating mint status /
+  distance chip, title–price row, bordered spec pills), property
+  detail gains a thumbnail strip over the hero pager and a sticky
+  price + CTA bar (WhatsApp Owner / Open Maps), inbox header becomes a
+  greeting ("Hi, {name}") with avatar and a mint credits chip, map
+  markers become mint price pills, and the app icon/splash regenerate
+  in the green identity. All screens shift via the shared token theme;
+  dark mode gets a green-tinted variant.
+
 - **Mobile app: location suite — GPS near-me, locality autocomplete,
   native maps (`mobile/`)** — the phone now does everything the web's
   geo stack does, plus what only a phone can. Properties gains a

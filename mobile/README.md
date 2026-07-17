@@ -60,7 +60,7 @@ separate repo.
 - ✅ **Journeys (read-only)** — every buyer's per-property stage list from
   the same rows the web mind map renders; canvas stays web-only.
 - ✅ **Full dark-mode support** across every screen (system scheme).
-- ✅ **Design language pass** — brand gradient (violet → fuchsia) identity,
+- ✅ **Design language pass** — brand identity (cream + forest green + mint, from the chosen reference design),
   floating blur pill tab bar, staggered list entrances + press physics
   (reanimated), haptic vocabulary (`lib/haptics.ts`), shimmer skeletons,
   Instagram-style HOT-lead story rings in the inbox, full-bleed photo

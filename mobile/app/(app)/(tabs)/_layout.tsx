@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
-import { Platform, StyleSheet } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from '@/lib/haptics';
@@ -9,7 +9,33 @@ import { useTheme } from '@/lib/theme';
 
 /** Bottom padding tab screens should give their scroll content so the
  *  floating pill tab bar never covers the last row. */
-export const TAB_BAR_CLEARANCE = 108;
+export const TAB_BAR_CLEARANCE = 112;
+
+function TabIcon({
+  focused,
+  name,
+  outline,
+}: {
+  focused: boolean;
+  name: keyof typeof Ionicons.glyphMap;
+  outline: keyof typeof Ionicons.glyphMap;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        styles.iconWrap,
+        focused && { backgroundColor: colors.primary },
+      ]}
+    >
+      <Ionicons
+        name={focused ? name : outline}
+        size={21}
+        color={focused ? colors.onPrimary : colors.textFaint}
+      />
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   const { colors, dark } = useTheme();
@@ -20,25 +46,24 @@ export default function TabsLayout() {
       screenListeners={{ tabPress: () => haptic.tap() }}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textFaint,
+        tabBarShowLabel: false,
         // Floating pill: absolute so content scrolls beneath the blur.
         tabBarStyle: {
           position: 'absolute',
-          left: 14,
-          right: 14,
-          bottom: Math.max(insets.bottom, 10),
-          height: 62,
-          borderRadius: 31,
+          left: 18,
+          right: 18,
+          bottom: Math.max(insets.bottom, 12),
+          height: 66,
+          borderRadius: 33,
           borderTopWidth: 0,
-          paddingTop: 6,
+          paddingTop: 10,
           overflow: 'hidden',
-          backgroundColor: dark ? 'rgba(23,20,29,0.72)' : 'rgba(255,255,255,0.72)',
+          backgroundColor: dark ? 'rgba(21,28,25,0.78)' : 'rgba(255,255,255,0.78)',
           elevation: 10,
-          shadowColor: '#000',
-          shadowOpacity: 0.15,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: 6 },
+          shadowColor: '#1A4D42',
+          shadowOpacity: 0.18,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 8 },
         },
         tabBarBackground: () => (
           <BlurView
@@ -48,19 +73,14 @@ export default function TabsLayout() {
             style={StyleSheet.absoluteFill}
           />
         ),
-        tabBarLabelStyle: { fontSize: 10.5, fontWeight: '700' },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Inbox',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
-              size={size}
-              color={color}
-            />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} name="chatbubbles" outline="chatbubbles-outline" />
           ),
         }}
       />
@@ -68,8 +88,8 @@ export default function TabsLayout() {
         name="contacts"
         options={{
           title: 'Contacts',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'people' : 'people-outline'} size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} name="people" outline="people-outline" />
           ),
         }}
       />
@@ -77,8 +97,8 @@ export default function TabsLayout() {
         name="properties"
         options={{
           title: 'Properties',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} name="home" outline="home-outline" />
           ),
         }}
       />
@@ -86,12 +106,8 @@ export default function TabsLayout() {
         name="deals"
         options={{
           title: 'Deals',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'trending-up' : 'trending-up-outline'}
-              size={size}
-              color={color}
-            />
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} name="trending-up" outline="trending-up-outline" />
           ),
         }}
       />
@@ -99,11 +115,11 @@ export default function TabsLayout() {
         name="more"
         options={{
           title: 'More',
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons
-              name={focused ? 'ellipsis-horizontal-circle' : 'ellipsis-horizontal-circle-outline'}
-              size={size}
-              color={color}
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              focused={focused}
+              name="ellipsis-horizontal-circle"
+              outline="ellipsis-horizontal-circle-outline"
             />
           ),
         }}
@@ -111,3 +127,13 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
