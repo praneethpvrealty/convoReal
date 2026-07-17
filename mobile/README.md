@@ -6,23 +6,31 @@ This directory is a self-contained npm project inside the monorepo — see the
 plan's "Repository Strategy" section for why the app lives here and not in a
 separate repo.
 
-## Current state (Phase 1 scaffold)
+## Current state (Phase 1 complete + rich UI pass)
 
-- ✅ Email/password login against the shared Supabase project; session in
-  secure storage (AES key in Keychain/Keystore, ciphertext in AsyncStorage —
-  `lib/secure-store.ts`).
-- ✅ Phone-verification gate mirroring the web (`phone_confirmed_at`,
-  migration 137) — unverified users land on `app/(app)/verify-phone.tsx`.
-- ✅ Inbox (conversations list) + conversation thread with **Supabase
-  Realtime** live updates, backed by TanStack Query persisted to
-  AsyncStorage for offline reads.
-- ✅ Sending text replies through `POST /api/whatsapp/send` with
-  `Authorization: Bearer` (the web repo's `src/lib/supabase/server.ts`
-  accepts bearer tokens as of July 2026).
-- ✅ Contacts tab with native dialer + WhatsApp deep links.
-- ⏳ Phase 2+: media rendering via the auth-gated proxy, pending outbox &
-  24-hour-window awareness, push notifications (needs `device_push_tokens`
-  + worker dispatch — not yet in the web repo), templates, biometrics.
+- ✅ **WhatsApp OTP sign-in** (primary) — `signInWithOtp({ phone,
+  shouldCreateUser: false })` delivered over WhatsApp by the existing
+  Send-SMS hook, with a 6-digit code UI and resend timer; email/password
+  as fallback. Mobile-first: the web has no OTP login.
+- ✅ **Native phone-verification gate** (`phone_confirmed_at`, migration
+  137) — full in-app OTP flow (`updateUser` → `verifyOtp('phone_change')`),
+  mirroring the web's `WhatsappPhoneVerify` semantics.
+- ✅ Session in secure storage (AES key in Keychain/Keystore, ciphertext in
+  AsyncStorage — `lib/secure-store.ts`).
+- ✅ **Rich inbox** — search, status/unread filter chips, live AI-credits
+  chip (realtime `credit_wallets`), skeleton loaders, deterministic-hue
+  avatars, Name Tags, unread badges; Supabase Realtime + TanStack Query
+  persisted to AsyncStorage for offline reads.
+- ✅ **WhatsApp-style thread** — day separators, delivery ticks
+  (✓/✓✓/blue read), failed-send surfacing with the API's error message
+  (24-hour-window aware), bot-message marker, image rendering through the
+  auth-gated media proxy with expired-media placeholder, mark-as-read on
+  open.
+- ✅ Contacts with classification colors, call + WhatsApp deep links.
+- ✅ **Full dark-mode support** across every screen (system scheme).
+- ⏳ Phase 2+: pending outbox (offline queue), template sending, push
+  notifications (needs `device_push_tokens` + worker dispatch — not yet
+  in the web repo), property inventory, biometrics.
 
 ## Running it
 
