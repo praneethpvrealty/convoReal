@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { EnterRow } from '@/components/motion';
 import { Avatar, ConversationSkeleton, EmptyState, Tag } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
@@ -93,6 +95,8 @@ export default function ContactsScreen() {
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['contacts', debounced],
     queryFn: () => fetchContacts(debounced),
+    // Don't wipe the list to skeletons on every keystroke.
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -129,6 +133,7 @@ export default function ContactsScreen() {
           style={{ flex: 1 }}
           data={data ?? []}
           keyExtractor={(c) => c.id}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
           refreshControl={
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
@@ -143,7 +148,11 @@ export default function ContactsScreen() {
               }
             />
           }
-          renderItem={({ item }) => <ContactRow contact={item} dark={dark} />}
+          renderItem={({ item, index }) => (
+            <EnterRow index={index}>
+              <ContactRow contact={item} dark={dark} />
+            </EnterRow>
+          )}
         />
       )}
     </View>
@@ -159,8 +168,9 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
 
   return (
     <Link href={`/(app)/contact/${contact.id}`} asChild>
+      {/* Slot child requires one flat style object (no arrays). */}
       <Pressable
-        style={[styles.row, { borderBottomColor: colors.border }]}
+        style={StyleSheet.flatten([styles.row, { borderBottomColor: colors.border }])}
         android_ripple={{ color: colors.surface }}
       >
         <Avatar name={name} size={44} />

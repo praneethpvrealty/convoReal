@@ -15,8 +15,11 @@ import {
 } from 'react-native';
 
 import { MediaImage } from '@/components/media-image';
+import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
-import { ApiError, sendTextMessage } from '@/lib/api';
+import { ApiError, sendTemplateMessage, sendTextMessage } from '@/lib/api';
+import { haptic } from '@/lib/haptics';
+import type { MessageTemplate } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -302,17 +305,20 @@ function Composer({ conversationId }: { conversationId: string }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
 
   async function send() {
     const text = draft.trim();
     if (!text || sending) return;
     setSending(true);
     setError(null);
+    haptic.send();
     try {
       await sendTextMessage(conversationId, text);
       setDraft('');
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
+      haptic.warn();
       // Outside WhatsApp's 24h service window the API rejects free-form
       // text — surface its message rather than silently retrying.
       setError(err instanceof ApiError ? err.message : 'Failed to send — try again.');
@@ -321,8 +327,41 @@ function Composer({ conversationId }: { conversationId: string }) {
     }
   }
 
+  async function sendTemplate(
+    template: MessageTemplate,
+    bodyParams: string[],
+    renderedText: string
+  ) {
+    if (sending) return;
+    setSending(true);
+    setError(null);
+    haptic.send();
+    try {
+      await sendTemplateMessage({
+        conversationId,
+        templateName: template.name,
+        templateLanguage: template.language,
+        bodyParams,
+        renderedText,
+      });
+      setTemplatesOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to send template.');
+      setTemplatesOpen(false);
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <View>
+      <TemplatePicker
+        visible={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        onSend={sendTemplate}
+        sending={sending}
+      />
       {error ? (
         <View style={[styles.errorBar, { backgroundColor: colors.dangerSoft }]}>
           <Ionicons name="warning-outline" size={14} color={colors.danger} />
@@ -333,6 +372,13 @@ function Composer({ conversationId }: { conversationId: string }) {
         </View>
       ) : null}
       <View style={[styles.composer, { backgroundColor: colors.tabBar, borderTopColor: colors.border }]}>
+        <Pressable
+          style={[styles.templateButton, { backgroundColor: colors.surface }]}
+          onPress={() => setTemplatesOpen(true)}
+          hitSlop={4}
+        >
+          <Ionicons name="albums-outline" size={19} color={colors.primary} />
+        </Pressable>
         <TextInput
           style={[
             styles.input,
@@ -401,6 +447,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   sendButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  templateButton: {
     width: 42,
     height: 42,
     borderRadius: 21,

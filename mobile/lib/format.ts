@@ -56,6 +56,14 @@ export function avatarHue(seed: string): number {
   return h;
 }
 
+/** Indian price notation: ₹85 L, ₹1.2 Cr. */
+export function formatInr(n: number | null | undefined): string {
+  if (!n) return '—';
+  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2).replace(/\.?0+$/, '')} Cr`;
+  if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1).replace(/\.0$/, '')} L`;
+  return `₹${n.toLocaleString('en-IN')}`;
+}
+
 /**
  * Same normalization as the web's WhatsappPhoneVerify: bare 10-digit
  * numbers get +91 (the product's home market); anything else must

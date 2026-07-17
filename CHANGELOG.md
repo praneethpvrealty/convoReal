@@ -54,6 +54,56 @@ and polish.
 
 ### Fixed
 
+- **A message template stuck in "Draft" (e.g. a migration-seeded one
+  like `appointment_reminder`) had no way to actually be submitted to
+  Meta.** Settings → WhatsApp → Templates only showed an "Edit"/
+  "Resubmit" button for `APPROVED`/`REJECTED`/`PAUSED` templates —
+  `DRAFT` rows had nothing but a delete icon, a dead end even though
+  the backend (`PATCH /api/whatsapp/templates/[id]`) already told you
+  to "use New Template to submit it instead" if you somehow got in.
+  Discovered while trying to submit the new meeting-reminder templates
+  below. `src/components/settings/template-manager.tsx` now shows a
+  **Submit** button on `DRAFT` templates that opens the same pre-filled
+  form, routed through `POST /submit` (which upserts onto the existing
+  row) rather than the edit endpoint, with dialog copy that says
+  "submit" instead of incorrectly claiming the template already exists
+  on Meta.
+
+- **Every appointment reminder said "your scheduled property visit,"
+  even for a plain meeting, call, follow-up, or document appointment.**
+  (**migration required**: `140_meeting_reminder_template.sql`) —
+  `src/lib/appointments/reminder.ts` always used the
+  `property_visit_reminder` template regardless of the appointment's
+  `event_type`. Now `event_type === 'site_visit'` keeps that wording;
+  every other type (meeting, call, follow_up, document, other) uses a
+  new neutral pair, `appointment_reminder` /
+  `appointment_reminder_agenda` ("...this is a friendly reminder for
+  your scheduled meeting: ...") — seeded DRAFT for every account, same
+  as the existing agenda variant: submit it from Settings → Templates
+  and wait for Meta's approval before it starts sending for your
+  account.
+
+- **Appointment reminders (morning-of brief, 1-hour-before) never
+  actually fired — the cron that sends them had no automatic
+  trigger.** `checkAndSendAppointmentReminders()`
+  (`src/lib/appointments/reminder.ts`) only ran when something called
+  `GET /api/appointments/cron`, but that route was never registered in
+  `vercel.json`'s `crons` list (checked its entire git history — it
+  never has been), unlike the 5 other scheduled jobs. Nothing in the
+  repo was ever calling it. Registered it in `vercel.json` on a 15-
+  minute schedule, and brought its auth check in line with the other
+  Vercel-scheduled cron routes — it only recognized a custom
+  `x-cron-secret` header before, but Vercel's own cron invocations send
+  `Authorization: Bearer $CRON_SECRET`, which it would have rejected
+  even once scheduled.
+  Also fixed a related gap while in this code: rescheduling an
+  appointment to a new time never reset `reminder_morning_sent` /
+  `reminder_1h_sent`, so an appointment whose reminder had already
+  fired for its old time would silently never remind again after being
+  moved (`src/app/(dashboard)/calendar/page.tsx`'s edit-appointment
+  save path — the one the Calendar UI actually uses — and the
+  `PUT /api/appointments/[id]` route, for any other caller).
+
 - **Every tab switcher and URL-synced filter no-oped in production.**
   The same-pathname router bug fixed for Journey below turned out to
   affect the whole app: the Contacts / Inventory / Dashboard /
@@ -103,6 +153,27 @@ and polish.
 
 ### Added
 
+- **Appointment reminders now have "Fine 👍" / "Requesting reschedule"
+  quick-reply buttons, and a reschedule request notifies the agent.**
+  (**migration required**: `141_reminder_reschedule_buttons.sql`) — all
+  four client-facing reminder templates (`property_visit_reminder`,
+  `property_visit_reminder_agenda`, `appointment_reminder`,
+  `appointment_reminder_agenda`) gain two quick-reply buttons. Tapping
+  "Fine 👍" logs as a normal inbound reply, same as any text message.
+  Tapping "Requesting reschedule" additionally stamps the appointment's
+  new `reschedule_requested_at` — shown as an amber reschedule icon on
+  the Calendar month view and a banner in the edit dialog — and pings
+  the assigned agent directly on WhatsApp (`src/lib/whatsapp/
+  webhook-handler.ts`, matching the button tap back to its appointment
+  via the outbound reminder's Meta message id, now recorded on
+  `appointment_reminder_log.wa_message_id`). Actually moving the
+  appointment to a new time clears the flag automatically. Since this
+  changes the templates' structure, `property_visit_reminder` and
+  `property_visit_reminder_agenda` reset to `DRAFT` for any account
+  that hadn't genuinely gotten them approved by Meta yet (see the
+  phantom-`APPROVED` fix above) — (re)submit all four from Settings →
+  Templates.
+
 - **Journey auto-capture of WhatsApp shares + Captured tray**
   (**migration required**: `138_journey_capture.sql`) — sharing a
   property to contacts over WhatsApp from the app (template, catalog
@@ -126,6 +197,55 @@ and polish.
   ('manual' | 'whatsapp_share' | 'chat_import' | 'inquiry_import') and
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
+
+- **Mobile app: design language pass — motion, gradients, signature
+  moments (`mobile/`)** — the companion app graduates from clean-
+  utilitarian to premium-playful: violet→fuchsia brand gradient
+  (buttons, login hero, Overview hero card), a floating frosted-glass
+  pill tab bar with haptic tab switches, staggered spring entrances
+  and press-scale physics on lists, a shared haptic vocabulary (send /
+  success / warn), shimmer skeletons, Instagram-style gradient story
+  rings for HOT leads atop the inbox, full-bleed photo property cards
+  with gradient scrims, count-up animated stats, a confetti burst when
+  a deal moves to Closed Won, and a branded app icon + splash
+  (chat-bubble-house mark, generated by
+  `mobile/scripts/generate-icons.js`) replacing the default Expo
+  assets. New deps: expo-linear-gradient, expo-haptics, expo-blur.
+
+- **Mobile app: Overview, Broadcasts (view), Automations toggles,
+  Journeys (read-only) (`mobile/`)** — four more web features arrive
+  on mobile via the More tab. Overview: stat cards for today's
+  unread/messages/appointments, open-pipeline value, deals won, hot
+  leads and available listings. Broadcasts: campaign list with live
+  send/delivered/read progress bars (auto-refreshes while a campaign
+  is sending) plus per-recipient status detail with filters —
+  composing stays on the web. Automations: on/off switches driven by
+  the validating `PATCH /api/automations/[id]` route, plus WhatsApp
+  flow statuses — builders stay on the web. Journeys: read-only
+  per-buyer stage lists rendered from the same `journey_items` rows as
+  the web mind map. Billing and Team settings remain deliberately
+  web-only (Play-billing policy and admin surface).
+
+- **Mobile app: core CRM tranche — Inventory, Deals, Calendar,
+  Templates (`mobile/`)** — the companion app grows from
+  inbox+contacts to the core CRM pillars, in a 5-tab layout (Inbox /
+  Contacts / Properties / Deals / More). Properties: list powered by
+  the same `GET /api/properties` search the web uses (natural-language
+  queries like "2bhk in whitefield under 80L" work), listing-type
+  filters, infinite scroll, and a detail screen with photo pager,
+  specs, features and owner link. Deals: pipeline switcher, stage
+  strip with counts and per-stage value totals, and a move-stage sheet
+  applying the web kanban's exact status + property-status side
+  effects. Calendar: upcoming appointments grouped by day with
+  complete/cancel, plus a create form (type, date/time picker,
+  location, contact search) writing the same row shape as the web's
+  schedule dialog — cron-driven WhatsApp reminders apply unchanged.
+  Inbox thread gains an approved-template picker with {{n}} variable
+  inputs and live preview — the compliant way to reach customers
+  outside the 24-hour window (text-header templates in v1). The More
+  tab hosts Calendar, profile/credits, and a directory of
+  deliberately-web-only features (flow builder, broadcasts, Journey,
+  analytics, billing).
 
 - **Mobile app: WhatsApp OTP sign-in + rich UI pass (`mobile/`)** —
   the companion app now signs in with a WhatsApp one-time code as the

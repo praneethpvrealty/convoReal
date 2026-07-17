@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { checkAndSendAppointmentReminders } from '@/lib/appointments/reminder'
 import {
@@ -7,13 +8,28 @@ import {
 } from '@/lib/calendar/agent-reminders'
 import { sendPortalExpiryReminders } from '@/lib/portals/expiry-reminders'
 
+/**
+ * Auth: constant-time check of the shared cron secret, supplied via the
+ * repo-standard `x-cron-secret` header OR Vercel Cron's native
+ * `Authorization: Bearer` (this job is registered in vercel.json),
+ * matched against `AUTOMATION_CRON_SECRET` or `CRON_SECRET`. Fails
+ * CLOSED (503) when no secret is configured.
+ */
 export async function GET(request: Request) {
-  const expected = process.env.AUTOMATION_CRON_SECRET
+  const expected = process.env.AUTOMATION_CRON_SECRET || process.env.CRON_SECRET
   if (!expected) {
     return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
   }
-  const supplied = request.headers.get('x-cron-secret')
-  if (supplied !== expected) {
+  const supplied =
+    request.headers.get('x-cron-secret') ||
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+    ''
+  const suppliedBuf = Buffer.from(supplied)
+  const expectedBuf = Buffer.from(expected)
+  if (
+    suppliedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(suppliedBuf, expectedBuf)
+  ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

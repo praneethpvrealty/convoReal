@@ -1,17 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { avatarHue, initials } from '@/lib/format';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { hotGradient, radius, spacing, useTheme } from '@/lib/theme';
 
-/** Initials avatar with a deterministic hue per contact. */
-export function Avatar({ name, size = 46 }: { name: string; size?: number }) {
+/**
+ * Initials avatar with a deterministic hue per contact. `ring` draws
+ * an Instagram-style gradient ring (used for HOT leads).
+ */
+export function Avatar({
+  name,
+  size = 46,
+  ring = false,
+}: {
+  name: string;
+  size?: number;
+  ring?: boolean;
+}) {
   const { dark } = useTheme();
   const hue = avatarHue(name);
   const bg = dark ? `hsl(${hue}, 42%, 26%)` : `hsl(${hue}, 65%, 90%)`;
   const fg = dark ? `hsl(${hue}, 70%, 78%)` : `hsl(${hue}, 55%, 34%)`;
-  return (
+
+  const core = (
     <View
       style={{
         width: size,
@@ -26,6 +39,33 @@ export function Avatar({ name, size = 46 }: { name: string; size?: number }) {
         {initials(name)}
       </Text>
     </View>
+  );
+
+  if (!ring) return core;
+  const pad = Math.max(2.5, size * 0.055);
+  return (
+    <LinearGradient
+      colors={hotGradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{
+        width: size + pad * 2 + 3,
+        height: size + pad * 2 + 3,
+        borderRadius: (size + pad * 2 + 3) / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          padding: 1.5,
+          borderRadius: (size + 3) / 2,
+          backgroundColor: dark ? '#121016' : '#ffffff',
+        }}
+      >
+        {core}
+      </View>
+    </LinearGradient>
   );
 }
 
@@ -103,24 +143,37 @@ export function Tag({ label, color }: { label: string; color?: string }) {
   );
 }
 
-/** Pulsing placeholder block while a list loads. */
+/** Shimmering placeholder block while a list loads. */
 export function Skeleton({ style }: { style?: ViewStyle }) {
-  const { colors } = useTheme();
-  const pulse = useRef(new Animated.Value(0.45)).current;
+  const { colors, dark } = useTheme();
+  const sweep = useRef(new Animated.Value(-1)).current;
   useEffect(() => {
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 650, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0.45, duration: 650, useNativeDriver: true }),
-      ])
+      Animated.timing(sweep, { toValue: 1, duration: 1100, useNativeDriver: true })
     );
     loop.start();
     return () => loop.stop();
-  }, [pulse]);
+  }, [sweep]);
+
+  const translateX = sweep.interpolate({ inputRange: [-1, 1], outputRange: [-160, 160] });
+  const sheen = dark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.65)';
+
   return (
-    <Animated.View
-      style={[{ backgroundColor: colors.surface, borderRadius: radius.sm, opacity: pulse }, style]}
-    />
+    <View
+      style={[
+        { backgroundColor: colors.surface, borderRadius: radius.sm, overflow: 'hidden' },
+        style,
+      ]}
+    >
+      <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX }] }]}>
+        <LinearGradient
+          colors={['transparent', sheen, 'transparent']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+    </View>
   );
 }
 

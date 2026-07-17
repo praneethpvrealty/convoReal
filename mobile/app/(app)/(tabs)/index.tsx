@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EnterRow } from '@/components/motion';
 import {
   Avatar,
   ConversationSkeleton,
@@ -22,7 +23,9 @@ import {
   Tag,
   UnreadBadge,
 } from '@/components/ui';
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
+import type { Contact } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -92,6 +95,8 @@ export default function InboxScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <InboxHeader search={search} onSearch={setSearch} />
 
+      <HotLeadsStrip />
+
       <View style={styles.filtersRow}>
         <ScrollView
           horizontal
@@ -115,6 +120,7 @@ export default function InboxScreen() {
           style={{ flex: 1 }}
           data={filtered}
           keyExtractor={(c) => c.id}
+          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
           refreshControl={
             <RefreshControl
               refreshing={isFetching}
@@ -137,10 +143,59 @@ export default function InboxScreen() {
               />
             )
           }
-          renderItem={({ item }) => <ConversationRow conversation={item} />}
+          renderItem={({ item, index }) => (
+            <EnterRow index={index}>
+              <ConversationRow conversation={item} />
+            </EnterRow>
+          )}
         />
       )}
     </View>
+  );
+}
+
+/** Instagram-style ring strip of HOT leads — tap to open the contact. */
+function HotLeadsStrip() {
+  const { colors } = useTheme();
+  const { data } = useQuery({
+    queryKey: ['hot-leads'],
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from('contacts')
+        .select('id, name, phone')
+        .eq('lead_temp', 'HOT')
+        .order('updated_at', { ascending: false })
+        .limit(12);
+      if (error) throw error;
+      return (rows ?? []) as Contact[];
+    },
+  });
+
+  if (!data?.length) return null;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={{ flexGrow: 0, marginTop: spacing.sm }}
+      contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
+    >
+      {data.map((c) => {
+        const name = c.name || c.phone;
+        return (
+          <Link key={c.id} href={`/(app)/contact/${c.id}`} asChild>
+            <Pressable style={{ alignItems: 'center', gap: 4, width: 62 }}>
+              <Avatar name={name} size={50} ring />
+              <Text
+                style={{ fontSize: 11, fontWeight: '600', color: colors.textMuted }}
+                numberOfLines={1}
+              >
+                {name.split(/\s+/)[0]}
+              </Text>
+            </Pressable>
+          </Link>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -218,10 +273,10 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 
   return (
     <Link href={`/(app)/conversation/${conversation.id}`} asChild>
-      {/* Static styles only — a style FUNCTION here breaks flex layout
-          when Link (asChild) merges its props onto the Pressable. */}
+      {/* expo-router's <Slot> child needs ONE flat style object — no
+          arrays, no style functions (both break under Link asChild). */}
       <Pressable
-        style={[styles.row, { borderBottomColor: colors.border }]}
+        style={StyleSheet.flatten([styles.row, { borderBottomColor: colors.border }])}
         android_ripple={{ color: colors.surface }}
       >
         <Avatar name={name} />

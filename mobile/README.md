@@ -26,11 +26,43 @@ separate repo.
   (24-hour-window aware), bot-message marker, image rendering through the
   auth-gated media proxy with expired-media placeholder, mark-as-read on
   open.
-- ✅ Contacts with classification colors, call + WhatsApp deep links.
+- ✅ Contacts with classification colors, call + WhatsApp deep links, and a
+  detail card with edit mode; search covers names, phones, tags, notes,
+  company and requirements (web parity).
+- ✅ **Property inventory** — list via the web's `GET /api/properties`
+  (inherits its natural-language + geo search), listing-type filters,
+  infinite scroll, image cards; detail screen with photo pager, specs
+  grid, features, owner link and Google Maps.
+- ✅ **Deals** — mobile take on the kanban: pipeline switcher, stage strip
+  with counts, per-stage value totals, move-stage sheet with the same
+  status + property-status side effects as the web board.
+- ✅ **Calendar** — upcoming appointments grouped by day, complete/cancel
+  actions, and a create form (type, date/time, location, contact picker)
+  inserting the same row shape as the web's schedule dialog (WhatsApp
+  reminders are cron-driven off the row).
+- ✅ **Template sending** in the thread — approved-template picker with
+  {{n}} variable form and live preview; the answer to WhatsApp's
+  24-hour service window. Text-header templates only in v1.
+- ✅ **Overview dashboard** — today's unread/messages/appointments, pipeline
+  value, hot leads, available listings (RLS-scoped count queries).
+- ✅ **Broadcasts (view)** — campaign list with live delivery/read progress
+  (auto-polls while sending) and a per-recipient detail with status
+  filters. Note: RLS is user-scoped — you see campaigns you created.
+- ✅ **Automations & Flows** — toggle your automations on/off (via the
+  validating API route) and see flow statuses; builders stay web-only.
+- ✅ **Journeys (read-only)** — every buyer's per-property stage list from
+  the same rows the web mind map renders; canvas stays web-only.
 - ✅ **Full dark-mode support** across every screen (system scheme).
-- ⏳ Phase 2+: pending outbox (offline queue), template sending, push
-  notifications (needs `device_push_tokens` + worker dispatch — not yet
-  in the web repo), property inventory, biometrics.
+- ✅ **Design language pass** — brand gradient (violet → fuchsia) identity,
+  floating blur pill tab bar, staggered list entrances + press physics
+  (reanimated), haptic vocabulary (`lib/haptics.ts`), shimmer skeletons,
+  Instagram-style HOT-lead story rings in the inbox, full-bleed photo
+  property cards with gradient scrims, animated stat counters + gradient
+  hero on Overview, confetti when a deal closes Won, and a branded app
+  icon/splash (regenerate via `node scripts/generate-icons.js`).
+- ⏳ Next: pending outbox (offline queue), push notifications (needs
+  `device_push_tokens` + worker dispatch — not yet in the web repo),
+  media-header templates, property editing, broadcast composing, biometrics.
 
 ## Running it
 

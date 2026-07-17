@@ -77,3 +77,196 @@ export interface Profile {
   account_id: string;
   account_role: string;
 }
+
+// ------------------------------------------------------------------
+// Inventory (properties table; list served by GET /api/properties)
+// ------------------------------------------------------------------
+
+export interface Property {
+  id: string;
+  title: string;
+  property_code?: string | null;
+  description?: string | null;
+  price?: number | null;
+  rent_per_month?: number | null;
+  location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  type?: string | null;
+  status?: string | null;
+  listing_type?: 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit' | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  area_sqft?: number | null;
+  area_unit?: string | null;
+  land_area?: number | null;
+  land_area_unit?: string | null;
+  facing_direction?: string | null;
+  features?: string[] | null;
+  /** Public Supabase Storage URLs, renderable directly. */
+  images?: string[] | null;
+  is_published?: boolean;
+  is_starred?: boolean;
+  google_map_link?: string | null;
+  owner_contact_id?: string | null;
+  owner?: { name?: string | null; phone?: string | null } | null;
+  created_at?: string;
+}
+
+export interface PropertiesResponse {
+  data: Property[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+// ------------------------------------------------------------------
+// Pipelines / deals (direct RLS-scoped reads, like the web kanban)
+// ------------------------------------------------------------------
+
+export interface Pipeline {
+  id: string;
+  name: string;
+}
+
+export interface PipelineStage {
+  id: string;
+  pipeline_id: string;
+  name: string;
+  position: number;
+  color?: string | null;
+}
+
+export interface Deal {
+  id: string;
+  pipeline_id: string;
+  stage_id: string;
+  contact_id?: string | null;
+  conversation_id?: string | null;
+  property_id?: string | null;
+  title: string;
+  value?: number | null;
+  currency?: string | null;
+  status: 'open' | 'won' | 'lost';
+  expected_close_date?: string | null;
+  contact?: Contact | null;
+  property?: Property | null;
+}
+
+// ------------------------------------------------------------------
+// Calendar (appointments table — direct reads/inserts, like the web)
+// ------------------------------------------------------------------
+
+export type AppointmentType =
+  | 'site_visit'
+  | 'call'
+  | 'follow_up'
+  | 'document'
+  | 'meeting'
+  | 'other';
+
+export interface Appointment {
+  id: string;
+  title: string;
+  description?: string | null;
+  start_time: string;
+  end_time?: string | null;
+  location?: string | null;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  event_type: AppointmentType;
+  contact_id?: string | null;
+  contact_ids?: string[] | null;
+  property_id?: string | null;
+  agenda?: string | null;
+  contact?: Contact | null;
+  property?: { id: string; title: string; location?: string | null } | null;
+}
+
+// ------------------------------------------------------------------
+// Broadcasts (user_id-scoped RLS — you see campaigns YOU created)
+// ------------------------------------------------------------------
+
+export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
+
+export interface Broadcast {
+  id: string;
+  name: string;
+  template_name?: string | null;
+  status: BroadcastStatus;
+  scheduled_at?: string | null;
+  total_recipients: number;
+  sent_count: number;
+  delivered_count: number;
+  read_count: number;
+  replied_count: number;
+  failed_count: number;
+  created_at: string;
+}
+
+export interface BroadcastRecipient {
+  id: string;
+  status: 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'rate_limited';
+  error_message?: string | null;
+  contact?: Contact | null;
+}
+
+// ------------------------------------------------------------------
+// Automations & Flows (user_id-scoped; toggled via API routes)
+// ------------------------------------------------------------------
+
+export interface AutomationRow {
+  id: string;
+  name: string;
+  description?: string | null;
+  trigger_type: string;
+  is_active: boolean;
+  execution_count?: number | null;
+  last_executed_at?: string | null;
+}
+
+export interface FlowRow {
+  id: string;
+  name: string;
+  description?: string | null;
+  status: 'draft' | 'active' | 'archived';
+  trigger_type?: string | null;
+  execution_count?: number | null;
+}
+
+// ------------------------------------------------------------------
+// Journey (account-scoped; read-only list on mobile)
+// ------------------------------------------------------------------
+
+export interface JourneyStage {
+  id: string;
+  name: string;
+  color?: string | null;
+  position: number;
+}
+
+export interface JourneyItem {
+  id: string;
+  contact_id: string;
+  property_id: string;
+  stage_id: string;
+  status: 'active' | 'dropped';
+  drop_reason?: string | null;
+  hidden: boolean;
+  updated_at?: string;
+  contact?: Contact | null;
+  property?: { id: string; title: string } | null;
+}
+
+// ------------------------------------------------------------------
+// WhatsApp templates (message_templates, status APPROVED)
+// ------------------------------------------------------------------
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category?: string | null;
+  header_type?: 'text' | 'image' | 'video' | 'document' | null;
+  header_content?: string | null;
+  body_text: string;
+  footer_text?: string | null;
+  status: string;
+}

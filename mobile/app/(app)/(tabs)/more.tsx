@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
@@ -8,8 +10,24 @@ import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
 
-export default function SettingsScreen() {
+const WORKSPACE_LINKS = [
+  { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
+  { href: '/(app)/calendar', icon: 'calendar-outline', label: 'Calendar & Site Visits' },
+  { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
+  { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
+  { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },
+] as const;
+
+/** Deliberately web-only (billing policy, admin surface, canvas editors). */
+const WEB_ONLY = [
+  { icon: 'construct-outline', label: 'Flow & Automation Builders' },
+  { icon: 'card-outline', label: 'Billing & AI Credit Top-ups' },
+  { icon: 'people-circle-outline', label: 'Team & Workspace Settings' },
+] as const;
+
+export default function MoreScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
   const credits = useCredits();
@@ -19,9 +37,9 @@ export default function SettingsScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
-      contentContainerStyle={styles.container}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + spacing.sm }]}
     >
-      <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
+      <Text style={[styles.title, { color: colors.text }]}>More</Text>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={styles.profileRow}>
@@ -40,34 +58,49 @@ export default function SettingsScreen() {
             </Text>
           </View>
         </View>
-        <Row
+        <InfoRow
           icon="logo-whatsapp"
           label="WhatsApp number"
           value={session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : 'Not set'}
         />
-      </View>
-
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Row
+        <InfoRow
           icon="flash-outline"
           label="AI credits"
           value={credits.isLoading ? '…' : String(credits.total)}
         />
+      </View>
+
+      <SectionLabel text="Workspace" />
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {WORKSPACE_LINKS.map((link) => (
+          <Link key={link.href} href={link.href} asChild>
+            <Pressable style={styles.navRow} android_ripple={{ color: colors.border }}>
+              <Ionicons name={link.icon} size={20} color={colors.primary} />
+              <Text style={[styles.navLabel, { color: colors.text }]}>{link.label}</Text>
+              <Ionicons name="chevron-forward" size={17} color={colors.textFaint} />
+            </Pressable>
+          </Link>
+        ))}
+      </View>
+
+      <SectionLabel text="On the web app" />
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        {WEB_ONLY.map((f) => (
+          <View key={f.label} style={styles.navRow}>
+            <Ionicons name={f.icon} size={19} color={colors.textMuted} />
+            <Text style={[styles.navLabel, { color: colors.textMuted }]}>{f.label}</Text>
+            <Ionicons name="globe-outline" size={15} color={colors.textFaint} />
+          </View>
+        ))}
         <Text style={[styles.cardHint, { color: colors.textFaint }]}>
-          {credits.total === 0
-            ? 'Out of credits — AI features are locked. Top up from the web app.'
-            : 'Credit top-ups and plan management live in the web app.'}
+          These need a bigger screen or are deliberately web-only — open the web app to use them.
         </Text>
       </View>
 
       <Pressable
         style={({ pressed }) => [
           styles.signOut,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            opacity: pressed ? 0.7 : 1,
-          },
+          { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
         ]}
         onPress={() => supabase.auth.signOut()}
       >
@@ -77,13 +110,30 @@ export default function SettingsScreen() {
 
       <Text style={[styles.footer, { color: colors.textFaint }]}>
         ConvoReal companion · v{Constants.expoConfig?.version ?? '0.1.0'}
-        {'\n'}Account management, billing and inventory editing live on the web.
       </Text>
     </ScrollView>
   );
 }
 
-function Row({
+function SectionLabel({ text }: { text: string }) {
+  const { colors } = useTheme();
+  return (
+    <Text
+      style={{
+        fontSize: 12.5,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+        color: colors.textFaint,
+        marginTop: spacing.sm,
+      }}
+    >
+      {text}
+    </Text>
+  );
+}
+
+function InfoRow({
   icon,
   label,
   value,
@@ -94,7 +144,7 @@ function Row({
 }) {
   const { colors } = useTheme();
   return (
-    <View style={[styles.row, { borderTopColor: colors.border }]}>
+    <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
       <Ionicons name={icon} size={18} color={colors.textMuted} />
       <Text style={{ flex: 1, fontSize: 14.5, color: colors.textMuted }}>{label}</Text>
       <Text style={{ fontSize: 14.5, fontWeight: '600', color: colors.text }}>{value}</Text>
@@ -103,7 +153,7 @@ function Row({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, paddingTop: 54, gap: spacing.lg },
+  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
   title: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   card: {
     borderRadius: radius.lg,
@@ -116,19 +166,23 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.lg,
   },
-  roleChip: {
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  roleChip: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 13,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  row: {
+  navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
+  navLabel: { flex: 1, fontSize: 15, fontWeight: '600' },
   cardHint: {
     fontSize: 12,
     lineHeight: 17,
@@ -143,6 +197,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 15,
+    marginTop: spacing.sm,
   },
-  footer: { fontSize: 12, textAlign: 'center', lineHeight: 18, marginTop: spacing.sm },
+  footer: { fontSize: 12, textAlign: 'center', marginTop: spacing.sm },
 });

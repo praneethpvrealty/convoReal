@@ -259,7 +259,7 @@ export default function PulsePage() {
               <div>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center">
                   Unique Sessions
-                  <InfoHint text="Distinct browsing sessions across all shared links — one session per client per link visit." />
+                  <InfoHint text="Distinct devices/browsers seen across all shared links — a returning visitor on the same device counts once. Your own link previews count too." />
                 </p>
                 <h3 className="text-2xl font-black text-white mt-1.5">{stats?.uniqueSessions ?? 0}</h3>
               </div>
@@ -324,7 +324,8 @@ export default function PulsePage() {
                   <span className="text-[11px] text-slate-300 leading-relaxed">
                     Most of this activity is <strong className="text-white">Anonymous</strong>.
                     Send links personally from{" "}
-                    <strong className="text-primary">Inventory → Share Showcase → Send personally</strong>{" "}
+                    <strong className="text-primary">Inventory → Share Showcase</strong> or a
+                    property&apos;s <strong className="text-primary">Share → Send personally (tracked)</strong>{" "}
                     to see visitors by name here.
                   </span>
                   <ArrowRight className="size-3.5 text-primary shrink-0 ml-auto group-hover:translate-x-0.5 transition-transform" />
@@ -436,7 +437,7 @@ export default function PulsePage() {
                       <div className="flex justify-between items-center text-[10px] font-extrabold pt-1.5 border-t border-slate-850">
                         <span className="text-slate-400 flex items-center gap-1">
                           <Users className="size-3 text-sky-400" />
-                          {uniqueViewsCount} unique buyers
+                          {uniqueViewsCount} unique visitor{uniqueViewsCount === 1 ? "" : "s"}
                         </span>
                         <span className="text-slate-400 flex items-center gap-1">
                           <Eye className="size-3 text-emerald-400" />
