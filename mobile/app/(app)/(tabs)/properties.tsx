@@ -110,11 +110,13 @@ export default function PropertiesScreen() {
   } = useInfiniteQuery({
       queryKey: ['properties', debounced, listing, near],
       queryFn: ({ pageParam }) => fetchPropertyPage(pageParam, debounced, listing, near),
-      initialPageParam: 1,
-      getNextPageParam: (last) =>
-        last.pagination.page < last.pagination.totalPages
-          ? last.pagination.page + 1
-          : undefined,
+      // The properties API is 0-INDEXED (`from = page * limit` in
+      // route.ts) — page 1 means "skip the first 20 rows".
+      initialPageParam: 0,
+      getNextPageParam: (last) => {
+        const next = last.pagination.page + 1;
+        return next < last.pagination.totalPages ? next : undefined;
+      },
       // Keep showing the previous results while a new search loads —
       // otherwise every keystroke wipes the list to skeletons.
       placeholderData: keepPreviousData,

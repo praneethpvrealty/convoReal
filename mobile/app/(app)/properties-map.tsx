@@ -33,7 +33,8 @@ export default function PropertiesMapScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ['properties-map', search.trim(), listing, near],
     queryFn: async () => {
-      const params = buildPropertyParams(1, search.trim(), listing, near);
+      // Page 0 — the properties API is 0-indexed.
+      const params = buildPropertyParams(0, search.trim(), listing, near);
       params.set('limit', '100');
       return apiFetch<PropertiesResponse>(`/api/properties?${params.toString()}`);
     },
