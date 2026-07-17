@@ -1,5 +1,5 @@
 -- ============================================================
--- 140_journey_planned_steps.sql
+-- 142_journey_planned_steps.sql
 -- Planned next steps on the Journey mind map.
 --
 -- An active contact×property pair can carry ONE planned next step:

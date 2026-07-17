@@ -14,7 +14,7 @@ and polish.
 ### Added
 
 - **Journey: planned next steps with expected timelines**
-  (**migration required**: `140_journey_planned_steps.sql`) — an
+  (**migration required**: `142_journey_planned_steps.sql`) — an
   active property/contact on the journey can now carry its expected
   next move: pick the stage and the date in the item's detail sheet
   ("Plan next step…"), and the mind map grows a **ghost card** at that

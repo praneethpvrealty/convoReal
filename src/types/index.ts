@@ -588,7 +588,7 @@ export interface JourneyItem {
   hidden: boolean;
   drop_reason?: string | null;
   dropped_at?: string | null;
-  /** Planned next step (migration 140) — ghost node on the map until
+  /** Planned next step (migration 142) — ghost node on the map until
    *  reached or cleared; any stage move clears it. */
   planned_stage_id?: string | null;
   planned_at?: string | null;
