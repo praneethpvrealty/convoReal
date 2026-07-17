@@ -54,6 +54,17 @@ and polish.
 
 ### Fixed
 
+- **The reminder templates' quick-reply buttons failed Meta's
+  submission check — "Buttons can't have any variables, newlines,
+  emojis or formatting characters."** (**migration required**:
+  `144_reminder_button_no_emoji.sql`) — the "Fine 👍" button
+  (migration 141) had an emoji, which Meta's Quick Reply buttons
+  don't allow (only plain text). Changed to plain "Fine"; the
+  "Requesting reschedule" button was already unaffected. Only
+  rewrites templates that haven't reached Meta yet, same as prior
+  migrations, and clears the stale `submission_error` left by the
+  earlier failed attempt.
+
 - **Three of the four reminder templates couldn't actually be
   submitted to Meta — "too many variables for its length."**
   (**migration required**: `143_reminder_template_wording_fix.sql`)
