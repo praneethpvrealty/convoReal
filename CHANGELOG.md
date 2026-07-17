@@ -13,6 +13,21 @@ and polish.
 
 ### Added
 
+- **Light mode, app-wide.** A sun/moon toggle in the header switches
+  the whole CRM between the original dark look and a new light theme
+  (persisted per device, synced across tabs, no flash on load — the
+  existing accent-theme boot script now applies `data-mode` too).
+  Light mode is an orthogonal axis on top of the 5 accent themes:
+  the accent keeps supplying `--primary`, while
+  `html[data-mode="light"]` in `globals.css` flips every neutral —
+  the shadcn tokens AND the slate utility ramp (Tailwind v4 color
+  variables, so the thousands of hardcoded `bg-slate-900`-style
+  classes invert without touching components). Accent text tuned for
+  dark backgrounds (`text-emerald-300` etc.) is remapped to darker
+  steps for contrast on white. The Journey canvas's JS-side colors
+  (edges, background dots, minimap mask, edge labels) follow the mode
+  via `useTheme`, and the toast stack restyles to match.
+
 - **Journey: planned next steps with expected timelines**
   (**migration required**: `142_journey_planned_steps.sql`) — an
   active property/contact on the journey can now carry its expected

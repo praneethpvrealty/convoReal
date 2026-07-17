@@ -79,3 +79,21 @@ export function isThemeId(value: unknown): value is ThemeId {
     (THEME_IDS as ReadonlyArray<string>).includes(value)
   );
 }
+
+/* ============================================================
+ * Light/dark MODE — an orthogonal axis on top of the accent
+ * themes. `data-mode="light"` on <html> flips the neutral
+ * surfaces (shadcn tokens + the slate utility ramp) in
+ * globals.css while the accent theme keeps supplying --primary.
+ * Dark is the default and renders exactly as before.
+ * ============================================================ */
+
+export const MODE_STORAGE_KEY = "convoreal.mode";
+
+export type ThemeMode = "dark" | "light";
+
+export const DEFAULT_MODE: ThemeMode = "dark";
+
+export function isThemeMode(value: unknown): value is ThemeMode {
+  return value === "dark" || value === "light";
+}

@@ -1,11 +1,17 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
-import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
-import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from "@/lib/themes";
+import {
+  DEFAULT_MODE,
+  DEFAULT_THEME,
+  MODE_STORAGE_KEY,
+  STORAGE_KEY,
+  THEME_IDS,
+} from "@/lib/themes";
+import { ThemedToaster } from "@/components/layout/themed-toaster";
 import { DeploymentCheck } from "@/components/deployment-check";
 
 const inter = Inter({
@@ -56,8 +62,13 @@ const THEME_BOOT_SCRIPT = `
     var saved = localStorage.getItem(STORAGE_KEY);
     var theme = ALLOWED.indexOf(saved) !== -1 ? saved : DEFAULT;
     document.documentElement.dataset.theme = theme;
+    var MODE_KEY = ${JSON.stringify(MODE_STORAGE_KEY)};
+    var savedMode = localStorage.getItem(MODE_KEY);
+    document.documentElement.dataset.mode =
+      savedMode === "light" ? "light" : ${JSON.stringify(DEFAULT_MODE)};
   } catch (_e) {
     document.documentElement.dataset.theme = ${JSON.stringify(DEFAULT_THEME)};
+    document.documentElement.dataset.mode = ${JSON.stringify(DEFAULT_MODE)};
   }
 })();
 `;
@@ -71,6 +82,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme={DEFAULT_THEME}
+      data-mode={DEFAULT_MODE}
       className={`${inter.variable} h-full antialiased`}
       suppressHydrationWarning
     >
@@ -86,17 +98,7 @@ export default function RootLayout({
           <DeploymentCheck />
           {children}
           <Analytics />
-          <Toaster
-            theme="dark"
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: "rgb(30 41 59)",
-                border: "1px solid rgb(51 65 85)",
-                color: "white",
-              },
-            }}
-          />
+          <ThemedToaster />
         </ThemeProvider>
       </body>
     </html>

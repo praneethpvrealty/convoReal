@@ -10,20 +10,29 @@ import {
 } from "react";
 
 import {
+  DEFAULT_MODE,
   DEFAULT_THEME,
+  MODE_STORAGE_KEY,
   STORAGE_KEY,
   isThemeId,
+  isThemeMode,
   type ThemeId,
+  type ThemeMode,
 } from "@/lib/themes";
 
 /**
  * ThemeProvider — wraps the whole app, owns the active theme state.
  *
+ * Two orthogonal axes:
+ *   - theme: which of the 5 accent palettes (violet/emerald/…)
+ *   - mode:  dark (default, the original look) or light — flips the
+ *     neutral surfaces via `data-mode` on <html> (see globals.css)
+ *
  * The boot script in `src/app/layout.tsx` has already applied
- * `document.documentElement.dataset.theme` before React hydrates, so
- * by the time this Provider mounts the page is already painted in
- * the right colors. We just have to read what's there and keep it
- * in sync going forward.
+ * `document.documentElement.dataset.theme` / `.mode` before React
+ * hydrates, so by the time this Provider mounts the page is already
+ * painted in the right colors. We just have to read what's there and
+ * keep it in sync going forward.
  *
  * Persistence is localStorage only (device-scoped). A future
  * follow-up could mirror to `profiles.preferences` for cross-device
@@ -34,6 +43,8 @@ import {
 interface ThemeContextValue {
   theme: ThemeId;
   setTheme: (next: ThemeId) => void;
+  mode: ThemeMode;
+  setMode: (next: ThemeMode) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -54,8 +65,22 @@ function readInitialTheme(): ThemeId {
   return DEFAULT_THEME;
 }
 
+function readInitialMode(): ThemeMode {
+  if (typeof window === "undefined") return DEFAULT_MODE;
+  const fromAttr = document.documentElement.dataset.mode;
+  if (isThemeMode(fromAttr)) return fromAttr;
+  try {
+    const stored = localStorage.getItem(MODE_STORAGE_KEY);
+    if (isThemeMode(stored)) return stored;
+  } catch {
+    // See readInitialTheme.
+  }
+  return DEFAULT_MODE;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeId>(readInitialTheme);
+  const [mode, setModeState] = useState<ThemeMode>(readInitialMode);
 
   const setTheme = useCallback((next: ThemeId) => {
     setThemeState(next);
@@ -70,22 +95,37 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const setMode = useCallback((next: ThemeMode) => {
+    setModeState(next);
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.mode = next;
+    }
+    try {
+      localStorage.setItem(MODE_STORAGE_KEY, next);
+    } catch {
+      // As above.
+    }
+  }, []);
+
   // Sync from other tabs — if you change your theme in tab A, tab B
   // catches up without a refresh.
   useEffect(() => {
     function onStorage(e: StorageEvent) {
-      if (e.key !== STORAGE_KEY) return;
-      if (isThemeId(e.newValue) && e.newValue !== theme) {
+      if (e.key === STORAGE_KEY && isThemeId(e.newValue) && e.newValue !== theme) {
         setThemeState(e.newValue);
         document.documentElement.dataset.theme = e.newValue;
+      }
+      if (e.key === MODE_STORAGE_KEY && isThemeMode(e.newValue) && e.newValue !== mode) {
+        setModeState(e.newValue);
+        document.documentElement.dataset.mode = e.newValue;
       }
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [theme]);
+  }, [theme, mode]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, mode, setMode }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -100,6 +140,8 @@ export function useTheme(): ThemeContextValue {
     return {
       theme: DEFAULT_THEME,
       setTheme: () => {},
+      mode: DEFAULT_MODE,
+      setMode: () => {},
     };
   }
   return ctx;

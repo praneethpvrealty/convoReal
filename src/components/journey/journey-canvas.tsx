@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/use-theme";
 import { formatCurrencyShort } from "@/lib/currency-utils";
 import type { Contact, JourneyItem, JourneyStage, Property } from "@/types";
 import {
@@ -81,6 +82,30 @@ const FIRST_COL_X = ROOT_W + 130;
 const HEADER_Y = -96;
 
 const colX = (stageIdx: number) => FIRST_COL_X + stageIdx * COL_W;
+
+/** JS-side colors React Flow needs as literal values (edges, dots,
+ *  labels) — everything class-based flips via CSS variables, these
+ *  are the stragglers that must follow the mode by hand. */
+const CANVAS_COLORS = {
+  dark: {
+    dots: "#1e293b",
+    traceEdge: "#475569",
+    traceEdgeDropped: "#334155",
+    plannedEdge: "#64748b",
+    labelText: "#cbd5e1",
+    labelBg: "#0f172a",
+    minimapMask: "rgba(15, 23, 42, 0.75)",
+  },
+  light: {
+    dots: "#cbd5e1",
+    traceEdge: "#94a3b8",
+    traceEdgeDropped: "#cbd5e1",
+    plannedEdge: "#64748b",
+    labelText: "#334155",
+    labelBg: "#e8edf4",
+    minimapMask: "rgba(226, 232, 240, 0.75)",
+  },
+} as const;
 
 // ── Node payloads ───────────────────────────────────────────
 
@@ -461,6 +486,8 @@ function JourneyCanvasInner({
   heightClass = "h-[calc(100vh-220px)] min-h-[480px]",
 }: JourneyCanvasProps) {
   const reactFlow = useReactFlow();
+  const { mode: themeMode } = useTheme();
+  const palette = CANVAS_COLORS[themeMode];
 
   const { nodes, edges } = useMemo(() => {
     const rows = sortItemsForRows(items, stages);
@@ -570,7 +597,7 @@ function JourneyCanvasInner({
               ? { stroke: "#ef4444", strokeWidth: 1.5, strokeDasharray: "6 4", opacity: 0.7 }
               : { stroke: stage.color, strokeWidth: 2 }
             : {
-                stroke: dropped ? "#334155" : "#475569",
+                stroke: dropped ? palette.traceEdgeDropped : palette.traceEdge,
                 strokeWidth: 1.5,
                 opacity: dropped ? 0.6 : 1,
               },
@@ -606,15 +633,15 @@ function JourneyCanvasInner({
           target: ghostId,
           label: eta?.text,
           labelStyle: {
-            fill: eta?.overdue ? "#fbbf24" : "#94a3b8",
+            fill: eta?.overdue ? "#d97706" : palette.labelText,
             fontSize: 10,
             fontWeight: 600,
           },
-          labelBgStyle: { fill: "#0f172a" },
+          labelBgStyle: { fill: palette.labelBg },
           labelBgPadding: [5, 3] as [number, number],
           labelBgBorderRadius: 4,
           style: {
-            stroke: "#64748b",
+            stroke: palette.plannedEdge,
             strokeWidth: 1.5,
             strokeDasharray: "3 5",
             opacity: 0.75,
@@ -634,6 +661,7 @@ function JourneyCanvasInner({
     canEdit,
     onAdvance,
     selectedItemId,
+    palette,
   ]);
 
   // Re-frame when the journey's shape changes size (new subject, new
@@ -673,7 +701,7 @@ function JourneyCanvasInner({
         minZoom={0.15}
         maxZoom={1.5}
       >
-        <Background gap={24} size={1} color="#1e293b" />
+        <Background gap={24} size={1} color={palette.dots} />
         <Controls
           className="!border-slate-700 !bg-slate-900 [&_button]:!border-slate-700 [&_button]:!bg-slate-900 [&_button:hover]:!bg-slate-800"
           showInteractive={false}
@@ -697,7 +725,7 @@ function JourneyCanvasInner({
                 ? "#ef4444"
                 : (d.stageColor ?? "#475569");
             }}
-            maskColor="rgba(15, 23, 42, 0.75)"
+            maskColor={palette.minimapMask}
             className="!hidden !rounded-lg !border !border-slate-700 !bg-slate-900 md:!block"
           />
         )}

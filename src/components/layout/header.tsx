@@ -4,7 +4,8 @@ import { useState, useEffect, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, Menu, Settings as SettingsIcon, User, Search, Loader2 } from "lucide-react";
+import { useTheme } from "@/hooks/use-theme";
+import { LogOut, Menu, Moon, Settings as SettingsIcon, Sun, User, Search, Loader2 } from "lucide-react";
 import {
   Avatar,
   AvatarFallback,
@@ -53,6 +54,7 @@ interface HeaderProps {
 export function Header({ onOpenSidebar }: HeaderProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
+  const { mode, setMode } = useTheme();
   const title = getPageTitle(pathname);
   const supabase = createClient();
 
@@ -299,6 +301,20 @@ export function Header({ onOpenSidebar }: HeaderProps) {
       </Dialog>
 
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setMode(mode === "dark" ? "light" : "dark")}
+          aria-label={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800/70 hover:text-white"
+        >
+          {mode === "dark" ? (
+            <Sun className="size-4" />
+          ) : (
+            <Moon className="size-4" />
+          )}
+        </button>
+
         <CreditMeter />
 
         <DropdownMenu>

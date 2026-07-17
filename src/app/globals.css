@@ -256,6 +256,124 @@ html[data-theme="rose"] {
   --sidebar-ring: oklch(0.645 0.22 16);
 }
 
+/* ============================================================
+ * LIGHT MODE — `html[data-mode="light"]`
+ *
+ * An orthogonal axis on top of the 5 accent themes above: the
+ * accent block keeps supplying --primary/--ring, this block flips
+ * every NEUTRAL. Two layers make that possible app-wide without
+ * touching components:
+ *
+ *   1. shadcn tokens (--background/--card/--border/…) get light
+ *      values — everything built on token classes flips for free.
+ *   2. The slate utility ramp is INVERTED via Tailwind v4's color
+ *      variables: `bg-slate-900` compiles to
+ *      `var(--color-slate-900)`, so remapping the ramp here flips
+ *      the thousands of hardcoded slate classes too (dark surfaces
+ *      become light surfaces, light text becomes dark text).
+ *      `--color-white` joins the ramp: `text-white` headings must
+ *      read near-black on a light page.
+ *   3. Accent text tuned for dark backgrounds (text-emerald-300,
+ *      text-red-400, …) is nudged to the hue's 600/700 step so it
+ *      keeps contrast on white.
+ *
+ * Placed after every accent theme block: equal selector
+ * specificity, later in the file, so light's neutrals win while
+ * the accent's --primary (untouched here) shines through.
+ * ============================================================ */
+
+html[data-mode="light"] {
+  /* — shadcn tokens — */
+  --background: oklch(0.977 0.003 250);
+  --foreground: oklch(0.2 0.02 258);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.02 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.02 258);
+  --secondary: oklch(0.945 0.005 250);
+  --secondary-foreground: oklch(0.25 0.02 258);
+  --muted: oklch(0.945 0.005 250);
+  --muted-foreground: oklch(0.46 0.015 258);
+  --accent: oklch(0.93 0.006 250);
+  --accent-foreground: oklch(0.25 0.02 258);
+  --border: oklch(0.885 0.006 250);
+  --input: oklch(0.885 0.006 250);
+  --sidebar: oklch(0.99 0.002 250);
+  --sidebar-foreground: oklch(0.25 0.02 258);
+  --sidebar-accent: oklch(0.93 0.006 250);
+  --sidebar-accent-foreground: oklch(0.25 0.02 258);
+  --sidebar-border: oklch(0.885 0.006 250);
+
+  /* — slate ramp inversion (hardcoded utility classes) — */
+  --color-slate-950: #f4f6fa;
+  --color-slate-900: #ffffff;
+  --color-slate-800: #e4e9f1;
+  --color-slate-700: #cbd5e1;
+  --color-slate-600: #94a3b8;
+  /* slate-500 stays the mid-point (#62748e) — readable both ways */
+  --color-slate-400: #45556c;
+  --color-slate-300: #314158;
+  --color-slate-200: #1d293d;
+  --color-slate-100: #0f172b;
+  --color-slate-50: #020618;
+  --color-white: #0f172b;
+
+  /* — accent legibility: -200 → hue-700, -300/-400 → hue-600 — */
+  --color-emerald-200: #047857;
+  --color-emerald-300: #059669;
+  --color-emerald-400: #059669;
+  --color-green-200: #15803d;
+  --color-green-300: #16a34a;
+  --color-green-400: #16a34a;
+  --color-red-200: #b91c1c;
+  --color-red-300: #dc2626;
+  --color-red-400: #dc2626;
+  --color-rose-200: #be123c;
+  --color-rose-300: #e11d48;
+  --color-rose-400: #e11d48;
+  --color-amber-200: #b45309;
+  --color-amber-300: #d97706;
+  --color-amber-400: #d97706;
+  --color-yellow-200: #a16207;
+  --color-yellow-300: #ca8a04;
+  --color-yellow-400: #ca8a04;
+  --color-orange-200: #c2410c;
+  --color-orange-300: #ea580c;
+  --color-orange-400: #ea580c;
+  --color-sky-200: #0369a1;
+  --color-sky-300: #0284c7;
+  --color-sky-400: #0284c7;
+  --color-blue-200: #1d4ed8;
+  --color-blue-300: #2563eb;
+  --color-blue-400: #2563eb;
+  --color-cyan-200: #0e7490;
+  --color-cyan-300: #0891b2;
+  --color-cyan-400: #0891b2;
+  --color-teal-200: #0f766e;
+  --color-teal-300: #0d9488;
+  --color-teal-400: #0d9488;
+  --color-violet-200: #6d28d9;
+  --color-violet-300: #7c3aed;
+  --color-violet-400: #7c3aed;
+  --color-purple-200: #7e22ce;
+  --color-purple-300: #9333ea;
+  --color-purple-400: #9333ea;
+  --color-fuchsia-200: #a21caf;
+  --color-fuchsia-300: #c026d3;
+  --color-fuchsia-400: #c026d3;
+  --color-pink-200: #be185d;
+  --color-pink-300: #db2777;
+  --color-pink-400: #db2777;
+  --color-indigo-200: #4338ca;
+  --color-indigo-300: #4f46e5;
+  --color-indigo-400: #4f46e5;
+  --color-lime-200: #4d7c0f;
+  --color-lime-300: #65a30d;
+  --color-lime-400: #65a30d;
+
+  color-scheme: light;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
