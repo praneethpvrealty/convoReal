@@ -480,21 +480,26 @@ function JourneyCanvasInner({
     const rowsHeight = Math.max(rows.length, 1) * ROW_H;
     const rootY = (rowsHeight - ROW_H) / 2 + (CARD_H - ROOT_H) / 2;
 
-    nodes.push({
-      id: "subject",
-      type: "journeySubject",
-      position: { x: 0, y: rootY },
-      draggable: false,
-      selectable: false,
-      data: {
-        mode,
-        contact,
-        property,
-        activeCount: items.filter((i) => i.status === "active").length,
-        droppedCount: items.filter((i) => i.status === "dropped").length,
-        currency,
-      } satisfies SubjectData,
-    });
+    // With nothing on the map there is nothing to fan out to — the
+    // lone subject card would just sit underneath the empty-state
+    // panel (the section header already names the subject).
+    if (rows.length > 0) {
+      nodes.push({
+        id: "subject",
+        type: "journeySubject",
+        position: { x: 0, y: rootY },
+        draggable: false,
+        selectable: false,
+        data: {
+          mode,
+          contact,
+          property,
+          activeCount: items.filter((i) => i.status === "active").length,
+          droppedCount: items.filter((i) => i.status === "dropped").length,
+          currency,
+        } satisfies SubjectData,
+      });
+    }
 
     // Stage column headers — only for columns in play.
     for (let s = 0; s <= maxReached; s++) {
