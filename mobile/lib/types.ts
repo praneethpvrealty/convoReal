@@ -77,3 +77,121 @@ export interface Profile {
   account_id: string;
   account_role: string;
 }
+
+// ------------------------------------------------------------------
+// Inventory (properties table; list served by GET /api/properties)
+// ------------------------------------------------------------------
+
+export interface Property {
+  id: string;
+  title: string;
+  property_code?: string | null;
+  description?: string | null;
+  price?: number | null;
+  rent_per_month?: number | null;
+  location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  type?: string | null;
+  status?: string | null;
+  listing_type?: 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit' | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  area_sqft?: number | null;
+  area_unit?: string | null;
+  land_area?: number | null;
+  land_area_unit?: string | null;
+  facing_direction?: string | null;
+  features?: string[] | null;
+  /** Public Supabase Storage URLs, renderable directly. */
+  images?: string[] | null;
+  is_published?: boolean;
+  is_starred?: boolean;
+  google_map_link?: string | null;
+  owner_contact_id?: string | null;
+  owner?: { name?: string | null; phone?: string | null } | null;
+  created_at?: string;
+}
+
+export interface PropertiesResponse {
+  data: Property[];
+  pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+// ------------------------------------------------------------------
+// Pipelines / deals (direct RLS-scoped reads, like the web kanban)
+// ------------------------------------------------------------------
+
+export interface Pipeline {
+  id: string;
+  name: string;
+}
+
+export interface PipelineStage {
+  id: string;
+  pipeline_id: string;
+  name: string;
+  position: number;
+  color?: string | null;
+}
+
+export interface Deal {
+  id: string;
+  pipeline_id: string;
+  stage_id: string;
+  contact_id?: string | null;
+  conversation_id?: string | null;
+  property_id?: string | null;
+  title: string;
+  value?: number | null;
+  currency?: string | null;
+  status: 'open' | 'won' | 'lost';
+  expected_close_date?: string | null;
+  contact?: Contact | null;
+  property?: Property | null;
+}
+
+// ------------------------------------------------------------------
+// Calendar (appointments table — direct reads/inserts, like the web)
+// ------------------------------------------------------------------
+
+export type AppointmentType =
+  | 'site_visit'
+  | 'call'
+  | 'follow_up'
+  | 'document'
+  | 'meeting'
+  | 'other';
+
+export interface Appointment {
+  id: string;
+  title: string;
+  description?: string | null;
+  start_time: string;
+  end_time?: string | null;
+  location?: string | null;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  event_type: AppointmentType;
+  contact_id?: string | null;
+  contact_ids?: string[] | null;
+  property_id?: string | null;
+  agenda?: string | null;
+  contact?: Contact | null;
+  property?: { id: string; title: string; location?: string | null } | null;
+}
+
+// ------------------------------------------------------------------
+// WhatsApp templates (message_templates, status APPROVED)
+// ------------------------------------------------------------------
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  language: string;
+  category?: string | null;
+  header_type?: 'text' | 'image' | 'video' | 'document' | null;
+  header_content?: string | null;
+  body_text: string;
+  footer_text?: string | null;
+  status: string;
+}

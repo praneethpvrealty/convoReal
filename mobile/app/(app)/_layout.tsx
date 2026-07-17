@@ -24,6 +24,12 @@ export default function AppLayout() {
         options={{ headerShown: true, title: 'Conversation' }}
       />
       <Stack.Screen name="contact/[id]" options={{ headerShown: true, title: 'Contact' }} />
+      <Stack.Screen name="property/[id]" options={{ headerShown: true, title: 'Property' }} />
+      <Stack.Screen name="calendar" options={{ headerShown: true, title: 'Calendar' }} />
+      <Stack.Screen
+        name="appointment-new"
+        options={{ headerShown: true, title: 'New appointment' }}
+      />
       <Stack.Screen name="verify-phone" />
     </Stack>
   );

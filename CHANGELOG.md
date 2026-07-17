@@ -124,6 +124,27 @@ and polish.
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
 
+- **Mobile app: core CRM tranche — Inventory, Deals, Calendar,
+  Templates (`mobile/`)** — the companion app grows from
+  inbox+contacts to the core CRM pillars, in a 5-tab layout (Inbox /
+  Contacts / Properties / Deals / More). Properties: list powered by
+  the same `GET /api/properties` search the web uses (natural-language
+  queries like "2bhk in whitefield under 80L" work), listing-type
+  filters, infinite scroll, and a detail screen with photo pager,
+  specs, features and owner link. Deals: pipeline switcher, stage
+  strip with counts and per-stage value totals, and a move-stage sheet
+  applying the web kanban's exact status + property-status side
+  effects. Calendar: upcoming appointments grouped by day with
+  complete/cancel, plus a create form (type, date/time picker,
+  location, contact search) writing the same row shape as the web's
+  schedule dialog — cron-driven WhatsApp reminders apply unchanged.
+  Inbox thread gains an approved-template picker with {{n}} variable
+  inputs and live preview — the compliant way to reach customers
+  outside the 24-hour window (text-header templates in v1). The More
+  tab hosts Calendar, profile/credits, and a directory of
+  deliberately-web-only features (flow builder, broadcasts, Journey,
+  analytics, billing).
+
 - **Mobile app: WhatsApp OTP sign-in + rich UI pass (`mobile/`)** —
   the companion app now signs in with a WhatsApp one-time code as the
   primary flow (6-digit code boxes, resend timer; email/password as
