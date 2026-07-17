@@ -11,6 +11,7 @@ import {
   X,
   Pencil,
   RotateCcw,
+  Send,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -127,11 +128,22 @@ export function TemplateManager() {
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [form, setForm] = useState<TemplateFormData>(emptyForm);
-  // Non-null when the dialog is editing an existing row — switches the
-  // submit handler from POST /submit to PATCH /[id] and changes the
-  // dialog title + CTA. Set to the template id to pre-fill from a row.
+  // Non-null when the dialog is pre-filled from an existing row (edit
+  // OR submitting a not-yet-submitted DRAFT) — set to the template id.
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Whether that row has actually reached Meta before (meta_template_id
+  // set). A DRAFT row seeded locally (e.g. by a migration) has never
+  // been submitted, so it must go through POST /submit like a brand
+  // new template — PATCH /[id] rejects anything without a
+  // meta_template_id ("use New Template to submit it instead"). This
+  // distinguishes that from a true re-edit of an already-submitted
+  // template, which switches the handler to PATCH /[id] and changes
+  // the dialog copy accordingly.
+  const editingTemplate = editingId
+    ? templates.find((t) => t.id === editingId)
+    : null;
+  const isEditingSubmittedTemplate = !!editingTemplate?.meta_template_id;
   // Template selected for the confirm-delete dialog. The destructive
   // action goes through this two-step so a slip on the trash icon
   // doesn't take the template off Meta as well as locally.
@@ -250,7 +262,7 @@ export function TemplateManager() {
     if (form.category === 'Authentication') return;
     try {
       setSubmitting(true);
-      const isEdit = editingId !== null;
+      const isEdit = isEditingSubmittedTemplate;
       const url = isEdit
         ? `/api/whatsapp/templates/${editingId}`
         : '/api/whatsapp/templates/submit';
@@ -545,6 +557,19 @@ export function TemplateManager() {
                     )}
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-2">
+                    {statusKey === 'DRAFT' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEdit(template)}
+                        title="Review and submit this template to Meta for approval."
+                        aria-label="Submit template for approval"
+                        className="text-slate-300 hover:text-primary hover:bg-primary/10 h-8 px-2"
+                      >
+                        <Send className="size-3.5" />
+                        Submit
+                      </Button>
+                    )}
                     {statusKey === 'APPROVED' && (
                       <Button
                         variant="ghost"
@@ -615,10 +640,14 @@ export function TemplateManager() {
         <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white">
-              {editingId ? 'Edit Message Template' : 'New Message Template'}
+              {isEditingSubmittedTemplate
+                ? 'Edit Message Template'
+                : editingId
+                  ? 'Submit Message Template'
+                  : 'New Message Template'}
             </DialogTitle>
             <DialogDescription className="text-slate-400">
-              {editingId
+              {isEditingSubmittedTemplate
                 ? 'Save your changes to re-submit to Meta. Status will flip back to PENDING during review.'
                 : 'Build a template and submit it to Meta for approval. Once approved, you can use it in broadcasts and the inbox.'}
             </DialogDescription>
@@ -653,9 +682,11 @@ export function TemplateManager() {
                 className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 disabled:opacity-60 disabled:cursor-not-allowed"
               />
               <p className="text-[11px] text-slate-500">
-                {editingId
+                {isEditingSubmittedTemplate
                   ? 'Name is fixed once a template exists on Meta — create a new template to change it.'
-                  : 'Lowercase letters, digits, and underscores only.'}
+                  : editingId
+                    ? 'Name is locked while submitting this draft — delete and recreate it to rename.'
+                    : 'Lowercase letters, digits, and underscores only.'}
               </p>
             </div>
 
@@ -706,14 +737,16 @@ export function TemplateManager() {
                   ))}
                 </datalist>
                 <p className="text-[11px] text-slate-500">
-                  {editingId
+                  {isEditingSubmittedTemplate
                     ? 'Language is fixed once a template exists on Meta.'
-                    : (
-                        <>
-                          Must match the exact code on Meta — <code>en_US</code>{' '}
-                          and <code>en</code> are distinct.
-                        </>
-                      )}
+                    : editingId
+                      ? 'Language is locked while submitting this draft.'
+                      : (
+                          <>
+                            Must match the exact code on Meta — <code>en_US</code>{' '}
+                            and <code>en</code> are distinct.
+                          </>
+                        )}
                 </p>
               </div>
             </div>
@@ -1015,9 +1048,9 @@ export function TemplateManager() {
               {submitting ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  {editingId ? 'Saving…' : 'Submitting…'}
+                  {isEditingSubmittedTemplate ? 'Saving…' : 'Submitting…'}
                 </>
-              ) : editingId ? (
+              ) : isEditingSubmittedTemplate ? (
                 'Save & Resubmit'
               ) : (
                 'Submit for Approval'

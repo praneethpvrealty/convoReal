@@ -30,6 +30,21 @@ and polish.
 
 ### Fixed
 
+- **A message template stuck in "Draft" (e.g. a migration-seeded one
+  like `appointment_reminder`) had no way to actually be submitted to
+  Meta.** Settings → WhatsApp → Templates only showed an "Edit"/
+  "Resubmit" button for `APPROVED`/`REJECTED`/`PAUSED` templates —
+  `DRAFT` rows had nothing but a delete icon, a dead end even though
+  the backend (`PATCH /api/whatsapp/templates/[id]`) already told you
+  to "use New Template to submit it instead" if you somehow got in.
+  Discovered while trying to submit the new meeting-reminder templates
+  below. `src/components/settings/template-manager.tsx` now shows a
+  **Submit** button on `DRAFT` templates that opens the same pre-filled
+  form, routed through `POST /submit` (which upserts onto the existing
+  row) rather than the edit endpoint, with dialog copy that says
+  "submit" instead of incorrectly claiming the template already exists
+  on Meta.
+
 - **Every appointment reminder said "your scheduled property visit,"
   even for a plain meeting, call, follow-up, or document appointment.**
   (**migration required**: `140_meeting_reminder_template.sql`) —
