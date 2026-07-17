@@ -324,7 +324,8 @@ export default function PulsePage() {
                   <span className="text-[11px] text-slate-300 leading-relaxed">
                     Most of this activity is <strong className="text-white">Anonymous</strong>.
                     Send links personally from{" "}
-                    <strong className="text-primary">Inventory → Share Showcase → Send personally</strong>{" "}
+                    <strong className="text-primary">Inventory → Share Showcase</strong> or a
+                    property&apos;s <strong className="text-primary">Share → Send personally (tracked)</strong>{" "}
                     to see visitors by name here.
                   </span>
                   <ArrowRight className="size-3.5 text-primary shrink-0 ml-auto group-hover:translate-x-0.5 transition-transform" />

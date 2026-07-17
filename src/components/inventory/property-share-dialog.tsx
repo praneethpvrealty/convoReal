@@ -33,6 +33,7 @@ import {
   Check,
   ExternalLink,
   Search,
+  UserCheck,
 } from 'lucide-react';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { captureJourneyItems } from '@/lib/journey/capture';
@@ -254,6 +255,71 @@ export function PropertyShareDialog({
       : `/?property_id=${property.id}&mode=view`;
   }, [property]);
 
+  // ── Send personally (tracked) ────────────────────────────────
+  // Same property link tagged with ?v=<contactId>, so the recipient's
+  // showcase activity shows up by name in Pulse instead of as an
+  // Anonymous Guest (`v=` only attributes events, never filters).
+  const [personalSearch, setPersonalSearch] = useState('');
+  const [copiedPersonalId, setCopiedPersonalId] = useState<string | null>(null);
+
+  const personalContacts = useMemo(() => {
+    const q = personalSearch.toLowerCase().trim();
+    if (!q) return contacts;
+    return contacts.filter(
+      (c) => (c.name || '').toLowerCase().includes(q) || (c.phone || '').includes(q),
+    );
+  }, [contacts, personalSearch]);
+
+  const personalizedUrl = useCallback(
+    (contactId: string) => {
+      if (!property) return '';
+      const baseUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
+      if (!baseUrl) return '';
+      const url = new URL(
+        baseUrl,
+        typeof window !== 'undefined' ? window.location.origin : 'https://localhost',
+      );
+      url.searchParams.set('v', contactId);
+      return url.toString();
+    },
+    [property, audienceTab, agentShowcaseUrl, showcaseUrl],
+  );
+
+  const buildPersonalMessage = useCallback(
+    (contact: Contact) => {
+      const baseUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
+      const trackedUrl = personalizedUrl(contact.id);
+      // Swap the plain link in the composed message for the tagged one;
+      // if the user edited the link out, append the tagged link instead.
+      let msg = currentMessage.includes(baseUrl)
+        ? currentMessage.replaceAll(baseUrl, trackedUrl)
+        : `${currentMessage}\n\n📸 Photos & full details:\n${trackedUrl}`;
+      const firstName = contact.name?.trim().split(/\s+/)[0];
+      if (firstName) msg = msg.replace(/^(Hi|Hey|Hello)([,!])/, `$1 ${firstName}$2`);
+      return msg;
+    },
+    [audienceTab, agentShowcaseUrl, showcaseUrl, personalizedUrl, currentMessage],
+  );
+
+  const handleWhatsAppPersonal = (contact: Contact) => {
+    const message = buildPersonalMessage(contact);
+    const phone = contact.phone.replace(/\D/g, '');
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+    captureSharesToJourney([contact.id]);
+  };
+
+  const handleCopyPersonal = async (contact: Contact) => {
+    try {
+      await navigator.clipboard.writeText(buildPersonalMessage(contact));
+      setCopiedPersonalId(contact.id);
+      toast.success(`Personal message for ${contact.name || contact.phone} copied!`);
+      setTimeout(() => setCopiedPersonalId(null), 2000);
+    } catch (err) {
+      toast.error('Failed to copy message');
+      console.error(err);
+    }
+  };
+
   // Fetch all active contacts for matching
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
@@ -390,6 +456,8 @@ export function PropertyShareDialog({
       setFreshName('');
       setFreshPhone('');
       setFreshClassification('Buyer');
+      setPersonalSearch('');
+      setCopiedPersonalId(null);
       setContacts([]); // Clear contacts so we don't show stale cached list
     }
   }, [open, preSelectedContactId]);
@@ -794,10 +862,12 @@ export function PropertyShareDialog({
           selectedTemplate.buttons.forEach((btn, idx) => {
             if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
               const code = property?.property_code || property?.id || '';
+              // v=<contactId> attributes the recipient's showcase opens
+              // by name in Pulse (never filters the catalog).
               if (btn.url.includes('?property_id=')) {
-                buttonParams[idx] = code;
+                buttonParams[idx] = `${code}&v=${contact.id}`;
               } else {
-                buttonParams[idx] = `?property_id=${code}`;
+                buttonParams[idx] = `?property_id=${code}&v=${contact.id}`;
               }
             }
           });
@@ -1383,6 +1453,100 @@ export function PropertyShareDialog({
                     </div>
                   </div>
                 )}
+
+                {/* Send personally — per-contact tracked links */}
+                <div className="space-y-2.5 pt-3 border-t border-slate-800">
+                  <Label className="text-slate-300 text-[11px] font-semibold flex items-center gap-1.5">
+                    <UserCheck className="size-3.5 text-primary" />
+                    Send personally (tracked)
+                  </Label>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    Each contact gets this same message with their own link, so every open, photo
+                    swipe, and map click shows up <strong className="text-slate-400">by name</strong> in
+                    Showcase Pulse — no more Anonymous Guests.
+                  </p>
+
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="text"
+                      placeholder="Search contacts by name or phone..."
+                      value={personalSearch}
+                      onChange={(e) => setPersonalSearch(e.target.value)}
+                      className="h-9 w-full rounded-lg border border-slate-800 bg-slate-900 pl-8 pr-7 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    {personalSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setPersonalSearch('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {loadingContacts && contacts.length === 0 ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-10 rounded-lg bg-slate-900 animate-pulse" />
+                      ))}
+                    </div>
+                  ) : personalContacts.length === 0 ? (
+                    <p className="py-3 text-center text-xs font-medium text-slate-500">
+                      {contacts.length === 0 ? 'No active contacts yet' : 'No matching contacts found'}
+                    </p>
+                  ) : (
+                    <div className="max-h-56 overflow-y-auto space-y-1.5 pr-0.5 scrollbar-thin scrollbar-thumb-slate-800">
+                      {personalContacts.slice(0, 50).map((contact) => (
+                        <div
+                          key={contact.id}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2"
+                        >
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                              <span className="truncate">{contact.name || contact.phone}</span>
+                              <NameTagBadge tag={contact.name_tag} />
+                            </span>
+                            {contact.name && (
+                              <span className="text-[10px] text-slate-500 font-medium truncate block">
+                                📞 {contact.phone}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Button
+                              size="sm"
+                              onClick={() => handleWhatsAppPersonal(contact)}
+                              className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1"
+                            >
+                              <Smartphone className="size-3" />
+                              WhatsApp
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void handleCopyPersonal(contact)}
+                              title="Copy the personalised message + tracked link"
+                              className="h-7 px-2 text-[11px] border-slate-800 hover:bg-slate-800 text-slate-350 flex items-center gap-1"
+                            >
+                              {copiedPersonalId === contact.id ? (
+                                <Check className="size-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="size-3" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                      {personalContacts.length > 50 && (
+                        <p className="pt-1 text-center text-[10px] font-medium text-slate-500">
+                          Showing first 50 — refine the search to find others
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
