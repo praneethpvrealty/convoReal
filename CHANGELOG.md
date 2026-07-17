@@ -54,6 +54,26 @@ and polish.
 
 ### Fixed
 
+- **Three of the four reminder templates couldn't actually be
+  submitted to Meta — "too many variables for its length."**
+  (**migration required**: `143_reminder_template_wording_fix.sql`)
+  — discovered right after the Draft-submit button fix below made
+  submitting them possible at all. Meta (and our own client-side
+  check in `src/lib/whatsapp/template-validators.ts`, which mirrors
+  it) requires at least 3 static words per `{{n}}` variable on a
+  Utility template. `appointment_reminder` (5 vars, 13 static words)
+  and `appointment_reminder_agenda` (6 vars, 14 static words) came up
+  short from this session's own wording; `property_visit_reminder_agenda`
+  (6 vars, 16 static words, migration 129) turned out to have been
+  short since before this session — it was never actually submittable
+  either, just never noticed since nothing offered a way to submit a
+  Draft template until now. Reworded all three with a few added
+  static words each (e.g. "...this is a friendly reminder **that you
+  have** a scheduled meeting..."); `property_visit_reminder` already
+  had exactly enough and is unchanged. `src/lib/appointments/
+  reminder.ts`'s local Inbox-preview copy updated to match each
+  variant word-for-word.
+
 - **A message template stuck in "Draft" (e.g. a migration-seeded one
   like `appointment_reminder`) had no way to actually be submitted to
   Meta.** Settings → WhatsApp → Templates only showed an "Edit"/
