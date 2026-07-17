@@ -570,23 +570,44 @@ function JourneyCanvasInner({
           className="!border-slate-700 !bg-slate-900 [&_button]:!border-slate-700 [&_button]:!bg-slate-900 [&_button:hover]:!bg-slate-800"
           showInteractive={false}
         />
-        <MiniMap
-          pannable
-          zoomable
-          nodeColor="#334155"
-          maskColor="rgba(15, 23, 42, 0.7)"
-          className="!border !border-slate-700 !bg-slate-900"
-        />
-        <Panel position="bottom-right" className="!bottom-4 !right-14">
-          <div className="flex items-center gap-3 rounded-md border border-slate-800 bg-slate-900/90 px-2.5 py-1.5 text-[10px] text-slate-400">
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" /> Active
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-red-400" /> Dropped
-            </span>
-          </div>
-        </Panel>
+        {/* Minimap only earns its pixels on maps big enough to get
+            lost in — small journeys fit one screen, and on phones it
+            just fought the floating AI widget for the corner. Nodes
+            are tinted by status/stage so it doesn't read as an empty
+            box on the dark background. */}
+        {nodes.length >= 10 && (
+          <MiniMap
+            pannable
+            zoomable
+            position="top-right"
+            style={{ width: 128, height: 88 }}
+            nodeColor={(n) => {
+              if (n.type === "journeySubject") return "#22c55e";
+              if (n.type === "journeyStage") return "#1e293b";
+              const d = n.data as Partial<ItemData>;
+              return d.item?.status === "dropped"
+                ? "#ef4444"
+                : (d.stageColor ?? "#475569");
+            }}
+            maskColor="rgba(15, 23, 42, 0.75)"
+            className="!hidden !rounded-lg !border !border-slate-700 !bg-slate-900 md:!block"
+          />
+        )}
+        {/* Legend: only meaningful once something has been dropped;
+            lives beside the zoom controls, out of the AI widget's
+            corner. */}
+        {items.some((i) => i.status === "dropped") && (
+          <Panel position="bottom-left" className="!bottom-4 !left-16">
+            <div className="flex items-center gap-2.5 rounded-md border border-slate-800 bg-slate-900/90 px-2 py-1 text-[10px] text-slate-400">
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Active
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400" /> Dropped
+              </span>
+            </div>
+          </Panel>
+        )}
         {items.length === 0 && (
           <Panel position="top-center" className="!top-1/3">
             <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-900/80 px-8 py-6 text-center">
