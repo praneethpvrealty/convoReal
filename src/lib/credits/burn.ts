@@ -8,7 +8,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { billingAdmin } from '@/lib/billing/admin-client';
 import { getOrCreateWallet } from './wallet';
-import type { AiFeatureKey } from './types';
+import type { BillableFeatureKey } from './types';
 
 export interface BurnResult {
   success: boolean;
@@ -45,7 +45,7 @@ export interface BurnOptions {
  */
 export async function burnCredits(
   accountId: string,
-  feature: AiFeatureKey,
+  feature: BillableFeatureKey,
   cost: number,
   opts: BurnOptions = {},
 ): Promise<BurnResult> {
@@ -82,7 +82,7 @@ export async function burnCredits(
  */
 export async function refundCredits(
   accountId: string,
-  feature: AiFeatureKey,
+  feature: BillableFeatureKey,
   cost: number,
   opts: { client?: SupabaseClient; description?: string } = {},
 ): Promise<{ success: boolean; balanceAfter: number }> {

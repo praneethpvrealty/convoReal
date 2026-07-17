@@ -115,6 +115,18 @@ export const AI_FEATURE_COSTS = {
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;
 
+/** Non-AI billable feature keys (Owners Den marketplace actions).
+ *  Same wallet, same burn/refund RPCs — just a different product
+ *  surface. Tiering logic lives in src/lib/den/costs.ts. */
+export const DEN_FEATURE_COSTS = {
+  /** Reveal a Deal Mode property's full details + owner contact. */
+  match_unlock: 50,
+} as const;
+
+export type DenFeatureKey = keyof typeof DEN_FEATURE_COSTS;
+
+export type BillableFeatureKey = AiFeatureKey | DenFeatureKey;
+
 /** Monthly credit grant per paid plan (Starter gets 0 — no AI access). */
 export const MONTHLY_GRANT: Record<SubscriptionPlanForCredits, number> = {
   solo_pro: 500,

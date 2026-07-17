@@ -247,6 +247,22 @@ function SignupPageInner() {
               Sign in
             </Link>
           </p>
+
+          <p className="mt-3 text-center text-[11px] font-medium text-slate-500">
+            After signup you&apos;ll verify your WhatsApp number — ConvoReal is a WhatsApp-based
+            platform, it&apos;s how your enquiries and alerts reach you.
+          </p>
+
+          {/* Property owners get their own portal — the Owners Den. */}
+          <Link
+            href="/den/login"
+            className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 transition-colors hover:bg-amber-500/10"
+          >
+            <span className="text-xs font-bold text-amber-400">
+              Own a property? List &amp; manage it yourself in the Owners Den
+            </span>
+            <span className="shrink-0 text-xs font-black text-amber-400">→</span>
+          </Link>
         </CardContent>
       </Card>
     </div>

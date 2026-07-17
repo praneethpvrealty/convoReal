@@ -13,6 +13,14 @@
     {
       "path": "/api/cron/owner-digest",
       "schedule": "30 4 * * *"
+    },
+    {
+      "path": "/api/cron/deal-mode-matching",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/den-bids-expiry",
+      "schedule": "30 5 * * *"
     }
   ]
 }

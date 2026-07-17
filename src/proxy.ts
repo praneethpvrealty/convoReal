@@ -130,10 +130,27 @@ export async function proxy(request: NextRequest) {
   // when auth was unavailable (timeout/network): the dashboard shell
   // client-side redirects genuinely signed-out users, so a Supabase
   // blip doesn't bounce a valid session to /login.
-  const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings']
+  const protectedPaths = ['/dashboard', '/inbox', '/contacts', '/pipelines', '/broadcasts', '/automations', '/settings', '/verify-phone']
   if (!user && !authUnavailable && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
+
+  // Owners Den pages — the owner-facing portal has its own login at
+  // /den/login (WhatsApp OTP / Google). Same fail-open semantics as
+  // above: every /api/den route re-checks via getDenContext(), and the
+  // Den layout redirects unverified sessions client-side.
+  const denPublicPaths = ['/den/login']
+  if (
+    !user &&
+    !authUnavailable &&
+    request.nextUrl.pathname.startsWith('/den') &&
+    !denPublicPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/den/login'
+    url.search = ''
     return NextResponse.redirect(url)
   }
 

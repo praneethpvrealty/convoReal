@@ -266,6 +266,75 @@ Per-(contact × property) funnel tracking behind the `/journey` canvas — recor
 - `automation_pending_executions`: Queue for delayed actions.
 - `flows` / `flow_nodes` / `flow_runs` / `flow_run_events`: WhatsApp interactive tree flows.
 
+### Group I: Owners Den (migrations 132–133)
+
+The Owners Den is the authenticated portal for property owners — a parallel
+identity class to staff. A Den user is an `auth.users` row with **no
+`profiles` row**, so every `is_account_member()`-based RLS policy denies
+them by construction; their data access happens through `/api/den/*`
+(service role + explicit owner scoping via `src/lib/den/auth.ts`).
+
+- `den_users`: One row per Den login. `auth_user_id` (unique, → auth.users),
+  verified WhatsApp `phone` + `phone_normalized` (last-10 digits), display
+  name and notification preferences (`notify_matches`, `notify_bids`,
+  `digest_frequency`). Self-select/update RLS only; inserts are
+  service-role.
+- `den_contact_links`: Bridge from a Den user to tenant-scoped `contacts`
+  rows matched by phone (one per account — the same owner may be managed by
+  several agencies). `status` active/revoked; unique `(den_user_id,
+  contact_id)`.
+- `find_den_owner_contacts(p_phone_last10)`: SECURITY DEFINER lookup used by
+  the linking flow — digit-normalized phone match + owner classification
+  (or referenced by any `properties.owner_contact_id`).
+- `properties.deal_mode` (`off`/`soft`/`aggressive`, + `deal_mode_updated_at`,
+  `deal_mode_set_by`): the owner's sell-readiness switch. Partial index
+  `idx_properties_deal_pool` backs the cross-tenant matching sweep
+  (`deal_mode <> 'off' AND is_published`).
+- `handle_new_user()` gains an early-exit guard: signups carrying
+  `raw_user_meta_data->>'app_context' = 'den'` skip staff account/profile
+  bootstrap entirely.
+- `match_events.source` (`internal`/`deal_mode`) + `subject_snapshot`
+  (migration 134): Deal Mode properties are matched CROSS-TENANT against
+  other accounts' Buyer/Agent contacts by the sweep
+  (`/api/cron/deal-mode-matching`); the resulting event lives in the
+  buyer's account and carries a MASKED property snapshot
+  (`src/lib/den/masking.ts`) — the buyer cannot join the foreign property
+  row through RLS.
+- `den_match_unlocks` (migration 134): the paid reveal. One row per
+  (buyer account, property), UNIQUE-constrained against double billing;
+  `credits_burned` via the standard wallet (`burn_credits_tx`, feature
+  `match_unlock`). Member SELECT via `is_account_member`; writes
+  service-role only (`/api/match-unlocks`).
+- `property_bids` + `property_bid_events` (migration 135): FREE offers
+  after unlock (`unlock_id` NOT NULL is the entry ticket). Lifecycle
+  pending → accepted/rejected/countered/withdrawn/expired, all via
+  atomic conditional updates in service-role routes; contact details
+  are mutually revealed only on accept. SELECT for both the bidder and
+  the owning agency (`is_account_member` on either account); the Den
+  owner reads through `/api/den/bids`. `properties.min_bid` is the
+  owner's optional offer floor. Expiry cron `/api/cron/den-bids-expiry`
+  (deadline + 48h deal-mode-off grace).
+- `deal_rooms` + `token_escrows` (migration 136): a room opens per
+  ACCEPTED bid (unique bid_id) — meeting scheduling plus optional
+  **Token Safe** for the post-meeting token payment (bayana). Token
+  money is real ₹ (minor units), never credits, and the platform never
+  holds funds: providers are record-keeping today (`manual_escrow`,
+  `direct` receipt) with licensed partners (Escrowpay/Castler) plugging
+  in via the adapter in `src/lib/den/token-safe.ts` and the
+  signature-verified webhook `/api/webhooks/token-safe`. Escrow
+  lifecycle proposed → accepted → funded → released/refunded/disputed
+  (release requires BOTH parties' confirmation); one active escrow per
+  room via partial unique index. SELECT for both party accounts; writes
+  service-role only.
+- **Verified WhatsApp phone hard-wiring** (migration 137): source of
+  truth is `auth.users.phone` + `phone_confirmed_at` (set only by
+  WhatsApp OTP). `sync_verified_phone_to_profile` trigger mirrors the
+  verified number onto `profiles.phone`; `profiles_phone_guard`
+  rejects any client-side phone write ("phone can only be changed
+  through WhatsApp OTP verification"). The dashboard shell gates on
+  `phone_confirmed_at` (once per account — Google re-logins are never
+  re-asked) via `/verify-phone`.
+
 ---
 
 ## 3. Database Indexes Strategy
