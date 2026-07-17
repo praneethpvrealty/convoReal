@@ -32,6 +32,10 @@ export default function AppLayout() {
         options={{ headerShown: true, title: 'New appointment' }}
       />
       <Stack.Screen name="dashboard" options={{ headerShown: true, title: 'Overview' }} />
+      <Stack.Screen
+        name="credits"
+        options={{ headerShown: true, title: 'Billing & AI Credits' }}
+      />
       <Stack.Screen name="journey" options={{ headerShown: true, title: 'Journeys' }} />
       <Stack.Screen name="broadcasts" options={{ headerShown: true, title: 'Broadcasts' }} />
       <Stack.Screen name="broadcast/[id]" options={{ headerShown: true, title: 'Broadcast' }} />
