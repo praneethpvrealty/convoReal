@@ -218,10 +218,10 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 
   return (
     <Link href={`/(app)/conversation/${conversation.id}`} asChild>
-      {/* Static styles only — a style FUNCTION here breaks flex layout
-          when Link (asChild) merges its props onto the Pressable. */}
+      {/* expo-router's <Slot> child needs ONE flat style object — no
+          arrays, no style functions (both break under Link asChild). */}
       <Pressable
-        style={[styles.row, { borderBottomColor: colors.border }]}
+        style={StyleSheet.flatten([styles.row, { borderBottomColor: colors.border }])}
         android_ripple={{ color: colors.surface }}
       >
         <Avatar name={name} />
