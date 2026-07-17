@@ -39,6 +39,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
 
+// Dwell-time cap for Pulse view_property events — a tab left open in the
+// background must not report hours of "viewing".
+const MAX_DWELL_MS = 30 * 60 * 1000;
+
 const trackPixelEvent = (
   eventName: string,
   params?: Record<string, unknown>
@@ -99,11 +103,43 @@ export function ShowcaseView({
   // analytics must never affect the visitor experience.
   const trackerRef = useRef<ReturnType<typeof createShowcaseTracker> | null>(null);
   const viewStartRef = useRef<{ propertyId: string; at: number } | null>(null);
+  // Mirror of selectedProperty?.id for the mount-only listeners below.
+  const selectedPropertyIdRef = useRef<string | null>(null);
   useEffect(() => {
     trackerRef.current = createShowcaseTracker(accountId, visitorRef);
     trackerRef.current.track('open');
     const tracker = trackerRef.current;
-    return () => tracker.flush();
+
+    // Share links open with the detail modal already up, so the most
+    // common visit — open link, look, close tab — never transitions
+    // selectedProperty. Emit the in-progress view when the page hides,
+    // or that view (and its dwell time) is lost entirely.
+    const emitPendingView = () => {
+      const pending = viewStartRef.current;
+      if (!pending) return;
+      viewStartRef.current = null;
+      tracker.track('view_property', pending.propertyId, {
+        duration_ms: Math.min(Date.now() - pending.at, MAX_DWELL_MS),
+      });
+      tracker.flush();
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        emitPendingView();
+      } else if (selectedPropertyIdRef.current && !viewStartRef.current) {
+        // Tab came back with the modal still open — restart the dwell
+        // clock so continued viewing counts as a fresh view.
+        viewStartRef.current = { propertyId: selectedPropertyIdRef.current, at: Date.now() };
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', emitPendingView);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', emitPendingView);
+      emitPendingView();
+      tracker.flush();
+    };
     // Mount-only by design: accountId/visitorRef are fixed per page load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -139,10 +175,11 @@ export function ShowcaseView({
   // tracker's pagehide handler.
   const selectedPropertyId = selectedProperty?.id ?? null;
   useEffect(() => {
+    selectedPropertyIdRef.current = selectedPropertyId;
     const prev = viewStartRef.current;
     if (prev && prev.propertyId !== selectedPropertyId) {
       trackerRef.current?.track('view_property', prev.propertyId, {
-        duration_ms: Math.min(Date.now() - prev.at, 30 * 60 * 1000),
+        duration_ms: Math.min(Date.now() - prev.at, MAX_DWELL_MS),
       });
       viewStartRef.current = null;
     }

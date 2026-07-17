@@ -259,7 +259,7 @@ export default function PulsePage() {
               <div>
                 <p className="text-xs text-slate-400 font-bold uppercase tracking-wider flex items-center">
                   Unique Sessions
-                  <InfoHint text="Distinct browsing sessions across all shared links — one session per client per link visit." />
+                  <InfoHint text="Distinct devices/browsers seen across all shared links — a returning visitor on the same device counts once. Your own link previews count too." />
                 </p>
                 <h3 className="text-2xl font-black text-white mt-1.5">{stats?.uniqueSessions ?? 0}</h3>
               </div>
@@ -437,7 +437,7 @@ export default function PulsePage() {
                       <div className="flex justify-between items-center text-[10px] font-extrabold pt-1.5 border-t border-slate-850">
                         <span className="text-slate-400 flex items-center gap-1">
                           <Users className="size-3 text-sky-400" />
-                          {uniqueViewsCount} unique buyers
+                          {uniqueViewsCount} unique visitor{uniqueViewsCount === 1 ? "" : "s"}
                         </span>
                         <span className="text-slate-400 flex items-center gap-1">
                           <Eye className="size-3 text-emerald-400" />
