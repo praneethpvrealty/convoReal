@@ -236,6 +236,24 @@ as the sole owner of their own account and sees identical data.
 
 ### Fixed
 
+- **Signing in would sometimes get stuck bouncing forever between
+  `/dashboard` and `/profile-setup`, both showing nothing but the
+  ConvoReal splash** — first noticed after the Owners Den migrations
+  landed, which made the dashboard shell's profile-row query (now
+  joined against `accounts`, `org_role`, `team_id`, `is_read_only`)
+  slower and occasionally flaky. `useAuth`'s `fetchProfile`
+  (`src/hooks/use-auth.tsx`) treated any failed fetch the same as "this
+  user genuinely has no profile row": the dashboard shell read that as
+  "no profile" and redirected to `/profile-setup`, whose own (fresh)
+  fetch would then succeed and redirect straight back — and if the next
+  dashboard fetch happened to fail again, the cycle repeated
+  indefinitely. `fetchProfile` now retries once after a short delay
+  before giving up, and surfaces a distinct `profileError` state so a
+  real fetch failure is no longer confused with "no profile yet".
+  `src/app/(dashboard)/dashboard-shell.tsx` now holds still and shows a
+  "couldn't load your profile — Retry" screen instead of redirecting
+  when `profileError` is set.
+
 - **Favoriting a Contacts quick-filter (e.g. "Needs Review") favorited
   the whole unfiltered Contacts list instead.** The quick-filter tabs
   (All Contacts / Needs Review / Transacted / Active Buyers) were
