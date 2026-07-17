@@ -161,18 +161,20 @@ async function sendToAllRecipients(
     // Meta renders {{n}} positionally against whatever it approved,
     // so this string is only the local Inbox preview copy, but it
     // should still read the same as what the client actually got.
-    // (Word counts matter here: each variant needs >=3 static words
-    // per {{n}} to pass Meta's Utility-template density check — see
-    // supabase/migrations/143_reminder_template_wording_fix.sql.)
+    // (Wording constraints: >=3 static words per {{n}} for Meta's
+    // Utility-template density check, and no variable at the start or
+    // end of the body even wrapped in punctuation — see
+    // supabase/migrations/143_reminder_template_wording_fix.sql and
+    // 145_reminder_template_trailing_variable_fix.sql.)
     let bodyText: string
     if (isSiteVisit && !agendaParam) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder for your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Regards, ${accountName}.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} about your scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`
     } else if (isSiteVisit) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder that you have a scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the visit: ${agendaParam}. Kind regards, ${accountName}.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled property visit for "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the visit: ${agendaParam}. Please tap a button below to confirm or request a change.`
     } else if (!agendaParam) {
-      bodyText = `Hi ${clientName}, this is a friendly reminder that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Kind regards, ${accountName}.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Please tap a button below to confirm or request a change.`
     } else {
-      bodyText = `Hi ${clientName}, this is a friendly reminder that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Kind regards, ${accountName}.`
+      bodyText = `Hi ${clientName}, this is a friendly reminder from ${accountName} that you have a scheduled meeting: "${visitTitle}" on ${formattedTime}. Location: ${locationText}. Agenda for the meeting: ${agendaParam}. Please tap a button below to confirm or request a change.`
     }
 
     const result = await sendWhatsAppMessageAndPersist({
