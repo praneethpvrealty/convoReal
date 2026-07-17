@@ -33,6 +33,13 @@ separate repo.
   (inherits its natural-language + geo search), listing-type filters,
   infinite scroll, image cards; detail screen with photo pager, specs
   grid, features, owner link and Google Maps.
+- ✅ **Location suite (mobile-first)** — "Near me" GPS radius search
+  (2/5/10/25 km chips, distance badges + exact/nearby tiers from the
+  API), Google locality autocomplete in the search box (same
+  `/api/maps/autocomplete` + `place-details` proxies as the web — the
+  Google key never leaves the server; degrades to text search if the
+  key isn't configured), a native map of the current results with pins
+  (tap pin → property), and a mini-map on the property detail.
 - ✅ **Deals** — mobile take on the kanban: pipeline switcher, stage strip
   with counts, per-stage value totals, move-stage sheet with the same
   status + property-status side effects as the web board.

@@ -198,6 +198,20 @@ and polish.
   `journey_items.hidden`; `journey_events` gains 'hidden'/'unhidden'
   event types.
 
+- **Mobile app: location suite — GPS near-me, locality autocomplete,
+  native maps (`mobile/`)** — the phone now does everything the web's
+  geo stack does, plus what only a phone can. Properties gains a
+  **"Near me"** chip (device GPS → the same tiered `near_*` search the
+  web inventory uses, with 2/5/10/25 km radius picker and distance /
+  "In area" badges on cards), the search box doubles as the web's
+  **Google locality autocomplete** (via the existing `/api/maps/
+  autocomplete` + `place-details` proxies — key stays server-side;
+  degrades to plain text search when unconfigured), a **native map
+  screen** renders the current search as pins (tap through to the
+  property), and property details embed a mini-map when coordinates
+  exist. Coordinates keep self-healing via the API's geocode tier. New
+  deps: expo-location, react-native-maps (SDK 57 bundled versions).
+
 - **Mobile app: design language pass — motion, gradients, signature
   moments (`mobile/`)** — the companion app graduates from clean-
   utilitarian to premium-playful: violet→fuchsia brand gradient

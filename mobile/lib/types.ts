@@ -108,9 +108,22 @@ export interface Property {
   is_published?: boolean;
   is_starred?: boolean;
   google_map_link?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   owner_contact_id?: string | null;
   owner?: { name?: string | null; phone?: string | null } | null;
   created_at?: string;
+  /** Injected by /api/properties near-search responses. */
+  distance_km?: number;
+  location_tier?: 'exact' | 'nearby';
+}
+
+/** A locality picked from the Google-backed autocomplete proxy. */
+export interface PickedLocality {
+  place_id: string;
+  label: string;
+  latitude: number;
+  longitude: number;
 }
 
 export interface PropertiesResponse {

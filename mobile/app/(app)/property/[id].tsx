@@ -13,6 +13,8 @@ import {
   View,
 } from 'react-native';
 
+import MapView, { Marker } from 'react-native-maps';
+
 import { Tag } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -180,6 +182,38 @@ export default function PropertyDetailScreen() {
           </Section>
         ) : null}
 
+        {typeof property.latitude === 'number' && typeof property.longitude === 'number' ? (
+          <Section title="Location">
+            <View style={styles.mapWrap}>
+              <MapView
+                style={StyleSheet.absoluteFill}
+                initialRegion={{
+                  latitude: property.latitude,
+                  longitude: property.longitude,
+                  latitudeDelta: 0.02,
+                  longitudeDelta: 0.02,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                rotateEnabled={false}
+                pitchEnabled={false}
+                toolbarEnabled={false}
+                onPress={() =>
+                  Linking.openURL(
+                    property.google_map_link ||
+                      `https://maps.google.com/?q=${property.latitude},${property.longitude}`
+                  )
+                }
+              >
+                <Marker
+                  coordinate={{ latitude: property.latitude, longitude: property.longitude }}
+                  pinColor="#7c3aed"
+                />
+              </MapView>
+            </View>
+          </Section>
+        ) : null}
+
         {property.google_map_link ? (
           <Pressable
             style={[styles.mapButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
@@ -271,5 +305,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 12,
+  },
+  mapWrap: {
+    height: 170,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
   },
 });
