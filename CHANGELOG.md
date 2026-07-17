@@ -129,6 +129,27 @@ and polish.
 
 ### Added
 
+- **Appointment reminders now have "Fine 👍" / "Requesting reschedule"
+  quick-reply buttons, and a reschedule request notifies the agent.**
+  (**migration required**: `141_reminder_reschedule_buttons.sql`) — all
+  four client-facing reminder templates (`property_visit_reminder`,
+  `property_visit_reminder_agenda`, `appointment_reminder`,
+  `appointment_reminder_agenda`) gain two quick-reply buttons. Tapping
+  "Fine 👍" logs as a normal inbound reply, same as any text message.
+  Tapping "Requesting reschedule" additionally stamps the appointment's
+  new `reschedule_requested_at` — shown as an amber reschedule icon on
+  the Calendar month view and a banner in the edit dialog — and pings
+  the assigned agent directly on WhatsApp (`src/lib/whatsapp/
+  webhook-handler.ts`, matching the button tap back to its appointment
+  via the outbound reminder's Meta message id, now recorded on
+  `appointment_reminder_log.wa_message_id`). Actually moving the
+  appointment to a new time clears the flag automatically. Since this
+  changes the templates' structure, `property_visit_reminder` and
+  `property_visit_reminder_agenda` reset to `DRAFT` for any account
+  that hadn't genuinely gotten them approved by Meta yet (see the
+  phantom-`APPROVED` fix above) — (re)submit all four from Settings →
+  Templates.
+
 - **Journey auto-capture of WhatsApp shares + Captured tray**
   (**migration required**: `138_journey_capture.sql`) — sharing a
   property to contacts over WhatsApp from the app (template, catalog

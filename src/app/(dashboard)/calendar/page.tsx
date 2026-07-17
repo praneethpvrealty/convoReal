@@ -24,6 +24,7 @@ import {
   Columns3,
   List,
   AudioLines,
+  RefreshCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CalendarLoader } from "@/components/ui/calendar-loader";
@@ -471,8 +472,11 @@ export default function CalendarPage() {
         // ever get set to true and nothing else resets them.
         const rescheduled =
           new Date(payload.start_time).getTime() !== new Date(selectedAppt.start_time).getTime();
+        // A reschedule also resolves any pending "Requesting reschedule"
+        // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
+        // is addressed by definition once the time actually changes.
         const updatePayload = rescheduled
-          ? { ...payload, reminder_morning_sent: false, reminder_1h_sent: false }
+          ? { ...payload, reminder_morning_sent: false, reminder_1h_sent: false, reschedule_requested_at: null }
           : payload;
 
         const { error } = await supabase
@@ -1230,6 +1234,12 @@ export default function CalendarPage() {
                             >
                               <meta.icon className="h-2.5 w-2.5 shrink-0" />
                               <span className="truncate flex-1">{appt.title}</span>
+                              {appt.reschedule_requested_at && (
+                                <RefreshCcw
+                                  className="h-2.5 w-2.5 shrink-0 text-amber-400"
+                                  aria-label="Reschedule requested"
+                                />
+                              )}
                               {members.length > 1 && assignee && (
                                 <span
                                   className="rounded bg-slate-900/70 px-1 text-[8px] font-bold shrink-0"
@@ -1469,6 +1479,23 @@ export default function CalendarPage() {
                   <X className="h-5 w-5" />
                 </button>
               </div>
+
+              {selectedAppt?.reschedule_requested_at && (
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-600/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+                  <RefreshCcw className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Client requested a reschedule on{" "}
+                    {new Date(selectedAppt.reschedule_requested_at).toLocaleString("en-IN", {
+                      day: "2-digit",
+                      month: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                    . Changing the time below will clear this notice.
+                  </span>
+                </div>
+              )}
 
               {/* Modal Form */}
               <form onSubmit={saveAppointment} className="space-y-4">

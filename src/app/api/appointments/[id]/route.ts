@@ -70,6 +70,10 @@ export async function PUT(
       if (existing && new Date(existing.start_time).getTime() !== new Date(start_time).getTime()) {
         updatePayload.reminder_morning_sent = false
         updatePayload.reminder_1h_sent = false
+        // A reschedule also resolves any pending "Requesting reschedule"
+        // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
+        // is addressed by definition once the time actually changes.
+        updatePayload.reschedule_requested_at = null
       }
     }
 
