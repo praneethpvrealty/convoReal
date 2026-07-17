@@ -30,6 +30,11 @@ export default function AppLayout() {
         name="appointment-new"
         options={{ headerShown: true, title: 'New appointment' }}
       />
+      <Stack.Screen name="dashboard" options={{ headerShown: true, title: 'Overview' }} />
+      <Stack.Screen name="journey" options={{ headerShown: true, title: 'Journeys' }} />
+      <Stack.Screen name="broadcasts" options={{ headerShown: true, title: 'Broadcasts' }} />
+      <Stack.Screen name="broadcast/[id]" options={{ headerShown: true, title: 'Broadcast' }} />
+      <Stack.Screen name="automations" options={{ headerShown: true, title: 'Automations' }} />
       <Stack.Screen name="verify-phone" />
     </Stack>
   );
