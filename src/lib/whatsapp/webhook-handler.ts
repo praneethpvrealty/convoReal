@@ -612,9 +612,9 @@ const REMINDER_RESCHEDULE_BUTTON_TEXT = 'Requesting reschedule'
  * message.type === 'button' with context.id pointing at the original
  * outbound reminder — matched via the wa_message_id reminder.ts
  * stamps onto appointment_reminder_log after each send. Flags the
- * appointment and pings the assigned agent on WhatsApp. "Fine 👍"
- * needs no handling here — it's just logged as a normal message like
- * any other reply.
+ * appointment and pings the assigned agent on WhatsApp. "Fine" needs
+ * no handling here — it's just logged as a normal message like any
+ * other reply.
  */
 async function handleReminderButtonReply(
   message: WhatsAppMessage,

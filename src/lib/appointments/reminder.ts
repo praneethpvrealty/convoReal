@@ -193,8 +193,8 @@ async function sendToAllRecipients(
     if (result.success) {
       console.log(`[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to contact ${contact.id}`)
       // Record Meta's message id on the claim row so the webhook can
-      // match an inbound "Fine 👍" / "Requesting reschedule" button
-      // tap (its context.id) back to this appointment.
+      // match an inbound "Fine" / "Requesting reschedule" button tap
+      // (its context.id) back to this appointment.
       if (result.whatsappMessageId) {
         await admin
           .from('appointment_reminder_log')
