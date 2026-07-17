@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { replaceUrl } from "@/lib/navigation";
 import { toast } from 'sonner';
 import { Megaphone, CheckCircle2, AlertTriangle, ExternalLink, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -98,7 +99,7 @@ export function MetaAdsTab() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('meta_ads_connected');
     params.delete('meta_ads_error');
-    router.replace(`/settings?${params.toString()}`, { scroll: false });
+    replaceUrl(router, `/settings?${params.toString()}`);
   }, [searchParams, router]);
 
   const loadAssetOptions = useCallback(async () => {

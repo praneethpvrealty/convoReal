@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { pushUrl, replaceUrl } from "@/lib/navigation";
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -431,7 +432,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       params.set('filter', tab);
     }
     const qs = params.toString();
-    router.replace(qs ? `/contacts?${qs}` : '/contacts', { scroll: false });
+    replaceUrl(router, qs ? `/contacts?${qs}` : '/contacts');
   };
   const [activeCount, setActiveCount] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -1268,7 +1269,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       const params = new URLSearchParams(window.location.search);
       params.delete('contactId');
       const queryString = params.toString();
-      router.push(`/contacts${queryString ? `?${queryString}` : ''}`, { scroll: false });
+      pushUrl(router, `/contacts${queryString ? `?${queryString}` : ''}`);
       setDetailContactId(null);
     }
   };

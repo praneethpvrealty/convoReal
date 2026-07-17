@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { replaceUrl } from "@/lib/navigation";
 import {
   Settings,
   MessageSquare,
@@ -154,14 +155,14 @@ export default function SettingsPage() {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', next);
     params.delete('sub');
-    router.replace(`/settings?${params.toString()}`, { scroll: false });
+    replaceUrl(router, `/settings?${params.toString()}`);
   };
 
   const onSubChange = (next: WhatsAppSub) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', 'whatsapp');
     params.set('sub', next);
-    router.replace(`/settings?${params.toString()}`, { scroll: false });
+    replaceUrl(router, `/settings?${params.toString()}`);
   };
 
   // Build navigation groups dynamically based on feature flags

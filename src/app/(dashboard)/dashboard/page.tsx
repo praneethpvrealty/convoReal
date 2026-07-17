@@ -1,6 +1,7 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import DashboardContent from "./dashboard-content";
 import TodayPage from "../today/today-content";
@@ -41,7 +42,7 @@ export default function DashboardPage() {
   }, [activeTab]);
 
   const handleTabChange = (tab: TabId) => {
-    router.push(`/dashboard?tab=${tab}`, { scroll: false });
+    pushUrl(router, `/dashboard?tab=${tab}`);
   };
 
   return (

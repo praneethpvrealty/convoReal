@@ -30,6 +30,20 @@ and polish.
 
 ### Fixed
 
+- **Every tab switcher and URL-synced filter no-oped in production.**
+  The same-pathname router bug fixed for Journey below turned out to
+  affect the whole app: the Contacts / Inventory / Dashboard /
+  Automations tab bars, the Settings tab + WhatsApp sub-tab switches,
+  contacts/inventory filter + pagination URL sync, closing detail
+  panels (clearing `?contactId=` / `?propertyId=`), the Meta-Ads
+  callback param cleanup, and global-search results that land on the
+  page you're already on. All now route through shared helpers
+  (`src/lib/navigation.ts`: `pushUrl` / `replaceUrl`) that detect a
+  same-pathname target and drive the native History API (which Next
+  syncs into `useSearchParams`), falling back to the router for real
+  page changes. The inbox already used this exact History-API pattern
+  for its `?c=` updates — the rest of the app now matches it.
+
 - **Journey: "All journeys" and every view switch silently did nothing
   in production.** All journey view changes are same-pathname
   navigations (`/journey` ⇄ `/journey?contact=…` ⇄ `?view=properties`),

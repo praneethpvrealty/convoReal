@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { pushUrl, replaceUrl } from "@/lib/navigation";
 import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
@@ -263,7 +264,7 @@ export default function InventoryPage() {
     if (urlPage !== page) {
       const params = new URLSearchParams(searchParams?.toString());
       params.set('page', String(page));
-      router.replace(`/inventory?${params.toString()}`, { scroll: false });
+      replaceUrl(router, `/inventory?${params.toString()}`);
     }
   }, [page, searchParams, router]);
 
@@ -385,7 +386,7 @@ export default function InventoryPage() {
       const params = new URLSearchParams(searchParams?.toString() || '');
       params.delete('propertyId');
       const queryString = params.toString();
-      router.push(`/inventory${queryString ? `?${queryString}` : ''}`, { scroll: false });
+      pushUrl(router, `/inventory${queryString ? `?${queryString}` : ''}`);
       setSelectedProperty(null);
     }
   };

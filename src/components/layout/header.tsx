@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
@@ -57,6 +57,21 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   const supabase = createClient();
 
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Search-result links whose target PATHNAME is the page we're
+  // already on (e.g. picking a contact while on /contacts) would be
+  // silently swallowed by the router in production builds — drive
+  // those through the History API instead (see src/lib/navigation.ts).
+  const handleResultClick = (
+    e: MouseEvent<HTMLAnchorElement>,
+    url: string,
+  ) => {
+    setSearchOpen(false);
+    if (window.location.pathname === url.split("?")[0]) {
+      e.preventDefault();
+      window.history.pushState(null, "", url);
+    }
+  };
   const [searchQuery, setSearchQuery] = useState("");
   const [contactsResults, setContactsResults] = useState<{ id: string; name: string | null; phone: string; email: string | null; name_tag?: string | null }[]>([]);
   const [dealsResults, setDealsResults] = useState<{ id: string; title: string; value: number | null; currency: string }[]>([]);
@@ -208,7 +223,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                     <Link
                       key={c.id}
                       href={`/contacts?contactId=${c.id}`}
-                      onClick={() => setSearchOpen(false)}
+                      onClick={(e) => handleResultClick(e, `/contacts?contactId=${c.id}`)}
                       className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
                     >
                       <div className="min-w-0">
@@ -236,7 +251,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                     <Link
                       key={d.id}
                       href={`/pipelines?dealId=${d.id}`}
-                      onClick={() => setSearchOpen(false)}
+                      onClick={(e) => handleResultClick(e, `/pipelines?dealId=${d.id}`)}
                       className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
                     >
                       <div className="min-w-0 flex-1">
@@ -263,7 +278,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
                     <Link
                       key={p.id}
                       href={`/inventory?propertyId=${p.id}`}
-                      onClick={() => setSearchOpen(false)}
+                      onClick={(e) => handleResultClick(e, `/inventory?propertyId=${p.id}`)}
                       className="flex items-center justify-between p-2.5 rounded-xl bg-slate-800/40 border border-slate-800/60 hover:bg-slate-800 hover:border-slate-700 transition-all text-left"
                     >
                       <div className="min-w-0 flex-1">

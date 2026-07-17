@@ -1,6 +1,7 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import PipelinesPage from "../pipelines/pipelines-content";
 import FlowsPage from "../flows/flows-content";
@@ -33,7 +34,7 @@ export default function AutomationsPage() {
   }, [activeTab]);
 
   const handleTabChange = (tab: TabId) => {
-    router.push(`/automations?tab=${tab}`, { scroll: false });
+    pushUrl(router, `/automations?tab=${tab}`);
   };
 
   return (

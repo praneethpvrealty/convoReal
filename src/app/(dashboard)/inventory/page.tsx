@@ -1,6 +1,7 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import InventoryContent from "./inventory-content";
 import AdsPage from "../ads/ads-content";
@@ -38,7 +39,7 @@ export default function InventoryPage() {
   }, [activeTab]);
 
   const handleTabChange = (tab: TabId) => {
-    router.push(`/inventory?tab=${tab}`, { scroll: false });
+    pushUrl(router, `/inventory?tab=${tab}`);
   };
 
   return (

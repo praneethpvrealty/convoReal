@@ -1,6 +1,7 @@
 "use client"
 
 import { useSearchParams, useRouter } from "next/navigation";
+import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import ContactsContent from "./contacts-content";
 import RequirementsPage from "../requirements/requirements-content";
@@ -55,7 +56,7 @@ export default function ContactsPage() {
   }, [activeTab, quickFilter]);
 
   const handleTabChange = (tab: TabId) => {
-    router.push(`/contacts?tab=${tab}`, { scroll: false });
+    pushUrl(router, `/contacts?tab=${tab}`);
   };
 
   return (
