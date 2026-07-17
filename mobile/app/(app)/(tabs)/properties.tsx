@@ -98,8 +98,16 @@ export default function PropertiesScreen() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const { data, isLoading, isFetching, refetch, fetchNextPage, hasNextPage } =
-    useInfiniteQuery({
+  const {
+    data,
+    isLoading,
+    isFetching,
+    isPlaceholderData,
+    error,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+  } = useInfiniteQuery({
       queryKey: ['properties', debounced, listing, near],
       queryFn: ({ pageParam }) => fetchPropertyPage(pageParam, debounced, listing, near),
       initialPageParam: 1,
@@ -113,7 +121,9 @@ export default function PropertiesScreen() {
     });
 
   const properties = data?.pages.flatMap((p) => p.data) ?? [];
-  const total = data?.pages[0]?.pagination.total;
+  // While a new search resolves, `data` is the PREVIOUS result — don't
+  // present its total as if it belonged to the current filters.
+  const total = isPlaceholderData ? undefined : data?.pages[0]?.pagination.total;
 
   async function nearMe() {
     haptic.tap();
@@ -215,6 +225,11 @@ export default function PropertiesScreen() {
           {geoError}
         </Text>
       ) : null}
+      {error ? (
+        <Text style={{ fontSize: 12, color: colors.danger, paddingHorizontal: spacing.lg, paddingBottom: 4 }}>
+          Search failed: {error instanceof Error ? error.message : 'try again'}
+        </Text>
+      ) : null}
 
       {isLoading ? (
         <View>
@@ -234,17 +249,38 @@ export default function PropertiesScreen() {
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
           ListEmptyComponent={
-            <EmptyState
-              icon="home-outline"
-              title={debounced || listing !== 'All' || near ? 'No matches' : 'No properties yet'}
-              subtitle={
-                near
-                  ? `Nothing within ${near.radiusKm} km of ${near.label}. Widen the radius above.`
-                  : debounced || listing !== 'All'
-                    ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
-                    : 'Add properties from the web app or by messaging your WhatsApp lister.'
-              }
-            />
+            <View>
+              <EmptyState
+                icon="home-outline"
+                title={debounced || listing !== 'All' || near ? 'No matches' : 'No properties yet'}
+                subtitle={
+                  near
+                    ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
+                    : debounced || listing !== 'All'
+                      ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
+                      : 'Add properties from the web app or by messaging your WhatsApp lister.'
+                }
+              />
+              {near && near.radiusKm < 25 ? (
+                <Pressable
+                  onPress={() => setRadius(25)}
+                  style={{ alignSelf: 'center', marginTop: -20 }}
+                >
+                  <View
+                    style={{
+                      backgroundColor: colors.primary,
+                      borderRadius: radius.full,
+                      paddingHorizontal: 18,
+                      paddingVertical: 11,
+                    }}
+                  >
+                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontWeight: '700' }}>
+                      Search within 25 km
+                    </Text>
+                  </View>
+                </Pressable>
+              ) : null}
+            </View>
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
