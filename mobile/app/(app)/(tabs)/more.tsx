@@ -13,15 +13,15 @@ import { useCredits } from '@/lib/use-credits';
 const WORKSPACE_LINKS = [
   { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
   { href: '/(app)/calendar', icon: 'calendar-outline', label: 'Calendar & Site Visits' },
+  { href: '/(app)/credits', icon: 'flash-outline', label: 'Billing & AI Credits' },
   { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
   { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
   { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },
 ] as const;
 
-/** Deliberately web-only (billing policy, admin surface, canvas editors). */
+/** Deliberately web-only (canvas editors, admin surface). */
 const WEB_ONLY = [
   { icon: 'construct-outline', label: 'Flow & Automation Builders' },
-  { icon: 'card-outline', label: 'Billing & AI Credit Top-ups' },
   { icon: 'people-circle-outline', label: 'Team & Workspace Settings' },
 ] as const;
 
