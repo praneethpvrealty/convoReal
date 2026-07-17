@@ -75,3 +75,29 @@ export function sendTextMessage(conversationId: string, text: string) {
     }),
   });
 }
+
+/**
+ * Template send — same body the web thread posts
+ * (message-thread.tsx): positional body values in template_params,
+ * the rendered text in content_text for the local bubble.
+ */
+export function sendTemplateMessage(opts: {
+  conversationId: string;
+  templateName: string;
+  templateLanguage: string;
+  bodyParams: string[];
+  renderedText: string;
+}) {
+  return apiFetch<{ message?: unknown; error?: string }>('/api/whatsapp/send', {
+    method: 'POST',
+    body: JSON.stringify({
+      conversation_id: opts.conversationId,
+      message_type: 'template',
+      template_name: opts.templateName,
+      template_language: opts.templateLanguage,
+      template_params: opts.bodyParams,
+      template_message_params: { body: opts.bodyParams },
+      content_text: opts.renderedText,
+    }),
+  });
+}

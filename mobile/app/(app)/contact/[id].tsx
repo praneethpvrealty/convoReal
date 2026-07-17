@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { Avatar, Banner, Tag } from '@/components/ui';
+import { formatInr } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme } from '@/lib/theme';
@@ -87,7 +88,7 @@ function ContactCard({ contact }: { contact: Contact }) {
     contact.no_budget
       ? 'No budget constraint'
       : contact.min_budget || contact.max_budget
-        ? `${formatBudget(contact.min_budget)} – ${formatBudget(contact.max_budget)}`
+        ? `${formatInr(contact.min_budget)} – ${formatInr(contact.max_budget)}`
         : null;
 
   return (
@@ -352,13 +353,6 @@ function InfoRow({
       </View>
     </View>
   );
-}
-
-function formatBudget(n: number | null | undefined): string {
-  if (!n) return '?';
-  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2).replace(/\.00$/, '')} Cr`;
-  if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1).replace(/\.0$/, '')} L`;
-  return `₹${n.toLocaleString('en-IN')}`;
 }
 
 const styles = StyleSheet.create({

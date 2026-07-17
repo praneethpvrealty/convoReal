@@ -26,11 +26,27 @@ separate repo.
   (24-hour-window aware), bot-message marker, image rendering through the
   auth-gated media proxy with expired-media placeholder, mark-as-read on
   open.
-- ✅ Contacts with classification colors, call + WhatsApp deep links.
+- ✅ Contacts with classification colors, call + WhatsApp deep links, and a
+  detail card with edit mode; search covers names, phones, tags, notes,
+  company and requirements (web parity).
+- ✅ **Property inventory** — list via the web's `GET /api/properties`
+  (inherits its natural-language + geo search), listing-type filters,
+  infinite scroll, image cards; detail screen with photo pager, specs
+  grid, features, owner link and Google Maps.
+- ✅ **Deals** — mobile take on the kanban: pipeline switcher, stage strip
+  with counts, per-stage value totals, move-stage sheet with the same
+  status + property-status side effects as the web board.
+- ✅ **Calendar** — upcoming appointments grouped by day, complete/cancel
+  actions, and a create form (type, date/time, location, contact picker)
+  inserting the same row shape as the web's schedule dialog (WhatsApp
+  reminders are cron-driven off the row).
+- ✅ **Template sending** in the thread — approved-template picker with
+  {{n}} variable form and live preview; the answer to WhatsApp's
+  24-hour service window. Text-header templates only in v1.
 - ✅ **Full dark-mode support** across every screen (system scheme).
-- ⏳ Phase 2+: pending outbox (offline queue), template sending, push
-  notifications (needs `device_push_tokens` + worker dispatch — not yet
-  in the web repo), property inventory, biometrics.
+- ⏳ Next: pending outbox (offline queue), push notifications (needs
+  `device_push_tokens` + worker dispatch — not yet in the web repo),
+  media-header templates, property editing, broadcasts (view), biometrics.
 
 ## Running it
 
