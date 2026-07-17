@@ -88,22 +88,22 @@ const colX = (stageIdx: number) => FIRST_COL_X + stageIdx * COL_W;
  *  are the stragglers that must follow the mode by hand. */
 const CANVAS_COLORS = {
   dark: {
-    dots: "#1e293b",
-    traceEdge: "#475569",
-    traceEdgeDropped: "#334155",
-    plannedEdge: "#64748b",
-    labelText: "#cbd5e1",
-    labelBg: "#0f172a",
-    minimapMask: "rgba(15, 23, 42, 0.75)",
+    dots: "#232329",
+    traceEdge: "#4c4c56",
+    traceEdgeDropped: "#333339",
+    plannedEdge: "#71717c",
+    labelText: "#c6c6cf",
+    labelBg: "#16161a",
+    minimapMask: "rgba(11, 11, 14, 0.75)",
   },
   light: {
-    dots: "#cbd5e1",
-    traceEdge: "#94a3b8",
-    traceEdgeDropped: "#cbd5e1",
-    plannedEdge: "#64748b",
-    labelText: "#334155",
-    labelBg: "#e8edf4",
-    minimapMask: "rgba(226, 232, 240, 0.75)",
+    dots: "#d0d6de",
+    traceEdge: "#9aa2af",
+    traceEdgeDropped: "#d0d6de",
+    plannedEdge: "#71717c",
+    labelText: "#343b47",
+    labelBg: "#e9edf2",
+    minimapMask: "rgba(230, 234, 239, 0.75)",
   },
 } as const;
 

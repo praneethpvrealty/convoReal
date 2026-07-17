@@ -257,6 +257,52 @@ html[data-theme="rose"] {
 }
 
 /* ============================================================
+ * DARK MODE POLISH — `html[data-mode="dark"]`
+ *
+ * The original dark look was built on Tailwind's blue-tinted slate.
+ * This block re-grades it to a premium neutral: near-black page,
+ * elevated graphite cards, desaturated greys — the accent theme's
+ * --primary stays the only strong color. Same variable trick as
+ * light mode below: remapping the slate ramp restyles every
+ * hardcoded `bg-slate-*` class at once.
+ * ============================================================ */
+
+html[data-mode="dark"] {
+  --background: #0b0b0e;
+  --card: #16161a;
+  --card-foreground: oklch(0.985 0 0);
+  --popover: #16161a;
+  --popover-foreground: oklch(0.985 0 0);
+  --secondary: #1d1d23;
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: #1d1d23;
+  --muted-foreground: #a2a2af;
+  --accent: #1d1d23;
+  --accent-foreground: oklch(0.985 0 0);
+  --border: #26262e;
+  --input: #26262e;
+  --sidebar: #101013;
+  --sidebar-border: #26262e;
+  --sidebar-accent: #1d1d23;
+
+  /* neutral graphite ramp replacing blue slate */
+  --color-slate-950: #0a0a0d;
+  --color-slate-900: #151519;
+  --color-slate-800: #242429;
+  --color-slate-700: #383840;
+  --color-slate-600: #55555f;
+  --color-slate-500: #71717c;
+  --color-slate-400: #a0a0ab;
+  --color-slate-300: #c6c6cf;
+  --color-slate-200: #e2e2e8;
+  --color-slate-100: #efeff3;
+  --color-slate-50: #f7f7fa;
+
+  /* rounder, softer surfaces (drives rounded-md/lg/xl/2xl app-wide) */
+  --radius: 0.75rem;
+}
+
+/* ============================================================
  * LIGHT MODE — `html[data-mode="light"]`
  *
  * An orthogonal axis on top of the 5 accent themes above: the
@@ -284,39 +330,42 @@ html[data-theme="rose"] {
 
 html[data-mode="light"] {
   /* — shadcn tokens — */
-  --background: oklch(0.977 0.003 250);
-  --foreground: oklch(0.2 0.02 258);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 258);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 258);
-  --secondary: oklch(0.945 0.005 250);
-  --secondary-foreground: oklch(0.25 0.02 258);
-  --muted: oklch(0.945 0.005 250);
-  --muted-foreground: oklch(0.46 0.015 258);
-  --accent: oklch(0.93 0.006 250);
-  --accent-foreground: oklch(0.25 0.02 258);
-  --border: oklch(0.885 0.006 250);
-  --input: oklch(0.885 0.006 250);
-  --sidebar: oklch(0.99 0.002 250);
-  --sidebar-foreground: oklch(0.25 0.02 258);
-  --sidebar-accent: oklch(0.93 0.006 250);
-  --sidebar-accent-foreground: oklch(0.25 0.02 258);
-  --sidebar-border: oklch(0.885 0.006 250);
+  --background: #f2f4f6;
+  --foreground: #16181d;
+  --card: #ffffff;
+  --card-foreground: #16181d;
+  --popover: #ffffff;
+  --popover-foreground: #16181d;
+  --secondary: #eceff2;
+  --secondary-foreground: #23262d;
+  --muted: #eceff2;
+  --muted-foreground: #626875;
+  --accent: #e8ebef;
+  --accent-foreground: #23262d;
+  --border: #e3e7ec;
+  --input: #e3e7ec;
+  --sidebar: #fbfcfd;
+  --sidebar-foreground: #23262d;
+  --sidebar-accent: #e8ebef;
+  --sidebar-accent-foreground: #23262d;
+  --sidebar-border: #e3e7ec;
 
   /* — slate ramp inversion (hardcoded utility classes) — */
-  --color-slate-950: #f4f6fa;
+  --color-slate-950: #f2f4f6;
   --color-slate-900: #ffffff;
-  --color-slate-800: #e4e9f1;
-  --color-slate-700: #cbd5e1;
-  --color-slate-600: #94a3b8;
+  --color-slate-800: #e6eaef;
+  --color-slate-700: #d0d6de;
+  --color-slate-600: #9aa2af;
   /* slate-500 stays the mid-point (#62748e) — readable both ways */
-  --color-slate-400: #45556c;
-  --color-slate-300: #314158;
-  --color-slate-200: #1d293d;
-  --color-slate-100: #0f172b;
-  --color-slate-50: #020618;
-  --color-white: #0f172b;
+  --color-slate-400: #4b5462;
+  --color-slate-300: #343b47;
+  --color-slate-200: #20252e;
+  --color-slate-100: #131720;
+  --color-slate-50: #060810;
+  --color-white: #131720;
+
+  /* rounder, softer surfaces — matches the dark-mode polish */
+  --radius: 0.75rem;
 
   /* — accent legibility: -200 → hue-700, -300/-400 → hue-600 — */
   --color-emerald-200: #047857;

@@ -13,6 +13,16 @@ and polish.
 
 ### Added
 
+- **Theme re-grade: premium neutral dark + airy light.** Dark mode
+  moves off Tailwind's blue-tinted slate onto a near-black neutral
+  palette (graphite cards on `#0b0b0e`, desaturated greys — the
+  accent theme's `--primary` stays the only strong color), and light
+  mode gets an airier off-white grade with pure-white cards and
+  softer borders. Global corner radius bumped to 0.75rem for the
+  rounder card look. Both applied through the same
+  `html[data-mode="…"]` variable blocks, so every page restyles at
+  once; the Journey canvas's JS-side colors follow suit.
+
 - **Light mode, app-wide.** A sun/moon toggle in the header switches
   the whole CRM between the original dark look and a new light theme
   (persisted per device, synced across tabs, no flash on load — the
