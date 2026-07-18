@@ -2007,7 +2007,7 @@ export function PropertyShareDialog({
                       disabled={selectedContactIds.length === 0 || !selectedTemplate}
                       variant="outline"
                       onClick={() => setBroadcastStep('configure')}
-                      className="border-slate-805 hover:bg-slate-800 text-slate-300 text-xs h-9 flex items-center gap-1"
+                      className="border-slate-800 hover:bg-slate-800 text-slate-300 text-xs h-9 flex items-center gap-1"
                     >
                       Configure & Review
                     </Button>

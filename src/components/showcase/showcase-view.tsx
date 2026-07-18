@@ -1281,7 +1281,7 @@ export function ShowcaseView({
               return (
                 <div
                   key={property.id}
-                  className={`flex flex-col rounded-3xl border bg-slate-900/20 overflow-hidden hover:border-slate-805 hover:shadow-2xl hover:shadow-primary/4 transition-all duration-500 group relative ${
+                  className={`flex flex-col rounded-3xl border bg-slate-900/20 overflow-hidden hover:border-slate-800 hover:shadow-2xl hover:shadow-primary/4 transition-all duration-500 group relative ${
                     interestStatus[property.id] === 'interested'
                       ? 'border-emerald-500/35 ring-1 ring-emerald-500/20 shadow-lg shadow-emerald-950/10'
                       : 'border-slate-900/60'
@@ -1348,7 +1348,7 @@ export function ShowcaseView({
                         {property.title}
                       </h3>
                       <div className="flex items-center text-xs text-slate-400 gap-1 mt-1 mb-3">
-                        <MapPin className="size-3.5 shrink-0 text-slate-655" />
+                        <MapPin className="size-3.5 shrink-0 text-slate-650" />
                         <span className="truncate">
                           {property.sublocality && property.city
                             ? `${property.sublocality}, ${property.city}`
@@ -1360,24 +1360,24 @@ export function ShowcaseView({
                       <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-900/60 text-xs text-slate-350 mb-4 font-semibold">
                         {['Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Penthouse', 'Studio Apartment', 'Farm House', 'House'].includes(property.type) ? (
                           <>
-                            <div className="flex flex-col items-center justify-center bg-slate-955/40 py-2 rounded-xl border border-slate-900/60">
+                            <div className="flex flex-col items-center justify-center bg-slate-950/40 py-2 rounded-xl border border-slate-900/60">
                               <BedDouble className="size-3.5 text-slate-500 mb-0.5" />
                               <span>{property.bedrooms ? `${property.bedrooms} BHK` : '--'}</span>
                             </div>
-                            <div className="flex flex-col items-center justify-center bg-slate-955/40 py-2 rounded-xl border border-slate-900/60">
+                            <div className="flex flex-col items-center justify-center bg-slate-950/40 py-2 rounded-xl border border-slate-900/60">
                               <Bath className="size-3.5 text-slate-500 mb-0.5" />
                               <span>{property.bathrooms ? `${property.bathrooms} Bath` : '--'}</span>
                             </div>
                           </>
                         ) : (
                           <>
-                            <div className="flex flex-col items-center justify-center bg-slate-955/40 py-2 rounded-xl border border-slate-900/60 col-span-2">
+                            <div className="flex flex-col items-center justify-center bg-slate-950/40 py-2 rounded-xl border border-slate-900/60 col-span-2">
                               <span className="text-[10px] text-slate-500">Zoning</span>
                               <span className="truncate max-w-full text-slate-300">{property.land_zone || 'Residential'}</span>
                             </div>
                           </>
                         )}
-                        <div className="flex flex-col items-center justify-center bg-slate-955/40 py-2 rounded-xl border border-slate-900/60">
+                        <div className="flex flex-col items-center justify-center bg-slate-950/40 py-2 rounded-xl border border-slate-900/60">
                           <Maximize2 className="size-3.5 text-slate-500 mb-0.5" />
                           <span className="truncate max-w-full">
                             {isLand
@@ -1503,7 +1503,7 @@ export function ShowcaseView({
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 Can&apos;t find your ideal property?
               </h2>
-              <p className="mt-2 text-slate-405 text-sm leading-relaxed font-medium">
+              <p className="mt-2 text-slate-400 text-sm leading-relaxed font-medium">
                 Tell us your specific requirements, and our team will match you with exclusive, off-market listings. Get notified directly on WhatsApp!
               </p>
             </div>
@@ -1644,7 +1644,7 @@ export function ShowcaseView({
                     {selectedProperty.title}
                   </h2>
                   <div className="flex items-center text-xs text-slate-400 gap-1 mt-1">
-                    <MapPin className="size-3.5 text-slate-555" />
+                    <MapPin className="size-3.5 text-slate-550" />
                     <span>
                       {selectedProperty.sublocality && selectedProperty.city
                         ? `${selectedProperty.sublocality}, ${selectedProperty.city}`
@@ -2275,7 +2275,7 @@ export function ShowcaseView({
                     value={reqName}
                     onChange={(e) => setReqName(e.target.value)}
                     placeholder="Enter name"
-                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-755 focus:border-primary text-xs"
+                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2286,7 +2286,7 @@ export function ShowcaseView({
                     value={reqPhone}
                     onChange={(e) => setReqPhone(e.target.value)}
                     placeholder="e.g. +91 98765 43210"
-                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-755 focus:border-primary text-xs"
+                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
                 </div>
               </div>
@@ -2298,7 +2298,7 @@ export function ShowcaseView({
                   value={reqEmail}
                   onChange={(e) => setReqEmail(e.target.value)}
                   placeholder="e.g. buyer@example.com"
-                  className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-755 focus:border-primary text-xs w-full"
+                  className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs w-full"
                 />
               </div>
 
@@ -2349,7 +2349,7 @@ export function ShowcaseView({
                       }
                     }}
                     placeholder="Type area (e.g. Indiranagar) and press enter or click +"
-                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-755 focus:border-primary text-xs flex-1"
+                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs flex-1"
                   />
                   <Button
                     type="button"
@@ -2385,7 +2385,7 @@ export function ShowcaseView({
                     value={reqMinBudget}
                     onChange={(e) => setReqMinBudget(e.target.value)}
                     placeholder="e.g. 5000000 (50 Lakhs)"
-                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-755 focus:border-primary text-xs"
+                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -2395,7 +2395,7 @@ export function ShowcaseView({
                     value={reqMaxBudget}
                     onChange={(e) => setReqMaxBudget(e.target.value)}
                     placeholder="e.g. 20000000 (2 Crores)"
-                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-755 focus:border-primary text-xs"
+                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
                 </div>
               </div>
@@ -2412,7 +2412,7 @@ export function ShowcaseView({
                     value={reqMinRoi}
                     onChange={(e) => setReqMinRoi(e.target.value)}
                     placeholder="e.g. 4.5 (for 4.5% rent yield)"
-                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-755 focus:border-primary text-xs w-full"
+                    className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs w-full"
                   />
                 </div>
               )}
