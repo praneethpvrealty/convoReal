@@ -13,7 +13,7 @@ import {
 import { AnimatedCounter } from '@/components/motion';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 interface Overview {
   openConversations: number;
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: 6,
     elevation: 6,
-    shadowColor: '#7c3aed',
+    shadowColor: '#1A4D42',
     shadowOpacity: 0.35,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -288,6 +288,7 @@ const styles = StyleSheet.create({
   heroPillText: { color: '#fff', fontSize: 12.5, fontFamily: fonts.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
+    ...shadows.card,
     flexGrow: 1,
     flexBasis: '30%',
     gap: 4,
