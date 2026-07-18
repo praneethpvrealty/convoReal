@@ -80,6 +80,18 @@ and polish.
 
 ### Changed
 
+- **Mobile: richer panels and bolder type.** Inbox and Contacts rows
+  are now elevated white cards floating on the cream canvas (rounded,
+  warm-tinted shadow) instead of flat hairline-divided rows, with
+  extrabold names and medium-weight previews; loading skeletons match
+  the card shape. Search bars became pill-shaped raised fields, filter
+  chips and tags got bolder, and Contacts' call/WhatsApp buttons sit
+  on tinted green backgrounds. Every section panel across More,
+  Deals, Dashboard, Calendar, Credits, Journeys, Broadcasts,
+  Automations and the contact card picked up the shared card shadow,
+  and the Dashboard/Credits hero glow switched from the retired
+  violet to brand forest-green.
+
 - **Journey: all journeys in one place.** `/journey` no longer opens a
   bare picker — it now lists **every** journey as a collapsible
   section (buyers by default; a dropdown at the top switches to

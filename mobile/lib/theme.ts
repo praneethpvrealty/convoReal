@@ -98,6 +98,28 @@ export const darkColors: ThemeColors = {
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radius = { sm: 10, md: 14, lg: 20, xl: 26, full: 999 } as const;
 
+/**
+ * Elevation for panels floating on the cream canvas. Warm-tinted so
+ * shadows read as depth, not grey smudge. `card` for list rows and
+ * section panels, `soft` for inputs/chips.
+ */
+export const shadows = {
+  card: {
+    shadowColor: '#2E2414',
+    shadowOpacity: 0.1,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
+  soft: {
+    shadowColor: '#2E2414',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+} as const;
+
 /** Brand gradient — deep forest → emerald (hero cards, CTAs). */
 export const brandGradient = ['#1A4D42', '#2E7D5F'] as const;
 export const brandGradientDark = ['#1F5B49', '#35946E'] as const;

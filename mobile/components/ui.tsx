@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { avatarHue, initials } from '@/lib/format';
-import { hotGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { hotGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 
 /**
  * Initials avatar with a deterministic hue per contact. `ring` draws
@@ -106,14 +106,14 @@ export function FilterChip({
     <Text
       onPress={onPress}
       style={{
-        paddingHorizontal: 14,
-        paddingVertical: 7,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
         borderRadius: radius.full,
         overflow: 'hidden',
         fontSize: 13,
-        fontFamily: fonts.semibold,
-        backgroundColor: active ? colors.primary : colors.surface,
-        color: active ? colors.onPrimary : colors.textMuted,
+        fontFamily: fonts.bold,
+        backgroundColor: active ? colors.primary : colors.surfaceRaised,
+        color: active ? colors.onPrimary : colors.text,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: active ? colors.primary : colors.border,
       }}
@@ -138,7 +138,7 @@ export function Tag({ label, color }: { label: string; color?: string }) {
         borderColor: colors.border,
       }}
     >
-      <Text style={{ fontSize: 11, fontFamily: fonts.semibold, color: fg }}>{label}</Text>
+      <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: fg }}>{label}</Text>
     </View>
   );
 }
@@ -161,7 +161,7 @@ export function Skeleton({ style }: { style?: ViewStyle }) {
   return (
     <View
       style={[
-        { backgroundColor: colors.surface, borderRadius: radius.sm, overflow: 'hidden' },
+        { backgroundColor: colors.incomingBubble, borderRadius: radius.sm, overflow: 'hidden' },
         style,
       ]}
     >
@@ -178,9 +178,26 @@ export function Skeleton({ style }: { style?: ViewStyle }) {
 }
 
 export function ConversationSkeleton() {
+  const { colors } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', gap: spacing.md, padding: spacing.lg, alignItems: 'center' }}>
-      <Skeleton style={{ width: 46, height: 46, borderRadius: 23 }} />
+    <View
+      style={[
+        {
+          flexDirection: 'row',
+          gap: spacing.md,
+          alignItems: 'center',
+          marginHorizontal: spacing.lg,
+          marginBottom: spacing.md - 2,
+          padding: spacing.md,
+          borderRadius: radius.lg,
+          backgroundColor: colors.surfaceRaised,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+        },
+        shadows.card,
+      ]}
+    >
+      <Skeleton style={{ width: 50, height: 50, borderRadius: 25 }} />
       <View style={{ flex: 1, gap: spacing.sm }}>
         <Skeleton style={{ height: 14, width: '55%' }} />
         <Skeleton style={{ height: 12, width: '85%' }} />

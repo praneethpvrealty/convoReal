@@ -21,7 +21,7 @@ import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
 
 /** Same status derivation the web kanban applies on stage move. */
@@ -320,6 +320,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   card: {
+    ...shadows.card,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     borderRadius: radius.lg,

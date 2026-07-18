@@ -16,7 +16,7 @@ import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
 
 export default function AutomationsScreen() {
@@ -187,6 +187,7 @@ function SectionLabel({ text }: { text: string }) {
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   card: {
+    ...shadows.card,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,

@@ -18,7 +18,7 @@ import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow } from '@/components/motion';
 import { Avatar, ConversationSkeleton, EmptyState, Tag } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { classificationColors, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
 /**
@@ -104,7 +104,11 @@ export default function ContactsScreen() {
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={[styles.title, { color: colors.text }]}>Contacts</Text>
         <View
-          style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          style={[
+            styles.search,
+            shadows.soft,
+            { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+          ]}
         >
           <Ionicons name="search" size={16} color={colors.textFaint} />
           <TextInput
@@ -133,7 +137,7 @@ export default function ContactsScreen() {
           style={{ flex: 1 }}
           data={data ?? []}
           keyExtractor={(c) => c.id}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: TAB_BAR_CLEARANCE }}
           refreshControl={
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
@@ -170,10 +174,14 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
     <Link href={`/(app)/contact/${contact.id}`} asChild>
       {/* Slot child requires one flat style object (no arrays). */}
       <Pressable
-        style={StyleSheet.flatten([styles.row, { borderBottomColor: colors.border }])}
-        android_ripple={{ color: colors.surface }}
+        style={StyleSheet.flatten([
+          styles.row,
+          shadows.card,
+          { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+        ])}
+        android_ripple={{ color: colors.background }}
       >
-        <Avatar name={name} size={44} />
+        <Avatar name={name} size={46} />
         <View style={styles.rowBody}>
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
@@ -195,16 +203,16 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
         <Pressable
           hitSlop={6}
           onPress={() => Linking.openURL(`tel:${contact.phone}`)}
-          style={[styles.action, { backgroundColor: colors.surface }]}
+          style={[styles.action, { backgroundColor: colors.primarySoft }]}
         >
-          <Ionicons name="call-outline" size={19} color={colors.primary} />
+          <Ionicons name="call" size={18} color={colors.primary} />
         </Pressable>
         <Pressable
           hitSlop={6}
           onPress={() => Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)}
-          style={[styles.action, { backgroundColor: colors.surface }]}
+          style={[styles.action, { backgroundColor: colors.successSoft }]}
         >
-          <Ionicons name="logo-whatsapp" size={19} color={colors.success} />
+          <Ionicons name="logo-whatsapp" size={18} color={colors.success} />
         </Pressable>
       </Pressable>
     </Link>
@@ -218,22 +226,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
-  searchInput: { flex: 1, paddingVertical: 9, fontSize: 14.5 },
+  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14.5, fontFamily: fonts.medium },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md - 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  rowBody: { flex: 1, gap: 2 },
+  rowBody: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 16, fontFamily: fonts.bold, flexShrink: 1 },
+  name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   action: {
     width: 38,

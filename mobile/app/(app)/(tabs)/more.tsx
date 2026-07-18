@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import {
   fonts,
   radius,
+  shadows,
   spacing,
   useAppearance,
   useTheme,
@@ -48,7 +49,7 @@ export default function MoreScreen() {
     >
       <Text style={[styles.title, { color: colors.text }]}>More</Text>
 
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         <View style={styles.profileRow}>
           <Avatar name={displayName} size={54} />
           <View style={{ flex: 1, gap: 2 }}>
@@ -78,7 +79,7 @@ export default function MoreScreen() {
       </View>
 
       <SectionLabel text="Workspace" />
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         {WORKSPACE_LINKS.map((link) => (
           <Link key={link.href} href={link.href} asChild>
             <Pressable style={styles.navRow} android_ripple={{ color: colors.border }}>
@@ -91,12 +92,12 @@ export default function MoreScreen() {
       </View>
 
       <SectionLabel text="Appearance" />
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         <AppearancePicker />
       </View>
 
       <SectionLabel text="On the web app" />
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         {WEB_ONLY.map((f) => (
           <View key={f.label} style={styles.navRow}>
             <Ionicons name={f.icon} size={19} color={colors.textMuted} />
@@ -245,7 +246,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: 14,
   },
-  navLabel: { flex: 1, fontSize: 15, fontFamily: fonts.semibold },
+  navLabel: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
   cardHint: {
     fontSize: 12,
     lineHeight: 17,

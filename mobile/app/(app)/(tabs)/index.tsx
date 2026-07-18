@@ -29,7 +29,7 @@ import type { Contact } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Conversation } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
 
@@ -120,7 +120,7 @@ export default function InboxScreen() {
           style={{ flex: 1 }}
           data={filtered}
           keyExtractor={(c) => c.id}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: TAB_BAR_CLEARANCE }}
           refreshControl={
             <RefreshControl
               refreshing={isFetching}
@@ -225,7 +225,9 @@ function InboxHeader({
           <Avatar name={displayName} size={42} />
           <View>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Hi, {displayName}</Text>
-            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>Your WhatsApp inbox</Text>
+            <Text style={{ fontSize: 12.5, fontFamily: fonts.medium, color: colors.textMuted }}>
+              Your WhatsApp inbox
+            </Text>
           </View>
         </View>
         <View
@@ -255,7 +257,8 @@ function InboxHeader({
       <View
         style={[
           styles.search,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          shadows.soft,
+          { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
         ]}
       >
         <Ionicons name="search" size={16} color={colors.textFaint} />
@@ -286,10 +289,14 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
       {/* expo-router's <Slot> child needs ONE flat style object — no
           arrays, no style functions (both break under Link asChild). */}
       <Pressable
-        style={StyleSheet.flatten([styles.row, { borderBottomColor: colors.border }])}
-        android_ripple={{ color: colors.surface }}
+        style={StyleSheet.flatten([
+          styles.row,
+          shadows.card,
+          { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+        ])}
+        android_ripple={{ color: colors.background }}
       >
-        <Avatar name={name} />
+        <Avatar name={name} size={50} />
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <View style={styles.nameWrap}>
@@ -306,7 +313,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
             <Text
               style={{
                 fontSize: 12,
-                fontFamily: unread ? fonts.bold : fonts.regular,
+                fontFamily: unread ? fonts.bold : fonts.medium,
                 color: unread ? colors.primary : colors.textFaint,
               }}
             >
@@ -319,7 +326,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
                 flex: 1,
                 fontSize: 14,
                 color: unread ? colors.text : colors.textMuted,
-                fontFamily: unread ? fonts.semibold : fonts.regular,
+                fontFamily: unread ? fonts.bold : fonts.medium,
               }}
               numberOfLines={1}
             >
@@ -336,7 +343,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 21, fontFamily: fonts.extrabold, letterSpacing: -0.4 },
+  headerTitle: { fontSize: 23, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   creditsChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -351,11 +358,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.full,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
-  searchInput: { flex: 1, paddingVertical: 9, fontSize: 14.5 },
+  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14.5, fontFamily: fonts.medium },
   filtersRow: { height: 52, justifyContent: 'center' },
   filters: {
     gap: spacing.sm,
@@ -366,11 +373,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 13,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md - 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  rowBody: { flex: 1, gap: 3 },
+  rowBody: { flex: 1, gap: 4 },
   rowTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -378,5 +388,5 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   nameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 16, fontFamily: fonts.bold, flexShrink: 1 },
+  name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
 });
