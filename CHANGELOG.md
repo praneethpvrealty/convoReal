@@ -13,6 +13,18 @@ and polish.
 
 ### Fixed
 
+- **Slow networks no longer produce a "zombie" session.** When the
+  post-login profile fetch stalled (flaky mobile connection), the app
+  stayed stuck in a profile-pending state indefinitely: the header
+  showed a generic "User", role gates treated the caller as
+  least-privileged ("Read-only view — templates are managed by your
+  Organization Manager"), and account-scoped lists rendered empty
+  ("No templates yet") — misreporting both permissions and data. The
+  profile fetch now times out per attempt (10s, one retry), a hang
+  surfaces the existing "We couldn't load your profile / Retry"
+  screen instead, and the Templates panel keeps its loader up until
+  the profile actually resolves.
+
 - **Page can no longer pan sideways on phones.** `overflow-x: clip`
   on `html`/`body` guarantees the page itself never scrolls
   horizontally — every intended horizontal scroller (tables, tab

@@ -291,15 +291,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // false so the caller correctly routes to /profile-setup.
     };
 
+    // A profile fetch that HANGS (stalled connection, wedged proxy) is
+    // worse than one that fails: profileLoading stays true forever and
+    // every profile-dependent surface silently falls back — header
+    // shows "User", role gates treat the caller as least-privileged
+    // ("Read-only view — templates are managed by your Organization
+    // Manager"), and account-scoped lists render empty ("No templates
+    // yet"). Cap each attempt so a hang becomes a retry, then a real
+    // error state — the shell's "We couldn't load your profile / Retry"
+    // screen — instead of a zombie UI that misreports permissions.
+    const attemptWithTimeout = (ms: number) =>
+      Promise.race([
+        attemptFetch(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`profile fetch timed out after ${ms}ms`)), ms),
+        ),
+      ]);
+
     try {
-      await attemptFetch();
+      await attemptWithTimeout(10_000);
     } catch {
       // One retry after a short delay absorbs the transient case
       // (dropped connection, momentary DB timeout) without a page-level
       // wait; a second failure is treated as a real error state.
       await new Promise((resolve) => setTimeout(resolve, 700));
       try {
-        await attemptFetch();
+        await attemptWithTimeout(10_000);
       } catch (err) {
         console.error("[AuthProvider] fetchProfile failed after retry:", err);
         setProfileError(true);
