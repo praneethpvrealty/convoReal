@@ -106,6 +106,12 @@ Jobs & payments ledger on top of the directory — one row per actual engagement
 - Balances (charge − received, fee − paid) and margin (agreed: charge − fee; realized: received − paid) are computed in the UI, never stored.
 - RLS on both: members read, `agent`+ modify.
 
+#### 7d. `liaison_workflows` (migration 149)
+Client-shareable process explanations — e.g. "Change name in the khata document": case login → ARO approval → JD review/transfer → DC approval → khata issued. Rendered into a WhatsApp message via `buildWorkflowMessage`.
+- `id`, `account_id`, `user_id`, `service_name` (TEXT, NOT NULL), `description` (TEXT, client-facing intro).
+- `stages` (JSONB): ordered array of `{ name, authority, duration_days, description }` — array order is the process order; overall timeline is the sum of stage durations, computed in the UI.
+- RLS: members read, `agent`+ modify.
+
 ---
 
 ### Group C: Properties & Showcases

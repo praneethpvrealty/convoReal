@@ -5,13 +5,15 @@ import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import LiaisonsContent from "./liaisons-content";
 import JobsContent from "./jobs-content";
+import WorkflowsContent from "./workflows-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "directory" | "jobs";
+type TabId = "directory" | "jobs" | "workflows";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "directory", label: "Directory" },
   { id: "jobs", label: "Jobs & Payments" },
+  { id: "workflows", label: "Workflows" },
 ];
 
 export default function LiaisonsPage() {
@@ -24,9 +26,14 @@ export default function LiaisonsPage() {
   }, [searchParams]);
 
   const tabMeta = useMemo(() => {
-    return activeTab === "jobs"
-      ? { label: "Liaison Jobs", href: "/liaisons?tab=jobs", icon: "Briefcase" }
-      : { label: "Liaisons", href: "/liaisons", icon: "Landmark" };
+    switch (activeTab) {
+      case "jobs":
+        return { label: "Liaison Jobs", href: "/liaisons?tab=jobs", icon: "Briefcase" };
+      case "workflows":
+        return { label: "Liaison Workflows", href: "/liaisons?tab=workflows", icon: "Workflow" };
+      default:
+        return { label: "Liaisons", href: "/liaisons", icon: "Landmark" };
+    }
   }, [activeTab]);
 
   const handleTabChange = (tab: TabId) => {
@@ -69,6 +76,7 @@ export default function LiaisonsPage() {
       <div className="relative z-10">
         {activeTab === "directory" && <LiaisonsContent />}
         {activeTab === "jobs" && <JobsContent />}
+        {activeTab === "workflows" && <WorkflowsContent />}
       </div>
     </div>
   );

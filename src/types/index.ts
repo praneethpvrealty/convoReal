@@ -1061,3 +1061,28 @@ export interface LiaisonJobPayment {
   note: string | null;
   created_at: string;
 }
+
+/** One stage of a liaison process workflow (149_liaison_workflows.sql). */
+export interface LiaisonWorkflowStage {
+  /** e.g. "Case login", "ARO approval" */
+  name: string;
+  /** Who acts/approves at this stage: "Case worker", "ARO", "JD", "DC". */
+  authority: string | null;
+  /** Indicative duration in days. Null when it varies. */
+  duration_days: number | null;
+  /** Client-facing explanation of what happens in this stage. */
+  description: string | null;
+}
+
+/** Client-shareable explanation of a government process, stage by stage. */
+export interface LiaisonWorkflow {
+  id: string;
+  account_id: string;
+  user_id?: string | null;
+  service_name: string;
+  description: string | null;
+  /** Array order is the process order. */
+  stages: LiaisonWorkflowStage[];
+  created_at: string;
+  updated_at: string;
+}
