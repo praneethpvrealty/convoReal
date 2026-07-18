@@ -144,6 +144,8 @@ export interface CalendarEvent {
    *  (src/lib/whatsapp/webhook-handler.ts). Cleared once the event is
    *  actually moved to a new time. */
   reschedule_requested_at?: string | null;
+  /** When the client tapped "Fine" on a reminder (migration 151). */
+  client_confirmed_at?: string | null;
   contact?: { id: string; name: string; phone: string; name_tag?: string | null } | null;
   property?: { id: string; title: string; location: string | null; sublocality: string | null } | null;
 }

@@ -74,6 +74,9 @@ export async function PUT(
         // flag (src/lib/whatsapp/webhook-handler.ts) — the client's ask
         // is addressed by definition once the time actually changes.
         updatePayload.reschedule_requested_at = null
+        // And voids any earlier "Fine" confirmation — it was for the
+        // old time; the re-sent reminders will collect a fresh one.
+        updatePayload.client_confirmed_at = null
       }
     }
 
