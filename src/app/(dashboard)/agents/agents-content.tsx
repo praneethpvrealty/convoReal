@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { JourneyEmbed } from '@/components/journey/journey-embed';
+import { ContactAppointments } from '@/components/calendar/contact-appointments';
 import {
   Building,
   Phone,
@@ -378,6 +379,12 @@ export default function AgentsPage() {
                   >
                     JOURNEY
                   </TabsTrigger>
+                  <TabsTrigger
+                    value="schedule"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
+                  >
+                    SCHEDULE
+                  </TabsTrigger>
                 </TabsList>
               </div>
 
@@ -592,6 +599,17 @@ export default function AgentsPage() {
                 className="flex-1 overflow-y-auto p-6 focus-visible:outline-none min-h-0"
               >
                 <JourneyEmbed mode="buyer" subjectId={selectedAgent.id} />
+              </TabsContent>
+
+              {/* Schedule Tab — appointments involving this agent */}
+              <TabsContent
+                value="schedule"
+                className="flex-1 overflow-y-auto p-6 focus-visible:outline-none min-h-0"
+              >
+                <ContactAppointments
+                  key={selectedAgent.id}
+                  contactId={selectedAgent.id}
+                />
               </TabsContent>
             </Tabs>
           </div>
