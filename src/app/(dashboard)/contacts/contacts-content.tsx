@@ -50,6 +50,7 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Sparkles,
+  WifiOff,
   Smartphone,
   X,
   ArrowUp,
@@ -470,6 +471,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  // True when the last contacts load errored or timed out — renders an
+  // inline retry card instead of an eternal spinner / empty state.
+  const [fetchFailed, setFetchFailed] = useState(false);
   type QuickFilterTab = 'active' | 'pending_review' | 'transacted' | 'market_active';
   const [activeTab, setActiveTab] = useState<QuickFilterTab>('active');
 
@@ -685,6 +689,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
+    setFetchFailed(false);
     const supabaseClient = createClient();
 
     const from = page * PAGE_SIZE;
@@ -706,6 +711,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
 
     try {
+      // The whole load races a hard timeout: on a stalled mobile
+      // connection an awaited query can hang forever, which used to
+      // leave "Loading contacts..." up indefinitely with no way to
+      // retry. A hang now falls into the catch below and renders the
+      // retry card instead.
+      await Promise.race([
+      (async () => {
       // Fetch profile phone numbers for this account to exclude them
       const { data: profilesData } = await supabaseClient
         .from('profiles')
@@ -1126,9 +1138,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
       setContacts(enriched);
       setLoading(false);
+      })(),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('contacts fetch timed out after 20s')),
+          20_000,
+        ),
+      ),
+      ]);
     } catch (err: unknown) {
       console.error('Error fetching contacts:', err);
       toast.error('An unexpected error occurred while loading contacts');
+      setFetchFailed(true);
       setLoading(false);
     }
   }, [
@@ -1776,7 +1797,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            All Contacts ({activeCount})
+            All Contacts ({loading ? '…' : activeCount})
           </button>
           <button
             onClick={() => setActiveTabAndSync('pending_review')}
@@ -1786,7 +1807,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Needs Review ({reviewCount})
+            Needs Review ({loading ? '…' : reviewCount})
             {reviewCount > 0 && (
               <span className="inline-flex items-center justify-center bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] min-w-[16px] h-4 leading-none animate-pulse">
                 {reviewCount}
@@ -1801,7 +1822,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Transacted ({transactedCount})
+            Transacted ({loading ? '…' : transactedCount})
           </button>
           <button
             onClick={() => setActiveTabAndSync('market_active')}
@@ -1811,7 +1832,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Active Buyers ({marketActiveCount})
+            Active Buyers ({loading ? '…' : marketActiveCount})
           </button>
         </div>
       </div>
@@ -1828,6 +1849,25 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <ContactCardLoader size={104} label="Loading contacts" className="mb-3" />
             <ConvoRealLoader size={20} className="mb-2" />
             <p className="text-sm">Loading contacts...</p>
+          </div>
+        ) : fetchFailed ? (
+          <div className="flex flex-col items-center gap-3 py-12">
+            <WifiOff className="size-8 text-amber-400" />
+            <p className="text-sm text-slate-400 text-center max-w-xs">
+              Couldn&apos;t load contacts — your connection looks slow or
+              dropped. Your data is safe; try again.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setLoading(true);
+                fetchContacts();
+              }}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              Retry
+            </Button>
           </div>
         ) : contacts.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-12">

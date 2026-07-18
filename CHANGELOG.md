@@ -13,6 +13,14 @@ and polish.
 
 ### Fixed
 
+- **Contacts page: slow networks get a Retry card, not an eternal
+  spinner or fake counts.** The contacts load now races a 20s
+  timeout; a stalled connection surfaces an inline "Couldn't load
+  contacts / Retry" card instead of "Loading contacts..." forever.
+  While loading, the tab counters show "…" instead of a false
+  "All Contacts (0)". Navigation was never blocked during loads and
+  stays that way — the sidebar remains fully tappable mid-load.
+
 - **Slow networks no longer produce a "zombie" session.** When the
   post-login profile fetch stalled (flaky mobile connection), the app
   stayed stuck in a profile-pending state indefinitely: the header
