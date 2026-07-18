@@ -307,7 +307,7 @@ function MessageBubble({ message }: { message: Message }) {
       </View>
 
       {message.status === 'failed' && message.error_info ? (
-        <Text style={{ fontSize: 11.5, color: outgoing ? '#ffd7d7' : colors.danger }}>
+        <Text style={{ fontSize: 11.5, color: outgoing ? colors.dangerSoft : colors.danger }}>
           {message.error_info}
         </Text>
       ) : null}

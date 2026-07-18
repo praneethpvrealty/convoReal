@@ -4,7 +4,6 @@ import { Link, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
+import { BottomSheet } from '@/components/sheet';
 import { EmptyState } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -394,19 +394,14 @@ function AppointmentDetail({
   }
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={() => {
-          reset();
-          onClose();
-        }}
-      >
-        <Pressable
-          style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]}
-          onPress={() => {}}
-          accessibilityViewIsModal
-        >
+    <BottomSheet
+      visible
+      onClose={() => {
+        reset();
+        onClose();
+      }}
+      contentStyle={styles.sheet}
+    >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <View style={[styles.typeBadge, { backgroundColor: colors.primarySoft }]}>
               <Ionicons name={meta.icon} size={17} color={colors.primary} />
@@ -535,9 +530,7 @@ function AppointmentDetail({
               </View>
             )
           ) : null}
-        </Pressable>
-      </Pressable>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -650,12 +643,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardTitle: { fontSize: 15, fontFamily: fonts.bold },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.lg,
-    paddingBottom: 34,
+    paddingHorizontal: spacing.lg,
     gap: spacing.md,
   },
   pickerButton: {

@@ -2,23 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Banner } from '@/components/ui';
+import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
 
@@ -52,7 +50,7 @@ export default function LoginScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.logoBadge}
             >
-              <Ionicons name="chatbubbles" size={34} color="#fff" />
+              <Ionicons name="chatbubbles" size={34} color={onGradient.text} />
             </LinearGradient>
             <Text style={[styles.wordmark, { color: colors.primary }]}>ConvoReal</Text>
             <Text style={[styles.tagline, { color: colors.textMuted }]}>
@@ -195,7 +193,7 @@ function WhatsappLogin() {
 
       {stage === 'phone' ? (
         <>
-          <Field
+          <TextField
             icon="logo-whatsapp"
             placeholder="WhatsApp number · e.g. 99002 77111"
             keyboardType="phone-pad"
@@ -284,7 +282,7 @@ function EmailLogin() {
   return (
     <View style={{ gap: spacing.lg }}>
       {error ? <Banner kind="error" text={error} /> : null}
-      <Field
+      <TextField
         icon="mail-outline"
         placeholder="Email"
         keyboardType="email-address"
@@ -293,7 +291,7 @@ function EmailLogin() {
         value={email}
         onChangeText={setEmail}
       />
-      <Field
+      <TextField
         icon="lock-closed-outline"
         placeholder="Password"
         secureTextEntry
@@ -308,66 +306,6 @@ function EmailLogin() {
         onPress={signIn}
       />
     </View>
-  );
-}
-
-function Field({
-  icon,
-  ...props
-}: { icon: React.ComponentProps<typeof Ionicons>['name'] } & React.ComponentProps<
-  typeof TextInput
->) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={[
-        styles.field,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
-    >
-      <Ionicons name={icon} size={18} color={colors.textFaint} />
-      <TextInput
-        style={[styles.fieldInput, { color: colors.text }]}
-        placeholderTextColor={colors.textFaint}
-        {...props}
-      />
-    </View>
-  );
-}
-
-function PrimaryButton({
-  label,
-  busy,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  busy: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  const gradient = useBrandGradient();
-  return (
-    <Pressable
-      style={({ pressed }) => ({
-        opacity: disabled || busy ? 0.55 : pressed ? 0.85 : 1,
-      })}
-      disabled={disabled || busy}
-      onPress={onPress}
-    >
-      <LinearGradient
-        colors={gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.primaryButton}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={{ color: '#fff', fontSize: 16, fontFamily: fonts.bold }}>{label}</Text>
-        )}
-      </LinearGradient>
-    </Pressable>
   );
 }
 
@@ -394,27 +332,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: radius.md,
   },
-  segmentActive: {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-  },
-  fieldInput: { flex: 1, paddingVertical: 13, fontSize: 16 },
-  primaryButton: {
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  segmentActive: { ...shadows.soft },
   footer: { fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
 });

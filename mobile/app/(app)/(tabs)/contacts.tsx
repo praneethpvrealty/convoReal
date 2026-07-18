@@ -9,16 +9,15 @@ import {
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow } from '@/components/motion';
-import { Avatar, ConversationSkeleton, EmptyState, Tag } from '@/components/ui';
+import { Avatar, ConversationSkeleton, EmptyState, SearchBar, Tag, listCard } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { classificationColors, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
 /**
@@ -103,32 +102,11 @@ export default function ContactsScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={[styles.title, { color: colors.text }]}>Contacts</Text>
-        <View
-          style={[
-            styles.search,
-            shadows.soft,
-            { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
-          ]}
-        >
-          <Ionicons name="search" size={16} color={colors.textFaint} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name, phone, tag, company…"
-            placeholderTextColor={colors.textFaint}
-            value={search}
-            onChangeText={setSearch}
-          />
-          {search ? (
-            <Pressable
-              onPress={() => setSearch('')}
-              hitSlop={10}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-            >
-              <Ionicons name="close-circle" size={16} color={colors.textFaint} />
-            </Pressable>
-          ) : null}
-        </View>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search name, phone, tag, company…"
+        />
       </View>
 
       {isLoading ? (
@@ -180,7 +158,7 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
       {/* Slot child requires one flat style object (no arrays). */}
       <Pressable
         style={StyleSheet.flatten([
-          styles.row,
+          listCard,
           shadows.card,
           { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
         ])}
@@ -231,26 +209,6 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.lg,
-  },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14.5, fontFamily: fonts.medium },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md - 2,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
   rowBody: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },

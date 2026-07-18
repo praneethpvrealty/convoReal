@@ -3,19 +3,17 @@ import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
-import { Avatar, Banner } from '@/components/ui';
+import { Avatar, Banner, PrimaryButton, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -115,10 +113,8 @@ export default function NewAppointmentScreen() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {error ? <Banner kind="error" text={error} /> : null}
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+        <TextField
           placeholder="Title · e.g. Site visit — Prestige Lakeview"
-          placeholderTextColor={colors.textFaint}
           value={title}
           onChangeText={setTitle}
         />
@@ -179,10 +175,8 @@ export default function NewAppointmentScreen() {
           />
         ) : null}
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+        <TextField
           placeholder="Location (optional)"
-          placeholderTextColor={colors.textFaint}
           value={location}
           onChangeText={setLocation}
         />
@@ -204,10 +198,8 @@ export default function NewAppointmentScreen() {
           </View>
         ) : (
           <View style={{ gap: spacing.sm }}>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            <TextField
               placeholder="Attach contact — search name or phone (optional)"
-              placeholderTextColor={colors.textFaint}
               value={contactSearch}
               onChangeText={setContactSearch}
             />
@@ -229,22 +221,14 @@ export default function NewAppointmentScreen() {
           </View>
         )}
 
-        <Pressable
-          style={[
-            styles.saveButton,
-            { backgroundColor: colors.primary, opacity: saving || !title.trim() ? 0.55 : 1 },
-          ]}
-          disabled={saving || !title.trim()}
-          onPress={save}
-        >
-          {saving ? (
-            <ActivityIndicator color={colors.onPrimary} />
-          ) : (
-            <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
-              Schedule
-            </Text>
-          )}
-        </Pressable>
+        <View style={{ marginTop: spacing.sm }}>
+          <PrimaryButton
+            label="Schedule"
+            busy={saving}
+            disabled={!title.trim()}
+            onPress={save}
+          />
+        </View>
 
         <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
           Attached contacts get automatic WhatsApp reminders (morning-of and 1 hour before).
@@ -256,13 +240,6 @@ export default function NewAppointmentScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-  },
   typeChip: {
     flex: 1,
     alignItems: 'center',
@@ -288,11 +265,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
-  },
-  saveButton: {
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: spacing.sm,
   },
 });

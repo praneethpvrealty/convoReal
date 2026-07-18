@@ -16,7 +16,7 @@ import {
 
 import MapView, { Marker } from 'react-native-maps';
 
-import { Tag } from '@/components/ui';
+import { SectionLabel, Tag } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
@@ -249,7 +249,7 @@ export default function PropertyDetailScreen() {
               >
                 <Marker
                   coordinate={{ latitude: property.latitude, longitude: property.longitude }}
-                  pinColor="#7c3aed"
+                  pinColor={colors.primary}
                 />
               </MapView>
             </View>
@@ -341,20 +341,9 @@ function Spec({
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  const { colors } = useTheme();
   return (
     <View style={{ gap: spacing.sm }}>
-      <Text
-        style={{
-          fontSize: 12.5,
-          fontFamily: fonts.bold,
-          textTransform: 'uppercase',
-          letterSpacing: 0.4,
-          color: colors.textFaint,
-        }}
-      >
-        {title}
-      </Text>
+      <SectionLabel text={title} />
       {children}
     </View>
   );

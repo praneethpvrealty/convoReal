@@ -12,14 +12,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow } from '@/components/motion';
-import { ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
+import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
 import {
   apiFetch,
   placeDetails,
@@ -35,7 +34,7 @@ import {
   type ListingFilter,
   type NearAnchor,
 } from '@/lib/property-search-store';
-import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const LISTING_FILTERS: ListingFilter[] = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'];
@@ -250,8 +249,8 @@ export default function PropertiesScreen() {
 
       {isLoading ? (
         <View>
-          {Array.from({ length: 6 }, (_, i) => (
-            <ConversationSkeleton key={i} />
+          {Array.from({ length: 4 }, (_, i) => (
+            <PropertyCardSkeleton key={i} />
           ))}
         </View>
       ) : (
@@ -407,28 +406,13 @@ function LocalitySearchBox() {
 
   return (
     <View>
-      <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Ionicons name="search" size={16} color={colors.textFaint} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder='Area, project, or "2bhk under 80L"'
-          placeholderTextColor={colors.textFaint}
-          value={search}
-          onChangeText={setSearch}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
-        />
-        {search ? (
-          <Pressable
-            onPress={() => setSearch('')}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Clear search"
-          >
-            <Ionicons name="close-circle" size={16} color={colors.textFaint} />
-          </Pressable>
-        ) : null}
-      </View>
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        placeholder='Area, project, or "2bhk under 80L"'
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+      />
 
       {enabled && suggestions && suggestions.length > 0 ? (
         <View
@@ -499,7 +483,7 @@ function PropertyCard({ property }: { property: Property }) {
               end={{ x: 1, y: 1 }}
               style={[StyleSheet.absoluteFill, styles.coverEmpty]}
             >
-              <Ionicons name="home-outline" size={38} color="rgba(255,255,255,0.85)" />
+              <Ionicons name="home-outline" size={38} color={onGradient.faint} />
             </LinearGradient>
           )}
           {property.listing_type || typeof property.distance_km === 'number' ? (
@@ -561,7 +545,7 @@ function SpecPill({
   const { colors } = useTheme();
   // Reference style: soft filled chips, no border.
   return (
-    <View style={[styles.specPill, { backgroundColor: colors.incomingBubble }]}>
+    <View style={[styles.specPill, { backgroundColor: colors.surfaceSunken }]}>
       <Ionicons name={icon} size={13} color={colors.textMuted} />
       <Text style={{ fontSize: 12, fontFamily: fonts.semibold, color: colors.textMuted }} numberOfLines={1}>
         {label}
@@ -585,15 +569,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-  },
-  searchInput: { flex: 1, paddingVertical: 9, fontSize: 14.5 },
   suggestions: {
     position: 'absolute',
     top: '100%',
@@ -628,15 +603,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   card: {
+    ...shadows.card,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
     borderRadius: radius.xl,
     padding: 10,
-    elevation: 2,
-    shadowColor: '#1A4D42',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
   },
   coverWrap: { height: 175, borderRadius: radius.lg, overflow: 'hidden' },
   coverEmpty: { alignItems: 'center', justifyContent: 'center' },

@@ -11,11 +11,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
-import { Avatar, Banner, Tag } from '@/components/ui';
+import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -219,14 +218,14 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {error ? <Banner kind="error" text={error} /> : null}
 
-        <EditField label="Name" value={name} onChangeText={setName} placeholder="Full name" />
-        <EditField
+        <TextField label="Name" value={name} onChangeText={setName} placeholder="Full name" />
+        <TextField
           label="Name Tag"
           value={nameTag}
           onChangeText={setNameTag}
           placeholder='Short qualifier, e.g. "Bank DSA"'
         />
-        <EditField
+        <TextField
           label="Email"
           value={email}
           onChangeText={setEmail}
@@ -234,8 +233,8 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
           keyboardType="email-address"
           autoCapitalize="none"
         />
-        <EditField label="Company" value={company} onChangeText={setCompany} placeholder="Company" />
-        <EditField
+        <TextField label="Company" value={company} onChangeText={setCompany} placeholder="Company" />
+        <TextField
           label="Requirements"
           value={requirements}
           onChangeText={setRequirements}
@@ -277,42 +276,11 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
           </View>
         </View>
 
-        <Pressable
-          style={[styles.saveButton, { backgroundColor: colors.primary, opacity: saving ? 0.6 : 1 }]}
-          disabled={saving}
-          onPress={save}
-        >
-          {saving ? (
-            <ActivityIndicator color={colors.onPrimary} />
-          ) : (
-            <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
-              Save changes
-            </Text>
-          )}
-        </Pressable>
+        <View style={{ marginTop: spacing.sm }}>
+          <PrimaryButton label="Save changes" busy={saving} onPress={save} />
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
-  );
-}
-
-function EditField({
-  label,
-  ...props
-}: { label: string } & React.ComponentProps<typeof TextInput>) {
-  const { colors } = useTheme();
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>{label}</Text>
-      <TextInput
-        style={[
-          styles.input,
-          { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
-          props.multiline && { minHeight: 84, textAlignVertical: 'top' },
-        ]}
-        placeholderTextColor={colors.textFaint}
-        {...props}
-      />
-    </View>
   );
 }
 
@@ -385,17 +353,4 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   fieldLabel: { fontSize: 12.5, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 15,
-  },
-  saveButton: {
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: spacing.sm,
-  },
 });

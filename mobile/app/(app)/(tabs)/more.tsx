@@ -4,7 +4,7 @@ import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar } from '@/components/ui';
+import { Avatar, SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import {
@@ -78,7 +78,7 @@ export default function MoreScreen() {
         />
       </View>
 
-      <SectionLabel text="Workspace" />
+      <SectionLabel text="Workspace" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         {WORKSPACE_LINKS.map((link) => (
           <Link key={link.href} href={link.href} asChild>
@@ -91,12 +91,12 @@ export default function MoreScreen() {
         ))}
       </View>
 
-      <SectionLabel text="Appearance" />
+      <SectionLabel text="Appearance" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         <AppearancePicker />
       </View>
 
-      <SectionLabel text="On the web app" />
+      <SectionLabel text="On the web app" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         {WEB_ONLY.map((f) => (
           <View key={f.label} style={styles.navRow}>
@@ -179,24 +179,6 @@ function AppearancePicker() {
         );
       })}
     </View>
-  );
-}
-
-function SectionLabel({ text }: { text: string }) {
-  const { colors } = useTheme();
-  return (
-    <Text
-      style={{
-        fontSize: 12.5,
-        fontFamily: fonts.bold,
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
-        color: colors.textFaint,
-        marginTop: spacing.sm,
-      }}
-    >
-      {text}
-    </Text>
   );
 }
 

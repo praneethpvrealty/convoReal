@@ -4,7 +4,6 @@ import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   FlatList,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -16,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { Confetti, EnterRow } from '@/components/motion';
+import { BottomSheet } from '@/components/sheet';
 import { Avatar, ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -208,17 +208,7 @@ export default function DealsScreen() {
       {celebrating ? <Confetti onDone={() => setCelebrating(false)} /> : null}
 
       {/* Stage picker for the deal being moved. */}
-      <Modal
-        visible={Boolean(movingDeal)}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setMovingDeal(null)}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={() => setMovingDeal(null)}>
-          <View
-            style={[styles.modalSheet, { backgroundColor: colors.surfaceRaised }]}
-            accessibilityViewIsModal
-          >
+      <BottomSheet visible={Boolean(movingDeal)} onClose={() => setMovingDeal(null)}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={1}>
                 Move “{movingDeal?.title}” to…
@@ -255,9 +245,7 @@ export default function DealsScreen() {
                   </Text>
                 </Pressable>
               ))}
-          </View>
-        </Pressable>
-      </Modal>
+      </BottomSheet>
     </View>
   );
 }
@@ -371,17 +359,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     paddingHorizontal: 12,
     paddingVertical: 8,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingBottom: 32,
-    paddingTop: spacing.md,
   },
   modalHeader: {
     flexDirection: 'row',

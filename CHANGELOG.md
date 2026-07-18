@@ -142,6 +142,20 @@ and polish.
 
 ### Changed
 
+- **Mobile: one set of primitives, one set of tokens.** The five
+  hand-rolled text-field styles, five primary-CTA implementations,
+  three search bars, three bottom sheets, and five uppercase section
+  labels that had drifted across screens are now single shared
+  components (`TextField`, `PrimaryButton` — gradient is the brand
+  rule now, `SearchBar`, `BottomSheet`, `SectionLabel`,
+  `GradientHero`, `IconButton`, plus a `listCard` row chrome and a
+  property-shaped skeleton). New theme tokens replace scattered
+  literals: `surfaceSunken` (spec pills/previews no longer borrow the
+  chat-bubble color), `backdrop`, `tabBarGlass`, `onGradient` ink,
+  a shared hero shadow, and a documented `mapPin` palette; the map
+  screen, property-detail marker and confetti drop their leftover
+  Tailwind violet/blue for brand hues.
+
 - **Mobile: richer panels and bolder type.** Inbox and Contacts rows
   are now elevated white cards floating on the cream canvas (rounded,
   warm-tinted shadow) instead of flat hairline-divided rows, with
