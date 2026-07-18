@@ -11,6 +11,17 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Table loaders center on screen, not off it.** The Contacts table's
+  loading and empty states (and the admin page's empty states) lived
+  inside a `colSpan` cell of a horizontally-scrolling table, so on
+  mobile they centered against the full multi-viewport-wide table and
+  rendered mostly off the right edge of the screen. They now render
+  outside the scroll surface (the pattern the Broadcasts and Ads
+  pages already used) and center within the visible viewport at any
+  width.
+
 ### Changed
 
 - **Flows recover when customers go off-script.** Three fixes to the
