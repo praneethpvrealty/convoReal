@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowDown, ArrowUp, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { WORKFLOW_TEMPLATES } from '@/lib/liaisons/workflow-templates';
 
 /** Editable row: duration kept as string while typing. */
 interface StageRow {
@@ -26,47 +27,6 @@ interface StageRow {
 }
 
 const EMPTY_ROW: StageRow = { name: '', authority: '', duration_days: '', description: '' };
-
-/** One-tap starting point for the most-asked-about process. */
-const KHATA_NAME_CHANGE_EXAMPLE: { service_name: string; stages: StageRow[] } = {
-  service_name: 'Change name in the khata document',
-  stages: [
-    {
-      name: 'Case login',
-      authority: 'Case worker',
-      duration_days: '3',
-      description:
-        'Your application and documents (sale deed, EC, tax paid receipt, Aadhaar) are logged in the BBMP system and a case number is issued.',
-    },
-    {
-      name: 'ARO verification & approval',
-      authority: 'ARO (Assistant Revenue Officer)',
-      duration_days: '7',
-      description:
-        'The ARO verifies the documents and property records. On approval the case moves up.',
-    },
-    {
-      name: 'JD review & transfer',
-      authority: 'JD (Joint Director)',
-      duration_days: '7',
-      description:
-        'The JD reviews the case and transfers it to the DC for final approval.',
-    },
-    {
-      name: 'DC approval',
-      authority: 'DC (Deputy Commissioner)',
-      duration_days: '10',
-      description: 'The DC gives the final approval for the name change.',
-    },
-    {
-      name: 'Khata issued',
-      authority: 'BBMP',
-      duration_days: '3',
-      description:
-        'The khata extract and certificate are issued with the new name. We collect and hand them over to you.',
-    },
-  ],
-};
 
 function toRows(stages: LiaisonWorkflowStage[]): StageRow[] {
   return stages.map((s) => ({
@@ -94,6 +54,7 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
   const [description, setDescription] = useState('');
   const [stages, setStages] = useState<StageRow[]>([]);
   const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -120,9 +81,41 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
     setStages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const loadExample = () => {
-    if (!serviceName.trim()) setServiceName(KHATA_NAME_CHANGE_EXAMPLE.service_name);
-    setStages(KHATA_NAME_CHANGE_EXAMPLE.stages.map((s) => ({ ...s })));
+  const loadTemplate = (key: string) => {
+    const template = WORKFLOW_TEMPLATES.find((t) => t.key === key);
+    if (!template) return;
+    setServiceName(template.service_name);
+    setDescription(template.description);
+    setStages(toRows(template.stages));
+  };
+
+  const handleGenerate = async () => {
+    if (!serviceName.trim()) {
+      toast.error('Name the process first, e.g. "Property tax name change"');
+      return;
+    }
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/liaison-workflows/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ process: serviceName, details: description }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? 'Request failed');
+      }
+      const draft = await res.json();
+      if (typeof draft.service_name === 'string') setServiceName(draft.service_name);
+      if (typeof draft.description === 'string') setDescription(draft.description);
+      setStages(toRows(Array.isArray(draft.stages) ? draft.stages : []));
+      toast.success('Draft ready — review and adjust before saving');
+    } catch (err) {
+      console.error('Error generating workflow:', err);
+      toast.error(err instanceof Error ? err.message : 'AI drafting failed');
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -196,13 +189,32 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
             <Label htmlFor="wf-service" className="text-xs text-slate-300">
               Process / Service <span className="text-red-400">*</span>
             </Label>
-            <Input
-              id="wf-service"
-              value={serviceName}
-              onChange={(e) => setServiceName(e.target.value)}
-              placeholder="e.g. Change name in the khata document"
-              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="wf-service"
+                value={serviceName}
+                onChange={(e) => setServiceName(e.target.value)}
+                placeholder="e.g. Change name in the khata document"
+                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 flex-1"
+              />
+              <Button
+                type="button"
+                onClick={handleGenerate}
+                disabled={generating}
+                className="bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-xs font-bold gap-1.5 cursor-pointer shrink-0"
+              >
+                {generating ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Sparkles className="size-3.5" />
+                )}
+                Draft with AI
+              </Button>
+            </div>
+            <p className="text-[10px] text-slate-500">
+              Name any process and AI drafts the stages, authorities and timelines —
+              or start from a ready-made template below.
+            </p>
           </div>
 
           <div className="space-y-1.5">
@@ -219,19 +231,23 @@ export function WorkflowForm({ open, onOpenChange, workflow, onSaved }: Workflow
           </div>
 
           <div className="space-y-2 border-t border-slate-800 pt-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Label className="text-xs text-slate-300">Stages (in order)</Label>
               <div className="flex gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={loadExample}
-                  className="h-7 text-xs border-slate-700 text-slate-300 hover:bg-slate-800 gap-1 cursor-pointer"
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) loadTemplate(e.target.value);
+                  }}
+                  className="h-7 rounded-lg border border-slate-700 bg-slate-800 px-2 text-xs text-slate-300 outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer max-w-52"
                 >
-                  <Sparkles className="size-3" />
-                  Khata example
-                </Button>
+                  <option value="">Load a template...</option>
+                  {WORKFLOW_TEMPLATES.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.service_name}
+                    </option>
+                  ))}
+                </select>
                 <Button
                   type="button"
                   size="sm"
