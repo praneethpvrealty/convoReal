@@ -199,10 +199,24 @@ function DaySeparator({ label }: { label: string }) {
 
 function StatusTicks({ status, colors }: { status: MessageStatus; colors: ThemeColors }) {
   if (status === 'failed') {
-    return <Ionicons name="alert-circle" size={13} color={colors.danger} />;
+    return (
+      <Ionicons
+        name="alert-circle"
+        size={13}
+        color={colors.danger}
+        accessibilityLabel="Failed to send"
+      />
+    );
   }
   if (status === 'sending') {
-    return <Ionicons name="time-outline" size={12} color={colors.outgoingMeta} />;
+    return (
+      <Ionicons
+        name="time-outline"
+        size={12}
+        color={colors.outgoingMeta}
+        accessibilityLabel="Sending"
+      />
+    );
   }
   const double = status === 'delivered' || status === 'read';
   return (
@@ -210,6 +224,7 @@ function StatusTicks({ status, colors }: { status: MessageStatus; colors: ThemeC
       name={double ? 'checkmark-done' : 'checkmark'}
       size={13}
       color={status === 'read' ? colors.readTick : colors.outgoingMeta}
+      accessibilityLabel={status === 'read' ? 'Read' : double ? 'Delivered' : 'Sent'}
     />
   );
 }
@@ -366,7 +381,12 @@ function Composer({ conversationId }: { conversationId: string }) {
         <View style={[styles.errorBar, { backgroundColor: colors.dangerSoft }]}>
           <Ionicons name="warning-outline" size={14} color={colors.danger} />
           <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>{error}</Text>
-          <Pressable onPress={() => setError(null)} hitSlop={8}>
+          <Pressable
+            onPress={() => setError(null)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss error"
+          >
             <Ionicons name="close" size={14} color={colors.danger} />
           </Pressable>
         </View>
@@ -375,7 +395,9 @@ function Composer({ conversationId }: { conversationId: string }) {
         <Pressable
           style={[styles.templateButton, { backgroundColor: colors.surface }]}
           onPress={() => setTemplatesOpen(true)}
-          hitSlop={4}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Send a template message"
         >
           <Ionicons name="albums-outline" size={19} color={colors.primary} />
         </Pressable>
@@ -397,6 +419,10 @@ function Composer({ conversationId }: { conversationId: string }) {
           ]}
           onPress={send}
           disabled={!draft.trim() || sending}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          accessibilityState={{ disabled: !draft.trim() || sending }}
         >
           {sending ? (
             <ActivityIndicator size="small" color={colors.onPrimary} />

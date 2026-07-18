@@ -147,6 +147,9 @@ function AppearancePicker() {
           <Pressable
             key={opt.value}
             onPress={() => setMode(opt.value)}
+            accessibilityRole="button"
+            accessibilityLabel={`${opt.label} appearance`}
+            accessibilityState={{ selected: active }}
             style={{
               flex: 1,
               alignItems: 'center',

@@ -169,7 +169,9 @@ export default function PropertiesScreen() {
             ) : null}
             <Link href="/(app)/properties-map" asChild>
               <Pressable
-                hitSlop={6}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="View results on map"
                 style={StyleSheet.flatten([styles.mapButton, { backgroundColor: colors.primarySoft }])}
               >
                 <Ionicons name="map" size={17} color={colors.primary} />
@@ -200,9 +202,17 @@ export default function PropertiesScreen() {
           <Text style={{ fontSize: 12.5, fontFamily: fonts.bold, color: colors.primary }}>
             {near.label}
           </Text>
-          <View style={{ flexDirection: 'row', gap: 6, marginLeft: spacing.sm }}>
+          <View style={{ flexDirection: 'row', gap: 4, marginLeft: spacing.xs }}>
             {RADIUS_OPTIONS.map((km) => (
-              <Pressable key={km} onPress={() => setRadius(km)} hitSlop={4}>
+              <Pressable
+                key={km}
+                onPress={() => setRadius(km)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`Search within ${km} kilometres`}
+                accessibilityState={{ selected: near.radiusKm === km }}
+                style={{ paddingHorizontal: 4, paddingVertical: 8 }}
+              >
                 <Text
                   style={{
                     fontSize: 12,
@@ -217,7 +227,12 @@ export default function PropertiesScreen() {
             ))}
           </View>
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => setNear(null)} hitSlop={8}>
+          <Pressable
+            onPress={() => setNear(null)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Clear location filter"
+          >
             <Ionicons name="close-circle" size={16} color={colors.textFaint} />
           </Pressable>
         </View>
@@ -308,14 +323,18 @@ function NearMeChip({
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={locating ? 'Locating you' : 'Search near my location'}
+      accessibilityState={{ selected: active, busy: locating }}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         gap: 5,
         paddingHorizontal: 14,
-        paddingVertical: 7,
+        paddingVertical: 9,
         borderRadius: radius.full,
-        backgroundColor: active ? colors.primary : colors.surface,
+        backgroundColor: active ? colors.primary : colors.surfaceRaised,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: active ? colors.primary : colors.border,
       }}
@@ -400,7 +419,12 @@ function LocalitySearchBox() {
           onBlur={() => setTimeout(() => setFocused(false), 150)}
         />
         {search ? (
-          <Pressable onPress={() => setSearch('')} hitSlop={8}>
+          <Pressable
+            onPress={() => setSearch('')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+          >
             <Ionicons name="close-circle" size={16} color={colors.textFaint} />
           </Pressable>
         ) : null}

@@ -161,7 +161,12 @@ export default function VerifyPhoneScreen() {
                   </Text>
                 )}
               </Pressable>
-              <Pressable onPress={() => setStage('phone')} style={{ alignItems: 'center' }}>
+              <Pressable
+                onPress={() => setStage('phone')}
+                hitSlop={10}
+                accessibilityRole="button"
+                style={{ alignItems: 'center', paddingVertical: 10 }}
+              >
                 <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: fonts.semibold }}>
                   Change number
                 </Text>
@@ -169,7 +174,12 @@ export default function VerifyPhoneScreen() {
             </>
           )}
 
-          <Pressable onPress={() => supabase.auth.signOut()} style={{ alignItems: 'center' }}>
+          <Pressable
+            onPress={() => supabase.auth.signOut()}
+            hitSlop={10}
+            accessibilityRole="button"
+            style={{ alignItems: 'center', paddingVertical: 10 }}
+          >
             <Text style={{ color: colors.textFaint, fontSize: 13.5 }}>Sign out</Text>
           </Pressable>
         </ScrollView>

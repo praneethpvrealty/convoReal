@@ -83,10 +83,18 @@ export function TemplatePicker({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]}>
+        <View
+          style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]}
+          accessibilityViewIsModal
+        >
           <View style={styles.sheetHeader}>
             {selected ? (
-              <Pressable onPress={reset} hitSlop={8}>
+              <Pressable
+                onPress={reset}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Back to template list"
+              >
                 <Ionicons name="arrow-back" size={20} color={colors.text} />
               </Pressable>
             ) : (
@@ -100,7 +108,9 @@ export function TemplatePicker({
                 reset();
                 onClose();
               }}
-              hitSlop={8}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
             >
               <Ionicons name="close" size={20} color={colors.text} />
             </Pressable>

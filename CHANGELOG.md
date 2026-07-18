@@ -120,6 +120,26 @@ and polish.
   Active/Dropped legend shrank, moved next to the zoom controls, and
   only appears once something has been dropped.
 
+### Fixed
+
+- **Mobile: iOS date/time picker no longer collapses mid-scroll.** The
+  appointment form and calendar reschedule closed the picker on the
+  first `onChange` — correct for Android's one-shot dialog, but iOS's
+  spinner fires per scroll tick, so the picker vanished under the
+  user's first flick. A shared `InlineDateTimePicker` now keeps the
+  iOS spinner mounted behind a Done button and auto-closes only on
+  Android.
+- **Mobile: screen-reader and touch-target pass.** Icon-only controls
+  (send, template, search-clear, map toggle, calendar navigation,
+  stage moves, sheet close buttons) now carry `accessibilityRole` and
+  labels for VoiceOver/TalkBack; unread badges announce their count;
+  the OTP input reads as "One-time code" with entry progress; bottom
+  sheets set `accessibilityViewIsModal`. Small targets (radius
+  selectors, filter chips, type chips, move-stage, text links) were
+  raised to comfortable sizes with hitSlop. The deals stage-picker
+  modal now closes with the Android back button and has a visible
+  close control.
+
 ### Changed
 
 - **Mobile: richer panels and bolder type.** Inbox and Contacts rows

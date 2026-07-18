@@ -229,12 +229,24 @@ function WhatsappLogin() {
             onPress={() => verify(otp)}
           />
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
-            <Pressable onPress={() => setStage('phone')}>
+            <Pressable
+              onPress={() => setStage('phone')}
+              hitSlop={10}
+              accessibilityRole="button"
+              style={{ paddingVertical: 10 }}
+            >
               <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: fonts.semibold }}>
                 Change number
               </Text>
             </Pressable>
-            <Pressable disabled={resendIn > 0} onPress={sendCode}>
+            <Pressable
+              disabled={resendIn > 0}
+              onPress={sendCode}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: resendIn > 0 }}
+              style={{ paddingVertical: 10 }}
+            >
               <Text
                 style={{
                   color: resendIn > 0 ? colors.textFaint : colors.primary,
