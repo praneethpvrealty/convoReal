@@ -13,6 +13,19 @@ and polish.
 
 ### Changed
 
+- **Flows recover when customers go off-script.** Three fixes to the
+  conversation-flow engine, found watching a real seller lead derail:
+  (1) tapping a button on an *earlier* message (e.g. "List My
+  Property" on the welcome bubble after already tapping "Buy
+  Property") now switches to that button's branch instead of
+  re-sending the current branch's prompt; (2) free text the flow
+  can't parse ("80000 rented house three floor building near
+  devanahalli") is saved onto the contact's Requirements note so the
+  agent who picks up the handoff sees it instead of losing it; (3)
+  reprompts now say "Sorry, I didn't quite catch that — please tap
+  one of the options below 👇" instead of repeating the branch intro
+  verbatim, which read like the bot ignoring the customer.
+
 - **Dashboard "Active Users" no longer shows the owner or yourself.**
   The widget is titled "Live agent & client statuses" but listed
   every profile in the account — including the account owner (with a

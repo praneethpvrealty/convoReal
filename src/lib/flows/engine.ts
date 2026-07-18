@@ -91,6 +91,75 @@ export function matchReplyId(
 }
 
 /**
+ * Search every node in the flow for a button / list row carrying the
+ * given reply_id. Customers routinely scroll up and tap a button on an
+ * EARLIER message — e.g. tap "Buy Property", then change their mind
+ * and tap "List My Property" on the same welcome bubble. Matching only
+ * the current node treats that second tap as an unknown reply and
+ * reprompts the wrong branch; this lets the engine jump to the branch
+ * the tapped button actually points at.
+ *
+ * Returns the owning node's key (for logging) plus the branch target,
+ * or null when no node in the flow knows this reply_id.
+ */
+export function findReplyIdAcrossNodes(
+  nodes: Iterable<{
+    node_key: string;
+    node_type: string;
+    config: Record<string, unknown>;
+  }>,
+  reply_id: string,
+  exclude_node_key?: string | null,
+): { node_key: string; next_node_key: string } | null {
+  for (const node of nodes) {
+    if (exclude_node_key && node.node_key === exclude_node_key) continue;
+    const next = matchReplyId(node, reply_id);
+    if (next) return { node_key: node.node_key, next_node_key: next };
+  }
+  return null;
+}
+
+/** Cap for the contact.requirements note built from unmatched texts. */
+export const UNMATCHED_TEXT_MAX_LENGTH = 600;
+
+/**
+ * Merge an unmatched free-text customer reply into the contact's
+ * existing `requirements` note. A message the flow can't parse (e.g.
+ * "80000 rented house three floor building near devanahalli" typed at
+ * a buttons step) still carries budget / type / location intent — it
+ * must reach the agent who picks up the handoff instead of being
+ * silently dropped.
+ *
+ * Pure so it's unit-testable. Returns the new requirements string, or
+ * null when there is nothing new to store (noise-length text, or the
+ * text is already present).
+ */
+export function appendUnmatchedText(
+  existing: string | null | undefined,
+  rawText: string,
+  max = UNMATCHED_TEXT_MAX_LENGTH,
+): string | null {
+  const text = rawText.replace(/\s+/g, " ").trim();
+  // "ok" / "hi" — conversational noise, not requirements.
+  if (text.length < 3) return null;
+  const base = (existing ?? "").trim();
+  if (base.toLowerCase().includes(text.toLowerCase())) return null;
+  const combined = base ? `${base} | ${text}` : text;
+  // Cap total length keeping the NEWEST content — the latest message
+  // is the one the agent most needs to see.
+  return combined.length > max ? combined.slice(combined.length - max) : combined;
+}
+
+/**
+ * Body copy used when re-prompting a send_buttons / send_list node
+ * after an unmatched reply. Re-sending the node's own intro verbatim
+ * ("Great choice! Let's explore our buying options…") reads like the
+ * bot ignored what the customer just said.
+ */
+export const REPROMPT_BODY_TEXT =
+  "Sorry, I didn't quite catch that — please tap one of the options below 👇";
+
+/**
  * Case-insensitive contains/exact match against a list of keywords.
  * Used by the trigger evaluator. Stable enough that the v3 builder
  * UI can preview matches by passing canned strings.
@@ -475,6 +544,9 @@ async function sendButtonsAndSuspend(
   db: AdminClient,
   run: FlowRunRow,
   node: FlowNodeRow,
+  // Reprompts pass REPROMPT_BODY_TEXT — same buttons, apologetic copy,
+  // and no header (headers carry branch-intro phrasing).
+  bodyOverride?: string,
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendButtonsNodeConfig;
   const { whatsapp_message_id } = await engineSendInteractiveButtons({
@@ -482,8 +554,8 @@ async function sendButtonsAndSuspend(
     userId: run.user_id,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
-    bodyText: cfg.text,
-    headerText: cfg.header_text,
+    bodyText: bodyOverride ?? cfg.text,
+    headerText: bodyOverride ? undefined : cfg.header_text,
     footerText: cfg.footer_text,
     buttons: cfg.buttons.map((b) => ({ id: b.reply_id, title: b.title })),
   });
@@ -511,6 +583,8 @@ async function sendListAndSuspend(
   db: AdminClient,
   run: FlowRunRow,
   node: FlowNodeRow,
+  // Reprompts pass REPROMPT_BODY_TEXT — see sendButtonsAndSuspend.
+  bodyOverride?: string,
 ): Promise<{ outcome: "advanced"; node_key: string }> {
   const cfg = node.config as unknown as SendListNodeConfig;
   const { whatsapp_message_id } = await engineSendInteractiveList({
@@ -518,9 +592,9 @@ async function sendListAndSuspend(
     userId: run.user_id,
     conversationId: run.conversation_id!,
     contactId: run.contact_id!,
-    bodyText: cfg.text,
+    bodyText: bodyOverride ?? cfg.text,
     buttonLabel: cfg.button_label,
-    headerText: cfg.header_text,
+    headerText: bodyOverride ? undefined : cfg.header_text,
     footerText: cfg.footer_text,
     sections: cfg.sections.map((s) => ({
       title: s.title,
@@ -1275,6 +1349,34 @@ async function handleReplyForActiveRun(
     }
   }
 
+  // Stale-button branch switch: the tap didn't match the current
+  // node, but some earlier node in this flow owns the reply_id — the
+  // customer scrolled up and picked a different branch. Honour it.
+  if (!matched && message.kind === "interactive_reply") {
+    const hit = findReplyIdAcrossNodes(
+      nodes.values(),
+      message.reply_id,
+      currentNode.node_key,
+    );
+    if (hit) {
+      matched = hit.next_node_key;
+      await logEvent(db, run.id, "node_entered", hit.node_key, {
+        reason: "stale_button_branch_switch",
+        reply_id: message.reply_id,
+        from_node: currentNode.node_key,
+      });
+    }
+  }
+
+  // A free-text reply the flow can't parse still carries intent —
+  // stash it on the contact's requirements so the agent who picks up
+  // the eventual handoff sees it. (Raw text deliberately does NOT go
+  // into flow_run_events — see the privacy note at the top of this
+  // function; contact.requirements is agent-facing by design.)
+  if (!matched && message.kind === "text" && run.contact_id) {
+    await captureUnmatchedTextOnContact(db, run.contact_id, message.text);
+  }
+
   if (matched) {
     // Reset reprompt count on a successful match. Skip the write when
     // already 0 — the collect_input capture branch above already
@@ -1318,11 +1420,13 @@ async function handleReplyForActiveRun(
     return { consumed: false, flow_run_id: run.id, outcome: "no_match" };
   }
   if (action.type === "reprompt") {
-    // Re-send the same prompt. Same node, no current_node_key change.
+    // Re-send the same options with apologetic copy (same node, no
+    // current_node_key change) — repeating the branch intro verbatim
+    // reads like the bot ignored what the customer just said.
     if (currentNode.node_type === "send_buttons") {
-      await sendButtonsAndSuspend(db, run, currentNode);
+      await sendButtonsAndSuspend(db, run, currentNode, REPROMPT_BODY_TEXT);
     } else if (currentNode.node_type === "send_list") {
-      await sendListAndSuspend(db, run, currentNode);
+      await sendListAndSuspend(db, run, currentNode, REPROMPT_BODY_TEXT);
     } else if (currentNode.node_type === "collect_input") {
       // Customer typed something we couldn't accept (empty after trim,
       // or var_key missing — rare). Re-send the prompt so they try again.
@@ -1360,6 +1464,40 @@ async function handleReplyForActiveRun(
   // action.type === 'end'
   await endRun(db, run.id, "completed", "fallback_exhausted_end");
   return { consumed: true, flow_run_id: run.id, outcome: "completed" };
+}
+
+/**
+ * Persist an unmatched free-text reply onto the contact's
+ * `requirements` note (merge rules in `appendUnmatchedText`).
+ * Best-effort: a write failure must never break dispatch — the text
+ * still lives in the conversation transcript.
+ */
+async function captureUnmatchedTextOnContact(
+  db: AdminClient,
+  contactId: string,
+  rawText: string,
+): Promise<void> {
+  try {
+    const { data: contact } = await db
+      .from("contacts")
+      .select("requirements")
+      .eq("id", contactId)
+      .maybeSingle();
+    const merged = appendUnmatchedText(
+      (contact as { requirements?: string | null } | null)?.requirements,
+      rawText,
+    );
+    if (merged === null) return;
+    await db
+      .from("contacts")
+      .update({ requirements: merged, updated_at: new Date().toISOString() })
+      .eq("id", contactId);
+  } catch (err) {
+    console.error(
+      "[flows] captureUnmatchedTextOnContact failed:",
+      err instanceof Error ? err.message : err,
+    );
+  }
 }
 
 async function startNewRun(
