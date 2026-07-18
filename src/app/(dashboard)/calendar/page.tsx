@@ -1029,7 +1029,10 @@ export default function CalendarPage() {
 
       <div className="flex flex-col gap-6 lg:h-full lg:flex-row overflow-hidden flex-1">
         {/* ── Left Side: Calendar views ────────────────── */}
-        <div className="flex flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-[560px] lg:min-h-0">
+        {/* `min-w-0`: this is a flex-row item on lg+, and without it the
+            pane is only kept from bleeding by the ancestor's
+            overflow-hidden — self-cap it so inner truncate engages. */}
+        <div className="flex flex-1 flex-col min-w-0 rounded-xl border border-slate-800 bg-slate-900/50 p-6 backdrop-blur min-h-[560px] lg:min-h-0">
           {/* Calendar Header Nav */}
           <div className="mb-4 flex flex-col justify-between gap-4 xl:flex-row xl:items-center">
             <div className="flex items-center gap-3">
