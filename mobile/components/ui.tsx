@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { avatarHue, initials } from '@/lib/format';
 import { hotGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
@@ -69,11 +69,59 @@ export function Avatar({
   );
 }
 
+/**
+ * Icon-only button with a guaranteed 44pt touch target and a screen-
+ * reader name. Every icon-only Pressable should be one of these —
+ * bare icons are silent (or mispronounced) under VoiceOver/TalkBack.
+ */
+export function IconButton({
+  icon,
+  label,
+  onPress,
+  size = 20,
+  color,
+  disabled = false,
+  style,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  size?: number;
+  color?: string;
+  disabled?: boolean;
+  style?: ViewStyle;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={8}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={disabled ? { disabled: true } : undefined}
+      style={[
+        {
+          minWidth: 36,
+          minHeight: 36,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: disabled ? 0.4 : 1,
+        },
+        style,
+      ]}
+    >
+      <Ionicons name={icon} size={size} color={color ?? colors.text} />
+    </Pressable>
+  );
+}
+
 export function UnreadBadge({ count }: { count: number }) {
   const { colors } = useTheme();
   if (count <= 0) return null;
   return (
     <View
+      accessibilityLabel={`${count} unread`}
       style={{
         minWidth: 22,
         height: 22,
@@ -103,23 +151,31 @@ export function FilterChip({
 }) {
   const { colors } = useTheme();
   return (
-    <Text
+    <Pressable
       onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
       style={{
         paddingHorizontal: 15,
-        paddingVertical: 8,
+        paddingVertical: 9,
         borderRadius: radius.full,
-        overflow: 'hidden',
-        fontSize: 13,
-        fontFamily: fonts.bold,
         backgroundColor: active ? colors.primary : colors.surfaceRaised,
-        color: active ? colors.onPrimary : colors.text,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: active ? colors.primary : colors.border,
       }}
     >
-      {label}
-    </Text>
+      <Text
+        style={{
+          fontSize: 13,
+          fontFamily: fonts.bold,
+          color: active ? colors.onPrimary : colors.text,
+        }}
+      >
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 

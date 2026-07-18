@@ -1,4 +1,3 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
@@ -15,6 +14,7 @@ import {
   View,
 } from 'react-native';
 
+import { InlineDateTimePicker } from '@/components/datetime-field';
 import { Avatar, Banner } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
@@ -130,6 +130,9 @@ export default function NewAppointmentScreen() {
               <Pressable
                 key={t.value}
                 onPress={() => setEventType(t.value)}
+                accessibilityRole="button"
+                accessibilityLabel={t.label}
+                accessibilityState={{ selected: active }}
                 style={[
                   styles.typeChip,
                   {
@@ -168,13 +171,11 @@ export default function NewAppointmentScreen() {
           </Pressable>
         </View>
         {picker ? (
-          <DateTimePicker
+          <InlineDateTimePicker
             value={start}
             mode={picker}
-            onChange={(_, date) => {
-              setPicker(null);
-              if (date) setStart(date);
-            }}
+            onChange={setStart}
+            onClose={() => setPicker(null)}
           />
         ) : null}
 
@@ -192,7 +193,12 @@ export default function NewAppointmentScreen() {
             <Text style={{ flex: 1, fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>
               {contact.name || contact.phone}
             </Text>
-            <Pressable onPress={() => setContact(null)} hitSlop={8}>
+            <Pressable
+              onPress={() => setContact(null)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Remove attached contact"
+            >
               <Ionicons name="close-circle" size={18} color={colors.textFaint} />
             </Pressable>
           </View>
@@ -262,7 +268,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: radius.full,
     borderWidth: 1,
-    paddingVertical: 8,
+    paddingVertical: 11,
   },
   pickerButton: {
     flexDirection: 'row',

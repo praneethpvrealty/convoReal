@@ -119,7 +119,12 @@ export default function ContactsScreen() {
             onChangeText={setSearch}
           />
           {search ? (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
+            <Pressable
+              onPress={() => setSearch('')}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
               <Ionicons name="close-circle" size={16} color={colors.textFaint} />
             </Pressable>
           ) : null}
@@ -201,15 +206,19 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
           </View>
         </View>
         <Pressable
-          hitSlop={6}
+          hitSlop={8}
           onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${name}`}
           style={[styles.action, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="call" size={18} color={colors.primary} />
         </Pressable>
         <Pressable
-          hitSlop={6}
+          hitSlop={8}
           onPress={() => Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open WhatsApp chat with ${name}`}
           style={[styles.action, { backgroundColor: colors.successSoft }]}
         >
           <Ionicons name="logo-whatsapp" size={18} color={colors.success} />

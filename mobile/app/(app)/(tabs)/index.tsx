@@ -270,7 +270,12 @@ function InboxHeader({
           onChangeText={onSearch}
         />
         {search ? (
-          <Pressable onPress={() => onSearch('')} hitSlop={8}>
+          <Pressable
+            onPress={() => onSearch('')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+          >
             <Ionicons name="close-circle" size={16} color={colors.textFaint} />
           </Pressable>
         ) : null}

@@ -208,12 +208,30 @@ export default function DealsScreen() {
       {celebrating ? <Confetti onDone={() => setCelebrating(false)} /> : null}
 
       {/* Stage picker for the deal being moved. */}
-      <Modal visible={Boolean(movingDeal)} transparent animationType="fade">
+      <Modal
+        visible={Boolean(movingDeal)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMovingDeal(null)}
+      >
         <Pressable style={styles.modalBackdrop} onPress={() => setMovingDeal(null)}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.surfaceRaised }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Move “{movingDeal?.title}” to…
-            </Text>
+          <View
+            style={[styles.modalSheet, { backgroundColor: colors.surfaceRaised }]}
+            accessibilityViewIsModal
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={1}>
+                Move “{movingDeal?.title}” to…
+              </Text>
+              <Pressable
+                onPress={() => setMovingDeal(null)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close" size={20} color={colors.textMuted} />
+              </Pressable>
+            </View>
             {(stages ?? [])
               .filter((s) => s.id !== movingDeal?.stage_id)
               .map((s) => (
@@ -221,6 +239,8 @@ export default function DealsScreen() {
                   key={s.id}
                   style={[styles.modalRow, { borderTopColor: colors.border }]}
                   onPress={() => movingDeal && moveDeal(movingDeal, s)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move to ${s.name}`}
                 >
                   <View
                     style={{
@@ -297,6 +317,9 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
         )}
         <Pressable
           onPress={onMove}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Move ${deal.title} to another stage`}
           style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
@@ -346,8 +369,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     borderRadius: radius.full,
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   modalBackdrop: {
     flex: 1,
@@ -360,12 +383,14 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     paddingTop: spacing.md,
   },
-  modalTitle: {
-    fontSize: 15.5,
-    fontFamily: fonts.bold,
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
   },
+  modalTitle: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
   modalRow: {
     flexDirection: 'row',
     alignItems: 'center',
