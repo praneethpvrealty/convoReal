@@ -3,16 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
-import { Banner } from '@/components/ui';
+import { BottomSheet } from '@/components/sheet';
+import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { MessageTemplate } from '@/lib/types';
@@ -81,12 +80,13 @@ export function TemplatePicker({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View
-          style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]}
-          accessibilityViewIsModal
-        >
+    <BottomSheet
+      visible={visible}
+      onClose={() => {
+        reset();
+        onClose();
+      }}
+    >
           <View style={styles.sheetHeader}>
             {selected ? (
               <Pressable
@@ -161,14 +161,9 @@ export function TemplatePicker({
               keyboardShouldPersistTaps="handled"
             >
               {Array.from({ length: varCount }, (_, i) => (
-                <TextInput
+                <TextField
                   key={i}
-                  style={[
-                    styles.input,
-                    { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
-                  ]}
                   placeholder={`Value for {{${i + 1}}}`}
-                  placeholderTextColor={colors.textFaint}
                   value={values[i] ?? ''}
                   onChangeText={(v) =>
                     setValues((prev) => {
@@ -180,7 +175,7 @@ export function TemplatePicker({
                 />
               ))}
 
-              <View style={[styles.preview, { backgroundColor: colors.incomingBubble }]}>
+              <View style={[styles.preview, { backgroundColor: colors.surfaceSunken }]}>
                 {selected.header_type === 'text' && selected.header_content ? (
                   <Text style={{ fontSize: 14, fontFamily: fonts.bold, color: colors.incomingText }}>
                     {selected.header_content}
@@ -196,38 +191,19 @@ export function TemplatePicker({
                 ) : null}
               </View>
 
-              <Pressable
-                style={[
-                  styles.sendButton,
-                  { backgroundColor: colors.primary, opacity: sending || !allFilled ? 0.55 : 1 },
-                ]}
-                disabled={sending || !allFilled}
+              <PrimaryButton
+                label="Send template"
+                busy={sending}
+                disabled={!allFilled}
                 onPress={() => onSend(selected, values.slice(0, varCount), preview)}
-              >
-                {sending ? (
-                  <ActivityIndicator color={colors.onPrimary} />
-                ) : (
-                  <Text style={{ color: colors.onPrimary, fontSize: 15.5, fontFamily: fonts.bold }}>
-                    Send template
-                  </Text>
-                )}
-              </Pressable>
+              />
             </ScrollView>
           )}
-        </View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    paddingBottom: 28,
-    gap: spacing.sm,
-  },
   sheetHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -243,13 +219,5 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 14.5,
-  },
   preview: { borderRadius: radius.md, padding: spacing.md, gap: 6 },
-  sendButton: { borderRadius: radius.md, paddingVertical: 14, alignItems: 'center' },
 });

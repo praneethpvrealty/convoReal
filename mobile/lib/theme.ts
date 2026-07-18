@@ -20,6 +20,10 @@ export interface ThemeColors {
   background: string;
   surface: string;
   surfaceRaised: string;
+  /** Recessed neutral wells inside cards (spec pills, previews). */
+  surfaceSunken: string;
+  /** Scrim behind modals and bottom sheets. */
+  backdrop: string;
   border: string;
   text: string;
   textMuted: string;
@@ -37,6 +41,8 @@ export interface ThemeColors {
   warningSoft: string;
   readTick: string;
   tabBar: string;
+  /** Translucent tab-bar/glass fill layered over BlurView. */
+  tabBarGlass: string;
 }
 
 export const lightColors: ThemeColors = {
@@ -48,6 +54,8 @@ export const lightColors: ThemeColors = {
   background: '#FAF6F0',
   surface: '#FFFFFF',
   surfaceRaised: '#FFFFFF',
+  surfaceSunken: '#F1EDE4',
+  backdrop: 'rgba(0,0,0,0.45)',
   border: '#EAE4D9',
   text: '#152220',
   textMuted: '#69766F',
@@ -65,6 +73,7 @@ export const lightColors: ThemeColors = {
   warningSoft: '#FBF3E0',
   readTick: '#53bdeb',
   tabBar: '#FFFFFF',
+  tabBarGlass: 'rgba(255,255,255,0.78)',
 };
 
 export const darkColors: ThemeColors = {
@@ -76,6 +85,8 @@ export const darkColors: ThemeColors = {
   background: '#0F1513',
   surface: '#171E1B',
   surfaceRaised: '#1D2622',
+  surfaceSunken: '#1E2823',
+  backdrop: 'rgba(0,0,0,0.6)',
   border: '#28322D',
   text: '#EDF2EE',
   textMuted: '#94A29A',
@@ -93,6 +104,7 @@ export const darkColors: ThemeColors = {
   warningSoft: '#37301C',
   readTick: '#53bdeb',
   tabBar: '#151C19',
+  tabBarGlass: 'rgba(21,28,25,0.78)',
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
@@ -118,6 +130,41 @@ export const shadows = {
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
+  /** Brand-green glow under gradient hero cards. */
+  hero: {
+    shadowColor: '#1A4D42',
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+} as const;
+
+/**
+ * Text/glass tints for content sitting ON the brand gradient. Static
+ * (not per-theme): the gradient itself is always deep green, so white
+ * ink works in both appearances.
+ */
+export const onGradient = {
+  text: '#FFFFFF',
+  faint: 'rgba(255,255,255,0.8)',
+  glass: 'rgba(255,255,255,0.18)',
+} as const;
+
+/**
+ * Price-pin palette for map markers. Deliberately NOT theme-driven:
+ * pins float on Google's tile palette (which follows the map's own
+ * userInterfaceStyle), so the reference mint-on-white pin stays
+ * legible in both app appearances.
+ */
+export const mapPin = {
+  bg: '#D9F3AC',
+  bgMuted: '#E7E4DB',
+  text: '#1A4D42',
+  textMuted: '#3d453f',
+  dot: '#1A4D42',
+  dotMuted: '#69766F',
+  border: '#FFFFFF',
 } as const;
 
 /** Brand gradient — deep forest → emerald (hero cards, CTAs). */

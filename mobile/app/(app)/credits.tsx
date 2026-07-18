@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Linking from 'expo-linking';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
@@ -15,13 +14,13 @@ import {
 } from 'react-native';
 
 import { AnimatedCounter } from '@/components/motion';
-import { FilterChip } from '@/components/ui';
+import { FilterChip, GradientHero, PrimaryButton, SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { ENV } from '@/lib/env';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 
 interface WalletRow {
   total_credits: number;
@@ -70,7 +69,6 @@ const TX_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 export default function CreditsScreen() {
   const { colors } = useTheme();
-  const gradient = useBrandGradient();
   const [filter, setFilter] = useState<TxFilter>('All');
 
   const wallet = useQuery({
@@ -123,7 +121,7 @@ export default function CreditsScreen() {
         }}
       />
 
-      <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+      <GradientHero style={{ gap: 4 }}>
         <Text style={styles.heroLabel}>AI CREDITS</Text>
         <AnimatedCounter value={w?.total_credits ?? 0} style={styles.heroValue} />
         {w?.monthly_reset_at ? (
@@ -131,7 +129,7 @@ export default function CreditsScreen() {
             Monthly credits refresh {chatListTime(w.monthly_reset_at)}
           </Text>
         ) : null}
-      </LinearGradient>
+      </GradientHero>
 
       <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <BreakdownRow icon="refresh-circle-outline" label="Monthly plan" value={w?.monthly_credits} />
@@ -149,28 +147,16 @@ export default function CreditsScreen() {
         ) : null}
       </View>
 
-      <Pressable
+      <PrimaryButton
+        label="Top up on the web"
+        icon="flash"
         onPress={() => Linking.openURL(`${ENV.apiBaseUrl}/settings?tab=billing`)}
-        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-      >
-        <LinearGradient
-          colors={gradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.topupButton}
-        >
-          <Ionicons name="flash" size={17} color="#fff" />
-          <Text style={{ color: '#fff', fontSize: 15.5, fontFamily: fonts.bold }}>
-            Top up on the web
-          </Text>
-          <Ionicons name="open-outline" size={15} color="rgba(255,255,255,0.8)" />
-        </LinearGradient>
-      </Pressable>
+      />
       <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center', marginTop: -4 }}>
         Checkout opens in your browser — purchases land here instantly.
       </Text>
 
-      <Text style={[styles.sectionLabel, { color: colors.textFaint }]}>History</Text>
+      <SectionLabel text="History" style={{ marginTop: spacing.sm }} />
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {TX_FILTERS.map((f) => (
           <FilterChip key={f} label={f} active={filter === f} onPress={() => setFilter(f)} />
@@ -267,24 +253,14 @@ function BreakdownRow({
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  hero: {
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: 4,
-    elevation: 6,
-    shadowColor: '#1A4D42',
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-  },
   heroLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: onGradient.faint,
     fontSize: 11.5,
     fontFamily: fonts.extrabold,
     letterSpacing: 1.2,
   },
-  heroValue: { color: '#fff', fontSize: 40, fontFamily: fonts.extrabold, letterSpacing: -1 },
-  heroSub: { color: 'rgba(255,255,255,0.85)', fontSize: 12.5 },
+  heroValue: { color: onGradient.text, fontSize: 40, fontFamily: fonts.extrabold, letterSpacing: -1 },
+  heroSub: { color: onGradient.faint, fontSize: 12.5 },
   card: {
     ...shadows.card,
     borderRadius: radius.lg,
@@ -298,21 +274,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  topupButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderRadius: radius.md,
-    paddingVertical: 14,
-  },
-  sectionLabel: {
-    fontSize: 12.5,
-    fontFamily: fonts.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginTop: spacing.sm,
   },
   txRow: {
     flexDirection: 'row',

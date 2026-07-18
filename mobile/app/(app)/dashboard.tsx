@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Stack } from 'expo-router';
 import {
   RefreshControl,
@@ -11,9 +10,10 @@ import {
 } from 'react-native';
 
 import { AnimatedCounter } from '@/components/motion';
+import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
 
 interface Overview {
   openConversations: number;
@@ -186,44 +186,21 @@ function HeroCard({
   openCount: number;
   wonCount: number;
 }) {
-  const gradient = useBrandGradient();
   return (
-    <LinearGradient
-      colors={gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.hero}
-    >
+    <GradientHero>
       <Text style={styles.heroLabel}>PIPELINE VALUE</Text>
       <AnimatedCounter value={value} format={formatInr} style={styles.heroValue} />
       <View style={styles.heroRow}>
         <View style={styles.heroPill}>
-          <Ionicons name="trending-up" size={13} color="#fff" />
+          <Ionicons name="trending-up" size={13} color={onGradient.text} />
           <Text style={styles.heroPillText}>{openCount} open</Text>
         </View>
         <View style={styles.heroPill}>
-          <Ionicons name="trophy" size={13} color="#fff" />
+          <Ionicons name="trophy" size={13} color={onGradient.text} />
           <Text style={styles.heroPillText}>{wonCount} won</Text>
         </View>
       </View>
-    </LinearGradient>
-  );
-}
-
-function SectionLabel({ text }: { text: string }) {
-  const { colors } = useTheme();
-  return (
-    <Text
-      style={{
-        fontSize: 12.5,
-        fontFamily: fonts.bold,
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
-        color: colors.textFaint,
-      }}
-    >
-      {text}
-    </Text>
+    </GradientHero>
   );
 }
 
@@ -258,34 +235,24 @@ function StatCard({
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  hero: {
-    borderRadius: radius.xl,
-    padding: spacing.xl,
-    gap: 6,
-    elevation: 6,
-    shadowColor: '#1A4D42',
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 6 },
-  },
   heroLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: onGradient.faint,
     fontSize: 11.5,
     fontFamily: fonts.extrabold,
     letterSpacing: 1.2,
   },
-  heroValue: { color: '#fff', fontSize: 38, fontFamily: fonts.extrabold, letterSpacing: -1 },
+  heroValue: { color: onGradient.text, fontSize: 38, fontFamily: fonts.extrabold, letterSpacing: -1 },
   heroRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 2 },
   heroPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: onGradient.glass,
     borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  heroPillText: { color: '#fff', fontSize: 12.5, fontFamily: fonts.bold },
+  heroPillText: { color: onGradient.text, fontSize: 12.5, fontFamily: fonts.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
     ...shadows.card,

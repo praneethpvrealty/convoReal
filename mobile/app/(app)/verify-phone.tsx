@@ -1,24 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OtpInput } from '@/components/otp-input';
-import { Banner } from '@/components/ui';
+import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { spacing, useTheme , fonts } from '@/lib/theme';
 
 /**
  * Native mirror of the web's WhatsappPhoneVerify (migration 137 gate):
@@ -108,59 +106,30 @@ export default function VerifyPhoneScreen() {
 
           {stage === 'phone' ? (
             <>
-              <View
-                style={[
-                  styles.field,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <Ionicons name="call-outline" size={18} color={colors.textFaint} />
-                <TextInput
-                  style={[styles.fieldInput, { color: colors.text }]}
-                  placeholder="WhatsApp number · e.g. 99002 77111"
-                  placeholderTextColor={colors.textFaint}
-                  keyboardType="phone-pad"
-                  autoComplete="tel"
-                  value={phone}
-                  onChangeText={setPhone}
-                />
-              </View>
-              <Pressable
-                style={[
-                  styles.button,
-                  { backgroundColor: colors.primary, opacity: busy || !phone.trim() ? 0.55 : 1 },
-                ]}
-                disabled={busy || !phone.trim()}
+              <TextField
+                icon="call-outline"
+                placeholder="WhatsApp number · e.g. 99002 77111"
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                value={phone}
+                onChangeText={setPhone}
+              />
+              <PrimaryButton
+                label="Send code on WhatsApp"
+                busy={busy}
+                disabled={!phone.trim()}
                 onPress={sendCode}
-              >
-                {busy ? (
-                  <ActivityIndicator color={colors.onPrimary} />
-                ) : (
-                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
-                    Send code on WhatsApp
-                  </Text>
-                )}
-              </Pressable>
+              />
             </>
           ) : (
             <>
               <OtpInput value={otp} onChange={setOtp} onComplete={verify} />
-              <Pressable
-                style={[
-                  styles.button,
-                  { backgroundColor: colors.primary, opacity: busy || otp.length < 6 ? 0.55 : 1 },
-                ]}
-                disabled={busy || otp.length < 6}
+              <PrimaryButton
+                label="Verify"
+                busy={busy}
+                disabled={otp.length < 6}
                 onPress={() => verify(otp)}
-              >
-                {busy ? (
-                  <ActivityIndicator color={colors.onPrimary} />
-                ) : (
-                  <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
-                    Verify
-                  </Text>
-                )}
-              </Pressable>
+              />
               <Pressable
                 onPress={() => setStage('phone')}
                 hitSlop={10}
@@ -199,19 +168,4 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center' },
   body: { fontSize: 14.5, textAlign: 'center', lineHeight: 21 },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-  },
-  fieldInput: { flex: 1, paddingVertical: 13, fontSize: 16 },
-  button: {
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 });
