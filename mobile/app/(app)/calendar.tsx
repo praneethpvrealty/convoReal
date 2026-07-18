@@ -1,11 +1,9 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -14,6 +12,8 @@ import {
   View,
 } from 'react-native';
 
+import { InlineDateTimePicker } from '@/components/datetime-field';
+import { BottomSheet } from '@/components/sheet';
 import { EmptyState } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -111,11 +111,13 @@ export default function CalendarScreen() {
         options={{
           headerShown: true,
           title: 'Calendar',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
           headerRight: () => (
             <Link href="/(app)/appointment-new" asChild>
-              <Pressable hitSlop={8}>
+              <Pressable
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="New appointment"
+              >
                 <Ionicons name="add-circle" size={26} color={colors.primary} />
               </Pressable>
             </Link>
@@ -132,13 +134,23 @@ export default function CalendarScreen() {
       >
         {/* Month header */}
         <View style={styles.monthHeader}>
-          <Pressable onPress={() => shiftMonth(-1)} hitSlop={8}>
+          <Pressable
+            onPress={() => shiftMonth(-1)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Previous month"
+          >
             <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
           </Pressable>
           <Text style={{ fontSize: 17, fontFamily: fonts.extrabold, color: colors.text }}>
             {month.toLocaleDateString([], { month: 'long', year: 'numeric' })}
           </Text>
-          <Pressable onPress={() => shiftMonth(1)} hitSlop={8}>
+          <Pressable
+            onPress={() => shiftMonth(1)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Next month"
+          >
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </Pressable>
           <View style={{ flex: 1 }} />
@@ -148,6 +160,10 @@ export default function CalendarScreen() {
               setMonth(monthStart(today));
               setSelected(today);
             }}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Jump to today"
+            style={{ paddingVertical: 8, paddingHorizontal: 4 }}
           >
             <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.primary }}>Today</Text>
           </Pressable>
@@ -376,15 +392,14 @@ function AppointmentDetail({
   }
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable
-        style={styles.backdrop}
-        onPress={() => {
-          reset();
-          onClose();
-        }}
-      >
-        <Pressable style={[styles.sheet, { backgroundColor: colors.surfaceRaised }]} onPress={() => {}}>
+    <BottomSheet
+      visible
+      onClose={() => {
+        reset();
+        onClose();
+      }}
+      contentStyle={styles.sheet}
+    >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <View style={[styles.typeBadge, { backgroundColor: colors.primarySoft }]}>
               <Ionicons name={meta.icon} size={17} color={colors.primary} />
@@ -461,13 +476,11 @@ function AppointmentDetail({
                   </Pressable>
                 </View>
                 {picker ? (
-                  <DateTimePicker
+                  <InlineDateTimePicker
                     value={effectiveStart}
                     mode={picker}
-                    onChange={(_, date) => {
-                      setPicker(null);
-                      if (date) setNewStart(date);
-                    }}
+                    onChange={setNewStart}
+                    onClose={() => setPicker(null)}
                   />
                 ) : null}
                 <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -515,9 +528,7 @@ function AppointmentDetail({
               </View>
             )
           ) : null}
-        </Pressable>
-      </Pressable>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -630,12 +641,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardTitle: { fontSize: 15, fontFamily: fonts.bold },
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet: {
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.lg,
-    paddingBottom: 34,
+    paddingHorizontal: spacing.lg,
     gap: spacing.md,
   },
   pickerButton: {

@@ -4,12 +4,13 @@ import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { apiFetch } from '@/lib/api';
 import { formatInr } from '@/lib/format';
 import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
 import { usePropertySearch } from '@/lib/property-search-store';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { mapPin, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const BENGALURU = {
@@ -27,6 +28,7 @@ const BENGALURU = {
  */
 export default function PropertiesMapScreen() {
   const { colors, dark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { search, listing, near } = usePropertySearch();
   const mapRef = useRef<MapView>(null);
 
@@ -66,8 +68,6 @@ export default function PropertiesMapScreen() {
         options={{
           headerShown: true,
           title: near ? `Map · ${near.label}` : 'Map',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
       <MapView
@@ -104,15 +104,24 @@ export default function PropertiesMapScreen() {
             >
               {/* Reference-style mint price pill instead of a pin. */}
               <View style={[styles.pricePin, !available && styles.pricePinMuted]}>
-                <View style={[styles.pinDot, !available && { backgroundColor: '#69766F' }]} />
-                <Text style={[styles.pinText, !available && { color: '#3d453f' }]}>{price}</Text>
+                <View style={[styles.pinDot, !available && { backgroundColor: mapPin.dotMuted }]} />
+                <Text style={[styles.pinText, !available && { color: mapPin.textMuted }]}>{price}</Text>
               </View>
             </Marker>
           );
         })}
       </MapView>
 
-      <View style={[styles.footer, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: colors.surfaceRaised,
+            borderColor: colors.border,
+            bottom: Math.max(insets.bottom, spacing.md) + 22,
+          },
+        ]}
+      >
         {isLoading ? (
           <ActivityIndicator color={colors.primary} size="small" />
         ) : (
@@ -128,7 +137,7 @@ export default function PropertiesMapScreen() {
           </>
         )}
       </View>
-      <Text style={[styles.hint, { color: colors.textFaint }]}>
+      <Text style={[styles.hint, { color: colors.textFaint, bottom: Math.max(insets.bottom, spacing.md) }]}>
         Tap a pin, then its card, to open the property.
       </Text>
     </View>
@@ -140,26 +149,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#D9F3AC',
+    backgroundColor: mapPin.bg,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderWidth: 1.5,
-    borderColor: '#ffffff',
+    borderColor: mapPin.border,
     elevation: 3,
     shadowColor: '#000',
     shadowOpacity: 0.18,
     shadowRadius: 5,
     shadowOffset: { width: 0, height: 2 },
   },
-  pricePinMuted: { backgroundColor: '#E7E4DB' },
-  pinDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#1A4D42' },
-  pinText: { fontSize: 11.5, fontFamily: fonts.extrabold, color: '#1A4D42' },
+  pricePinMuted: { backgroundColor: mapPin.bgMuted },
+  pinDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: mapPin.dot },
+  pinText: { fontSize: 11.5, fontFamily: fonts.extrabold, color: mapPin.text },
   footer: {
     position: 'absolute',
     left: spacing.lg,
     right: spacing.lg,
-    bottom: 34,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -175,7 +183,6 @@ const styles = StyleSheet.create({
   },
   hint: {
     position: 'absolute',
-    bottom: 12,
     alignSelf: 'center',
     fontSize: 11,
   },

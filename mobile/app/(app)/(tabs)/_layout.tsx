@@ -58,7 +58,7 @@ export default function TabsLayout() {
           borderTopWidth: 0,
           paddingTop: 10,
           overflow: 'hidden',
-          backgroundColor: dark ? 'rgba(21,28,25,0.78)' : 'rgba(255,255,255,0.78)',
+          backgroundColor: colors.tabBarGlass,
           elevation: 10,
           shadowColor: '#1A4D42',
           shadowOpacity: 0.18,

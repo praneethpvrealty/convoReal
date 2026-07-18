@@ -13,6 +13,51 @@ and polish.
 
 ### Changed
 
+- **Settings tab bars scroll instead of wrapping on phones.** The
+  main Settings navigation (Profile … Other) and the WhatsApp
+  sub-tabs (Connection / Templates / Flows / Owner Digest) wrapped
+  into ragged multi-line rows on narrow screens, with orphaned group
+  dividers stranded at row starts. Both are now single-row,
+  horizontally scrollable bars with hidden scrollbars; the active
+  pill auto-scrolls into view on load and on tab change, so deep
+  links like `?tab=showcase` never land with the selection
+  off-screen. Desktop layout is unchanged.
+
+### Fixed
+
+- **Table loaders center on screen, not off it.** The Contacts table's
+  loading and empty states (and the admin page's empty states) lived
+  inside a `colSpan` cell of a horizontally-scrolling table, so on
+  mobile they centered against the full multi-viewport-wide table and
+  rendered mostly off the right edge of the screen. They now render
+  outside the scroll surface (the pattern the Broadcasts and Ads
+  pages already used) and center within the visible viewport at any
+  width.
+
+### Changed
+
+- **Flows recover when customers go off-script.** Three fixes to the
+  conversation-flow engine, found watching a real seller lead derail:
+  (1) tapping a button on an *earlier* message (e.g. "List My
+  Property" on the welcome bubble after already tapping "Buy
+  Property") now switches to that button's branch instead of
+  re-sending the current branch's prompt; (2) free text the flow
+  can't parse ("80000 rented house three floor building near
+  devanahalli") is saved onto the contact's Requirements note so the
+  agent who picks up the handoff sees it instead of losing it; (3)
+  reprompts now say "Sorry, I didn't quite catch that — please tap
+  one of the options below 👇" instead of repeating the branch intro
+  verbatim, which read like the bot ignoring the customer.
+
+- **Dashboard "Active Users" no longer shows the owner or yourself.**
+  The widget is titled "Live agent & client statuses" but listed
+  every profile in the account — including the account owner (with a
+  synthetic "Reviewing Analytics" activity label) and the viewer's
+  own row, sometimes duplicated when the phone-match signup path had
+  created two profile rows. It now skips the current viewer and any
+  owner-role profile, and collapses duplicate rows for the same auth
+  user. Agents and recently-active clients are unaffected.
+
 - **Default reminder templates for every account + manager-only
   template management.** Every account — including ones created in
   the future — now starts with the four appointment/property-visit
@@ -98,7 +143,66 @@ and polish.
   Active/Dropped legend shrank, moved next to the zoom controls, and
   only appears once something has been dropped.
 
+### Fixed
+
+- **Mobile: iOS date/time picker no longer collapses mid-scroll.** The
+  appointment form and calendar reschedule closed the picker on the
+  first `onChange` — correct for Android's one-shot dialog, but iOS's
+  spinner fires per scroll tick, so the picker vanished under the
+  user's first flick. A shared `InlineDateTimePicker` now keeps the
+  iOS spinner mounted behind a Done button and auto-closes only on
+  Android.
+- **Mobile: screen-reader and touch-target pass.** Icon-only controls
+  (send, template, search-clear, map toggle, calendar navigation,
+  stage moves, sheet close buttons) now carry `accessibilityRole` and
+  labels for VoiceOver/TalkBack; unread badges announce their count;
+  the OTP input reads as "One-time code" with entry progress; bottom
+  sheets set `accessibilityViewIsModal`. Small targets (radius
+  selectors, filter chips, type chips, move-stage, text links) were
+  raised to comfortable sizes with hitSlop. The deals stage-picker
+  modal now closes with the Android back button and has a visible
+  close control.
+
+### Added
+
+- **Mobile: add contacts from the field.** The Contacts tab gains a
+  "+" button opening a quick-add sheet (name, phone, classification)
+  that calls the same `POST /api/contacts` route as the web form —
+  plan limits, rate limits and RLS all apply — then opens the new
+  contact card. An agent taking a walk-in's number no longer needs
+  the web app.
+
 ### Changed
+
+- **Mobile: navigation, forms and polish pass.** Screens inherit the
+  shared header style from the layout instead of re-specifying it in
+  12 files; the conversation composer keyboard offset uses the real
+  header height; list rows and property cards now give springy press
+  feedback on both platforms (scale-down physics, not Android-only
+  ripple); raw Postgres errors ("violates row-level security…") are
+  translated to human copy; email addresses are validated before
+  saving a contact; login and appointment forms support
+  keyboard-next/go submit flow; all searches share one 250ms
+  debounce (the appointment contact picker queried per keystroke);
+  billing top-up opens an in-app browser tab instead of dumping into
+  the system browser (new dependency: `expo-web-browser` — run
+  `npm install` in `mobile/`); safe-area-derived padding replaces
+  guessed bottom offsets on the property bar and map footer; photo
+  strips show a "+N" chip when a listing has more than 8 images.
+
+- **Mobile: one set of primitives, one set of tokens.** The five
+  hand-rolled text-field styles, five primary-CTA implementations,
+  three search bars, three bottom sheets, and five uppercase section
+  labels that had drifted across screens are now single shared
+  components (`TextField`, `PrimaryButton` — gradient is the brand
+  rule now, `SearchBar`, `BottomSheet`, `SectionLabel`,
+  `GradientHero`, `IconButton`, plus a `listCard` row chrome and a
+  property-shaped skeleton). New theme tokens replace scattered
+  literals: `surfaceSunken` (spec pills/previews no longer borrow the
+  chat-bubble color), `backdrop`, `tabBarGlass`, `onGradient` ink,
+  a shared hero shadow, and a documented `mapPin` palette; the map
+  screen, property-detail marker and confetti drop their leftover
+  Tailwind violet/blue for brand hues.
 
 - **Mobile: richer panels and bolder type.** Inbox and Contacts rows
   are now elevated white cards floating on the cream canvas (rounded,

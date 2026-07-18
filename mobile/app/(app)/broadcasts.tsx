@@ -56,8 +56,6 @@ export default function BroadcastsScreen() {
         options={{
           headerShown: true,
           title: 'Broadcasts',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
       <FlatList

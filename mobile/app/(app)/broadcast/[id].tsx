@@ -77,8 +77,6 @@ export default function BroadcastDetailScreen() {
         options={{
           headerShown: true,
           title: broadcast?.name ?? 'Broadcast',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
 

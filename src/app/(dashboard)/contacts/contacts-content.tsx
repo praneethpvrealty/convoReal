@@ -1763,6 +1763,44 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
       {/* Table */}
       <div className="rounded-lg border border-slate-800 overflow-hidden">
+        {/* Loading / empty states live OUTSIDE the Table — the ui/table
+            wrapper scrolls horizontally, so anything centered inside a
+            colSpan cell centers against the full multi-viewport-wide
+            table and lands off-screen on mobile. Same pattern as the
+            Broadcasts and Ads pages. */}
+        {loading ? (
+          <div className="flex flex-col items-center text-slate-400 py-12">
+            <ContactCardLoader size={104} label="Loading contacts" className="mb-3" />
+            <ConvoRealLoader size={20} className="mb-2" />
+            <p className="text-sm">Loading contacts...</p>
+          </div>
+        ) : contacts.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12">
+            <Users className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-500">
+              {search
+                ? 'No contacts match your search.'
+                : activeTab === 'pending_review'
+                ? 'No contacts pending review.'
+                : activeTab === 'transacted'
+                ? 'No transacted contacts found.'
+                : activeTab === 'market_active'
+                ? 'No active buyers found.'
+                : 'No contacts yet.'}
+            </p>
+            {!search && activeTab === 'active' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={openAddForm}
+                className="mt-2 border-slate-700 text-slate-300 hover:bg-slate-800"
+              >
+                <Plus className="size-3.5" />
+                Add your first contact
+              </Button>
+            )}
+          </div>
+        ) : (
         <Table>
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-transparent">
@@ -1829,48 +1867,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading ? (
-              <TableRow className="border-slate-800">
-                <TableCell colSpan={9} className="text-center py-12">
-                  <div className="flex flex-col items-center text-slate-400">
-                    <ContactCardLoader size={104} label="Loading contacts" className="mb-3" />
-                    <ConvoRealLoader size={20} className="mb-2" />
-                    <p className="text-sm">Loading contacts...</p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : contacts.length === 0 ? (
-              <TableRow className="border-slate-800">
-                <TableCell colSpan={9} className="text-center py-12">
-                  <div className="flex flex-col items-center gap-2">
-                    <Users className="size-8 text-slate-600" />
-                    <p className="text-sm text-slate-500">
-                      {search
-                        ? 'No contacts match your search.'
-                        : activeTab === 'pending_review'
-                        ? 'No contacts pending review.'
-                        : activeTab === 'transacted'
-                        ? 'No transacted contacts found.'
-                        : activeTab === 'market_active'
-                        ? 'No active buyers found.'
-                        : 'No contacts yet.'}
-                    </p>
-                    {!search && activeTab === 'active' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={openAddForm}
-                        className="mt-2 border-slate-700 text-slate-300 hover:bg-slate-800"
-                      >
-                        <Plus className="size-3.5" />
-                        Add your first contact
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              contacts.map((contact) => (
+            {contacts.map((contact) => (
                 <TableRow
                   key={contact.id}
                   className="border-slate-800 hover:bg-slate-900/50 cursor-pointer"
@@ -2093,10 +2090,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
+            ))}
           </TableBody>
         </Table>
+        )}
       </div>
 
       {/* Pagination */}

@@ -1,23 +1,24 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
+  type TextInput,
 } from 'react-native';
 
-import { Avatar, Banner } from '@/components/ui';
+import { InlineDateTimePicker } from '@/components/datetime-field';
+import { Avatar, Banner, PrimaryButton, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { useDebounced } from '@/lib/use-debounced';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
@@ -45,15 +46,17 @@ export default function NewAppointmentScreen() {
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [location, setLocation] = useState('');
   const [contactSearch, setContactSearch] = useState('');
+  const debouncedContactSearch = useDebounced(contactSearch);
   const [contact, setContact] = useState<Contact | null>(null);
+  const locationRef = useRef<TextInput>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const { data: contactOptions } = useQuery({
-    queryKey: ['contact-picker', contactSearch],
-    enabled: contactSearch.trim().length >= 2 && !contact,
+    queryKey: ['contact-picker', debouncedContactSearch],
+    enabled: debouncedContactSearch.trim().length >= 2 && !contact,
     queryFn: async () => {
-      const term = `%${contactSearch.trim()}%`;
+      const term = `%${debouncedContactSearch.trim()}%`;
       const { data } = await supabase
         .from('contacts')
         .select('id, name, phone')
@@ -91,7 +94,7 @@ export default function NewAppointmentScreen() {
     setSaving(false);
     if (insertError) {
       haptic.warn();
-      setError(insertError.message);
+      setError(friendlyError(insertError.message));
       return;
     }
     haptic.success();
@@ -108,17 +111,16 @@ export default function NewAppointmentScreen() {
         options={{
           headerShown: true,
           title: 'New appointment',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {error ? <Banner kind="error" text={error} /> : null}
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+        <TextField
           placeholder="Title · e.g. Site visit — Prestige Lakeview"
-          placeholderTextColor={colors.textFaint}
+          returnKeyType="next"
+          onSubmitEditing={() => locationRef.current?.focus()}
+          blurOnSubmit={false}
           value={title}
           onChangeText={setTitle}
         />
@@ -130,6 +132,9 @@ export default function NewAppointmentScreen() {
               <Pressable
                 key={t.value}
                 onPress={() => setEventType(t.value)}
+                accessibilityRole="button"
+                accessibilityLabel={t.label}
+                accessibilityState={{ selected: active }}
                 style={[
                   styles.typeChip,
                   {
@@ -168,20 +173,18 @@ export default function NewAppointmentScreen() {
           </Pressable>
         </View>
         {picker ? (
-          <DateTimePicker
+          <InlineDateTimePicker
             value={start}
             mode={picker}
-            onChange={(_, date) => {
-              setPicker(null);
-              if (date) setStart(date);
-            }}
+            onChange={setStart}
+            onClose={() => setPicker(null)}
           />
         ) : null}
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+        <TextField
+          ref={locationRef}
           placeholder="Location (optional)"
-          placeholderTextColor={colors.textFaint}
+          returnKeyType="done"
           value={location}
           onChangeText={setLocation}
         />
@@ -192,16 +195,19 @@ export default function NewAppointmentScreen() {
             <Text style={{ flex: 1, fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>
               {contact.name || contact.phone}
             </Text>
-            <Pressable onPress={() => setContact(null)} hitSlop={8}>
+            <Pressable
+              onPress={() => setContact(null)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Remove attached contact"
+            >
               <Ionicons name="close-circle" size={18} color={colors.textFaint} />
             </Pressable>
           </View>
         ) : (
           <View style={{ gap: spacing.sm }}>
-            <TextInput
-              style={[styles.input, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            <TextField
               placeholder="Attach contact — search name or phone (optional)"
-              placeholderTextColor={colors.textFaint}
               value={contactSearch}
               onChangeText={setContactSearch}
             />
@@ -223,22 +229,14 @@ export default function NewAppointmentScreen() {
           </View>
         )}
 
-        <Pressable
-          style={[
-            styles.saveButton,
-            { backgroundColor: colors.primary, opacity: saving || !title.trim() ? 0.55 : 1 },
-          ]}
-          disabled={saving || !title.trim()}
-          onPress={save}
-        >
-          {saving ? (
-            <ActivityIndicator color={colors.onPrimary} />
-          ) : (
-            <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: fonts.bold }}>
-              Schedule
-            </Text>
-          )}
-        </Pressable>
+        <View style={{ marginTop: spacing.sm }}>
+          <PrimaryButton
+            label="Schedule"
+            busy={saving}
+            disabled={!title.trim()}
+            onPress={save}
+          />
+        </View>
 
         <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
           Attached contacts get automatic WhatsApp reminders (morning-of and 1 hour before).
@@ -250,19 +248,12 @@ export default function NewAppointmentScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-  },
   typeChip: {
     flex: 1,
     alignItems: 'center',
     borderRadius: radius.full,
     borderWidth: 1,
-    paddingVertical: 8,
+    paddingVertical: 11,
   },
   pickerButton: {
     flexDirection: 'row',
@@ -282,11 +273,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
-  },
-  saveButton: {
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    alignItems: 'center',
-    marginTop: spacing.sm,
   },
 });

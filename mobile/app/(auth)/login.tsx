@@ -1,24 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
+  type TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Banner } from '@/components/ui';
+import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
 
@@ -33,6 +32,7 @@ const RESEND_SECONDS = 30;
  */
 export default function LoginScreen() {
   const { colors } = useTheme();
+  const gradient = useBrandGradient();
   const [mode, setMode] = useState<Mode>('whatsapp');
 
   return (
@@ -47,12 +47,12 @@ export default function LoginScreen() {
         >
           <View style={styles.hero}>
             <LinearGradient
-              colors={useBrandGradient()}
+              colors={gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.logoBadge}
             >
-              <Ionicons name="chatbubbles" size={34} color="#fff" />
+              <Ionicons name="chatbubbles" size={34} color={onGradient.text} />
             </LinearGradient>
             <Text style={[styles.wordmark, { color: colors.primary }]}>ConvoReal</Text>
             <Text style={[styles.tagline, { color: colors.textMuted }]}>
@@ -195,11 +195,13 @@ function WhatsappLogin() {
 
       {stage === 'phone' ? (
         <>
-          <Field
+          <TextField
             icon="logo-whatsapp"
             placeholder="WhatsApp number · e.g. 99002 77111"
             keyboardType="phone-pad"
             autoComplete="tel"
+            returnKeyType="go"
+            onSubmitEditing={sendCode}
             value={phone}
             onChangeText={setPhone}
           />
@@ -229,12 +231,24 @@ function WhatsappLogin() {
             onPress={() => verify(otp)}
           />
           <View style={{ flexDirection: 'row', justifyContent: 'center', gap: spacing.xl }}>
-            <Pressable onPress={() => setStage('phone')}>
+            <Pressable
+              onPress={() => setStage('phone')}
+              hitSlop={10}
+              accessibilityRole="button"
+              style={{ paddingVertical: 10 }}
+            >
               <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: fonts.semibold }}>
                 Change number
               </Text>
             </Pressable>
-            <Pressable disabled={resendIn > 0} onPress={sendCode}>
+            <Pressable
+              disabled={resendIn > 0}
+              onPress={sendCode}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: resendIn > 0 }}
+              style={{ paddingVertical: 10 }}
+            >
               <Text
                 style={{
                   color: resendIn > 0 ? colors.textFaint : colors.primary,
@@ -257,6 +271,7 @@ function EmailLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   async function signIn() {
     setError(null);
@@ -272,20 +287,26 @@ function EmailLogin() {
   return (
     <View style={{ gap: spacing.lg }}>
       {error ? <Banner kind="error" text={error} /> : null}
-      <Field
+      <TextField
         icon="mail-outline"
         placeholder="Email"
         keyboardType="email-address"
         autoComplete="email"
         autoCapitalize="none"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        blurOnSubmit={false}
         value={email}
         onChangeText={setEmail}
       />
-      <Field
+      <TextField
+        ref={passwordRef}
         icon="lock-closed-outline"
         placeholder="Password"
         secureTextEntry
         autoComplete="password"
+        returnKeyType="go"
+        onSubmitEditing={signIn}
         value={password}
         onChangeText={setPassword}
       />
@@ -296,66 +317,6 @@ function EmailLogin() {
         onPress={signIn}
       />
     </View>
-  );
-}
-
-function Field({
-  icon,
-  ...props
-}: { icon: React.ComponentProps<typeof Ionicons>['name'] } & React.ComponentProps<
-  typeof TextInput
->) {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={[
-        styles.field,
-        { backgroundColor: colors.surface, borderColor: colors.border },
-      ]}
-    >
-      <Ionicons name={icon} size={18} color={colors.textFaint} />
-      <TextInput
-        style={[styles.fieldInput, { color: colors.text }]}
-        placeholderTextColor={colors.textFaint}
-        {...props}
-      />
-    </View>
-  );
-}
-
-function PrimaryButton({
-  label,
-  busy,
-  disabled,
-  onPress,
-}: {
-  label: string;
-  busy: boolean;
-  disabled?: boolean;
-  onPress: () => void;
-}) {
-  const gradient = useBrandGradient();
-  return (
-    <Pressable
-      style={({ pressed }) => ({
-        opacity: disabled || busy ? 0.55 : pressed ? 0.85 : 1,
-      })}
-      disabled={disabled || busy}
-      onPress={onPress}
-    >
-      <LinearGradient
-        colors={gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.primaryButton}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={{ color: '#fff', fontSize: 16, fontFamily: fonts.bold }}>{label}</Text>
-        )}
-      </LinearGradient>
-    </Pressable>
   );
 }
 
@@ -382,27 +343,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: radius.md,
   },
-  segmentActive: {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-    elevation: 2,
-  },
-  field: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-  },
-  fieldInput: { flex: 1, paddingVertical: 13, fontSize: 16 },
-  primaryButton: {
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  segmentActive: { ...shadows.soft },
   footer: { fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
 });

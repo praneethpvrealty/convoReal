@@ -34,8 +34,12 @@ export function OtpInput({
   const activeIndex = Math.min(value.length, LENGTH - 1);
 
   return (
-    <Pressable onPress={() => inputRef.current?.focus()}>
-      <View style={styles.row}>
+    <Pressable
+      onPress={() => inputRef.current?.focus()}
+      accessible
+      accessibilityLabel={`One-time code, ${value.length} of ${LENGTH} digits entered`}
+    >
+      <View style={styles.row} importantForAccessibility="no-hide-descendants">
         {Array.from({ length: LENGTH }, (_, i) => {
           const filled = i < value.length;
           const active = focused && i === activeIndex && value.length < LENGTH;
@@ -67,6 +71,7 @@ export function OtpInput({
         keyboardType="number-pad"
         textContentType="oneTimeCode"
         autoComplete="sms-otp"
+        accessibilityLabel="One-time code"
         maxLength={LENGTH}
         style={styles.hidden}
         autoFocus

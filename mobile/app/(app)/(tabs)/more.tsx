@@ -4,7 +4,8 @@ import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Avatar } from '@/components/ui';
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { Avatar, SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import {
@@ -78,7 +79,7 @@ export default function MoreScreen() {
         />
       </View>
 
-      <SectionLabel text="Workspace" />
+      <SectionLabel text="Workspace" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         {WORKSPACE_LINKS.map((link) => (
           <Link key={link.href} href={link.href} asChild>
@@ -91,12 +92,12 @@ export default function MoreScreen() {
         ))}
       </View>
 
-      <SectionLabel text="Appearance" />
+      <SectionLabel text="Appearance" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         <AppearancePicker />
       </View>
 
-      <SectionLabel text="On the web app" />
+      <SectionLabel text="On the web app" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
         {WEB_ONLY.map((f) => (
           <View key={f.label} style={styles.navRow}>
@@ -128,7 +129,11 @@ export default function MoreScreen() {
   );
 }
 
-const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string; icon: string }[] = [
+const APPEARANCE_OPTIONS: {
+  value: AppearanceMode;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+}[] = [
   { value: 'light', label: 'Light', icon: 'sunny-outline' },
   { value: 'dark', label: 'Dark', icon: 'moon-outline' },
   { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
@@ -147,6 +152,9 @@ function AppearancePicker() {
           <Pressable
             key={opt.value}
             onPress={() => setMode(opt.value)}
+            accessibilityRole="button"
+            accessibilityLabel={`${opt.label} appearance`}
+            accessibilityState={{ selected: active }}
             style={{
               flex: 1,
               alignItems: 'center',
@@ -159,7 +167,7 @@ function AppearancePicker() {
             }}
           >
             <Ionicons
-              name={opt.icon as never}
+              name={opt.icon}
               size={18}
               color={active ? colors.primary : colors.textMuted}
             />
@@ -176,24 +184,6 @@ function AppearancePicker() {
         );
       })}
     </View>
-  );
-}
-
-function SectionLabel({ text }: { text: string }) {
-  const { colors } = useTheme();
-  return (
-    <Text
-      style={{
-        fontSize: 12.5,
-        fontFamily: fonts.bold,
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
-        color: colors.textFaint,
-        marginTop: spacing.sm,
-      }}
-    >
-      {text}
-    </Text>
   );
 }
 
@@ -217,7 +207,7 @@ function InfoRow({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
+  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: TAB_BAR_CLEARANCE + spacing.sm },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   card: {
     borderRadius: radius.lg,

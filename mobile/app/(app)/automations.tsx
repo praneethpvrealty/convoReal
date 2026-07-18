@@ -74,8 +74,6 @@ export default function AutomationsScreen() {
         options={{
           headerShown: true,
           title: 'Automations',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
 

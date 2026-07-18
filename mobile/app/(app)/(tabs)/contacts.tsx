@@ -1,25 +1,43 @@
 import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
-import { Link } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   FlatList,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
-import { EnterRow } from '@/components/motion';
-import { Avatar, ConversationSkeleton, EmptyState, Tag } from '@/components/ui';
+import { EnterRow, PressScale } from '@/components/motion';
+import { BottomSheet } from '@/components/sheet';
+import {
+  Avatar,
+  Banner,
+  ConversationSkeleton,
+  EmptyState,
+  IconButton,
+  PrimaryButton,
+  SearchBar,
+  SectionLabel,
+  Tag,
+  TextField,
+  listCard,
+} from '@/components/ui';
+import { apiFetch, ApiError } from '@/lib/api';
+import { friendlyError } from '@/lib/errors';
+import { cleanPhoneInput } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
+import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
-import type { Contact } from '@/lib/types';
+import { useDebounced } from '@/lib/use-debounced';
+import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
 
 /**
  * Search parity with the web contacts page (contacts-content.tsx):
@@ -84,13 +102,9 @@ export default function ContactsScreen() {
   const { colors, dark } = useTheme();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
-  const [debounced, setDebounced] = useState('');
-
+  const [adding, setAdding] = useState(false);
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search), 250);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebounced(search);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['contacts', debounced],
@@ -102,28 +116,21 @@ export default function ContactsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Contacts</Text>
-        <View
-          style={[
-            styles.search,
-            shadows.soft,
-            { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
-          ]}
-        >
-          <Ionicons name="search" size={16} color={colors.textFaint} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search name, phone, tag, company…"
-            placeholderTextColor={colors.textFaint}
-            value={search}
-            onChangeText={setSearch}
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.text }]}>Contacts</Text>
+          <IconButton
+            icon="person-add"
+            label="Add contact"
+            size={22}
+            color={colors.primary}
+            onPress={() => setAdding(true)}
           />
-          {search ? (
-            <Pressable onPress={() => setSearch('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={16} color={colors.textFaint} />
-            </Pressable>
-          ) : null}
         </View>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search name, phone, tag, company…"
+        />
       </View>
 
       {isLoading ? (
@@ -148,7 +155,7 @@ export default function ContactsScreen() {
               subtitle={
                 debounced
                   ? 'Searched names, phones, tags, notes, company and requirements.'
-                  : 'Contacts are created automatically from WhatsApp conversations and portal leads.'
+                  : 'Contacts arrive automatically from WhatsApp conversations and portal leads — or add one with the + button.'
               }
             />
           }
@@ -159,7 +166,134 @@ export default function ContactsScreen() {
           )}
         />
       )}
+
+      <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
     </View>
+  );
+}
+
+/**
+ * C3 fix: field agents can capture a walk-in without the web app.
+ * Uses POST /api/contacts — the same transactional route the web
+ * form calls, so plan limits, rate limits and RLS all apply.
+ */
+function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { colors, dark } = useTheme();
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [classification, setClassification] = useState<Classification>('Buyer');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function reset() {
+    setName('');
+    setPhone('');
+    setClassification('Buyer');
+    setError(null);
+  }
+
+  async function save() {
+    const cleanPhone = cleanPhoneInput(phone);
+    if (!cleanPhone) {
+      setError('Enter a valid phone number (e.g. 9900277111 or +919900277111)');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const { id } = await apiFetch<{ id: string }>('/api/contacts', {
+        method: 'POST',
+        body: JSON.stringify({
+          phone: cleanPhone,
+          name: name.trim() || null,
+          classification,
+        }),
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      reset();
+      onClose();
+      router.push(`/(app)/contact/${id}`);
+    } catch (e) {
+      haptic.warn();
+      setError(friendlyError(e instanceof ApiError ? e.message : 'Could not add the contact'));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <BottomSheet
+      visible={visible}
+      onClose={() => {
+        reset();
+        onClose();
+      }}
+      contentStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
+    >
+      <Text style={{ fontSize: 17, fontFamily: fonts.extrabold, color: colors.text }}>
+        New contact
+      </Text>
+      {error ? <Banner kind="error" text={error} /> : null}
+      <TextField
+        placeholder="Name (optional)"
+        autoCapitalize="words"
+        value={name}
+        onChangeText={setName}
+      />
+      <TextField
+        placeholder="Phone · e.g. 99002 77111"
+        keyboardType="phone-pad"
+        autoComplete="tel"
+        value={phone}
+        onChangeText={setPhone}
+      />
+      <View style={{ gap: spacing.sm }}>
+        <SectionLabel text="Classification" style={{ color: colors.textMuted }} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {CLASSIFICATIONS.map((c) => {
+            const active = classification === c;
+            const hue = classificationColors[c]?.[dark ? 'dark' : 'light'];
+            return (
+              <Pressable
+                key={c}
+                onPress={() => setClassification(c)}
+                accessibilityRole="button"
+                accessibilityLabel={c}
+                accessibilityState={{ selected: active }}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: radius.full,
+                  backgroundColor: active ? colors.primarySoft : colors.surface,
+                  borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
+                  borderColor: active ? colors.primary : colors.border,
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontFamily: fonts.semibold,
+                    color: active ? colors.primary : (hue ?? colors.textMuted),
+                  }}
+                >
+                  {c}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      <PrimaryButton
+        label="Add contact"
+        busy={saving}
+        disabled={!phone.trim()}
+        onPress={save}
+      />
+      <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
+        Budgets, notes, tags and more can be added from the contact card.
+      </Text>
+    </BottomSheet>
   );
 }
 
@@ -171,16 +305,16 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
     : undefined;
 
   return (
-    <Link href={`/(app)/contact/${contact.id}`} asChild>
-      {/* Slot child requires one flat style object (no arrays). */}
-      <Pressable
-        style={StyleSheet.flatten([
-          styles.row,
-          shadows.card,
-          { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
-        ])}
-        android_ripple={{ color: colors.background }}
-      >
+    <PressScale
+      onPress={() => router.push(`/(app)/contact/${contact.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open contact ${name}`}
+      contentStyle={StyleSheet.flatten([
+        listCard,
+        shadows.card,
+        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+      ])}
+    >
         <Avatar name={name} size={46} />
         <View style={styles.rowBody}>
           <View style={styles.nameRow}>
@@ -201,47 +335,31 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
           </View>
         </View>
         <Pressable
-          hitSlop={6}
+          hitSlop={8}
           onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Call ${name}`}
           style={[styles.action, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="call" size={18} color={colors.primary} />
         </Pressable>
         <Pressable
-          hitSlop={6}
+          hitSlop={8}
           onPress={() => Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open WhatsApp chat with ${name}`}
           style={[styles.action, { backgroundColor: colors.successSoft }]}
         >
           <Ionicons name="logo-whatsapp" size={18} color={colors.success} />
         </Pressable>
-      </Pressable>
-    </Link>
+    </PressScale>
   );
 }
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.lg,
-  },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14.5, fontFamily: fonts.medium },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md - 2,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
   rowBody: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },

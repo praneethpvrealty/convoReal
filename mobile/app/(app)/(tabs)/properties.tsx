@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { Link } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, router } from 'expo-router';
+import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -12,14 +12,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
-import { EnterRow } from '@/components/motion';
-import { ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
+import { EnterRow, PressScale } from '@/components/motion';
+import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
 import {
   apiFetch,
   placeDetails,
@@ -28,6 +27,7 @@ import {
   type PlaceSuggestion,
 } from '@/lib/api';
 import { formatInr } from '@/lib/format';
+import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
 import {
   nearFromLocality,
@@ -35,7 +35,7 @@ import {
   type ListingFilter,
   type NearAnchor,
 } from '@/lib/property-search-store';
-import { radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const LISTING_FILTERS: ListingFilter[] = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'];
@@ -89,14 +89,9 @@ export default function PropertiesScreen() {
   const insets = useSafeAreaInsets();
   const { search, listing, near, setSearch, setListing, setNear, setRadius } =
     usePropertySearch();
-  const [debounced, setDebounced] = useState('');
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search.trim()), 300);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebounced(search.trim());
 
   const {
     data,
@@ -169,7 +164,9 @@ export default function PropertiesScreen() {
             ) : null}
             <Link href="/(app)/properties-map" asChild>
               <Pressable
-                hitSlop={6}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="View results on map"
                 style={StyleSheet.flatten([styles.mapButton, { backgroundColor: colors.primarySoft }])}
               >
                 <Ionicons name="map" size={17} color={colors.primary} />
@@ -200,9 +197,17 @@ export default function PropertiesScreen() {
           <Text style={{ fontSize: 12.5, fontFamily: fonts.bold, color: colors.primary }}>
             {near.label}
           </Text>
-          <View style={{ flexDirection: 'row', gap: 6, marginLeft: spacing.sm }}>
+          <View style={{ flexDirection: 'row', gap: 4, marginLeft: spacing.xs }}>
             {RADIUS_OPTIONS.map((km) => (
-              <Pressable key={km} onPress={() => setRadius(km)} hitSlop={4}>
+              <Pressable
+                key={km}
+                onPress={() => setRadius(km)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`Search within ${km} kilometres`}
+                accessibilityState={{ selected: near.radiusKm === km }}
+                style={{ paddingHorizontal: 4, paddingVertical: 8 }}
+              >
                 <Text
                   style={{
                     fontSize: 12,
@@ -217,7 +222,12 @@ export default function PropertiesScreen() {
             ))}
           </View>
           <View style={{ flex: 1 }} />
-          <Pressable onPress={() => setNear(null)} hitSlop={8}>
+          <Pressable
+            onPress={() => setNear(null)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Clear location filter"
+          >
             <Ionicons name="close-circle" size={16} color={colors.textFaint} />
           </Pressable>
         </View>
@@ -235,8 +245,8 @@ export default function PropertiesScreen() {
 
       {isLoading ? (
         <View>
-          {Array.from({ length: 6 }, (_, i) => (
-            <ConversationSkeleton key={i} />
+          {Array.from({ length: 4 }, (_, i) => (
+            <PropertyCardSkeleton key={i} />
           ))}
         </View>
       ) : (
@@ -251,24 +261,21 @@ export default function PropertiesScreen() {
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
           ListEmptyComponent={
-            <View>
-              <EmptyState
-                icon="home-outline"
-                title={debounced || listing !== 'All' || near ? 'No matches' : 'No properties yet'}
-                subtitle={
-                  near
-                    ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
-                    : debounced || listing !== 'All'
-                      ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
-                      : 'Add properties from the web app or by messaging your WhatsApp lister.'
-                }
-              />
-              {near && near.radiusKm < 25 ? (
-                <Pressable
-                  onPress={() => setRadius(25)}
-                  style={{ alignSelf: 'center', marginTop: -20 }}
-                >
-                  <View
+            <EmptyState
+              icon="home-outline"
+              title={debounced || listing !== 'All' || near ? 'No matches' : 'No properties yet'}
+              subtitle={
+                near
+                  ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
+                  : debounced || listing !== 'All'
+                    ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
+                    : 'Add properties from the web app or by messaging your WhatsApp lister.'
+              }
+              action={
+                near && near.radiusKm < 25 ? (
+                  <Pressable
+                    onPress={() => setRadius(25)}
+                    accessibilityRole="button"
                     style={{
                       backgroundColor: colors.primary,
                       borderRadius: radius.full,
@@ -279,10 +286,10 @@ export default function PropertiesScreen() {
                     <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: fonts.bold }}>
                       Search within 25 km
                     </Text>
-                  </View>
-                </Pressable>
-              ) : null}
-            </View>
+                  </Pressable>
+                ) : null
+              }
+            />
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
@@ -308,14 +315,18 @@ function NearMeChip({
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel={locating ? 'Locating you' : 'Search near my location'}
+      accessibilityState={{ selected: active, busy: locating }}
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         gap: 5,
         paddingHorizontal: 14,
-        paddingVertical: 7,
+        paddingVertical: 9,
         borderRadius: radius.full,
-        backgroundColor: active ? colors.primary : colors.surface,
+        backgroundColor: active ? colors.primary : colors.surfaceRaised,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: active ? colors.primary : colors.border,
       }}
@@ -388,23 +399,13 @@ function LocalitySearchBox() {
 
   return (
     <View>
-      <View style={[styles.search, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Ionicons name="search" size={16} color={colors.textFaint} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder='Area, project, or "2bhk under 80L"'
-          placeholderTextColor={colors.textFaint}
-          value={search}
-          onChangeText={setSearch}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
-        />
-        {search ? (
-          <Pressable onPress={() => setSearch('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={16} color={colors.textFaint} />
-          </Pressable>
-        ) : null}
-      </View>
+      <SearchBar
+        value={search}
+        onChangeText={setSearch}
+        placeholder='Area, project, or "2bhk under 80L"'
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+      />
 
       {enabled && suggestions && suggestions.length > 0 ? (
         <View
@@ -459,12 +460,12 @@ function PropertyCard({ property }: { property: Property }) {
   const place = [property.sublocality, property.city].filter(Boolean).join(', ');
 
   return (
-    <Link href={`/(app)/property/${property.id}`} asChild>
-      {/* Slot child requires one flat style object (no arrays). */}
-      <Pressable
-        style={StyleSheet.flatten([styles.card, { backgroundColor: colors.surface }])}
-        android_ripple={{ color: colors.border }}
-      >
+    <PressScale
+      onPress={() => router.push(`/(app)/property/${property.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open property ${property.title}`}
+      contentStyle={StyleSheet.flatten([styles.card, { backgroundColor: colors.surface }])}
+    >
         <View style={styles.coverWrap}>
           {cover ? (
             <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -475,7 +476,7 @@ function PropertyCard({ property }: { property: Property }) {
               end={{ x: 1, y: 1 }}
               style={[StyleSheet.absoluteFill, styles.coverEmpty]}
             >
-              <Ionicons name="home-outline" size={38} color="rgba(255,255,255,0.85)" />
+              <Ionicons name="home-outline" size={38} color={onGradient.faint} />
             </LinearGradient>
           )}
           {property.listing_type || typeof property.distance_km === 'number' ? (
@@ -522,8 +523,7 @@ function PropertyCard({ property }: { property: Property }) {
             {property.type ? <SpecPill icon="business-outline" label={property.type} /> : null}
           </View>
         </View>
-      </Pressable>
-    </Link>
+    </PressScale>
   );
 }
 
@@ -537,7 +537,7 @@ function SpecPill({
   const { colors } = useTheme();
   // Reference style: soft filled chips, no border.
   return (
-    <View style={[styles.specPill, { backgroundColor: colors.incomingBubble }]}>
+    <View style={[styles.specPill, { backgroundColor: colors.surfaceSunken }]}>
       <Ionicons name={icon} size={13} color={colors.textMuted} />
       <Text style={{ fontSize: 12, fontFamily: fonts.semibold, color: colors.textMuted }} numberOfLines={1}>
         {label}
@@ -561,15 +561,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-  },
-  searchInput: { flex: 1, paddingVertical: 9, fontSize: 14.5 },
   suggestions: {
     position: 'absolute',
     top: '100%',
@@ -604,15 +595,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   card: {
+    ...shadows.card,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
     borderRadius: radius.xl,
     padding: 10,
-    elevation: 2,
-    shadowColor: '#1A4D42',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 5 },
   },
   coverWrap: { height: 175, borderRadius: radius.lg, overflow: 'hidden' },
   coverEmpty: { alignItems: 'center', justifyContent: 'center' },

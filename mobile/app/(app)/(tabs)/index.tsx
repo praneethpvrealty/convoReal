@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack } from 'expo-router';
+import { Link, Stack, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -9,19 +9,20 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { EnterRow } from '@/components/motion';
+import { EnterRow, PressScale } from '@/components/motion';
 import {
   Avatar,
   ConversationSkeleton,
   EmptyState,
   FilterChip,
+  SearchBar,
   Tag,
   UnreadBadge,
+  listCard,
 } from '@/components/ui';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
@@ -254,27 +255,11 @@ function InboxHeader({
           </Text>
         </View>
       </View>
-      <View
-        style={[
-          styles.search,
-          shadows.soft,
-          { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
-        ]}
-      >
-        <Ionicons name="search" size={16} color={colors.textFaint} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.text }]}
-          placeholder="Search name, phone or message"
-          placeholderTextColor={colors.textFaint}
-          value={search}
-          onChangeText={onSearch}
-        />
-        {search ? (
-          <Pressable onPress={() => onSearch('')} hitSlop={8}>
-            <Ionicons name="close-circle" size={16} color={colors.textFaint} />
-          </Pressable>
-        ) : null}
-      </View>
+      <SearchBar
+        value={search}
+        onChangeText={onSearch}
+        placeholder="Search name, phone or message"
+      />
     </View>
   );
 }
@@ -285,17 +270,18 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
   const unread = conversation.unread_count > 0;
 
   return (
-    <Link href={`/(app)/conversation/${conversation.id}`} asChild>
-      {/* expo-router's <Slot> child needs ONE flat style object — no
-          arrays, no style functions (both break under Link asChild). */}
-      <Pressable
-        style={StyleSheet.flatten([
-          styles.row,
-          shadows.card,
-          { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
-        ])}
-        android_ripple={{ color: colors.background }}
-      >
+    // PressScale + router.push instead of Link asChild: gives iOS
+    // press feedback (scale) and avoids the Slot flat-style rule.
+    <PressScale
+      onPress={() => router.push(`/(app)/conversation/${conversation.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open conversation with ${name}`}
+      contentStyle={StyleSheet.flatten([
+        listCard,
+        shadows.card,
+        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+      ])}
+    >
         <Avatar name={name} size={50} />
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
@@ -335,8 +321,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
             <UnreadBadge count={conversation.unread_count} />
           </View>
         </View>
-      </Pressable>
-    </Link>
+    </PressScale>
   );
 }
 
@@ -354,31 +339,11 @@ const styles = StyleSheet.create({
     // Keep clear of Expo Go's floating dev-menu bubble in the corner.
     marginRight: spacing.sm,
   },
-  search: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    borderRadius: radius.full,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.lg,
-  },
-  searchInput: { flex: 1, paddingVertical: 11, fontSize: 14.5, fontFamily: fonts.medium },
   filtersRow: { height: 52, justifyContent: 'center' },
   filters: {
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     alignItems: 'center',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md - 2,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
   },
   rowBody: { flex: 1, gap: 4 },
   rowTop: {

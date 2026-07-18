@@ -55,10 +55,13 @@ export function ActiveUsers() {
 
     async function loadActiveUsers() {
       try {
-        // 1. Fetch team members (profiles) in the current account
+        // 1. Fetch team members (profiles) in the current account.
+        //    user_id (the auth uid) is needed to exclude the viewer —
+        //    profiles.id is the profile row's own uuid and never
+        //    matches currentUser.id.
         const { data: teamData } = await supabase
           .from("profiles")
-          .select("id, full_name, avatar_url, account_role, role, updated_at")
+          .select("id, user_id, full_name, avatar_url, account_role, role, updated_at")
           .eq("account_id", accountId || "")
           .limit(5)
 
@@ -74,15 +77,24 @@ export function ActiveUsers() {
 
         const activeList: ActiveUser[] = []
 
-        // Process team members
+        // Process team members. The widget is "Live agent & client
+        // statuses": the viewer never needs their own row, and the
+        // account owner's activity is not the team's business — both
+        // are skipped. Duplicate profile rows for the same auth user
+        // (seen in the wild via the phone-match signup path) collapse
+        // to one entry.
+        const seenUserIds = new Set<string>()
         if (teamData && teamData.length > 0) {
           teamData.forEach((member) => {
-            const isMe = member.id === currentUser?.id
+            if (member.user_id && member.user_id === currentUser?.id) return
+            if (member.account_role === "owner") return
+            const dedupeKey = member.user_id || member.id
+            if (seenUserIds.has(dedupeKey)) return
+            seenUserIds.add(dedupeKey)
+
             const lastUpdated = new Date(member.updated_at).getTime()
             const isRecent = Date.now() - lastUpdated < 15 * 60 * 1000 // 15 mins
-            const status: "Online" | "Away" | "Offline" = isMe 
-              ? "Online" 
-              : isRecent ? "Online" : "Away"
+            const status: "Online" | "Away" | "Offline" = isRecent ? "Online" : "Away"
 
             // Construct initials
             const nameParts = member.full_name?.split(/\s+/) || []
@@ -92,7 +104,7 @@ export function ActiveUsers() {
 
             // Construct action based on role
             let action = "Viewing Dashboard"
-            if (member.account_role === "owner" || member.account_role === "admin") {
+            if (member.account_role === "admin") {
               action = "Reviewing Analytics"
             } else if (member.account_role === "agent") {
               action = "Answering Inbox"
