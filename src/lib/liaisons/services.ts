@@ -8,13 +8,19 @@ export function sanitizeServices(value: unknown): LiaisonService[] {
   const out: LiaisonService[] = [];
   for (const item of value) {
     if (!item || typeof item !== 'object') continue;
-    const { name, fee, fee_note } = item as Record<string, unknown>;
+    const { name, fee, client_charge, fee_note } = item as Record<string, unknown>;
     if (typeof name !== 'string' || name.trim().length === 0) continue;
     out.push({
       name: name.trim(),
       fee:
         typeof fee === 'number' && Number.isFinite(fee) && fee >= 0
           ? fee
+          : null,
+      client_charge:
+        typeof client_charge === 'number' &&
+        Number.isFinite(client_charge) &&
+        client_charge >= 0
+          ? client_charge
           : null,
       fee_note: typeof fee_note === 'string' ? fee_note.trim() || null : null,
     });

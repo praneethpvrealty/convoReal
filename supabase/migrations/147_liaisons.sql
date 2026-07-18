@@ -8,8 +8,11 @@
 -- stop re-asking "who do we call for EC and what does he charge?".
 --
 -- services JSONB shape:
---   [{ "name": "Khata transfer", "fee": 15000,
+--   [{ "name": "Khata transfer", "fee": 15000, "client_charge": 25000,
 --      "fee_note": "per property, excl. govt charges" }]
+-- fee = what the liaison charges us; client_charge = what we bill the
+-- client. Margin (client_charge - fee) is computed in the UI, never
+-- stored, so correcting either number can't leave a stale margin.
 -- Kept as JSONB rather than a child table: the directory is dozens of
 -- rows per account, always read whole-card, and never joined against.
 -- ============================================================

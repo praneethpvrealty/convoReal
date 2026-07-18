@@ -94,7 +94,7 @@ Liaisoning people directory — the government-office fixers (khata transfer, EC
 - `user_id` (UUID, FK -> `auth.users`): Creator.
 - `name` (TEXT, NOT NULL) / `phone` / `alt_phone` / `email`.
 - `office_area` (TEXT): Where they operate, e.g. "BBMP Bommanahalli", "SRO Jayanagar".
-- `services` (JSONB): Array of `{ name, fee, fee_note }` — fee in INR, null when it varies.
+- `services` (JSONB): Array of `{ name, fee, client_charge, fee_note }` — amounts in INR, null when they vary. `fee` is what the liaison charges the agency, `client_charge` what the agency bills the client; margin (`client_charge - fee`) is computed in the UI, never stored.
 - `notes` (TEXT).
 - `is_active` (BOOLEAN): Soft retire; keeps fee history when a liaison stops taking work.
 - RLS: members read, `agent`+ modify.

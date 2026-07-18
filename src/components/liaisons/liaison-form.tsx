@@ -30,10 +30,11 @@ const SERVICE_SUGGESTIONS = [
   'Tax paid receipt',
 ];
 
-/** Editable row: fee kept as string while typing, parsed on submit. */
+/** Editable row: amounts kept as strings while typing, parsed on submit. */
 interface ServiceRow {
   name: string;
   fee: string;
+  client_charge: string;
   fee_note: string;
 }
 
@@ -41,8 +42,28 @@ function toRows(services: LiaisonService[]): ServiceRow[] {
   return services.map((s) => ({
     name: s.name,
     fee: s.fee !== null && s.fee !== undefined ? String(s.fee) : '',
+    client_charge:
+      s.client_charge !== null && s.client_charge !== undefined
+        ? String(s.client_charge)
+        : '',
     fee_note: s.fee_note ?? '',
   }));
+}
+
+function parseAmount(raw: string): number | null {
+  const n = Number(raw);
+  return raw.trim() && Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** Live margin preview: needs both amounts to say anything. */
+function marginPreview(row: ServiceRow): string | null {
+  const fee = parseAmount(row.fee);
+  const charge = parseAmount(row.client_charge);
+  if (fee === null || charge === null) return null;
+  const margin = charge - fee;
+  const pct = charge > 0 ? Math.round((margin / charge) * 100) : null;
+  const sign = margin < 0 ? '-' : '';
+  return `Margin ${sign}₹${Math.abs(margin).toLocaleString('en-IN')}${pct !== null ? ` (${pct}%)` : ''}`;
 }
 
 interface LiaisonFormProps {
@@ -86,7 +107,10 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
   };
 
   const addService = (serviceName = '') => {
-    setServices((prev) => [...prev, { name: serviceName, fee: '', fee_note: '' }]);
+    setServices((prev) => [
+      ...prev,
+      { name: serviceName, fee: '', client_charge: '', fee_note: '' },
+    ]);
   };
 
   const removeService = (index: number) => {
@@ -113,14 +137,12 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
         office_area: officeArea.trim() || null,
         services: services
           .filter((row) => row.name.trim())
-          .map((row) => {
-            const fee = Number(row.fee);
-            return {
-              name: row.name.trim(),
-              fee: row.fee.trim() && Number.isFinite(fee) && fee >= 0 ? fee : null,
-              fee_note: row.fee_note.trim() || null,
-            };
-          }),
+          .map((row) => ({
+            name: row.name.trim(),
+            fee: parseAmount(row.fee),
+            client_charge: parseAmount(row.client_charge),
+            fee_note: row.fee_note.trim() || null,
+          })),
         notes: notes.trim() || null,
         ...(isEdit ? { is_active: isActive } : {}),
       };
@@ -263,46 +285,74 @@ export function LiaisonForm({ open, onOpenChange, liaison, onSaved }: LiaisonFor
               </p>
             ) : (
               <div className="space-y-2">
-                {services.map((row, index) => (
-                  <div
-                    key={index}
-                    className="grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_8rem_1fr_auto] gap-2 items-start rounded-lg border border-slate-800 bg-slate-950/40 p-2"
-                  >
-                    <Input
-                      value={row.name}
-                      onChange={(e) => updateService(index, { name: e.target.value })}
-                      placeholder="Service, e.g. Khata transfer"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
-                    />
-                    <Input
-                      value={row.fee}
-                      onChange={(e) =>
-                        updateService(index, {
-                          fee: e.target.value.replace(/[^\d.]/g, ''),
-                        })
-                      }
-                      placeholder="Fee ₹"
-                      inputMode="numeric"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs sm:col-start-2 col-start-1"
-                    />
-                    <Input
-                      value={row.fee_note}
-                      onChange={(e) => updateService(index, { fee_note: e.target.value })}
-                      placeholder="Fee note, e.g. excl. govt charges"
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs col-start-1 sm:col-start-3"
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => removeService(index)}
-                      aria-label="Remove service"
-                      className="h-8 w-8 p-0 text-slate-500 hover:text-red-400 hover:bg-slate-800 cursor-pointer row-start-1 col-start-2 sm:col-start-4"
+                {services.map((row, index) => {
+                  const preview = marginPreview(row);
+                  const negative = preview?.startsWith('Margin -');
+                  return (
+                    <div
+                      key={index}
+                      className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/40 p-2"
                     >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={row.name}
+                          onChange={(e) => updateService(index, { name: e.target.value })}
+                          placeholder="Service, e.g. Khata transfer"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs flex-1"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeService(index)}
+                          aria-label="Remove service"
+                          className="h-8 w-8 p-0 text-slate-500 hover:text-red-400 hover:bg-slate-800 cursor-pointer shrink-0"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-[8rem_8rem_1fr] gap-2 items-center">
+                        <Input
+                          value={row.fee}
+                          onChange={(e) =>
+                            updateService(index, {
+                              fee: e.target.value.replace(/[^\d.]/g, ''),
+                            })
+                          }
+                          placeholder="Their fee ₹"
+                          inputMode="numeric"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                        />
+                        <Input
+                          value={row.client_charge}
+                          onChange={(e) =>
+                            updateService(index, {
+                              client_charge: e.target.value.replace(/[^\d.]/g, ''),
+                            })
+                          }
+                          placeholder="Client charge ₹"
+                          inputMode="numeric"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                        />
+                        {preview && (
+                          <span
+                            className={`text-[11px] font-semibold col-span-2 sm:col-span-1 ${
+                              negative ? 'text-red-400' : 'text-emerald-400'
+                            }`}
+                          >
+                            {preview}
+                          </span>
+                        )}
+                      </div>
+                      <Input
+                        value={row.fee_note}
+                        onChange={(e) => updateService(index, { fee_note: e.target.value })}
+                        placeholder="Fee note, e.g. excl. govt charges"
+                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                      />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

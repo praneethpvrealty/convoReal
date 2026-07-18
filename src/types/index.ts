@@ -997,8 +997,10 @@ export interface EmailSyncConfig {
 export interface LiaisonService {
   /** e.g. "Khata transfer", "New khata", "EC", "Registration" */
   name: string;
-  /** Quoted fee in INR. Null when it varies case-by-case. */
+  /** What the liaison charges us, in INR. Null when it varies case-by-case. */
   fee: number | null;
+  /** What we bill the client for this service, in INR. Margin = client_charge - fee. */
+  client_charge?: number | null;
   /** Qualifier for the fee, e.g. "per property, excl. govt charges". */
   fee_note?: string | null;
 }

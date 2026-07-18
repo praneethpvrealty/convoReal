@@ -36,6 +36,19 @@ function formatFee(fee: number | null | undefined): string {
   return `₹${fee.toLocaleString('en-IN')}`;
 }
 
+function computeMargin(fee: number | null | undefined, clientCharge: number | null | undefined) {
+  if (fee === null || fee === undefined) return null;
+  if (clientCharge === null || clientCharge === undefined) return null;
+  const margin = clientCharge - fee;
+  const pct = clientCharge > 0 ? Math.round((margin / clientCharge) * 100) : null;
+  return { margin, pct };
+}
+
+function formatMargin(margin: number, pct: number | null) {
+  const sign = margin < 0 ? '-' : '+';
+  return `${sign}₹${Math.abs(margin).toLocaleString('en-IN')}${pct !== null ? ` (${pct}%)` : ''}`;
+}
+
 function getInitials(name: string) {
   return name
     .split(' ')
@@ -326,27 +339,50 @@ export default function LiaisonsContent() {
                   </p>
                 ) : (
                   <ul className="border-t border-slate-800/80 pt-2 divide-y divide-slate-800/50">
-                    {liaison.services.map((service, i) => (
-                      <li key={i} className="flex items-start justify-between gap-3 py-1.5">
-                        <span className="text-xs text-slate-300 min-w-0">
-                          {service.name}
-                          {service.fee_note && (
-                            <span className="block text-[10px] text-slate-500 mt-0.5">
-                              {service.fee_note}
+                    {liaison.services.map((service, i) => {
+                      const hasCharge =
+                        service.client_charge !== null && service.client_charge !== undefined;
+                      const m = computeMargin(service.fee, service.client_charge);
+                      return (
+                        <li key={i} className="flex items-start justify-between gap-3 py-1.5">
+                          <span className="text-xs text-slate-300 min-w-0">
+                            {service.name}
+                            {service.fee_note && (
+                              <span className="block text-[10px] text-slate-500 mt-0.5">
+                                {service.fee_note}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-right shrink-0">
+                            {/* Client-facing charge leads; the liaison's cut and
+                                margin sit under it so quoting stays one glance. */}
+                            <span
+                              className={`block text-xs font-bold ${
+                                hasCharge || (service.fee !== null && service.fee !== undefined)
+                                  ? 'text-primary'
+                                  : 'text-slate-500 font-medium'
+                              }`}
+                            >
+                              {hasCharge ? formatFee(service.client_charge) : formatFee(service.fee)}
                             </span>
-                          )}
-                        </span>
-                        <span
-                          className={`text-xs font-bold shrink-0 ${
-                            service.fee !== null && service.fee !== undefined
-                              ? 'text-primary'
-                              : 'text-slate-500 font-medium'
-                          }`}
-                        >
-                          {formatFee(service.fee)}
-                        </span>
-                      </li>
-                    ))}
+                            {hasCharge && service.fee !== null && service.fee !== undefined && (
+                              <span className="block text-[10px] text-slate-500 mt-0.5">
+                                Pay {formatFee(service.fee)}
+                              </span>
+                            )}
+                            {m && (
+                              <span
+                                className={`block text-[10px] font-semibold mt-0.5 ${
+                                  m.margin < 0 ? 'text-red-400' : 'text-emerald-400'
+                                }`}
+                              >
+                                {formatMargin(m.margin, m.pct)}
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
