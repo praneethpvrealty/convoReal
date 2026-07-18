@@ -32,6 +32,7 @@ import {
   Share2,
   Archive,
   RefreshCw,
+  X,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { PropertyList } from '@/components/inventory/property-list';
@@ -73,6 +74,10 @@ export default function InventoryPage() {
   const [locationText, setLocationText] = useState('');
   const [pickedPlace, setPickedPlace] = useState<PickedLocality | null>(null);
   const [radiusKm, setRadiusKm] = useState(5);
+  // Mobile-only: search + locality live behind a floating lens button
+  // (the two bars ate half the viewport and were unreachable once
+  // scrolled into the list). Desktop keeps the inline bars.
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   // Debounce search to avoid per-keystroke NLP parse + Supabase round-trip.
   useEffect(() => {
@@ -779,8 +784,9 @@ export default function InventoryPage() {
         </button>
       </div>
 
-      {/* Search Bar */}
-      <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-3">
+      {/* Search Bar — inline on md+; on mobile it lives behind the
+          floating lens button below so it costs no vertical space. */}
+      <div className="hidden md:block bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-3">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
@@ -837,6 +843,146 @@ export default function InventoryPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile: active-filter summary chip row (visible while the
+          overlay is closed, so an applied filter is never invisible). */}
+      {(debouncedSearch.trim() || pickedPlace) && !mobileSearchOpen && (
+        <div className="md:hidden flex flex-wrap items-center gap-2 text-xs">
+          {debouncedSearch.trim() && (
+            <button
+              type="button"
+              onClick={() => setMobileSearchOpen(true)}
+              className="px-2.5 py-1 rounded-full border border-primary/40 bg-primary/10 text-white font-semibold truncate max-w-[60vw] cursor-pointer"
+            >
+              &ldquo;{debouncedSearch.trim()}&rdquo;
+            </button>
+          )}
+          {pickedPlace && (
+            <button
+              type="button"
+              onClick={() => setMobileSearchOpen(true)}
+              className="px-2.5 py-1 rounded-full border border-primary/40 bg-primary/10 text-white font-semibold truncate max-w-[40vw] cursor-pointer"
+            >
+              📍 {pickedPlace.name} · {radiusKm} km
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setPickedPlace(null);
+              setLocationText('');
+            }}
+            className="px-2.5 py-1 rounded-full border border-slate-700 bg-slate-800 text-slate-400 font-semibold cursor-pointer"
+          >
+            Clear ✕
+          </button>
+        </div>
+      )}
+
+      {/* Mobile: floating lens — fixed, so it's reachable at any scroll
+          depth. Sits above the global AI FAB in the corner. */}
+      <button
+        type="button"
+        aria-label="Search inventory"
+        onClick={() => setMobileSearchOpen(true)}
+        className={`md:hidden fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-slate-700 bg-slate-900/95 text-slate-200 shadow-lg shadow-slate-950/50 backdrop-blur transition-transform active:scale-95 ${
+          mobileSearchOpen ? 'hidden' : ''
+        }`}
+      >
+        <Search className="size-5" />
+        {(debouncedSearch.trim() || pickedPlace) && (
+          <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-primary border border-slate-900" />
+        )}
+      </button>
+
+      {/* Mobile: search overlay pinned under the header */}
+      {mobileSearchOpen && (
+        <div className="md:hidden">
+          <button
+            type="button"
+            aria-label="Close search"
+            onClick={() => setMobileSearchOpen(false)}
+            className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm"
+          />
+          <div className="fixed inset-x-3 top-16 z-50 rounded-xl border border-slate-700 bg-slate-900 p-4 space-y-3 shadow-xl shadow-slate-950/60">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                Search inventory
+              </span>
+              <button
+                type="button"
+                aria-label="Close search"
+                onClick={() => setMobileSearchOpen(false)}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:text-white hover:bg-slate-800"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+              <Input
+                autoFocus
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); }}
+                placeholder='e.g. residential properties > 10 Cr'
+                className="pl-9 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-10"
+              />
+            </div>
+            <LocalityAutocomplete
+              value={locationText}
+              onChange={(text) => {
+                setLocationText(text);
+                if (pickedPlace && text !== pickedPlace.name) setPickedPlace(null);
+              }}
+              onPick={(place) => {
+                setPickedPlace(place);
+                setLocationText(place.name);
+              }}
+              placeholder="Filter by locality (Google Maps)"
+            />
+            {pickedPlace && (
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="text-slate-400">Within</span>
+                {[2, 5, 10, 25].map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRadiusKm(r)}
+                    className={`px-2 py-0.5 rounded-full border font-semibold transition-colors ${
+                      radiusKm === r
+                        ? 'bg-primary/15 border-primary/50 text-primary'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    {r} km
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-between pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setPickedPlace(null);
+                  setLocationText('');
+                }}
+                className="text-xs font-semibold text-slate-400 hover:text-white px-2 py-1.5 cursor-pointer"
+              >
+                Clear all
+              </button>
+              <Button
+                size="sm"
+                onClick={() => setMobileSearchOpen(false)}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 px-4 cursor-pointer"
+              >
+                Show results
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid View */}
       <PropertyList

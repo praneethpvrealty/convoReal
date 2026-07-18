@@ -789,7 +789,7 @@ export function MessageThread({
   // pattern under the user's eye.
   if (!conversation || !contact) {
     return (
-      <div className={cn("flex flex-1 flex-col items-center justify-center relative overflow-hidden", DOODLE_BG_CLASSES)}>
+      <div className={cn("flex flex-1 flex-col items-center justify-center relative overflow-hidden min-w-0", DOODLE_BG_CLASSES)}>
         {/* Ambient background glows */}
         <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] bg-primary/8 rounded-full blur-[80px] pointer-events-none" />
         <div className="absolute bottom-1/4 right-1/4 w-[250px] h-[250px] bg-indigo-500/5 rounded-full blur-[70px] pointer-events-none" />
@@ -821,7 +821,12 @@ export function MessageThread({
     : "Assign";
 
   return (
-    <div className={cn("flex flex-1 flex-col relative", DOODLE_BG_CLASSES)}>
+    // `min-w-0` mirrors the pane wrappers in inbox/page.tsx (issue
+    // #165): this root is itself a flex item, and without it the
+    // header/content intrinsic width sets the min-width — on phones
+    // the whole thread (header, bubbles, composer) rendered wider
+    // than the viewport and bled off the right edge.
+    <div className={cn("flex flex-1 flex-col relative min-w-0", DOODLE_BG_CLASSES)}>
       {/* Header — translucent backdrop-blur seats on top of the doodle */}
       <div className="flex items-center justify-between gap-2 border-b border-slate-900/60 bg-slate-950/70 backdrop-blur-md px-3 py-3 sm:px-4 relative z-10">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
