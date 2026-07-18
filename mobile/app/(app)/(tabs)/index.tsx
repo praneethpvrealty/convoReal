@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack } from 'expo-router';
+import { Link, Stack, router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { EnterRow } from '@/components/motion';
+import { EnterRow, PressScale } from '@/components/motion';
 import {
   Avatar,
   ConversationSkeleton,
@@ -270,17 +270,18 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
   const unread = conversation.unread_count > 0;
 
   return (
-    <Link href={`/(app)/conversation/${conversation.id}`} asChild>
-      {/* expo-router's <Slot> child needs ONE flat style object — no
-          arrays, no style functions (both break under Link asChild). */}
-      <Pressable
-        style={StyleSheet.flatten([
-          listCard,
-          shadows.card,
-          { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
-        ])}
-        android_ripple={{ color: colors.background }}
-      >
+    // PressScale + router.push instead of Link asChild: gives iOS
+    // press feedback (scale) and avoids the Slot flat-style rule.
+    <PressScale
+      onPress={() => router.push(`/(app)/conversation/${conversation.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open conversation with ${name}`}
+      contentStyle={StyleSheet.flatten([
+        listCard,
+        shadows.card,
+        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+      ])}
+    >
         <Avatar name={name} size={50} />
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
@@ -320,8 +321,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
             <UnreadBadge count={conversation.unread_count} />
           </View>
         </View>
-      </Pressable>
-    </Link>
+    </PressScale>
   );
 }
 

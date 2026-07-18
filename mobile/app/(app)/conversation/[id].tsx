@@ -24,6 +24,7 @@ import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
+import { useHeaderHeight } from '@/lib/use-header-height';
 import type { Conversation, Message, MessageStatus } from '@/lib/types';
 
 const PAGE_SIZE = 60;
@@ -56,6 +57,7 @@ async function fetchConversation(id: string): Promise<Conversation | null> {
 export default function ConversationScreen() {
   const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const headerHeight = useHeaderHeight();
 
   const { data: conversation } = useQuery({
     queryKey: ['conversation', id],
@@ -119,14 +121,12 @@ export default function ConversationScreen() {
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.background }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
       <Stack.Screen
         options={{
           headerShown: true,
           headerTitle: () => <ThreadHeader title={title} status={conversation?.status} />,
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
 

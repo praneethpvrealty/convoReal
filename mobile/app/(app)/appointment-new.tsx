@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -10,12 +10,15 @@ import {
   StyleSheet,
   Text,
   View,
+  type TextInput,
 } from 'react-native';
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { Avatar, Banner, PrimaryButton, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import { useDebounced } from '@/lib/use-debounced';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
@@ -43,15 +46,17 @@ export default function NewAppointmentScreen() {
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [location, setLocation] = useState('');
   const [contactSearch, setContactSearch] = useState('');
+  const debouncedContactSearch = useDebounced(contactSearch);
   const [contact, setContact] = useState<Contact | null>(null);
+  const locationRef = useRef<TextInput>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const { data: contactOptions } = useQuery({
-    queryKey: ['contact-picker', contactSearch],
-    enabled: contactSearch.trim().length >= 2 && !contact,
+    queryKey: ['contact-picker', debouncedContactSearch],
+    enabled: debouncedContactSearch.trim().length >= 2 && !contact,
     queryFn: async () => {
-      const term = `%${contactSearch.trim()}%`;
+      const term = `%${debouncedContactSearch.trim()}%`;
       const { data } = await supabase
         .from('contacts')
         .select('id, name, phone')
@@ -89,7 +94,7 @@ export default function NewAppointmentScreen() {
     setSaving(false);
     if (insertError) {
       haptic.warn();
-      setError(insertError.message);
+      setError(friendlyError(insertError.message));
       return;
     }
     haptic.success();
@@ -106,8 +111,6 @@ export default function NewAppointmentScreen() {
         options={{
           headerShown: true,
           title: 'New appointment',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -115,6 +118,9 @@ export default function NewAppointmentScreen() {
 
         <TextField
           placeholder="Title · e.g. Site visit — Prestige Lakeview"
+          returnKeyType="next"
+          onSubmitEditing={() => locationRef.current?.focus()}
+          blurOnSubmit={false}
           value={title}
           onChangeText={setTitle}
         />
@@ -176,7 +182,9 @@ export default function NewAppointmentScreen() {
         ) : null}
 
         <TextField
+          ref={locationRef}
           placeholder="Location (optional)"
+          returnKeyType="done"
           value={location}
           onChangeText={setLocation}
         />

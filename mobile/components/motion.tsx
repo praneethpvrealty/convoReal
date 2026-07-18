@@ -24,6 +24,7 @@ export function PressScale({
   contentStyle,
   onPress,
   hapticOn = true,
+  ...rest
 }: {
   children: React.ReactNode;
   /** Flat style for the outer Pressable (hit area). */
@@ -32,7 +33,7 @@ export function PressScale({
   contentStyle?: ViewStyle | ViewStyle[];
   onPress?: () => void;
   hapticOn?: boolean;
-}) {
+} & Omit<React.ComponentProps<typeof Pressable>, 'style' | 'onPress' | 'children'>) {
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
@@ -49,6 +50,7 @@ export function PressScale({
       onPressOut={() => {
         scale.value = withSpring(1, { damping: 14, stiffness: 220 });
       }}
+      {...rest}
     >
       <Animated.View style={[animated, StyleSheet.flatten(contentStyle)]}>
         {children}

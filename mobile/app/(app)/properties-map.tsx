@@ -4,6 +4,7 @@ import { Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { apiFetch } from '@/lib/api';
 import { formatInr } from '@/lib/format';
@@ -27,6 +28,7 @@ const BENGALURU = {
  */
 export default function PropertiesMapScreen() {
   const { colors, dark } = useTheme();
+  const insets = useSafeAreaInsets();
   const { search, listing, near } = usePropertySearch();
   const mapRef = useRef<MapView>(null);
 
@@ -66,8 +68,6 @@ export default function PropertiesMapScreen() {
         options={{
           headerShown: true,
           title: near ? `Map · ${near.label}` : 'Map',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
       <MapView
@@ -112,7 +112,16 @@ export default function PropertiesMapScreen() {
         })}
       </MapView>
 
-      <View style={[styles.footer, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: colors.surfaceRaised,
+            borderColor: colors.border,
+            bottom: Math.max(insets.bottom, spacing.md) + 22,
+          },
+        ]}
+      >
         {isLoading ? (
           <ActivityIndicator color={colors.primary} size="small" />
         ) : (
@@ -128,7 +137,7 @@ export default function PropertiesMapScreen() {
           </>
         )}
       </View>
-      <Text style={[styles.hint, { color: colors.textFaint }]}>
+      <Text style={[styles.hint, { color: colors.textFaint, bottom: Math.max(insets.bottom, spacing.md) }]}>
         Tap a pin, then its card, to open the property.
       </Text>
     </View>
@@ -159,7 +168,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.lg,
     right: spacing.lg,
-    bottom: 34,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
@@ -175,7 +183,6 @@ const styles = StyleSheet.create({
   },
   hint: {
     position: 'absolute',
-    bottom: 12,
     alignSelf: 'center',
     fontSize: 11,
   },

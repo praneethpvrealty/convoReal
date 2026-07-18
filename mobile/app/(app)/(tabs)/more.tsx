@@ -4,6 +4,7 @@ import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { Avatar, SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
@@ -128,7 +129,11 @@ export default function MoreScreen() {
   );
 }
 
-const APPEARANCE_OPTIONS: { value: AppearanceMode; label: string; icon: string }[] = [
+const APPEARANCE_OPTIONS: {
+  value: AppearanceMode;
+  label: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+}[] = [
   { value: 'light', label: 'Light', icon: 'sunny-outline' },
   { value: 'dark', label: 'Dark', icon: 'moon-outline' },
   { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
@@ -162,7 +167,7 @@ function AppearancePicker() {
             }}
           >
             <Ionicons
-              name={opt.icon as never}
+              name={opt.icon}
               size={18}
               color={active ? colors.primary : colors.textMuted}
             />
@@ -202,7 +207,7 @@ function InfoRow({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: 120 },
+  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: TAB_BAR_CLEARANCE + spacing.sm },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   card: {
     borderRadius: radius.lg,

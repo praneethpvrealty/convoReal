@@ -88,8 +88,6 @@ export default function JourneyScreen() {
         options={{
           headerShown: true,
           title: 'Journeys',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
 

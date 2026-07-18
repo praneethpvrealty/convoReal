@@ -111,8 +111,6 @@ export default function CalendarScreen() {
         options={{
           headerShown: true,
           title: 'Calendar',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
           headerRight: () => (
             <Link href="/(app)/appointment-new" asChild>
               <Pressable
