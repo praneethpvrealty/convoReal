@@ -11,6 +11,16 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Page can no longer pan sideways on phones.** `overflow-x: clip`
+  on `html`/`body` guarantees the page itself never scrolls
+  horizontally — every intended horizontal scroller (tables, tab
+  bars, chip rows) lives in its own container and is unaffected.
+  Layout was verified to reflow cleanly down to a 260px effective
+  viewport (high zoom / large text scaling) with no overflowing
+  elements.
+
 ### Added
 
 - **AI tag suggestions with tap-to-confirm.** The preference
