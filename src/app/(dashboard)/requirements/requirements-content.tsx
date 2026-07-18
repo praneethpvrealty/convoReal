@@ -16,14 +16,28 @@ import {
   Users,
   AlertTriangle,
   Building,
+  Loader2,
+  Pencil,
+  Plus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AnimatedCounter } from "@/components/ui/animated-counter"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ChecklistLoader } from "@/components/ui/checklist-loader"
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
 import { NameTagBadge } from "@/components/contacts/name-tag-badge"
+import { SearchableContactSelect } from "@/components/ui/searchable-contact-select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface Tag {
   id: string
@@ -80,6 +94,14 @@ export default function RequirementsPage() {
 
   // Copy status per card
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // Add/edit requirements dialog. `editorContactId` is preset when a
+  // card's pencil opened it; in add mode the user picks the client.
+  const [editorOpen, setEditorOpen] = useState(false)
+  const [editorContactId, setEditorContactId] = useState<string | null>(null)
+  const [editorIsAdd, setEditorIsAdd] = useState(false)
+  const [reqText, setReqText] = useState("")
+  const [savingReq, setSavingReq] = useState(false)
 
   const fetchRequirements = useCallback(async () => {
     setLoading(true)
@@ -193,6 +215,65 @@ export default function RequirementsPage() {
     }
   }
 
+  const openEditRequirements = (c: ConsolidatedContact) => {
+    setEditorContactId(c.id)
+    setEditorIsAdd(false)
+    setReqText(c.requirements ?? "")
+    setEditorOpen(true)
+  }
+
+  const openAddRequirements = () => {
+    setEditorContactId(null)
+    setEditorIsAdd(true)
+    setReqText("")
+    setEditorOpen(true)
+  }
+
+  // In add mode, picking a client pre-loads whatever they already have
+  // so a stale card can't silently overwrite newer text.
+  const handleEditorContactChange = (id: string | null) => {
+    setEditorContactId(id)
+    setReqText(id ? data.find((c) => c.id === id)?.requirements ?? "" : "")
+  }
+
+  const handleSaveRequirements = async () => {
+    if (!editorContactId) {
+      toast.error("Pick a client first")
+      return
+    }
+    setSavingReq(true)
+    try {
+      // Same write path the Agents tab uses — a scoped column update,
+      // not the full-contact PUT (which would null unrelated fields).
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          requirements: reqText.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editorContactId)
+      if (error) throw error
+
+      // Fire-and-forget: re-extract AI matching preferences from the
+      // updated text (same hook the contact form uses).
+      fetch("/api/contacts/extract-preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contactIds: [editorContactId] }),
+      }).catch(() => {})
+
+      toast.success("Requirements saved")
+      setEditorOpen(false)
+      fetchRequirements()
+    } catch (err) {
+      console.error("[Requirements] Save error:", err)
+      toast.error("Failed to save requirements")
+    } finally {
+      setSavingReq(false)
+    }
+  }
+
   const formatCurrency = (val: number) => {
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, "")} Cr`
     if (val >= 100000) return `₹${(val / 100000).toFixed(2).replace(/\.00$/, "")} L`
@@ -243,6 +324,13 @@ export default function RequirementsPage() {
             Assimilation of client property preferences, priorities, and budgets parsed from conversations.
           </p>
         </div>
+        <Button
+          onClick={openAddRequirements}
+          className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-9 gap-1.5 cursor-pointer px-4 shrink-0 self-start md:self-auto"
+        >
+          <Plus className="size-3.5" />
+          Add Requirement
+        </Button>
       </div>
 
       {/* Stats Board */}
@@ -457,7 +545,7 @@ export default function RequirementsPage() {
                     </div>
 
                     {/* Requirements Text */}
-                    {c.requirements && (
+                    {c.requirements ? (
                       <div className="space-y-1">
                         <span className="text-[10px] font-black text-slate-550 uppercase tracking-widest block">
                           Demands Statement
@@ -466,6 +554,15 @@ export default function RequirementsPage() {
                           {c.requirements}
                         </p>
                       </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openEditRequirements(c)}
+                        className="w-full flex items-center justify-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-primary border border-dashed border-slate-800 hover:border-primary/40 rounded-xl py-2.5 transition-colors cursor-pointer"
+                      >
+                        <Plus className="size-3" />
+                        Add demands statement
+                      </button>
                     )}
 
                     {/* Tags */}
@@ -510,6 +607,17 @@ export default function RequirementsPage() {
                     </Button>
 
                     <div className="flex items-center gap-2">
+                      {/* Edit Requirements Action */}
+                      <Button
+                        onClick={() => openEditRequirements(c)}
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20"
+                        title="Edit requirements"
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+
                       {/* Copy Action */}
                       <Button
                         onClick={() => handleCopy(c)}
@@ -543,6 +651,78 @@ export default function RequirementsPage() {
           </div>
         )}
       </div>
+
+      {/* Add / Edit Requirements Dialog */}
+      <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              {editorIsAdd
+                ? "Add Requirement"
+                : `Edit Requirements — ${data.find((c) => c.id === editorContactId)?.name ?? ""}`}
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              The demands statement feeds search, matching, and the AI-extracted
+              preference chips on this card.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {editorIsAdd && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-300">Client</Label>
+                <SearchableContactSelect
+                  contacts={data.map((c) => ({
+                    id: c.id,
+                    name: c.name ?? c.phone,
+                    phone: c.phone,
+                    name_tag: c.name_tag,
+                  }))}
+                  value={editorContactId}
+                  onChange={handleEditorContactChange}
+                  placeholder="Select the client..."
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="req-text" className="text-xs text-slate-300">
+                Demands statement
+              </Label>
+              <Textarea
+                id="req-text"
+                value={reqText}
+                onChange={(e) => setReqText(e.target.value)}
+                placeholder="Budget, preferred localities, property type, size, BHK, must-haves... e.g. Wants a 30x40 site or 3 BHK flat in JP Nagar / Jayanagar, budget up to 1.5 Cr, east facing preferred."
+                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-40 text-sm leading-relaxed"
+              />
+              <p className="text-[10px] text-slate-500">
+                Saving re-runs AI preference extraction, so budgets and interest
+                chips update from this text automatically.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="bg-slate-900 border-slate-700">
+            <Button
+              variant="outline"
+              onClick={() => setEditorOpen(false)}
+              disabled={savingReq}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveRequirements}
+              disabled={savingReq}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+            >
+              {savingReq && <Loader2 className="size-4 animate-spin" />}
+              Save requirements
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
