@@ -1946,8 +1946,11 @@ export async function processOwnerChatbotMessage(
   }
 
   // Handle help command or general welcome instructions.
-  // Skip if this is an interactive reply — those belong to the flow engine.
-  if (!buttonId && (lowerText === 'help' || cleanedText)) {
+  // Skip if this is an interactive reply — those belong to the flow
+  // engine — or a template quick-reply tap (message.type 'button',
+  // e.g. a reminder's "Fine"): answering a button tap with the
+  // welcome text reads as a non-sequitur.
+  if (!buttonId && message.type !== 'button' && (lowerText === 'help' || cleanedText)) {
     const reply = `👋 *AI Ingestion Chatbot*\n\n` +
       `Send property listing details or a contact profile (as text or screenshot) to automatically start a draft.\n\n` +
       `*Commands:* (only active during an active session)\n` +
