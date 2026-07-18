@@ -26,7 +26,9 @@ import {
   Expand,
   Plus,
   UserRound,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -183,6 +185,26 @@ export function JourneyOverview({
     else next.delete(id);
     setHiddenIds(next);
     writeIdSet(hiddenKey, next);
+  };
+
+  // ✕ on a hidden chip — delete the journey outright, no confirm:
+  // it only lives in the hidden strip (already one step from view),
+  // and "New journey" recreates it in two taps. Items cascade their
+  // events; the contact/property records are untouched.
+  const deleteJourney = async (g: JourneyGroup) => {
+    if (!accountId) return;
+    const { error } = await supabase
+      .from("journey_items")
+      .delete()
+      .eq("account_id", accountId)
+      .eq(mode === "buyer" ? "contact_id" : "property_id", g.subjectId);
+    if (error) {
+      toast.error(`Failed to remove: ${error.message}`);
+      return;
+    }
+    setHidden(g.subjectId, false); // drop the stale view pref too
+    toast.success(`${groupTitle(g)}'s journey removed`);
+    await loadGroups();
   };
 
   const groupTitle = (g: JourneyGroup) =>
@@ -362,16 +384,31 @@ export function JourneyOverview({
           </p>
           <div className="flex flex-wrap gap-2">
             {hiddenGroups.map((g) => (
-              <button
+              <span
                 key={g.subjectId}
-                type="button"
-                onClick={() => setHidden(g.subjectId, false)}
-                title="Show this journey again"
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] text-slate-300 transition-colors hover:border-slate-500 hover:text-white"
+                className="inline-flex items-center overflow-hidden rounded-full border border-slate-700 bg-slate-900 text-[11px] text-slate-300"
               >
-                <Eye className="h-3 w-3" />
-                {groupTitle(g)}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setHidden(g.subjectId, false)}
+                  title="Show this journey again"
+                  className="inline-flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 transition-colors hover:text-white"
+                >
+                  <Eye className="h-3 w-3" />
+                  {groupTitle(g)}
+                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => deleteJourney(g)}
+                    title="Remove this journey entirely (recreate any time via New journey)"
+                    aria-label={`Remove ${groupTitle(g)}'s journey`}
+                    className="flex h-full items-center border-l border-slate-800 px-1.5 py-1 text-slate-500 transition-colors hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </span>
             ))}
           </div>
         </div>
