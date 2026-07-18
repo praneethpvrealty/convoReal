@@ -52,8 +52,23 @@ export function ReferralHub() {
 
   useEffect(() => {
     fetch("/api/billing/credits/referral")
-      .then((res) => res.json())
-      .then(setData)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((body: Partial<ReferralData> | null) => {
+        // Shape-guard before trusting the payload — an error body
+        // ({ error: … }) fed straight into setData used to pass the
+        // null check and then crash the whole Settings page on
+        // `pendingReferralCredits.toLocaleString()`.
+        if (!body || typeof body.referralCode !== "string") {
+          throw new Error("unexpected referral payload");
+        }
+        setData({
+          ...(body as ReferralData),
+          referrals: Array.isArray(body.referrals) ? body.referrals : [],
+        });
+      })
       .catch(() => toast.error("Failed to load referral data"))
       .finally(() => setLoading(false));
   }, []);
@@ -100,15 +115,15 @@ export function ReferralHub() {
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
           <p className="text-xs text-slate-500">Paid conversions</p>
-          <p className="text-lg font-bold text-white">{data.paidReferralCount}</p>
+          <p className="text-lg font-bold text-white">{data.paidReferralCount ?? 0}</p>
         </div>
         <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
           <p className="text-xs text-slate-500">Pending activation</p>
-          <p className="text-lg font-bold text-white">{data.pendingReferralCredits.toLocaleString()} cr</p>
+          <p className="text-lg font-bold text-white">{(data.pendingReferralCredits ?? 0).toLocaleString()} cr</p>
         </div>
         <div className="rounded-lg border border-slate-800 bg-slate-950/40 p-3">
           <p className="text-xs text-slate-500">Passive months paid</p>
-          <p className="text-lg font-bold text-white">{data.passiveEarnMonthsTotal}</p>
+          <p className="text-lg font-bold text-white">{data.passiveEarnMonthsTotal ?? 0}</p>
         </div>
       </div>
 
