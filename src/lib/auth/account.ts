@@ -29,7 +29,7 @@ import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
-import { hasMinRole, isAccountRole, isOrgRole, type AccountRole, type OrgRole } from "./roles";
+import { hasMinRole, hasMinOrgRole, isAccountRole, isOrgRole, type AccountRole, type OrgRole } from "./roles";
 
 // ------------------------------------------------------------
 // Errors
@@ -231,6 +231,27 @@ export async function requireRole(min: AccountRole): Promise<AccountContext> {
   if (!hasMinRole(ctx.role, min)) {
     throw new ForbiddenError(
       `This action requires the '${min}' role or higher`,
+    );
+  }
+  return ctx;
+}
+
+/**
+ * Like `requireRole`, but against the org hierarchy (migration 082)
+ * — the source of truth going forward. Use this in new code instead
+ * of `requireRole`.
+ *
+ * Throws `UnauthorizedError` / `ForbiddenError` as documented on
+ * `getCurrentAccount`, plus a `ForbiddenError` with a user-facing
+ * message when the caller is below `min`.
+ */
+export async function requireOrgRole(min: OrgRole): Promise<AccountContext> {
+  const ctx = await getCurrentAccount();
+  if (!hasMinOrgRole(ctx.orgRole, min)) {
+    throw new ForbiddenError(
+      min === "org_manager"
+        ? "Only the Organization Manager can perform this action."
+        : `This action requires the '${min}' role or higher`,
     );
   }
   return ctx;

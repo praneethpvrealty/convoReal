@@ -50,7 +50,9 @@ const archivedProfile = {
 };
 
 let getCurrentAccount: typeof import('./account').getCurrentAccount;
+let requireOrgRole: typeof import('./account').requireOrgRole;
 let AccountArchivedError: typeof import('./account').AccountArchivedError;
+let ForbiddenError: typeof import('./account').ForbiddenError;
 let toErrorResponse: typeof import('./account').toErrorResponse;
 let UnauthorizedError: typeof import('./account').UnauthorizedError;
 
@@ -58,8 +60,14 @@ beforeEach(async () => {
   h.state.user = { id: 'user-1' };
   h.state.profile = activeProfile;
   vi.resetModules();
-  ({ getCurrentAccount, AccountArchivedError, toErrorResponse, UnauthorizedError } =
-    await import('./account'));
+  ({
+    getCurrentAccount,
+    requireOrgRole,
+    AccountArchivedError,
+    ForbiddenError,
+    toErrorResponse,
+    UnauthorizedError,
+  } = await import('./account'));
 });
 
 describe('getCurrentAccount — archived account block', () => {
@@ -85,6 +93,47 @@ describe('getCurrentAccount — archived account block', () => {
     h.state.user = null;
     h.state.profile = archivedProfile;
     await expect(getCurrentAccount()).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+});
+
+describe('requireOrgRole — org-hierarchy guard', () => {
+  it('resolves for a caller at exactly the minimum role', async () => {
+    const ctx = await requireOrgRole('org_manager');
+    expect(ctx.orgRole).toBe('org_manager');
+  });
+
+  it('resolves for a caller above the minimum role', async () => {
+    const ctx = await requireOrgRole('org_agent');
+    expect(ctx.orgRole).toBe('org_manager');
+  });
+
+  it('throws ForbiddenError for a caller below the minimum role', async () => {
+    h.state.profile = {
+      ...activeProfile,
+      account_role: 'agent',
+      org_role: 'org_agent',
+    };
+    await expect(requireOrgRole('org_manager')).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
+  });
+
+  it('names the Organization Manager in the org_manager rejection message', async () => {
+    h.state.profile = {
+      ...activeProfile,
+      account_role: 'admin',
+      org_role: 'org_leader',
+    };
+    await expect(requireOrgRole('org_manager')).rejects.toThrow(
+      /Organization Manager/,
+    );
+  });
+
+  it('throws UnauthorizedError before the role check when there is no session', async () => {
+    h.state.user = null;
+    await expect(requireOrgRole('org_manager')).rejects.toBeInstanceOf(
+      UnauthorizedError,
+    );
   });
 });
 

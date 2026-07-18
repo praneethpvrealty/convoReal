@@ -49,7 +49,13 @@ import {
 
 const CATEGORIES = ['Marketing', 'Utility', 'Authentication'] as const;
 type HeaderFormat = 'none' | 'text' | 'image' | 'video' | 'document';
-const HEADER_FORMATS: HeaderFormat[] = ['none', 'text', 'image', 'video', 'document'];
+const HEADER_FORMATS: HeaderFormat[] = [
+  'none',
+  'text',
+  'image',
+  'video',
+  'document',
+];
 
 const categoryColors: Record<string, string> = {
   Marketing: 'bg-purple-600/20 text-purple-400 border-purple-600/30',
@@ -120,7 +126,12 @@ function emptyButton(type: TemplateButton['type']): TemplateButton {
 
 export function TemplateManager() {
   const supabase = createClient();
-  const { user, accountId, loading: authLoading } = useAuth();
+  // Template management (create / submit / edit / delete / sync) is
+  // org_manager-only — the API routes and RLS enforce it server-side
+  // (see migration 146); this flag mirrors that in the UI. Everyone
+  // else gets a read-only catalog: agents still need to see which
+  // templates exist and their approval status.
+  const { user, accountId, loading: authLoading, isOrgManager } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -155,14 +166,14 @@ export function TemplateManager() {
   // in sync with what the user typed.
   const bodyVarCount = useMemo(
     () => extractVariableIndices(form.body_text).length,
-    [form.body_text],
+    [form.body_text]
   );
   const headerVarCount = useMemo(
     () =>
       form.header_format === 'text'
         ? extractVariableIndices(form.header_content).length
         : 0,
-    [form.header_format, form.header_content],
+    [form.header_format, form.header_content]
   );
 
   // Resize body_samples so it always has exactly bodyVarCount entries.
@@ -217,7 +228,8 @@ export function TemplateManager() {
       name: form.name.trim(),
       category: form.category,
       language: form.language.trim() || 'en_US',
-      header_type: form.header_format === 'none' ? undefined : form.header_format,
+      header_type:
+        form.header_format === 'none' ? undefined : form.header_format,
       header_content:
         form.header_format === 'text' ? form.header_content.trim() : undefined,
       header_media_url:
@@ -274,7 +286,8 @@ export function TemplateManager() {
       const data = await res.json();
       if (!res.ok) {
         throw new Error(
-          data?.error || `${isEdit ? 'Edit' : 'Submit'} failed (HTTP ${res.status})`,
+          data?.error ||
+            `${isEdit ? 'Edit' : 'Submit'} failed (HTTP ${res.status})`
         );
       }
       // Refresh first, then close — re-opening the dialog
@@ -287,7 +300,7 @@ export function TemplateManager() {
             : 'Template saved (dry-run — no Meta call)'
           : isEdit
             ? 'Edit submitted — Meta typically reviews within 24 hours.'
-            : 'Submitted to Meta — typical review time is 24 hours. Status updates automatically.',
+            : 'Submitted to Meta — typical review time is 24 hours. Status updates automatically.'
       );
       setDialogOpen(false);
       setForm(emptyForm);
@@ -304,7 +317,9 @@ export function TemplateManager() {
     if (!user) return;
     setSyncing(true);
     try {
-      const res = await fetch('/api/whatsapp/templates/sync', { method: 'POST' });
+      const res = await fetch('/api/whatsapp/templates/sync', {
+        method: 'POST',
+      });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || `Sync failed (HTTP ${res.status})`);
@@ -313,13 +328,15 @@ export function TemplateManager() {
         `Synced ${data.total} template${data.total === 1 ? '' : 's'} from Meta` +
           (data.inserted || data.updated
             ? ` (${data.inserted} new, ${data.updated} updated)`
-            : ''),
+            : '')
       );
       if (Array.isArray(data.errors) && data.errors.length > 0) {
-        const preview = data.errors.slice(0, 3).map(
-          (e: { name: string; language: string; message: string }) =>
-            `${e.name} (${e.language})`,
-        );
+        const preview = data.errors
+          .slice(0, 3)
+          .map(
+            (e: { name: string; language: string; message: string }) =>
+              `${e.name} (${e.language})`
+          );
         const suffix =
           data.errors.length > 3 ? `, +${data.errors.length - 3} more` : '';
         toast.error(`Failed to sync: ${preview.join(', ')}${suffix}`);
@@ -330,13 +347,15 @@ export function TemplateManager() {
         // the same short timer as `success`.
         toast.error(
           'Synced the first 2000 templates only — your account has more. Sync again to continue, or contact support if this persists.',
-          { duration: 10000 },
+          { duration: 10000 }
         );
       }
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
       console.error('Template sync error:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to sync templates');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to sync templates'
+      );
     } finally {
       setSyncing(false);
     }
@@ -362,7 +381,9 @@ export function TemplateManager() {
       setTemplateToDelete(null);
     } catch (err) {
       console.error('Delete error:', err);
-      toast.error(err instanceof Error ? err.message : 'Failed to delete template');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to delete template'
+      );
     } finally {
       setDeletingId(null);
     }
@@ -449,7 +470,7 @@ export function TemplateManager() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-primary" />
+        <Loader2 className="text-primary size-6 animate-spin" />
       </div>
     );
   }
@@ -458,41 +479,51 @@ export function TemplateManager() {
     form.header_format !== 'none' && form.header_format !== 'text';
 
   return (
-    <div className="space-y-4 mt-4">
+    <div className="mt-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-white">Message Templates</h2>
+          <h2 className="text-lg font-semibold text-white">
+            Message Templates
+          </h2>
           <p className="text-sm text-slate-400">
             Create message templates and submit them to Meta for approval. Use
             &quot;Sync from Meta&quot; to pull templates approved elsewhere.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleSyncFromMeta}
-            disabled={syncing}
-            className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
-            title="Pull approved templates from your Meta WhatsApp Business Account"
-          >
-            <RefreshCw className={`size-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing…' : 'Sync from Meta'}
-          </Button>
-          <Button
-            onClick={openCreate}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Plus className="size-4" />
-            New Template
-          </Button>
-        </div>
+        {isOrgManager ? (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSyncFromMeta}
+              disabled={syncing}
+              className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800"
+              title="Pull approved templates from your Meta WhatsApp Business Account"
+            >
+              <RefreshCw
+                className={`size-4 ${syncing ? 'animate-spin' : ''}`}
+              />
+              {syncing ? 'Syncing…' : 'Sync from Meta'}
+            </Button>
+            <Button
+              onClick={openCreate}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Plus className="size-4" />
+              New Template
+            </Button>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500">
+            Read-only view — templates are managed by your Organization Manager.
+          </p>
+        )}
       </div>
 
       {templates.length === 0 ? (
-        <Card className="bg-slate-900 border-slate-700 ring-0 ring-transparent">
+        <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-slate-400 text-sm">No templates yet.</p>
-            <p className="text-slate-500 text-xs mt-1">
+            <p className="text-sm text-slate-400">No templates yet.</p>
+            <p className="mt-1 text-xs text-slate-500">
               Create your first message template to get started.
             </p>
           </CardContent>
@@ -505,18 +536,20 @@ export function TemplateManager() {
             return (
               <Card
                 key={template.id}
-                className="bg-slate-900 border-slate-700 ring-0 ring-transparent"
+                className="border-slate-700 bg-slate-900 ring-0 ring-transparent"
               >
                 <CardContent className="flex items-start justify-between pt-4">
-                  <div className="space-y-2 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-medium text-white">{template.name}</h3>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-medium text-white">
+                        {template.name}
+                      </h3>
                       <Badge
-                        className={`text-xs border ${categoryColors[template.category] || ''}`}
+                        className={`border text-xs ${categoryColors[template.category] || ''}`}
                       >
                         {template.category}
                       </Badge>
-                      <Badge className={`text-xs border ${status.classes}`}>
+                      <Badge className={`border text-xs ${status.classes}`}>
                         {status.label}
                       </Badge>
                       {template.language && (
@@ -526,7 +559,7 @@ export function TemplateManager() {
                       )}
                       {template.quality_score && (
                         <span
-                          className={`text-[10px] uppercase font-medium ${
+                          className={`text-[10px] font-medium uppercase ${
                             template.quality_score === 'GREEN'
                               ? 'text-emerald-400'
                               : template.quality_score === 'YELLOW'
@@ -539,7 +572,7 @@ export function TemplateManager() {
                         </span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-400 line-clamp-2">
+                    <p className="line-clamp-2 text-sm text-slate-400">
                       {template.body_text}
                     </p>
                     {template.footer_text && (
@@ -547,78 +580,83 @@ export function TemplateManager() {
                         {template.footer_text}
                       </p>
                     )}
-                    {(template.rejection_reason || template.submission_error) && (
-                      <div className="flex items-start gap-1.5 text-xs text-red-400 bg-red-950/20 border border-red-900/40 rounded px-2 py-1.5">
-                        <AlertCircle className="size-3.5 mt-0.5 shrink-0" />
+                    {(template.rejection_reason ||
+                      template.submission_error) && (
+                      <div className="flex items-start gap-1.5 rounded border border-red-900/40 bg-red-950/20 px-2 py-1.5 text-xs text-red-400">
+                        <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
                         <span>
-                          {template.rejection_reason || template.submission_error}
+                          {template.rejection_reason ||
+                            template.submission_error}
                         </span>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-1 shrink-0 ml-2">
-                    {statusKey === 'DRAFT' && (
+                  <div className="ml-2 flex shrink-0 items-center gap-1">
+                    {isOrgManager && statusKey === 'DRAFT' && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openEdit(template)}
                         title="Review and submit this template to Meta for approval."
                         aria-label="Submit template for approval"
-                        className="text-slate-300 hover:text-primary hover:bg-primary/10 h-8 px-2"
+                        className="hover:text-primary hover:bg-primary/10 h-8 px-2 text-slate-300"
                       >
                         <Send className="size-3.5" />
                         Submit
                       </Button>
                     )}
-                    {statusKey === 'APPROVED' && (
+                    {isOrgManager && statusKey === 'APPROVED' && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openEdit(template)}
                         title="Editing triggers Meta re-review — status flips to PENDING."
                         aria-label="Edit template"
-                        className="text-slate-300 hover:text-primary hover:bg-primary/10 h-8 px-2"
+                        className="hover:text-primary hover:bg-primary/10 h-8 px-2 text-slate-300"
                       >
                         <Pencil className="size-3.5" />
                         Edit
                       </Button>
                     )}
-                    {(statusKey === 'REJECTED' || statusKey === 'PAUSED') && (
+                    {isOrgManager &&
+                      (statusKey === 'REJECTED' || statusKey === 'PAUSED') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openEdit(template)}
+                          title="Edit the template and resubmit to Meta for review."
+                          aria-label="Edit and resubmit template"
+                          className="hover:text-primary hover:bg-primary/10 h-8 px-2 text-slate-300"
+                        >
+                          <RotateCcw className="size-3.5" />
+                          Resubmit
+                        </Button>
+                      )}
+                    {isOrgManager && (
                       <Button
                         variant="ghost"
-                        size="sm"
-                        onClick={() => openEdit(template)}
-                        title="Edit the template and resubmit to Meta for review."
-                        aria-label="Edit and resubmit template"
-                        className="text-slate-300 hover:text-primary hover:bg-primary/10 h-8 px-2"
+                        size="icon"
+                        onClick={() => setTemplateToDelete(template)}
+                        disabled={deletingId === template.id}
+                        aria-label={
+                          template.meta_template_id
+                            ? 'Delete template from Meta and locally'
+                            : 'Delete template locally'
+                        }
+                        title={
+                          template.meta_template_id
+                            ? 'Delete from Meta and locally'
+                            : 'Delete locally'
+                        }
+                        className="h-8 w-8 text-slate-400 hover:bg-red-950/30 hover:text-red-400"
                       >
-                        <RotateCcw className="size-3.5" />
-                        Resubmit
+                        {deletingId === template.id ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-4" />
+                        )}
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setTemplateToDelete(template)}
-                      disabled={deletingId === template.id}
-                      aria-label={
-                        template.meta_template_id
-                          ? 'Delete template from Meta and locally'
-                          : 'Delete template locally'
-                      }
-                      title={
-                        template.meta_template_id
-                          ? 'Delete from Meta and locally'
-                          : 'Delete locally'
-                      }
-                      className="text-slate-400 hover:text-red-400 hover:bg-red-950/30 h-8 w-8"
-                    >
-                      {deletingId === template.id ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-4" />
-                      )}
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -637,7 +675,7 @@ export function TemplateManager() {
           }
         }}
       >
-        <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-h-[90vh] overflow-y-auto border-slate-700 bg-slate-900 sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-white">
               {isEditingSubmittedTemplate
@@ -655,12 +693,12 @@ export function TemplateManager() {
 
           {form.category === 'Authentication' && (
             <div className="flex items-start gap-2 rounded border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
-              <AlertCircle className="size-4 mt-0.5 shrink-0" />
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
               <p>
                 AUTHENTICATION templates have a fixed body + OTP button shape
                 that needs a different builder. Create them in Meta WhatsApp
-                Manager for now and use <strong>Sync from Meta</strong> to
-                bring them in.
+                Manager for now and use <strong>Sync from Meta</strong> to bring
+                them in.
               </p>
             </div>
           )}
@@ -679,7 +717,7 @@ export function TemplateManager() {
                   setForm({ ...form, name: sanitized });
                 }}
                 disabled={editingId !== null}
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
               />
               <p className="text-[11px] text-slate-500">
                 {isEditingSubmittedTemplate
@@ -702,10 +740,10 @@ export function TemplateManager() {
                     })
                   }
                 >
-                  <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white">
+                  <SelectTrigger className="w-full border-slate-700 bg-slate-800 text-white">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-800 border-slate-700">
+                  <SelectContent className="border-slate-700 bg-slate-800">
                     {CATEGORIES.map((cat) => (
                       <SelectItem
                         key={cat}
@@ -729,7 +767,7 @@ export function TemplateManager() {
                     setForm({ ...form, language: e.target.value })
                   }
                   disabled={editingId !== null}
-                  className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500 disabled:cursor-not-allowed disabled:opacity-60"
                 />
                 <datalist id="template-language-codes">
                   {COMMON_LANGUAGE_CODES.map((code) => (
@@ -737,16 +775,16 @@ export function TemplateManager() {
                   ))}
                 </datalist>
                 <p className="text-[11px] text-slate-500">
-                  {isEditingSubmittedTemplate
-                    ? 'Language is fixed once a template exists on Meta.'
-                    : editingId
-                      ? 'Language is locked while submitting this draft.'
-                      : (
-                          <>
-                            Must match the exact code on Meta — <code>en_US</code>{' '}
-                            and <code>en</code> are distinct.
-                          </>
-                        )}
+                  {isEditingSubmittedTemplate ? (
+                    'Language is fixed once a template exists on Meta.'
+                  ) : editingId ? (
+                    'Language is locked while submitting this draft.'
+                  ) : (
+                    <>
+                      Must match the exact code on Meta — <code>en_US</code> and{' '}
+                      <code>en</code> are distinct.
+                    </>
+                  )}
                 </p>
               </div>
             </div>
@@ -768,10 +806,10 @@ export function TemplateManager() {
                   })
                 }
               >
-                <SelectTrigger className="w-full bg-slate-800 border-slate-700 text-white">
+                <SelectTrigger className="w-full border-slate-700 bg-slate-800 text-white">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-800 border-slate-700">
+                <SelectContent className="border-slate-700 bg-slate-800">
                   {HEADER_FORMATS.map((type) => (
                     <SelectItem
                       key={type}
@@ -787,7 +825,7 @@ export function TemplateManager() {
               </Select>
 
               {form.header_format === 'text' && (
-                <div className="space-y-2 mt-2">
+                <div className="mt-2 space-y-2">
                   <Input
                     id="template-header-text"
                     aria-label="Header text"
@@ -797,7 +835,7 @@ export function TemplateManager() {
                       setForm({ ...form, header_content: e.target.value })
                     }
                     maxLength={TEMPLATE_LIMITS.headerTextMaxLength}
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                    className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                   />
                   {headerVarCount > 0 && (
                     <Input
@@ -808,23 +846,23 @@ export function TemplateManager() {
                       onChange={(e) =>
                         setForm({ ...form, header_sample: e.target.value })
                       }
-                      className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                      className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                     />
                   )}
                 </div>
               )}
 
               {headerNeedsMedia && (
-                <div className="space-y-2 mt-2">
+                <div className="mt-2 space-y-2">
                   <Input
                     placeholder={`https://… (public link to a sample ${form.header_format})`}
                     value={form.header_media_url}
                     onChange={(e) =>
                       setForm({ ...form, header_media_url: e.target.value })
                     }
-                    className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                    className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                   />
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <p className="text-[11px] leading-relaxed text-slate-500">
                     Must be publicly accessible HTTPS. Meta fetches it once
                     during review, so the file needs to stay live for ~24 hrs.
                     {form.header_format === 'image' &&
@@ -832,8 +870,8 @@ export function TemplateManager() {
                     {form.header_format === 'video' &&
                       ' Recommended: MP4 / 3GPP, ≤16 MB, ≤60 seconds.'}
                     {form.header_format === 'document' &&
-                      ' Recommended: PDF, ≤100 MB.'}
-                    {' '}Direct file upload is coming in a follow-up.
+                      ' Recommended: PDF, ≤100 MB.'}{' '}
+                    Direct file upload is coming in a follow-up.
                   </p>
                 </div>
               )}
@@ -849,7 +887,7 @@ export function TemplateManager() {
                 }
                 rows={4}
                 maxLength={TEMPLATE_LIMITS.bodyMaxLength}
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 resize-none"
+                className="resize-none border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
               <p className="text-[11px] text-slate-500">
                 Use {`{{1}}`}, {`{{2}}`} for variables (must be contiguous
@@ -875,7 +913,7 @@ export function TemplateManager() {
                           next[i] = e.target.value;
                           setForm({ ...form, body_samples: next });
                         }}
-                        className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                        className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
                       />
                     );
                   })}
@@ -892,7 +930,7 @@ export function TemplateManager() {
                   setForm({ ...form, footer_text: e.target.value })
                 }
                 maxLength={TEMPLATE_LIMITS.footerMaxLength}
-                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+                className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
               />
             </div>
 
@@ -904,8 +942,10 @@ export function TemplateManager() {
                   variant="outline"
                   size="sm"
                   onClick={addButton}
-                  disabled={form.buttons.length >= TEMPLATE_LIMITS.maxButtonsTotal}
-                  className="border-slate-700 bg-transparent text-slate-300 hover:bg-slate-800 h-7 text-xs"
+                  disabled={
+                    form.buttons.length >= TEMPLATE_LIMITS.maxButtonsTotal
+                  }
+                  className="h-7 border-slate-700 bg-transparent text-xs text-slate-300 hover:bg-slate-800"
                 >
                   <Plus className="size-3" />
                   Add Button
@@ -934,10 +974,10 @@ export function TemplateManager() {
                             changeButtonType(i, val as TemplateButton['type']);
                           }}
                         >
-                          <SelectTrigger className="w-40 bg-slate-800 border-slate-700 text-white h-8 text-xs">
+                          <SelectTrigger className="h-8 w-40 border-slate-700 bg-slate-800 text-xs text-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent className="bg-slate-800 border-slate-700">
+                          <SelectContent className="border-slate-700 bg-slate-800">
                             <SelectItem
                               value="QUICK_REPLY"
                               className="text-white focus:bg-slate-700 focus:text-white"
@@ -971,14 +1011,14 @@ export function TemplateManager() {
                           onChange={(e) =>
                             updateButton(i, { text: e.target.value })
                           }
-                          className="flex-1 bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                          className="h-8 flex-1 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           onClick={() => removeButton(i)}
-                          className="text-slate-400 hover:text-red-400 hover:bg-red-950/30 size-7"
+                          className="size-7 text-slate-400 hover:bg-red-950/30 hover:text-red-400"
                         >
                           <X className="size-3.5" />
                         </Button>
@@ -991,7 +1031,7 @@ export function TemplateManager() {
                             onChange={(e) =>
                               updateButton(i, { url: e.target.value })
                             }
-                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                           />
                           {extractVariableIndices(btn.url).length > 0 && (
                             <Input
@@ -1000,7 +1040,7 @@ export function TemplateManager() {
                               onChange={(e) =>
                                 updateButton(i, { example: e.target.value })
                               }
-                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                              className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                             />
                           )}
                         </div>
@@ -1012,7 +1052,7 @@ export function TemplateManager() {
                           onChange={(e) =>
                             updateButton(i, { phone_number: e.target.value })
                           }
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                          className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                         />
                       )}
                       {btn.type === 'COPY_CODE' && (
@@ -1022,7 +1062,7 @@ export function TemplateManager() {
                           onChange={(e) =>
                             updateButton(i, { example: e.target.value })
                           }
-                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                          className="h-8 border-slate-700 bg-slate-800 text-xs text-white placeholder:text-slate-500"
                         />
                       )}
                     </div>
@@ -1032,7 +1072,7 @@ export function TemplateManager() {
             </div>
           </div>
 
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setDialogOpen(false)}
@@ -1069,7 +1109,7 @@ export function TemplateManager() {
           if (!open) setTemplateToDelete(null);
         }}
       >
-        <DialogContent className="bg-slate-900 border-slate-700 sm:max-w-sm">
+        <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">Delete template?</DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -1078,7 +1118,7 @@ export function TemplateManager() {
                 : `"${templateToDelete?.name}" will be deleted from ConvoReal. It was never submitted to Meta, so no remote cleanup is needed.`}
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setTemplateToDelete(null)}
@@ -1090,7 +1130,7 @@ export function TemplateManager() {
             <Button
               onClick={confirmDelete}
               disabled={deletingId !== null}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-red-600 text-white hover:bg-red-700"
             >
               {deletingId !== null ? (
                 <>
