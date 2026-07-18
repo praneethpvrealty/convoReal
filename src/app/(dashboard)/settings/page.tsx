@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { replaceUrl } from "@/lib/navigation";
 import {
@@ -165,6 +166,26 @@ export default function SettingsPage() {
     replaceUrl(router, `/settings?${params.toString()}`);
   };
 
+  // The tab bars scroll horizontally on narrow screens — keep the
+  // active pill in view, both on tap and when a deep link (e.g.
+  // ?tab=showcase) lands with the active tab scrolled off-screen.
+  // block:'nearest' so the page never jumps vertically.
+  useEffect(() => {
+    document
+      .querySelector(`[data-tour="settings-tab-${tab}"]`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+  }, [tab]);
+  useEffect(() => {
+    if (tab !== 'whatsapp') return;
+    const tour =
+      whatsappSub === 'templates'
+        ? 'settings-tab-templates'
+        : `settings-tab-whatsapp-${whatsappSub}`;
+    document
+      .querySelector(`[data-tour="${tour}"]`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+  }, [tab, whatsappSub]);
+
   // Build navigation groups dynamically based on feature flags
   const navGroups: NavGroup[] = [
     {
@@ -236,11 +257,21 @@ export default function SettingsPage() {
         {/* Horizontal Tab Navigation — group labels dropped in favor of a
             thin divider between clusters; a header line reads fine stacked
             above a column but wastes space and looks noisy repeated across
-            a horizontal row. */}
-        <div className="flex flex-wrap items-center gap-1 border-b border-slate-800 pb-3">
+            a horizontal row.
+
+            Single row that scrolls horizontally on narrow screens —
+            wrapping produced ragged rows with orphaned group dividers
+            at row starts. The scrollbar is hidden (the pill highlight
+            + partial pill at the edge signal scrollability) and the
+            active tab auto-scrolls into view on load via the effect
+            below. */}
+        <div
+          data-settings-tabbar
+          className="flex flex-nowrap items-center gap-1 border-b border-slate-800 pb-3 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           {navGroups.map((group, groupIdx) => (
-            <div key={group.label} className="flex items-center gap-1">
-              {groupIdx > 0 && <div className="h-4 w-px bg-slate-800 mx-2" aria-hidden="true" />}
+            <div key={group.label} className="flex items-center gap-1 shrink-0">
+              {groupIdx > 0 && <div className="h-4 w-px bg-slate-800 mx-2 shrink-0" aria-hidden="true" />}
               {group.items.map(({ value, label, icon: Icon }) => (
                 <button
                   key={value}
@@ -273,14 +304,17 @@ export default function SettingsPage() {
             {/* WhatsApp sub-navigation: connection, templates, flows,
                 owner digest. Everything WhatsApp lives here instead of
                 one endless scroll + a separate top-level Templates tab. */}
-            <div className="flex w-fit max-w-full flex-wrap items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1">
+            <div
+              data-settings-subtabbar
+              className="flex w-fit max-w-full flex-nowrap items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            >
               {WHATSAPP_SUBTABS.map(({ value, label, icon: Icon }) => (
                 <button
                   key={value}
                   onClick={() => onSubChange(value)}
                   data-tour={`settings-tab-${value === 'templates' ? 'templates' : `whatsapp-${value}`}`}
                   className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                    'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
                     whatsappSub === value
                       ? 'bg-primary/10 text-primary font-medium'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
