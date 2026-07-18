@@ -4,6 +4,11 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { useAuth } from "@/hooks/use-auth"
+import {
+  effectiveAreas,
+  effectiveCategories,
+  effectiveMaxBudget,
+} from "@/lib/contact-preferences"
 import { toast } from "sonner"
 import {
   ClipboardList,
@@ -75,6 +80,12 @@ interface ConsolidatedContact {
   requirements?: string
   areas_of_interest?: string[]
   property_interests?: string[]
+  // AI-extracted fallbacks (migration 092) — merged for display via
+  // src/lib/contact-preferences.ts, explicit fields always winning.
+  pref_budget_max?: number | string | null
+  pref_areas?: string[] | null
+  pref_property_categories?: string[] | null
+  pref_property_types?: string[] | null
   contact_notes?: ContactNote[]
   contact_tags?: ContactTagJoin[]
   conversations?: ConversationJoin[]
@@ -532,17 +543,30 @@ export default function RequirementsPage() {
 
                   {/* Requirements Section */}
                   <div className="mt-5 flex-1 space-y-3.5">
-                    {/* Budget row */}
-                    <div className="flex items-center justify-between text-xs border-b border-slate-900/60 pb-2">
-                      <span className="font-bold text-slate-450">Estimated Budget</span>
-                      <span className="font-black text-white">
-                        {c.no_budget
-                          ? "No limit"
-                          : c.max_budget
-                          ? formatCurrency(c.max_budget)
-                          : "Not specified"}
-                      </span>
-                    </div>
+                    {/* Budget row — explicit field first, AI-extracted
+                        fallback (✨) so "Budget within 3 cr" typed into
+                        the demands statement shows here instead of
+                        "Not specified". */}
+                    {(() => {
+                      const budget = effectiveMaxBudget(c)
+                      return (
+                        <div className="flex items-center justify-between text-xs border-b border-slate-900/60 pb-2">
+                          <span className="font-bold text-slate-450">Estimated Budget</span>
+                          <span className="font-black text-white inline-flex items-center gap-1">
+                            {c.no_budget
+                              ? "No limit"
+                              : budget
+                              ? formatCurrency(budget.value)
+                              : "Not specified"}
+                            {!c.no_budget && budget?.source === "ai" && (
+                              <span title="Extracted by AI from the demands statement">
+                                <Sparkles className="size-3 text-primary" />
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      )
+                    })()}
 
                     {/* Requirements Text */}
                     {c.requirements ? (
@@ -564,6 +588,40 @@ export default function RequirementsPage() {
                         Add demands statement
                       </button>
                     )}
+
+                    {/* Preference chips — merged explicit + AI-extracted
+                        (areas, property categories). ✨ marks values that
+                        came from the demands statement rather than the
+                        contact form. */}
+                    {(() => {
+                      const areas = effectiveAreas(c)
+                      const cats = effectiveCategories(c)
+                      if (!areas && !cats) return null
+                      const chip = (label: string, ai: boolean, key: string) => (
+                        <span
+                          key={key}
+                          title={ai ? "Extracted by AI from the demands statement" : undefined}
+                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            ai
+                              ? "border-primary/25 bg-primary/5 text-primary/90"
+                              : "border-slate-700 bg-slate-800/60 text-slate-300"
+                          }`}
+                        >
+                          {ai && <Sparkles className="size-2.5" />}
+                          {label}
+                        </span>
+                      )
+                      return (
+                        <div className="flex flex-wrap gap-1.5">
+                          {(cats?.value ?? []).map((v, i) =>
+                            chip(v, cats!.source === "ai", `cat-${i}`),
+                          )}
+                          {(areas?.value ?? []).map((v, i) =>
+                            chip(`📍 ${v}`, areas!.source === "ai", `area-${i}`),
+                          )}
+                        </div>
+                      )
+                    })()}
 
                     {/* Tags */}
                     {c.contact_tags && c.contact_tags.length > 0 && (

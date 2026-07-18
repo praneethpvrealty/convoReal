@@ -11,6 +11,22 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **AI-extracted preferences now visible everywhere, in sync.** The
+  Gemini extraction that parses budgets, areas, and property
+  interests out of a contact's requirements text (migration 092)
+  previously fed only the matching engine — the Requirements cards
+  and Contacts table showed just the manually-entered fields, so
+  "Budget within 3 cr" typed into a demands statement still read
+  "Not specified". A shared merge (`src/lib/contact-preferences.ts`,
+  explicit fields always win, AI fills the gaps — the same rule the
+  matching engine uses) now drives the Requirements card's Estimated
+  Budget and new preference chips, plus the Contacts table's Areas
+  of Interest / Property Category Interests / Max Budget columns.
+  AI-derived values carry a ✨ marker so provenance stays visible;
+  editing the contact's explicit fields overrides them.
+
 ### Changed
 
 - **Settings navigation: "More" menu + edge fades on phones.** The

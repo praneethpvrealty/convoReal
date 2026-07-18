@@ -49,6 +49,7 @@ import {
   ChevronRight,
   MessageSquare,
   MessageSquarePlus,
+  Sparkles,
   Smartphone,
   X,
   ArrowUp,
@@ -77,6 +78,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { parsePropertyQuery } from '@/lib/search-parser';
+import {
+  effectiveAreas,
+  effectiveCategories,
+  effectiveMaxBudget,
+} from '@/lib/contact-preferences';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { localCache } from '@/lib/cache-store';
 
@@ -184,16 +190,65 @@ export default function ContactsPage() {
     );
   };
 
-  const formatBudget = (contact: Contact) => {
-    if (contact.no_budget) return 'No Limit';
-    if (!contact.max_budget) return '-';
-    const amount = Number(contact.max_budget);
+  // Chip list for the Areas / Property-interest columns. AI-derived
+  // values (from the requirements text, not the contact form) render
+  // in the primary tint with a ✨ so provenance stays visible.
+  const renderPreferenceChips = (
+    effective: { value: string[]; source: 'explicit' | 'ai' } | null,
+  ) => {
+    if (!effective) return <span className="text-slate-600 text-xs">-</span>;
+    const ai = effective.source === 'ai';
+    return (
+      <div className="flex flex-wrap gap-1 max-w-[150px]">
+        {effective.value.slice(0, 3).map((label) => (
+          <span
+            key={label}
+            title={ai ? 'Extracted by AI from requirements text' : undefined}
+            className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium border ${
+              ai
+                ? 'border-primary/25 bg-primary/5 text-primary/90'
+                : 'bg-slate-800 text-slate-300 border-slate-700'
+            }`}
+          >
+            {ai && <Sparkles className="size-2.5" />}
+            {label}
+          </span>
+        ))}
+        {effective.value.length > 3 && (
+          <span className="text-[10px] text-slate-500">
+            +{effective.value.length - 3}
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const formatBudgetAmount = (amount: number) => {
     if (amount >= 10000000) {
       return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
     } else if (amount >= 100000) {
       return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`;
     }
     return `₹${amount.toLocaleString('en-IN')}`;
+  };
+
+  // Explicit field first, AI-extracted fallback (marked ✨) — same
+  // merge the matching engine and the Requirements tab use, so a
+  // budget typed only into the demands statement still shows here.
+  const formatBudget = (contact: Contact) => {
+    if (contact.no_budget) return 'No Limit';
+    const budget = effectiveMaxBudget(contact);
+    if (!budget) return '-';
+    return (
+      <span className="inline-flex items-center gap-1">
+        {formatBudgetAmount(budget.value)}
+        {budget.source === 'ai' && (
+          <span title="Extracted by AI from requirements text">
+            <Sparkles className="size-3 text-primary" />
+          </span>
+        )}
+      </span>
+    );
   };
 
 
@@ -683,7 +738,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       let query = supabaseClient
         .from('contacts')
         .select(
-          'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, min_roi, source, status, created_at, updated_at',
+          'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, min_roi, source, status, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
           { count: 'exact' },
         )
         .eq('account_id', accountId);
@@ -1965,46 +2020,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     )}
                   </TableCell>
                   <TableCell className="text-slate-400 text-xs py-3">
-                    <div className="flex flex-wrap gap-1 max-w-[150px]">
-                      {contact.areas_of_interest && contact.areas_of_interest.length > 0 ? (
-                        contact.areas_of_interest.slice(0, 3).map((area) => (
-                          <span
-                            key={area}
-                            className="inline-flex items-center rounded bg-slate-800 text-slate-300 px-1.5 py-0.5 text-[9px] font-medium border border-slate-700"
-                          >
-                            {area}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-600 text-xs">-</span>
-                      )}
-                      {contact.areas_of_interest && contact.areas_of_interest.length > 3 && (
-                        <span className="text-[10px] text-slate-500">
-                          +{contact.areas_of_interest.length - 3}
-                        </span>
-                      )}
-                    </div>
+                    {renderPreferenceChips(effectiveAreas(contact))}
                   </TableCell>
                   <TableCell className="text-slate-400 text-xs py-3">
-                    <div className="flex flex-wrap gap-1 max-w-[150px]">
-                      {contact.property_interests && contact.property_interests.length > 0 ? (
-                        contact.property_interests.slice(0, 3).map((interest) => (
-                          <span
-                            key={interest}
-                            className="inline-flex items-center rounded bg-slate-800 text-slate-300 px-1.5 py-0.5 text-[9px] font-medium border border-slate-700"
-                          >
-                            {interest}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-slate-600 text-xs">-</span>
-                      )}
-                      {contact.property_interests && contact.property_interests.length > 3 && (
-                        <span className="text-[10px] text-slate-500">
-                          +{contact.property_interests.length - 3}
-                        </span>
-                      )}
-                    </div>
+                    {renderPreferenceChips(effectiveCategories(contact))}
                   </TableCell>
                   <TableCell className="text-slate-300 font-medium text-xs py-3">
                     {formatBudget(contact)}
