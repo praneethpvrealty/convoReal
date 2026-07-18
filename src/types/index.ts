@@ -988,3 +988,101 @@ export interface EmailSyncConfig {
 }
 
 
+
+// ============================================================
+// Liaisoning People Directory (147_liaisons.sql)
+// ============================================================
+
+/** One service a liaison handles, with the fee they quoted for it. */
+export interface LiaisonService {
+  /** e.g. "Khata transfer", "New khata", "EC", "Registration" */
+  name: string;
+  /** What the liaison charges us, in INR. Null when it varies case-by-case. */
+  fee: number | null;
+  /** What we bill the client for this service, in INR. Margin = client_charge - fee. */
+  client_charge?: number | null;
+  /** Qualifier for the fee, e.g. "per property, excl. govt charges". */
+  fee_note?: string | null;
+}
+
+export interface Liaison {
+  id: string;
+  account_id: string;
+  user_id?: string | null;
+  name: string;
+  phone: string | null;
+  alt_phone: string | null;
+  email: string | null;
+  /** Where they operate: "BBMP Bommanahalli", "SRO Jayanagar", ... */
+  office_area: string | null;
+  services: LiaisonService[];
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type LiaisonJobStatus = 'open' | 'completed' | 'cancelled';
+
+/** One actual engagement with a liaison (148_liaison_jobs.sql). */
+export interface LiaisonJob {
+  id: string;
+  account_id: string;
+  user_id?: string | null;
+  liaison_id: string;
+  /** Snapshot — rate-card entries get renamed, jobs keep their label. */
+  service_name: string;
+  contact_id: string | null;
+  property_id: string | null;
+  /** Agreed for this job; may differ from the directory rate card. */
+  client_charge: number | null;
+  liaison_fee: number | null;
+  status: LiaisonJobStatus;
+  notes: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Joined rows from client-side reads. */
+  liaisons?: { name: string } | null;
+  contacts?: { id: string; name: string | null; phone: string } | null;
+  properties?: { id: string; title: string } | null;
+  liaison_job_payments?: LiaisonJobPayment[];
+}
+
+/** Cash movement on a job: 'in' from client, 'out' to the liaison. */
+export interface LiaisonJobPayment {
+  id: string;
+  account_id: string;
+  job_id: string;
+  user_id?: string | null;
+  direction: 'in' | 'out';
+  amount: number;
+  paid_on: string;
+  note: string | null;
+  created_at: string;
+}
+
+/** One stage of a liaison process workflow (149_liaison_workflows.sql). */
+export interface LiaisonWorkflowStage {
+  /** e.g. "Case login", "ARO approval" */
+  name: string;
+  /** Who acts/approves at this stage: "Case worker", "ARO", "JD", "DC". */
+  authority: string | null;
+  /** Indicative duration in days. Null when it varies. */
+  duration_days: number | null;
+  /** Client-facing explanation of what happens in this stage. */
+  description: string | null;
+}
+
+/** Client-shareable explanation of a government process, stage by stage. */
+export interface LiaisonWorkflow {
+  id: string;
+  account_id: string;
+  user_id?: string | null;
+  service_name: string;
+  description: string | null;
+  /** Array order is the process order. */
+  stages: LiaisonWorkflowStage[];
+  created_at: string;
+  updated_at: string;
+}

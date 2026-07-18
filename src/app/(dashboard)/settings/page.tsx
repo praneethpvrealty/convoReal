@@ -30,6 +30,7 @@ import { MetaAdsTab } from '@/components/settings/meta-ads-tab';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
+import { BusinessNameCard } from '@/components/settings/business-name-card';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
@@ -296,6 +297,7 @@ export default function SettingsPage() {
         <div className="w-full min-w-0">
           <TabsContent value="profile" className="space-y-6 mt-0">
             <ProfileForm />
+            <BusinessNameCard />
             <PasswordForm />
             <SessionsCard />
           </TabsContent>

@@ -87,6 +87,31 @@ User-defined contact attributes.
 Timeline log entries.
 - `id`, `contact_id`, `author_id` (`profiles.user_id`), `content` (TEXT), `account_id`.
 
+#### 7b. `liaisons` (migration 147)
+Liaisoning people directory — the government-office fixers (khata transfer, EC, registration, BBMP work) with the fees they quoted per service.
+- `id` (UUID, PK).
+- `account_id` (UUID, FK -> `accounts`).
+- `user_id` (UUID, FK -> `auth.users`): Creator.
+- `name` (TEXT, NOT NULL) / `phone` / `alt_phone` / `email`.
+- `office_area` (TEXT): Where they operate, e.g. "BBMP Bommanahalli", "SRO Jayanagar".
+- `services` (JSONB): Array of `{ name, fee, client_charge, fee_note }` — amounts in INR, null when they vary. `fee` is what the liaison charges the agency, `client_charge` what the agency bills the client; margin (`client_charge - fee`) is computed in the UI, never stored.
+- `notes` (TEXT).
+- `is_active` (BOOLEAN): Soft retire; keeps fee history when a liaison stops taking work.
+- RLS: members read, `agent`+ modify.
+
+#### 7c. `liaison_jobs` & `liaison_job_payments` (migration 148)
+Jobs & payments ledger on top of the directory — one row per actual engagement ("khata transfer for property X"), with cash movement tracked both ways.
+- `liaison_jobs`: `id`, `account_id`, `user_id`, `liaison_id` (FK -> `liaisons`, CASCADE), `service_name` (TEXT snapshot), `contact_id` (FK -> `contacts`, SET NULL), `property_id` (FK -> `properties`, SET NULL), `client_charge` / `liaison_fee` (NUMERIC, agreed for this job), `status` (`open` | `completed` | `cancelled`), `notes`, `completed_at`.
+- `liaison_job_payments`: `id`, `account_id`, `job_id` (FK -> `liaison_jobs`, CASCADE), `user_id`, `direction` (`in` = received from client, `out` = paid to liaison), `amount` (NUMERIC > 0), `paid_on` (DATE), `note`.
+- Balances (charge − received, fee − paid) and margin (agreed: charge − fee; realized: received − paid) are computed in the UI, never stored.
+- RLS on both: members read, `agent`+ modify.
+
+#### 7d. `liaison_workflows` (migration 149)
+Client-shareable process explanations — e.g. "Change name in the khata document": case login → ARO approval → JD review/transfer → DC approval → khata issued. Rendered into a WhatsApp message via `buildWorkflowMessage`.
+- `id`, `account_id`, `user_id`, `service_name` (TEXT, NOT NULL), `description` (TEXT, client-facing intro).
+- `stages` (JSONB): ordered array of `{ name, authority, duration_days, description }` — array order is the process order; overall timeline is the sum of stage durations, computed in the UI.
+- RLS: members read, `agent`+ modify.
+
 ---
 
 ### Group C: Properties & Showcases
