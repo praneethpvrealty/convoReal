@@ -99,6 +99,13 @@ Liaisoning people directory — the government-office fixers (khata transfer, EC
 - `is_active` (BOOLEAN): Soft retire; keeps fee history when a liaison stops taking work.
 - RLS: members read, `agent`+ modify.
 
+#### 7c. `liaison_jobs` & `liaison_job_payments` (migration 148)
+Jobs & payments ledger on top of the directory — one row per actual engagement ("khata transfer for property X"), with cash movement tracked both ways.
+- `liaison_jobs`: `id`, `account_id`, `user_id`, `liaison_id` (FK -> `liaisons`, CASCADE), `service_name` (TEXT snapshot), `contact_id` (FK -> `contacts`, SET NULL), `property_id` (FK -> `properties`, SET NULL), `client_charge` / `liaison_fee` (NUMERIC, agreed for this job), `status` (`open` | `completed` | `cancelled`), `notes`, `completed_at`.
+- `liaison_job_payments`: `id`, `account_id`, `job_id` (FK -> `liaison_jobs`, CASCADE), `user_id`, `direction` (`in` = received from client, `out` = paid to liaison), `amount` (NUMERIC > 0), `paid_on` (DATE), `note`.
+- Balances (charge − received, fee − paid) and margin (agreed: charge − fee; realized: received − paid) are computed in the UI, never stored.
+- RLS on both: members read, `agent`+ modify.
+
 ---
 
 ### Group C: Properties & Showcases

@@ -1021,3 +1021,43 @@ export interface Liaison {
   created_at: string;
   updated_at: string;
 }
+
+export type LiaisonJobStatus = 'open' | 'completed' | 'cancelled';
+
+/** One actual engagement with a liaison (148_liaison_jobs.sql). */
+export interface LiaisonJob {
+  id: string;
+  account_id: string;
+  user_id?: string | null;
+  liaison_id: string;
+  /** Snapshot — rate-card entries get renamed, jobs keep their label. */
+  service_name: string;
+  contact_id: string | null;
+  property_id: string | null;
+  /** Agreed for this job; may differ from the directory rate card. */
+  client_charge: number | null;
+  liaison_fee: number | null;
+  status: LiaisonJobStatus;
+  notes: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  /** Joined rows from client-side reads. */
+  liaisons?: { name: string } | null;
+  contacts?: { id: string; name: string | null; phone: string } | null;
+  properties?: { id: string; title: string } | null;
+  liaison_job_payments?: LiaisonJobPayment[];
+}
+
+/** Cash movement on a job: 'in' from client, 'out' to the liaison. */
+export interface LiaisonJobPayment {
+  id: string;
+  account_id: string;
+  job_id: string;
+  user_id?: string | null;
+  direction: 'in' | 'out';
+  amount: number;
+  paid_on: string;
+  note: string | null;
+  created_at: string;
+}

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 import { LiaisonForm } from '@/components/liaisons/liaison-form';
+import { JobForm } from '@/components/liaisons/job-form';
 import {
   Dialog,
   DialogContent,
@@ -18,6 +19,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  Briefcase,
   Landmark,
   Loader2,
   Mail,
@@ -73,6 +75,8 @@ export default function LiaisonsContent() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<Liaison | null>(null);
+  const [jobFormOpen, setJobFormOpen] = useState(false);
+  const [jobLiaisonId, setJobLiaisonId] = useState<string | null>(null);
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Liaison | null>(null);
@@ -145,6 +149,11 @@ export default function LiaisonsContent() {
   function openEdit(liaison: Liaison) {
     setEditTarget(liaison);
     setFormOpen(true);
+  }
+
+  function openLogJob(liaison: Liaison) {
+    setJobLiaisonId(liaison.id);
+    setJobFormOpen(true);
   }
 
   function confirmDelete(liaison: Liaison) {
@@ -399,6 +408,15 @@ export default function LiaisonsContent() {
                 <Button
                   size="sm"
                   variant="ghost"
+                  onClick={() => openLogJob(liaison)}
+                  className="h-7 px-2 text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 gap-1 cursor-pointer mr-auto"
+                >
+                  <Briefcase className="size-3" />
+                  Log job
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
                   onClick={() => openEdit(liaison)}
                   className="h-7 px-2 text-[10px] text-slate-400 hover:text-white hover:bg-slate-800 gap-1 cursor-pointer"
                 >
@@ -428,6 +446,16 @@ export default function LiaisonsContent() {
         onSaved={fetchLiaisons}
       />
 
+      {/* Quick "Log job" from a directory card — the Jobs tab refetches
+          on mount, so no cross-tab sync is needed here. */}
+      <JobForm
+        open={jobFormOpen}
+        onOpenChange={setJobFormOpen}
+        liaisons={liaisons}
+        defaultLiaisonId={jobLiaisonId}
+        onSaved={() => {}}
+      />
+
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-sm">
@@ -436,7 +464,8 @@ export default function LiaisonsContent() {
             <DialogDescription className="text-slate-400">
               Are you sure you want to delete{' '}
               <span className="text-slate-200 font-medium">{deleteTarget?.name}</span>? Their
-              services and fee details will be removed. This action cannot be undone.
+              services, fee details, and job &amp; payment history will be removed. This
+              action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="bg-slate-900 border-slate-700">
