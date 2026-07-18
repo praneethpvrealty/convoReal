@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   matchReplyId,
+  findReplyIdAcrossNodes,
+  appendUnmatchedText,
+  UNMATCHED_TEXT_MAX_LENGTH,
+  REPROMPT_BODY_TEXT,
   matchesKeywordTrigger,
   isAutoAdvancing,
   isSuspending,
@@ -94,6 +98,105 @@ describe("matchReplyId", () => {
         "x",
       ),
     ).toBeNull();
+  });
+});
+
+describe("findReplyIdAcrossNodes — stale-button branch switch", () => {
+  // The bug from the field: welcome node offers Buy / List buttons;
+  // customer taps "Buy Property", flow advances to the buy branch,
+  // then the customer taps "List My Property" on the OLD welcome
+  // bubble. The current node doesn't know that reply_id — the flow
+  // must find it on the welcome node and switch branches.
+  const welcome = {
+    node_key: "welcome",
+    node_type: "send_buttons",
+    config: {
+      text: "What are you looking to do?",
+      buttons: [
+        { reply_id: "buy", title: "Buy Property", next_node_key: "buy_branch" },
+        { reply_id: "list", title: "List My Property", next_node_key: "list_branch" },
+      ],
+    },
+  };
+  const buyBranch = {
+    node_key: "buy_branch",
+    node_type: "send_buttons",
+    config: {
+      text: "What type of property interests you?",
+      buttons: [
+        { reply_id: "flat", title: "Flat", next_node_key: "flat_q" },
+        { reply_id: "plot", title: "Plot", next_node_key: "plot_q" },
+      ],
+    },
+  };
+
+  it("finds a reply_id owned by an earlier node and returns its branch target", () => {
+    const hit = findReplyIdAcrossNodes([welcome, buyBranch], "list", "buy_branch");
+    expect(hit).toEqual({ node_key: "welcome", next_node_key: "list_branch" });
+  });
+
+  it("skips the excluded (current) node so its own misses stay misses", () => {
+    expect(findReplyIdAcrossNodes([buyBranch], "unknown", "buy_branch")).toBeNull();
+  });
+
+  it("returns null when no node in the flow owns the reply_id", () => {
+    expect(findReplyIdAcrossNodes([welcome, buyBranch], "nope", null)).toBeNull();
+  });
+
+  it("searches send_list rows too", () => {
+    const listNode = {
+      node_key: "areas",
+      node_type: "send_list",
+      config: {
+        text: "Pick an area",
+        button_label: "Areas",
+        sections: [
+          { title: "North", rows: [{ reply_id: "devanahalli", title: "Devanahalli", next_node_key: "devanahalli_q" }] },
+        ],
+      },
+    };
+    const hit = findReplyIdAcrossNodes([welcome, listNode], "devanahalli", "welcome");
+    expect(hit).toEqual({ node_key: "areas", next_node_key: "devanahalli_q" });
+  });
+});
+
+describe("appendUnmatchedText — free-text capture for handoff context", () => {
+  it("stores fresh text verbatim (whitespace collapsed)", () => {
+    expect(
+      appendUnmatchedText(null, "80000 rented house\n three floor building  near devanahalli"),
+    ).toBe("80000 rented house three floor building near devanahalli");
+  });
+
+  it("appends to existing requirements with a separator", () => {
+    expect(appendUnmatchedText("3BHK in JP Nagar", "budget 80 lakhs")).toBe(
+      "3BHK in JP Nagar | budget 80 lakhs",
+    );
+  });
+
+  it("skips noise-length text", () => {
+    expect(appendUnmatchedText("existing", "ok")).toBeNull();
+    expect(appendUnmatchedText(null, "  hi ")).toBeNull();
+  });
+
+  it("skips text already present (case-insensitive)", () => {
+    expect(appendUnmatchedText("Budget 80 Lakhs near HSR", "budget 80 lakhs")).toBeNull();
+  });
+
+  it("caps total length keeping the newest content", () => {
+    const existing = "x".repeat(UNMATCHED_TEXT_MAX_LENGTH);
+    const merged = appendUnmatchedText(existing, "three floor building near devanahalli");
+    expect(merged).not.toBeNull();
+    expect(merged!.length).toBe(UNMATCHED_TEXT_MAX_LENGTH);
+    expect(merged!.endsWith("three floor building near devanahalli")).toBe(true);
+  });
+});
+
+describe("REPROMPT_BODY_TEXT", () => {
+  it("is apologetic, short, and points at the buttons", () => {
+    expect(REPROMPT_BODY_TEXT).toMatch(/didn't quite catch/i);
+    expect(REPROMPT_BODY_TEXT).toMatch(/tap one of the options/i);
+    // WhatsApp interactive body cap is 1024 chars — stay far under.
+    expect(REPROMPT_BODY_TEXT.length).toBeLessThan(200);
   });
 });
 
