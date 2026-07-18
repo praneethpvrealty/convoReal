@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -321,10 +321,13 @@ export function EmptyState({
   icon,
   title,
   subtitle,
+  action,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   subtitle?: string;
+  /** Optional CTA rendered under the copy (e.g. widen-search button). */
+  action?: React.ReactNode;
 }) {
   const { colors } = useTheme();
   return (
@@ -349,6 +352,7 @@ export function EmptyState({
           {subtitle}
         </Text>
       ) : null}
+      {action}
     </View>
   );
 }
@@ -427,14 +431,13 @@ export function SearchBar({
  * input styles that had drifted across login/contact/appointment/
  * template forms.
  */
-export function TextField({
-  label,
-  icon,
-  ...props
-}: {
-  label?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-} & React.ComponentProps<typeof TextInput>) {
+export const TextField = forwardRef<
+  TextInput,
+  {
+    label?: string;
+    icon?: keyof typeof Ionicons.glyphMap;
+  } & React.ComponentProps<typeof TextInput>
+>(function TextField({ label, icon, ...props }, ref) {
   const { colors } = useTheme();
   const input = (
     <View
@@ -445,6 +448,7 @@ export function TextField({
     >
       {icon ? <Ionicons name={icon} size={18} color={colors.textFaint} /> : null}
       <TextInput
+        ref={ref}
         style={[
           sharedStyles.fieldInput,
           { color: colors.text },
@@ -463,7 +467,7 @@ export function TextField({
       {input}
     </View>
   );
-}
+});
 
 /**
  * The one primary CTA — brand-gradient fill (the brand rule; flat

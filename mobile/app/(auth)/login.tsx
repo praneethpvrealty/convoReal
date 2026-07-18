@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -31,6 +32,7 @@ const RESEND_SECONDS = 30;
  */
 export default function LoginScreen() {
   const { colors } = useTheme();
+  const gradient = useBrandGradient();
   const [mode, setMode] = useState<Mode>('whatsapp');
 
   return (
@@ -45,7 +47,7 @@ export default function LoginScreen() {
         >
           <View style={styles.hero}>
             <LinearGradient
-              colors={useBrandGradient()}
+              colors={gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.logoBadge}
@@ -198,6 +200,8 @@ function WhatsappLogin() {
             placeholder="WhatsApp number · e.g. 99002 77111"
             keyboardType="phone-pad"
             autoComplete="tel"
+            returnKeyType="go"
+            onSubmitEditing={sendCode}
             value={phone}
             onChangeText={setPhone}
           />
@@ -267,6 +271,7 @@ function EmailLogin() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const passwordRef = useRef<TextInput>(null);
 
   async function signIn() {
     setError(null);
@@ -288,14 +293,20 @@ function EmailLogin() {
         keyboardType="email-address"
         autoComplete="email"
         autoCapitalize="none"
+        returnKeyType="next"
+        onSubmitEditing={() => passwordRef.current?.focus()}
+        blurOnSubmit={false}
         value={email}
         onChangeText={setEmail}
       />
       <TextField
+        ref={passwordRef}
         icon="lock-closed-outline"
         placeholder="Password"
         secureTextEntry
         autoComplete="password"
+        returnKeyType="go"
+        onSubmitEditing={signIn}
         value={password}
         onChangeText={setPassword}
       />

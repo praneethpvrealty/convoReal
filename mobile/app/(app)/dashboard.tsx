@@ -114,8 +114,6 @@ export default function DashboardScreen() {
         options={{
           headerShown: true,
           title: 'Overview',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
 

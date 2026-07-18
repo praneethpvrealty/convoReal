@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
 import {
@@ -116,8 +116,6 @@ export default function CreditsScreen() {
         options={{
           headerShown: true,
           title: 'Billing & AI Credits',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
 
@@ -150,7 +148,9 @@ export default function CreditsScreen() {
       <PrimaryButton
         label="Top up on the web"
         icon="flash"
-        onPress={() => Linking.openURL(`${ENV.apiBaseUrl}/settings?tab=billing`)}
+        // In-app browser keeps the session warm and returns cleanly,
+        // instead of dumping the user in the system browser.
+        onPress={() => WebBrowser.openBrowserAsync(`${ENV.apiBaseUrl}/settings?tab=billing`)}
       />
       <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center', marginTop: -4 }}>
         Checkout opens in your browser — purchases land here instantly.

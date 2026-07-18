@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { Link } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, router } from 'expo-router';
+import { useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
-import { EnterRow } from '@/components/motion';
+import { EnterRow, PressScale } from '@/components/motion';
 import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
 import {
   apiFetch,
@@ -27,6 +27,7 @@ import {
   type PlaceSuggestion,
 } from '@/lib/api';
 import { formatInr } from '@/lib/format';
+import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
 import {
   nearFromLocality,
@@ -88,14 +89,9 @@ export default function PropertiesScreen() {
   const insets = useSafeAreaInsets();
   const { search, listing, near, setSearch, setListing, setNear, setRadius } =
     usePropertySearch();
-  const [debounced, setDebounced] = useState('');
   const [locating, setLocating] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search.trim()), 300);
-    return () => clearTimeout(t);
-  }, [search]);
+  const debounced = useDebounced(search.trim());
 
   const {
     data,
@@ -265,24 +261,21 @@ export default function PropertiesScreen() {
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
           ListEmptyComponent={
-            <View>
-              <EmptyState
-                icon="home-outline"
-                title={debounced || listing !== 'All' || near ? 'No matches' : 'No properties yet'}
-                subtitle={
-                  near
-                    ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
-                    : debounced || listing !== 'All'
-                      ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
-                      : 'Add properties from the web app or by messaging your WhatsApp lister.'
-                }
-              />
-              {near && near.radiusKm < 25 ? (
-                <Pressable
-                  onPress={() => setRadius(25)}
-                  style={{ alignSelf: 'center', marginTop: -20 }}
-                >
-                  <View
+            <EmptyState
+              icon="home-outline"
+              title={debounced || listing !== 'All' || near ? 'No matches' : 'No properties yet'}
+              subtitle={
+                near
+                  ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
+                  : debounced || listing !== 'All'
+                    ? 'No listings match this search and filter. Same engine as the web inventory — areas, budgets and BHK counts only match what you actually have.'
+                    : 'Add properties from the web app or by messaging your WhatsApp lister.'
+              }
+              action={
+                near && near.radiusKm < 25 ? (
+                  <Pressable
+                    onPress={() => setRadius(25)}
+                    accessibilityRole="button"
                     style={{
                       backgroundColor: colors.primary,
                       borderRadius: radius.full,
@@ -293,10 +286,10 @@ export default function PropertiesScreen() {
                     <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: fonts.bold }}>
                       Search within 25 km
                     </Text>
-                  </View>
-                </Pressable>
-              ) : null}
-            </View>
+                  </Pressable>
+                ) : null
+              }
+            />
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
@@ -467,12 +460,12 @@ function PropertyCard({ property }: { property: Property }) {
   const place = [property.sublocality, property.city].filter(Boolean).join(', ');
 
   return (
-    <Link href={`/(app)/property/${property.id}`} asChild>
-      {/* Slot child requires one flat style object (no arrays). */}
-      <Pressable
-        style={StyleSheet.flatten([styles.card, { backgroundColor: colors.surface }])}
-        android_ripple={{ color: colors.border }}
-      >
+    <PressScale
+      onPress={() => router.push(`/(app)/property/${property.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Open property ${property.title}`}
+      contentStyle={StyleSheet.flatten([styles.card, { backgroundColor: colors.surface }])}
+    >
         <View style={styles.coverWrap}>
           {cover ? (
             <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
@@ -530,8 +523,7 @@ function PropertyCard({ property }: { property: Property }) {
             {property.type ? <SpecPill icon="business-outline" label={property.type} /> : null}
           </View>
         </View>
-      </Pressable>
-    </Link>
+    </PressScale>
   );
 }
 

@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 
 import MapView, { Marker } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SectionLabel, Tag } from '@/components/ui';
 import { formatInr } from '@/lib/format';
@@ -23,6 +24,9 @@ import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Property } from '@/lib/types';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+/** Scroll clearance so content ends above the sticky price bar. */
+const BOTTOM_BAR_CLEARANCE = 110;
 
 async function fetchProperty(id: string): Promise<Property | null> {
   // Single-property reads pass RLS directly, same as the web's
@@ -58,6 +62,7 @@ export default function PropertyDetailScreen() {
     );
   }
 
+  const insets = useSafeAreaInsets();
   const price =
     property.listing_type === 'Rent'
       ? property.rent_per_month
@@ -73,14 +78,12 @@ export default function PropertyDetailScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ paddingBottom: 110 }}
+      contentContainerStyle={{ paddingBottom: BOTTOM_BAR_CLEARANCE + insets.bottom }}
     >
       <Stack.Screen
         options={{
           headerShown: true,
           title: property.property_code || 'Property',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
         }}
       />
 
@@ -118,6 +121,8 @@ export default function PropertyDetailScreen() {
                     setActiveImage(i);
                     pagerRef.current?.scrollTo({ x: i * SCREEN_W, animated: true });
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Photo ${i + 1} of ${property.images!.length}`}
                 >
                   <Image
                     source={{ uri: url }}
@@ -128,6 +133,19 @@ export default function PropertyDetailScreen() {
                   />
                 </Pressable>
               ))}
+              {property.images.length > 8 ? (
+                <Pressable
+                  onPress={() => {
+                    setActiveImage(8);
+                    pagerRef.current?.scrollTo({ x: 8 * SCREEN_W, animated: true });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${property.images.length - 8} more photos`}
+                  style={[styles.thumb, styles.thumbMore]}
+                >
+                  <Text style={styles.thumbMoreText}>+{property.images.length - 8}</Text>
+                </Pressable>
+              ) : null}
             </ScrollView>
           ) : null}
         </View>
@@ -278,7 +296,11 @@ export default function PropertyDetailScreen() {
     <View
       style={[
         styles.bottomBar,
-        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+        {
+          backgroundColor: colors.surfaceRaised,
+          borderColor: colors.border,
+          paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
+        },
       ]}
     >
       <View style={{ flex: 1 }}>
@@ -403,6 +425,12 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.6)',
   },
+  thumbMore: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  thumbMoreText: { color: '#fff', fontSize: 12.5, fontFamily: fonts.extrabold },
   bottomBar: {
     position: 'absolute',
     left: 0,
@@ -413,7 +441,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     paddingHorizontal: spacing.xl,
     paddingTop: 14,
-    paddingBottom: 26,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,

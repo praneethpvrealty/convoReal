@@ -140,7 +140,32 @@ and polish.
   modal now closes with the Android back button and has a visible
   close control.
 
+### Added
+
+- **Mobile: add contacts from the field.** The Contacts tab gains a
+  "+" button opening a quick-add sheet (name, phone, classification)
+  that calls the same `POST /api/contacts` route as the web form —
+  plan limits, rate limits and RLS all apply — then opens the new
+  contact card. An agent taking a walk-in's number no longer needs
+  the web app.
+
 ### Changed
+
+- **Mobile: navigation, forms and polish pass.** Screens inherit the
+  shared header style from the layout instead of re-specifying it in
+  12 files; the conversation composer keyboard offset uses the real
+  header height; list rows and property cards now give springy press
+  feedback on both platforms (scale-down physics, not Android-only
+  ripple); raw Postgres errors ("violates row-level security…") are
+  translated to human copy; email addresses are validated before
+  saving a contact; login and appointment forms support
+  keyboard-next/go submit flow; all searches share one 250ms
+  debounce (the appointment contact picker queried per keystroke);
+  billing top-up opens an in-app browser tab instead of dumping into
+  the system browser (new dependency: `expo-web-browser` — run
+  `npm install` in `mobile/`); safe-area-derived padding replaces
+  guessed bottom offsets on the property bar and map footer; photo
+  strips show a "+N" chip when a listing has more than 8 images.
 
 - **Mobile: one set of primitives, one set of tokens.** The five
   hand-rolled text-field styles, five primary-CTA implementations,

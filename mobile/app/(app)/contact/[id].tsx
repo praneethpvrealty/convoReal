@@ -16,6 +16,7 @@ import {
 
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
 import { formatInr } from '@/lib/format';
+import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -52,8 +53,6 @@ export default function ContactDetailScreen() {
         options={{
           headerShown: true,
           title: contact?.name || contact?.phone || 'Contact',
-          headerStyle: { backgroundColor: colors.tabBar },
-          headerTintColor: colors.text,
           headerRight: () =>
             contact ? (
               <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
@@ -184,6 +183,11 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
   const [saving, setSaving] = useState(false);
 
   async function save() {
+    const cleanEmail = email.trim();
+    if (cleanEmail && !/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setError('That email address doesn\u2019t look right \u2014 check it and try again.');
+      return;
+    }
     setSaving(true);
     setError(null);
     const { error: updateError } = await supabase
@@ -200,7 +204,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
     setSaving(false);
     if (updateError) {
       haptic.warn();
-      setError(updateError.message);
+      setError(friendlyError(updateError.message));
       return;
     }
     haptic.success();

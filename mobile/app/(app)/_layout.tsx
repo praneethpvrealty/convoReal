@@ -28,28 +28,10 @@ export default function AppLayout() {
         headerShadowVisible: false,
       }}
     >
+      {/* Screens register themselves; each file owns its title and
+          headerRight via its own <Stack.Screen options>. The shared
+          header look lives in screenOptions above. */}
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen
-        name="conversation/[id]"
-        options={{ headerShown: true, title: 'Conversation' }}
-      />
-      <Stack.Screen name="contact/[id]" options={{ headerShown: true, title: 'Contact' }} />
-      <Stack.Screen name="property/[id]" options={{ headerShown: true, title: 'Property' }} />
-      <Stack.Screen name="properties-map" options={{ headerShown: true, title: 'Map' }} />
-      <Stack.Screen name="calendar" options={{ headerShown: true, title: 'Calendar' }} />
-      <Stack.Screen
-        name="appointment-new"
-        options={{ headerShown: true, title: 'New appointment' }}
-      />
-      <Stack.Screen name="dashboard" options={{ headerShown: true, title: 'Overview' }} />
-      <Stack.Screen
-        name="credits"
-        options={{ headerShown: true, title: 'Billing & AI Credits' }}
-      />
-      <Stack.Screen name="journey" options={{ headerShown: true, title: 'Journeys' }} />
-      <Stack.Screen name="broadcasts" options={{ headerShown: true, title: 'Broadcasts' }} />
-      <Stack.Screen name="broadcast/[id]" options={{ headerShown: true, title: 'Broadcast' }} />
-      <Stack.Screen name="automations" options={{ headerShown: true, title: 'Automations' }} />
       <Stack.Screen name="verify-phone" />
     </Stack>
   );
