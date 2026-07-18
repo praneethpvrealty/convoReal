@@ -131,7 +131,18 @@ export function TemplateManager() {
   // (see migration 146); this flag mirrors that in the UI. Everyone
   // else gets a read-only catalog: agents still need to see which
   // templates exist and their approval status.
-  const { user, accountId, loading: authLoading, isOrgManager } = useAuth();
+  //
+  // profileLoading matters here: isOrgManager and accountId both come
+  // from the profile row. Until it settles we must show a loader — not
+  // the read-only note or "No templates yet", which would misreport a
+  // manager on a slow connection as a permissionless empty account.
+  const {
+    user,
+    accountId,
+    loading: authLoading,
+    profileLoading,
+    isOrgManager,
+  } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -188,14 +199,14 @@ export function TemplateManager() {
   }, [bodyVarCount]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || profileLoading) return;
     if (!accountId) {
       setLoading(false);
       return;
     }
     fetchTemplates(accountId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, accountId]);
+  }, [authLoading, profileLoading, accountId]);
 
   async function fetchTemplates(accId: string) {
     try {
@@ -467,7 +478,9 @@ export function TemplateManager() {
     }));
   }
 
-  if (loading) {
+  // Keep spinning while the profile row is still resolving — role and
+  // account id are unknown until then (see the useAuth comment above).
+  if (loading || authLoading || profileLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="text-primary size-6 animate-spin" />
