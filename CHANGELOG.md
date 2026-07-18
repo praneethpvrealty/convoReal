@@ -11,6 +11,18 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **Settings tab bars scroll instead of wrapping on phones.** The
+  main Settings navigation (Profile … Other) and the WhatsApp
+  sub-tabs (Connection / Templates / Flows / Owner Digest) wrapped
+  into ragged multi-line rows on narrow screens, with orphaned group
+  dividers stranded at row starts. Both are now single-row,
+  horizontally scrollable bars with hidden scrollbars; the active
+  pill auto-scrolls into view on load and on tab change, so deep
+  links like `?tab=showcase` never land with the selection
+  off-screen. Desktop layout is unchanged.
+
 ### Fixed
 
 - **Table loaders center on screen, not off it.** The Contacts table's
