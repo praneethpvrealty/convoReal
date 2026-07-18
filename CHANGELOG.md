@@ -13,6 +13,18 @@ and polish.
 
 ### Changed
 
+- **Settings navigation: "More" menu + edge fades on phones.** The
+  Billing and Workspace tab clusters (Billing, Credits, Showcase, AI
+  Config, Other, Members/Teams/Routing) collapse into a single
+  "More" dropdown on phones, halving the tab bar's width; when the
+  active tab lives inside it, the trigger adopts that tab's icon,
+  label, and highlight so your location stays visible. Both tab bars
+  also gained gradient edge fades that appear only while more tabs
+  continue past that edge. Desktop shows every tab inline, unchanged.
+  Also hardened the Credits tab's Referral card, which crashed the
+  whole Settings page ("Something went wrong") whenever its API call
+  failed — it now shape-checks the response and degrades to a toast.
+
 - **Settings tab bars scroll instead of wrapping on phones.** The
   main Settings navigation (Profile … Other) and the WhatsApp
   sub-tabs (Connection / Templates / Flows / Owner Digest) wrapped

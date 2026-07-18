@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { replaceUrl } from "@/lib/navigation";
 import {
@@ -18,11 +18,19 @@ import {
   Route,
   Coins,
   Megaphone,
+  MoreHorizontal,
+  ChevronDown,
   Plug,
   Workflow,
   Newspaper,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@/components/ui/dropdown-menu';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { WhatsAppFlowsCard } from '@/components/settings/whatsapp-flows-card';
 import { OwnerDigestCard } from '@/components/settings/owner-digest-card';
@@ -80,6 +88,39 @@ const WHATSAPP_SUBTABS = [
   { value: 'digest', label: 'Owner Digest', icon: Newspaper },
 ] as const;
 type WhatsAppSub = (typeof WHATSAPP_SUBTABS)[number]['value'];
+
+/**
+ * Edge-fade state for a horizontally scrollable tab bar. `left` /
+ * `right` are true only while content continues past that edge, so
+ * the gradient overlays appear exactly when there is something to
+ * scroll to and vanish at the ends.
+ */
+function useEdgeFades() {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [fades, setFades] = useState({ left: false, right: false });
+  const update = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const left = el.scrollLeft > 8;
+    const right = el.scrollWidth - el.clientWidth - el.scrollLeft > 8;
+    setFades((prev) =>
+      prev.left === left && prev.right === right ? prev : { left, right },
+    );
+  }, []);
+  useEffect(() => {
+    update();
+    const el = ref.current;
+    if (!el) return;
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [update]);
+  return { ref, fades };
+}
 
 function isWhatsAppSub(v: string | null): v is WhatsAppSub {
   return !!v && WHATSAPP_SUBTABS.some((s) => s.value === v);
@@ -167,6 +208,9 @@ export default function SettingsPage() {
     replaceUrl(router, `/settings?${params.toString()}`);
   };
 
+  const { ref: mainBarRef, fades: mainFades } = useEdgeFades();
+  const { ref: subBarRef, fades: subFades } = useEdgeFades();
+
   // The tab bars scroll horizontally on narrow screens — keep the
   // active pill in view, both on tap and when a deep link (e.g.
   // ?tab=showcase) lands with the active tab scrolled off-screen.
@@ -231,6 +275,16 @@ export default function SettingsPage() {
     },
   ];
 
+  // On phones only the first two groups (Account + Messaging — the
+  // daily-driver tabs) stay inline; Billing + Workspace collapse into
+  // a "More" menu so the bar needs little or no scrolling. Desktop
+  // (md+) shows every group inline exactly as before.
+  const MOBILE_INLINE_GROUPS = 2;
+  const moreItems = navGroups
+    .slice(MOBILE_INLINE_GROUPS)
+    .flatMap((g) => g.items);
+  const activeMoreItem = moreItems.find((i) => i.value === tab);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -266,31 +320,107 @@ export default function SettingsPage() {
             + partial pill at the edge signal scrollability) and the
             active tab auto-scrolls into view on load via the effect
             below. */}
-        <div
-          data-settings-tabbar
-          className="flex flex-nowrap items-center gap-1 border-b border-slate-800 pb-3 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {navGroups.map((group, groupIdx) => (
-            <div key={group.label} className="flex items-center gap-1 shrink-0">
-              {groupIdx > 0 && <div className="h-4 w-px bg-slate-800 mx-2 shrink-0" aria-hidden="true" />}
-              {group.items.map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => onChange(value)}
-                  data-tour={`settings-tab-${value}`}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
-                    tab === value
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                  )}
-                >
-                  <Icon className="size-3.5 shrink-0" />
-                  <span>{label}</span>
-                </button>
-              ))}
-            </div>
-          ))}
+        <div className="relative">
+          <div
+            ref={mainBarRef}
+            data-settings-tabbar
+            className="flex flex-nowrap items-center gap-1 border-b border-slate-800 pb-3 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          >
+            {navGroups.map((group, groupIdx) => (
+              <div
+                key={group.label}
+                className={cn(
+                  'flex items-center gap-1 shrink-0',
+                  // Tail groups collapse into the More menu on phones.
+                  groupIdx >= MOBILE_INLINE_GROUPS && 'hidden md:flex',
+                )}
+              >
+                {groupIdx > 0 && <div className="h-4 w-px bg-slate-800 mx-2 shrink-0" aria-hidden="true" />}
+                {group.items.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => onChange(value)}
+                    data-tour={`settings-tab-${value}`}
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                      tab === value
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    )}
+                  >
+                    <Icon className="size-3.5 shrink-0" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            ))}
+            {/* Phone-only "More" menu for the collapsed tail groups.
+                When the active tab lives inside it, the trigger takes
+                that tab's icon + label + active styling so the current
+                location stays visible in the bar. */}
+            {moreItems.length > 0 && (
+              <div className="flex items-center gap-1 shrink-0 md:hidden">
+                <div className="h-4 w-px bg-slate-800 mx-2 shrink-0" aria-hidden="true" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <button
+                        className={cn(
+                          'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                          activeMoreItem
+                            ? 'bg-primary/10 text-primary font-medium'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50',
+                        )}
+                      />
+                    }
+                  >
+                    {activeMoreItem ? (
+                      <activeMoreItem.icon className="size-3.5 shrink-0" />
+                    ) : (
+                      <MoreHorizontal className="size-3.5 shrink-0" />
+                    )}
+                    <span>{activeMoreItem ? activeMoreItem.label : 'More'}</span>
+                    <ChevronDown className="size-3 shrink-0 opacity-70" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="min-w-44 bg-slate-900 border-slate-700"
+                  >
+                    {moreItems.map(({ value, label, icon: Icon }) => (
+                      <DropdownMenuItem
+                        key={value}
+                        onClick={() => onChange(value)}
+                        className={cn(
+                          'gap-2 text-slate-300 focus:bg-slate-800 focus:text-white',
+                          tab === value && 'text-primary focus:text-primary',
+                        )}
+                      >
+                        <Icon className="size-3.5" />
+                        {label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
+          </div>
+          {/* Edge fades — visible only while more tabs continue past
+              that edge (useEdgeFades), so the bar reads as scrollable
+              without a scrollbar. */}
+          <div
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-slate-950/90 to-transparent transition-opacity duration-200',
+              mainFades.left ? 'opacity-100' : 'opacity-0',
+            )}
+          />
+          <div
+            aria-hidden="true"
+            className={cn(
+              'pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-slate-950/90 to-transparent transition-opacity duration-200',
+              mainFades.right ? 'opacity-100' : 'opacity-0',
+            )}
+          />
         </div>
 
         {/* Content Area — now spans the full page width */}
@@ -306,26 +436,43 @@ export default function SettingsPage() {
             {/* WhatsApp sub-navigation: connection, templates, flows,
                 owner digest. Everything WhatsApp lives here instead of
                 one endless scroll + a separate top-level Templates tab. */}
-            <div
-              data-settings-subtabbar
-              className="flex w-fit max-w-full flex-nowrap items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {WHATSAPP_SUBTABS.map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => onSubChange(value)}
-                  data-tour={`settings-tab-${value === 'templates' ? 'templates' : `whatsapp-${value}`}`}
-                  className={cn(
-                    'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
-                    whatsappSub === value
-                      ? 'bg-primary/10 text-primary font-medium'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                  )}
-                >
-                  <Icon className="size-3.5 shrink-0" />
-                  <span>{label}</span>
-                </button>
-              ))}
+            <div className="relative w-fit max-w-full">
+              <div
+                ref={subBarRef}
+                data-settings-subtabbar
+                className="flex w-fit max-w-full flex-nowrap items-center gap-1 rounded-lg border border-slate-800 bg-slate-900/60 p-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {WHATSAPP_SUBTABS.map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    onClick={() => onSubChange(value)}
+                    data-tour={`settings-tab-${value === 'templates' ? 'templates' : `whatsapp-${value}`}`}
+                    className={cn(
+                      'flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-colors whitespace-nowrap',
+                      whatsappSub === value
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    )}
+                  >
+                    <Icon className="size-3.5 shrink-0" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute inset-y-0 left-0 w-8 rounded-l-lg bg-gradient-to-r from-slate-950/90 to-transparent transition-opacity duration-200',
+                  subFades.left ? 'opacity-100' : 'opacity-0',
+                )}
+              />
+              <div
+                aria-hidden="true"
+                className={cn(
+                  'pointer-events-none absolute inset-y-0 right-0 w-8 rounded-r-lg bg-gradient-to-l from-slate-950/90 to-transparent transition-opacity duration-200',
+                  subFades.right ? 'opacity-100' : 'opacity-0',
+                )}
+              />
             </div>
 
             {whatsappSub === 'connection' && <WhatsAppConfig />}
