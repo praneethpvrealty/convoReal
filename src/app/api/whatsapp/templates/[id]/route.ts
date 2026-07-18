@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import {
+  requireOrgRole,
+  toErrorResponse,
+  type AccountContext,
+} from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   deleteMessageTemplate,
@@ -47,35 +51,23 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  // Template management is org_manager-only (product decision, see
+  // migration 146). Resolved outside the main try so a 401/403
+  // doesn't collapse into the generic 500.
+  let ctx: AccountContext
+  try {
+    ctx = await requireOrgRole('org_manager')
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+  const { supabase, accountId } = ctx
+
   try {
     const { id } = await context.params
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
         { error: 'Invalid template id.' },
         { status: 400 },
-      )
-    }
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Resolve the caller's account_id so template + whatsapp_config
-    // lookups work for teammates who didn't author the row.
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
       )
     }
 
@@ -222,36 +214,22 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  // Same org_manager gate as PATCH — deleting a template also
+  // deletes it on Meta, which breaks any broadcast still using it.
+  let ctx: AccountContext
+  try {
+    ctx = await requireOrgRole('org_manager')
+  } catch (err) {
+    return toErrorResponse(err)
+  }
+  const { supabase, accountId } = ctx
+
   try {
     const { id } = await context.params
     if (!UUID_RE.test(id)) {
       return NextResponse.json(
         { error: 'Invalid template id.' },
         { status: 400 },
-      )
-    }
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Same account-scoping rationale as the PATCH handler above —
-    // teammates need to be able to operate on shared templates +
-    // the shared whatsapp_config.
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
       )
     }
 

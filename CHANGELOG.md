@@ -11,6 +11,26 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **Default reminder templates for every account + manager-only
+  template management.** Every account — including ones created in
+  the future — now starts with the four appointment/property-visit
+  reminder templates as ready-to-submit DRAFTs (an `AFTER INSERT`
+  trigger on `accounts` seeds them; existing accounts are
+  backfilled idempotently). Managing templates (New Template, Sync
+  from Meta, Submit, Edit, Resubmit, Delete) is now restricted to
+  the **Organization Manager**: enforced in the API routes
+  (`requireOrgRole('org_manager')`), at the database (RLS write
+  policies on `message_templates` tightened from leader-rank to
+  manager-rank), and in the Settings UI, where non-managers see a
+  read-only template catalog. **Migration required:**
+  `146_default_templates_and_manager_gate.sql`. Note: the one-click
+  "enable template" buttons in Radar / Showcase / Owner Digest also
+  submit templates, so they now require the manager as well — other
+  roles get a clear "Only the Organization Manager can perform this
+  action" error.
+
 ### Fixed
 
 - **Reminder templates no longer end with a variable — Meta submits
