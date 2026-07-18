@@ -87,6 +87,18 @@ User-defined contact attributes.
 Timeline log entries.
 - `id`, `contact_id`, `author_id` (`profiles.user_id`), `content` (TEXT), `account_id`.
 
+#### 7b. `liaisons` (migration 147)
+Liaisoning people directory — the government-office fixers (khata transfer, EC, registration, BBMP work) with the fees they quoted per service.
+- `id` (UUID, PK).
+- `account_id` (UUID, FK -> `accounts`).
+- `user_id` (UUID, FK -> `auth.users`): Creator.
+- `name` (TEXT, NOT NULL) / `phone` / `alt_phone` / `email`.
+- `office_area` (TEXT): Where they operate, e.g. "BBMP Bommanahalli", "SRO Jayanagar".
+- `services` (JSONB): Array of `{ name, fee, fee_note }` — fee in INR, null when it varies.
+- `notes` (TEXT).
+- `is_active` (BOOLEAN): Soft retire; keeps fee history when a liaison stops taking work.
+- RLS: members read, `agent`+ modify.
+
 ---
 
 ### Group C: Properties & Showcases

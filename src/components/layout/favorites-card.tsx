@@ -22,6 +22,7 @@ import {
   Workflow,
   Radio,
   Settings,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,7 @@ const ICON_MAP: Record<string, typeof LayoutDashboard> = {
   Workflow,
   Radio,
   Settings,
+  Landmark,
 };
 
 export function FavoritesCard() {

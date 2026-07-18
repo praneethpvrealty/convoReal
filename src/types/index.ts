@@ -988,3 +988,34 @@ export interface EmailSyncConfig {
 }
 
 
+
+// ============================================================
+// Liaisoning People Directory (147_liaisons.sql)
+// ============================================================
+
+/** One service a liaison handles, with the fee they quoted for it. */
+export interface LiaisonService {
+  /** e.g. "Khata transfer", "New khata", "EC", "Registration" */
+  name: string;
+  /** Quoted fee in INR. Null when it varies case-by-case. */
+  fee: number | null;
+  /** Qualifier for the fee, e.g. "per property, excl. govt charges". */
+  fee_note?: string | null;
+}
+
+export interface Liaison {
+  id: string;
+  account_id: string;
+  user_id?: string | null;
+  name: string;
+  phone: string | null;
+  alt_phone: string | null;
+  email: string | null;
+  /** Where they operate: "BBMP Bommanahalli", "SRO Jayanagar", ... */
+  office_area: string | null;
+  services: LiaisonService[];
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}

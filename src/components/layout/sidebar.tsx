@@ -25,6 +25,7 @@ import {
   X,
   Home,
   Calendar,
+  Landmark,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
 
@@ -93,6 +94,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/inventory", label: "Inventory", icon: Home },
+  { href: "/liaisons", label: "Liaisons", icon: Landmark },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/journey", label: "Journey", icon: Waypoints, beta: true },
