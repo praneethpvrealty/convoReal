@@ -17,6 +17,7 @@ import { JourneyEmbed } from '@/components/journey/journey-embed';
 import { ContactAppointments } from '@/components/calendar/contact-appointments';
 import {
   Building,
+  ChevronLeft,
   Phone,
   Mail,
   Building2,
@@ -40,6 +41,11 @@ export default function AgentsPage() {
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  // Below lg the two panes can't fit side by side (the fixed w-80
+  // directory left the detail pane a ~40px sliver), so mobile shows
+  // ONE pane at a time: the list, or — after a tap — the detail with
+  // a back button. Desktop ignores this flag entirely.
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
 
   // Detail tab state for selected agent
   const [requirementsText, setRequirementsText] = useState('');
@@ -240,8 +246,13 @@ export default function AgentsPage() {
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] bg-slate-950 text-slate-100 overflow-hidden">
-      {/* LEFT PANE - Agent Directory */}
-      <div className="w-80 border-r border-slate-800 bg-slate-900/60 flex flex-col h-full shrink-0">
+      {/* LEFT PANE - Agent Directory. Full-width on mobile; hidden there
+          while the detail pane is open. */}
+      <div
+        className={`${
+          mobileDetailOpen ? 'hidden lg:flex' : 'flex'
+        } w-full lg:w-80 border-r border-slate-800 bg-slate-900/60 flex-col h-full shrink-0`}
+      >
         <div className="p-4 border-b border-slate-800 space-y-3 shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="text-base font-semibold text-white flex items-center gap-2">
@@ -275,7 +286,10 @@ export default function AgentsPage() {
               return (
                 <button
                   key={agent.id}
-                  onClick={() => setSelectedAgentId(agent.id)}
+                  onClick={() => {
+                    setSelectedAgentId(agent.id);
+                    setMobileDetailOpen(true);
+                  }}
                   className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
                     active
                       ? 'bg-primary/10 border-primary/40 text-white shadow-sm shadow-primary/5'
@@ -308,12 +322,28 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      {/* RIGHT PANE - Agent Detail Showcase */}
-      <div className="flex-1 flex flex-col h-full bg-slate-950/20 overflow-hidden">
+      {/* RIGHT PANE - Agent Detail Showcase. On mobile it takes over the
+          full width only after a tap on the list. */}
+      <div
+        className={`${
+          mobileDetailOpen ? 'flex' : 'hidden lg:flex'
+        } flex-1 flex-col h-full bg-slate-950/20 overflow-hidden`}
+      >
         {selectedAgent ? (
           <div className="flex flex-col h-full min-h-0">
+            {/* Back to the directory — mobile only; desktop always shows
+                both panes. */}
+            <button
+              type="button"
+              onClick={() => setMobileDetailOpen(false)}
+              className="lg:hidden flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white border-b border-slate-800 bg-slate-900/40 shrink-0 cursor-pointer"
+            >
+              <ChevronLeft className="size-4" />
+              All agents
+            </button>
+
             {/* Profil Summary Header */}
-            <div className="p-6 border-b border-slate-800 bg-slate-900/30 flex items-center justify-between shrink-0">
+            <div className="p-4 sm:p-6 border-b border-slate-800 bg-slate-900/30 flex items-center justify-between shrink-0">
               <div className="flex items-center gap-4">
                 <Avatar className="size-16 border border-slate-800">
                   <AvatarFallback className="bg-primary/10 text-primary text-xl font-bold">
