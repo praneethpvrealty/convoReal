@@ -13,6 +13,7 @@ import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { JourneyEmbed } from '@/components/journey/journey-embed';
 import {
   Building,
   Phone,
@@ -355,19 +356,27 @@ export default function AgentsPage() {
 
             {/* Content Tabs */}
             <Tabs defaultValue="properties" className="flex-1 flex flex-col min-h-0">
-              <div className="px-6 border-b border-slate-800 bg-slate-900/10 shrink-0">
-                <TabsList className="bg-transparent border-b-0 space-x-6 p-0 h-12">
+              {/* Scrollable strip — three uppercase labels overflow
+                  narrow panels; clipping ate "…& NOTES" before. */}
+              <div className="px-6 border-b border-slate-800 bg-slate-900/10 shrink-0 overflow-x-auto">
+                <TabsList className="bg-transparent border-b-0 space-x-6 p-0 h-12 w-max min-w-full">
                   <TabsTrigger
                     value="properties"
-                    className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
                   >
                     SHOWCASE PROPERTIES ({properties.length})
                   </TabsTrigger>
                   <TabsTrigger
                     value="requirements"
-                    className="h-full rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
                   >
                     REQUIREMENTS & NOTES
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="journey"
+                    className="h-full shrink-0 whitespace-nowrap rounded-none border-b-2 border-transparent data-[state=active]:border-primary bg-transparent text-slate-400 data-[state=active]:text-primary px-0 font-medium text-xs tracking-wider"
+                  >
+                    JOURNEY
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -484,13 +493,15 @@ export default function AgentsPage() {
                 </div>
               </TabsContent>
 
-              {/* Requirements & Notes Tab */}
+              {/* Requirements & Notes Tab — stacks on narrow panels;
+                  the old fixed two-column flex crushed the editor
+                  into an unreadable sliver below ~lg widths. */}
               <TabsContent
                 value="requirements"
-                className="flex-1 overflow-hidden p-6 focus-visible:outline-none flex gap-6 min-h-0"
+                className="flex-1 overflow-y-auto p-6 focus-visible:outline-none flex flex-col gap-6 min-h-0 lg:flex-row lg:overflow-hidden"
               >
                 {/* Requirements Editor (Left half) */}
-                <div className="flex-1 flex flex-col bg-slate-900/30 border border-slate-800/80 rounded-xl p-5 h-full overflow-hidden">
+                <div className="flex-1 flex flex-col bg-slate-900/30 border border-slate-800/80 rounded-xl p-5 min-h-[280px] lg:h-full lg:overflow-hidden">
                   <div className="flex items-center justify-between mb-3 shrink-0">
                     <h3 className="text-sm font-semibold text-white flex items-center gap-1.5">
                       <FileText className="size-4 text-primary" />
@@ -522,7 +533,7 @@ export default function AgentsPage() {
                 </div>
 
                 {/* Notes Roster (Right half) */}
-                <div className="w-80 flex flex-col bg-slate-900/30 border border-slate-800/80 rounded-xl p-5 h-full shrink-0 overflow-hidden">
+                <div className="w-full lg:w-80 flex flex-col bg-slate-900/30 border border-slate-800/80 rounded-xl p-5 lg:h-full shrink-0 lg:overflow-hidden">
                   <h3 className="text-sm font-semibold text-white mb-3 shrink-0 flex items-center gap-1.5">
                     <MessageSquare className="size-4 text-primary" />
                     Agent Notes
@@ -573,6 +584,14 @@ export default function AgentsPage() {
                     )}
                   </div>
                 </div>
+              </TabsContent>
+
+              {/* Journey Tab — this agent's buyer journey, embedded */}
+              <TabsContent
+                value="journey"
+                className="flex-1 overflow-y-auto p-6 focus-visible:outline-none min-h-0"
+              >
+                <JourneyEmbed mode="buyer" subjectId={selectedAgent.id} />
               </TabsContent>
             </Tabs>
           </div>
