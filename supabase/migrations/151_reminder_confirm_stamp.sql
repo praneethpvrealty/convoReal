@@ -1,5 +1,5 @@
 -- ============================================================
--- 150_reminder_confirm_stamp.sql — record "Fine" reminder taps.
+-- 151_reminder_confirm_stamp.sql — record "Fine" reminder taps.
 --
 -- Companion to 141 (reschedule_requested_at). The reminder's "Fine"
 -- quick-reply used to fall through as an ordinary inbound message:

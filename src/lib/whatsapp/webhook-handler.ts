@@ -615,7 +615,7 @@ const REMINDER_CONFIRM_BUTTON_TEXT = 'Fine'
  * stamps onto appointment_reminder_log after each send.
  *
  * "Requesting reschedule" flags the appointment and pings the agent.
- * "Fine" stamps client_confirmed_at (migration 150), acks the client
+ * "Fine" stamps client_confirmed_at (migration 151), acks the client
  * in-thread, and pings the agent. Returns true when the tap belonged
  * to a reminder so the caller stops processing — before this, "Fine"
  * fell through as an ordinary message: silence for a client, and for
