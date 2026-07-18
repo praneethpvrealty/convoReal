@@ -1132,15 +1132,17 @@ export default function AdminDashboardPage() {
                         </tr>
                       );
                     })}
-                    {sandboxTenants.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-12 text-center text-slate-500">
-                          {sandboxAnalyticsLoading ? 'Loading...' : 'No sandbox tenants found.'}
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
+                {/* Sibling of the table, not a colSpan cell — a block
+                    sibling sizes to the scroll container's VISIBLE
+                    width, so the text centers on screen even when the
+                    table overflows horizontally on mobile. */}
+                {sandboxTenants.length === 0 && (
+                  <div className="px-6 py-12 text-center text-slate-500">
+                    {sandboxAnalyticsLoading ? 'Loading...' : 'No sandbox tenants found.'}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1267,15 +1269,15 @@ export default function AdminDashboardPage() {
                         </tr>
                       );
                     })}
-                    {organizations.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                          No organizations found in database.
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
+                {/* Sibling of the table for on-screen centering — see
+                    the sandbox-tenants empty state above. */}
+                {organizations.length === 0 && (
+                  <div className="px-6 py-12 text-center text-slate-500">
+                    No organizations found in database.
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
