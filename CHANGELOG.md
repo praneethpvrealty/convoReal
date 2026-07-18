@@ -13,6 +13,15 @@ and polish.
 
 ### Changed
 
+- **Dashboard "Active Users" no longer shows the owner or yourself.**
+  The widget is titled "Live agent & client statuses" but listed
+  every profile in the account — including the account owner (with a
+  synthetic "Reviewing Analytics" activity label) and the viewer's
+  own row, sometimes duplicated when the phone-match signup path had
+  created two profile rows. It now skips the current viewer and any
+  owner-role profile, and collapses duplicate rows for the same auth
+  user. Agents and recently-active clients are unaffected.
+
 - **Default reminder templates for every account + manager-only
   template management.** Every account — including ones created in
   the future — now starts with the four appointment/property-visit
