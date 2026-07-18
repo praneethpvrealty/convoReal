@@ -294,6 +294,38 @@ describe('validateTemplatePayload — integration', () => {
       }),
     ).toThrow(/cannot end with/);
   });
+  it('rejects templates ending with a variable followed only by punctuation', () => {
+    // Live Meta rejection: "Variables can't be at the start or end of
+    // the template. (Leading or trailing params not allowed)" for a
+    // body ending in "Kind regards, {{6}}."
+    expect(() =>
+      validateTemplatePayload({
+        ...baseValid,
+        body_text:
+          'Hi {{1}}, this is a friendly reminder that you have a scheduled meeting on Monday morning. Kind regards, {{2}}.',
+        sample_values: { body: ['Rahul', 'PV Realty'] },
+      }),
+    ).toThrow(/cannot end with/);
+  });
+  it('rejects templates starting with a punctuation-wrapped variable', () => {
+    expect(() =>
+      validateTemplatePayload({
+        ...baseValid,
+        body_text: '"{{1}}" is confirmed for your visit tomorrow morning at our office.',
+        sample_values: { body: ['Booking 42'] },
+      }),
+    ).toThrow(/cannot start with/);
+  });
+  it('accepts a variable near the end when words follow it', () => {
+    expect(() =>
+      validateTemplatePayload({
+        ...baseValid,
+        body_text:
+          'Hi {{1}}, your meeting is confirmed with {{2}} for tomorrow. Please tap a button below to confirm.',
+        sample_values: { body: ['Rahul', 'PV Realty'] },
+      }),
+    ).not.toThrow();
+  });
   it('rejects consecutive variable placeholders', () => {
     expect(() =>
       validateTemplatePayload({
@@ -321,6 +353,8 @@ describe('validateTemplatePayload — integration', () => {
         body_text: 'Hi {{1}} {{2}}.',
         sample_values: { body: ['John', 'Doe'] },
       }),
-    ).toThrow(/Consecutive variable|too many variables for its length/);
+      // Violates three rules at once (trailing variable, consecutive
+      // variables, density) — any of the three messages is a pass.
+    ).toThrow(/cannot end with|Consecutive variable|too many variables for its length/);
   });
 });

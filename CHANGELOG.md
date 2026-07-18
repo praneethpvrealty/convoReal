@@ -11,6 +11,24 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Reminder templates no longer end with a variable — Meta submits
+  succeed.** All four appointment-reminder templates ended with
+  "Regards, `{{5}}`." / "Kind regards, `{{6}}`.", which Meta rejects
+  with "Variables can't be at the start or end of the template" —
+  trailing punctuation after a variable doesn't satisfy the rule.
+  The bodies now name the sender mid-sentence ("a friendly reminder
+  from `{{n}}` …") and close on a static call-to-action that points
+  at the Confirm / Reschedule quick-reply buttons. **Migration
+  required:** `145_reminder_template_trailing_variable_fix.sql`
+  (rewrites the four DRAFT bodies, seeds the missing
+  `property_visit_reminder` sample values, clears the stale
+  submission error). The template validator now catches
+  punctuation-wrapped leading/trailing variables at save time with a
+  field-level error instead of letting the submit fail at the Meta
+  API.
+
 ### Added
 
 - **Theme re-grade: premium neutral dark + airy light.** Dark mode

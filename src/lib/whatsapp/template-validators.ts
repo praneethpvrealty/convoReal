@@ -333,11 +333,22 @@ export function validateTemplatePayload(payload: TemplatePayload): {
   validateSampleValues(payload, bodyVars.length, headerResult.variableCount);
 
   if (bodyVars.length > 0) {
-    if (/^\s*\{\{\d+\}\}/.test(payload.body_text)) {
-      throw new Error('Template body cannot start with a variable placeholder.');
+    // Meta's "Leading or trailing params not allowed" check ignores
+    // punctuation and symbols: a body ending in "Kind regards, {{6}}."
+    // is rejected exactly like one ending in "{{6}}" (observed live —
+    // "Invalid parameter: Variables can't be at the start or end of
+    // the template"). Mirror that by treating a variable separated
+    // from the start/end only by whitespace, punctuation, or symbols
+    // (which includes emoji) as leading/trailing.
+    if (/^[\s\p{P}\p{S}]*\{\{\d+\}\}/u.test(payload.body_text)) {
+      throw new Error(
+        'Template body cannot start with a variable placeholder — Meta requires words (not just punctuation) before the first variable.',
+      );
     }
-    if (/\{\{\d+\}\}\s*$/.test(payload.body_text)) {
-      throw new Error('Template body cannot end with a variable placeholder.');
+    if (/\{\{\d+\}\}[\s\p{P}\p{S}]*$/u.test(payload.body_text)) {
+      throw new Error(
+        'Template body cannot end with a variable placeholder — Meta requires words (not just punctuation) after the last variable.',
+      );
     }
     if (/\{\{\d+\}\}[\s,.;:!?_#-]*\{\{\d+\}\}/.test(payload.body_text)) {
       throw new Error(
