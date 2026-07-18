@@ -13,6 +13,18 @@ and polish.
 
 ### Added
 
+- **AI tag suggestions with tap-to-confirm.** The preference
+  extraction now also proposes up to 3 short buyer-profile labels
+  from the requirements text ("Investor", "Rental Income", "NRI"),
+  shown on Requirements cards as dashed ✨ suggestion chips. Tapping
+  one reuses an existing account tag with that name or creates it,
+  then attaches it — suggestions are never applied automatically, so
+  the tag vocabulary stays curated by humans. Chips disappear once a
+  matching tag is attached. **Migration required:**
+  `150_tag_suggestions.sql` (adds `contacts.pref_suggested_tags`).
+  Existing contacts pick up suggestions the next time their
+  requirements change (extraction skips unchanged text by hash).
+
 - **AI-extracted preferences now visible everywhere, in sync.** The
   Gemini extraction that parses budgets, areas, and property
   interests out of a contact's requirements text (migration 092)

@@ -159,6 +159,9 @@ export interface Contact {
   pref_areas?: string[] | null;
   pref_excluded_areas?: string[] | null;
   pref_min_roi?: number | null;
+  /** AI-suggested CRM tag labels (migration 150) — display-only until
+   *  an agent confirms one, which creates/attaches a real tag. */
+  pref_suggested_tags?: string[] | null;
   /** AI-extracted / inferred listing intent(s): 'Sale' | 'Rent' | 'JV/JD' |
    *  'Built to Suit' (migration 117). Gates JV/BTS properties out of
    *  matching for contacts who haven't stated that intent. */

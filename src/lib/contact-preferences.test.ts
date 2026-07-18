@@ -3,7 +3,9 @@ import {
   effectiveMaxBudget,
   effectiveAreas,
   effectiveCategories,
+  visibleTagSuggestions,
 } from './contact-preferences';
+import { normalizeSuggestedTags } from './ai/preference-extraction';
 
 describe('effectiveMaxBudget', () => {
   it('prefers the explicit field over the AI extraction', () => {
@@ -75,5 +77,36 @@ describe('effectiveCategories', () => {
 
   it('returns null when nothing is known', () => {
     expect(effectiveCategories({})).toBeNull();
+  });
+});
+
+describe('visibleTagSuggestions', () => {
+  it('hides suggestions already attached as tags (case-insensitive)', () => {
+    expect(
+      visibleTagSuggestions(['Investor', 'Rental Income'], ['investor', 'VIP']),
+    ).toEqual(['Rental Income']);
+  });
+
+  it('returns empty for null/empty suggestions', () => {
+    expect(visibleTagSuggestions(null, [])).toEqual([]);
+    expect(visibleTagSuggestions([], ['VIP'])).toEqual([]);
+  });
+
+  it('tolerates null tag names from a broken join', () => {
+    expect(visibleTagSuggestions(['NRI'], [null, undefined, 'nri '])).toEqual([]);
+  });
+});
+
+describe('normalizeSuggestedTags', () => {
+  it('title-cases, dedupes case-insensitively, caps at 3', () => {
+    expect(
+      normalizeSuggestedTags(['investor', 'Investor', 'rental income', 'NRI', 'urgent']),
+    ).toEqual(['Investor', 'Rental Income', 'NRI']);
+  });
+
+  it('drops junk-length values and collapses whitespace', () => {
+    expect(
+      normalizeSuggestedTags(['x', '  first-time   buyer ', 'a'.repeat(30)]),
+    ).toEqual(['First-time Buyer']);
   });
 });

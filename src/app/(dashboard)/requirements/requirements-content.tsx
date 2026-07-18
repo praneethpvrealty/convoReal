@@ -8,6 +8,7 @@ import {
   effectiveAreas,
   effectiveCategories,
   effectiveMaxBudget,
+  visibleTagSuggestions,
 } from "@/lib/contact-preferences"
 import { toast } from "sonner"
 import {
@@ -86,6 +87,7 @@ interface ConsolidatedContact {
   pref_areas?: string[] | null
   pref_property_categories?: string[] | null
   pref_property_types?: string[] | null
+  pref_suggested_tags?: string[] | null
   contact_notes?: ContactNote[]
   contact_tags?: ContactTagJoin[]
   conversations?: ConversationJoin[]
@@ -245,6 +247,52 @@ export default function RequirementsPage() {
   const handleEditorContactChange = (id: string | null) => {
     setEditorContactId(id)
     setReqText(id ? data.find((c) => c.id === id)?.requirements ?? "" : "")
+  }
+
+  // `${contactId}:${tagName}` while a suggestion accept is in flight —
+  // per-chip so only the tapped chip shows a spinner.
+  const [acceptingTag, setAcceptingTag] = useState<string | null>(null)
+
+  // Confirm an AI tag suggestion: reuse an existing account tag with
+  // the same name (case-insensitive) or create one, then attach it.
+  // Suggestions are never auto-attached — this tap IS the human
+  // curation step, so the account's tag vocabulary stays deliberate.
+  const acceptSuggestedTag = async (contact: ConsolidatedContact, name: string) => {
+    const key = `${contact.id}:${name}`
+    setAcceptingTag(key)
+    try {
+      const supabase = createClient()
+      const { data: existing } = await supabase
+        .from("tags")
+        .select("id")
+        .eq("account_id", accountId)
+        .ilike("name", name)
+        .limit(1)
+        .maybeSingle()
+      let tagId = (existing as { id: string } | null)?.id
+      if (!tagId) {
+        const { data: created, error: createErr } = await supabase
+          .from("tags")
+          .insert({ user_id: user!.id, account_id: accountId, name })
+          .select("id")
+          .single()
+        if (createErr) throw createErr
+        tagId = (created as { id: string }).id
+      }
+      const { error: attachErr } = await supabase
+        .from("contact_tags")
+        .insert({ contact_id: contact.id, tag_id: tagId })
+      if (attachErr) throw attachErr
+      toast.success(`Tagged as "${name}"`)
+      fetchRequirements()
+    } catch (err) {
+      console.error("[Requirements] accept suggested tag failed:", err)
+      // Tag creation is admin+ under RLS — agents can attach existing
+      // tags but not mint new ones.
+      toast.error(`Couldn't add "${name}" — creating new tags may need a manager.`)
+    } finally {
+      setAcceptingTag(null)
+    }
   }
 
   const handleSaveRequirements = async () => {
@@ -619,6 +667,44 @@ export default function RequirementsPage() {
                           {(areas?.value ?? []).map((v, i) =>
                             chip(`📍 ${v}`, areas!.source === "ai", `area-${i}`),
                           )}
+                        </div>
+                      )
+                    })()}
+
+                    {/* AI tag suggestions — tap to confirm. Hidden once
+                        a tag with the same name is attached. */}
+                    {(() => {
+                      const sugg = visibleTagSuggestions(
+                        c.pref_suggested_tags,
+                        (c.contact_tags ?? []).map((t) => t.tags?.name),
+                      )
+                      if (sugg.length === 0) return null
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[9px] font-black text-slate-550 uppercase tracking-widest">
+                            Suggested
+                          </span>
+                          {sugg.map((name) => {
+                            const busy = acceptingTag === `${c.id}:${name}`
+                            return (
+                              <button
+                                key={name}
+                                type="button"
+                                disabled={busy}
+                                onClick={() => acceptSuggestedTag(c, name)}
+                                title="AI-suggested from the demands statement — tap to add as a tag"
+                                className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary/40 bg-primary/5 px-2 py-0.5 text-[10px] font-bold text-primary/90 hover:bg-primary/15 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {busy ? (
+                                  <Loader2 className="size-2.5 animate-spin" />
+                                ) : (
+                                  <Plus className="size-2.5" />
+                                )}
+                                <Sparkles className="size-2.5" />
+                                {name}
+                              </button>
+                            )
+                          })}
                         </div>
                       )
                     })()}

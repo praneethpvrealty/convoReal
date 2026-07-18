@@ -92,3 +92,24 @@ export function effectiveCategories(
   });
   return merged.length > 0 ? { value: merged, source: 'ai' } : null;
 }
+
+/**
+ * AI tag suggestions still worth showing: drops suggestions whose
+ * label matches an already-attached tag (case-insensitive), so a chip
+ * disappears the moment an agent confirms it — or if someone already
+ * tagged the contact manually with the same label.
+ */
+export function visibleTagSuggestions(
+  suggested: string[] | null | undefined,
+  attachedTagNames: (string | null | undefined)[],
+): string[] {
+  const cleaned = nonEmpty(Array.isArray(suggested) ? suggested : null);
+  if (!cleaned) return [];
+  const attached = new Set(
+    attachedTagNames
+      .filter((n): n is string => typeof n === 'string')
+      .map((n) => n.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  return cleaned.filter((s) => !attached.has(s.toLowerCase()));
+}

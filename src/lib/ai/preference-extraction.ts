@@ -33,6 +33,9 @@ export interface ExtractedPreferences {
   excluded_areas: string[];
   min_roi: number | null;
   listing_types: ListingType[];
+  /** Short buyer-profile labels to SUGGEST as CRM tags (never
+   *  auto-attached — an agent confirms each with a tap). */
+  suggested_tags: string[];
 }
 
 export const EMPTY_PREFERENCES: ExtractedPreferences = {
@@ -46,7 +49,36 @@ export const EMPTY_PREFERENCES: ExtractedPreferences = {
   excluded_areas: [],
   min_roi: null,
   listing_types: [],
+  suggested_tags: [],
 };
+
+/** Cap on suggested tags per contact — suggestions are a nudge, not a
+ *  taxonomy dump. */
+export const MAX_SUGGESTED_TAGS = 3;
+
+/**
+ * Normalize model-emitted tag suggestions: trim, Title Case, drop
+ * junk-length values, dedupe case-insensitively, cap the count.
+ * Exported for unit tests.
+ */
+export function normalizeSuggestedTags(vals: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of vals) {
+    const trimmed = raw.replace(/\s+/g, ' ').trim();
+    if (trimmed.length < 2 || trimmed.length > 24) continue;
+    const titled = trimmed
+      .split(' ')
+      .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+      .join(' ');
+    const key = titled.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(titled);
+    if (out.length >= MAX_SUGGESTED_TAGS) break;
+  }
+  return out;
+}
 
 function parseJsonLenient(raw: string): Record<string, unknown> {
   let cleaned = raw.trim();
@@ -101,7 +133,8 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     '  "areas": Array of localities/neighbourhoods/cities the contact WANTS (e.g. ["HSR Layout", "Koramangala"]). Empty array if none or "any location".,\n' +
     '  "excluded_areas": Array of localities the contact explicitly does NOT want (e.g. "not Jayanagar" -> ["Jayanagar"]). Empty array if none.,\n' +
     '  "min_roi": Minimum rental yield / ROI percentage wanted (e.g. "yield above 4%" -> 4) or null,\n' +
-    `  "listing_types": Array of deal type(s) the contact wants, each exactly one of: ${LISTING_TYPE_VALUES.map((v) => `'${v}'`).join(', ')}. 'Rent'/'tenant'/'to let' -> 'Rent'. 'Joint venture'/'joint development'/'JV'/'JD'/'revenue share'/'landowner looking for a builder' -> 'JV/JD'. 'Built to suit'/'BTS'/'lease to occupier' -> 'Built to Suit'. Leave empty if the contact is a plain buyer with no stated deal-type preference — do NOT assume 'Sale' by default.\n` +
+    `  "listing_types": Array of deal type(s) the contact wants, each exactly one of: ${LISTING_TYPE_VALUES.map((v) => `'${v}'`).join(', ')}. 'Rent'/'tenant'/'to let' -> 'Rent'. 'Joint venture'/'joint development'/'JV'/'JD'/'revenue share'/'landowner looking for a builder' -> 'JV/JD'. 'Built to suit'/'BTS'/'lease to occupier' -> 'Built to Suit'. Leave empty if the contact is a plain buyer with no stated deal-type preference — do NOT assume 'Sale' by default.,\n` +
+    '  "suggested_tags": Array of at most 3 SHORT, reusable buyer-profile labels an agent might tag this contact with, Title Case, each 2-24 chars (e.g. "Investor", "End User", "NRI", "First-Time Buyer", "Rental Income", "Urgent"). Only include labels clearly supported by the text (e.g. "for investment purposes" -> "Investor"; "will let out floors" -> "Rental Income"). Do NOT include locations, budgets, BHK, or property types — those are captured by the other fields. Empty array when nothing profile-like is stated.\n' +
     '}\n\n' +
     'Rules:\n' +
     "1. Convert Indian number formats: 'Crore'/'Cr' = 10000000, 'Lakh'/'L' = 100000, 'k' = 1000. '1.2cr' -> 12000000, '80L' -> 8000000, '₹90 lakh' -> 9000000.\n" +
@@ -139,6 +172,7 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     excluded_areas: toStringArray(parsed.excluded_areas),
     min_roi: toNumberOrNull(parsed.min_roi),
     listing_types: [...new Set(listingTypes)],
+    suggested_tags: normalizeSuggestedTags(toStringArray(parsed.suggested_tags)),
   };
 }
 
