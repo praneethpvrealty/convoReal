@@ -58,6 +58,7 @@ import {
   Ruler,
   Layers,
   ShieldCheck,
+  CirclePlay,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
@@ -4442,6 +4443,29 @@ export function PropertyForm({
                       </div>
 
                       <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                        {property?.video_url && property.video_status === 'ready' && (
+                          <div className="flex gap-2 items-center">
+                            <video
+                              src={property.video_url}
+                              muted
+                              playsInline
+                              preload="metadata"
+                              className="size-8 object-cover rounded border border-slate-700 shrink-0"
+                            />
+                            <span className="flex-1 text-xs text-slate-400 truncate">
+                              Listing video — plays in the Showcase gallery
+                            </span>
+                            <a
+                              href={property.video_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Play video"
+                              className="h-8 w-8 shrink-0 flex items-center justify-center rounded text-slate-400 hover:text-white"
+                            >
+                              <CirclePlay className="size-3.5" />
+                            </a>
+                          </div>
+                        )}
                         {images.map((imgUrl, idx) => (
                           <div key={idx} className="flex gap-2 items-center">
                             {imgUrl.trim().length > 0 && (

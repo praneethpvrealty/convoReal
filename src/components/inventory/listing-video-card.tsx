@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CirclePlay, Clapperboard, Download, ExternalLink, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { CirclePlay, Clapperboard, ExternalLink, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -125,9 +125,6 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   // agent supplied this video themselves (WhatsApp walkthrough), so the
   // generator controls would overwrite real footage.
   const isUploadedVideo = videoReady && !state?.video_generated_at;
-  const downloadUrl = state?.video_url
-    ? `${state.video_url}${state.video_url.includes('?') ? '&' : '?'}download=listing-video.mp4`
-    : '';
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -150,13 +147,10 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
             playsInline
             className="w-full max-w-[240px] rounded-lg border border-slate-800"
           />
-          <a
-            href={downloadUrl}
-            className="inline-flex items-center gap-1 text-xs text-slate-300 underline hover:text-white"
-          >
-            <Download className="size-3" />
-            Save video
-          </a>
+          <p className="text-[11px] text-slate-500">
+            Saved to this property&apos;s gallery — it plays in the Showcase
+            alongside the photos.
+          </p>
         </div>
       )}
       {state?.video_status === 'failed' && state.video_error && (
