@@ -13,6 +13,12 @@ and polish.
 
 ### Changed
 
+- **Mobile: long-press menus are launcher-style popovers.** The
+  WhatsApp button's long-press options opened as a giant centered
+  system dialog; they now appear in a compact floating menu anchored
+  right at the pressed button (icon + label rows, themed, opaque),
+  like the Android home-screen context menu.
+
 - **Mobile Contacts: compact rows, one WhatsApp button.** Contact
   rows slim down to the essentials — avatar, name with a small
   inline call button, classification + phone, last-contacted time —

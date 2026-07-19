@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow, PressScale } from '@/components/motion';
+import { ContextMenu } from '@/components/context-menu';
 import { BottomSheet } from '@/components/sheet';
 import {
   Avatar,
@@ -213,6 +214,7 @@ export default function ContactsScreen() {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [preview, setPreview] = useState<Contact | null>(null);
+  const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
@@ -327,6 +329,7 @@ export default function ContactsScreen() {
                 contact={item}
                 dark={dark}
                 onPreview={() => setPreview(item)}
+                onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
               />
             </EnterRow>
           )}
@@ -340,6 +343,27 @@ export default function ContactsScreen() {
         tags={preview ? (data?.tags[preview.id] ?? []) : []}
         propertyCodes={data?.propertyCodes ?? {}}
         onClose={() => setPreview(null)}
+      />
+      <ContextMenu
+        anchor={waMenu ? { x: waMenu.x, y: waMenu.y } : null}
+        onClose={() => setWaMenu(null)}
+        actions={
+          waMenu
+            ? [
+                {
+                  icon: 'logo-whatsapp',
+                  label: 'Blank WhatsApp chat',
+                  onPress: () =>
+                    Linking.openURL(`https://wa.me/${waMenu.contact.phone.replace(/\D/g, '')}`),
+                },
+                {
+                  icon: 'chatbubbles-outline',
+                  label: 'Internal message (Inbox)',
+                  onPress: () => openInternalChat(waMenu.contact),
+                },
+              ]
+            : []
+        }
       />
     </View>
   );
@@ -532,27 +556,16 @@ async function openInternalChat(contact: Contact) {
   router.push(`/(app)/conversation/${conv.id}`);
 }
 
-/** Long-press on the WhatsApp button: the two secondary sends. */
-function whatsappOptions(contact: Contact) {
-  haptic.tap();
-  Alert.alert(contact.name || contact.phone, 'How do you want to message?', [
-    {
-      text: 'Blank WhatsApp chat',
-      onPress: () => Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`),
-    },
-    { text: 'Internal message (CRM inbox)', onPress: () => openInternalChat(contact) },
-    { text: 'Cancel', style: 'cancel' },
-  ]);
-}
-
 function ContactRow({
   contact,
   dark,
   onPreview,
+  onWhatsAppMenu,
 }: {
   contact: Contact;
   dark: boolean;
   onPreview: () => void;
+  onWhatsAppMenu: (at: { x: number; y: number }) => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const name = contact.name || contact.phone;
@@ -622,7 +635,10 @@ function ContactRow({
               haptic.tap();
               openWelcomeWhatsApp(contact);
             }}
-            onLongPress={() => whatsappOptions(contact)}
+            onLongPress={(e) => {
+              haptic.tap();
+              onWhatsAppMenu({ x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
+            }}
             accessibilityRole="button"
             accessibilityLabel={`WhatsApp ${name} — long press for more send options`}
             style={[styles.action, { backgroundColor: colors.successSoft }]}
