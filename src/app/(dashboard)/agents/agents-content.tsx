@@ -331,16 +331,47 @@ export default function AgentsPage() {
       >
         {selectedAgent ? (
           <div className="flex flex-col h-full min-h-0">
-            {/* Back to the directory — mobile only; desktop always shows
+            {/* Mobile only: back to the directory + a horizontal agent
+                switcher, so hopping between agents doesn't require
+                going back — the active tab (journey, notes, …) carries
+                over to the newly selected agent. Desktop always shows
                 both panes. */}
-            <button
-              type="button"
-              onClick={() => setMobileDetailOpen(false)}
-              className="lg:hidden flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold text-slate-400 hover:text-white border-b border-slate-800 bg-slate-900/40 shrink-0 cursor-pointer"
-            >
-              <ChevronLeft className="size-4" />
-              All agents
-            </button>
+            <div className="lg:hidden flex items-center border-b border-slate-800 bg-slate-900/40 shrink-0">
+              <button
+                type="button"
+                onClick={() => setMobileDetailOpen(false)}
+                title="All agents"
+                className="flex items-center gap-1 pl-3 pr-1.5 py-2.5 text-xs font-semibold text-slate-400 hover:text-white shrink-0 cursor-pointer"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <div className="flex-1 overflow-x-auto flex items-center gap-1.5 px-1.5 py-1.5">
+                {filteredAgents.map((agent) => {
+                  const active = agent.id === selectedAgentId;
+                  return (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => setSelectedAgentId(agent.id)}
+                      className={`flex items-center gap-1.5 rounded-full border pl-1 pr-2.5 py-1 shrink-0 transition-all cursor-pointer ${
+                        active
+                          ? 'bg-primary/15 border-primary/50 text-white'
+                          : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                      }`}
+                    >
+                      <Avatar className="size-5 border border-slate-800">
+                        <AvatarFallback className="bg-primary/10 text-primary text-[8px] font-bold">
+                          {getInitials(agent.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-[10px] font-semibold whitespace-nowrap">
+                        {(agent.name || 'Unnamed').split(' ')[0]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             {/* Profil Summary Header */}
             <div className="p-4 sm:p-6 border-b border-slate-800 bg-slate-900/30 flex items-center justify-between shrink-0">

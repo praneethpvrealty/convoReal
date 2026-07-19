@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack } from 'expo-router';
+import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import {
   Pressable,
@@ -26,6 +26,9 @@ import type { JourneyItem, JourneyStage } from '@/lib/types';
 export default function JourneyScreen() {
   const { colors, fonts: f } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
+  // Optional deep-link filter — e.g. the agent switcher on the contact
+  // screen opens this list scoped to one contact.
+  const { contactId } = useLocalSearchParams<{ contactId?: string }>();
 
   const { data: stages } = useQuery({
     queryKey: ['journey-stages'],
@@ -67,6 +70,7 @@ export default function JourneyScreen() {
   const groups = useMemo(() => {
     const byContact = new Map<string, { contact: JourneyItem['contact']; items: JourneyItem[] }>();
     for (const item of items ?? []) {
+      if (contactId && item.contact_id !== contactId) continue;
       const key = item.contact_id;
       if (!byContact.has(key)) {
         byContact.set(key, { contact: item.contact, items: [] });
@@ -74,7 +78,7 @@ export default function JourneyScreen() {
       byContact.get(key)!.items.push(item);
     }
     return Array.from(byContact.values());
-  }, [items]);
+  }, [items, contactId]);
 
   return (
     <ScrollView
@@ -100,7 +104,11 @@ export default function JourneyScreen() {
         <EmptyState
           icon="map-outline"
           title="No journeys yet"
-          subtitle="Journeys are captured automatically when you share properties over WhatsApp."
+          subtitle={
+            contactId
+              ? 'No journey items for this contact yet.'
+              : 'Journeys are captured automatically when you share properties over WhatsApp.'
+          }
         />
       ) : (
         groups.map((group) => {
