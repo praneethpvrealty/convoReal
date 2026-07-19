@@ -20,9 +20,11 @@ import {
   AgentProperties,
   AgentRequirements,
   AgentSchedule,
+  InterestedProperties,
 } from '@/components/agent-detail';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
-import { formatInr } from '@/lib/format';
+import { approveAndSendDetails } from '@/lib/approve-contact';
+import { formatBudgetRange } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -154,12 +156,7 @@ function ContactCard({ contact }: { contact: Contact }) {
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
 
-  const budget =
-    contact.no_budget
-      ? 'No budget constraint'
-      : contact.min_budget || contact.max_budget
-        ? `${formatInr(contact.min_budget)} – ${formatInr(contact.max_budget)}`
-        : null;
+  const budget = formatBudgetRange(contact.min_budget, contact.max_budget, contact.no_budget);
 
   return (
     <KeyboardAvoidingView
@@ -234,9 +231,19 @@ function ContactCard({ contact }: { contact: Contact }) {
         ) : null}
       </View>
 
+      {contact.classification &&
+      ['Owner', 'Seller', 'Developer', 'Owner & Buyer', 'Agent'].includes(contact.classification) ? (
+        <AgentProperties
+          contactId={contact.id}
+          title={contact.classification === 'Agent' ? 'Showcase properties' : 'Managed properties'}
+        />
+      ) : null}
+      {contact.classification &&
+      ['Buyer', 'Agent', 'Owner & Buyer'].includes(contact.classification) ? (
+        <InterestedProperties contact={contact} />
+      ) : null}
       {contact.classification === 'Agent' ? (
         <>
-          <AgentProperties contactId={contact.id} />
           <AgentRequirements key={`req-${contact.id}`} agent={contact} />
           <AgentSchedule contact={contact} />
           <AgentNotes contactId={contact.id} />
@@ -253,9 +260,9 @@ function ContactCard({ contact }: { contact: Contact }) {
 
 /**
  * Web parity: contacts arriving from portals/imports land as
- * pending_review; approving flips them active (contact-detail-view's
- * approveContact). Sending property details on approve stays in the
- * conversation thread.
+ * pending_review; approving flips them active and auto-sends the
+ * inquired property's details via WhatsApp (contact-detail-view's
+ * approveContact + sendPropertyDetailsHelper).
  */
 function ReviewBanner({ contact }: { contact: Contact }) {
   const { colors, fonts: f } = useTheme();
@@ -263,20 +270,30 @@ function ReviewBanner({ contact }: { contact: Contact }) {
 
   async function approve() {
     setBusy(true);
-    const { error } = await supabase
-      .from('contacts')
-      .update({ status: 'active', updated_at: new Date().toISOString() })
-      .eq('id', contact.id);
+    const result = await approveAndSendDetails(contact);
     setBusy(false);
-    if (error) {
+    if (!result.ok) {
       haptic.warn();
-      Alert.alert('Could not approve', friendlyError(error.message));
+      Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
       return;
     }
     haptic.success();
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+    if (result.reengageConversationId) {
+      const convId = result.reengageConversationId;
+      Alert.alert(
+        'Approved — template needed',
+        'WhatsApp allows free text only within 24 hours of their last message. Opening the thread so you can send the details as a template.',
+        [{ text: 'Open thread', onPress: () => router.push(`/(app)/conversation/${convId}`) }]
+      );
+    } else if (result.error) {
+      Alert.alert(
+        'Approved',
+        'But sending the property details failed — check the WhatsApp configuration.'
+      );
+    }
   }
 
   return (

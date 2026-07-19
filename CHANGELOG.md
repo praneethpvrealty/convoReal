@@ -13,6 +13,16 @@ and polish.
 
 ### Changed
 
+- **Agent replies clear the chatbot handoff flag.** When the bot
+  hands a customer to staff ("Talk to an Agent"), the conversation
+  goes `pending`; it now flips back to `open` automatically as soon
+  as a human sends any message (web or mobile), and the mobile
+  thread header spells the state out ("Needs your reply") instead
+  of a bare "Pending" that read like the contact's review status.
+  Mobile API calls also retry once with a refreshed token on 401 —
+  a sign-out on another surface could revoke the token and surface
+  as "Unauthorized" on send while the rest of the app kept working.
+
 - **Mobile: long-press menus are launcher-style popovers.** The
   WhatsApp button's long-press options opened as a giant centered
   system dialog; they now appear in a compact floating menu anchored
@@ -30,9 +40,13 @@ and polish.
   with the details the row no longer carries — budget, tags,
   interested-in properties, areas, email, company, last contacted —
   and an "Open full contact" button; a plain tap still goes straight
-  to the contact screen. Refined to hold-to-peek: the details expand
-  inline right below the pressed row (pushing the list down) while
-  the finger stays down, and collapse the moment it lifts — no sheet.
+  to the contact screen. Refined to hold-to-peek: a row-sized capsule
+  expands inline right below the pressed row while the finger stays
+  down — flashlight accent, real shadow, two crisp lines (budget /
+  company, then areas · tags · ★ interests · last contacted) — and
+  collapses the moment it lifts. Budgets with only one bound now read
+  "Up to ₹4.4 Cr" / "₹2 Cr+" instead of "— – ₹4.4 Cr" (also fixed on
+  the contact card).
 
 - **Mobile Contacts: the Agents entry is a tie-person glyph with an
   "Ag" caption.** The briefcase icon didn't say "Agents" (user
@@ -55,6 +69,20 @@ and polish.
   visible and filter live as you type; the button became "Done".
 
 ### Added
+
+- **Mobile: desktop-parity approve + connected properties; staff
+  numbers excluded.** Approving a Needs-Review contact no longer
+  asks through a system dialog — one tap flips them active and,
+  like desktop, auto-sends the inquired property's details
+  (address + map link) through the CRM WhatsApp number; outside
+  Meta's 24-hour window it opens the thread for a template send
+  instead. Contact screens now show connected properties like the
+  web card: Managed properties for Owner/Seller/Developer (and
+  agents' showcase list), and Interested properties for buyers
+  (inquired + marked interests, tap-through). Team members' own
+  WhatsApp numbers no longer appear as leads — contacts matching a
+  staff profile phone are filtered from the list and the segment
+  counts.
 
 - **Mobile Agents: two-pane layout, Requirements and Schedule.** On
   wide screens (tablets/foldables ≥700dp) the Agents screen becomes

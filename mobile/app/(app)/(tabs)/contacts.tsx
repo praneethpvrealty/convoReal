@@ -36,9 +36,10 @@ import {
   listCard,
 } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
+import { approveAndSendDetails } from '@/lib/approve-contact';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
-import { chatListTime, cleanPhoneInput, formatInr } from '@/lib/format';
+import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -71,8 +72,35 @@ export interface ContactsPage {
  * to ids first (same technique the web uses for notes). Segments follow
  * the web's quick-filter tabs exactly.
  */
+/**
+ * Team members message the shared number too, which lands their own
+ * phones in `contacts`. They're staff, not leads — keep them out of
+ * the list and the segment counts. PostgREST filter string over the
+ * common stored formats of each staff number's last 10 digits.
+ */
+async function staffPhoneFilter(): Promise<string | null> {
+  return queryClient.fetchQuery({
+    queryKey: ['staff-phone-filter'],
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from('profiles').select('phone').not('phone', 'is', null);
+      const digits = Array.from(
+        new Set(
+          (data ?? [])
+            .map((p: { phone: string | null }) => String(p.phone ?? '').replace(/\D/g, '').slice(-10))
+            .filter((d) => d.length === 10)
+        )
+      );
+      if (digits.length === 0) return null;
+      const variants = digits.flatMap((d) => [d, `91${d}`, `+91${d}`]);
+      return `(${variants.map((v) => `"${v}"`).join(',')})`;
+    },
+  });
+}
+
 async function fetchContacts(search: string, segment: SegmentKey): Promise<ContactsPage> {
   const q = search.trim();
+  const staffFilter = await staffPhoneFilter();
   let query = supabase
     .from('contacts')
     .select(
@@ -82,6 +110,10 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
     )
     .order('created_at', { ascending: false })
     .limit(150);
+
+  if (staffFilter) {
+    query = query.not('phone', 'in', staffFilter);
+  }
 
   if (segment === 'active' || segment === 'pending_review') {
     query = query.eq('status', segment);
@@ -183,17 +215,26 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
 
 /** Segment counts, same head-count technique as the web tabs. */
 async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
+  const staffFilter = await staffPhoneFilter();
+  const excludeStaff = <T extends { not: (c: string, op: string, v: string) => T }>(q: T): T =>
+    staffFilter ? q.not('phone', 'in', staffFilter) : q;
   const [active, review, market, wonDeals] = await Promise.all([
-    supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-    supabase
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending_review'),
-    supabase
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'active')
-      .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null'),
+    excludeStaff(
+      supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('status', 'active')
+    ),
+    excludeStaff(
+      supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending_review')
+    ),
+    excludeStaff(
+      supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null')
+    ),
     supabase.from('deals').select('contact_id').eq('status', 'won'),
   ]);
   const transacted = new Set(
@@ -497,30 +538,34 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
   );
 }
 
-/** Web parity: approve a pending_review contact into the active list
- *  (contact-detail-view's approveContact). */
-function approveContact(contact: Contact) {
-  const name = contact.name || contact.phone;
-  Alert.alert('Approve this contact?', `${name} moves into your active contacts.`, [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Approve',
-      onPress: async () => {
-        const { error } = await supabase
-          .from('contacts')
-          .update({ status: 'active', updated_at: new Date().toISOString() })
-          .eq('id', contact.id);
-        if (error) {
-          haptic.warn();
-          Alert.alert('Could not approve', friendlyError(error.message));
-          return;
-        }
-        haptic.success();
-        queryClient.invalidateQueries({ queryKey: ['contacts'] });
-        queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
-      },
-    },
-  ]);
+/** Desktop-parity approve: no confirmation dialog — flip active and
+ *  auto-send the inquired property's details via WhatsApp, falling
+ *  back to the thread's template picker outside the 24-hour window. */
+async function approveContact(contact: Contact) {
+  haptic.tap();
+  const result = await approveAndSendDetails(contact);
+  if (!result.ok) {
+    haptic.warn();
+    Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
+    return;
+  }
+  haptic.success();
+  queryClient.invalidateQueries({ queryKey: ['contacts'] });
+  queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+  queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+  if (result.reengageConversationId) {
+    const convId = result.reengageConversationId;
+    Alert.alert(
+      'Approved — template needed',
+      'WhatsApp allows free text only within 24 hours of their last message. Opening the thread so you can send the details as a template.',
+      [{ text: 'Open thread', onPress: () => router.push(`/(app)/conversation/${convId}`) }]
+    );
+  } else if (result.error) {
+    Alert.alert(
+      'Approved',
+      'But sending the property details failed — check the WhatsApp configuration.'
+    );
+  }
 }
 
 /** "Send internal message": the CRM inbox thread — open the latest
@@ -659,9 +704,10 @@ function ContactRow({
 }
 
 /**
- * Hold-to-peek card: rendered inline right below the pressed row
- * (pushing the rest of the list down) while the finger stays down —
- * the crisp details the compact row no longer shows.
+ * Hold-to-peek capsule: one row-sized pill under the pressed contact
+ * with the two crispest lines (budget / areas / tags), a flashlight
+ * accent and a real shadow. Near-opaque fill on purpose — a shadow
+ * under translucent glass bleeds through as a grey band.
  */
 function ContactPeekCard({
   contact,
@@ -672,7 +718,7 @@ function ContactPeekCard({
   tags: string[];
   propertyCodes: Record<string, string>;
 }) {
-  const { colors, fonts: f } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const interests = Array.from(
     new Set(
       [...(contact.property_interests ?? []), contact.last_inquired_property_id]
@@ -680,82 +726,49 @@ function ContactPeekCard({
         .map((id) => propertyCodes[id])
         .filter((c): c is string => Boolean(c))
     )
-  ).slice(0, 4);
-  const budget = contact.no_budget
-    ? 'No budget constraint'
-    : contact.min_budget || contact.max_budget
-      ? `${formatInr(contact.min_budget)} – ${formatInr(contact.max_budget)}`
-      : null;
-  const empty =
-    !budget &&
-    !contact.company &&
-    !contact.email &&
-    !contact.areas_of_interest?.length &&
-    tags.length === 0 &&
-    interests.length === 0;
+  ).slice(0, 2);
+  const budget = formatBudgetRange(contact.min_budget, contact.max_budget, contact.no_budget);
+
+  const headline =
+    [budget ? `Budget ${budget}` : null, contact.company, contact.email]
+      .filter(Boolean)
+      .slice(0, 2)
+      .join(' · ') || 'No preferences captured yet';
+  const detail = [
+    contact.areas_of_interest?.length ? contact.areas_of_interest.slice(0, 2).join(', ') : null,
+    ...tags.slice(0, 2),
+    ...interests.map((code) => `★ ${code}`),
+    contact.last_contacted_at ? `Last ${chatListTime(contact.last_contacted_at)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Animated.View
       entering={FadeIn.duration(120)}
-      style={[styles.peekCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+      style={[
+        styles.peekCapsule,
+        {
+          backgroundColor: dark ? 'rgba(16,42,30,0.97)' : 'rgba(255,255,255,0.97)',
+          borderColor: colors.primary,
+          shadowColor: dark ? colors.primary : '#0B3D2E',
+        },
+      ]}
     >
-      {budget ? <PreviewRow icon="cash-outline" label="Budget" value={budget} /> : null}
-      {contact.company ? <PreviewRow icon="business-outline" label="Company" value={contact.company} /> : null}
-      {contact.email ? <PreviewRow icon="mail-outline" label="Email" value={contact.email} /> : null}
-      {contact.areas_of_interest?.length ? (
-        <PreviewRow
-          icon="location-outline"
-          label="Areas of interest"
-          value={contact.areas_of_interest.join(', ')}
-        />
-      ) : null}
-      {contact.last_contacted_at ? (
-        <PreviewRow
-          icon="time-outline"
-          label="Last contacted"
-          value={chatListTime(contact.last_contacted_at)}
-        />
-      ) : null}
-      {tags.length > 0 || interests.length > 0 ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {tags.map((t) => (
-            <Tag key={t} label={t} color={colors.textMuted} />
-          ))}
-          {interests.map((code) => (
-            <Tag key={code} label={`★ ${code}`} color={colors.warning} />
-          ))}
-        </View>
-      ) : null}
-      {empty ? (
-        <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-          No preferences captured yet — tap the row for the full contact.
-        </Text>
-      ) : null}
-      <Text style={{ fontSize: 11, color: colors.textFaint, fontFamily: f.medium }}>
-        Release to close · tap the row for full details
-      </Text>
-    </Animated.View>
-  );
-}
-
-function PreviewRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  label: string;
-  value: string;
-}) {
-  const { colors, fonts: f } = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
-      <Ionicons name={icon} size={16} color={colors.textMuted} style={{ marginTop: 2 }} />
-      <View style={{ flex: 1, gap: 1 }}>
-        <Text style={{ fontSize: 11.5, color: colors.textFaint }}>{label}</Text>
-        <Text style={{ fontSize: 14, fontFamily: f.medium, color: colors.text }}>{value}</Text>
+      <View style={[styles.peekTorch, { backgroundColor: colors.primarySoft }]}>
+        <Ionicons name="flash" size={16} color={colors.primary} />
       </View>
-    </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+          {headline}
+        </Text>
+        {detail ? (
+          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+            {detail}
+          </Text>
+        ) : null}
+      </View>
+    </Animated.View>
   );
 }
 
@@ -934,17 +947,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  peekCard: {
-    marginHorizontal: spacing.lg,
-    // Tuck flush under the pressed row (cancels the row's bottom margin).
-    marginTop: -(spacing.md - 2),
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
-    padding: spacing.md,
-    gap: spacing.sm,
+  peekCapsule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginHorizontal: spacing.lg + 6,
+    marginTop: -4,
+    marginBottom: spacing.md,
+    borderWidth: 1.5,
+    borderRadius: 999,
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  peekTorch: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   importRow: {
     flexDirection: 'row',

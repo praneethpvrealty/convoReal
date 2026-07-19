@@ -157,6 +157,15 @@ export default function ConversationScreen() {
   );
 }
 
+// Conversation status is the inbox queue state ("pending" = the bot
+// handed off and no human replied yet) — NOT the contact's review
+// status. Spell it out so the two can't be confused.
+const STATUS_LABELS: Record<string, string> = {
+  open: 'Open',
+  pending: 'Needs your reply',
+  closed: 'Closed',
+};
+
 function ThreadHeader({ title, status }: { title: string; status?: string }) {
   const { colors, fonts: f } = useTheme();
   return (
@@ -167,8 +176,13 @@ function ThreadHeader({ title, status }: { title: string; status?: string }) {
           {title}
         </Text>
         {status ? (
-          <Text style={{ fontSize: 11.5, color: colors.textMuted, textTransform: 'capitalize' }}>
-            {status}
+          <Text
+            style={{
+              fontSize: 11.5,
+              color: status === 'pending' ? colors.warning : colors.textMuted,
+            }}
+          >
+            {STATUS_LABELS[status] ?? status}
           </Text>
         ) : null}
       </View>
