@@ -49,7 +49,7 @@ export function OtpInput({
               style={[
                 styles.cell,
                 {
-                  backgroundColor: colors.surface,
+                  backgroundColor: colors.surfaceRaised,
                   borderColor: active ? colors.primary : colors.border,
                   borderWidth: active ? 2 : StyleSheet.hairlineWidth,
                 },

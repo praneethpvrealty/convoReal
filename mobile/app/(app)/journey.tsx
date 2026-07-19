@@ -24,7 +24,7 @@ import type { JourneyItem, JourneyStage } from '@/lib/types';
  * the web; advancing/dropping happens there.
  */
 export default function JourneyScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
 
   const { data: stages } = useQuery({
@@ -78,7 +78,7 @@ export default function JourneyScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1 }}
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
@@ -108,12 +108,12 @@ export default function JourneyScreen() {
           return (
             <View
               key={group.items[0].id}
-              style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
             >
               <Link href={`/(app)/contact/${group.items[0].contact_id}`} asChild>
                 <Pressable style={styles.cardHeader}>
                   <Avatar name={name} size={36} />
-                  <Text style={{ flex: 1, fontSize: 15.5, fontFamily: fonts.bold, color: colors.text }}>
+                  <Text style={{ flex: 1, fontSize: 15.5, fontFamily: f.bold, color: colors.text }}>
                     {name}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.textFaint }}>
@@ -148,7 +148,7 @@ export default function JourneyScreen() {
                     <Text
                       style={{
                         fontSize: 11.5,
-                        fontFamily: fonts.bold,
+                        fontFamily: f.bold,
                         color: dropped ? colors.danger : (stage?.color ?? colors.textMuted),
                       }}
                     >
@@ -169,8 +169,8 @@ const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   card: {
     ...shadows.card,
+    borderWidth: 1,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   cardHeader: {

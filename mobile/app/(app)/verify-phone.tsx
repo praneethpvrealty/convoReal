@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GlassCard } from '@/components/glass-card';
 import { OtpInput } from '@/components/otp-input';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
@@ -26,7 +27,7 @@ import { spacing, useTheme , fonts } from '@/lib/theme';
  * (app) layout lets the user through.
  */
 export default function VerifyPhoneScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const setSession = useAuthStore((s) => s.setSession);
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -79,7 +80,7 @@ export default function VerifyPhoneScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -88,11 +89,12 @@ export default function VerifyPhoneScreen() {
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
         >
+          <GlassCard style={styles.formCard}>
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
             <View style={[styles.iconBadge, { backgroundColor: colors.successSoft }]}>
               <Ionicons name="logo-whatsapp" size={34} color={colors.success} />
             </View>
-            <Text style={[styles.title, { color: colors.text }]}>
+            <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>
               Verify your WhatsApp number
             </Text>
             <Text style={[styles.body, { color: colors.textMuted }]}>
@@ -136,13 +138,14 @@ export default function VerifyPhoneScreen() {
                 accessibilityRole="button"
                 style={{ alignItems: 'center', paddingVertical: 10 }}
               >
-                <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: fonts.semibold }}>
+                <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: f.semibold }}>
                   Change number
                 </Text>
               </Pressable>
             </>
           )}
 
+          </GlassCard>
           <Pressable
             onPress={() => supabase.auth.signOut()}
             hitSlop={10}
@@ -158,7 +161,8 @@ export default function VerifyPhoneScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.xl },
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
+  formCard: { padding: spacing.xl, gap: spacing.xl },
   iconBadge: {
     width: 68,
     height: 68,

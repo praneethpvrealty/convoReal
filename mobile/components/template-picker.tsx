@@ -46,7 +46,7 @@ export function TemplatePicker({
   onSend: (template: MessageTemplate, bodyParams: string[], renderedText: string) => void;
   sending: boolean;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const [selected, setSelected] = useState<MessageTemplate | null>(null);
   const [values, setValues] = useState<string[]>([]);
 
@@ -100,7 +100,7 @@ export function TemplatePicker({
             ) : (
               <View style={{ width: 20 }} />
             )}
-            <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: colors.text }}>
+            <Text style={{ fontSize: 16, fontFamily: f.bold, color: colors.text }}>
               {selected ? selected.name : 'Send a template'}
             </Text>
             <Pressable
@@ -142,7 +142,7 @@ export function TemplatePicker({
                     }}
                   >
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={{ fontSize: 14.5, fontFamily: fonts.bold, color: colors.text }}>
+                      <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}>
                         {t.name}
                       </Text>
                       <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={2}>
@@ -177,7 +177,7 @@ export function TemplatePicker({
 
               <View style={[styles.preview, { backgroundColor: colors.surfaceSunken }]}>
                 {selected.header_type === 'text' && selected.header_content ? (
-                  <Text style={{ fontSize: 14, fontFamily: fonts.bold, color: colors.incomingText }}>
+                  <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.incomingText }}>
                     {selected.header_content}
                   </Text>
                 ) : null}

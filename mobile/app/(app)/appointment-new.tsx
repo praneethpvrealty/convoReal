@@ -32,7 +32,7 @@ const TYPES: { value: AppointmentType; label: string; icon: string }[] = [
 ];
 
 export default function NewAppointmentScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const session = useAuthStore((s) => s.session);
   const accountId = useAuthStore((s) => s.profile?.account_id);
 
@@ -104,7 +104,7 @@ export default function NewAppointmentScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Stack.Screen
@@ -146,7 +146,7 @@ export default function NewAppointmentScreen() {
                 <Text
                   style={{
                     fontSize: 12.5,
-                    fontFamily: fonts.semibold,
+                    fontFamily: f.semibold,
                     color: active ? colors.primary : colors.textMuted,
                   }}
                 >
@@ -163,7 +163,7 @@ export default function NewAppointmentScreen() {
             onPress={() => setPicker('date')}
           >
             <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.text }}>{startLabel}</Text>
+            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>{startLabel}</Text>
           </Pressable>
           <Pressable
             style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border, flexGrow: 0 }]}
@@ -192,7 +192,7 @@ export default function NewAppointmentScreen() {
         {contact ? (
           <View style={[styles.contactRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Avatar name={contact.name || contact.phone} size={30} />
-            <Text style={{ flex: 1, fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>
+            <Text style={{ flex: 1, fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
               {contact.name || contact.phone}
             </Text>
             <Pressable

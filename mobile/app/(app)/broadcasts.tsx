@@ -31,7 +31,7 @@ function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
 }
 
 export default function BroadcastsScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['broadcasts'],
     queryFn: async () => {
@@ -51,7 +51,7 @@ export default function BroadcastsScreen() {
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -87,7 +87,7 @@ export default function BroadcastsScreen() {
 }
 
 function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const delivered = broadcast.delivered_count + broadcast.read_count + broadcast.replied_count;
   const progress =
     broadcast.total_recipients > 0
@@ -99,7 +99,7 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
       <Pressable
         style={StyleSheet.flatten([
           styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
         ])}
         android_ripple={{ color: colors.border }}
       >
@@ -110,7 +110,7 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
           <Text
             style={{
               fontSize: 11.5,
-              fontFamily: fonts.bold,
+              fontFamily: f.bold,
               textTransform: 'uppercase',
               color: statusColor(broadcast.status, colors),
             }}
@@ -145,13 +145,13 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
 }
 
 function Stat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={{ alignItems: 'center', gap: 1 }}>
       <Text
         style={{
           fontSize: 15,
-          fontFamily: fonts.extrabold,
+          fontFamily: f.extrabold,
           color: danger ? colors.danger : colors.text,
         }}
       >
@@ -165,8 +165,8 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
 const styles = StyleSheet.create({
   card: {
     ...shadows.card,
+    borderWidth: 1,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
     gap: 8,
   },

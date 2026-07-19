@@ -42,7 +42,7 @@ function propertyStatusForStage(stageName: string): string | null {
 }
 
 export default function DealsScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
@@ -120,9 +120,9 @@ export default function DealsScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Deals</Text>
+        <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Deals</Text>
         {pipelines && pipelines.length > 1 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
@@ -240,7 +240,7 @@ export default function DealsScreen() {
                       backgroundColor: s.color || colors.primary,
                     }}
                   />
-                  <Text style={{ fontSize: 15, fontFamily: fonts.semibold, color: colors.text }}>
+                  <Text style={{ fontSize: 15, fontFamily: f.semibold, color: colors.text }}>
                     {s.name}
                   </Text>
                 </Pressable>
@@ -251,18 +251,18 @@ export default function DealsScreen() {
 }
 
 function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const contactName = deal.contact?.name || deal.contact?.phone;
 
   return (
     <View
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
     >
       <View style={styles.cardTop}>
         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
           {deal.title}
         </Text>
-        <Text style={{ fontSize: 15, fontFamily: fonts.extrabold, color: colors.primary }}>
+        <Text style={{ fontSize: 15, fontFamily: f.extrabold, color: colors.primary }}>
           {formatInr(deal.value)}
         </Text>
       </View>
@@ -293,7 +293,7 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
           <Text
             style={{
               fontSize: 12,
-              fontFamily: fonts.bold,
+              fontFamily: f.bold,
               color: deal.status === 'won' ? colors.success : colors.danger,
               textTransform: 'uppercase',
             }}
@@ -311,7 +311,7 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
           style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
-          <Text style={{ fontSize: 12.5, fontFamily: fonts.bold, color: colors.primary }}>
+          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
             Move stage
           </Text>
         </Pressable>
@@ -332,10 +332,10 @@ const styles = StyleSheet.create({
   },
   card: {
     ...shadows.card,
+    borderWidth: 1,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.md,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
     gap: 8,
   },

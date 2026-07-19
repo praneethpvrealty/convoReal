@@ -64,7 +64,7 @@ async function fetchMonth(month: Date): Promise<Appointment[]> {
 }
 
 export default function CalendarScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const today = new Date();
   const [month, setMonth] = useState(() => monthStart(today));
   const [selected, setSelected] = useState<Date>(today);
@@ -106,7 +106,7 @@ export default function CalendarScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -142,7 +142,7 @@ export default function CalendarScreen() {
           >
             <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
           </Pressable>
-          <Text style={{ fontSize: 17, fontFamily: fonts.extrabold, color: colors.text }}>
+          <Text style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}>
             {month.toLocaleDateString([], { month: 'long', year: 'numeric' })}
           </Text>
           <Pressable
@@ -165,12 +165,12 @@ export default function CalendarScreen() {
             accessibilityLabel="Jump to today"
             style={{ paddingVertical: 8, paddingHorizontal: 4 }}
           >
-            <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.primary }}>Today</Text>
+            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>Today</Text>
           </Pressable>
         </View>
 
         {/* Grid */}
-        <View style={[styles.grid, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.grid, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
           <View style={styles.weekRow}>
             {WEEKDAYS.map((w, i) => (
               <Text key={i} style={[styles.weekday, { color: colors.textFaint }]}>
@@ -267,7 +267,7 @@ function AppointmentCard({
   appointment: Appointment;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
   const time = new Date(appointment.start_time).toLocaleTimeString([], {
     hour: '2-digit',
@@ -280,7 +280,7 @@ function AppointmentCard({
       onPress={onPress}
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.border },
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
         done && { opacity: 0.55 },
       ]}
     >
@@ -303,7 +303,7 @@ function AppointmentCard({
           {appointment.location ? ` · ${appointment.location}` : ''}
         </Text>
         {appointment.contact ? (
-          <Text style={{ fontSize: 12.5, color: colors.primary, fontFamily: fonts.semibold }}>
+          <Text style={{ fontSize: 12.5, color: colors.primary, fontFamily: f.semibold }}>
             {appointment.contact.name || appointment.contact.phone}
           </Text>
         ) : null}
@@ -312,7 +312,7 @@ function AppointmentCard({
         <Text
           style={{
             fontSize: 11,
-            fontFamily: fonts.bold,
+            fontFamily: f.bold,
             textTransform: 'uppercase',
             color: appointment.status === 'completed' ? colors.success : colors.danger,
           }}
@@ -334,7 +334,7 @@ function AppointmentDetail({
   appointment: Appointment | null;
   onClose: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const [rescheduling, setRescheduling] = useState(false);
   const [newStart, setNewStart] = useState<Date | null>(null);
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
@@ -405,7 +405,7 @@ function AppointmentDetail({
               <Ionicons name={meta.icon} size={17} color={colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 17, fontFamily: fonts.extrabold, color: colors.text }}>
+              <Text style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}>
                 {appointment.title}
               </Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
@@ -461,7 +461,7 @@ function AppointmentDetail({
                     onPress={() => setPicker('date')}
                   >
                     <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-                    <Text style={{ fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text }}>
+                    <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
                       {effectiveStart.toLocaleDateString([], { day: 'numeric', month: 'short' })}
                     </Text>
                   </Pressable>
@@ -470,7 +470,7 @@ function AppointmentDetail({
                     onPress={() => setPicker('time')}
                   >
                     <Ionicons name="time-outline" size={15} color={colors.primary} />
-                    <Text style={{ fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text }}>
+                    <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
                       {effectiveStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Text>
                   </Pressable>
@@ -541,7 +541,7 @@ function DetailRow({
   text: string;
   accent?: boolean;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
       <Ionicons name={icon} size={16} color={accent ? colors.primary : colors.textMuted} />
@@ -575,6 +575,7 @@ function SheetButton({
   disabled?: boolean;
   busy?: boolean;
 }) {
+  const { fonts: f } = useTheme();
   return (
     <Pressable
       style={{
@@ -591,7 +592,7 @@ function SheetButton({
       {busy ? (
         <ActivityIndicator size="small" color={textColor} />
       ) : (
-        <Text style={{ fontSize: 13.5, fontFamily: fonts.bold, color: textColor }}>{label}</Text>
+        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: textColor }}>{label}</Text>
       )}
     </Pressable>
   );
@@ -626,11 +627,11 @@ const styles = StyleSheet.create({
   },
   card: {
     ...shadows.card,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
   },
   typeBadge: {

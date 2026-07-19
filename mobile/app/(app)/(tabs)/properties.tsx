@@ -35,7 +35,7 @@ import {
   type ListingFilter,
   type NearAnchor,
 } from '@/lib/property-search-store';
-import { onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { mapPin, onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const LISTING_FILTERS: ListingFilter[] = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'];
@@ -85,7 +85,7 @@ export async function fetchPropertyPage(
 }
 
 export default function PropertiesScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const { search, listing, near, setSearch, setListing, setNear, setRadius } =
     usePropertySearch();
@@ -154,10 +154,10 @@ export default function PropertiesScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: colors.text }]}>Properties</Text>
+          <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Properties</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             {typeof total === 'number' ? (
               <Text style={{ fontSize: 13, color: colors.textMuted }}>{total} listings</Text>
@@ -194,7 +194,7 @@ export default function PropertiesScreen() {
       {near ? (
         <View style={styles.nearBar}>
           <Ionicons name="location" size={13} color={colors.primary} />
-          <Text style={{ fontSize: 12.5, fontFamily: fonts.bold, color: colors.primary }}>
+          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
             {near.label}
           </Text>
           <View style={{ flexDirection: 'row', gap: 4, marginLeft: spacing.xs }}>
@@ -211,7 +211,7 @@ export default function PropertiesScreen() {
                 <Text
                   style={{
                     fontSize: 12,
-                    fontFamily: fonts.bold,
+                    fontFamily: f.bold,
                     color: near.radiusKm === km ? colors.primary : colors.textFaint,
                     textDecorationLine: near.radiusKm === km ? 'underline' : 'none',
                   }}
@@ -283,7 +283,7 @@ export default function PropertiesScreen() {
                       paddingVertical: 11,
                     }}
                   >
-                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: fonts.bold }}>
+                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: f.bold }}>
                       Search within 25 km
                     </Text>
                   </Pressable>
@@ -311,7 +311,7 @@ function NearMeChip({
   locating: boolean;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -339,7 +339,7 @@ function NearMeChip({
       <Text
         style={{
           fontSize: 13,
-          fontFamily: fonts.semibold,
+          fontFamily: f.semibold,
           color: active ? colors.onPrimary : colors.textMuted,
         }}
       >
@@ -356,7 +356,7 @@ function NearMeChip({
  * works exactly as before (submit / just stop typing).
  */
 function LocalitySearchBox() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { search, setSearch, setNear } = usePropertySearch();
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
@@ -422,7 +422,7 @@ function LocalitySearchBox() {
             >
               <Ionicons name="location-outline" size={15} color={colors.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.text }}>
+                <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>
                   {s.main_text}
                 </Text>
                 {s.secondary_text ? (
@@ -446,7 +446,7 @@ function LocalitySearchBox() {
  * then bordered spec pills (beds / area / type).
  */
 function PropertyCard({ property }: { property: Property }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const gradient = useBrandGradient();
   const cover = property.images?.[0];
   const price =
@@ -464,7 +464,10 @@ function PropertyCard({ property }: { property: Property }) {
       onPress={() => router.push(`/(app)/property/${property.id}`)}
       accessibilityRole="button"
       accessibilityLabel={`Open property ${property.title}`}
-      contentStyle={StyleSheet.flatten([styles.card, { backgroundColor: colors.surface }])}
+      contentStyle={StyleSheet.flatten([
+        styles.card,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ])}
     >
         <View style={styles.coverWrap}>
           {cover ? (
@@ -480,9 +483,9 @@ function PropertyCard({ property }: { property: Property }) {
             </LinearGradient>
           )}
           {property.listing_type || typeof property.distance_km === 'number' ? (
-            <View style={[styles.statusChip, { backgroundColor: colors.mint }]}>
-              <View style={[styles.statusDot, { backgroundColor: colors.mintText }]} />
-              <Text style={[styles.statusText, { color: colors.mintText }]}>
+            <View style={[styles.statusChip, { backgroundColor: mapPin.bg }]}>
+              <View style={[styles.statusDot, { backgroundColor: mapPin.dot }]} />
+              <Text style={[styles.statusText, { color: mapPin.text }]}>
                 {typeof property.distance_km === 'number'
                   ? property.location_tier === 'exact'
                     ? 'In area'
@@ -503,7 +506,7 @@ function PropertyCard({ property }: { property: Property }) {
             <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
               {property.title}
             </Text>
-            <Text style={[styles.cardPrice, { color: colors.text }]}>{price ?? '—'}</Text>
+            <Text style={[styles.cardPrice, { color: colors.primary }]}>{price ?? '—'}</Text>
           </View>
           {place ? (
             <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
@@ -534,12 +537,12 @@ function SpecPill({
   icon: React.ComponentProps<typeof Ionicons>['name'];
   label: string;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   // Reference style: soft filled chips, no border.
   return (
     <View style={[styles.specPill, { backgroundColor: colors.surfaceSunken }]}>
       <Ionicons name={icon} size={13} color={colors.textMuted} />
-      <Text style={{ fontSize: 12, fontFamily: fonts.semibold, color: colors.textMuted }} numberOfLines={1}>
+      <Text style={{ fontSize: 12, fontFamily: f.semibold, color: colors.textMuted }} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -598,7 +601,8 @@ const styles = StyleSheet.create({
     ...shadows.card,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
-    borderRadius: radius.xl,
+    borderRadius: radius.lg,
+    borderWidth: 1,
     padding: 10,
   },
   coverWrap: { height: 175, borderRadius: radius.lg, overflow: 'hidden' },

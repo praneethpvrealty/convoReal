@@ -1,31 +1,41 @@
-import { Modal, Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 /**
- * The one bottom sheet: themed scrim, rounded top, safe-area bottom
- * padding, Android back-button dismissal, backdrop tap-to-close and
- * `accessibilityViewIsModal` handled in one place. Children provide
- * their own horizontal padding.
+ * The one bottom sheet: themed scrim, glass border, drag handle,
+ * safe-area bottom padding, Android back-button dismissal, backdrop
+ * tap-to-close and `accessibilityViewIsModal` handled in one place.
+ * Children provide their own horizontal padding unless a `title` is
+ * given (which brings the standard header row).
  */
 export function BottomSheet({
   visible,
   onClose,
   children,
+  title,
   animation = 'slide',
   contentStyle,
 }: {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  title?: string;
   animation?: 'slide' | 'fade';
   contentStyle?: ViewStyle;
 }) {
-  const { colors } = useTheme();
+  const { colors, type } = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType={animation} onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType={animation}
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <Pressable
         style={[styles.backdrop, { backgroundColor: colors.backdrop }]}
         onPress={onClose}
@@ -39,11 +49,27 @@ export function BottomSheet({
             styles.sheet,
             {
               backgroundColor: colors.surfaceRaised,
+              borderColor: colors.glassBorder,
               paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md,
             },
             contentStyle,
           ]}
         >
+          <View style={[styles.handle, { backgroundColor: colors.textFaint }]} />
+          {title ? (
+            <View style={styles.head}>
+              <Text style={[type.heading, { color: colors.text }]}>{title}</Text>
+              <Pressable
+                onPress={onClose}
+                hitSlop={8}
+                accessibilityLabel="Close"
+                accessibilityRole="button"
+                style={styles.close}
+              >
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+          ) : null}
           {children}
         </Pressable>
       </Pressable>
@@ -56,6 +82,24 @@ const styles = StyleSheet.create({
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    paddingTop: spacing.md,
+    borderWidth: 1,
+    paddingTop: spacing.sm,
+    maxHeight: '88%',
   },
+  handle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: spacing.sm,
+    opacity: 0.5,
+  },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
 });

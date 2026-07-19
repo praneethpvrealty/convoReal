@@ -49,7 +49,7 @@ async function fetchConversations(): Promise<Conversation[]> {
 }
 
 export default function InboxScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const userId = useAuthStore((s) => s.session?.user.id);
   const [search, setSearch] = useState('');
@@ -92,7 +92,7 @@ export default function InboxScreen() {
   }, [data, filter, search]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <Stack.Screen options={{ headerShown: false }} />
       <InboxHeader search={search} onSearch={setSearch} />
 
@@ -157,7 +157,7 @@ export default function InboxScreen() {
 
 /** Instagram-style ring strip of HOT leads — tap to open the contact. */
 function HotLeadsStrip() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { data } = useQuery({
     queryKey: ['hot-leads'],
     queryFn: async () => {
@@ -187,7 +187,7 @@ function HotLeadsStrip() {
             <Pressable style={{ alignItems: 'center', gap: 4, width: 62 }}>
               <Avatar name={name} size={50} ring />
               <Text
-                style={{ fontSize: 11, fontFamily: fonts.semibold, color: colors.textMuted }}
+                style={{ fontSize: 11, fontFamily: f.semibold, color: colors.textMuted }}
                 numberOfLines={1}
               >
                 {name.split(/\s+/)[0]}
@@ -207,7 +207,7 @@ function InboxHeader({
   search: string;
   onSearch: (v: string) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const credits = useCredits();
   const session = useAuthStore((s) => s.session);
@@ -218,15 +218,15 @@ function InboxHeader({
     <View
       style={[
         styles.header,
-        { backgroundColor: colors.background, paddingTop: insets.top + spacing.sm },
+        { paddingTop: insets.top + spacing.sm },
       ]}
     >
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
           <Avatar name={displayName} size={42} />
           <View>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Hi, {displayName}</Text>
-            <Text style={{ fontSize: 12.5, fontFamily: fonts.medium, color: colors.textMuted }}>
+            <Text style={[styles.headerTitle, { color: colors.text, fontFamily: f.extrabold }]}>Hi, {displayName}</Text>
+            <Text style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}>
               Your WhatsApp inbox
             </Text>
           </View>
@@ -247,7 +247,7 @@ function InboxHeader({
           <Text
             style={{
               fontSize: 12.5,
-              fontFamily: fonts.bold,
+              fontFamily: f.bold,
               color: credits.total === 0 ? colors.danger : colors.mintText,
             }}
           >
@@ -265,7 +265,7 @@ function InboxHeader({
 }
 
 function ConversationRow({ conversation }: { conversation: Conversation }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const name = conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
 
@@ -279,7 +279,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
       contentStyle={StyleSheet.flatten([
         listCard,
         shadows.card,
-        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ])}
     >
         <Avatar name={name} size={50} />
@@ -287,7 +287,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
           <View style={styles.rowTop}>
             <View style={styles.nameWrap}>
               <Text
-                style={[styles.name, { color: colors.text }]}
+                style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}
                 numberOfLines={1}
               >
                 {name}

@@ -33,7 +33,7 @@ function recipientColor(status: BroadcastRecipient['status'], colors: ThemeColor
 }
 
 export default function BroadcastDetailScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]>('All');
 
@@ -72,7 +72,7 @@ export default function BroadcastDetailScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -110,7 +110,7 @@ export default function BroadcastDetailScreen() {
               <View style={[styles.row, { borderBottomColor: colors.border }]}>
                 <Avatar name={name} size={38} />
                 <View style={{ flex: 1, gap: 1 }}>
-                  <Text style={{ fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>
+                  <Text style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
                     {name}
                   </Text>
                   {item.error_message ? (
@@ -122,7 +122,7 @@ export default function BroadcastDetailScreen() {
                 <Text
                   style={{
                     fontSize: 11.5,
-                    fontFamily: fonts.bold,
+                    fontFamily: f.bold,
                     textTransform: 'uppercase',
                     color: recipientColor(item.status, colors),
                   }}
