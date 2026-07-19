@@ -498,10 +498,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const qs = params.toString();
     replaceUrl(router, qs ? `/contacts?${qs}` : '/contacts');
   };
-  const [activeCount, setActiveCount] = useState(0);
-  const [reviewCount, setReviewCount] = useState(0);
-  const [transactedCount, setTransactedCount] = useState(0);
-  const [marketActiveCount, setMarketActiveCount] = useState(0);
+  // null = not fetched yet. The tab labels render plain ("All
+  // Contacts") until real numbers exist — a "(0)"/"(...)" placeholder
+  // while counts load reads as broken data.
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState<number | null>(null);
+  const [transactedCount, setTransactedCount] = useState<number | null>(null);
+  const [marketActiveCount, setMarketActiveCount] = useState<number | null>(null);
+
+  /** " (42)" once known, "" while loading. */
+  const countSuffix = (n: number | null) => (n === null ? '' : ` (${n})`);
 
   const [filterClassification, setFilterClassification] = useState<string>('All');
   const [filterTag, setFilterTag] = useState<string>('All');
@@ -1795,7 +1801,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            All Contacts ({activeCount})
+            All Contacts{countSuffix(activeCount)}
           </button>
           <button
             onClick={() => setActiveTabAndSync('pending_review')}
@@ -1805,8 +1811,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Needs Review ({reviewCount})
-            {reviewCount > 0 && (
+            Needs Review{countSuffix(reviewCount)}
+            {(reviewCount ?? 0) > 0 && (
               <span className="inline-flex items-center justify-center bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] min-w-[16px] h-4 leading-none animate-pulse">
                 {reviewCount}
               </span>
@@ -1820,7 +1826,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Transacted ({transactedCount})
+            Transacted{countSuffix(transactedCount)}
           </button>
           <button
             onClick={() => setActiveTabAndSync('market_active')}
@@ -1830,7 +1836,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Active Buyers ({marketActiveCount})
+            Active Buyers{countSuffix(marketActiveCount)}
           </button>
         </div>
       </div>
