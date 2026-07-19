@@ -11,6 +11,36 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Contacts page: slow networks get a Retry card, not an eternal
+  spinner or fake counts.** The contacts load now races a 20s
+  timeout; a stalled connection surfaces an inline "Couldn't load
+  contacts / Retry" card instead of "Loading contacts..." forever.
+  While loading, the tab counters show "…" instead of a false
+  "All Contacts (0)". Navigation was never blocked during loads and
+  stays that way — the sidebar remains fully tappable mid-load.
+
+- **Slow networks no longer produce a "zombie" session.** When the
+  post-login profile fetch stalled (flaky mobile connection), the app
+  stayed stuck in a profile-pending state indefinitely: the header
+  showed a generic "User", role gates treated the caller as
+  least-privileged ("Read-only view — templates are managed by your
+  Organization Manager"), and account-scoped lists rendered empty
+  ("No templates yet") — misreporting both permissions and data. The
+  profile fetch now times out per attempt (10s, one retry), a hang
+  surfaces the existing "We couldn't load your profile / Retry"
+  screen instead, and the Templates panel keeps its loader up until
+  the profile actually resolves.
+
+- **Page can no longer pan sideways on phones.** `overflow-x: clip`
+  on `html`/`body` guarantees the page itself never scrolls
+  horizontally — every intended horizontal scroller (tables, tab
+  bars, chip rows) lives in its own container and is unaffected.
+  Layout was verified to reflow cleanly down to a 260px effective
+  viewport (high zoom / large text scaling) with no overflowing
+  elements.
+
 ### Added
 
 - **AI tag suggestions with tap-to-confirm.** The preference

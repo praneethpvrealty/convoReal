@@ -472,9 +472,16 @@ html[data-mode="light"] [class*="pointer-events-none"][class*=" blur-"] {
   }
   body {
     @apply bg-background text-foreground;
+    /* Never let the page itself pan sideways — every intended
+       horizontal scroller (tables, tab bars, chip rows) lives in its
+       own overflow-x-auto container. `clip` forbids scrolling without
+       turning the element into a scroll container the way `hidden`
+       would. Protects phones from any rogue wide element. */
+    overflow-x: clip;
   }
   html {
     @apply font-sans;
+    overflow-x: clip;
   }
 }
 
