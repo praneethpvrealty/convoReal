@@ -227,13 +227,27 @@ export default function ContactsScreen() {
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Contacts</Text>
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-            <IconButton
-              icon="briefcase-outline"
-              label="Agents directory"
-              size={20}
-              color={colors.primary}
+            {/* A caricature of the word, not an icon — a briefcase glyph
+                read as anything but "Agents" (user feedback). */}
+            <Pressable
+              hitSlop={8}
               onPress={() => router.push('/(app)/agents')}
-            />
+              accessibilityRole="button"
+              accessibilityLabel="Agents directory"
+              style={styles.agentsButton}
+            >
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontFamily: f.extrabold,
+                  color: colors.primary,
+                  letterSpacing: -0.5,
+                }}
+              >
+                Ag
+              </Text>
+              <View style={[styles.agentsUnderline, { backgroundColor: colors.primary }]} />
+            </Pressable>
             <IconButton
               icon="phone-portrait-outline"
               label="Import from phone"
@@ -760,6 +774,14 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+  agentsButton: {
+    minWidth: 36,
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  agentsUnderline: { width: 16, height: 2, borderRadius: 1 },
   rowBody: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
