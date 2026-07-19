@@ -18,6 +18,7 @@ import { ContactAppointments } from '@/components/calendar/contact-appointments'
 import {
   Building,
   ChevronLeft,
+  ChevronRight,
   Phone,
   Mail,
   Building2,
@@ -55,6 +56,37 @@ export default function AgentsPage() {
   };
   const scrollToList = () => {
     panesRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+  };
+
+  // Desktop: the split itself is controllable — a drag handle resizes
+  // the directory pane (persisted), and a chevron collapses it so the
+  // detail can take the full width.
+  const [listWidth, setListWidth] = useState(320);
+  const [listCollapsed, setListCollapsed] = useState(false);
+
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem('agents-list-width'));
+    if (saved >= 220 && saved <= 560) setListWidth(saved);
+  }, []);
+
+  const startResize = (e: React.PointerEvent) => {
+    if (listCollapsed) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = listWidth;
+    const onMove = (ev: PointerEvent) => {
+      setListWidth(Math.min(560, Math.max(220, startWidth + ev.clientX - startX)));
+    };
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.localStorage.setItem(
+        'agents-list-width',
+        String(Math.min(560, Math.max(220, startWidth + ev.clientX - startX)))
+      );
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   // Detail tab state for selected agent
@@ -260,8 +292,14 @@ export default function AgentsPage() {
       className="flex h-[calc(100vh-3.5rem)] bg-slate-950 text-slate-100 overflow-x-auto overflow-y-hidden snap-x snap-mandatory lg:overflow-hidden lg:snap-none"
     >
       {/* LEFT PANE - Agent Directory. ~85vw on mobile so the detail
-          pane peeks in from the right. */}
-      <div className="flex w-[85vw] sm:w-[60vw] md:w-[45vw] lg:w-80 border-r border-slate-800 bg-slate-900/60 flex-col h-full shrink-0 snap-start lg:snap-align-none">
+          pane peeks in from the right; desktop width is drag-resizable
+          via the divider (and collapsible entirely). */}
+      <div
+        style={{ '--agents-list-w': `${listWidth}px` } as React.CSSProperties}
+        className={`${
+          listCollapsed ? 'lg:hidden' : ''
+        } flex w-[85vw] sm:w-[60vw] md:w-[45vw] lg:w-[var(--agents-list-w)] border-r border-slate-800 bg-slate-900/60 flex-col h-full shrink-0 snap-start lg:snap-align-none`}
+      >
         <div className="p-4 border-b border-slate-800 space-y-3 shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="text-base font-semibold text-white flex items-center gap-2">
@@ -329,6 +367,25 @@ export default function AgentsPage() {
             })
           )}
         </div>
+      </div>
+
+      {/* Desktop divider: drag to resize the directory, chevron to
+          collapse/expand it. Not part of the mobile snap track. */}
+      <div
+        onPointerDown={startResize}
+        className={`hidden lg:flex flex-col items-center justify-center w-2.5 shrink-0 border-r border-slate-800 bg-slate-900/40 hover:bg-slate-800/60 transition-colors ${
+          listCollapsed ? '' : 'cursor-col-resize'
+        }`}
+      >
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => setListCollapsed((c) => !c)}
+          title={listCollapsed ? 'Show agents directory' : 'Hide agents directory'}
+          className="flex items-center justify-center h-12 w-full text-slate-500 hover:text-white cursor-pointer"
+        >
+          {listCollapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
+        </button>
       </div>
 
       {/* RIGHT PANE - Agent Detail Showcase. 92vw on mobile — snapping
