@@ -67,11 +67,14 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   // keep working but `auth.getUser()` on the API returns 401. A forced
   // refresh mints a valid token — retry once with it.
   let token = session.access_token;
+  let refreshDied = false;
   if (res.status === 401) {
     const { data } = await supabase.auth.refreshSession();
     if (data.session) {
       token = data.session.access_token;
       res = await doFetch(apiBase(), token);
+    } else {
+      refreshDied = true;
     }
   }
 
@@ -89,6 +92,15 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
         res = wwwRes;
       }
     }
+  }
+
+  // Still 401 and the refresh token is dead: the stored session was
+  // revoked (a sign-out on another surface — e.g. Den ↔ staff
+  // switching). Reads keep working until the cached token expires,
+  // which hides the breakage — recover by forcing a clean sign-in.
+  if (res.status === 401 && refreshDied) {
+    await supabase.auth.signOut();
+    throw new ApiError(401, 'Session expired — please sign in again.');
   }
 
   if (!res.ok) {

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native'
 import Animated, {
   Easing,
   FadeIn,
+  LinearTransition,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -74,14 +75,23 @@ export function PressScale({
 export function EnterRow({
   index,
   children,
+  animateLayout = false,
 }: {
   index: number;
   children: React.ReactNode;
+  /** Animate position shifts (e.g. a sibling expanding above) instead
+   *  of jumping — used by lists with inline hold-to-peek expansion. */
+  animateLayout?: boolean;
 }) {
   // Cap the stagger so deep scroll positions don't wait forever.
   const delay = Math.min(index, 10) * 26;
   return (
-    <Animated.View entering={FadeIn.duration(200).delay(delay)}>{children}</Animated.View>
+    <Animated.View
+      layout={animateLayout ? LinearTransition.duration(180) : undefined}
+      entering={FadeIn.duration(200).delay(delay)}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
