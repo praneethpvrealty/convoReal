@@ -42,7 +42,17 @@ window loses nothing.
    `rediss://` URL.
 3. Install the Postgres 15+ client tools and the Supabase CLI
    locally.
-4. Dry-run the schema restore into the new project **now** (steps 2–3
+4. Mirror the dashboard-level auth config in the new project — none
+   of this travels in the SQL dump:
+   - **Google OAuth provider** (client ID/secret), and add the new
+     callback `https://<NEW_REF>.supabase.co/auth/v1/callback` to the
+     OAuth client in Google Cloud Console.
+   - **Site URL and redirect URLs** (convoreal.com).
+   - **Send-SMS hook** → `https://convoreal.com/api/auth/sms-hook`
+     (powers WhatsApp OTP sign-in). Note the new hook secret for the
+     `SUPABASE_SMS_HOOK_SECRET` env var at cutover.
+   - Custom SMTP settings, if configured.
+5. Dry-run the schema restore into the new project **now** (steps 2–3
    below) to surface surprises while the old project is still
    authoritative. Wipe the new DB after (`supabase db reset --linked`
    against the new project) before the real run.
@@ -63,6 +73,9 @@ window loses nothing.
 ```bash
 # Connection strings: Supabase dashboard → Project Settings →
 # Database → Connection string (use the *direct* connection, port 5432).
+# If the direct host is unreachable (newer projects are IPv6-only on
+# direct), use the *session* pooler string instead — never the
+# transaction pooler for pg_dump/restore.
 OLD_DB="postgresql://postgres:<OLD_PASSWORD>@db.cvmgojajtegbuuujtptn.supabase.co:5432/postgres"
 
 # Roles, then schema+data. --clean/--if-exists make the restore
@@ -124,8 +137,14 @@ env, go-ingress service env, worker env):
 NEXT_PUBLIC_SUPABASE_URL=https://<NEW_REF>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<new anon key>
 SUPABASE_SERVICE_ROLE_KEY=<new service role key>
+SUPABASE_SMS_HOOK_SECRET=<new hook secret from prep step 4>
 REDIS_URL=rediss://default:<pw>@<new-upstash-host>:<port>   # Mumbai Upstash
 ```
+
+The mobile app embeds `EXPO_PUBLIC_SUPABASE_URL` and
+`EXPO_PUBLIC_SUPABASE_ANON_KEY` in the app bundle — ship a new
+build/EAS Update with the new values, or installed apps keep talking
+to the paused Sydney project.
 
 Everything else is unchanged: `ENCRYPTION_KEY` (app-level, carried in
 the DB rows it encrypted), WhatsApp webhook URL (points at
