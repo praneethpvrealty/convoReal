@@ -1,12 +1,15 @@
 {
   "photos": [
-    { "file": "./photos/exterior.png", "caption": "3-Floor Building • Devanahalli" },
-    { "file": "./photos/living.png", "caption": "Bright, airy living spaces" }
+    { "file": "./photos/exterior.jpg", "caption": "Red-brick estate home in the hills" },
+    { "file": "./photos/courtyard.jpg", "caption": "Private paved approach & gardens" }
   ],
-  "narration": "Welcome to this three floor residential building in Devanahalli, North Bangalore. Priced within three crores. Message us on WhatsApp to book your site visit today.",
+  "narration": "Welcome to this stunning red brick estate, set amid lush greenery in the hills. Message us on WhatsApp to arrange your site visit.",
+  "language": "kn-IN",
+  "speaker": "anushka",
+  "translateFromEnglish": true,
   "endCard": {
-    "line1": "Rs 3 Cr • Devanahalli",
-    "line2": "Rental income Rs 80,000 / month",
+    "line1": "Red-Brick Hill Estate",
+    "line2": "Main house • Guest block • Landscaped grounds",
     "cta": "Reply on WhatsApp to book a site visit"
   },
   "musicSeconds": 40
