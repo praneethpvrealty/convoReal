@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow, PressScale } from '@/components/motion';
@@ -213,7 +214,7 @@ export default function ContactsScreen() {
   const [segment, setSegment] = useState<SegmentKey>('active');
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [preview, setPreview] = useState<Contact | null>(null);
+  const [peekId, setPeekId] = useState<string | null>(null);
   const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
@@ -328,9 +329,17 @@ export default function ContactsScreen() {
               <ContactRow
                 contact={item}
                 dark={dark}
-                onPreview={() => setPreview(item)}
+                onPeekStart={() => setPeekId(item.id)}
+                onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
               />
+              {peekId === item.id ? (
+                <ContactPeekCard
+                  contact={item}
+                  tags={data?.tags[item.id] ?? []}
+                  propertyCodes={data?.propertyCodes ?? {}}
+                />
+              ) : null}
             </EnterRow>
           )}
         />
@@ -338,12 +347,6 @@ export default function ContactsScreen() {
 
       <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
       <DeviceImportSheet visible={importing} onClose={() => setImporting(false)} />
-      <ContactPreviewSheet
-        contact={preview}
-        tags={preview ? (data?.tags[preview.id] ?? []) : []}
-        propertyCodes={data?.propertyCodes ?? {}}
-        onClose={() => setPreview(null)}
-      />
       <ContextMenu
         anchor={waMenu ? { x: waMenu.x, y: waMenu.y } : null}
         onClose={() => setWaMenu(null)}
@@ -559,12 +562,14 @@ async function openInternalChat(contact: Contact) {
 function ContactRow({
   contact,
   dark,
-  onPreview,
+  onPeekStart,
+  onPeekEnd,
   onWhatsAppMenu,
 }: {
   contact: Contact;
   dark: boolean;
-  onPreview: () => void;
+  onPeekStart: () => void;
+  onPeekEnd: () => void;
   onWhatsAppMenu: (at: { x: number; y: number }) => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -576,12 +581,15 @@ function ContactRow({
   return (
     <PressScale
       onPress={() => router.push(`/(app)/contact/${contact.id}`)}
+      // Hold-to-peek: the detail card expands below while the finger
+      // is down and collapses on release.
       onLongPress={() => {
         haptic.tap();
-        onPreview();
+        onPeekStart();
       }}
+      onPressOut={onPeekEnd}
       accessibilityRole="button"
-      accessibilityLabel={`Open contact ${name}. Long press for a quick preview.`}
+      accessibilityLabel={`Open contact ${name}. Long press and hold for a quick preview.`}
       contentStyle={StyleSheet.flatten([
         listCard,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
@@ -651,28 +659,20 @@ function ContactRow({
 }
 
 /**
- * Long-press preview: the details the compact row no longer shows —
- * budget, tags, interests, areas — without leaving the list. Tapping
- * "Open full contact" goes to the complete contact screen.
+ * Hold-to-peek card: rendered inline right below the pressed row
+ * (pushing the rest of the list down) while the finger stays down —
+ * the crisp details the compact row no longer shows.
  */
-function ContactPreviewSheet({
+function ContactPeekCard({
   contact,
   tags,
   propertyCodes,
-  onClose,
 }: {
-  contact: Contact | null;
+  contact: Contact;
   tags: string[];
   propertyCodes: Record<string, string>;
-  onClose: () => void;
 }) {
-  const { colors, dark, fonts: f } = useTheme();
-  if (!contact) return <BottomSheet visible={false} onClose={onClose}>{null}</BottomSheet>;
-
-  const name = contact.name || contact.phone;
-  const clsColor = contact.classification
-    ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
-    : undefined;
+  const { colors, fonts: f } = useTheme();
   const interests = Array.from(
     new Set(
       [...(contact.property_interests ?? []), contact.last_inquired_property_id]
@@ -686,68 +686,55 @@ function ContactPreviewSheet({
     : contact.min_budget || contact.max_budget
       ? `${formatInr(contact.min_budget)} – ${formatInr(contact.max_budget)}`
       : null;
+  const empty =
+    !budget &&
+    !contact.company &&
+    !contact.email &&
+    !contact.areas_of_interest?.length &&
+    tags.length === 0 &&
+    interests.length === 0;
 
   return (
-    <BottomSheet visible onClose={onClose}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-          <Avatar name={name} size={48} />
-          <View style={{ flex: 1, gap: 3 }}>
-            <Text style={{ fontSize: 18, fontFamily: f.extrabold, color: colors.text }} numberOfLines={1}>
-              {name}
-            </Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
-              {contact.classification ? <Tag label={contact.classification} color={clsColor} /> : null}
-              {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
-              {contact.lead_temp ? (
-                <Tag
-                  label={contact.lead_temp}
-                  color={contact.lead_temp === 'HOT' ? colors.danger : colors.textMuted}
-                />
-              ) : null}
-            </View>
-          </View>
-        </View>
-
-        <PreviewRow icon="call-outline" label="Phone" value={contact.phone} />
-        {contact.company ? <PreviewRow icon="business-outline" label="Company" value={contact.company} /> : null}
-        {contact.email ? <PreviewRow icon="mail-outline" label="Email" value={contact.email} /> : null}
-        {budget ? <PreviewRow icon="cash-outline" label="Budget" value={budget} /> : null}
-        {contact.areas_of_interest?.length ? (
-          <PreviewRow
-            icon="location-outline"
-            label="Areas of interest"
-            value={contact.areas_of_interest.join(', ')}
-          />
-        ) : null}
-        {contact.last_contacted_at ? (
-          <PreviewRow
-            icon="time-outline"
-            label="Last contacted"
-            value={chatListTime(contact.last_contacted_at)}
-          />
-        ) : null}
-
-        {tags.length > 0 || interests.length > 0 ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {tags.map((t) => (
-              <Tag key={t} label={t} color={colors.textMuted} />
-            ))}
-            {interests.map((code) => (
-              <Tag key={code} label={`★ ${code}`} color={colors.warning} />
-            ))}
-          </View>
-        ) : null}
-
-        <PrimaryButton
-          label="Open full contact"
-          onPress={() => {
-            onClose();
-            router.push(`/(app)/contact/${contact.id}`);
-          }}
+    <Animated.View
+      entering={FadeIn.duration(120)}
+      style={[styles.peekCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+    >
+      {budget ? <PreviewRow icon="cash-outline" label="Budget" value={budget} /> : null}
+      {contact.company ? <PreviewRow icon="business-outline" label="Company" value={contact.company} /> : null}
+      {contact.email ? <PreviewRow icon="mail-outline" label="Email" value={contact.email} /> : null}
+      {contact.areas_of_interest?.length ? (
+        <PreviewRow
+          icon="location-outline"
+          label="Areas of interest"
+          value={contact.areas_of_interest.join(', ')}
         />
-      </View>
-    </BottomSheet>
+      ) : null}
+      {contact.last_contacted_at ? (
+        <PreviewRow
+          icon="time-outline"
+          label="Last contacted"
+          value={chatListTime(contact.last_contacted_at)}
+        />
+      ) : null}
+      {tags.length > 0 || interests.length > 0 ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {tags.map((t) => (
+            <Tag key={t} label={t} color={colors.textMuted} />
+          ))}
+          {interests.map((code) => (
+            <Tag key={code} label={`★ ${code}`} color={colors.warning} />
+          ))}
+        </View>
+      ) : null}
+      {empty ? (
+        <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
+          No preferences captured yet — tap the row for the full contact.
+        </Text>
+      ) : null}
+      <Text style={{ fontSize: 11, color: colors.textFaint, fontFamily: f.medium }}>
+        Release to close · tap the row for full details
+      </Text>
+    </Animated.View>
   );
 }
 
@@ -946,6 +933,18 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  peekCard: {
+    marginHorizontal: spacing.lg,
+    // Tuck flush under the pressed row (cancels the row's bottom margin).
+    marginTop: -(spacing.md - 2),
+    marginBottom: spacing.sm,
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderBottomLeftRadius: radius.lg,
+    borderBottomRightRadius: radius.lg,
+    padding: spacing.md,
+    gap: spacing.sm,
   },
   importRow: {
     flexDirection: 'row',
