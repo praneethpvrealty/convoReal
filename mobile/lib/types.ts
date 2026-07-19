@@ -111,6 +111,14 @@ export interface Property {
   latitude?: number | null;
   longitude?: number | null;
   listing_source?: string | null;
+  project?: string | null;
+  state?: string | null;
+  maintenance?: number | null;
+  advance?: number | null;
+  gst?: boolean | null;
+  owner_share_percent?: number | null;
+  builder_share_percent?: number | null;
+  roi?: number | null;
   sublocality_2?: string | null;
   super_built_area?: number | null;
   dimensions?: string | null;

@@ -12,7 +12,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -23,10 +22,10 @@ import { BlurView } from 'expo-blur';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { SectionLabel, Tag } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { apiFetch, ApiError } from '@/lib/api';
-import { ENV } from '@/lib/env';
 import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -596,26 +595,8 @@ export default function PropertyDetailScreen() {
 function ActionRail({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState<'archive' | 'delete' | null>(null);
+  const [sharing, setSharing] = useState(false);
   const archived = property.status === 'Archived';
-  // Same link the web Share dialog builds — the public showcase page.
-  const shareUrl = `${ENV.apiBaseUrl}/?property_id=${property.id}`;
-
-  async function share() {
-    haptic.tap();
-    await Share.share(
-      Platform.OS === 'ios'
-        ? { message: property.title, url: shareUrl }
-        : { message: `${property.title}\n${shareUrl}` }
-    );
-  }
-
-  function email() {
-    haptic.tap();
-    const subject = encodeURIComponent(property.title);
-    const priceLine = property.price ? `\n${formatInr(property.price)}` : '';
-    const body = encodeURIComponent(`${property.title}${priceLine}\n\n${shareUrl}`);
-    Linking.openURL(`mailto:?subject=${subject}&body=${body}`);
-  }
 
   function confirmArchive() {
     Alert.alert(
@@ -681,8 +662,15 @@ function ActionRail({ property }: { property: Property }) {
   }
 
   const actions = [
-    { key: 'share', icon: 'share-social-outline' as const, label: 'Share', onPress: share },
-    { key: 'email', icon: 'mail-outline' as const, label: 'Email', onPress: email },
+    {
+      key: 'share',
+      icon: 'share-social-outline' as const,
+      label: 'Share',
+      onPress: () => {
+        haptic.tap();
+        setSharing(true);
+      },
+    },
     {
       key: 'archive',
       icon: 'file-tray-outline' as const,
@@ -694,6 +682,11 @@ function ActionRail({ property }: { property: Property }) {
 
   return (
     <View style={styles.actionRail}>
+      <PropertyShareSheet
+        property={property}
+        visible={sharing}
+        onClose={() => setSharing(false)}
+      />
       {actions.map((a) => {
         const isBusy = busy === a.key;
         const fg = a.danger ? colors.danger : colors.primary;
