@@ -88,10 +88,14 @@ cfg.photos.forEach((p, i) => {
     : `1.14-0.12*on/${frames}`;
   const caption = esc(p.caption);
   const vf = [
-    `scale=${W * 2}:-1`,
+    // Orientation-safe: center-crop to the video's 9:16 aspect first
+    // (no-op for photos already 9:16), so landscape shots become a
+    // clean vertical slice instead of getting stretched.
+    `crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})'`,
+    `scale=${W * 2}:${H * 2}`,
     `zoompan=z='${zoom}':x='iw/2-(iw/zoom/2)+((on/${frames})-0.5)*40':y='ih/2-(ih/zoom/2)':d=${frames}:s=${W}x${H}:fps=${FPS}`,
     // Caption pill near the bottom.
-    `drawtext=fontfile=${FONT}:text='${caption}':fontsize=40:fontcolor=white:box=1:boxcolor=0x0b1220@0.72:boxborderw=22:x=(w-text_w)/2:y=h-260`,
+    `drawtext=fontfile=${FONT}:text='${caption}':fontsize=30:fontcolor=white:box=1:boxcolor=0x0b1220@0.72:boxborderw=16:x=(w-text_w)/2:y=h-260`,
     // Small brand tag top-left.
     `drawtext=fontfile=${FONT}:text='PV Realty':fontsize=26:fontcolor=white@0.9:box=1:boxcolor=0x0b1220@0.5:boxborderw=12:x=36:y=48`,
     `format=yuv420p`,
