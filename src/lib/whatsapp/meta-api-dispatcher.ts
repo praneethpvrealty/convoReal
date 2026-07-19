@@ -428,6 +428,16 @@ export async function sendWhatsAppMessageAndPersist(
       })
       .eq('id', resolvedConversationId)
 
+    // A human replied — the chatbot's "Talk to an Agent" handoff flag
+    // is resolved, so the thread leaves the pending queue.
+    if (args.senderType === 'agent') {
+      await db
+        .from('conversations')
+        .update({ status: 'open' })
+        .eq('id', resolvedConversationId)
+        .eq('status', 'pending')
+    }
+
     // Flow integration: Pause active Flow runs if agent manually sends a message
     if (args.senderType === 'agent') {
       try {

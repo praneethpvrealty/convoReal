@@ -29,8 +29,15 @@ export async function openConversation(contactId: string) {
   }
 }
 
-/** Web Agents tab: properties linked to this agent (owner_contact_id). */
-export function AgentProperties({ contactId }: { contactId: string }) {
+/** Properties linked via owner_contact_id — the web Agents tab's
+ *  showcase list and the contact detail's "Managed Properties". */
+export function AgentProperties({
+  contactId,
+  title = 'Showcase properties',
+}: {
+  contactId: string;
+  title?: string;
+}) {
   const { colors, fonts: f } = useTheme();
   const { data: props } = useQuery({
     queryKey: ['agent-properties', contactId],
@@ -75,7 +82,7 @@ export function AgentProperties({ contactId }: { contactId: string }) {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <SectionLabel text={`Showcase properties${props ? ` (${props.length})` : ''}`} />
+      <SectionLabel text={`${title}${props ? ` (${props.length})` : ''}`} />
       {!props || props.length === 0 ? (
         <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
           Nothing linked yet — set this agent as the owner contact on a property to showcase it
@@ -121,6 +128,78 @@ export function AgentProperties({ contactId }: { contactId: string }) {
           ))}
         </View>
       )}
+    </View>
+  );
+}
+
+/**
+ * Web contact detail's "Interested Properties": the listings a buyer
+ * inquired about or was marked interested in (property_interests +
+ * last_inquired_property_id), tap-through to the property screen.
+ */
+export function InterestedProperties({ contact }: { contact: Contact }) {
+  const { colors, fonts: f } = useTheme();
+  const ids = Array.from(
+    new Set(
+      [...(contact.property_interests ?? []), contact.last_inquired_property_id].filter(
+        (v): v is string => Boolean(v)
+      )
+    )
+  );
+
+  const { data: props } = useQuery({
+    queryKey: ['interested-properties', contact.id, ids.join(',')],
+    enabled: ids.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id, title, location, price, status, images, property_code')
+        .in('id', ids);
+      if (error) throw error;
+      return (data ?? []) as Property[];
+    },
+  });
+
+  if (ids.length === 0) return null;
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <SectionLabel text={`Interested properties${props ? ` (${props.length})` : ''}`} />
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+        {(props ?? []).map((p) => (
+          <Pressable
+            key={p.id}
+            onPress={() => router.push(`/(app)/property/${p.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open property ${p.title}`}
+            style={[styles.propertyRow, { borderTopColor: colors.border }]}
+          >
+            {p.images?.[0] ? (
+              <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
+            ) : (
+              <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+                <Ionicons name="business-outline" size={20} color={colors.textFaint} />
+              </View>
+            )}
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+                {p.property_code ? `[${p.property_code}] ` : ''}
+                {p.title}
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+                {[p.location, p.status].filter(Boolean).join(' · ')}
+              </Text>
+              <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+                {formatInr(p.price)}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+          </Pressable>
+        ))}
+      </View>
+      <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+        Assigning interest properties is done on the web contact card.
+      </Text>
     </View>
   );
 }

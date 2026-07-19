@@ -26,14 +26,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(401, 'Not signed in');
   }
 
-  const res = await fetch(`${ENV.apiBaseUrl}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  });
+  const doFetch = (token: string) =>
+    fetch(`${ENV.apiBaseUrl}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...init?.headers,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+  let res = await doFetch(session.access_token);
+
+  // GoTrue can revoke an access token (e.g. a sign-out on another
+  // surface) while PostgREST still accepts it, so direct table reads
+  // keep working but `auth.getUser()` on the API returns 401. A forced
+  // refresh mints a valid token — retry once with it.
+  if (res.status === 401) {
+    const { data } = await supabase.auth.refreshSession();
+    if (data.session) {
+      res = await doFetch(data.session.access_token);
+    }
+  }
 
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;

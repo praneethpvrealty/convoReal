@@ -64,6 +64,20 @@ export function formatInr(n: number | null | undefined): string {
   return `₹${n.toLocaleString('en-IN')}`;
 }
 
+/** A budget as people say it: "Up to ₹4.4 Cr", "₹2 Cr+", or a range —
+ *  never "— – ₹4.4 Cr" when only one bound is set. */
+export function formatBudgetRange(
+  min: number | null | undefined,
+  max: number | null | undefined,
+  noBudget?: boolean
+): string | null {
+  if (noBudget) return 'No budget constraint';
+  if (min && max) return `${formatInr(min)} – ${formatInr(max)}`;
+  if (max) return `Up to ${formatInr(max)}`;
+  if (min) return `${formatInr(min)}+`;
+  return null;
+}
+
 /**
  * Same normalization as the web's WhatsappPhoneVerify: bare 10-digit
  * numbers get +91 (the product's home market); anything else must
