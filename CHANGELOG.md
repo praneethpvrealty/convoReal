@@ -22,6 +22,24 @@ and polish.
 
 ### Added
 
+- **Mobile Contacts: web-parity list features.** The Contacts tab
+  gains the web page's marked features: quick-filter segments —
+  All / Needs Review / Transacted / Active Buyers — with live counts
+  and the exact same definitions as the web tabs (`status`
+  active/pending_review, won-deal contacts, HOT-or-inquired);
+  richer rows with a colored classification badge, up to three tag
+  chips, starred "Interested in PROP-xxxx" chips (resolved from
+  `property_interests` + last inquiry), and last-contacted time; a
+  chat shortcut per row that jumps straight into the contact's
+  latest conversation (falls back to WhatsApp when no thread
+  exists); and **Import from Phone** — pick device contacts
+  (expo-contacts) and create them through the same gated
+  `POST /api/contacts` route, with duplicate/limit failures counted
+  in the result. New dependency: `expo-contacts` — run `npm install`
+  in `mobile/`. The Requirements and Agents tabs stay web-only for
+  now.
+
+
 - **Mobile: the web's rich share dialog, on the property screen.**
   Tapping Share now opens a full share sheet instead of the bare OS
   sheet: To Client / To Co-Broker audience cards (client links open

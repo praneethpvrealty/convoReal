@@ -35,6 +35,10 @@ export interface Contact {
   areas_of_interest?: string[];
   requirements?: string | null;
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
+  status?: string | null;
+  last_contacted_at?: string | null;
+  last_inquired_property_id?: string | null;
+  property_interests?: string[] | null;
 }
 
 export interface Conversation {
