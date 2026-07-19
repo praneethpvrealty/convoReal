@@ -15,6 +15,7 @@ import {
   View,
 } from 'react-native';
 
+import { ConvoRealLoader } from '@/components/loader';
 import { MediaImage } from '@/components/media-image';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
@@ -133,7 +134,7 @@ export default function ConversationScreen() {
 
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.primary} />
+          <ConvoRealLoader />
         </View>
       ) : (
         <FlatList

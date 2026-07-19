@@ -18,6 +18,20 @@ export class ApiError extends Error {
  * refreshes the session under us; always read it at call time, never
  * cache the token.
  */
+/**
+ * Canonical API origin. If EXPO_PUBLIC_API_BASE_URL points at a domain
+ * that 308-redirects (apex → www), fetch follows the redirect but the
+ * spec STRIPS the Authorization header on the cross-origin hop — every
+ * authenticated call then lands as anonymous and 401s while direct
+ * Supabase reads keep working. The first apiFetch detects the final
+ * origin from the response and pins it for all later calls.
+ */
+let resolvedBase: string | null = null;
+
+export function apiBase(): string {
+  return resolvedBase ?? ENV.apiBaseUrl;
+}
+
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const {
     data: { session },
@@ -26,8 +40,8 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     throw new ApiError(401, 'Not signed in');
   }
 
-  const doFetch = (token: string) =>
-    fetch(`${ENV.apiBaseUrl}${path}`, {
+  const doFetch = (base: string, token: string) =>
+    fetch(`${base}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',
@@ -36,7 +50,17 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       },
     });
 
-  let res = await doFetch(session.access_token);
+  let res = await doFetch(apiBase(), session.access_token);
+
+  try {
+    const finalOrigin = res.url ? new URL(res.url).origin : null;
+    if (finalOrigin && finalOrigin !== new URL(apiBase()).origin) {
+      resolvedBase = finalOrigin;
+      res = await doFetch(resolvedBase, session.access_token);
+    }
+  } catch {
+    // res.url unavailable — keep the configured base.
+  }
 
   // GoTrue can revoke an access token (e.g. a sign-out on another
   // surface) while PostgREST still accepts it, so direct table reads
@@ -45,7 +69,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   if (res.status === 401) {
     const { data } = await supabase.auth.refreshSession();
     if (data.session) {
-      res = await doFetch(data.session.access_token);
+      res = await doFetch(apiBase(), data.session.access_token);
     }
   }
 
@@ -63,7 +87,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
  * media returns 404 MEDIA_UNAVAILABLE and should render a placeholder.
  */
 export function absoluteMediaUrl(relativeMediaUrl: string): string {
-  return `${ENV.apiBaseUrl}${relativeMediaUrl}`;
+  return `${apiBase()}${relativeMediaUrl}`;
 }
 
 /** Bearer headers for non-JSON requests (e.g. <Image> media fetches). */

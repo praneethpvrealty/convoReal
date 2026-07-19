@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet } from '@/components/sheet';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
@@ -121,7 +121,7 @@ export function TemplatePicker({
           </Text>
 
           {isLoading ? (
-            <ActivityIndicator color={colors.primary} style={{ paddingVertical: 32 }} />
+            <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 32 }} />
           ) : !selected ? (
             <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingVertical: spacing.sm }}>
               {(templates ?? []).length === 0 ? (
