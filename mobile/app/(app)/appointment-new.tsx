@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Stack, router } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -35,6 +35,13 @@ export default function NewAppointmentScreen() {
   const { colors, fonts: f } = useTheme();
   const session = useAuthStore((s) => s.session);
   const accountId = useAuthStore((s) => s.profile?.account_id);
+  // Prefill support: the agent detail's Schedule shortcut passes the
+  // contact so the picker starts resolved.
+  const params = useLocalSearchParams<{
+    contactId?: string;
+    contactName?: string;
+    contactPhone?: string;
+  }>();
 
   const [title, setTitle] = useState('');
   const [eventType, setEventType] = useState<AppointmentType>('site_visit');
@@ -47,7 +54,11 @@ export default function NewAppointmentScreen() {
   const [location, setLocation] = useState('');
   const [contactSearch, setContactSearch] = useState('');
   const debouncedContactSearch = useDebounced(contactSearch);
-  const [contact, setContact] = useState<Contact | null>(null);
+  const [contact, setContact] = useState<Contact | null>(() =>
+    params.contactId && params.contactPhone
+      ? ({ id: params.contactId, name: params.contactName || undefined, phone: params.contactPhone } as Contact)
+      : null
+  );
   const locationRef = useRef<TextInput>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -99,6 +110,9 @@ export default function NewAppointmentScreen() {
     }
     haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    if (contact) {
+      queryClient.invalidateQueries({ queryKey: ['contact-appointments', contact.id] });
+    }
     router.back();
   }
 

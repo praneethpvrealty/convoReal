@@ -6,7 +6,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -16,22 +15,21 @@ import {
   View,
 } from 'react-native';
 
-import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
-import { useAuthStore } from '@/lib/auth-store';
-import { chatListTime, formatInr } from '@/lib/format';
+import {
+  AgentNotes,
+  AgentProperties,
+  AgentRequirements,
+  AgentSchedule,
+} from '@/components/agent-detail';
+import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
+import { formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
-import {
-  CLASSIFICATIONS,
-  type Classification,
-  type Contact,
-  type ContactNote,
-  type Property,
-} from '@/lib/types';
+import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
 
 async function fetchContact(id: string): Promise<Contact | null> {
   const { data, error } = await supabase
@@ -239,6 +237,8 @@ function ContactCard({ contact }: { contact: Contact }) {
       {contact.classification === 'Agent' ? (
         <>
           <AgentProperties contactId={contact.id} />
+          <AgentRequirements key={`req-${contact.id}`} agent={contact} />
+          <AgentSchedule contact={contact} />
           <AgentNotes contactId={contact.id} />
         </>
       ) : null}
@@ -315,171 +315,6 @@ function ReviewBanner({ contact }: { contact: Contact }) {
   );
 }
 
-/** Web Agents tab: properties linked to this agent (owner_contact_id). */
-function AgentProperties({ contactId }: { contactId: string }) {
-  const { colors, fonts: f } = useTheme();
-  const { data: props } = useQuery({
-    queryKey: ['agent-properties', contactId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('id, title, location, price, status, images, property_code')
-        .eq('owner_contact_id', contactId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return (data ?? []) as Property[];
-    },
-  });
-
-  function confirmUnlink(p: Property) {
-    Alert.alert(
-      'Unlink this property?',
-      `"${p.title}" stays in inventory but is no longer showcased under this agent.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Unlink',
-          style: 'destructive',
-          onPress: async () => {
-            const { error } = await supabase
-              .from('properties')
-              .update({ owner_contact_id: null })
-              .eq('id', p.id);
-            if (error) {
-              haptic.warn();
-              Alert.alert('Could not unlink', friendlyError(error.message));
-              return;
-            }
-            haptic.success();
-            queryClient.invalidateQueries({ queryKey: ['agent-properties', contactId] });
-            queryClient.invalidateQueries({ queryKey: ['agents-directory'] });
-          },
-        },
-      ]
-    );
-  }
-
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <SectionLabel text={`Showcase properties${props ? ` (${props.length})` : ''}`} />
-      {!props || props.length === 0 ? (
-        <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-          Nothing linked yet — set this agent as the owner contact on a property to showcase it
-          here.
-        </Text>
-      ) : (
-        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-          {props.map((p) => (
-            <Pressable
-              key={p.id}
-              onPress={() => router.push(`/(app)/property/${p.id}`)}
-              accessibilityRole="button"
-              accessibilityLabel={`Open property ${p.title}`}
-              style={[styles.propertyRow, { borderTopColor: colors.border }]}
-            >
-              {p.images?.[0] ? (
-                <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
-              ) : (
-                <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Ionicons name="business-outline" size={20} color={colors.textFaint} />
-                </View>
-              )}
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
-                  {p.title}
-                </Text>
-                <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
-                  {[p.location, p.status].filter(Boolean).join(' · ')}
-                </Text>
-                <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
-                  {formatInr(p.price)}
-                </Text>
-              </View>
-              <Pressable
-                hitSlop={10}
-                onPress={() => confirmUnlink(p)}
-                accessibilityRole="button"
-                accessibilityLabel={`Unlink ${p.title}`}
-              >
-                <Ionicons name="unlink-outline" size={18} color={colors.textMuted} />
-              </Pressable>
-            </Pressable>
-          ))}
-        </View>
-      )}
-    </View>
-  );
-}
-
-/** Web Agents tab: contact_notes for this agent — add + newest-first list. */
-function AgentNotes({ contactId }: { contactId: string }) {
-  const { colors, fonts: f } = useTheme();
-  const session = useAuthStore((s) => s.session);
-  const accountId = useAuthStore((s) => s.profile?.account_id);
-  const [text, setText] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  const { data: notes } = useQuery({
-    queryKey: ['contact-notes', contactId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('contact_notes')
-        .select('id, contact_id, note_text, created_at')
-        .eq('contact_id', contactId)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      if (error) throw error;
-      return (data ?? []) as ContactNote[];
-    },
-  });
-
-  async function addNote() {
-    if (!text.trim() || !session || !accountId) return;
-    setSaving(true);
-    const { error } = await supabase.from('contact_notes').insert({
-      contact_id: contactId,
-      user_id: session.user.id,
-      account_id: accountId,
-      note_text: text.trim(),
-    });
-    setSaving(false);
-    if (error) {
-      haptic.warn();
-      Alert.alert('Could not add note', friendlyError(error.message));
-      return;
-    }
-    haptic.success();
-    setText('');
-    queryClient.invalidateQueries({ queryKey: ['contact-notes', contactId] });
-  }
-
-  return (
-    <View style={{ gap: spacing.sm }}>
-      <SectionLabel text="Agent notes" />
-      <TextField
-        placeholder="Add brief details, todo points, tasks…"
-        value={text}
-        onChangeText={setText}
-        multiline
-      />
-      <PrimaryButton label="Add note" busy={saving} disabled={!text.trim()} onPress={addNote} />
-      {(notes ?? []).map((n) => (
-        <View
-          key={n.id}
-          style={[styles.noteCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-        >
-          <Text style={{ fontSize: 13.5, lineHeight: 19, color: colors.text }}>{n.note_text}</Text>
-          <Text style={{ fontSize: 11, color: colors.textFaint }}>{chatListTime(n.created_at)}</Text>
-        </View>
-      ))}
-      {notes && notes.length === 0 ? (
-        <Text style={{ fontSize: 12.5, color: colors.textFaint, textAlign: 'center' }}>
-          No notes recorded yet
-        </Text>
-      ) : null}
-    </View>
-  );
-}
 
 async function openConversation(contactId: string) {
   const { data } = await supabase
@@ -698,21 +533,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     minHeight: 38,
     minWidth: 104,
-  },
-  propertyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  propertyThumb: { width: 52, height: 52, borderRadius: radius.sm },
-  noteCard: {
-    gap: 6,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    padding: spacing.md,
   },
   agentStrip: {
     gap: spacing.sm,

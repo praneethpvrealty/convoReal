@@ -1,8 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
+import { AgentDetail } from '@/components/agent-detail';
 import { EnterRow, PressScale } from '@/components/motion';
 import {
   Avatar,
@@ -16,6 +25,10 @@ import { supabase } from '@/lib/supabase';
 import { fonts, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
 
+/** Side-by-side panes need this much width; below it the directory
+ *  behaves like every other phone list and pushes the contact screen. */
+const SPLIT_MIN_WIDTH = 700;
+
 interface AgentsData {
   agents: Contact[];
   /** agent contact_id → linked showcase property count. */
@@ -25,17 +38,20 @@ interface AgentsData {
 /**
  * Web parity: the Agents Directory tab (agents-content.tsx) — every
  * contact classified "Agent", ordered by name, with their linked
- * showcase-property counts. Tapping opens the contact screen, which
- * carries the agent peer strip, showcase properties and notes.
+ * showcase-property counts. On wide screens this renders the same
+ * two-pane layout as desktop: directory left, detail right.
  */
 async function fetchAgents(): Promise<AgentsData> {
   const { data, error } = await supabase
     .from('contacts')
-    .select('id, phone, name, name_tag, email, company, classification')
+    .select(
+      'id, phone, name, name_tag, email, company, classification, requirements, ' +
+        'areas_of_interest, property_interests, last_inquired_property_id'
+    )
     .eq('classification', 'Agent')
     .order('name');
   if (error) throw error;
-  const agents = (data ?? []) as Contact[];
+  const agents = (data ?? []) as unknown as Contact[];
 
   const propertyCounts: Record<string, number> = {};
   const ids = agents.map((a) => a.id);
@@ -54,7 +70,10 @@ async function fetchAgents(): Promise<AgentsData> {
 
 export default function AgentsScreen() {
   const { colors } = useTheme();
+  const { width } = useWindowDimensions();
+  const wide = width >= SPLIT_MIN_WIDTH;
   const [search, setSearch] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['agents-directory'],
@@ -70,9 +89,13 @@ export default function AgentsScreen() {
       a.phone.includes(q)
   );
 
-  return (
-    <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: true, title: 'Agents' }} />
+  // Desktop parity: something is always selected once agents load.
+  const selected = wide
+    ? (shown.find((a) => a.id === selectedId) ?? shown[0] ?? null)
+    : null;
+
+  const list = (
+    <>
       <View style={styles.header}>
         <SearchBar
           value={search}
@@ -108,26 +131,84 @@ export default function AgentsScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <AgentRow agent={item} propertyCount={data?.propertyCounts[item.id] ?? 0} />
+              <AgentRow
+                agent={item}
+                propertyCount={data?.propertyCounts[item.id] ?? 0}
+                active={wide && selected?.id === item.id}
+                onPress={() => {
+                  if (wide) setSelectedId(item.id);
+                  else router.push(`/(app)/contact/${item.id}`);
+                }}
+              />
             </EnterRow>
           )}
         />
+      )}
+    </>
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      <Stack.Screen options={{ headerShown: true, title: 'Agents' }} />
+      {wide ? (
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View
+            style={{
+              width: 340,
+              borderRightWidth: StyleSheet.hairlineWidth,
+              borderRightColor: colors.border,
+            }}
+          >
+            {list}
+          </View>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {selected ? (
+              <AgentDetail key={selected.id} agent={selected} />
+            ) : (
+              <EmptyState
+                icon="briefcase-outline"
+                title="Select an agent"
+                subtitle="Pick an agent from the directory to see their showcase properties, requirements, schedule and notes."
+              />
+            )}
+          </ScrollView>
+        </View>
+      ) : (
+        list
       )}
     </View>
   );
 }
 
-function AgentRow({ agent, propertyCount }: { agent: Contact; propertyCount: number }) {
+function AgentRow({
+  agent,
+  propertyCount,
+  active,
+  onPress,
+}: {
+  agent: Contact;
+  propertyCount: number;
+  active: boolean;
+  onPress: () => void;
+}) {
   const { colors, fonts: f } = useTheme();
   const name = agent.name || 'Unnamed Agent';
   return (
     <PressScale
-      onPress={() => router.push(`/(app)/contact/${agent.id}`)}
+      onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Open agent ${name}`}
+      accessibilityState={{ selected: active }}
       contentStyle={StyleSheet.flatten([
         listCard,
-        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        {
+          backgroundColor: active ? colors.primarySoft : colors.glass,
+          borderColor: active ? colors.primary : colors.glassBorder,
+        },
       ])}
     >
       <Avatar name={agent.name || agent.phone} size={46} />
