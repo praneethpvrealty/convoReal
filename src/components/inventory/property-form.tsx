@@ -61,6 +61,7 @@ import {
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
+import { ListingVideoCard } from '@/components/inventory/listing-video-card';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -4399,6 +4400,14 @@ export function PropertyForm({
                         </div>
                       )}
                     </div>
+
+                    {/* Auto-generated listing video — needs a saved
+                        property with photos, so edit mode only. */}
+                    {property?.id && (
+                      <div className="col-span-2">
+                        <ListingVideoCard propertyId={property.id} />
+                      </div>
+                    )}
 
                     {/* Images URLs Input */}
                     <div className="space-y-3 p-4 rounded-lg border border-slate-800 bg-slate-950/20 col-span-2">
