@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -41,11 +41,21 @@ export default function AgentsPage() {
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  // Below lg the two panes can't fit side by side (the fixed w-80
-  // directory left the detail pane a ~40px sliver), so mobile shows
-  // ONE pane at a time: the list, or — after a tap — the detail with
-  // a back button. Desktop ignores this flag entirely.
-  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  // Below lg the two panes ride a horizontal scroll-snap track: the
+  // directory takes ~85vw with the detail pane (pre-filled with the
+  // selected agent) peeking in from the right, so first-time users can
+  // SEE there's more. Swipe or tap snaps between the panes; desktop
+  // shows both side by side and ignores the snapping entirely.
+  const panesRef = useRef<HTMLDivElement>(null);
+  const detailPaneRef = useRef<HTMLDivElement>(null);
+
+  const scrollToDetail = () => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) return;
+    detailPaneRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+  };
+  const scrollToList = () => {
+    panesRef.current?.scrollTo({ left: 0, behavior: 'smooth' });
+  };
 
   // Detail tab state for selected agent
   const [requirementsText, setRequirementsText] = useState('');
@@ -245,14 +255,13 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] bg-slate-950 text-slate-100 overflow-hidden">
-      {/* LEFT PANE - Agent Directory. Full-width on mobile; hidden there
-          while the detail pane is open. */}
-      <div
-        className={`${
-          mobileDetailOpen ? 'hidden lg:flex' : 'flex'
-        } w-full lg:w-80 border-r border-slate-800 bg-slate-900/60 flex-col h-full shrink-0`}
-      >
+    <div
+      ref={panesRef}
+      className="flex h-[calc(100vh-3.5rem)] bg-slate-950 text-slate-100 overflow-x-auto overflow-y-hidden snap-x snap-mandatory lg:overflow-hidden lg:snap-none"
+    >
+      {/* LEFT PANE - Agent Directory. ~85vw on mobile so the detail
+          pane peeks in from the right. */}
+      <div className="flex w-[85vw] sm:w-[60vw] md:w-[45vw] lg:w-80 border-r border-slate-800 bg-slate-900/60 flex-col h-full shrink-0 snap-start lg:snap-align-none">
         <div className="p-4 border-b border-slate-800 space-y-3 shrink-0">
           <div className="flex items-center justify-between">
             <h1 className="text-base font-semibold text-white flex items-center gap-2">
@@ -288,7 +297,7 @@ export default function AgentsPage() {
                   key={agent.id}
                   onClick={() => {
                     setSelectedAgentId(agent.id);
-                    setMobileDetailOpen(true);
+                    scrollToDetail();
                   }}
                   className={`w-full text-left flex items-center gap-3 p-3 rounded-lg border transition-all duration-200 ${
                     active
@@ -322,12 +331,11 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      {/* RIGHT PANE - Agent Detail Showcase. On mobile it takes over the
-          full width only after a tap on the list. */}
+      {/* RIGHT PANE - Agent Detail Showcase. 92vw on mobile — snapping
+          to it leaves a sliver of the directory peeking on the left. */}
       <div
-        className={`${
-          mobileDetailOpen ? 'flex' : 'hidden lg:flex'
-        } flex-1 flex-col h-full bg-slate-950/20 overflow-hidden`}
+        ref={detailPaneRef}
+        className="flex w-[92vw] lg:w-auto shrink-0 lg:shrink lg:flex-1 flex-col h-full bg-slate-950/20 overflow-hidden snap-start lg:snap-align-none"
       >
         {selectedAgent ? (
           <div className="flex flex-col h-full min-h-0">
@@ -339,13 +347,13 @@ export default function AgentsPage() {
             <div className="lg:hidden flex items-center border-b border-slate-800 bg-slate-900/40 shrink-0">
               <button
                 type="button"
-                onClick={() => setMobileDetailOpen(false)}
+                onClick={scrollToList}
                 title="All agents"
                 className="flex items-center gap-1 pl-3 pr-1.5 py-2.5 text-xs font-semibold text-slate-400 hover:text-white shrink-0 cursor-pointer"
               >
                 <ChevronLeft className="size-4" />
               </button>
-              <div className="flex-1 overflow-x-auto flex items-center gap-1.5 px-1.5 py-1.5">
+              <div className="flex-1 overflow-x-auto overscroll-x-contain flex items-center gap-1.5 px-1.5 py-1.5">
                 {filteredAgents.map((agent) => {
                   const active = agent.id === selectedAgentId;
                   return (
@@ -420,7 +428,7 @@ export default function AgentsPage() {
             <Tabs defaultValue="properties" className="flex-1 flex flex-col min-h-0">
               {/* Scrollable strip — three uppercase labels overflow
                   narrow panels; clipping ate "…& NOTES" before. */}
-              <div className="px-6 border-b border-slate-800 bg-slate-900/10 shrink-0 overflow-x-auto">
+              <div className="px-6 border-b border-slate-800 bg-slate-900/10 shrink-0 overflow-x-auto overscroll-x-contain">
                 <TabsList className="bg-transparent border-b-0 space-x-6 p-0 h-12 w-max min-w-full">
                   <TabsTrigger
                     value="properties"
