@@ -30,6 +30,7 @@ import {
   ThumbsDown,
   Bell,
   Home,
+  Play,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -168,6 +169,19 @@ export function ShowcaseView({
     findInitialProperty(properties, initialPropertyId)
   );
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+
+  // Detail-modal gallery: the listing video rides the photo carousel as
+  // the last slide (index = images.length) instead of its own panel.
+  // Prefer the unlisted YouTube copy (adaptive streaming, zero delivery
+  // cost); fall back to the storage-hosted MP4.
+  const detailImages = selectedProperty?.images ?? [];
+  const detailYouTubeId =
+    selectedProperty?.youtube_status === 'ready' ? selectedProperty.youtube_video_id : null;
+  const detailVideoUrl =
+    selectedProperty?.video_status === 'ready' ? selectedProperty.video_url : null;
+  const detailHasVideo = Boolean(detailYouTubeId || detailVideoUrl);
+  const detailMediaCount = detailImages.length + (detailHasVideo ? 1 : 0);
+  const isVideoSlide = detailHasVideo && activeImageIdx >= detailImages.length;
 
   // Pulse: record property views with dwell time. Runs on every
   // selectedProperty transition — closing or switching the modal emits the
@@ -1548,34 +1562,55 @@ export function ShowcaseView({
             {/* Left Pane: Gallery — shrink-0 so the details pane below
                 can't squeeze it (or its thumbnail strip) on mobile. */}
             <div className="w-full lg:w-[50%] h-[300px] lg:h-auto bg-slate-950 relative flex flex-col min-h-[300px] shrink-0 lg:shrink">
-              {selectedProperty.images && selectedProperty.images.length > 0 ? (
+              {detailMediaCount > 0 ? (
                 <>
-                  {/* Main Viewer */}
+                  {/* Main Viewer — photos first, the listing video as
+                      the last slide of the same carousel. */}
                   <div className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={showcaseImageUrl(selectedProperty.images[activeImageIdx], SHOWCASE_IMAGE_WIDTHS.hero)}
-                      alt={selectedProperty.title}
-                      fetchPriority="high"
-                      onError={(e) => {
-                        // Resize endpoint unavailable → fall back to the original file
-                        const original = selectedProperty.images[activeImageIdx];
-                        if (e.currentTarget.src !== original) e.currentTarget.src = original;
-                      }}
-                      className="w-full h-full object-contain"
-                    />
-                    
+                    {isVideoSlide ? (
+                      detailYouTubeId ? (
+                        <iframe
+                          src={`https://www.youtube-nocookie.com/embed/${detailYouTubeId}`}
+                          title={`${selectedProperty.title} — listing video`}
+                          allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="w-full h-full"
+                        />
+                      ) : (
+                        <video
+                          src={detailVideoUrl!}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          className="w-full h-full object-contain"
+                        />
+                      )
+                    ) : (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={showcaseImageUrl(detailImages[activeImageIdx], SHOWCASE_IMAGE_WIDTHS.hero)}
+                        alt={selectedProperty.title}
+                        fetchPriority="high"
+                        onError={(e) => {
+                          // Resize endpoint unavailable → fall back to the original file
+                          const original = detailImages[activeImageIdx];
+                          if (e.currentTarget.src !== original) e.currentTarget.src = original;
+                        }}
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+
                     {/* Slider Navigation */}
-                    {selectedProperty.images.length > 1 && (
+                    {detailMediaCount > 1 && (
                       <>
                         <button
-                          onClick={() => setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : selectedProperty.images.length - 1))}
+                          onClick={() => setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : detailMediaCount - 1))}
                           className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-350 hover:text-white border border-slate-800/40 cursor-pointer"
                         >
                           <ChevronLeft className="size-4" />
                         </button>
                         <button
-                          onClick={() => setActiveImageIdx((prev) => (prev < selectedProperty.images.length - 1 ? prev + 1 : 0))}
+                          onClick={() => setActiveImageIdx((prev) => (prev < detailMediaCount - 1 ? prev + 1 : 0))}
                           className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-350 hover:text-white border border-slate-800/40 cursor-pointer"
                         >
                           <ChevronRight className="size-4" />
@@ -1584,42 +1619,15 @@ export function ShowcaseView({
                     )}
                   </div>
 
-                  {/* Listing video — rendered above the thumbnails so
-                      visitors see moving footage next to the photos.
-                      Prefer the unlisted YouTube copy (adaptive
-                      streaming, zero delivery cost); fall back to the
-                      storage-hosted MP4. */}
-                  {selectedProperty.youtube_video_id && selectedProperty.youtube_status === 'ready' ? (
-                    <div className="border-t border-slate-850 bg-slate-950/80 p-2">
-                      <iframe
-                        src={`https://www.youtube-nocookie.com/embed/${selectedProperty.youtube_video_id}`}
-                        title={`${selectedProperty.title} — listing video`}
-                        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen
-                        className="mx-auto aspect-[9/16] h-64 rounded-lg border border-slate-800"
-                      />
-                    </div>
-                  ) : selectedProperty.video_url && selectedProperty.video_status === 'ready' ? (
-                    <div className="border-t border-slate-850 bg-slate-950/80 p-2">
-                      <video
-                        src={selectedProperty.video_url}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="mx-auto max-h-64 rounded-lg border border-slate-800"
-                      />
-                    </div>
-                  ) : null}
-
                   {/* Thumbnail Row */}
-                  {selectedProperty.images.length > 1 && (
+                  {detailMediaCount > 1 && (
                     <div className="h-16 border-t border-slate-850 p-2 flex gap-1.5 bg-slate-950/80 overflow-x-auto">
-                      {selectedProperty.images.map((imgUrl, i) => (
+                      {detailImages.map((imgUrl, i) => (
                         <button
                           key={imgUrl}
                           onClick={() => setActiveImageIdx(i)}
                           className={`h-12 w-16 rounded overflow-hidden shrink-0 border-2 transition-all cursor-pointer ${
-                            activeImageIdx === i ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
+                            !isVideoSlide && activeImageIdx === i ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
                           }`}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1635,6 +1643,31 @@ export function ShowcaseView({
                           />
                         </button>
                       ))}
+                      {detailHasVideo && (
+                        <button
+                          onClick={() => setActiveImageIdx(detailImages.length)}
+                          className={`h-12 w-16 rounded overflow-hidden shrink-0 border-2 transition-all cursor-pointer relative ${
+                            isVideoSlide ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
+                          }`}
+                          title="Listing video"
+                        >
+                          {detailYouTubeId ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                              src={`https://i.ytimg.com/vi/${detailYouTubeId}/mqdefault.jpg`}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-slate-900" />
+                          )}
+                          <span className="absolute inset-0 flex items-center justify-center bg-slate-950/40">
+                            <Play className="size-4 text-white fill-white" />
+                          </span>
+                        </button>
+                      )}
                     </div>
                   )}
                 </>
