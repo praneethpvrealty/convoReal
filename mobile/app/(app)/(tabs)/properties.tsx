@@ -10,6 +10,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -27,6 +28,7 @@ import {
   type PlaceSuggestion,
 } from '@/lib/api';
 import { formatInr } from '@/lib/format';
+import { getShowcaseUrl } from '@/lib/welcome-message';
 import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
 import {
@@ -162,6 +164,22 @@ export default function PropertiesScreen() {
             {typeof total === 'number' ? (
               <Text style={{ fontSize: 13, color: colors.textMuted }}>{total} listings</Text>
             ) : null}
+            <Pressable
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Share showcase link"
+              onPress={async () => {
+                haptic.tap();
+                const url = await getShowcaseUrl();
+                Share.share({
+                  message: `Browse our verified property listings — photos, prices and full details:\n${url}`,
+                  url,
+                });
+              }}
+              style={StyleSheet.flatten([styles.mapButton, { backgroundColor: colors.primarySoft }])}
+            >
+              <Ionicons name="share-social-outline" size={17} color={colors.primary} />
+            </Pressable>
             <Link href="/(app)/properties-map" asChild>
               <Pressable
                 hitSlop={8}

@@ -11,7 +11,28 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **Mobile: property quick-edit + showcase sharing.** The property
+  screen's action rail gains **Edit** — a mobile-scale form for the
+  fields agents change in the field (title, price or rent +
+  maintenance, status, bedrooms/bathrooms/area, description,
+  published toggle), saving through the same `PUT /api/properties`
+  route; photos, locality and deal terms stay in the web's full
+  form. The Properties tab header gains a **share showcase** button
+  that opens the native share sheet with the account's public
+  showcase link (subdomain-aware). Showcase links already deep-link
+  into the app for users who have it installed (`+native-intent`
+  maps `?property_id=…` to the property screen) — App Links verify
+  once an EAS build ships with the site's cert env set.
+
 ### Fixed
+
+- **Mobile: sends failing "Unauthorized" even after the redirect
+  fix.** Some RN fetch stacks don't report the final URL after a
+  redirect, so the apex→www detection could miss. `apiFetch` now has
+  a deterministic fallback: still-401 on an apex base → retry the
+  `www.` variant directly and pin it on success.
 
 - **Mobile "Import from Phone" crash on SDK 57.** `expo-contacts`
   moved its function API (`getContactsAsync` & co.) behind the

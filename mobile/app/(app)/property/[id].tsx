@@ -664,6 +664,15 @@ function ActionRail({ property }: { property: Property }) {
 
   const actions = [
     {
+      key: 'edit',
+      icon: 'create-outline' as const,
+      label: 'Edit',
+      onPress: () => {
+        haptic.tap();
+        router.push(`/(app)/property-edit?id=${property.id}`);
+      },
+    },
+    {
       key: 'share',
       icon: 'share-social-outline' as const,
       label: 'Share',

@@ -66,10 +66,28 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   // surface) while PostgREST still accepts it, so direct table reads
   // keep working but `auth.getUser()` on the API returns 401. A forced
   // refresh mints a valid token — retry once with it.
+  let token = session.access_token;
   if (res.status === 401) {
     const { data } = await supabase.auth.refreshSession();
     if (data.session) {
-      res = await doFetch(apiBase(), data.session.access_token);
+      token = data.session.access_token;
+      res = await doFetch(apiBase(), token);
+    }
+  }
+
+  // Deterministic redirect fallback: some RN fetch stacks don't expose
+  // the final URL, so the origin detection above can miss the apex →
+  // www 308 (which strips Authorization). If we're still 401 on an
+  // apex base, try the www variant directly and pin it when it works.
+  if (res.status === 401 && !resolvedBase) {
+    const u = new URL(ENV.apiBaseUrl);
+    if (!u.hostname.startsWith('www.')) {
+      u.hostname = `www.${u.hostname}`;
+      const wwwRes = await doFetch(u.origin, token);
+      if (wwwRes.status !== 401) {
+        resolvedBase = u.origin;
+        res = wwwRes;
+      }
     }
   }
 
