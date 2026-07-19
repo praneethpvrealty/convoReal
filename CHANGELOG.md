@@ -29,6 +29,18 @@ and polish.
 
 ### Added
 
+- **Mobile Agents: two-pane layout, Requirements and Schedule.** On
+  wide screens (tablets/foldables ≥700dp) the Agents screen becomes
+  the desktop two-pane directory: agent list on the left, full
+  detail on the right with the action row (Call / WhatsApp / Inbox /
+  Journey) — no more bouncing back to the list. The agent detail
+  (both panes and the contact screen) gains the desktop tabs that
+  were missing: a **Requirements & brief** editor (saves to the
+  contact like the web tab) and a **Schedule** section listing every
+  appointment involving the agent — primary or multi-attendee —
+  upcoming first with history below, plus a Schedule shortcut that
+  opens the new-appointment form with the contact prefilled.
+
 - **Mobile: prefilled WhatsApp welcome message.** The desktop
   contacts page's "Send pre-filled welcome message" button now
   exists on the app. Contact rows gain a WhatsApp button and the
