@@ -41,6 +41,9 @@ export default function DenLayout() {
         headerTintColor: colors.text,
         headerShadowVisible: false,
         contentStyle: { backgroundColor: 'transparent' },
+        animation: 'slide_from_right',
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
       }}
     >
       <Stack.Screen name="den/index" options={{ headerShown: false }} />

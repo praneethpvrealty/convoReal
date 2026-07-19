@@ -13,6 +13,21 @@ and polish.
 
 ### Fixed
 
+- **Mobile "Import from Phone" crash on SDK 57.** `expo-contacts`
+  moved its function API (`getContactsAsync` & co.) behind the
+  `expo-contacts/legacy` entry point; the import now targets it.
+
+### Changed
+
+- **Mobile: swipe-back navigation.** Screens slide in from the right
+  and swipe back out: full-screen swipe-back on iOS, and Android's
+  predictive back gesture is enabled (`predictiveBackGestureEnabled`,
+  applies to EAS builds) so the system edge swipe animates through
+  app screens. The header up-arrow stays — it's Material convention
+  too, and the only reachable affordance on tablets.
+
+### Fixed
+
 - **Mobile "Unauthorized" on every API send — apex-domain redirect.**
   `convoreal.com/api/*` 308-redirects to `www.convoreal.com`, and
   fetch strips the `Authorization` header on cross-origin redirects —

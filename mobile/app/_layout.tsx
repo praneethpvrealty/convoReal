@@ -68,6 +68,12 @@ export default function RootLayout() {
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: 'transparent' },
+            // Swipe-back everywhere: iOS gets full-screen swipe, Android
+            // rides the system predictive back gesture (app.json flag);
+            // content slides with the gesture instead of the default fade.
+            animation: 'slide_from_right',
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
           }}
         >
           <Stack.Screen name="(auth)" />
