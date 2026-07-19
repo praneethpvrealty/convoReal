@@ -24,6 +24,7 @@ import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SectionLabel, Tag } from '@/components/ui';
+import { nativeMapsAvailable } from '@/lib/maps-support';
 import { apiFetch, ApiError } from '@/lib/api';
 import { ENV } from '@/lib/env';
 import { friendlyError } from '@/lib/errors';
@@ -71,6 +72,9 @@ export default function PropertyDetailScreen() {
   // Live window width (module-scope Dimensions is stale on foldables/
   // rotation and broke pager math on wide screens).
   const { width: winW } = useWindowDimensions();
+  // Must run before the loading early-return — hooks can't come after
+  // a conditional return (hook count would change between renders).
+  const insets = useSafeAreaInsets();
   const pagerRef = useRef<ScrollView>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -89,7 +93,6 @@ export default function PropertyDetailScreen() {
     );
   }
 
-  const insets = useSafeAreaInsets();
   const price =
     property.listing_type === 'Rent'
       ? property.rent_per_month
@@ -462,6 +465,25 @@ export default function PropertyDetailScreen() {
 
         {typeof property.latitude === 'number' && typeof property.longitude === 'number' ? (
           <Section title="Location">
+            {!nativeMapsAvailable ? (
+              <Pressable
+                onPress={() =>
+                  Linking.openURL(
+                    property.google_map_link ||
+                      `https://maps.google.com/?q=${property.latitude},${property.longitude}`
+                  )
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Open location in Google Maps"
+                style={[styles.mapFallbackRow, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+              >
+                <Ionicons name="location" size={18} color={colors.primary} />
+                <Text style={{ flex: 1, fontSize: 14, fontFamily: f.semibold, color: colors.text }}>
+                  View location in Google Maps
+                </Text>
+                <Ionicons name="open-outline" size={16} color={colors.textFaint} />
+              </Pressable>
+            ) : (
             <View style={styles.mapWrap}>
               <MapView
                 style={StyleSheet.absoluteFill}
@@ -489,6 +511,7 @@ export default function PropertyDetailScreen() {
                 />
               </MapView>
             </View>
+            )}
           </Section>
         ) : null}
 
@@ -526,7 +549,7 @@ export default function PropertyDetailScreen() {
       <BlurView
         intensity={16}
         tint={dark ? 'dark' : 'light'}
-        experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+        blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
         style={StyleSheet.absoluteFill}
       />
       <View style={{ flex: 1 }}>
@@ -840,6 +863,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 12,
+  },
+  mapFallbackRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.md,
   },
   mapWrap: {
     height: 170,

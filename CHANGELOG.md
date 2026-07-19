@@ -251,6 +251,20 @@ and polish.
 
 ### Added
 
+- **Mobile: black map screen fixed + crash and deprecation fixes.**
+  The Properties map (and the detail mini-map) rendered a black void:
+  Google Maps needs an Android API key that was never configured, and
+  Expo Go on Android can't render Google Maps at all (removed in
+  SDK 53+). Both spots now show a graceful explainer with an "Open in
+  Google Maps" handoff when native tiles can't render, and a new
+  `app.config.js` injects `GOOGLE_MAPS_ANDROID_API_KEY` from the
+  environment at build time — maps light up automatically in the EAS
+  build. Also fixed: a hooks-order crash on the property screen
+  (`useSafeAreaInsets` ran after the loading early-return, changing
+  the hook count when data arrived) and the deprecated
+  `experimentalBlurMethod` prop (now `blurMethod`) on all four
+  BlurView call sites.
+
 - **Mobile: Owners Den (tranche 1).** The owner-facing portal now
   lives in the app too, per the "same app, owner entry" decision.
   The staff login gains a "Property owner? Open the Owners Den" entry

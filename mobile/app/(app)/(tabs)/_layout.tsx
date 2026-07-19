@@ -76,7 +76,7 @@ export default function TabsLayout() {
           <BlurView
             intensity={40}
             tint={dark ? 'dark' : 'light'}
-            experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
             style={StyleSheet.absoluteFill}
           />
         ),
