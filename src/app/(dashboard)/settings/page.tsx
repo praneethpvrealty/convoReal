@@ -46,6 +46,7 @@ import { MembersTab } from '@/components/settings/members-tab';
 import { TeamsTab } from '@/components/settings/teams-tab';
 import { RoutingRulesTab } from '@/components/settings/routing-rules-tab';
 import { ShowcaseSettingsPanel } from '@/components/settings/showcase-settings';
+import { YouTubeConnectCard } from '@/components/settings/youtube-connect-card';
 import { AiSettingsPanel } from '@/components/settings/ai-settings';
 import { OtherSettingsPanel } from '@/components/settings/other-settings';
 import { useAuth } from '@/hooks/use-auth';
@@ -496,7 +497,10 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="showcase" className="mt-0">
-            <ShowcaseSettingsPanel />
+            <div className="space-y-6">
+              <ShowcaseSettingsPanel />
+              <YouTubeConnectCard />
+            </div>
           </TabsContent>
 
           <TabsContent value="ai" className="mt-0">

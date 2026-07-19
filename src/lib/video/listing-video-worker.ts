@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { syncPropertyVideoToYouTube } from '@/lib/youtube/upload';
 import { refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
@@ -329,6 +330,23 @@ export async function processListingVideoJob(job: ListingVideoJob): Promise<void
       video_generated_at: new Date().toISOString(),
     }).eq('id', property.id);
     console.log(`[listing-video] ready: property=${property.id} ${(bytes.length / 1024 / 1024).toFixed(1)}MB lang=${language}`);
+
+    // Auto-upload the fresh render to the account's YouTube channel
+    // (Unlisted) when one is connected with auto_upload on. Never
+    // throws — a YouTube failure lands in youtube_status='failed'
+    // without touching the successful render above.
+    const { data: yt } = await admin
+      .from('youtube_config')
+      .select('status, auto_upload')
+      .eq('account_id', job.accountId)
+      .maybeSingle();
+    if (yt?.status === 'connected' && yt.auto_upload) {
+      await syncPropertyVideoToYouTube({
+        propertyId: property.id,
+        accountId: job.accountId,
+        videoBytes: bytes,
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[listing-video] job failed:', message);

@@ -52,6 +52,10 @@ const SECURITY_HEADERS = [
       // Supabase REST + realtime (WSS). All Meta API calls happen
       // server-side, so graph.facebook.com does not belong here.
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      // Unlisted YouTube embeds of listing videos on the Showcase,
+      // plus the Supabase-storage MP4 fallback the <video> tag plays.
+      "frame-src 'self' https://www.youtube-nocookie.com",
+      "media-src 'self' https://*.supabase.co",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

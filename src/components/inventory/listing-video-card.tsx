@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Clapperboard, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { CirclePlay, Clapperboard, ExternalLink, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,25 +14,34 @@ interface VideoState {
   video_status: 'queued' | 'processing' | 'ready' | 'failed' | null;
   video_language: string | null;
   video_error: string | null;
+  youtube_video_id: string | null;
+  youtube_status: 'queued' | 'uploading' | 'ready' | 'failed' | null;
+  youtube_error: string | null;
 }
 
 /**
  * "Generate listing video" card on the property form (edit mode only —
  * the render needs saved photos). Queues the job via
  * POST /api/properties/[id]/generate-video, polls the property row
- * while queued/processing, and previews the MP4 once ready.
+ * while queued/processing, and previews the MP4 once ready. When the
+ * account has a YouTube channel connected, also surfaces the unlisted
+ * YouTube copy's status with a manual upload/retry button.
  */
 export function ListingVideoCard({ propertyId }: { propertyId: string }) {
   const [state, setState] = useState<VideoState | null>(null);
   const [language, setLanguage] = useState<NarrationLanguage>('en-IN');
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingYt, setUploadingYt] = useState(false);
+  const [ytConnected, setYtConnected] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = async () => {
     const supabase = createClient();
     const { data } = await supabase
       .from('properties')
-      .select('video_url, video_status, video_language, video_error')
+      .select(
+        'video_url, video_status, video_language, video_error, youtube_video_id, youtube_status, youtube_error'
+      )
       .eq('id', propertyId)
       .maybeSingle();
     if (data) {
@@ -46,15 +55,23 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
 
   useEffect(() => {
     refresh();
+    fetch('/api/youtube/config')
+      .then((res) => res.json())
+      .then((data) => setYtConnected(Boolean(data?.connected)))
+      .catch(() => setYtConnected(false));
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId]);
 
-  // Poll every 5s only while a render is in flight.
+  // Poll every 5s only while a render or YouTube upload is in flight.
   useEffect(() => {
-    const active = state?.video_status === 'queued' || state?.video_status === 'processing';
+    const active =
+      state?.video_status === 'queued' ||
+      state?.video_status === 'processing' ||
+      state?.youtube_status === 'queued' ||
+      state?.youtube_status === 'uploading';
     if (active && !pollRef.current) {
       pollRef.current = setInterval(refresh, 5000);
     } else if (!active && pollRef.current) {
@@ -62,7 +79,7 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
       pollRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state?.video_status]);
+  }, [state?.video_status, state?.youtube_status]);
 
   const generate = async () => {
     setSubmitting(true);
@@ -85,7 +102,23 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
     }
   };
 
+  const uploadToYouTube = async () => {
+    setUploadingYt(true);
+    try {
+      const res = await fetch(`/api/properties/${propertyId}/youtube-upload`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `Failed (HTTP ${res.status})`);
+      toast.success('YouTube upload queued.');
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to queue the YouTube upload');
+    } finally {
+      setUploadingYt(false);
+    }
+  };
+
   const busy = state?.video_status === 'queued' || state?.video_status === 'processing';
+  const ytBusy = state?.youtube_status === 'queued' || state?.youtube_status === 'uploading';
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -153,6 +186,47 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
           )}
         </Button>
       </div>
+
+      {ytConnected && state?.video_status === 'ready' && (
+        <div className="space-y-2 border-t border-slate-800 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <CirclePlay className="size-3.5 text-red-500" />
+            {state.youtube_status === 'ready' && state.youtube_video_id ? (
+              <a
+                href={`https://youtu.be/${state.youtube_video_id}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-slate-300 underline hover:text-white"
+              >
+                View on YouTube <ExternalLink className="size-3" />
+              </a>
+            ) : ytBusy ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                <Loader2 className="size-3 animate-spin" /> Uploading to YouTube…
+              </span>
+            ) : (
+              <span className="text-xs text-slate-500">Not on YouTube yet</span>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={uploadToYouTube}
+              disabled={ytBusy || uploadingYt}
+              className="h-7 px-2 text-xs text-slate-300"
+            >
+              {state.youtube_status === 'ready'
+                ? 'Re-upload'
+                : state.youtube_status === 'failed'
+                  ? 'Retry upload'
+                  : 'Upload to YouTube'}
+            </Button>
+          </div>
+          {state.youtube_status === 'failed' && state.youtube_error && (
+            <p className="text-xs text-red-400">YouTube upload failed: {state.youtube_error}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
