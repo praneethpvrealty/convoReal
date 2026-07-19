@@ -182,6 +182,7 @@ export function ShowcaseView({
   const detailHasVideo = Boolean(detailYouTubeId || detailVideoUrl);
   const detailMediaCount = detailImages.length + (detailHasVideo ? 1 : 0);
   const isVideoSlide = detailHasVideo && activeImageIdx >= detailImages.length;
+  const detailTouchXRef = useRef<number | null>(null);
 
   // Pulse: record property views with dwell time. Runs on every
   // selectedProperty transition — closing or switching the modal emits the
@@ -1565,8 +1566,27 @@ export function ShowcaseView({
               {detailMediaCount > 0 ? (
                 <>
                   {/* Main Viewer — photos first, the listing video as
-                      the last slide of the same carousel. */}
-                  <div className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center">
+                      the last slide of the same carousel. Touch swipe
+                      navigates alongside the arrow buttons. */}
+                  <div
+                    className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center"
+                    onTouchStart={(e) => {
+                      detailTouchXRef.current = e.touches[0].clientX;
+                    }}
+                    onTouchEnd={(e) => {
+                      const startX = detailTouchXRef.current;
+                      detailTouchXRef.current = null;
+                      // A drag on the video element is scrubbing, not a swipe.
+                      if (startX === null || (e.target as HTMLElement).tagName === 'VIDEO') return;
+                      const delta = e.changedTouches[0].clientX - startX;
+                      if (Math.abs(delta) < 50 || detailMediaCount < 2) return;
+                      setActiveImageIdx((prev) =>
+                        delta < 0
+                          ? (prev < detailMediaCount - 1 ? prev + 1 : 0)
+                          : (prev > 0 ? prev - 1 : detailMediaCount - 1)
+                      );
+                    }}
+                  >
                     {isVideoSlide ? (
                       detailYouTubeId ? (
                         <iframe
