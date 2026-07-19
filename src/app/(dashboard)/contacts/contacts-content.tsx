@@ -121,7 +121,16 @@ interface ContactWithTags extends Contact {
 export default function ContactsPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { user, profile, accountId } = useAuth();
+  const { user, profile, accountId, profileLoading, profileError } = useAuth();
+
+  // Watchdog for the loading state. Two silent failure shapes used to
+  // leave the spinner up forever with zero diagnostics: (a) auth's
+  // legacy profile fallback loads a profile WITHOUT account_id, so the
+  // `if (!accountId) return` guard in fetchContacts fires on every
+  // call; (b) a Supabase request that never settles (no client-side
+  // timeout). Surface both instead of spinning.
+  const [slowLoad, setSlowLoad] = useState(false);
+  const accountMissing = !profileLoading && !accountId;
   const canEdit = useCan('send-messages');
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
@@ -1176,6 +1185,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     fetchContacts();
   }, [fetchContacts]);
 
+  // Arm the slow-load notice while the spinner is up; disarm on settle.
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoad(false);
+      return;
+    }
+    const t = setTimeout(() => setSlowLoad(true), 12_000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   // Automatically open contact detail modal if contactId is specified in query parameters
   useEffect(() => {
     const cid = searchParams?.get('contactId');
@@ -1823,11 +1842,44 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             colSpan cell centers against the full multi-viewport-wide
             table and lands off-screen on mobile. Same pattern as the
             Broadcasts and Ads pages. */}
-        {loading ? (
+        {accountMissing ? (
+          <div className="flex flex-col items-center gap-3 py-12 px-6 text-center">
+            <Users className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-300 font-semibold">
+              Your account context didn&apos;t load
+            </p>
+            <p className="text-xs text-slate-500 max-w-sm">
+              {profileError
+                ? 'The profile lookup failed — usually a temporary network or database blip.'
+                : 'Your profile loaded without its workspace link, so contacts can’t be fetched.'}{' '}
+              Reloading normally fixes this.
+            </p>
+            <Button
+              onClick={() => window.location.reload()}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 px-4 cursor-pointer"
+            >
+              Reload page
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col items-center text-slate-400 py-12">
             <ContactCardLoader size={104} label="Loading contacts" className="mb-3" />
             <ConvoRealLoader size={20} className="mb-2" />
             <p className="text-sm">Loading contacts...</p>
+            {slowLoad && (
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <p className="text-xs text-slate-500">
+                  This is taking longer than usual — the connection may have stalled.
+                </p>
+                <Button
+                  onClick={fetchContactsWithInvalidate}
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-8 px-4 cursor-pointer"
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
           </div>
         ) : contacts.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-12">
