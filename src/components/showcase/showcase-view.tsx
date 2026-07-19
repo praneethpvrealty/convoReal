@@ -1584,6 +1584,20 @@ export function ShowcaseView({
                     )}
                   </div>
 
+                  {/* Listing video — rendered above the thumbnails so
+                      visitors see moving footage next to the photos. */}
+                  {selectedProperty.video_url && selectedProperty.video_status === 'ready' && (
+                    <div className="border-t border-slate-850 bg-slate-950/80 p-2">
+                      <video
+                        src={selectedProperty.video_url}
+                        controls
+                        playsInline
+                        preload="metadata"
+                        className="mx-auto max-h-64 rounded-lg border border-slate-800"
+                      />
+                    </div>
+                  )}
+
                   {/* Thumbnail Row */}
                   {selectedProperty.images.length > 1 && (
                     <div className="h-16 border-t border-slate-850 p-2 flex gap-1.5 bg-slate-950/80 overflow-x-auto">

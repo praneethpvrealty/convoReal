@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import Redis from 'ioredis';
 import { processWebhook } from '../lib/whatsapp/webhook-handler';
+import { processListingVideoJob, type ListingVideoJob } from '../lib/video/listing-video-worker';
 
 // Helper to manually load Next.js environment files
 function loadEnv() {
@@ -50,10 +51,28 @@ console.log('[Worker] Connected to Redis. Starting queue consumption...');
 async function startWorker() {
   while (true) {
     try {
-      // BLPOP blocks until a webhook payload is pushed to 'whatsapp-webhooks'
-      const result = await redis.blpop('whatsapp-webhooks', 0);
+      // BLPOP blocks until a payload lands on either queue: WhatsApp
+      // webhook events (high frequency) or listing-video render jobs
+      // (rare, CPU-heavy — processed inline so a render naturally
+      // backpressures webhook consumption for its ~30s duration).
+      const result = await redis.blpop('whatsapp-webhooks', 'listing-videos', 0);
       if (result) {
-        const [, payloadStr] = result;
+        const [queueName, payloadStr] = result;
+
+        if (queueName === 'listing-videos') {
+          try {
+            const job = JSON.parse(payloadStr) as ListingVideoJob;
+            console.log(`[Worker] Listing-video job: property=${job.propertyId} lang=${job.language}`);
+            const t0 = Date.now();
+            // Marks the property failed + refunds credits internally
+            // on operational errors — no DLQ needed.
+            await processListingVideoJob(job);
+            console.log(`[Worker] Listing-video job finished in ${Date.now() - t0}ms`);
+          } catch (videoErr) {
+            console.error('[Worker] Listing-video job crashed:', videoErr);
+          }
+          continue;
+        }
         
         let body: Parameters<typeof processWebhook>[0];
         try {

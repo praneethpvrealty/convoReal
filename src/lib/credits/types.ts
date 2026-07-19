@@ -111,6 +111,10 @@ export const AI_FEATURE_COSTS = {
   share_email: 10,
   event_parse: 3,
   voice_event_parse: 5,
+  /** Auto-generated listing video: Sarvam TTS narration + ffmpeg
+   *  render on the worker (src/lib/video/). Priced above raw cost
+   *  (~₹1-4 TTS + worker CPU) as a premium feature. */
+  listing_video: 50,
 } as const;
 
 export type AiFeatureKey = keyof typeof AI_FEATURE_COSTS;

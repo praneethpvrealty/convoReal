@@ -915,6 +915,12 @@ export interface Property {
   is_starred?: boolean;
   features: string[];
   images: string[];
+  /** Auto-generated listing teaser video (migration 151). */
+  video_url?: string | null;
+  video_status?: 'queued' | 'processing' | 'ready' | 'failed' | null;
+  video_language?: string | null;
+  video_error?: string | null;
+  video_generated_at?: string | null;
   documents?: string[];
   google_map_link?: string | null;
   property_code?: string;

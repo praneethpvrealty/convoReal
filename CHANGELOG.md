@@ -11,6 +11,22 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **Auto-generated listing videos.** A "Listing Video" card on the
+  property form builds a WhatsApp-ready vertical teaser (≤16MB,
+  ~35s) from the listing's photos: Ken Burns motion, caption
+  overlays, branded end card, background music, and narration via
+  Sarvam AI in 11 Indian languages (English scripts are translated
+  automatically; espeak fallback without a key). Renders run on the
+  Redis queue worker (Dockerfile.worker now installs
+  ffmpeg/fonts/espeak-ng), cost 50 credits — disclosed on the button,
+  charged up front, auto-refunded on failure — and the finished video
+  plays on the Showcase page next to the photos. **Migration
+  required:** `151_listing_videos.sql`. Env: `SARVAM_API_KEY` on the
+  worker (and Vercel for future use); credit policy documented in
+  docs/credits-policy-listing-video.md.
+
 ### Fixed
 
 - **Contacts page: slow networks get a Retry card, not an eternal
