@@ -896,16 +896,11 @@ export default function InventoryPage() {
         )}
       </button>
 
-      {/* Mobile: search overlay pinned under the header */}
+      {/* Mobile: search panel — in-flow and sticky, NOT an overlay, so
+          the result list stays visible and live-updates while typing. */}
       {mobileSearchOpen && (
-        <div className="md:hidden">
-          <button
-            type="button"
-            aria-label="Close search"
-            onClick={() => setMobileSearchOpen(false)}
-            className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm"
-          />
-          <div className="fixed inset-x-3 top-16 z-50 rounded-xl border border-slate-700 bg-slate-900 p-4 space-y-3 shadow-xl shadow-slate-950/60">
+        <div className="md:hidden sticky top-2 z-40">
+          <div className="rounded-xl border border-slate-700 bg-slate-900/95 backdrop-blur p-4 space-y-3 shadow-xl shadow-slate-950/60">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
                 Search inventory
@@ -977,7 +972,7 @@ export default function InventoryPage() {
                 onClick={() => setMobileSearchOpen(false)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 px-4 cursor-pointer"
               >
-                Show results
+                Done
               </Button>
             </div>
           </div>
