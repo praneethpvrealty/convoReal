@@ -235,6 +235,15 @@ and polish.
 
 ### Added
 
+- **Mobile: uniform aurora backgrounds.** The first aurora renders
+  showed wide vertical banding stripes ("seams") and visible glow
+  rims on device — 8-bit quantization of very close dark base colors,
+  magnified by stretching a 512×640 image ~3.7× onto a phone screen.
+  The generator (`scratch/gen_aurora.py`) now renders at phone aspect
+  (810×1755) with triangular dither noise and smoothstep glow
+  falloff; both PNGs regenerated — backgrounds are now perfectly
+  smooth in both themes.
+
 - **Mobile: "aurora glass" design system.** Full visual re-skin per
   `docs/design/GLASS_UI_IMPLEMENTATION_SPEC.md`. Light mode is
   Option 7 "WhatsApp Native on Glass" — WhatsApp deep-green
