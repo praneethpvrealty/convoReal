@@ -1,6 +1,8 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import * as DeviceContacts from 'expo-contacts';
+// SDK 57 moved the function API behind /legacy (the default export is
+// the new class-based API and throws on these methods).
+import * as DeviceContacts from 'expo-contacts/legacy';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';

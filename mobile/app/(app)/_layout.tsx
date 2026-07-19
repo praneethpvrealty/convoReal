@@ -37,6 +37,9 @@ export default function AppLayout() {
         headerTintColor: colors.text,
         headerShadowVisible: false,
         contentStyle: { backgroundColor: 'transparent' },
+        animation: 'slide_from_right',
+        gestureEnabled: true,
+        fullScreenGestureEnabled: true,
       }}
     >
       {/* Screens register themselves; each file owns its title and
