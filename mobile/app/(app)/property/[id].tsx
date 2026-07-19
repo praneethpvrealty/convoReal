@@ -5,14 +5,16 @@ import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
+  FlatList,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
 import { BlurView } from 'expo-blur';
@@ -24,8 +26,6 @@ import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Property } from '@/lib/types';
-
-const { width: SCREEN_W } = Dimensions.get('window');
 
 /** Scroll clearance so content ends above the sticky price bar. */
 const BOTTOM_BAR_CLEARANCE = 110;
@@ -47,8 +47,12 @@ async function fetchProperty(id: string): Promise<Property | null> {
 export default function PropertyDetailScreen() {
   const { colors, dark, fonts: f } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  // Live window width (module-scope Dimensions is stale on foldables/
+  // rotation and broke pager math on wide screens).
+  const { width: winW } = useWindowDimensions();
   const pagerRef = useRef<ScrollView>(null);
   const [activeImage, setActiveImage] = useState(0);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const { data: property, isLoading } = useQuery({
     queryKey: ['property', id],
     queryFn: () => fetchProperty(id),
@@ -75,6 +79,24 @@ export default function PropertyDetailScreen() {
     .filter(Boolean)
     .join(', ');
   const ownerPhone = property.owner?.phone;
+  const area = property.area_sqft
+    ? `${property.area_sqft} ${property.area_unit || 'sqft'}`
+    : property.land_area
+      ? `${property.land_area} ${property.land_area_unit || ''}`.trim()
+      : null;
+  // Web parity: specs without a value are hidden, not dashed out.
+  const specs = [
+    property.bedrooms
+      ? { icon: 'bed-outline' as const, label: 'Bedrooms', value: String(property.bedrooms) }
+      : null,
+    property.bathrooms
+      ? { icon: 'water-outline' as const, label: 'Bathrooms', value: String(property.bathrooms) }
+      : null,
+    area ? { icon: 'resize-outline' as const, label: 'Area', value: area } : null,
+    property.facing_direction
+      ? { icon: 'compass-outline' as const, label: 'Facing', value: property.facing_direction }
+      : null,
+  ].filter((sp): sp is NonNullable<typeof sp> => sp !== null);
 
   return (
     <View style={{ flex: 1 }}>
@@ -97,18 +119,41 @@ export default function PropertyDetailScreen() {
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={(e) =>
-              setActiveImage(Math.round(e.nativeEvent.contentOffset.x / SCREEN_W))
+              setActiveImage(
+                Math.round(
+                  e.nativeEvent.contentOffset.x /
+                    Math.max(1, e.nativeEvent.layoutMeasurement.width)
+                )
+              )
             }
           >
-            {property.images.map((url) => (
-              <Image
+            {property.images.map((url, i) => (
+              <Pressable
                 key={url}
-                source={{ uri: url }}
-                style={{ width: SCREEN_W, height: 270 }}
-                resizeMode="cover"
-              />
+                onPress={() => setViewerOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`View photo ${i + 1} full screen`}
+              >
+                <Image
+                  source={{ uri: url }}
+                  style={{ width: winW, height: 270 }}
+                  resizeMode="cover"
+                />
+              </Pressable>
             ))}
           </ScrollView>
+          {/* Photo counter + expand affordance. */}
+          <Pressable
+            onPress={() => setViewerOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Open photo gallery full screen"
+            style={styles.expandChip}
+          >
+            <Ionicons name="expand" size={13} color="#fff" />
+            <Text style={styles.expandChipText}>
+              {activeImage + 1}/{property.images.length}
+            </Text>
+          </Pressable>
           {property.images.length > 1 ? (
             <ScrollView
               horizontal
@@ -121,7 +166,7 @@ export default function PropertyDetailScreen() {
                   key={url}
                   onPress={() => {
                     setActiveImage(i);
-                    pagerRef.current?.scrollTo({ x: i * SCREEN_W, animated: true });
+                    pagerRef.current?.scrollTo({ x: i * winW, animated: true });
                   }}
                   accessibilityRole="button"
                   accessibilityLabel={`Photo ${i + 1} of ${property.images!.length}`}
@@ -137,18 +182,22 @@ export default function PropertyDetailScreen() {
               ))}
               {property.images.length > 8 ? (
                 <Pressable
-                  onPress={() => {
-                    setActiveImage(8);
-                    pagerRef.current?.scrollTo({ x: 8 * SCREEN_W, animated: true });
-                  }}
+                  onPress={() => setViewerOpen(true)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${property.images.length - 8} more photos`}
+                  accessibilityLabel={`View all ${property.images.length} photos`}
                   style={[styles.thumb, styles.thumbMore]}
                 >
                   <Text style={styles.thumbMoreText}>+{property.images.length - 8}</Text>
                 </Pressable>
               ) : null}
             </ScrollView>
+          ) : null}
+          {viewerOpen ? (
+            <GalleryViewer
+              images={property.images}
+              initialIndex={activeImage}
+              onClose={() => setViewerOpen(false)}
+            />
           ) : null}
         </View>
       ) : (
@@ -182,22 +231,13 @@ export default function PropertyDetailScreen() {
         ) : null}
         <Text style={{ fontSize: 24, fontFamily: f.extrabold, color: colors.primary }}>{price}</Text>
 
-        <View style={styles.specGrid}>
-          <Spec icon="bed-outline" label="Bedrooms" value={numOrDash(property.bedrooms)} />
-          <Spec icon="water-outline" label="Bathrooms" value={numOrDash(property.bathrooms)} />
-          <Spec
-            icon="resize-outline"
-            label="Area"
-            value={
-              property.area_sqft
-                ? `${property.area_sqft} ${property.area_unit || 'sqft'}`
-                : property.land_area
-                  ? `${property.land_area} ${property.land_area_unit || ''}`
-                  : '—'
-            }
-          />
-          <Spec icon="compass-outline" label="Facing" value={property.facing_direction || '—'} />
-        </View>
+        {specs.length > 0 ? (
+          <View style={styles.specGrid}>
+            {specs.map((sp) => (
+              <Spec key={sp.label} icon={sp.icon} label={sp.label} value={sp.value} />
+            ))}
+          </View>
+        ) : null}
 
         {property.description ? (
           <Section title="Description">
@@ -299,7 +339,9 @@ export default function PropertyDetailScreen() {
       style={[
         styles.bottomBar,
         {
-          backgroundColor: colors.tabBar,
+          // Near-opaque: content scrolling beneath must not read
+          // through the bar (Android's experimental blur is weak here).
+          backgroundColor: dark ? 'rgba(10,31,22,0.94)' : 'rgba(255,255,255,0.94)',
           borderColor: colors.glassBorder,
           paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
         },
@@ -347,8 +389,77 @@ export default function PropertyDetailScreen() {
   );
 }
 
-function numOrDash(n: number | null | undefined): string {
-  return n ? String(n) : '—';
+/**
+ * Full-screen photo viewer: paged, pinch-to-zoom on iOS (ScrollView
+ * zoom props are iOS-only; Android gets full-screen contain), photo
+ * counter and safe-area close button.
+ */
+function GalleryViewer({
+  images,
+  initialIndex,
+  onClose,
+}: {
+  images: string[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const [index, setIndex] = useState(initialIndex);
+
+  return (
+    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <FlatList
+          data={images}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={initialIndex}
+          getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+          keyExtractor={(u) => u}
+          onMomentumScrollEnd={(e) =>
+            setIndex(
+              Math.round(
+                e.nativeEvent.contentOffset.x /
+                  Math.max(1, e.nativeEvent.layoutMeasurement.width)
+              )
+            )
+          }
+          renderItem={({ item }) => (
+            <ScrollView
+              style={{ width, height }}
+              contentContainerStyle={{ width, height }}
+              minimumZoomScale={1}
+              maximumZoomScale={4}
+              bouncesZoom
+            >
+              <Image
+                source={{ uri: item }}
+                style={{ width, height }}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+            </ScrollView>
+          )}
+        />
+        <View style={[styles.viewerTopBar, { top: insets.top + spacing.sm }]}>
+          <Text style={styles.viewerCounter}>
+            {index + 1} / {images.length}
+          </Text>
+          <Pressable
+            onPress={onClose}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close gallery"
+            style={styles.viewerClose}
+          >
+            <Ionicons name="close" size={22} color="#fff" />
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
 function Spec({
@@ -424,7 +535,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: spacing.lg,
     right: spacing.lg,
-    bottom: 12,
+    // Clears the content sheet, which overlaps the hero by 24.
+    bottom: 36,
   },
   thumb: {
     width: 46,
@@ -432,6 +544,45 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.6)',
+  },
+  expandChip: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  expandChipText: { color: '#fff', fontSize: 12, fontFamily: fonts.bold },
+  viewerTopBar: {
+    position: 'absolute',
+    left: spacing.lg,
+    right: spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  viewerCounter: {
+    color: '#fff',
+    fontSize: 14,
+    fontFamily: fonts.bold,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    overflow: 'hidden',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  viewerClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   thumbMore: {
     alignItems: 'center',
