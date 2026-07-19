@@ -42,6 +42,10 @@ Property form ── "Generate video" ──▶ Redis 'listing-videos' ──▶
 - A manual **Upload to YouTube** button on the property form covers
   videos generated before the channel was connected (or with
   auto-upload switched off).
+- **WhatsApp intake**: a walkthrough video (MP4, ≤16MB) forwarded to
+  the owner chatbot alongside the listing photos/details is attached
+  to the draft, becomes `properties.video_url` on confirm, and is
+  queued for the same unlisted YouTube upload automatically.
 
 ## 1. Create the Google Cloud OAuth app
 

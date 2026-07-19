@@ -1,3 +1,4 @@
+import Redis from 'ioredis';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import {
@@ -48,6 +49,52 @@ export function buildVideoMetadata(
     .join('\n')
     .slice(0, DESCRIPTION_MAX);
   return { title, description };
+}
+
+/**
+ * Best-effort enqueue of a YouTube upload for a property whose
+ * video_url was just set outside the render worker (e.g. a walkthrough
+ * video forwarded during WhatsApp intake). Respects the account's
+ * auto_upload toggle; silently no-ops when YouTube isn't connected or
+ * the deployment has no queue worker. Never throws.
+ */
+export async function queueYouTubeUploadIfConnected(
+  propertyId: string,
+  accountId: string
+): Promise<void> {
+  try {
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) return;
+
+    const { data: config } = await supabaseAdmin()
+      .from('youtube_config')
+      .select('status, auto_upload')
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (config?.status !== 'connected' || !config.auto_upload) return;
+
+    await supabaseAdmin()
+      .from('properties')
+      .update({ youtube_status: 'queued', youtube_error: null })
+      .eq('id', propertyId)
+      .eq('account_id', accountId);
+
+    const redis = new Redis(redisUrl, {
+      maxRetriesPerRequest: 2,
+      lazyConnect: true,
+    });
+    try {
+      await redis.connect();
+      await redis.rpush(
+        'listing-videos',
+        JSON.stringify({ kind: 'youtube_upload', propertyId, accountId })
+      );
+    } finally {
+      redis.disconnect();
+    }
+  } catch (err) {
+    console.error('[youtube-upload] queue failed (non-fatal):', err);
+  }
 }
 
 /**

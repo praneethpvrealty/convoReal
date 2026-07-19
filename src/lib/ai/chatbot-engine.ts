@@ -12,7 +12,8 @@ import {
   type ParsedContactDraftsContainer,
   normalizeClassification
 } from '@/lib/ai/gemini';
-import { uploadPropertyImage, uploadPropertyDocument } from '@/lib/storage/upload';
+import { uploadPropertyImage, uploadPropertyDocument, uploadPropertyVideo } from '@/lib/storage/upload';
+import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
 import {
   sendTextMessage,
@@ -457,6 +458,7 @@ export async function processOwnerChatbotMessage(
     id: string;
     type: string;
     image?: { id: string; mime_type: string };
+    video?: { id: string; mime_type: string };
     document?: { id: string; mime_type: string; filename?: string };
     audio?: { id: string; mime_type: string };
     interactive?: {
@@ -502,7 +504,8 @@ export async function processOwnerChatbotMessage(
 
   const isImageMsg = message.type === 'image' && message.image?.id;
   const isDocMsg = message.type === 'document' && message.document?.id;
-  const isMediaMsg = isImageMsg || isDocMsg;
+  const isVideoMsg = message.type === 'video' && message.video?.id;
+  const isMediaMsg = isImageMsg || isDocMsg || isVideoMsg;
 
   // Concurrency check: If there is no active session yet, and we are either an image/document message or
   // a text message that is NOT a property initiator (e.g. location map link or quick correction),
@@ -592,8 +595,12 @@ export async function processOwnerChatbotMessage(
   async function loadInboundMedia(): Promise<{ buffer?: Buffer; mimeType?: string }> {
     if (inboundMediaFetched) return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
     inboundMediaFetched = true;
-    if (isImageMsg || isDocMsg) {
-      const mediaId = isImageMsg ? message.image!.id : message.document!.id;
+    if (isImageMsg || isDocMsg || isVideoMsg) {
+      const mediaId = isImageMsg
+        ? message.image!.id
+        : isDocMsg
+          ? message.document!.id
+          : message.video!.id;
       const { url, mimeType } = await getMediaUrl({ mediaId, accessToken });
       const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
       inboundMediaBuffer = buffer;
@@ -804,6 +811,8 @@ export async function processOwnerChatbotMessage(
           nearby_highlights: draft.nearby_highlights || [],
           images: draft.images || [],
           documents: draft.documents || [],
+          video_url: draft.video_url || null,
+          video_status: draft.video_url ? 'ready' : null,
           rental_income: parseNumeric(draft.rental_income),
           roi: parseNumeric(draft.roi),
           floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
@@ -878,6 +887,11 @@ export async function processOwnerChatbotMessage(
         autoSyncPropertyCatalogIfNeeded(supabaseAdmin(), prop.id, accountId).catch((err) => {
           console.error('[chatbot-engine] Auto-sync background error:', err);
         });
+        // Forwarded walkthrough video → unlisted YouTube copy, when a
+        // channel is connected (never throws; fire-and-forget).
+        if (draft.video_url) {
+          void queueYouTubeUploadIfConnected(prop.id, accountId);
+        }
         // Match Radar: surface matching buyers for the just-ingested
         // listing (fire-and-forget — must never delay the WhatsApp reply).
         import('@/lib/radar/engine')
@@ -895,7 +909,8 @@ export async function processOwnerChatbotMessage(
         `*Price:* ₹${prop.price.toLocaleString('en-IN')}\n` +
         `*Location:* ${prop.location}\n` +
         `*Type:* ${prop.type}\n` +
-        (prop.land_area ? `*Land Area:* ${prop.land_area} ${prop.land_area_unit || 'Sq.Ft.'}\n` : '');
+        (prop.land_area ? `*Land Area:* ${prop.land_area} ${prop.land_area_unit || 'Sq.Ft.'}\n` : '') +
+        (prop.video_url ? `*Video:* Attached 🎬\n` : '');
 
       if (prop.rental_income) {
         reply += `*Rent:* ₹${prop.rental_income.toLocaleString('en-IN')}/month\n`;
@@ -1014,6 +1029,108 @@ export async function processOwnerChatbotMessage(
         await saveBotMessage(conversation.id, reply, sendRes.messageId);
         // Our arrival touch may have silenced an earlier thread's card —
         // fire a recovery preview so the album still ends with one card.
+        sendPropertyDraftPreviewDebounced(
+          propSession.id,
+          new Date().toISOString(),
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          '📝 *Draft Listing:*',
+          conversation.id
+        );
+        return true;
+      }
+    }
+
+    // Handle walkthrough video inside active session — same ack
+    // pattern as photos. A listing carries ONE video (properties.
+    // video_url), so a second video replaces the first. Confirming the
+    // draft stamps it onto the property and (when a YouTube channel is
+    // connected) queues the unlisted YouTube upload.
+    if (isVideoMsg) {
+      await reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '⏳');
+      await touchDraftSession(propSession.id);
+
+      try {
+        const { buffer, mimeType } = await loadInboundMedia();
+        if (!mimeType?.includes('mp4')) {
+          const reply = "⚠️ *Video format not supported.* Please send the walkthrough as an MP4 video.";
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          return true;
+        }
+        const publicUrl = await uploadPropertyVideo(accountId, buffer!, mimeType);
+
+        let updatedDraft = draft;
+        let success = false;
+        let retryCount = 0;
+        const maxRetries = 5;
+        let finalUpdateData: { updated_at: string }[] | null = null;
+
+        while (retryCount < maxRetries && !success) {
+          const { data: latestSession, error: fetchErr } = await supabaseAdmin()
+            .from('property_draft_sessions')
+            .select('*')
+            .eq('id', propSession.id)
+            .single();
+
+          if (fetchErr || !latestSession) {
+            if (fetchErr?.code === 'PGRST116') {
+              console.log('[chatbot-engine] Active session was deleted concurrently. Exiting video upload flow.');
+              return true;
+            }
+            throw fetchErr || new Error('Session not found during video append retry');
+          }
+
+          const currentDraft = latestSession.draft_data as ParsedPropertyDraft;
+          updatedDraft = { ...currentDraft, video_url: publicUrl };
+
+          const validation = validateDraft(updatedDraft);
+          const nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';
+
+          const { data: updateData, error: updateErr } = await supabaseAdmin()
+            .from('property_draft_sessions')
+            .update({
+              draft_data: updatedDraft,
+              status: nextStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', propSession.id)
+            .eq('updated_at', latestSession.updated_at)
+            .select();
+
+          if (!updateErr && updateData && updateData.length > 0) {
+            success = true;
+            finalUpdateData = updateData;
+          } else {
+            retryCount++;
+            await new Promise((resolve) => setTimeout(resolve, Math.random() * 200 + 50));
+          }
+        }
+
+        if (!success || !finalUpdateData || finalUpdateData.length === 0) {
+          throw new Error('Failed to update draft session due to concurrent modifications');
+        }
+
+        const savedTime = finalUpdateData[0].updated_at;
+
+        void reactToInboundMessage(phoneNumberId, accessToken, contactRecord.phone, message.id, '✅');
+
+        sendPropertyDraftPreviewDebounced(
+          propSession.id,
+          savedTime,
+          phoneNumberId,
+          accessToken,
+          contactRecord.phone,
+          `🎬 *Video attached!* It will be added to the listing when you confirm.`,
+          conversation.id
+        );
+        return true;
+      } catch (err) {
+        console.error('[chatbot-engine] Error processing video upload:', err);
+        const reply = "❌ *Failed to upload video.* Please make sure it's an MP4 under 16MB and try again.";
+        const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+        await saveBotMessage(conversation.id, reply, sendRes.messageId);
         sendPropertyDraftPreviewDebounced(
           propSession.id,
           new Date().toISOString(),
@@ -1633,6 +1750,13 @@ export async function processOwnerChatbotMessage(
 
   // 4. Start New Session Flow (No Session Exists)
   if (isMediaMsg || cleanedText) {
+    // A bare video with no caption can't seed a draft (nothing to
+    // parse) — the concurrency poll above already waited for a session
+    // from accompanying text/photos, so leave it in the inbox.
+    if (isVideoMsg && !cleanedText) {
+      return false;
+    }
+
     const { buffer: mediaBuffer, mimeType: mediaMimeType } = await loadInboundMedia();
 
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
@@ -1641,6 +1765,10 @@ export async function processOwnerChatbotMessage(
     let classification: 'property' | 'contact' | 'none';
     if (isDocMsg) {
       classification = 'property';
+    } else if (isVideoMsg) {
+      // The classifier takes images/text, not video bytes — classify
+      // from the caption alone.
+      classification = await classifyImageOrText(cleanedText, undefined, undefined);
     } else {
       classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
     }
@@ -1676,6 +1804,19 @@ export async function processOwnerChatbotMessage(
             parsedDraft = parsed;
             uploadedImages.push(publicUrl);
             parsedDraft.images = uploadedImages;
+          } else if (isVideoMsg) {
+            // Video bytes don't go to Gemini — parse the caption text,
+            // and upload the walkthrough in parallel (mp4 only; the
+            // property-videos bucket rejects other formats).
+            const [parsed, videoUrl] = await Promise.all([
+              parseListingFromImageOrText(cleanedText),
+              mediaMimeType.includes('mp4')
+                ? uploadPropertyVideo(accountId, mediaBuffer, mediaMimeType)
+                : Promise.resolve(null),
+            ]);
+            parsedDraft = parsed;
+            parsedDraft.images = [];
+            if (videoUrl) parsedDraft.video_url = videoUrl;
           } else if (mediaMimeType === 'application/pdf') {
             const filename = message.document?.filename || `doc-${Date.now()}.pdf`;
             // Parallel parse text details, extract images, and upload the PDF document itself
