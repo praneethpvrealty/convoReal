@@ -27,10 +27,19 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "https", "host": "convoreal.com" },
-            { "scheme": "https", "host": "www.convoreal.com" }
+            {
+              "scheme": "https",
+              "host": "convoreal.com"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -57,6 +66,12 @@
           "dark": {
             "backgroundColor": "#0F1513"
           }
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "ConvoReal imports contacts you choose into your CRM."
         }
       ]
     ],
