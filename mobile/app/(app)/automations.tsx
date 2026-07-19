@@ -16,11 +16,11 @@ import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
-import { radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
 
 export default function AutomationsScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const [error, setError] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -57,7 +57,7 @@ export default function AutomationsScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1 }}
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl
@@ -95,10 +95,10 @@ export default function AutomationsScreen() {
         (automationsQuery.data ?? []).map((a) => (
           <View
             key={a.id}
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
           >
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 15, fontFamily: fonts.bold, color: colors.text }}>{a.name}</Text>
+              <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}>{a.name}</Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
                 {a.trigger_type.replace(/_/g, ' ')}
                 {typeof a.execution_count === 'number' ? ` · ran ${a.execution_count}×` : ''}
@@ -126,32 +126,32 @@ export default function AutomationsScreen() {
           No interactive flows. Build WhatsApp menu trees in the web app's Flow Builder.
         </Text>
       ) : (
-        (flowsQuery.data ?? []).map((f) => (
+        (flowsQuery.data ?? []).map((flow) => (
           <View
-            key={f.id}
-            style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            key={flow.id}
+            style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
           >
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 15, fontFamily: fonts.bold, color: colors.text }}>{f.name}</Text>
+              <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}>{flow.name}</Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                {f.trigger_type ? `${f.trigger_type.replace(/_/g, ' ')} · ` : ''}
-                {typeof f.execution_count === 'number' ? `ran ${f.execution_count}×` : ''}
+                {flow.trigger_type ? `${flow.trigger_type.replace(/_/g, ' ')} · ` : ''}
+                {typeof flow.execution_count === 'number' ? `ran ${flow.execution_count}×` : ''}
               </Text>
             </View>
             <Text
               style={{
                 fontSize: 11.5,
-                fontFamily: fonts.bold,
+                fontFamily: f.bold,
                 textTransform: 'uppercase',
                 color:
-                  f.status === 'active'
+                  flow.status === 'active'
                     ? colors.success
-                    : f.status === 'archived'
+                    : flow.status === 'archived'
                       ? colors.textFaint
                       : colors.warning,
               }}
             >
-              {f.status}
+              {flow.status}
             </Text>
           </View>
         ))
@@ -165,12 +165,12 @@ export default function AutomationsScreen() {
 }
 
 function SectionLabel({ text }: { text: string }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <Text
       style={{
         fontSize: 12.5,
-        fontFamily: fonts.bold,
+        fontFamily: f.bold,
         textTransform: 'uppercase',
         letterSpacing: 0.4,
         color: colors.textFaint,
@@ -185,12 +185,11 @@ function SectionLabel({ text }: { text: string }) {
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   card: {
-    ...shadows.card,
+    borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
   },
 });

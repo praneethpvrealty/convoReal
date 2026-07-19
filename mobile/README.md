@@ -60,13 +60,22 @@ separate repo.
 - ✅ **Journeys (read-only)** — every buyer's per-property stage list from
   the same rows the web mind map renders; canvas stays web-only.
 - ✅ **Full dark-mode support** across every screen (system scheme).
-- ✅ **Design language pass** — brand identity (cream + forest green + mint, from the chosen reference design),
-  floating blur pill tab bar, staggered list entrances + press physics
-  (reanimated), haptic vocabulary (`lib/haptics.ts`), shimmer skeletons,
-  Instagram-style HOT-lead story rings in the inbox, full-bleed photo
-  property cards with gradient scrims, animated stat counters + gradient
-  hero on Overview, confetti when a deal closes Won, and a branded app
-  icon/splash (regenerate via `node scripts/generate-icons.js`).
+- ✅ **Design language: "aurora glass"** (spec:
+  `docs/design/GLASS_UI_IMPLEMENTATION_SPEC.md`, mockups:
+  `docs/design/ui-directions.html`). Light = Option 7 "WhatsApp Native
+  on Glass" (WhatsApp deep-green `#075E54` + bright green, Inter, frosted
+  white glass over a daylight aurora); dark = Option 4 "Liquid Glass"
+  (lime `#C6F68D` on deep forest aurora, Plus Jakarta Sans). The aurora
+  ships as pre-baked images (`assets/images/aurora-*.png`, regenerate via
+  `python3 scratch/gen_aurora.py`); real `BlurView` only on floating bars
+  (tab bar, composer, sticky bottom bars) — cards use the translucent
+  glass fill so lists stay 60fps. Plus: staggered list entrances + press
+  physics (reanimated), haptic vocabulary (`lib/haptics.ts`), shimmer
+  skeletons, solid-ring HOT-lead avatars, photo-first property cards,
+  animated stat counters + gradient hero on Overview, confetti when a
+  deal closes Won, branded app icon/splash
+  (`node scripts/generate-icons.js` — still the old forest palette;
+  regenerate when rebranding the launcher).
 - ⏳ Next: pending outbox (offline queue), push notifications (needs
   `device_push_tokens` + worker dispatch — not yet in the web repo),
   media-header templates, property editing, broadcast composing, biometrics.

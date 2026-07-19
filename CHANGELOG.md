@@ -11,6 +11,22 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **Auto-generated listing videos.** A "Listing Video" card on the
+  property form builds a WhatsApp-ready vertical teaser (≤16MB,
+  ~35s) from the listing's photos: Ken Burns motion, caption
+  overlays, branded end card, background music, and narration via
+  Sarvam AI in 11 Indian languages (English scripts are translated
+  automatically; espeak fallback without a key). Renders run on the
+  Redis queue worker (Dockerfile.worker now installs
+  ffmpeg/fonts/espeak-ng), cost 50 credits — disclosed on the button,
+  charged up front, auto-refunded on failure — and the finished video
+  plays on the Showcase page next to the photos. **Migration
+  required:** `151_listing_videos.sql`. Env: `SARVAM_API_KEY` on the
+  worker (and Vercel for future use); credit policy documented in
+  docs/credits-policy-listing-video.md.
+
 ### Fixed
 
 - **Contacts page: slow networks get a Retry card, not an eternal
@@ -234,6 +250,46 @@ and polish.
   close control.
 
 ### Added
+
+- **Mobile: glass cards no longer show a grey shadow band (light
+  theme).** Android draws elevation shadows UNDER a view, so on a
+  55%-translucent glass card the shadow bled through the fill as a
+  grey gradient inside the card (iOS layer shadows do the same).
+  Shadows are now removed from every translucent glass surface —
+  rows, panels, skeletons, search pill, GlassCard — whose depth comes
+  from the fill + 1px light border, matching the mockups. Shadows
+  remain only on opaque surfaces (gradient hero cards, blurred
+  floating bars).
+
+- **Mobile: uniform aurora backgrounds.** The first aurora renders
+  showed wide vertical banding stripes ("seams") and visible glow
+  rims on device — 8-bit quantization of very close dark base colors,
+  magnified by stretching a 512×640 image ~3.7× onto a phone screen.
+  The generator (`scratch/gen_aurora.py`) now renders at phone aspect
+  (810×1755) with triangular dither noise and smoothstep glow
+  falloff; both PNGs regenerated — backgrounds are now perfectly
+  smooth in both themes.
+
+- **Mobile: "aurora glass" design system.** Full visual re-skin per
+  `docs/design/GLASS_UI_IMPLEMENTATION_SPEC.md`. Light mode is
+  Option 7 "WhatsApp Native on Glass" — WhatsApp deep-green
+  `#075E54` primary with bright-green accents, Inter typeface, and
+  frosted white glass panels floating over a pre-baked daylight
+  aurora background; dark mode is Option 4 "Liquid Glass" — lime
+  `#C6F68D` primary and Plus Jakarta Sans over a deep forest aurora.
+  New `AuroraBackground` (mounted once behind the root navigator;
+  every screen went transparent) and `GlassCard` primitives; glass
+  tokens (`glass`, `glassBorder`), per-theme shadows and a per-theme
+  type scale + font map returned from `useTheme()` (screens resolve
+  Inter/Jakarta at render). List rows, panels, chips, tags, search
+  pills and sheets are now translucent glass with 1px light borders;
+  the chat composer, property sticky bar and tab bar use real
+  `BlurView` (kept off scroll-view cards for 60fps Android scroll,
+  per the spec's perf rule); hot-lead rings became solid green
+  (light) / glowing lime (dark); unread badges are bright green;
+  bottom sheets gained a drag handle. The appearance setting stays
+  exactly light/dark/system. New dependency:
+  `@expo-google-fonts/inter` — run `npm install` in `mobile/`.
 
 - **Mobile: add contacts from the field.** The Contacts tab gains a
   "+" button opening a quick-add sheet (name, phone, classification)

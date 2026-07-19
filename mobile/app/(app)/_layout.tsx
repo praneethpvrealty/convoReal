@@ -1,12 +1,12 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
 
 import { isPhoneVerified, useAuthStore } from '@/lib/auth-store';
-import { fonts, useTheme } from '@/lib/theme';
+import { useTheme } from '@/lib/theme';
 
 export default function AppLayout() {
   const session = useAuthStore((s) => s.session);
   const pathname = usePathname();
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
 
   if (!session) {
     return <Redirect href="/(auth)/login" />;
@@ -22,10 +22,13 @@ export default function AppLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        headerTitleStyle: { fontFamily: fonts.bold, color: colors.text },
-        headerStyle: { backgroundColor: colors.tabBar },
+        headerTitleStyle: { fontFamily: f.bold, color: colors.text },
+        // Solid underlay matching the aurora base — native headers
+        // can't take a translucent fill without layout surprises.
+        headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         headerShadowVisible: false,
+        contentStyle: { backgroundColor: 'transparent' },
       }}
     >
       {/* Screens register themselves; each file owns its title and

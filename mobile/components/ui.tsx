@@ -15,8 +15,6 @@ import {
 
 import { avatarHue, initials } from '@/lib/format';
 import {
-  hotGradient,
-  onGradient,
   radius,
   shadows,
   spacing,
@@ -38,7 +36,7 @@ export function Avatar({
   size?: number;
   ring?: boolean;
 }) {
-  const { dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const hue = avatarHue(name);
   const bg = dark ? `hsl(${hue}, 42%, 26%)` : `hsl(${hue}, 65%, 90%)`;
   const fg = dark ? `hsl(${hue}, 70%, 78%)` : `hsl(${hue}, 55%, 34%)`;
@@ -54,37 +52,40 @@ export function Avatar({
         justifyContent: 'center',
       }}
     >
-      <Text style={{ color: fg, fontFamily: fonts.bold, fontSize: size * 0.38 }}>
+      <Text style={{ color: fg, fontFamily: f.bold, fontSize: size * 0.38 }}>
         {initials(name)}
       </Text>
     </View>
   );
 
   if (!ring) return core;
-  const pad = Math.max(2.5, size * 0.055);
+  // Spec rule 5: light = 2.5px solid bright-green ring; dark = thin
+  // lime ring with a soft lime glow (no gradient sweep).
+  const ringStyle = dark
+    ? {
+        borderWidth: 1.5,
+        borderColor: 'rgba(198,246,141,0.55)',
+        shadowColor: '#C6F68D',
+        shadowOpacity: 0.22,
+        shadowRadius: 9,
+        shadowOffset: { width: 0, height: 0 },
+        elevation: 4,
+      }
+    : { borderWidth: 2.5, borderColor: colors.success };
+  const pad = 2.5;
   return (
-    <LinearGradient
-      colors={hotGradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={{
-        width: size + pad * 2 + 3,
-        height: size + pad * 2 + 3,
-        borderRadius: (size + pad * 2 + 3) / 2,
+        width: size + pad * 2 + 5,
+        height: size + pad * 2 + 5,
+        borderRadius: (size + pad * 2 + 5) / 2,
         alignItems: 'center',
         justifyContent: 'center',
+        ...ringStyle,
       }}
     >
-      <View
-        style={{
-          padding: 1.5,
-          borderRadius: (size + 3) / 2,
-          backgroundColor: dark ? '#0F1513' : '#ffffff',
-        }}
-      >
-        {core}
-      </View>
-    </LinearGradient>
+      {core}
+    </View>
   );
 }
 
@@ -110,7 +111,7 @@ export function IconButton({
   disabled?: boolean;
   style?: ViewStyle;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -136,7 +137,7 @@ export function IconButton({
 }
 
 export function UnreadBadge({ count }: { count: number }) {
-  const { colors } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   if (count <= 0) return null;
   return (
     <View
@@ -145,13 +146,13 @@ export function UnreadBadge({ count }: { count: number }) {
         minWidth: 22,
         height: 22,
         borderRadius: 11,
-        backgroundColor: colors.primary,
+        backgroundColor: colors.success,
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: 6,
       }}
     >
-      <Text style={{ color: colors.onPrimary, fontSize: 12, fontFamily: fonts.bold }}>
+      <Text style={{ color: dark ? '#10220F' : '#FFFFFF', fontSize: 12, fontFamily: f.bold }}>
         {count > 99 ? '99+' : count}
       </Text>
     </View>
@@ -168,7 +169,7 @@ export function FilterChip({
   active: boolean;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -180,15 +181,15 @@ export function FilterChip({
         paddingHorizontal: 15,
         paddingVertical: 9,
         borderRadius: radius.full,
-        backgroundColor: active ? colors.primary : colors.surfaceRaised,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: active ? colors.primary : colors.border,
+        backgroundColor: active ? colors.primary : colors.glass,
+        borderWidth: 1,
+        borderColor: active ? colors.primary : colors.glassBorder,
       }}
     >
       <Text
         style={{
           fontSize: 13,
-          fontFamily: fonts.bold,
+          fontFamily: f.bold,
           color: active ? colors.onPrimary : colors.text,
         }}
       >
@@ -200,27 +201,27 @@ export function FilterChip({
 
 /** Tiny labeled tag (Name Tag, classification). */
 export function Tag({ label, color }: { label: string; color?: string }) {
-  const { colors } = useTheme();
-  const fg = color ?? colors.primary;
+  const { colors, fonts: f } = useTheme();
+  const fg = color ?? colors.mintText;
   return (
     <View
       style={{
         borderRadius: radius.sm,
         paddingHorizontal: 6,
         paddingVertical: 1.5,
-        backgroundColor: colors.surface,
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: colors.border,
+        backgroundColor: colors.glass,
+        borderWidth: 1,
+        borderColor: colors.glassBorder,
       }}
     >
-      <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: fg }}>{label}</Text>
+      <Text style={{ fontSize: 11, fontFamily: f.bold, color: fg }}>{label}</Text>
     </View>
   );
 }
 
 /** Shimmering placeholder block while a list loads. */
 export function Skeleton({ style }: { style?: ViewStyle }) {
-  const { colors, dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const sweep = useRef(new Animated.Value(-1)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -255,7 +256,7 @@ export function Skeleton({ style }: { style?: ViewStyle }) {
 /**
  * Shared chrome for list rows rendered as floating cards (Inbox,
  * Contacts, skeletons). Kept as a plain object so Link-asChild sites
- * can `StyleSheet.flatten([listCard, shadows.card, {...colors}])`
+ * can `StyleSheet.flatten([listCard, {...colors}])`
  * into the single flat style expo-router's Slot requires.
  */
 export const listCard: ViewStyle = {
@@ -267,17 +268,16 @@ export const listCard: ViewStyle = {
   paddingHorizontal: spacing.md,
   paddingVertical: spacing.md,
   borderRadius: radius.lg,
-  borderWidth: StyleSheet.hairlineWidth,
+  borderWidth: 1,
 };
 
 export function ConversationSkeleton() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View
       style={[
         listCard,
-        shadows.card,
-        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
       <Skeleton style={{ width: 50, height: 50, borderRadius: 25 }} />
@@ -291,19 +291,18 @@ export function ConversationSkeleton() {
 
 /** Placeholder matching the tall photo-first PropertyCard geometry. */
 export function PropertyCardSkeleton() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View
       style={[
-        shadows.card,
         {
           marginHorizontal: spacing.lg,
           marginBottom: spacing.md,
           padding: spacing.sm,
           borderRadius: radius.lg,
-          borderWidth: StyleSheet.hairlineWidth,
-          backgroundColor: colors.surfaceRaised,
-          borderColor: colors.border,
+          borderWidth: 1,
+          backgroundColor: colors.glass,
+          borderColor: colors.glassBorder,
           gap: spacing.sm,
         },
       ]}
@@ -329,7 +328,7 @@ export function EmptyState({
   /** Optional CTA rendered under the copy (e.g. widen-search button). */
   action?: React.ReactNode;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={{ alignItems: 'center', paddingVertical: 64, paddingHorizontal: 32, gap: spacing.md }}>
       <View
@@ -344,7 +343,7 @@ export function EmptyState({
       >
         <Ionicons name={icon} size={32} color={colors.primary} />
       </View>
-      <Text style={{ fontSize: 17, fontFamily: fonts.bold, color: colors.text, textAlign: 'center' }}>
+      <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text, textAlign: 'center' }}>
         {title}
       </Text>
       {subtitle ? (
@@ -359,13 +358,13 @@ export function EmptyState({
 
 /** Uppercase micro-label above a section of content. */
 export function SectionLabel({ text, style }: { text: string; style?: TextStyle }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <Text
       style={[
         {
           fontSize: 12.5,
-          fontFamily: fonts.bold,
+          fontFamily: f.bold,
           textTransform: 'uppercase',
           letterSpacing: 0.4,
           color: colors.textFaint,
@@ -393,18 +392,17 @@ export function SearchBar({
   onChangeText: (v: string) => void;
   placeholder: string;
 } & Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText' | 'placeholder' | 'style'>) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View
       style={[
         sharedStyles.searchWrap,
-        shadows.soft,
-        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
       <Ionicons name="search" size={16} color={colors.textFaint} />
       <TextInput
-        style={[sharedStyles.searchInput, { color: colors.text }]}
+        style={[sharedStyles.searchInput, { color: colors.text, fontFamily: f.medium }]}
         placeholder={placeholder}
         placeholderTextColor={colors.textFaint}
         value={value}
@@ -438,7 +436,7 @@ export const TextField = forwardRef<
     icon?: keyof typeof Ionicons.glyphMap;
   } & React.ComponentProps<typeof TextInput>
 >(function TextField({ label, icon, ...props }, ref) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const input = (
     <View
       style={[
@@ -486,7 +484,7 @@ export function PrimaryButton({
   disabled?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
-  const gradient = useBrandGradient();
+  const { colors, fonts: f } = useTheme();
   return (
     <Pressable
       disabled={disabled || busy}
@@ -494,25 +492,25 @@ export function PrimaryButton({
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: disabled || busy, busy }}
-      style={({ pressed }) => ({ opacity: disabled || busy ? 0.55 : pressed ? 0.85 : 1 })}
+      android_ripple={{ color: 'rgba(0,0,0,0.12)', foreground: true }}
+      style={({ pressed }) => [
+        sharedStyles.primaryButton,
+        {
+          backgroundColor: colors.primary,
+          opacity: disabled || busy ? 0.55 : pressed ? 0.85 : 1,
+        },
+      ]}
     >
-      <LinearGradient
-        colors={gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={sharedStyles.primaryButton}
-      >
-        {busy ? (
-          <ActivityIndicator color={onGradient.text} />
-        ) : (
-          <>
-            {icon ? <Ionicons name={icon} size={17} color={onGradient.text} /> : null}
-            <Text style={{ color: onGradient.text, fontSize: 16, fontFamily: fonts.bold }}>
-              {label}
-            </Text>
-          </>
-        )}
-      </LinearGradient>
+      {busy ? (
+        <ActivityIndicator color={colors.onPrimary} />
+      ) : (
+        <>
+          {icon ? <Ionicons name={icon} size={17} color={colors.onPrimary} /> : null}
+          <Text style={{ color: colors.onPrimary, fontSize: 16, fontFamily: f.semibold }}>
+            {label}
+          </Text>
+        </>
+      )}
     </Pressable>
   );
 }
@@ -540,7 +538,7 @@ export function GradientHero({
 
 /** Inline error/info banner. */
 export function Banner({ kind, text }: { kind: 'error' | 'info' | 'success'; text: string }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const map = {
     error: { bg: colors.dangerSoft, fg: colors.danger },
     info: { bg: colors.primarySoft, fg: colors.primary },
@@ -555,7 +553,7 @@ export function Banner({ kind, text }: { kind: 'error' | 'info' | 'success'; tex
         paddingVertical: spacing.md,
       }}
     >
-      <Text style={{ color: map[kind].fg, fontSize: 13.5, fontFamily: fonts.semibold, lineHeight: 19 }}>
+      <Text style={{ color: map[kind].fg, fontSize: 13.5, fontFamily: f.semibold, lineHeight: 19 }}>
         {text}
       </Text>
     </View>
@@ -586,9 +584,9 @@ const sharedStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: radius.md,
-    paddingVertical: 15,
-    minHeight: 50,
+    borderRadius: radius.full,
+    minHeight: 52,
+    overflow: 'hidden',
   },
   hero: {
     borderRadius: radius.xl,

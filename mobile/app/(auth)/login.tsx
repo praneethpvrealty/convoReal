@@ -13,11 +13,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { GlassCard } from '@/components/glass-card';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
 
@@ -31,12 +32,12 @@ const RESEND_SECONDS = 30;
  * login-only path: account signup stays on the web.
  */
 export default function LoginScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const gradient = useBrandGradient();
   const [mode, setMode] = useState<Mode>('whatsapp');
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView style={{ flex: 1 }}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -54,28 +55,30 @@ export default function LoginScreen() {
             >
               <Ionicons name="chatbubbles" size={34} color={onGradient.text} />
             </LinearGradient>
-            <Text style={[styles.wordmark, { color: colors.primary }]}>ConvoReal</Text>
+            <Text style={[styles.wordmark, { color: colors.primary, fontFamily: f.extrabold }]}>ConvoReal</Text>
             <Text style={[styles.tagline, { color: colors.textMuted }]}>
               WhatsApp CRM for real estate
             </Text>
           </View>
 
-          <View style={[styles.segment, { backgroundColor: colors.surface }]}>
-            <SegmentButton
-              label="WhatsApp"
-              icon="logo-whatsapp"
-              active={mode === 'whatsapp'}
-              onPress={() => setMode('whatsapp')}
-            />
-            <SegmentButton
-              label="Email"
-              icon="mail-outline"
-              active={mode === 'email'}
-              onPress={() => setMode('email')}
-            />
-          </View>
+          <GlassCard style={styles.formCard}>
+            <View style={[styles.segment, { backgroundColor: colors.surfaceSunken }]}>
+              <SegmentButton
+                label="WhatsApp"
+                icon="logo-whatsapp"
+                active={mode === 'whatsapp'}
+                onPress={() => setMode('whatsapp')}
+              />
+              <SegmentButton
+                label="Email"
+                icon="mail-outline"
+                active={mode === 'email'}
+                onPress={() => setMode('email')}
+              />
+            </View>
 
-          {mode === 'whatsapp' ? <WhatsappLogin /> : <EmailLogin />}
+            {mode === 'whatsapp' ? <WhatsappLogin /> : <EmailLogin />}
+          </GlassCard>
 
           <Text style={[styles.footer, { color: colors.textFaint }]}>
             Use the same account as the web app.{'\n'}New team members sign up on the web.
@@ -97,7 +100,7 @@ function SegmentButton({
   active: boolean;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -114,7 +117,7 @@ function SegmentButton({
       <Text
         style={{
           fontSize: 14,
-          fontFamily: fonts.bold,
+          fontFamily: f.bold,
           color: active ? colors.text : colors.textMuted,
         }}
       >
@@ -125,7 +128,7 @@ function SegmentButton({
 }
 
 function WhatsappLogin() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [stage, setStage] = useState<'phone' | 'code'>('phone');
@@ -219,7 +222,7 @@ function WhatsappLogin() {
         <>
           <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
             Enter the code sent to{' '}
-            <Text style={{ fontFamily: fonts.bold, color: colors.text }}>
+            <Text style={{ fontFamily: f.bold, color: colors.text }}>
               {cleanPhoneInput(phone) ?? phone}
             </Text>
           </Text>
@@ -237,7 +240,7 @@ function WhatsappLogin() {
               accessibilityRole="button"
               style={{ paddingVertical: 10 }}
             >
-              <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: fonts.semibold }}>
+              <Text style={{ color: colors.textMuted, fontSize: 13.5, fontFamily: f.semibold }}>
                 Change number
               </Text>
             </Pressable>
@@ -253,7 +256,7 @@ function WhatsappLogin() {
                 style={{
                   color: resendIn > 0 ? colors.textFaint : colors.primary,
                   fontSize: 13.5,
-                  fontFamily: fonts.semibold,
+                  fontFamily: f.semibold,
                 }}
               >
                 {resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
@@ -333,6 +336,7 @@ const styles = StyleSheet.create({
   },
   wordmark: { fontSize: 34, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   tagline: { fontSize: 15 },
+  formCard: { padding: spacing.lg, gap: spacing.lg },
   segment: { flexDirection: 'row', borderRadius: radius.lg, padding: 4, gap: 4 },
   segmentButton: {
     flex: 1,
@@ -343,6 +347,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: radius.md,
   },
-  segmentActive: { ...shadows.soft },
+  segmentActive: {},
   footer: { fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
 });

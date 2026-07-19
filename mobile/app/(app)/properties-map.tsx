@@ -27,7 +27,7 @@ const BENGALURU = {
  * the near-search self-heals geocodes over time.
  */
 export default function PropertiesMapScreen() {
-  const { colors, dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const { search, listing, near } = usePropertySearch();
   const mapRef = useRef<MapView>(null);
@@ -63,7 +63,7 @@ export default function PropertiesMapScreen() {
   }, [pinned]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -127,12 +127,12 @@ export default function PropertiesMapScreen() {
         ) : (
           <>
             <Ionicons name="location" size={14} color={colors.primary} />
-            <Text style={{ fontSize: 13, fontFamily: fonts.semibold, color: colors.text }}>
+            <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.text }}>
               {pinned.length} of {data?.data.length ?? 0} results have map pins
             </Text>
             <View style={{ flex: 1 }} />
             <Pressable onPress={() => router.back()} hitSlop={8}>
-              <Text style={{ fontSize: 13, fontFamily: fonts.bold, color: colors.primary }}>List</Text>
+              <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>List</Text>
             </Pressable>
           </>
         )}

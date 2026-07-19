@@ -20,7 +20,7 @@ import { ENV } from '@/lib/env';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
 
 interface WalletRow {
   total_credits: number;
@@ -68,7 +68,7 @@ const TX_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function CreditsScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const [filter, setFilter] = useState<TxFilter>('All');
 
   const wallet = useQuery({
@@ -98,7 +98,7 @@ export default function CreditsScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1 }}
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl
@@ -129,7 +129,7 @@ export default function CreditsScreen() {
         ) : null}
       </GradientHero>
 
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         <BreakdownRow icon="refresh-circle-outline" label="Monthly plan" value={w?.monthly_credits} />
         <BreakdownRow icon="card-outline" label="Purchased" value={w?.purchased_credits} />
         <BreakdownRow icon="gift-outline" label="Bonus" value={w?.bonus_credits} />
@@ -170,7 +170,7 @@ export default function CreditsScreen() {
           No transactions yet.
         </Text>
       ) : (
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
           {transactions.map((tx) => (
             <View key={tx.id} style={[styles.txRow, { borderTopColor: colors.border }]}>
               <View style={[styles.txIcon, { backgroundColor: colors.primarySoft }]}>
@@ -181,7 +181,7 @@ export default function CreditsScreen() {
                 />
               </View>
               <View style={{ flex: 1, gap: 1 }}>
-                <Text style={{ fontSize: 13.5, fontFamily: fonts.semibold, color: colors.text }} numberOfLines={1}>
+                <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }} numberOfLines={1}>
                   {tx.description || tx.type.replace(/_/g, ' ')}
                 </Text>
                 <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
@@ -191,7 +191,7 @@ export default function CreditsScreen() {
               <Text
                 style={{
                   fontSize: 14.5,
-                  fontFamily: fonts.extrabold,
+                  fontFamily: f.extrabold,
                   color: tx.amount >= 0 ? colors.success : colors.danger,
                 }}
               >
@@ -208,7 +208,7 @@ export default function CreditsScreen() {
               {history.isFetchingNextPage ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={{ fontSize: 13.5, fontFamily: fonts.bold, color: colors.primary }}>
+                <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.primary }}>
                   Load more
                 </Text>
               )}
@@ -231,7 +231,7 @@ function BreakdownRow({
   value?: number;
   muted?: boolean;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={[styles.breakRow, { borderTopColor: colors.border }]}>
       <Ionicons name={icon} size={17} color={muted ? colors.textFaint : colors.textMuted} />
@@ -241,7 +241,7 @@ function BreakdownRow({
       <Text
         style={{
           fontSize: 14.5,
-          fontFamily: fonts.bold,
+          fontFamily: f.bold,
           color: muted ? colors.textFaint : colors.text,
         }}
       >
@@ -262,9 +262,8 @@ const styles = StyleSheet.create({
   heroValue: { color: onGradient.text, fontSize: 40, fontFamily: fonts.extrabold, letterSpacing: -1 },
   heroSub: { color: onGradient.faint, fontSize: 12.5 },
   card: {
-    ...shadows.card,
+    borderWidth: 1,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   breakRow: {

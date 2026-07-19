@@ -20,18 +20,22 @@ function TabIcon({
   name: keyof typeof Ionicons.glyphMap;
   outline: keyof typeof Ionicons.glyphMap;
 }) {
-  const { colors } = useTheme();
+  const { colors, dark } = useTheme();
+  // Spec: dark = near-white pill with deep-forest icon; light =
+  // soft green tint pill with WhatsApp-green icon.
+  const activePill = dark ? 'rgba(255,255,255,0.92)' : colors.primarySoft;
+  const activeIcon = dark ? '#0E2E22' : colors.primary;
   return (
     <View
       style={[
         styles.iconWrap,
-        focused && { backgroundColor: colors.primary },
+        focused && { backgroundColor: activePill },
       ]}
     >
       <Ionicons
         name={focused ? name : outline}
         size={21}
-        color={focused ? colors.onPrimary : colors.textFaint}
+        color={focused ? activeIcon : colors.textFaint}
       />
     </View>
   );
@@ -48,6 +52,7 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarShowLabel: false,
         // Floating pill: absolute so content scrolls beneath the blur.
+        sceneStyle: { backgroundColor: 'transparent' },
         tabBarStyle: {
           position: 'absolute',
           left: 18,
@@ -56,11 +61,13 @@ export default function TabsLayout() {
           height: 66,
           borderRadius: 33,
           borderTopWidth: 0,
+          borderWidth: 1,
+          borderColor: colors.glassBorder,
           paddingTop: 10,
           overflow: 'hidden',
-          backgroundColor: colors.tabBarGlass,
+          backgroundColor: colors.tabBar,
           elevation: 10,
-          shadowColor: '#1A4D42',
+          shadowColor: dark ? '#000000' : '#075E54',
           shadowOpacity: 0.18,
           shadowRadius: 18,
           shadowOffset: { width: 0, height: 8 },

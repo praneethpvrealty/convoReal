@@ -13,7 +13,7 @@ import { AnimatedCounter } from '@/components/motion';
 import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
 
 interface Overview {
   openConversations: number;
@@ -96,7 +96,7 @@ async function fetchOverview(): Promise<Overview> {
 }
 
 export default function DashboardScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { data, isFetching, refetch } = useQuery({
     queryKey: ['overview'],
     queryFn: fetchOverview,
@@ -104,7 +104,7 @@ export default function DashboardScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1 }}
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
@@ -215,17 +215,17 @@ function StatCard({
   accent?: boolean;
   wide?: boolean;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.border },
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
         wide && { flexBasis: '100%' },
       ]}
     >
       <Ionicons name={icon} size={18} color={accent ? colors.danger : colors.primary} />
-      <Text style={{ fontSize: 21, fontFamily: fonts.extrabold, color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 21, fontFamily: f.extrabold, color: colors.text }}>{value}</Text>
       <Text style={{ fontSize: 12, color: colors.textMuted }}>{label}</Text>
     </View>
   );
@@ -253,12 +253,11 @@ const styles = StyleSheet.create({
   heroPillText: { color: onGradient.text, fontSize: 12.5, fontFamily: fonts.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
-    ...shadows.card,
+    borderWidth: 1,
     flexGrow: 1,
     flexBasis: '30%',
     gap: 4,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
   },
 });

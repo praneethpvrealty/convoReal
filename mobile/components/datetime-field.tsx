@@ -22,7 +22,7 @@ export function InlineDateTimePicker({
   onChange: (date: Date) => void;
   onClose: () => void;
 }) {
-  const { colors, dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
 
   if (Platform.OS === 'android') {
     return (
@@ -59,7 +59,7 @@ export function InlineDateTimePicker({
         accessibilityLabel="Done"
         style={styles.doneButton}
       >
-        <Text style={{ color: colors.primary, fontSize: 15.5, fontFamily: fonts.bold }}>
+        <Text style={{ color: colors.primary, fontSize: 15.5, fontFamily: f.bold }}>
           Done
         </Text>
       </Pressable>

@@ -11,7 +11,6 @@ import { supabase } from '@/lib/supabase';
 import {
   fonts,
   radius,
-  shadows,
   spacing,
   useAppearance,
   useTheme,
@@ -35,7 +34,7 @@ const WEB_ONLY = [
 ] as const;
 
 export default function MoreScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
@@ -45,16 +44,16 @@ export default function MoreScreen() {
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.container, { paddingTop: insets.top + spacing.sm }]}
     >
-      <Text style={[styles.title, { color: colors.text }]}>More</Text>
+      <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>More</Text>
 
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         <View style={styles.profileRow}>
           <Avatar name={displayName} size={54} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 17, fontFamily: fonts.bold, color: colors.text }} numberOfLines={1}>
+            <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
               {displayName}
             </Text>
             <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>
@@ -62,7 +61,7 @@ export default function MoreScreen() {
             </Text>
           </View>
           <View style={[styles.roleChip, { backgroundColor: colors.primarySoft }]}>
-            <Text style={{ fontSize: 12, fontFamily: fonts.bold, color: colors.primary }}>
+            <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
               {profile?.account_role ?? '—'}
             </Text>
           </View>
@@ -80,7 +79,7 @@ export default function MoreScreen() {
       </View>
 
       <SectionLabel text="Workspace" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         {WORKSPACE_LINKS.map((link) => (
           <Link key={link.href} href={link.href} asChild>
             <Pressable style={styles.navRow} android_ripple={{ color: colors.border }}>
@@ -93,12 +92,12 @@ export default function MoreScreen() {
       </View>
 
       <SectionLabel text="Appearance" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         <AppearancePicker />
       </View>
 
       <SectionLabel text="On the web app" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.surfaceRaised, borderColor: colors.border }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         {WEB_ONLY.map((f) => (
           <View key={f.label} style={styles.navRow}>
             <Ionicons name={f.icon} size={19} color={colors.textMuted} />
@@ -114,12 +113,12 @@ export default function MoreScreen() {
       <Pressable
         style={({ pressed }) => [
           styles.signOut,
-          { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder, opacity: pressed ? 0.7 : 1 },
         ]}
         onPress={() => supabase.auth.signOut()}
       >
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-        <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: fonts.bold }}>Sign out</Text>
+        <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}>Sign out</Text>
       </Pressable>
 
       <Text style={[styles.footer, { color: colors.textFaint }]}>
@@ -141,7 +140,7 @@ const APPEARANCE_OPTIONS: {
 
 /** The reference design is light-first; dark stays a choice. */
 function AppearancePicker() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const mode = useAppearance((s) => s.mode);
   const setMode = useAppearance((s) => s.setMode);
   return (
@@ -196,12 +195,12 @@ function InfoRow({
   label: string;
   value: string;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
       <Ionicons name={icon} size={18} color={colors.textMuted} />
       <Text style={{ flex: 1, fontSize: 14.5, color: colors.textMuted }}>{label}</Text>
-      <Text style={{ fontSize: 14.5, fontFamily: fonts.semibold, color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>{value}</Text>
     </View>
   );
 }
@@ -211,7 +210,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   card: {
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     overflow: 'hidden',
   },
   profileRow: {
