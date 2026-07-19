@@ -3,21 +3,132 @@
 // Listing-video generator — PROTOTYPE
 //
 // photos + property facts ──► 720x1280 MP4 (≤16MB, WhatsApp-ready)
-//   1. narration  : script text → TTS wav (espeak-ng placeholder here;
-//                   production swaps in Google Cloud TTS / Sarvam for
-//                   natural English/Hindi/Kannada voices, ~₹1-4/video)
+//   1. narration  : script text → TTS wav via Sarvam AI (bulbul) when
+//                   SARVAM_API_KEY is set — natural Indian voices in
+//                   11 languages, with optional English→regional
+//                   translation via Sarvam translate (mayura).
+//                   Falls back to espeak-ng (robotic placeholder)
+//                   without a key so the pipeline stays runnable.
 //   2. music bed  : synthesized ambient pad (production: licensed
 //                   library tracks), ducked under the narration
 //   3. visuals    : Ken Burns pan/zoom over each photo + caption
 //                   overlays + branded end card
 //
-// Usage: node generate-listing-video.mjs <config.json> <out.mp4>
-// config: { photos: [{file, caption}], narration, endCard: {line1,
-//           line2, cta}, musicSeconds }
+// Usage: SARVAM_API_KEY=... node generate-listing-video.mjs <config.json> <out.mp4>
+// config: { photos: [{file, caption}], narration, language?, speaker?,
+//           translateFromEnglish?, endCard: {line1, line2, cta},
+//           musicSeconds }
 // ============================================================
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+
+// ---------- Sarvam AI (docs.sarvam.ai) ----------
+// Auth: `api-subscription-key` header. Get a key from
+// dashboard.sarvam.ai and export it as SARVAM_API_KEY (for the app
+// later: Vercel + worker env var of the same name).
+// SARVAM_API_BASE exists for tests/proxies; default is the real API.
+const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
+const SARVAM_API_BASE = process.env.SARVAM_API_BASE || 'https://api.sarvam.ai';
+const SARVAM_TTS_MODEL = 'bulbul:v2';
+
+/** BCP-47 codes Sarvam bulbul narrates. The app's language picker
+ *  renders from this list. */
+export const NARRATION_LANGUAGES = {
+  'en-IN': 'English',
+  'hi-IN': 'हिन्दी (Hindi)',
+  'kn-IN': 'ಕನ್ನಡ (Kannada)',
+  'ta-IN': 'தமிழ் (Tamil)',
+  'te-IN': 'తెలుగు (Telugu)',
+  'ml-IN': 'മലയാളം (Malayalam)',
+  'mr-IN': 'मराठी (Marathi)',
+  'bn-IN': 'বাংলা (Bengali)',
+  'gu-IN': 'ગુજરાતી (Gujarati)',
+  'pa-IN': 'ਪੰਜਾਬੀ (Punjabi)',
+  'od-IN': 'ଓଡ଼ିଆ (Odia)',
+};
+
+/** Split narration on sentence boundaries into ≤`max`-char chunks —
+ *  Sarvam TTS caps input length per request. */
+export function chunkNarration(text, max = 450) {
+  const sentences = text.replace(/\s+/g, ' ').trim().match(/[^.!?।]+[.!?।]*\s*/g) ?? [text];
+  const chunks = [];
+  let cur = '';
+  for (const s of sentences) {
+    if (cur && (cur + s).length > max) {
+      chunks.push(cur.trim());
+      cur = '';
+    }
+    cur += s;
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks;
+}
+
+async function sarvamPost(pathname, body) {
+  const res = await fetch(`${SARVAM_API_BASE}${pathname}`, {
+    method: 'POST',
+    headers: {
+      'api-subscription-key': SARVAM_API_KEY,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const raw = await res.text();
+  if (!res.ok) {
+    // Surface the whole response — if Sarvam's contract has drifted
+    // from what this prototype expects, this makes it obvious.
+    throw new Error(`Sarvam ${pathname} → HTTP ${res.status}: ${raw.slice(0, 500)}`);
+  }
+  return JSON.parse(raw);
+}
+
+/** English → regional translation (Sarvam mayura), so the app can
+ *  keep generating scripts in English and still narrate regionally. */
+async function sarvamTranslate(text, targetLang) {
+  const data = await sarvamPost('/translate', {
+    input: text,
+    source_language_code: 'en-IN',
+    target_language_code: targetLang,
+    model: 'mayura:v1',
+  });
+  if (typeof data.translated_text !== 'string' || !data.translated_text.trim()) {
+    throw new Error(`Sarvam /translate returned no translated_text: ${JSON.stringify(data).slice(0, 300)}`);
+  }
+  return data.translated_text;
+}
+
+/** Narration text → WAV file via Sarvam TTS, chunked and re-joined. */
+async function sarvamNarrate(text, { language, speaker, workDir, outWav, ffmpeg }) {
+  const chunks = chunkNarration(text);
+  const chunkFiles = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const data = await sarvamPost('/text-to-speech', {
+      inputs: [chunks[i]],
+      target_language_code: language,
+      speaker,
+      model: SARVAM_TTS_MODEL,
+      speech_sample_rate: 22050,
+      enable_preprocessing: true,
+    });
+    const b64 = Array.isArray(data.audios) ? data.audios[0] : null;
+    if (!b64) {
+      throw new Error(`Sarvam /text-to-speech returned no audios[0]: ${JSON.stringify(data).slice(0, 300)}`);
+    }
+    const f = path.join(workDir, `tts-${i}.wav`);
+    fs.writeFileSync(f, Buffer.from(b64, 'base64'));
+    chunkFiles.push(f);
+    console.log(`sarvam tts chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`);
+  }
+  if (chunkFiles.length === 1) {
+    fs.copyFileSync(chunkFiles[0], outWav);
+  } else {
+    const list = path.join(workDir, 'tts-list.txt');
+    fs.writeFileSync(list, chunkFiles.map((f) => `file '${f}'`).join('\n'));
+    execFileSync(ffmpeg, ['-y', '-f', 'concat', '-safe', '0', '-i', list, '-c', 'copy', outWav],
+      { stdio: ['ignore', 'ignore', 'pipe'] });
+  }
+}
 
 // Production worker: `apk add ffmpeg` in Dockerfile.worker puts it on
 // PATH; override with FFMPEG_PATH for local experiments.
@@ -33,10 +144,35 @@ const W = 720, H = 1280;
 
 const run = (bin, args) => execFileSync(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
 
-// ---------- 1. Narration (placeholder TTS) ----------
+// ---------- 1. Narration ----------
 const narrationWav = path.join(work, 'narration.wav');
-run('espeak-ng', ['-v', 'en-us+f3', '-s', '150', '-p', '40', '-a', '190',
-  '-w', narrationWav, cfg.narration]);
+const language = cfg.language || 'en-IN';
+if (!NARRATION_LANGUAGES[language]) {
+  throw new Error(
+    `Unsupported narration language "${language}". Supported: ${Object.keys(NARRATION_LANGUAGES).join(', ')}`,
+  );
+}
+if (SARVAM_API_KEY) {
+  let text = cfg.narration;
+  // The app generates scripts in English; regional narration can either
+  // ask Gemini for the target language directly or translate here.
+  if (cfg.translateFromEnglish && language !== 'en-IN') {
+    text = await sarvamTranslate(text, language);
+    console.log(`translated narration → ${language}: ${text.slice(0, 80)}…`);
+  }
+  await sarvamNarrate(text, {
+    language,
+    speaker: cfg.speaker || 'anushka',
+    workDir: work,
+    outWav: narrationWav,
+    ffmpeg: FFMPEG,
+  });
+  console.log(`narration: Sarvam ${SARVAM_TTS_MODEL}, ${NARRATION_LANGUAGES[language]}, speaker=${cfg.speaker || 'anushka'}`);
+} else {
+  console.warn('SARVAM_API_KEY not set — falling back to espeak-ng placeholder voice (robotic, English only).');
+  run('espeak-ng', ['-v', 'en-us+f3', '-s', '150', '-p', '40', '-a', '190',
+    '-w', narrationWav, cfg.narration]);
+}
 
 // ---------- 2. Music bed: gentle additive pad, written as WAV ----------
 const musicWav = path.join(work, 'music.wav');
