@@ -178,6 +178,30 @@ function makeMusicWav(workDir: string, seconds: number): string {
 const escText = (t: string) =>
   t.replace(/\\/g, '\\\\').replace(/'/g, "\\\\\\'").replace(/:/g, '\\:').replace(/%/g, '\\%');
 
+/** drawtext has no wrapping — break on words into up to `maxLines`
+ *  newline-joined lines of ≤`maxChars`, ellipsizing overflow. */
+export function wrapLines(text: string, maxChars: number, maxLines: number): string {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    const candidate = cur ? `${cur} ${w}` : w;
+    if (candidate.length <= maxChars) {
+      cur = candidate;
+    } else {
+      if (cur) lines.push(cur);
+      cur = w.length > maxChars ? `${w.slice(0, maxChars - 1)}…` : w;
+      if (lines.length === maxLines - 1) break;
+    }
+  }
+  if (cur && lines.length < maxLines) lines.push(cur);
+  const used = lines.join(' ').length;
+  if (used < text.trim().length && lines.length === maxLines) {
+    lines[maxLines - 1] = `${lines[maxLines - 1].slice(0, maxChars - 1)}…`;
+  }
+  return lines.join('\n');
+}
+
 function renderVideo(opts: {
   photoFiles: string[];
   captions: string[];
@@ -198,7 +222,7 @@ function renderVideo(opts: {
       `crop='min(iw,ih*${W}/${H})':'min(ih,iw*${H}/${W})'`,
       `scale=${W * 2}:${H * 2}`,
       `zoompan=z='${zoom}':x='iw/2-(iw/zoom/2)+((on/${frames})-0.5)*40':y='ih/2-(ih/zoom/2)':d=${frames}:s=${W}x${H}:fps=${FPS}`,
-      `drawtext=fontfile=${FONT}:text='${escText(captions[i] ?? '')}':fontsize=30:fontcolor=white:box=1:boxcolor=0x0b1220@0.72:boxborderw=16:x=(w-text_w)/2:y=h-260`,
+      `drawtext=fontfile=${FONT}:text='${escText(wrapLines(captions[i] ?? '', 38, 2))}':fontsize=30:fontcolor=white:box=1:boxcolor=0x0b1220@0.72:boxborderw=16:line_spacing=8:x=(w-text_w)/2:y=h-280`,
       `drawtext=fontfile=${FONT}:text='${escText(brand)}':fontsize=26:fontcolor=white@0.9:box=1:boxcolor=0x0b1220@0.5:boxborderw=12:x=36:y=48`,
       `format=yuv420p`,
     ].join(',');
@@ -209,8 +233,8 @@ function renderVideo(opts: {
 
   const end = path.join(workDir, `seg${photoFiles.length}.mp4`);
   const endVf = [
-    `drawtext=fontfile=${FONT}:text='${escText(endCard.line1)}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=460`,
-    `drawtext=fontfile=${FONT}:text='${escText(endCard.line2)}':fontsize=30:fontcolor=0x9be8c5:x=(w-text_w)/2:y=560`,
+    `drawtext=fontfile=${FONT}:text='${escText(wrapLines(endCard.line1, 24, 2))}':fontsize=44:fontcolor=white:line_spacing=10:x=(w-text_w)/2:y=420`,
+    `drawtext=fontfile=${FONT}:text='${escText(wrapLines(endCard.line2, 40, 1))}':fontsize=30:fontcolor=0x9be8c5:x=(w-text_w)/2:y=570`,
     `drawtext=fontfile=${FONT}:text='${escText(endCard.cta)}':fontsize=27:fontcolor=white:box=1:boxcolor=0x1d9e6b@0.95:boxborderw=20:x=(w-text_w)/2:y=700`,
     `drawtext=fontfile=${FONT}:text='Made with ConvoReal':fontsize=22:fontcolor=white@0.45:x=(w-text_w)/2:y=1160`,
     `format=yuv420p`,
@@ -279,7 +303,7 @@ export async function processListingVideoJob(job: ListingVideoJob): Promise<void
       musicWav,
       brand,
       endCard: {
-        line1: (property.title || 'New Listing').slice(0, 26),
+        line1: (property.title || 'New Listing').slice(0, 52),
         line2: locality.slice(0, 42) || 'Full details on WhatsApp',
         cta: 'Reply on WhatsApp to book a site visit',
       },
