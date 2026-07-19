@@ -287,13 +287,15 @@ export async function processListingVideoJob(job: ListingVideoJob): Promise<void
       workDir,
     });
 
-    const storagePath = `videos/${job.accountId}/${property.id}-${Date.now()}.mp4`;
+    // Dedicated bucket (migration 152) — property-images only allows
+    // image mime types and rejects video/mp4.
+    const storagePath = `${job.accountId}/${property.id}-${Date.now()}.mp4`;
     const bytes = fs.readFileSync(outPath);
     const { error: upErr } = await admin.storage
-      .from('property-images')
+      .from('property-videos')
       .upload(storagePath, bytes, { contentType: 'video/mp4', upsert: true });
     if (upErr) throw new Error(`Storage upload failed: ${upErr.message}`);
-    const { data: pub } = admin.storage.from('property-images').getPublicUrl(storagePath);
+    const { data: pub } = admin.storage.from('property-videos').getPublicUrl(storagePath);
 
     await admin.from('properties').update({
       video_url: pub.publicUrl,
