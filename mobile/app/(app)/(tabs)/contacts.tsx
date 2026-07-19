@@ -35,7 +35,7 @@ import { cleanPhoneInput } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { useDebounced } from '@/lib/use-debounced';
 import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
 
@@ -311,7 +311,6 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
       accessibilityLabel={`Open contact ${name}`}
       contentStyle={StyleSheet.flatten([
         listCard,
-        shadows.card,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ])}
     >

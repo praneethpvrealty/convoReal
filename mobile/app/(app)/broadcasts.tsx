@@ -13,7 +13,7 @@ import {
 import { EmptyState } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, shadows, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
 import type { Broadcast } from '@/lib/types';
 
 function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
@@ -164,7 +164,6 @@ function Stat({ label, value, danger }: { label: string; value: number; danger?:
 
 const styles = StyleSheet.create({
   card: {
-    ...shadows.card,
     borderWidth: 1,
     borderRadius: radius.lg,
     padding: spacing.md,

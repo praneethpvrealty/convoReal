@@ -20,7 +20,7 @@ import { ENV } from '@/lib/env';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
 
 interface WalletRow {
   total_credits: number;
@@ -262,7 +262,6 @@ const styles = StyleSheet.create({
   heroValue: { color: onGradient.text, fontSize: 40, fontFamily: fonts.extrabold, letterSpacing: -1 },
   heroSub: { color: onGradient.faint, fontSize: 12.5 },
   card: {
-    ...shadows.card,
     borderWidth: 1,
     borderRadius: radius.lg,
     overflow: 'hidden',

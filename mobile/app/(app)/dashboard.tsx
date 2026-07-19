@@ -13,7 +13,7 @@ import { AnimatedCounter } from '@/components/motion';
 import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
 
 interface Overview {
   openConversations: number;
@@ -253,7 +253,6 @@ const styles = StyleSheet.create({
   heroPillText: { color: onGradient.text, fontSize: 12.5, fontFamily: fonts.bold },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
-    ...shadows.card,
     borderWidth: 1,
     flexGrow: 1,
     flexBasis: '30%',

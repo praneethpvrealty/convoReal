@@ -11,7 +11,6 @@ import { supabase } from '@/lib/supabase';
 import {
   fonts,
   radius,
-  shadows,
   spacing,
   useAppearance,
   useTheme,
@@ -50,7 +49,7 @@ export default function MoreScreen() {
     >
       <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>More</Text>
 
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         <View style={styles.profileRow}>
           <Avatar name={displayName} size={54} />
           <View style={{ flex: 1, gap: 2 }}>
@@ -80,7 +79,7 @@ export default function MoreScreen() {
       </View>
 
       <SectionLabel text="Workspace" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         {WORKSPACE_LINKS.map((link) => (
           <Link key={link.href} href={link.href} asChild>
             <Pressable style={styles.navRow} android_ripple={{ color: colors.border }}>
@@ -93,12 +92,12 @@ export default function MoreScreen() {
       </View>
 
       <SectionLabel text="Appearance" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         <AppearancePicker />
       </View>
 
       <SectionLabel text="On the web app" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, shadows.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         {WEB_ONLY.map((f) => (
           <View key={f.label} style={styles.navRow}>
             <Ionicons name={f.icon} size={19} color={colors.textMuted} />

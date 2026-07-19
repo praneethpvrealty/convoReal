@@ -256,7 +256,7 @@ export function Skeleton({ style }: { style?: ViewStyle }) {
 /**
  * Shared chrome for list rows rendered as floating cards (Inbox,
  * Contacts, skeletons). Kept as a plain object so Link-asChild sites
- * can `StyleSheet.flatten([listCard, shadows.card, {...colors}])`
+ * can `StyleSheet.flatten([listCard, {...colors}])`
  * into the single flat style expo-router's Slot requires.
  */
 export const listCard: ViewStyle = {
@@ -277,7 +277,6 @@ export function ConversationSkeleton() {
     <View
       style={[
         listCard,
-        shadows.card,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >
@@ -296,7 +295,6 @@ export function PropertyCardSkeleton() {
   return (
     <View
       style={[
-        shadows.card,
         {
           marginHorizontal: spacing.lg,
           marginBottom: spacing.md,
@@ -394,12 +392,11 @@ export function SearchBar({
   onChangeText: (v: string) => void;
   placeholder: string;
 } & Omit<React.ComponentProps<typeof TextInput>, 'value' | 'onChangeText' | 'placeholder' | 'style'>) {
-  const { colors, shadows: sh, fonts: f } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View
       style={[
         sharedStyles.searchWrap,
-        sh.soft,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ]}
     >

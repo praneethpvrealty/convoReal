@@ -13,7 +13,7 @@ import {
 import { Avatar, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
-import { radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { JourneyItem, JourneyStage } from '@/lib/types';
 
 /**
@@ -168,7 +168,6 @@ export default function JourneyScreen() {
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   card: {
-    ...shadows.card,
     borderWidth: 1,
     borderRadius: radius.lg,
     overflow: 'hidden',

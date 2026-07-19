@@ -27,12 +27,14 @@ export function GlassCard({
   blurred = false,
   blurIntensity,
 }: GlassCardProps) {
-  const { colors, dark, shadows } = useTheme();
+  const { colors, dark } = useTheme();
+  // No shadow on purpose: elevation/shadow renders UNDER the view and
+  // bleeds through a translucent fill as a grey band. Glass depth
+  // comes from the fill + 1px border.
   return (
     <View
       style={[
         styles.frame,
-        shadows.card,
         {
           borderColor: colors.glassBorder,
           borderRadius: r,
