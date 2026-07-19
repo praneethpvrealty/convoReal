@@ -30,6 +30,20 @@ import type { Property } from '@/lib/types';
 /** Scroll clearance so content ends above the sticky price bar. */
 const BOTTOM_BAR_CLEARANCE = 110;
 
+/** Web parity: "Equivalent to: ₹15 Crore" under the formatted price. */
+function equivalentInr(n: number | null | undefined): string | null {
+  if (!n || n <= 0) return null;
+  if (n >= 10000000) {
+    const cr = (n / 10000000).toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1');
+    return `Equivalent to: ₹${cr} Crore`;
+  }
+  if (n >= 100000) {
+    const lakhs = (n / 100000).toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1');
+    return `Equivalent to: ₹${lakhs} Lakhs`;
+  }
+  return `Equivalent to: ₹${n.toLocaleString('en-IN')}`;
+}
+
 async function fetchProperty(id: string): Promise<Property | null> {
   // Single-property reads pass RLS directly, same as the web's
   // count/star queries; only the list/search flow is API-gated.
@@ -84,6 +98,15 @@ export default function PropertyDetailScreen() {
     : property.land_area
       ? `${property.land_area} ${property.land_area_unit || ''}`.trim()
       : null;
+  const priceWords = equivalentInr(
+    property.listing_type === 'Rent' ? property.rent_per_month : property.price
+  );
+  // Web parity (view mode): dimensions "F x D" splits into frontage/depth.
+  const dimParts = (property.dimensions ?? '').includes('x')
+    ? (property.dimensions ?? '').split('x').map((d) => d.trim())
+    : [];
+  const frontage = dimParts.length === 2 ? dimParts[0] : null;
+  const depth = dimParts.length === 2 ? dimParts[1] : null;
   // Web parity: specs without a value are hidden, not dashed out.
   const specs = [
     property.bedrooms
@@ -92,11 +115,48 @@ export default function PropertyDetailScreen() {
     property.bathrooms
       ? { icon: 'water-outline' as const, label: 'Bathrooms', value: String(property.bathrooms) }
       : null,
+    property.sublocality
+      ? { icon: 'location-outline' as const, label: 'Locality', value: property.sublocality }
+      : null,
     area ? { icon: 'resize-outline' as const, label: 'Area', value: area } : null,
     property.facing_direction
       ? { icon: 'compass-outline' as const, label: 'Facing', value: property.facing_direction }
       : null,
+    frontage
+      ? { icon: 'swap-horizontal-outline' as const, label: 'Frontage', value: `${frontage} ft` }
+      : null,
+    property.ownership_status
+      ? { icon: 'ribbon-outline' as const, label: 'Ownership', value: property.ownership_status }
+      : null,
   ].filter((sp): sp is NonNullable<typeof sp> => sp !== null);
+  const rentalIncome =
+    typeof property.rental_income === 'number' && property.rental_income > 0
+      ? property.rental_income
+      : null;
+  const yieldPct =
+    rentalIncome && property.price
+      ? Math.round(((rentalIncome * 12) / property.price) * 1000) / 10
+      : null;
+  // Web parity: "Listing Metadata" key/value rows, all conditional.
+  const metadata = [
+    property.super_built_area
+      ? { label: 'Super Built Area', value: `${property.super_built_area.toLocaleString('en-IN')} Sq.Ft.` }
+      : null,
+    property.dimensions ? { label: 'Dimensions', value: property.dimensions } : null,
+    frontage ? { label: 'Frontage', value: `${frontage} Feet` } : null,
+    depth ? { label: 'Depth', value: `${depth} Feet` } : null,
+    property.road_width
+      ? { label: 'Road Width', value: `${property.road_width} ${property.road_width_unit || 'Feet'}` }
+      : null,
+    property.land_zone ? { label: 'Land Zone', value: property.land_zone } : null,
+    property.ideal_for ? { label: 'Ideal For', value: property.ideal_for } : null,
+    rentalIncome
+      ? {
+          label: 'Rental Income',
+          value: `${formatInr(rentalIncome)}/mo${yieldPct ? ` · ${yieldPct}% yield` : ''}`,
+        }
+      : null,
+  ].filter((r): r is NonNullable<typeof r> => r !== null);
 
   return (
     <View style={{ flex: 1 }}>
@@ -217,7 +277,14 @@ export default function PropertyDetailScreen() {
       <View style={[styles.body, { backgroundColor: colors.background }]}>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
           {property.listing_type ? <Tag label={property.listing_type} /> : null}
+          {property.type ? <Tag label={property.type} /> : null}
           {property.status ? <Tag label={property.status} /> : null}
+          {property.listing_source === 'agent' ? (
+            <Tag label="Agent Referred" color={colors.readTick} />
+          ) : null}
+          {property.listing_source === 'whatsapp_lister' ? (
+            <Tag label="Via WhatsApp" color={colors.success} />
+          ) : null}
           {property.is_published ? (
             <Tag label="Published" />
           ) : (
@@ -230,6 +297,9 @@ export default function PropertyDetailScreen() {
           <Text style={{ fontSize: 13.5, color: colors.textMuted }}>{place}</Text>
         ) : null}
         <Text style={{ fontSize: 24, fontFamily: f.extrabold, color: colors.primary }}>{price}</Text>
+        {priceWords ? (
+          <Text style={{ fontSize: 12.5, color: colors.success, marginTop: -6 }}>{priceWords}</Text>
+        ) : null}
 
         {specs.length > 0 ? (
           <View style={styles.specGrid}>
@@ -253,6 +323,103 @@ export default function PropertyDetailScreen() {
               {property.features.map((f) => (
                 <Tag key={f} label={f} />
               ))}
+            </View>
+          </Section>
+        ) : null}
+
+        {metadata.length > 0 ? (
+          <Section title="Listing Metadata">
+            <View
+              style={[
+                styles.metaCard,
+                { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+              ]}
+            >
+              {metadata.map((row, i) => (
+                <View
+                  key={row.label}
+                  style={[
+                    styles.metaRow,
+                    i > 0 && { borderTopWidth: 1, borderTopColor: colors.glassBorder },
+                  ]}
+                >
+                  <Text style={{ fontSize: 13, color: colors.textMuted }}>{row.label}</Text>
+                  <Text
+                    style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text, flexShrink: 1 }}
+                    numberOfLines={2}
+                  >
+                    {row.value}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Section>
+        ) : null}
+
+        {property.floor_tenancies?.length ? (
+          <Section title="Floor-wise Tenancy (Rent Roll)">
+            <View style={{ gap: spacing.sm }}>
+              {property.floor_tenancies.map((ft, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.tenancyCard,
+                    { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm }}>
+                    <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text, flex: 1 }}>
+                      {ft.floor || `Unit ${i + 1}`}
+                      {ft.tenant_name ? ` · ${ft.tenant_name}` : ''}
+                    </Text>
+                    {ft.monthly_rent ? (
+                      <Text style={{ fontSize: 13.5, fontFamily: f.extrabold, color: colors.primary }}>
+                        {formatInr(Number(ft.monthly_rent))}/mo
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                    {[
+                      ft.area_sqft ? `${ft.area_sqft} Sq.Ft.` : null,
+                      ft.lease_start || ft.lease_end
+                        ? `Lease ${ft.lease_start ?? '…'} → ${ft.lease_end ?? '…'}`
+                        : null,
+                      ft.lock_in_months ? `Lock-in ${ft.lock_in_months} mo` : null,
+                      ft.maintenance ? `Maint: ${ft.maintenance}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
+                  {ft.notes ? (
+                    <Text style={{ fontSize: 12, color: colors.textFaint }}>{ft.notes}</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </Section>
+        ) : null}
+
+        {property.nearby_highlights?.length ? (
+          <Section title="Nearby Landmarks">
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              {property.nearby_highlights.map((h) => (
+                <Tag key={h} label={h} />
+              ))}
+            </View>
+          </Section>
+        ) : null}
+
+        {property.notes ? (
+          <Section title="Internal Notes · CRM only">
+            <View
+              style={[
+                styles.notesCard,
+                { backgroundColor: colors.warningSoft, borderColor: colors.warning },
+              ]}
+            >
+              <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.text }}>
+                {property.notes}
+              </Text>
             </View>
           </Section>
         ) : null}
@@ -583,6 +750,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  metaCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 11,
+  },
+  tenancyCard: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    padding: spacing.md,
+    gap: 4,
+  },
+  notesCard: {
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
   },
   thumbMore: {
     alignItems: 'center',

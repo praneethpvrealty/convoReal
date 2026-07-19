@@ -356,7 +356,7 @@ function NearMeChip({
  * works exactly as before (submit / just stop typing).
  */
 function LocalitySearchBox() {
-  const { colors, fonts: f } = useTheme();
+  const { colors, fonts: f, dark } = useTheme();
   const { search, setSearch, setNear } = usePropertySearch();
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
@@ -411,7 +411,12 @@ function LocalitySearchBox() {
         <View
           style={[
             styles.suggestions,
-            { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+            {
+              // Solid panel: the dropdown floats OVER chips and cards,
+              // so a translucent glass fill lets them read through it.
+              backgroundColor: dark ? '#12281E' : '#FFFFFF',
+              borderColor: colors.glassBorder,
+            },
           ]}
         >
           {suggestions.map((s) => (

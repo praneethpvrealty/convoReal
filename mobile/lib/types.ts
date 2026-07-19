@@ -110,6 +110,31 @@ export interface Property {
   google_map_link?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  listing_source?: string | null;
+  sublocality_2?: string | null;
+  super_built_area?: number | null;
+  dimensions?: string | null;
+  road_width?: number | null;
+  road_width_unit?: string | null;
+  land_zone?: string | null;
+  ideal_for?: string | null;
+  ownership_status?: string | null;
+  rental_income?: number | null;
+  nearby_highlights?: string[] | null;
+  notes?: string | null;
+  floor_tenancies?:
+    | {
+        floor?: string | null;
+        tenant_name?: string | null;
+        area_sqft?: number | string | null;
+        monthly_rent?: number | string | null;
+        lease_start?: string | null;
+        lease_end?: string | null;
+        lock_in_months?: number | string | null;
+        maintenance?: string | null;
+        notes?: string | null;
+      }[]
+    | null;
   owner_contact_id?: string | null;
   owner?: { name?: string | null; phone?: string | null } | null;
   created_at?: string;
