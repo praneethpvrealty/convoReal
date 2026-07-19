@@ -45,6 +45,26 @@ export default function ContactDetailScreen() {
     queryKey: ['contact', id],
     queryFn: () => fetchContact(id),
     enabled: Boolean(id),
+    // Keep the previous contact (and the agent strip) rendered while
+    // the switcher swaps the route param.
+    placeholderData: (prev: Contact | null | undefined) => prev,
+  });
+
+  // Agent switcher strip: from one agent's screen, hop straight to
+  // another agent without going back through the contacts list.
+  const isAgent = contact?.classification === 'Agent';
+  const { data: agentPeers } = useQuery({
+    queryKey: ['agent-peers'],
+    enabled: isAgent,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contacts')
+        .select('id, name, phone')
+        .eq('classification', 'Agent')
+        .order('name');
+      if (error) throw error;
+      return (data ?? []) as Pick<Contact, 'id' | 'name' | 'phone'>[];
+    },
   });
 
   return (
@@ -67,10 +87,52 @@ export default function ContactDetailScreen() {
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={colors.primary} />
         </View>
-      ) : editing ? (
-        <ContactEditor contact={contact} onDone={() => setEditing(false)} />
       ) : (
-        <ContactCard contact={contact} />
+        <>
+          {!editing && isAgent && (agentPeers?.length ?? 0) > 1 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={styles.agentStrip}
+            >
+              {agentPeers!.map((a) => {
+                const active = a.id === contact.id;
+                return (
+                  <Pressable
+                    key={a.id}
+                    onPress={() => {
+                      if (!active) router.setParams({ id: a.id });
+                    }}
+                    style={[
+                      styles.agentChip,
+                      {
+                        backgroundColor: active ? colors.primarySoft : colors.glass,
+                        borderColor: active ? colors.primary : colors.glassBorder,
+                      },
+                    ]}
+                  >
+                    <Avatar name={a.name || a.phone} size={20} />
+                    <Text
+                      style={{
+                        fontSize: 12,
+                        fontFamily: f.semibold,
+                        color: active ? colors.primary : colors.textMuted,
+                      }}
+                    >
+                      {(a.name || a.phone).split(' ')[0]}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          ) : null}
+          {editing ? (
+            <ContactEditor contact={contact} onDone={() => setEditing(false)} />
+          ) : (
+            <ContactCard contact={contact} />
+          )}
+        </>
       )}
     </View>
   );
@@ -123,6 +185,13 @@ function ContactCard({ contact }: { contact: Contact }) {
           }
         />
         <ActionButton icon="chatbubbles" label="Inbox" onPress={() => openConversation(contact.id)} />
+        {contact.classification === 'Agent' ? (
+          <ActionButton
+            icon="map-outline"
+            label="Journey"
+            onPress={() => router.push(`/(app)/journey?contactId=${contact.id}`)}
+          />
+        ) : null}
       </View>
 
       <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
@@ -338,7 +407,7 @@ const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg },
   identity: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   name: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: spacing.md, justifyContent: 'center' },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },
   actionButton: {
     alignItems: 'center',
     gap: 4,
@@ -360,4 +429,19 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   fieldLabel: { fontSize: 12.5, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
+  agentStrip: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  agentChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingLeft: 4,
+    paddingRight: 12,
+    paddingVertical: 4,
+  },
 });
