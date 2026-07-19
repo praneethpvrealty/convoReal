@@ -1,0 +1,13 @@
+{
+  "photos": [
+    { "file": "./photos/exterior.png", "caption": "3-Floor Building • Devanahalli" },
+    { "file": "./photos/living.png", "caption": "Bright, airy living spaces" }
+  ],
+  "narration": "Welcome to this three floor residential building in Devanahalli, North Bangalore. Priced within three crores. Message us on WhatsApp to book your site visit today.",
+  "endCard": {
+    "line1": "Rs 3 Cr • Devanahalli",
+    "line2": "Rental income Rs 80,000 / month",
+    "cta": "Reply on WhatsApp to book a site visit"
+  },
+  "musicSeconds": 40
+}
