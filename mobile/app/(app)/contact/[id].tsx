@@ -22,6 +22,7 @@ import {
   AgentSchedule,
   InterestedProperties,
 } from '@/components/agent-detail';
+import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
 import { approveAndSendDetails } from '@/lib/approve-contact';
 import { formatBudgetRange } from '@/lib/format';
@@ -96,7 +97,7 @@ export default function ContactDetailScreen() {
       />
       {isLoading || !contact ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={colors.primary} />
+          <ConvoRealLoader />
         </View>
       ) : (
         <>

@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import { ConvoRealLoader } from '@/components/loader';
 import { AnimatedCounter } from '@/components/motion';
 import { FilterChip, GradientHero, PrimaryButton, SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
@@ -164,7 +165,7 @@ export default function CreditsScreen() {
       </View>
 
       {history.isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ paddingVertical: 24 }} />
+        <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 24 }} />
       ) : transactions.length === 0 ? (
         <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 16 }}>
           No transactions yet.

@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import { ConvoRealLoader } from '@/components/loader';
 import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -84,7 +85,7 @@ export default function AutomationsScreen() {
         Toggle automations you created on or off. Building and editing them happens on the web.
       </Text>
       {automationsQuery.isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ paddingVertical: 20 }} />
+        <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
       ) : (automationsQuery.data ?? []).length === 0 ? (
         <EmptyState
           icon="git-branch-outline"
@@ -120,7 +121,7 @@ export default function AutomationsScreen() {
 
       <SectionLabel text="WhatsApp Flows" />
       {flowsQuery.isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ paddingVertical: 20 }} />
+        <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
       ) : (flowsQuery.data ?? []).length === 0 ? (
         <Text style={{ fontSize: 13, color: colors.textMuted }}>
           No interactive flows. Build WhatsApp menu trees in the web app's Flow Builder.

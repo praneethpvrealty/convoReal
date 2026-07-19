@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
+import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet } from '@/components/sheet';
 import { EmptyState } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -241,7 +242,7 @@ export default function CalendarScreen() {
           {selected.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
         </Text>
         {isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ paddingVertical: 20 }} />
+          <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
         ) : dayAppointments.length === 0 ? (
           <EmptyState
             icon="calendar-outline"

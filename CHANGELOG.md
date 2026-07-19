@@ -11,7 +11,30 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Mobile "Unauthorized" on every API send — apex-domain redirect.**
+  `convoreal.com/api/*` 308-redirects to `www.convoreal.com`, and
+  fetch strips the `Authorization` header on cross-origin redirects —
+  so every authenticated call from the app arrived anonymous and
+  401'd while direct Supabase reads kept working. `apiFetch` now
+  detects the redirect's final origin, pins it for the session, and
+  re-issues the request there with the header (media URLs use the
+  pinned origin too). Setting `EXPO_PUBLIC_API_BASE_URL` to the
+  canonical `https://www.convoreal.com` avoids the extra hop
+  entirely.
+
 ### Changed
+
+- **Mobile: the desktop ConvoReal loader, ported.** Loading states
+  across the app (boot gate, thread, contact, property, broadcasts,
+  automations, calendar, credits, template picker) now show the
+  web's wordmark loader — "ConvoReal" with a bright band sweeping
+  through the letters (same 1.6s loop, primary→white→primary),
+  rebuilt natively with a text mask + animated gradient, static
+  under reduced motion. New dependency:
+  `@react-native-masked-view/masked-view` — run `npm install` in
+  `mobile/`. Inline button/row spinners stay as-is.
 
 - **Agent replies clear the chatbot handoff flag.** When the bot
   hands a customer to staff ("Talk to an Agent"), the conversation

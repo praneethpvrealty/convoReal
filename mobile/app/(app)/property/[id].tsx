@@ -22,6 +22,7 @@ import { BlurView } from 'expo-blur';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { SectionLabel, Tag } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
@@ -87,7 +88,7 @@ export default function PropertyDetailScreen() {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Stack.Screen options={{ headerShown: true, title: 'Property' }} />
-        <ActivityIndicator color={colors.primary} />
+        <ConvoRealLoader />
       </View>
     );
   }

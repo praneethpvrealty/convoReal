@@ -15,9 +15,10 @@ import {
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
+import { View } from 'react-native';
 
 import { AuroraBackground } from '@/components/aurora-background';
+import { ConvoRealLoader } from '@/components/loader';
 import { useAuthListener, useAuthStore } from '@/lib/auth-store';
 import { asyncStoragePersister, queryClient } from '@/lib/query';
 import { useTheme } from '@/lib/theme';
@@ -51,7 +52,7 @@ export default function RootLayout() {
           backgroundColor: colors.background,
         }}
       >
-        <ActivityIndicator size="large" color={colors.primary} />
+        <ConvoRealLoader size={26} />
       </View>
     );
   }

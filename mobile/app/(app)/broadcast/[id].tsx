@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   ScrollView,
   StyleSheet,
@@ -10,6 +9,7 @@ import {
   View,
 } from 'react-native';
 
+import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, FilterChip } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
@@ -93,7 +93,7 @@ export default function BroadcastDetailScreen() {
       </View>
 
       {isLoading ? (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+        <ConvoRealLoader style={{ alignSelf: 'center', marginTop: 40 }} />
       ) : (
         <FlatList
           style={{ flex: 1 }}
