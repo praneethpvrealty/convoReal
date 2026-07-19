@@ -1,15 +1,23 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
 
 import { isPhoneVerified, useAuthStore } from '@/lib/auth-store';
+import { useSurface } from '@/lib/surface';
 import { useTheme } from '@/lib/theme';
 
 export default function AppLayout() {
   const session = useAuthStore((s) => s.session);
+  const surface = useSurface((s) => s.surface);
   const pathname = usePathname();
   const { colors, fonts: f } = useTheme();
 
   if (!session) {
     return <Redirect href="/(auth)/login" />;
+  }
+
+  // This device signed in as a property owner — the staff CRM is not
+  // its surface; the Den shell owns the session.
+  if (surface === 'den') {
+    return <Redirect href="/(den)/den" />;
   }
 
   // Same gate as the web dashboard (migration 137): staff must have an

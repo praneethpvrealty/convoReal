@@ -251,6 +251,22 @@ and polish.
 
 ### Added
 
+- **Mobile: Owners Den (tranche 1).** The owner-facing portal now
+  lives in the app too, per the "same app, owner entry" decision.
+  The staff login gains a "Property owner? Open the Owners Den" entry
+  leading to the Den's own WhatsApp-OTP sign-in (signups allowed,
+  `app_context: 'den'`, same as web /den/login; the idempotent
+  `/api/den/auth/complete` runs on every entry so agency links stay
+  fresh). A persisted surface flag routes each signed-in device to
+  the staff CRM or the Den shell. Den screens: **Home** — activity
+  totals (views / enquiries / shortlists / site visits) over a 7/30
+  day window plus every linked property with per-property stats,
+  agency and Deal Mode chips; **Offers** — the masked-bidder offer
+  inbox with accept/decline (accept reveals the buyer contact with a
+  WhatsApp shortcut, same mutual-reveal rules as web); **Settings** —
+  display name, WhatsApp notification toggles, digest frequency,
+  sign out. Deal rooms + Token Safe stay web-only for now.
+
 - **Mobile property detail: quick actions.** A new action rail under
   the price — Share (native share sheet with the public showcase
   link, same URL the web Share dialog builds), Email (prefilled
