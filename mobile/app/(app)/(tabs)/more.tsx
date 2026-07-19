@@ -25,6 +25,7 @@ const WORKSPACE_LINKS = [
   { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
   { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
   { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },
+  { href: '/(app)/connection-check', icon: 'pulse-outline', label: 'Connection check' },
 ] as const;
 
 /** Deliberately web-only (canvas editors, admin surface). */

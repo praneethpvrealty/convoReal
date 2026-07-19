@@ -26,6 +26,15 @@ and polish.
   maps `?property_id=…` to the property screen) — App Links verify
   once an EAS build ships with the site's cert env set.
 
+### Added
+
+- **Mobile: Connection check (More → Workspace).** A support screen
+  that runs the probes separating the "Unauthorized" failure modes —
+  which Supabase project the app points at, session and refresh-token
+  validity at that project, and live API probes with a fresh token
+  against both the configured and `www` hosts — color-coded, made to
+  be screenshotted into a bug report.
+
 ### Fixed
 
 - **Mobile: dead sessions now recover instead of endless
