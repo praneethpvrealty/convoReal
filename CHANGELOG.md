@@ -13,6 +13,13 @@ and polish.
 
 ### Changed
 
+- **Mobile bottom sheets are opaque again.** The shared sheet used a
+  translucent glass fill, so the screen underneath read straight
+  through "Import from phone", "New contact", the share sheet and
+  every other sheet. Sheets now use a near-opaque surface (the same
+  rule as dropdowns and sticky bars: glass belongs on surfaces over
+  the aurora, not on overlays above content).
+
 - **Inventory mobile search no longer hides the results.** On phones,
   the search overlay dropped a full-screen dim scrim over the list —
   results updated live behind it but were blacked out until "Show
@@ -21,6 +28,19 @@ and polish.
   visible and filter live as you type; the button became "Done".
 
 ### Added
+
+- **Mobile: prefilled WhatsApp welcome message.** The desktop
+  contacts page's "Send pre-filled welcome message" button now
+  exists on the app. Contact rows gain a WhatsApp button and the
+  contact card's WhatsApp action opens WhatsApp with the same
+  drafted message desktop builds: a personalized greeting, the
+  qualification questions (location/budget/type/stage), and
+  showcase links — the exact enquired property plus similar
+  matches when the lead has one, otherwise links filtered by their
+  areas/property interests (subdomain-aware, `ref` fallback). The
+  row's chat bubble still jumps into an existing thread; when no
+  thread exists it now falls back to the prefilled message instead
+  of an empty WhatsApp compose.
 
 - **Mobile: Agents directory + contact review actions.** A briefcase
   button on the Contacts tab opens the web Agents tab's mobile

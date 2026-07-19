@@ -89,6 +89,7 @@ export interface Message {
 export interface Profile {
   account_id: string;
   account_role: string;
+  full_name?: string | null;
 }
 
 // ------------------------------------------------------------------
