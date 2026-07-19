@@ -26,8 +26,13 @@ export function BottomSheet({
   animation?: 'slide' | 'fade';
   contentStyle?: ViewStyle;
 }) {
-  const { colors, type } = useTheme();
+  const { colors, dark, type } = useTheme();
   const insets = useSafeAreaInsets();
+  // Near-opaque on purpose: the sheet floats over arbitrary screen
+  // content, and a translucent glass fill lets the list underneath
+  // read straight through the sheet (same rule as dropdowns and
+  // sticky bars — glass is for surfaces over the aurora only).
+  const sheetFill = dark ? 'rgba(13,36,26,0.98)' : 'rgba(255,255,255,0.98)';
   return (
     <Modal
       visible={visible}
@@ -48,7 +53,7 @@ export function BottomSheet({
           style={[
             styles.sheet,
             {
-              backgroundColor: colors.surfaceRaised,
+              backgroundColor: sheetFill,
               borderColor: colors.glassBorder,
               paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md,
             },

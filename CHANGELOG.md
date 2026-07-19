@@ -13,6 +13,13 @@ and polish.
 
 ### Changed
 
+- **Mobile bottom sheets are opaque again.** The shared sheet used a
+  translucent glass fill, so the screen underneath read straight
+  through "Import from phone", "New contact", the share sheet and
+  every other sheet. Sheets now use a near-opaque surface (the same
+  rule as dropdowns and sticky bars: glass belongs on surfaces over
+  the aurora, not on overlays above content).
+
 - **Inventory mobile search no longer hides the results.** On phones,
   the search overlay dropped a full-screen dim scrim over the list —
   results updated live behind it but were blacked out until "Show
