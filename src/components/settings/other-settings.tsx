@@ -72,7 +72,7 @@ export function OtherSettingsPanel() {
   // Email Sync Config State
   const [syncActive, setSyncActive] = useState(false);
   const [autoReply, setAutoReply] = useState(false);
-  const [autoReplyText, setAutoReplyText] = useState('Hi {name}, thanks for your interest on {source}. We will get back to you shortly.');
+  const [autoReplyText, setAutoReplyText] = useState('Hi {name}, thanks for your interest on the property listed on {source}. Kindly let me know your requirements and budget, I will share the appropriate properties.');
   const [autoReplyTemplateName, setAutoReplyTemplateName] = useState<string | null>(null);
   const [approvedTemplates, setApprovedTemplates] = useState<MessageTemplate[]>([]);
   const [hasSyncConfig, setHasSyncConfig] = useState(false);
@@ -169,7 +169,7 @@ export function OtherSettingsPanel() {
         if (isInitial) {
           setSyncActive(data.is_active);
           setAutoReply(data.auto_reply_enabled);
-          setAutoReplyText(data.auto_reply_text || 'Hi {name}, thanks for your interest on {source}. We will get back to you shortly.');
+          setAutoReplyText(data.auto_reply_text || 'Hi {name}, thanks for your interest on the property listed on {source}. Kindly let me know your requirements and budget, I will share the appropriate properties.');
           setAutoReplyTemplateName(data.auto_reply_template_name || null);
           setHasSyncConfig(true);
         }
