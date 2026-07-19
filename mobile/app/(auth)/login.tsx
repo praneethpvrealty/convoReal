@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -83,6 +84,18 @@ export default function LoginScreen() {
           <Text style={[styles.footer, { color: colors.textFaint }]}>
             Use the same account as the web app.{'\n'}New team members sign up on the web.
           </Text>
+
+          <Pressable
+            onPress={() => router.push('/(auth)/den-login')}
+            hitSlop={10}
+            accessibilityRole="button"
+            style={styles.denLink}
+          >
+            <Ionicons name="home-outline" size={15} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: 13.5, fontFamily: f.semibold }}>
+              Property owner? Open the Owners Den
+            </Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -349,4 +362,11 @@ const styles = StyleSheet.create({
   },
   segmentActive: {},
   footer: { fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
+  denLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+  },
 });
