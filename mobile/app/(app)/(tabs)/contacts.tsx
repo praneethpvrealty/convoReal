@@ -34,8 +34,9 @@ import {
   listCard,
 } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
-import { chatListTime, cleanPhoneInput } from '@/lib/format';
+import { chatListTime, cleanPhoneInput, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -74,7 +75,8 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
     .from('contacts')
     .select(
       'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp, ' +
-        'status, last_contacted_at, last_inquired_property_id, property_interests, areas_of_interest'
+        'status, last_contacted_at, last_inquired_property_id, property_interests, ' +
+        'areas_of_interest, min_budget, max_budget, no_budget'
     )
     .order('created_at', { ascending: false })
     .limit(150);
@@ -210,6 +212,7 @@ export default function ContactsScreen() {
   const [segment, setSegment] = useState<SegmentKey>('active');
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [preview, setPreview] = useState<Contact | null>(null);
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
@@ -323,8 +326,7 @@ export default function ContactsScreen() {
               <ContactRow
                 contact={item}
                 dark={dark}
-                tags={data?.tags[item.id] ?? []}
-                propertyCodes={data?.propertyCodes ?? {}}
+                onPreview={() => setPreview(item)}
               />
             </EnterRow>
           )}
@@ -333,6 +335,12 @@ export default function ContactsScreen() {
 
       <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
       <DeviceImportSheet visible={importing} onClose={() => setImporting(false)} />
+      <ContactPreviewSheet
+        contact={preview}
+        tags={preview ? (data?.tags[preview.id] ?? []) : []}
+        propertyCodes={data?.propertyCodes ?? {}}
+        onClose={() => setPreview(null)}
+      />
     </View>
   );
 }
@@ -488,9 +496,10 @@ function approveContact(contact: Contact) {
   ]);
 }
 
-/** Tap the chat bubble → jump into the contact's latest conversation
- *  (no thread yet → WhatsApp with the prefilled welcome message). */
-async function openChat(contact: Contact) {
+/** "Send internal message": the CRM inbox thread — open the latest
+ *  conversation, or create one first (same insert as the web's
+ *  handleWhatsAppClick) when the contact has never been messaged. */
+async function openInternalChat(contact: Contact) {
   haptic.tap();
   const { data } = await supabase
     .from('conversations')
@@ -499,52 +508,87 @@ async function openChat(contact: Contact) {
     .order('last_message_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (data?.id) router.push(`/(app)/conversation/${data.id}`);
-  else openWelcomeWhatsApp(contact);
+  if (data?.id) {
+    router.push(`/(app)/conversation/${data.id}`);
+    return;
+  }
+  const { profile, session } = useAuthStore.getState();
+  if (!profile?.account_id) return;
+  const { data: conv, error } = await supabase
+    .from('conversations')
+    .insert({
+      account_id: profile.account_id,
+      user_id: session?.user.id,
+      contact_id: contact.id,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    haptic.warn();
+    Alert.alert('Could not open thread', friendlyError(error.message));
+    return;
+  }
+  queryClient.invalidateQueries({ queryKey: ['conversations'] });
+  router.push(`/(app)/conversation/${conv.id}`);
+}
+
+/** Long-press on the WhatsApp button: the two secondary sends. */
+function whatsappOptions(contact: Contact) {
+  haptic.tap();
+  Alert.alert(contact.name || contact.phone, 'How do you want to message?', [
+    {
+      text: 'Blank WhatsApp chat',
+      onPress: () => Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`),
+    },
+    { text: 'Internal message (CRM inbox)', onPress: () => openInternalChat(contact) },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
 }
 
 function ContactRow({
   contact,
   dark,
-  tags,
-  propertyCodes,
+  onPreview,
 }: {
   contact: Contact;
   dark: boolean;
-  tags: string[];
-  propertyCodes: Record<string, string>;
+  onPreview: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const name = contact.name || contact.phone;
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
-  const interests = Array.from(
-    new Set(
-      [...(contact.property_interests ?? []), contact.last_inquired_property_id]
-        .filter((v): v is string => Boolean(v))
-        .map((id) => propertyCodes[id])
-        .filter((c): c is string => Boolean(c))
-    )
-  ).slice(0, 2);
 
   return (
     <PressScale
       onPress={() => router.push(`/(app)/contact/${contact.id}`)}
+      onLongPress={() => {
+        haptic.tap();
+        onPreview();
+      }}
       accessibilityRole="button"
-      accessibilityLabel={`Open contact ${name}`}
+      accessibilityLabel={`Open contact ${name}. Long press for a quick preview.`}
       contentStyle={StyleSheet.flatten([
         listCard,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ])}
     >
-        <Avatar name={name} size={46} />
+        <Avatar name={name} size={42} />
         <View style={styles.rowBody}>
           <View style={styles.nameRow}>
             <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]} numberOfLines={1}>
               {name}
             </Text>
-            {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
+            <Pressable
+              hitSlop={10}
+              onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${name}`}
+              style={[styles.inlineCall, { backgroundColor: colors.primarySoft }]}
+            >
+              <Ionicons name="call" size={13} color={colors.primary} />
+            </Pressable>
             {contact.last_contacted_at ? (
               <Text style={{ fontSize: 11, color: colors.textFaint, marginLeft: 'auto' }}>
                 {chatListTime(contact.last_contacted_at)}
@@ -559,18 +603,8 @@ function ContactRow({
               <Text style={{ fontSize: 12.5, color: colors.textFaint }}>{contact.phone}</Text>
             ) : null}
           </View>
-          {tags.length > 0 || interests.length > 0 ? (
-            <View style={styles.chipRow}>
-              {tags.slice(0, 3).map((t) => (
-                <Tag key={t} label={t} color={colors.textMuted} />
-              ))}
-              {interests.map((code) => (
-                <Tag key={code} label={`★ ${code}`} color={colors.warning} />
-              ))}
-            </View>
-          ) : null}
         </View>
-        <View style={{ gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {contact.status === 'pending_review' ? (
             <Pressable
               hitSlop={8}
@@ -584,36 +618,141 @@ function ContactRow({
           ) : null}
           <Pressable
             hitSlop={8}
-            onPress={() => openChat(contact)}
-            accessibilityRole="button"
-            accessibilityLabel={`Open conversation with ${name}`}
-            style={[styles.action, { backgroundColor: colors.successSoft }]}
-          >
-            <Ionicons name="chatbubble-ellipses" size={17} color={colors.success} />
-          </Pressable>
-          <Pressable
-            hitSlop={8}
             onPress={() => {
               haptic.tap();
               openWelcomeWhatsApp(contact);
             }}
+            onLongPress={() => whatsappOptions(contact)}
             accessibilityRole="button"
-            accessibilityLabel={`Send welcome message to ${name} on WhatsApp`}
+            accessibilityLabel={`WhatsApp ${name} — long press for more send options`}
             style={[styles.action, { backgroundColor: colors.successSoft }]}
           >
-            <Ionicons name="logo-whatsapp" size={17} color={colors.success} />
-          </Pressable>
-          <Pressable
-            hitSlop={8}
-            onPress={() => Linking.openURL(`tel:${contact.phone}`)}
-            accessibilityRole="button"
-            accessibilityLabel={`Call ${name}`}
-            style={[styles.action, { backgroundColor: colors.primarySoft }]}
-          >
-            <Ionicons name="call" size={17} color={colors.primary} />
+            <Ionicons name="logo-whatsapp" size={18} color={colors.success} />
           </Pressable>
         </View>
     </PressScale>
+  );
+}
+
+/**
+ * Long-press preview: the details the compact row no longer shows —
+ * budget, tags, interests, areas — without leaving the list. Tapping
+ * "Open full contact" goes to the complete contact screen.
+ */
+function ContactPreviewSheet({
+  contact,
+  tags,
+  propertyCodes,
+  onClose,
+}: {
+  contact: Contact | null;
+  tags: string[];
+  propertyCodes: Record<string, string>;
+  onClose: () => void;
+}) {
+  const { colors, dark, fonts: f } = useTheme();
+  if (!contact) return <BottomSheet visible={false} onClose={onClose}>{null}</BottomSheet>;
+
+  const name = contact.name || contact.phone;
+  const clsColor = contact.classification
+    ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
+    : undefined;
+  const interests = Array.from(
+    new Set(
+      [...(contact.property_interests ?? []), contact.last_inquired_property_id]
+        .filter((v): v is string => Boolean(v))
+        .map((id) => propertyCodes[id])
+        .filter((c): c is string => Boolean(c))
+    )
+  ).slice(0, 4);
+  const budget = contact.no_budget
+    ? 'No budget constraint'
+    : contact.min_budget || contact.max_budget
+      ? `${formatInr(contact.min_budget)} – ${formatInr(contact.max_budget)}`
+      : null;
+
+  return (
+    <BottomSheet visible onClose={onClose}>
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <Avatar name={name} size={48} />
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={{ fontSize: 18, fontFamily: f.extrabold, color: colors.text }} numberOfLines={1}>
+              {name}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+              {contact.classification ? <Tag label={contact.classification} color={clsColor} /> : null}
+              {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
+              {contact.lead_temp ? (
+                <Tag
+                  label={contact.lead_temp}
+                  color={contact.lead_temp === 'HOT' ? colors.danger : colors.textMuted}
+                />
+              ) : null}
+            </View>
+          </View>
+        </View>
+
+        <PreviewRow icon="call-outline" label="Phone" value={contact.phone} />
+        {contact.company ? <PreviewRow icon="business-outline" label="Company" value={contact.company} /> : null}
+        {contact.email ? <PreviewRow icon="mail-outline" label="Email" value={contact.email} /> : null}
+        {budget ? <PreviewRow icon="cash-outline" label="Budget" value={budget} /> : null}
+        {contact.areas_of_interest?.length ? (
+          <PreviewRow
+            icon="location-outline"
+            label="Areas of interest"
+            value={contact.areas_of_interest.join(', ')}
+          />
+        ) : null}
+        {contact.last_contacted_at ? (
+          <PreviewRow
+            icon="time-outline"
+            label="Last contacted"
+            value={chatListTime(contact.last_contacted_at)}
+          />
+        ) : null}
+
+        {tags.length > 0 || interests.length > 0 ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+            {tags.map((t) => (
+              <Tag key={t} label={t} color={colors.textMuted} />
+            ))}
+            {interests.map((code) => (
+              <Tag key={code} label={`★ ${code}`} color={colors.warning} />
+            ))}
+          </View>
+        ) : null}
+
+        <PrimaryButton
+          label="Open full contact"
+          onPress={() => {
+            onClose();
+            router.push(`/(app)/contact/${contact.id}`);
+          }}
+        />
+      </View>
+    </BottomSheet>
+  );
+}
+
+function PreviewRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  label: string;
+  value: string;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
+      <Ionicons name={icon} size={16} color={colors.textMuted} style={{ marginTop: 2 }} />
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text style={{ fontSize: 11.5, color: colors.textFaint }}>{label}</Text>
+        <Text style={{ fontSize: 14, fontFamily: f.medium, color: colors.text }}>{value}</Text>
+      </View>
+    </View>
   );
 }
 
@@ -785,7 +924,13 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 2 },
+  inlineCall: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   importRow: {
     flexDirection: 'row',
     alignItems: 'center',

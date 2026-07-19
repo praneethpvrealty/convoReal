@@ -13,6 +13,19 @@ and polish.
 
 ### Changed
 
+- **Mobile Contacts: compact rows, one WhatsApp button.** Contact
+  rows slim down to the essentials — avatar, name with a small
+  inline call button, classification + phone, last-contacted time —
+  and a single WhatsApp button on the right. Tapping it opens
+  WhatsApp with the prefilled welcome message; long-pressing offers
+  the two other sends: a blank WhatsApp chat, or an internal message
+  in the CRM inbox (creating the conversation first if none exists,
+  like the web). Long-pressing the row opens a quick preview sheet
+  with the details the row no longer carries — budget, tags,
+  interested-in properties, areas, email, company, last contacted —
+  and an "Open full contact" button; a plain tap still goes straight
+  to the contact screen.
+
 - **Mobile Contacts: the Agents entry is a tie-person glyph with an
   "Ag" caption.** The briefcase icon didn't say "Agents" (user
   feedback); after comparing candidates, the entry is now the
