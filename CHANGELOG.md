@@ -11,6 +11,15 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **Inventory mobile search no longer hides the results.** On phones,
+  the search overlay dropped a full-screen dim scrim over the list —
+  results updated live behind it but were blacked out until "Show
+  results" closed the panel. The panel is now an in-flow sticky card
+  that pushes the list down instead of covering it: results stay
+  visible and filter live as you type; the button became "Done".
+
 ### Added
 
 - **Auto-generated listing videos.** A "Listing Video" card on the
