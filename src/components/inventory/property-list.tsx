@@ -861,7 +861,7 @@ export function PropertyList({
                             variant="outline"
                             size="sm"
                             onClick={() => onDelete(property)}
-                            className="h-8 border-slate-855 hover:bg-red-950/20 hover:text-red-400 hover:border-red-900/50 text-slate-400"
+                            className="h-8 border-slate-850 hover:bg-red-950/20 hover:text-red-400 hover:border-red-900/50 text-slate-400"
                           />
                         }
                       >

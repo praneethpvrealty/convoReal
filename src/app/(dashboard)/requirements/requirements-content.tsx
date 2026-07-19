@@ -525,7 +525,7 @@ export default function RequirementsPage() {
           </div>
         ) : filteredData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 border border-slate-800/80 bg-slate-900/25 rounded-2xl">
-            <AlertTriangle className="size-10 text-slate-655" />
+            <AlertTriangle className="size-10 text-slate-650" />
             <h3 className="mt-4 text-sm font-semibold text-slate-300">No Requirements Found</h3>
             <p className="mt-1 text-xs text-slate-500 font-medium">Try broadening your search or selection filters.</p>
           </div>

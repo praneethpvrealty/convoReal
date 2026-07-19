@@ -449,7 +449,7 @@ export default function AgentsPage() {
                     </div>
                   ) : properties.length === 0 ? (
                     <div className="text-center py-16 border border-dashed border-slate-800 rounded-xl bg-slate-900/20 max-w-lg mx-auto mt-4">
-                      <Building className="size-12 mx-auto text-slate-755 mb-4 opacity-45" />
+                      <Building className="size-12 mx-auto text-slate-750 mb-4 opacity-45" />
                       <h4 className="text-sm font-semibold text-white mb-1">No Showcase Properties</h4>
                       <p className="text-xs text-slate-400 max-w-xs mx-auto">
                         Link properties listed by this agent to showcase them on this portfolio page.

@@ -48,6 +48,24 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Half-step slate shades. The codebase uses these ~330 times
+ * (slate-850 alone 154×) but Tailwind only generates utilities for
+ * keys declared in @theme — without these, every such class was a
+ * silent no-op (verified absent from the built CSS), which dark
+ * mode masked and light mode exposed. Values interpolate the
+ * neighbouring standard steps. Deliberately NOT in the `@theme
+ * inline` block above: inline would bake the hex into each utility,
+ * cutting the var() indirection the data-mode blocks below rely on
+ * to remap these alongside the standard ramp. */
+@theme {
+  --color-slate-350: #adbbd0;
+  --color-slate-450: #7b8ca3;
+  --color-slate-550: #54657d;
+  --color-slate-650: #3b4b62;
+  --color-slate-750: #27354b;
+  --color-slate-850: #162034;
+}
+
 /* ============================================================
  * COLOR THEMES
  *
@@ -297,6 +315,13 @@ html[data-mode="dark"] {
   --color-slate-200: #e2e2e8;
   --color-slate-100: #efeff3;
   --color-slate-50: #f7f7fa;
+  /* half-steps (see @theme) — graphite midpoints */
+  --color-slate-350: #b3b3bd;
+  --color-slate-450: #888894;
+  --color-slate-550: #63636d;
+  --color-slate-650: #46464f;
+  --color-slate-750: #2e2e34;
+  --color-slate-850: #1c1c21;
 
   /* rounder, softer surfaces (drives rounded-md/lg/xl/2xl app-wide) */
   --radius: 0.75rem;
@@ -363,6 +388,13 @@ html[data-mode="light"] {
   --color-slate-100: #131720;
   --color-slate-50: #060810;
   --color-white: #131720;
+  /* half-steps (see @theme) — inverted midpoints */
+  --color-slate-350: #3f4754;
+  --color-slate-450: #566478;
+  --color-slate-550: #7e8b9e;
+  --color-slate-650: #b5bcc6;
+  --color-slate-750: #dbe0e6;
+  --color-slate-850: #f2f4f7;
 
   /* rounder, softer surfaces — matches the dark-mode polish */
   --radius: 0.75rem;
@@ -421,6 +453,17 @@ html[data-mode="light"] {
   --color-lime-400: #65a30d;
 
   color-scheme: light;
+}
+
+/* Decorative ambient glow orbs (absolute, pointer-events-none,
+ * heavy blur) are tuned for dark surfaces; being positioned they
+ * paint ON TOP of in-flow content, and on light neutrals the same
+ * orbs read as a muddy haze washing out whole panes. Damp them
+ * hard in light mode rather than hunting each usage. Targets the
+ * decorative signature only — backdrop-blur (functional) has its
+ * own prefix and never matches " blur-". */
+html[data-mode="light"] [class*="pointer-events-none"][class*=" blur-"] {
+  opacity: 0.25;
 }
 
 @layer base {

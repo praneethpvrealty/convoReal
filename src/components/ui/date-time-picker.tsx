@@ -318,7 +318,7 @@ export function DateTimePicker({
                       "h-7 w-full shrink-0 text-center text-xs rounded-md transition-colors cursor-pointer",
                       currentHourSelected === hour
                         ? "bg-primary text-primary-foreground font-semibold"
-                        : "text-slate-355 hover:bg-slate-900 hover:text-white"
+                        : "text-slate-350 hover:bg-slate-900 hover:text-white"
                     )}
                   >
                     {pad(hour)}
@@ -337,7 +337,7 @@ export function DateTimePicker({
                       "h-7 w-full shrink-0 text-center text-xs rounded-md transition-colors cursor-pointer",
                       currentMinuteSelected === minute
                         ? "bg-primary text-primary-foreground font-semibold"
-                        : "text-slate-355 hover:bg-slate-900 hover:text-white"
+                        : "text-slate-350 hover:bg-slate-900 hover:text-white"
                     )}
                   >
                     {pad(minute)}
@@ -358,7 +358,7 @@ export function DateTimePicker({
                         "h-7 w-full shrink-0 text-center text-xs rounded-md transition-colors cursor-pointer",
                         isActive
                           ? "bg-primary text-primary-foreground font-semibold"
-                          : "text-slate-355 hover:bg-slate-900 hover:text-white"
+                          : "text-slate-350 hover:bg-slate-900 hover:text-white"
                       )}
                     >
                       {period}

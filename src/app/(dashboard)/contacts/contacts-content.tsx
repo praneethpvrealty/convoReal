@@ -122,7 +122,16 @@ interface ContactWithTags extends Contact {
 export default function ContactsPage() {
   const supabase = createClient();
   const router = useRouter();
-  const { user, profile, accountId } = useAuth();
+  const { user, profile, accountId, profileLoading, profileError } = useAuth();
+
+  // Watchdog for the loading state. Two silent failure shapes used to
+  // leave the spinner up forever with zero diagnostics: (a) auth's
+  // legacy profile fallback loads a profile WITHOUT account_id, so the
+  // `if (!accountId) return` guard in fetchContacts fires on every
+  // call; (b) a Supabase request that never settles (no client-side
+  // timeout). Surface both instead of spinning.
+  const [slowLoad, setSlowLoad] = useState(false);
+  const accountMissing = !profileLoading && !accountId;
   const canEdit = useCan('send-messages');
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
@@ -493,10 +502,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const qs = params.toString();
     replaceUrl(router, qs ? `/contacts?${qs}` : '/contacts');
   };
-  const [activeCount, setActiveCount] = useState(0);
-  const [reviewCount, setReviewCount] = useState(0);
-  const [transactedCount, setTransactedCount] = useState(0);
-  const [marketActiveCount, setMarketActiveCount] = useState(0);
+  // null = not fetched yet. The tab labels render plain ("All
+  // Contacts") until real numbers exist — a "(0)"/"(...)" placeholder
+  // while counts load reads as broken data.
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const [reviewCount, setReviewCount] = useState<number | null>(null);
+  const [transactedCount, setTransactedCount] = useState<number | null>(null);
+  const [marketActiveCount, setMarketActiveCount] = useState<number | null>(null);
+
+  /** " (42)" once known, "" while loading. */
+  const countSuffix = (n: number | null) => (n === null ? '' : ` (${n})`);
 
   const [filterClassification, setFilterClassification] = useState<string>('All');
   const [filterTag, setFilterTag] = useState<string>('All');
@@ -1197,6 +1212,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     fetchContacts();
   }, [fetchContacts]);
 
+  // Arm the slow-load notice while the spinner is up; disarm on settle.
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoad(false);
+      return;
+    }
+    const t = setTimeout(() => setSlowLoad(true), 12_000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
   // Automatically open contact detail modal if contactId is specified in query parameters
   useEffect(() => {
     const cid = searchParams?.get('contactId');
@@ -1797,7 +1822,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            All Contacts ({loading ? '…' : activeCount})
+            All Contacts{countSuffix(activeCount)}
           </button>
           <button
             onClick={() => setActiveTabAndSync('pending_review')}
@@ -1807,8 +1832,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Needs Review ({loading ? '…' : reviewCount})
-            {reviewCount > 0 && (
+            Needs Review{countSuffix(reviewCount)}
+            {(reviewCount ?? 0) > 0 && (
               <span className="inline-flex items-center justify-center bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] min-w-[16px] h-4 leading-none animate-pulse">
                 {reviewCount}
               </span>
@@ -1822,7 +1847,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Transacted ({loading ? '…' : transactedCount})
+            Transacted{countSuffix(transactedCount)}
           </button>
           <button
             onClick={() => setActiveTabAndSync('market_active')}
@@ -1832,7 +1857,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Active Buyers ({loading ? '…' : marketActiveCount})
+            Active Buyers{countSuffix(marketActiveCount)}
           </button>
         </div>
       </div>
@@ -1844,11 +1869,44 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             colSpan cell centers against the full multi-viewport-wide
             table and lands off-screen on mobile. Same pattern as the
             Broadcasts and Ads pages. */}
-        {loading ? (
+        {accountMissing ? (
+          <div className="flex flex-col items-center gap-3 py-12 px-6 text-center">
+            <Users className="size-8 text-slate-600" />
+            <p className="text-sm text-slate-300 font-semibold">
+              Your account context didn&apos;t load
+            </p>
+            <p className="text-xs text-slate-500 max-w-sm">
+              {profileError
+                ? 'The profile lookup failed — usually a temporary network or database blip.'
+                : 'Your profile loaded without its workspace link, so contacts can’t be fetched.'}{' '}
+              Reloading normally fixes this.
+            </p>
+            <Button
+              onClick={() => window.location.reload()}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 px-4 cursor-pointer"
+            >
+              Reload page
+            </Button>
+          </div>
+        ) : loading ? (
           <div className="flex flex-col items-center text-slate-400 py-12">
             <ContactCardLoader size={104} label="Loading contacts" className="mb-3" />
             <ConvoRealLoader size={20} className="mb-2" />
             <p className="text-sm">Loading contacts...</p>
+            {slowLoad && (
+              <div className="mt-4 flex flex-col items-center gap-2">
+                <p className="text-xs text-slate-500">
+                  This is taking longer than usual — the connection may have stalled.
+                </p>
+                <Button
+                  onClick={fetchContactsWithInvalidate}
+                  variant="outline"
+                  className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-8 px-4 cursor-pointer"
+                >
+                  Retry
+                </Button>
+              </div>
+            )}
           </div>
         ) : fetchFailed ? (
           <div className="flex flex-col items-center gap-3 py-12">

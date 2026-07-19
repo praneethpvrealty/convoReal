@@ -5395,7 +5395,7 @@ export function PropertyForm({
              
              <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 text-left space-y-3">
                <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">WhatsApp Message Preview</p>
-               <p className="text-xs text-slate-355 leading-relaxed bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 font-mono whitespace-pre-wrap select-all max-h-40 overflow-y-auto">
+               <p className="text-xs text-slate-350 leading-relaxed bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 font-mono whitespace-pre-wrap select-all max-h-40 overflow-y-auto">
                  {`Here is the link for the documents of the property "${shareSuccessData.propertyTitle}" asked. Please use the password - ${shareSuccessData.password || 'None'} to open it.\n\n📂 Link: ${shareSuccessData.shareLink}`}
                </p>
              </div>
