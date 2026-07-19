@@ -59,6 +59,8 @@ import {
   Layers,
   ShieldCheck,
   CirclePlay,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
@@ -212,6 +214,7 @@ export function PropertyForm({
 
   const [viewMode, setViewMode] = useState(viewOnly);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const galleryTouchXRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -2347,59 +2350,136 @@ export function PropertyForm({
             <TabsContent value="details" className="m-0 px-6 py-4 focus:outline-none">
               {viewMode ? (
                 <div className="space-y-6 animate-fade-in pb-4">
-                  {/* 1. IMAGE CAROUSEL / GALLERY */}
+                  {/* 1. IMAGE CAROUSEL / GALLERY — photos plus the
+                      listing video as the last slide; arrow buttons
+                      and touch swipe both navigate. */}
                   <div className="space-y-2">
-                    {images && images.filter(img => img && img.trim().length > 0).length > 0 ? (
-                      (() => {
-                        const validImages = images.filter(img => img && img.trim().length > 0);
-                        const activeImage = validImages[activeImageIndex] || validImages[0];
+                    {(() => {
+                      const validImages = (images || []).filter(img => img && img.trim().length > 0);
+                      const hasVideo = Boolean(property?.video_url && property.video_status === 'ready');
+                      const mediaCount = validImages.length + (hasVideo ? 1 : 0);
+                      if (mediaCount === 0) {
                         return (
-                          <div className="space-y-2">
-                            {/* Main Active Image */}
-                            <div className="relative aspect-[16/9] w-full rounded-xl bg-slate-950 border border-slate-800 overflow-hidden group">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <div className="relative aspect-[16/9] w-full rounded-xl bg-slate-950/60 border border-dashed border-slate-800 overflow-hidden flex flex-col items-center justify-center text-slate-500 gap-2.5 py-12">
+                            <Building className="size-10 opacity-30 text-slate-400" />
+                            <span className="text-xs font-medium">No images uploaded for this listing.</span>
+                          </div>
+                        );
+                      }
+                      const isVideoSlide = hasVideo && activeImageIndex >= validImages.length;
+                      const goTo = (dir: number) =>
+                        setActiveImageIndex((prev) => {
+                          const next = prev + dir;
+                          if (next < 0) return mediaCount - 1;
+                          if (next >= mediaCount) return 0;
+                          return next;
+                        });
+                      return (
+                        <div className="space-y-2">
+                          {/* Main Active Slide */}
+                          <div
+                            className="relative aspect-[16/9] w-full rounded-xl bg-slate-950 border border-slate-800 overflow-hidden group"
+                            onTouchStart={(e) => {
+                              galleryTouchXRef.current = e.touches[0].clientX;
+                            }}
+                            onTouchEnd={(e) => {
+                              const startX = galleryTouchXRef.current;
+                              galleryTouchXRef.current = null;
+                              // A drag on the video element is scrubbing, not a swipe.
+                              if (startX === null || (e.target as HTMLElement).tagName === 'VIDEO') return;
+                              const delta = e.changedTouches[0].clientX - startX;
+                              if (Math.abs(delta) < 50) return;
+                              goTo(delta < 0 ? 1 : -1);
+                            }}
+                          >
+                            {isVideoSlide ? (
+                              <video
+                                src={property!.video_url!}
+                                controls
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-full object-contain"
+                              />
+                            ) : (
+                              /* eslint-disable-next-line @next/next/no-img-element */
                               <img
-                                src={activeImage}
+                                src={validImages[activeImageIndex] || validImages[0]}
                                 alt={title}
                                 className="w-full h-full object-cover"
                               />
-                              <div className="absolute bottom-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono font-bold text-slate-300 border border-slate-800">
-                                {activeImageIndex + 1} / {validImages.length}
-                              </div>
-                            </div>
-                            {/* Thumbnail Row */}
-                            {validImages.length > 1 && (
-                              <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
-                                {validImages.map((img, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => setActiveImageIndex(idx)}
-                                    className={`relative h-14 w-20 rounded-lg overflow-hidden border-2 shrink-0 bg-slate-950 transition-all ${
-                                      idx === activeImageIndex
-                                        ? 'border-primary shadow-sm'
-                                        : 'border-slate-800 hover:border-slate-700'
-                                    }`}
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img
-                                      src={img}
-                                      alt={`${title} thumbnail ${idx + 1}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </button>
-                                ))}
-                              </div>
                             )}
+                            {mediaCount > 1 && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => goTo(-1)}
+                                  className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-300 hover:text-white border border-slate-800/60 cursor-pointer"
+                                >
+                                  <ChevronLeft className="size-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => goTo(1)}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-300 hover:text-white border border-slate-800/60 cursor-pointer"
+                                >
+                                  <ChevronRight className="size-4" />
+                                </button>
+                              </>
+                            )}
+                            <div className="absolute bottom-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono font-bold text-slate-300 border border-slate-800">
+                              {Math.min(activeImageIndex, mediaCount - 1) + 1} / {mediaCount}
+                            </div>
                           </div>
-                        );
-                      })()
-                    ) : (
-                      <div className="relative aspect-[16/9] w-full rounded-xl bg-slate-950/60 border border-dashed border-slate-800 overflow-hidden flex flex-col items-center justify-center text-slate-500 gap-2.5 py-12">
-                        <Building className="size-10 opacity-30 text-slate-400" />
-                        <span className="text-xs font-medium">No images uploaded for this listing.</span>
-                      </div>
-                    )}
+                          {/* Thumbnail Row */}
+                          {mediaCount > 1 && (
+                            <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                              {validImages.map((img, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setActiveImageIndex(idx)}
+                                  className={`relative h-14 w-20 rounded-lg overflow-hidden border-2 shrink-0 bg-slate-950 transition-all ${
+                                    !isVideoSlide && idx === activeImageIndex
+                                      ? 'border-primary shadow-sm'
+                                      : 'border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={img}
+                                    alt={`${title} thumbnail ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </button>
+                              ))}
+                              {hasVideo && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveImageIndex(validImages.length)}
+                                  title="Listing video"
+                                  className={`relative h-14 w-20 rounded-lg overflow-hidden border-2 shrink-0 bg-slate-950 transition-all ${
+                                    isVideoSlide
+                                      ? 'border-primary shadow-sm'
+                                      : 'border-slate-800 hover:border-slate-700'
+                                  }`}
+                                >
+                                  <video
+                                    src={property!.video_url!}
+                                    muted
+                                    playsInline
+                                    preload="metadata"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <span className="absolute inset-0 flex items-center justify-center bg-slate-950/40">
+                                    <CirclePlay className="size-4 text-white" />
+                                  </span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* 2. CORE HEADER INFO */}
