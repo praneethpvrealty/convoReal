@@ -24,6 +24,7 @@ import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import {
   CLASSIFICATIONS,
   type Classification,
@@ -38,7 +39,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
     .select(
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, requirements, ' +
-        'lead_temp, status, referrer, source'
+        'lead_temp, status, referrer, source, property_interests, last_inquired_property_id'
     )
     .eq('id', id)
     .maybeSingle();
@@ -195,9 +196,7 @@ function ContactCard({ contact }: { contact: Contact }) {
         <ActionButton
           icon="logo-whatsapp"
           label="WhatsApp"
-          onPress={() =>
-            Linking.openURL(`https://wa.me/${contact.phone.replace(/\D/g, '')}`)
-          }
+          onPress={() => openWelcomeWhatsApp(contact)}
         />
         <ActionButton icon="chatbubbles" label="Inbox" onPress={() => openConversation(contact.id)} />
         {contact.classification === 'Agent' ? (

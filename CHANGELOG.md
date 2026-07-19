@@ -22,6 +22,19 @@ and polish.
 
 ### Added
 
+- **Mobile: prefilled WhatsApp welcome message.** The desktop
+  contacts page's "Send pre-filled welcome message" button now
+  exists on the app. Contact rows gain a WhatsApp button and the
+  contact card's WhatsApp action opens WhatsApp with the same
+  drafted message desktop builds: a personalized greeting, the
+  qualification questions (location/budget/type/stage), and
+  showcase links — the exact enquired property plus similar
+  matches when the lead has one, otherwise links filtered by their
+  areas/property interests (subdomain-aware, `ref` fallback). The
+  row's chat bubble still jumps into an existing thread; when no
+  thread exists it now falls back to the prefilled message instead
+  of an empty WhatsApp compose.
+
 - **Mobile: Agents directory + contact review actions.** A briefcase
   button on the Contacts tab opens the web Agents tab's mobile
   counterpart: every "Agent"-classified contact with company, phone

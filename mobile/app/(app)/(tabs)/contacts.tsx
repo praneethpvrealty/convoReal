@@ -41,6 +41,7 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { useDebounced } from '@/lib/use-debounced';
+import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
 
 /** Web parity quick filters (contacts-content.tsx). */
@@ -73,7 +74,7 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
     .from('contacts')
     .select(
       'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp, ' +
-        'status, last_contacted_at, last_inquired_property_id, property_interests'
+        'status, last_contacted_at, last_inquired_property_id, property_interests, areas_of_interest'
     )
     .order('created_at', { ascending: false })
     .limit(150);
@@ -473,18 +474,18 @@ function approveContact(contact: Contact) {
 }
 
 /** Tap the chat bubble → jump into the contact's latest conversation
- *  (falls back to plain WhatsApp when no thread exists yet). */
-async function openChat(contactId: string, phone: string) {
+ *  (no thread yet → WhatsApp with the prefilled welcome message). */
+async function openChat(contact: Contact) {
   haptic.tap();
   const { data } = await supabase
     .from('conversations')
     .select('id')
-    .eq('contact_id', contactId)
+    .eq('contact_id', contact.id)
     .order('last_message_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (data?.id) router.push(`/(app)/conversation/${data.id}`);
-  else Linking.openURL(`https://wa.me/${phone.replace(/\D/g, '')}`);
+  else openWelcomeWhatsApp(contact);
 }
 
 function ContactRow({
@@ -568,12 +569,24 @@ function ContactRow({
           ) : null}
           <Pressable
             hitSlop={8}
-            onPress={() => openChat(contact.id, contact.phone)}
+            onPress={() => openChat(contact)}
             accessibilityRole="button"
             accessibilityLabel={`Open conversation with ${name}`}
             style={[styles.action, { backgroundColor: colors.successSoft }]}
           >
             <Ionicons name="chatbubble-ellipses" size={17} color={colors.success} />
+          </Pressable>
+          <Pressable
+            hitSlop={8}
+            onPress={() => {
+              haptic.tap();
+              openWelcomeWhatsApp(contact);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Send welcome message to ${name} on WhatsApp`}
+            style={[styles.action, { backgroundColor: colors.successSoft }]}
+          >
+            <Ionicons name="logo-whatsapp" size={17} color={colors.success} />
           </Pressable>
           <Pressable
             hitSlop={8}
