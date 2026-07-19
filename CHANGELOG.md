@@ -251,6 +251,19 @@ and polish.
 
 ### Added
 
+- **Mobile property detail: gallery + empty-field cleanup.** (1) Spec
+  tiles (Bedrooms/Bathrooms/Area/Facing) and contact-card rows now
+  hide when there's no value — web parity — instead of showing "—"
+  (a commercial plot no longer advertises dashed-out bedrooms).
+  (2) The photo gallery renders correctly on wide/foldable screens:
+  pager math now uses the live window width instead of a stale
+  module-scope Dimensions value, and the thumbnail strip no longer
+  gets clipped by the overlapping content sheet. (3) Tapping the hero
+  photo (or the new counter chip / "+N" thumb) opens a full-screen
+  gallery viewer — black backdrop, swipe-paged, photo counter,
+  safe-area close button, pinch-to-zoom on iOS. The sticky price bar
+  also became near-opaque so scrolled content can't read through it.
+
 - **Mobile: glass cards no longer show a grey shadow band (light
   theme).** Android draws elevation shadows UNDER a view, so on a
   55%-translucent glass card the shadow bled through the fill as a

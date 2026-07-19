@@ -134,8 +134,12 @@ function ContactCard({ contact }: { contact: Contact }) {
             value={contact.secondary_phones.join(', ')}
           />
         ) : null}
-        <InfoRow icon="mail-outline" label="Email" value={contact.email || '—'} />
-        <InfoRow icon="business-outline" label="Company" value={contact.company || '—'} />
+        {contact.email ? (
+          <InfoRow icon="mail-outline" label="Email" value={contact.email} />
+        ) : null}
+        {contact.company ? (
+          <InfoRow icon="business-outline" label="Company" value={contact.company} />
+        ) : null}
         {budget ? <InfoRow icon="cash-outline" label="Budget" value={budget} /> : null}
         {contact.areas_of_interest?.length ? (
           <InfoRow
