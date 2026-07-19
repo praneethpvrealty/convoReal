@@ -35,7 +35,7 @@ import {
   type ListingFilter,
   type NearAnchor,
 } from '@/lib/property-search-store';
-import { mapPin, onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { mapPin, onGradient, radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 import type { PropertiesResponse, Property } from '@/lib/types';
 
 const LISTING_FILTERS: ListingFilter[] = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'];
@@ -598,7 +598,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
   },
   card: {
-    ...shadows.card,
     marginHorizontal: spacing.lg,
     marginBottom: spacing.lg,
     borderRadius: radius.lg,

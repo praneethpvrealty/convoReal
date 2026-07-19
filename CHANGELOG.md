@@ -235,6 +235,16 @@ and polish.
 
 ### Added
 
+- **Mobile: glass cards no longer show a grey shadow band (light
+  theme).** Android draws elevation shadows UNDER a view, so on a
+  55%-translucent glass card the shadow bled through the fill as a
+  grey gradient inside the card (iOS layer shadows do the same).
+  Shadows are now removed from every translucent glass surface —
+  rows, panels, skeletons, search pill, GlassCard — whose depth comes
+  from the fill + 1px light border, matching the mockups. Shadows
+  remain only on opaque surfaces (gradient hero cards, blurred
+  floating bars).
+
 - **Mobile: uniform aurora backgrounds.** The first aurora renders
   showed wide vertical banding stripes ("seams") and visible glow
   rims on device — 8-bit quantization of very close dark base colors,

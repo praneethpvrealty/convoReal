@@ -19,7 +19,7 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Appointment, AppointmentType } from '@/lib/types';
 
 const TYPE_META: Record<AppointmentType, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
@@ -626,7 +626,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   card: {
-    ...shadows.card,
     borderWidth: 1,
     flexDirection: 'row',
     alignItems: 'center',

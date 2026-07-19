@@ -20,7 +20,7 @@ import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
 
 async function fetchContact(id: string): Promise<Contact | null> {
@@ -344,7 +344,6 @@ const styles = StyleSheet.create({
     width: 92,
   },
   card: {
-    ...shadows.card,
     borderWidth: 1,
     borderRadius: radius.lg,
     overflow: 'hidden',

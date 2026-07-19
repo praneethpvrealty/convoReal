@@ -30,7 +30,7 @@ import type { Contact } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, shadows, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Conversation } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
 
@@ -278,7 +278,6 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
       accessibilityLabel={`Open conversation with ${name}`}
       contentStyle={StyleSheet.flatten([
         listCard,
-        shadows.card,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ])}
     >

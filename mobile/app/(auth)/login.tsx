@@ -18,7 +18,7 @@ import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, shadows, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
 type Mode = 'whatsapp' | 'email';
 
@@ -347,6 +347,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: radius.md,
   },
-  segmentActive: { ...shadows.soft },
+  segmentActive: {},
   footer: { fontSize: 12.5, textAlign: 'center', lineHeight: 18 },
 });
