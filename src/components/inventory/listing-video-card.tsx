@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { CirclePlay, Clapperboard, ExternalLink, Loader2, RefreshCw, Sparkles } from 'lucide-react';
+import { CirclePlay, Clapperboard, Download, ExternalLink, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,6 +14,7 @@ interface VideoState {
   video_status: 'queued' | 'processing' | 'ready' | 'failed' | null;
   video_language: string | null;
   video_error: string | null;
+  video_generated_at: string | null;
   youtube_video_id: string | null;
   youtube_status: 'queued' | 'uploading' | 'ready' | 'failed' | null;
   youtube_error: string | null;
@@ -40,7 +41,7 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
     const { data } = await supabase
       .from('properties')
       .select(
-        'video_url, video_status, video_language, video_error, youtube_video_id, youtube_status, youtube_error'
+        'video_url, video_status, video_language, video_error, video_generated_at, youtube_video_id, youtube_status, youtube_error'
       )
       .eq('id', propertyId)
       .maybeSingle();
@@ -119,6 +120,14 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
 
   const busy = state?.video_status === 'queued' || state?.video_status === 'processing';
   const ytBusy = state?.youtube_status === 'queued' || state?.youtube_status === 'uploading';
+  const videoReady = state?.video_status === 'ready' && Boolean(state.video_url);
+  // Only worker renders stamp video_generated_at — its absence means the
+  // agent supplied this video themselves (WhatsApp walkthrough), so the
+  // generator controls would overwrite real footage.
+  const isUploadedVideo = videoReady && !state?.video_generated_at;
+  const downloadUrl = state?.video_url
+    ? `${state.video_url}${state.video_url.includes('?') ? '&' : '?'}download=listing-video.mp4`
+    : '';
 
   return (
     <div className="space-y-3 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
@@ -128,18 +137,27 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
         <Sparkles className="size-3.5 text-primary/70" />
       </div>
       <p className="text-xs text-slate-500">
-        Auto-builds a WhatsApp-ready teaser from this listing&apos;s photos —
-        motion, captions, narration in your chosen language, and music.
-        Costs {AI_FEATURE_COSTS.listing_video} cr per render.
+        {isUploadedVideo
+          ? 'Walkthrough video uploaded via WhatsApp — shown on your public Showcase alongside the photos.'
+          : `Auto-builds a WhatsApp-ready teaser from this listing's photos — motion, captions, narration in your chosen language, and music. Costs ${AI_FEATURE_COSTS.listing_video} cr per render.`}
       </p>
 
-      {state?.video_status === 'ready' && state.video_url && (
-        <video
-          src={state.video_url}
-          controls
-          playsInline
-          className="w-full max-w-[240px] rounded-lg border border-slate-800"
-        />
+      {videoReady && (
+        <div className="space-y-2">
+          <video
+            src={state!.video_url!}
+            controls
+            playsInline
+            className="w-full max-w-[240px] rounded-lg border border-slate-800"
+          />
+          <a
+            href={downloadUrl}
+            className="inline-flex items-center gap-1 text-xs text-slate-300 underline hover:text-white"
+          >
+            <Download className="size-3" />
+            Save video
+          </a>
+        </div>
       )}
       {state?.video_status === 'failed' && state.video_error && (
         <p className="text-xs text-red-400">
@@ -147,45 +165,47 @@ export function ListingVideoCard({ propertyId }: { propertyId: string }) {
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value as NarrationLanguage)}
-          disabled={busy || submitting}
-          className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2 text-xs text-slate-200"
-          aria-label="Narration language"
-        >
-          {Object.entries(NARRATION_LANGUAGES).map(([code, label]) => (
-            <option key={code} value={code}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <Button
-          type="button"
-          size="sm"
-          onClick={generate}
-          disabled={busy || submitting}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground"
-        >
-          {busy || submitting ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" />
-              {state?.video_status === 'processing' ? 'Rendering…' : 'Queued…'}
-            </>
-          ) : state?.video_status === 'ready' ? (
-            <>
-              <RefreshCw className="size-3.5" />
-              Regenerate
-            </>
-          ) : (
-            <>
-              <Sparkles className="size-3.5" />
-              Generate video
-            </>
-          )}
-        </Button>
-      </div>
+      {!isUploadedVideo && (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value as NarrationLanguage)}
+            disabled={busy || submitting}
+            className="h-9 rounded-lg border border-slate-700 bg-slate-800 px-2 text-xs text-slate-200"
+            aria-label="Narration language"
+          >
+            {Object.entries(NARRATION_LANGUAGES).map(([code, label]) => (
+              <option key={code} value={code}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            size="sm"
+            onClick={generate}
+            disabled={busy || submitting}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            {busy || submitting ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                {state?.video_status === 'processing' ? 'Rendering…' : 'Queued…'}
+              </>
+            ) : state?.video_status === 'ready' ? (
+              <>
+                <RefreshCw className="size-3.5" />
+                Regenerate
+              </>
+            ) : (
+              <>
+                <Sparkles className="size-3.5" />
+                Generate video
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {ytConnected && state?.video_status === 'ready' && (
         <div className="space-y-2 border-t border-slate-800 pt-3">
