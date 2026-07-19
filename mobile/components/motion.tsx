@@ -23,6 +23,8 @@ export function PressScale({
   style,
   contentStyle,
   onPress,
+  onPressIn,
+  onPressOut,
   hapticOn = true,
   ...rest
 }: {
@@ -44,11 +46,13 @@ export function PressScale({
         if (hapticOn) haptic.tap();
         onPress?.();
       }}
-      onPressIn={() => {
+      onPressIn={(e) => {
         scale.value = withSpring(0.965, { damping: 18, stiffness: 300 });
+        onPressIn?.(e);
       }}
-      onPressOut={() => {
+      onPressOut={(e) => {
         scale.value = withSpring(1, { damping: 14, stiffness: 220 });
+        onPressOut?.(e);
       }}
       {...rest}
     >

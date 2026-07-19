@@ -30,7 +30,9 @@ and polish.
   with the details the row no longer carries — budget, tags,
   interested-in properties, areas, email, company, last contacted —
   and an "Open full contact" button; a plain tap still goes straight
-  to the contact screen.
+  to the contact screen. Refined to hold-to-peek: the details expand
+  inline right below the pressed row (pushing the list down) while
+  the finger stays down, and collapse the moment it lifts — no sheet.
 
 - **Mobile Contacts: the Agents entry is a tie-person glyph with an
   "Ag" caption.** The briefcase icon didn't say "Agents" (user
