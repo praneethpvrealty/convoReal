@@ -251,6 +251,16 @@ and polish.
 
 ### Added
 
+- **Mobile property detail: quick actions.** A new action rail under
+  the price — Share (native share sheet with the public showcase
+  link, same URL the web Share dialog builds), Email (prefilled
+  composer), Archive/Unarchive (the web's status-flip via
+  `PUT /api/properties/[id]`), and Delete (confirmed, destructive,
+  via the same API route as the web) — with busy states and friendly
+  error alerts. Flyer and Post Ad stay web-only (browser canvas and
+  the Chrome portal extension); Promote and full Edit arrive with
+  broadcast composing / property editing.
+
 - **Mobile property detail: web parity + readable locality
   dropdown.** The locality autocomplete dropdown now sits on a solid
   panel — its translucent glass fill let the filter chips and cards
