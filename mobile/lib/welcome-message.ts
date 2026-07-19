@@ -123,6 +123,32 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
+async function fetchShowcaseSettings(
+  accountId: string | null
+): Promise<{ subdomain: string | null } | null> {
+  if (!accountId) return null;
+  return queryClient.fetchQuery({
+    queryKey: ['showcase-settings', accountId],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('showcase_settings')
+        .select('subdomain')
+        .eq('account_id', accountId)
+        .maybeSingle();
+      return (data ?? null) as { subdomain: string | null } | null;
+    },
+  });
+}
+
+/** The account's public showcase URL (subdomain-aware, ref fallback) —
+ *  what the web's showcase share dialog links to. */
+export async function getShowcaseUrl(): Promise<string> {
+  const accountId = useAuthStore.getState().profile?.account_id ?? null;
+  const settings = await fetchShowcaseSettings(accountId);
+  return showcaseBase(settings?.subdomain ?? null, accountId).toString();
+}
+
 /**
  * The full desktop flow: load showcase settings (cached) and the
  * last-inquired property, then open WhatsApp with the drafted message.
@@ -130,21 +156,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 export async function openWelcomeWhatsApp(contact: Contact): Promise<void> {
   const profile = useAuthStore.getState().profile;
   const accountId = profile?.account_id ?? null;
-
-  const settings = accountId
-    ? await queryClient.fetchQuery({
-        queryKey: ['showcase-settings', accountId],
-        staleTime: 5 * 60_000,
-        queryFn: async () => {
-          const { data } = await supabase
-            .from('showcase_settings')
-            .select('subdomain')
-            .eq('account_id', accountId)
-            .maybeSingle();
-          return (data ?? null) as { subdomain: string | null } | null;
-        },
-      })
-    : null;
+  const settings = await fetchShowcaseSettings(accountId);
 
   let propDetails: Property | null = null;
   if (contact.last_inquired_property_id) {
