@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { EnterRow, PressScale } from '@/components/motion';
@@ -368,7 +368,7 @@ export default function ContactsScreen() {
             />
           }
           renderItem={({ item, index }) => (
-            <EnterRow index={index}>
+            <EnterRow index={index} animateLayout>
               <ContactRow
                 contact={item}
                 dark={dark}
@@ -747,7 +747,9 @@ function ContactPeekCard({
 
   return (
     <Animated.View
-      entering={FadeIn.duration(120)}
+      entering={FadeIn.duration(150)}
+      exiting={FadeOut.duration(120)}
+      layout={LinearTransition.duration(180)}
       style={[
         styles.peekCapsule,
         {

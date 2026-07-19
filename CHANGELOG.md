@@ -28,6 +28,16 @@ and polish.
 
 ### Fixed
 
+- **Mobile: dead sessions now recover instead of endless
+  "Unauthorized".** When the API keeps rejecting the token AND the
+  refresh token is also dead (a sign-out on another surface — e.g.
+  Den ↔ staff switching — revokes the whole session), the app now
+  signs out cleanly so the next sign-in mints a working session.
+  Previously direct reads kept working off the cached token, hiding
+  the breakage while every API action failed. Also: the hold-to-peek
+  expansion animates smoothly — rows below glide down/up (layout
+  transitions) instead of jumping, and the capsule fades in and out.
+
 - **Mobile: sends failing "Unauthorized" even after the redirect
   fix.** Some RN fetch stacks don't report the final URL after a
   redirect, so the apex→www detection could miss. `apiFetch` now has
