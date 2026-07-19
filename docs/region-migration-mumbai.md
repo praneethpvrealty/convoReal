@@ -23,7 +23,7 @@ into it.
 | Component | From | To | Effort |
 |---|---|---|---|
 | Supabase project (DB + auth + storage) | Sydney | New project, Mumbai `ap-south-1` | The main event |
-| Upstash Redis | Sydney | New DB, `ap-south-1` | Minutes — it's a queue/cache, no data worth moving |
+| Upstash Redis | Sydney | New DB, `ap-south-1` | Minutes — it's a queue/cache, no data worth moving (drain first, see step 1) |
 | Vercel functions | Sydney | `bom1` (Mumbai) | One dashboard setting |
 | Go ingress (Railway/Render) | (wherever it runs) | Asia region | Redeploy with new env |
 
@@ -51,8 +51,12 @@ window loses nothing.
 
 - Vercel: put the site into the maintenance window (or simply accept
   brief errors — the webhook is the only high-frequency writer).
-- Pause the go-ingress worker (Railway → service → Sleep) so queued
-  WhatsApp events stop draining into the old DB.
+- Let the queue worker drain both Redis queues (`whatsapp-webhooks`
+  and `listing-videos`) to empty — `LLEN` both keys — then pause the
+  go-ingress service and the worker (Railway → service → Sleep) so
+  queued events stop draining into the old DB. Any listing-video job
+  still queued at cutover dies with the old Redis; re-trigger it from
+  the property page afterwards.
 
 ### 2. Dump the old database
 
@@ -83,7 +87,7 @@ psql -d "$NEW_DB" -f roles.sql   # ignore "role already exists" noise
 psql -d "$NEW_DB" -f dump.sql
 ```
 
-This carries the full schema (all 150 migrations' worth), every RLS
+This carries the full schema (all 160+ migrations' worth), every RLS
 policy, functions/triggers (including `handle_new_user` and the
 template-seeding trigger), **and all data including `auth.users` with
 password hashes** — users keep their logins and sessions re-establish
@@ -99,8 +103,13 @@ select count(*) from message_templates; -- matches old project
 
 ### 4. Copy storage files
 
-Bucket definitions + files (property images, avatars) live in
-Supabase Storage, not in the SQL dump. Use the community migration
+Bucket definitions + files live in Supabase Storage, not in the SQL
+dump. There are five buckets: `avatars`, `flow-media`,
+`property-images`, `property-documents`, `property-videos`. Their
+definitions (public flags, size limits, MIME allowlists) and their
+`storage.objects` policies come from migrations `008`, `016`, `022`,
+`058`, and `152` — re-run those migrations against the new project
+first, or let the migration script create the buckets. Then copy files with the community migration
 script (https://github.com/supabase-community/storage-migration) or a
 simple loop with the two service-role keys: list objects per bucket
 from the old project, upload to the same bucket/path on the new one.
