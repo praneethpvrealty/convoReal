@@ -13,11 +13,11 @@ and polish.
 
 ### Changed
 
-- **Mobile Contacts: the Agents entry reads as "Ag".** The briefcase
-  icon didn't say "Agents" (user feedback), and a text label would
-  break the icon row's uniformity — the button is now a compact "Ag"
-  monogram with an underline accent, same footprint as its icon
-  neighbours.
+- **Mobile Contacts: the Agents entry is a tie-person glyph with an
+  "Ag" caption.** The briefcase icon didn't say "Agents" (user
+  feedback); after comparing candidates, the entry is now the
+  person-with-tie icon over a tiny "Ag" monogram — same footprint
+  and color as its icon neighbours.
 
 - **Mobile bottom sheets are opaque again.** The shared sheet used a
   translucent glass fill, so the screen underneath read straight

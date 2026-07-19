@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as DeviceContacts from 'expo-contacts';
 import * as Linking from 'expo-linking';
@@ -227,8 +227,8 @@ export default function ContactsScreen() {
         <View style={styles.titleRow}>
           <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Contacts</Text>
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-            {/* A caricature of the word, not an icon — a briefcase glyph
-                read as anything but "Agents" (user feedback). */}
+            {/* User-picked hybrid: the person-with-tie glyph with a tiny
+                "Ag" caption — reads as Agents without a full text label. */}
             <Pressable
               hitSlop={8}
               onPress={() => router.push('/(app)/agents')}
@@ -236,17 +236,18 @@ export default function ContactsScreen() {
               accessibilityLabel="Agents directory"
               style={styles.agentsButton}
             >
+              <MaterialCommunityIcons name="account-tie-outline" size={18} color={colors.primary} />
               <Text
                 style={{
-                  fontSize: 16,
+                  fontSize: 9,
                   fontFamily: f.extrabold,
                   color: colors.primary,
-                  letterSpacing: -0.5,
+                  letterSpacing: 0.2,
+                  lineHeight: 10,
                 }}
               >
                 Ag
               </Text>
-              <View style={[styles.agentsUnderline, { backgroundColor: colors.primary }]} />
             </Pressable>
             <IconButton
               icon="phone-portrait-outline"
@@ -779,9 +780,7 @@ const styles = StyleSheet.create({
     minHeight: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 1,
   },
-  agentsUnderline: { width: 16, height: 2, borderRadius: 1 },
   rowBody: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
