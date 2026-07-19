@@ -115,8 +115,8 @@ export function AnimatedCounter({
 // Confetti — self-contained celebration (no lottie asset needed).
 // ------------------------------------------------------------------
 
-// Brand celebration palette: forest/emerald/mint plus the hot-ring warm sweep.
-const CONFETTI_COLORS = ['#1A4D42', '#2E7D5F', '#D9F3AC', '#E9A23B', '#D5493B', '#B85C9E'];
+// Glass-brand celebration palette: WhatsApp greens + lime + warm accents.
+const CONFETTI_COLORS = ['#075E54', '#25D366', '#C6F68D', '#FFC24B', '#FF7A6B'];
 const PIECES = 26;
 
 function ConfettiPiece({ seed }: { seed: number }) {

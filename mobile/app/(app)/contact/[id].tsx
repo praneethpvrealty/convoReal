@@ -37,7 +37,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
 }
 
 export default function ContactDetailScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [editing, setEditing] = useState(false);
 
@@ -48,7 +48,7 @@ export default function ContactDetailScreen() {
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <Stack.Screen
         options={{
           headerShown: true,
@@ -56,7 +56,7 @@ export default function ContactDetailScreen() {
           headerRight: () =>
             contact ? (
               <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
-                <Text style={{ color: colors.primary, fontSize: 15.5, fontFamily: fonts.bold }}>
+                <Text style={{ color: colors.primary, fontSize: 15.5, fontFamily: f.bold }}>
                   {editing ? 'Cancel' : 'Edit'}
                 </Text>
               </Pressable>
@@ -77,7 +77,7 @@ export default function ContactDetailScreen() {
 }
 
 function ContactCard({ contact }: { contact: Contact }) {
-  const { colors, dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const name = contact.name || contact.phone;
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
@@ -94,7 +94,7 @@ function ContactCard({ contact }: { contact: Contact }) {
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.identity}>
         <Avatar name={name} size={72} />
-        <Text style={[styles.name, { color: colors.text }]}>{name}</Text>
+        <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}>{name}</Text>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
           {contact.classification ? (
             <Tag label={contact.classification} color={clsColor} />
@@ -125,7 +125,7 @@ function ContactCard({ contact }: { contact: Contact }) {
         <ActionButton icon="chatbubbles" label="Inbox" onPress={() => openConversation(contact.id)} />
       </View>
 
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         <InfoRow icon="call-outline" label="Phone" value={contact.phone} />
         {contact.secondary_phones?.length ? (
           <InfoRow
@@ -170,7 +170,7 @@ async function openConversation(contactId: string) {
 }
 
 function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => void }) {
-  const { colors, dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const [name, setName] = useState(contact.name ?? '');
   const [nameTag, setNameTag] = useState(contact.name_tag ?? '');
   const [email, setEmail] = useState(contact.email ?? '');
@@ -268,7 +268,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
                   <Text
                     style={{
                       fontSize: 13,
-                      fontFamily: fonts.semibold,
+                      fontFamily: f.semibold,
                       color: active ? colors.primary : (hue ?? colors.textMuted),
                     }}
                   >
@@ -297,14 +297,14 @@ function ActionButton({
   label: string;
   onPress: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.actionButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      style={[styles.actionButton, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
     >
       <Ionicons name={icon} size={20} color={colors.primary} />
-      <Text style={{ fontSize: 12.5, fontFamily: fonts.semibold, color: colors.text }}>{label}</Text>
+      <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}>{label}</Text>
     </Pressable>
   );
 }
@@ -318,13 +318,13 @@ function InfoRow({
   label: string;
   value: string;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
       <Ionicons name={icon} size={17} color={colors.textMuted} style={{ marginTop: 2 }} />
       <View style={{ flex: 1, gap: 1 }}>
         <Text style={{ fontSize: 12, color: colors.textFaint }}>{label}</Text>
-        <Text style={{ fontSize: 14.5, fontFamily: fonts.medium, color: colors.text }}>{value}</Text>
+        <Text style={{ fontSize: 14.5, fontFamily: f.medium, color: colors.text }}>{value}</Text>
       </View>
     </View>
   );
@@ -345,8 +345,8 @@ const styles = StyleSheet.create({
   },
   card: {
     ...shadows.card,
+    borderWidth: 1,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   infoRow: {

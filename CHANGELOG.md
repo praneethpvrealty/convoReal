@@ -235,6 +235,27 @@ and polish.
 
 ### Added
 
+- **Mobile: "aurora glass" design system.** Full visual re-skin per
+  `docs/design/GLASS_UI_IMPLEMENTATION_SPEC.md`. Light mode is
+  Option 7 "WhatsApp Native on Glass" — WhatsApp deep-green
+  `#075E54` primary with bright-green accents, Inter typeface, and
+  frosted white glass panels floating over a pre-baked daylight
+  aurora background; dark mode is Option 4 "Liquid Glass" — lime
+  `#C6F68D` primary and Plus Jakarta Sans over a deep forest aurora.
+  New `AuroraBackground` (mounted once behind the root navigator;
+  every screen went transparent) and `GlassCard` primitives; glass
+  tokens (`glass`, `glassBorder`), per-theme shadows and a per-theme
+  type scale + font map returned from `useTheme()` (screens resolve
+  Inter/Jakarta at render). List rows, panels, chips, tags, search
+  pills and sheets are now translucent glass with 1px light borders;
+  the chat composer, property sticky bar and tab bar use real
+  `BlurView` (kept off scroll-view cards for 60fps Android scroll,
+  per the spec's perf rule); hot-lead rings became solid green
+  (light) / glowing lime (dark); unread badges are bright green;
+  bottom sheets gained a drag handle. The appearance setting stays
+  exactly light/dark/system. New dependency:
+  `@expo-google-fonts/inter` — run `npm install` in `mobile/`.
+
 - **Mobile: add contacts from the field.** The Contacts tab gains a
   "+" button opening a quick-add sheet (name, phone, classification)
   that calls the same `POST /api/contacts` route as the web form —

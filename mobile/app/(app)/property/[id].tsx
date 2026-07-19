@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,7 @@ import {
   View,
 } from 'react-native';
 
+import { BlurView } from 'expo-blur';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -43,7 +45,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
 }
 
 export default function PropertyDetailScreen() {
-  const { colors } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const pagerRef = useRef<ScrollView>(null);
   const [activeImage, setActiveImage] = useState(0);
@@ -55,7 +57,7 @@ export default function PropertyDetailScreen() {
 
   if (isLoading || !property) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Stack.Screen options={{ headerShown: true, title: 'Property' }} />
         <ActivityIndicator color={colors.primary} />
       </View>
@@ -75,7 +77,7 @@ export default function PropertyDetailScreen() {
   const ownerPhone = property.owner?.phone;
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={{ paddingBottom: BOTTOM_BAR_CLEARANCE + insets.bottom }}
@@ -174,11 +176,11 @@ export default function PropertyDetailScreen() {
           )}
         </View>
 
-        <Text style={[styles.title, { color: colors.text }]}>{property.title}</Text>
+        <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>{property.title}</Text>
         {place ? (
           <Text style={{ fontSize: 13.5, color: colors.textMuted }}>{place}</Text>
         ) : null}
-        <Text style={{ fontSize: 24, fontFamily: fonts.extrabold, color: colors.primary }}>{price}</Text>
+        <Text style={{ fontSize: 24, fontFamily: f.extrabold, color: colors.primary }}>{price}</Text>
 
         <View style={styles.specGrid}>
           <Spec icon="bed-outline" label="Bedrooms" value={numOrDash(property.bedrooms)} />
@@ -222,12 +224,12 @@ export default function PropertyDetailScreen() {
               <Pressable
                 style={StyleSheet.flatten([
                   styles.ownerRow,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  { backgroundColor: colors.glass, borderColor: colors.glassBorder },
                 ])}
               >
                 <Ionicons name="person-circle-outline" size={22} color={colors.primary} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14.5, fontFamily: fonts.bold, color: colors.text }}>
+                  <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }}>
                     {property.owner.name || property.owner.phone}
                   </Text>
                   {property.owner.name ? (
@@ -280,7 +282,7 @@ export default function PropertyDetailScreen() {
             onPress={() => Linking.openURL(property.google_map_link!)}
           >
             <Ionicons name="map-outline" size={17} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: fonts.semibold, color: colors.primary }}>
+            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
               Open in Google Maps
             </Text>
           </Pressable>
@@ -297,17 +299,23 @@ export default function PropertyDetailScreen() {
       style={[
         styles.bottomBar,
         {
-          backgroundColor: colors.surfaceRaised,
-          borderColor: colors.border,
+          backgroundColor: colors.tabBar,
+          borderColor: colors.glassBorder,
           paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
         },
       ]}
     >
+      <BlurView
+        intensity={16}
+        tint={dark ? 'dark' : 'light'}
+        experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+        style={StyleSheet.absoluteFill}
+      />
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 11, fontFamily: fonts.bold, color: colors.textFaint, letterSpacing: 0.5 }}>
+        <Text style={{ fontSize: 11, fontFamily: f.bold, color: colors.textFaint, letterSpacing: 0.5 }}>
           {property.listing_type === 'Rent' ? 'RENT' : 'PRICE'}
         </Text>
-        <Text style={{ fontSize: 21, fontFamily: fonts.extrabold, color: colors.text, letterSpacing: -0.5 }}>
+        <Text style={{ fontSize: 21, fontFamily: f.extrabold, color: colors.text, letterSpacing: -0.5 }}>
           {price}
         </Text>
       </View>
@@ -330,7 +338,7 @@ export default function PropertyDetailScreen() {
           size={17}
           color={colors.onPrimary}
         />
-        <Text style={{ color: colors.onPrimary, fontSize: 15, fontFamily: fonts.bold }}>
+        <Text style={{ color: colors.onPrimary, fontSize: 15, fontFamily: f.bold }}>
           {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
         </Text>
       </Pressable>
@@ -352,12 +360,12 @@ function Spec({
   label: string;
   value: string;
 }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
-    <View style={[styles.spec, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+    <View style={[styles.spec, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
       <Ionicons name={icon} size={18} color={colors.primary} />
       <Text style={{ fontSize: 11, color: colors.textFaint }}>{label}</Text>
-      <Text style={{ fontSize: 13.5, fontFamily: fonts.bold, color: colors.text }}>{value}</Text>
+      <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}>{value}</Text>
     </View>
   );
 }

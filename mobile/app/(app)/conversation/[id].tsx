@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
@@ -55,7 +56,7 @@ async function fetchConversation(id: string): Promise<Conversation | null> {
 }
 
 export default function ConversationScreen() {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const headerHeight = useHeaderHeight();
 
@@ -119,7 +120,7 @@ export default function ConversationScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
     >
@@ -157,12 +158,12 @@ export default function ConversationScreen() {
 }
 
 function ThreadHeader({ title, status }: { title: string; status?: string }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
       <Avatar name={title} size={34} />
       <View>
-        <Text style={{ fontSize: 16, fontFamily: fonts.bold, color: colors.text }} numberOfLines={1}>
+        <Text style={{ fontSize: 16, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
           {title}
         </Text>
         {status ? (
@@ -176,13 +177,13 @@ function ThreadHeader({ title, status }: { title: string; status?: string }) {
 }
 
 function DaySeparator({ label }: { label: string }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   return (
     <View style={{ alignItems: 'center', marginVertical: spacing.sm }}>
       <Text
         style={{
           fontSize: 11.5,
-          fontFamily: fonts.semibold,
+          fontFamily: f.semibold,
           color: colors.textMuted,
           backgroundColor: colors.surface,
           overflow: 'hidden',
@@ -239,7 +240,7 @@ const MEDIA_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 function MessageBubble({ message }: { message: Message }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const outgoing = message.sender_type !== 'customer';
   const isBot = message.sender_type === 'bot';
 
@@ -253,7 +254,7 @@ function MessageBubble({ message }: { message: Message }) {
       ]}
     >
       {isBot ? (
-        <Text style={{ fontSize: 10.5, fontFamily: fonts.bold, color: colors.outgoingMeta }}>
+        <Text style={{ fontSize: 10.5, fontFamily: f.bold, color: colors.outgoingMeta }}>
           🤖 Bot
         </Text>
       ) : null}
@@ -316,7 +317,7 @@ function MessageBubble({ message }: { message: Message }) {
 }
 
 function Composer({ conversationId }: { conversationId: string }) {
-  const { colors } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -391,7 +392,14 @@ function Composer({ conversationId }: { conversationId: string }) {
           </Pressable>
         </View>
       ) : null}
-      <View style={[styles.composer, { backgroundColor: colors.tabBar, borderTopColor: colors.border }]}>
+      {/* Floating glass composer — real blur (content scrolls behind). */}
+      <View style={[styles.composer, { backgroundColor: colors.tabBar, borderTopColor: colors.glassBorder }]}>
+        <BlurView
+          intensity={16}
+          tint={dark ? 'dark' : 'light'}
+          experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+          style={StyleSheet.absoluteFill}
+        />
         <Pressable
           style={[styles.templateButton, { backgroundColor: colors.surface }]}
           onPress={() => setTemplatesOpen(true)}

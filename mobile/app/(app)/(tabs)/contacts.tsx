@@ -99,7 +99,7 @@ async function fetchContacts(search: string): Promise<Contact[]> {
 }
 
 export default function ContactsScreen() {
-  const { colors, dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [adding, setAdding] = useState(false);
@@ -114,10 +114,10 @@ export default function ContactsScreen() {
   });
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <View style={{ flex: 1 }}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: colors.text }]}>Contacts</Text>
+          <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Contacts</Text>
           <IconButton
             icon="person-add"
             label="Add contact"
@@ -178,7 +178,7 @@ export default function ContactsScreen() {
  * form calls, so plan limits, rate limits and RLS all apply.
  */
 function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () => void }) {
-  const { colors, dark } = useTheme();
+  const { colors, dark, fonts: f } = useTheme();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [classification, setClassification] = useState<Classification>('Buyer');
@@ -231,7 +231,7 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
       }}
       contentStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
     >
-      <Text style={{ fontSize: 17, fontFamily: fonts.extrabold, color: colors.text }}>
+      <Text style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}>
         New contact
       </Text>
       {error ? <Banner kind="error" text={error} /> : null}
@@ -273,7 +273,7 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
                 <Text
                   style={{
                     fontSize: 13,
-                    fontFamily: fonts.semibold,
+                    fontFamily: f.semibold,
                     color: active ? colors.primary : (hue ?? colors.textMuted),
                   }}
                 >
@@ -298,7 +298,7 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
 }
 
 function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
-  const { colors } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const name = contact.name || contact.phone;
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
@@ -312,20 +312,20 @@ function ContactRow({ contact, dark }: { contact: Contact; dark: boolean }) {
       contentStyle={StyleSheet.flatten([
         listCard,
         shadows.card,
-        { backgroundColor: colors.surfaceRaised, borderColor: colors.border },
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ])}
     >
         <Avatar name={name} size={46} />
         <View style={styles.rowBody}>
           <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+            <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]} numberOfLines={1}>
               {name}
             </Text>
             {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
           </View>
           <View style={styles.metaRow}>
             {contact.classification ? (
-              <Text style={{ fontSize: 12.5, fontFamily: fonts.semibold, color: clsColor ?? colors.textMuted }}>
+              <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: clsColor ?? colors.textMuted }}>
                 {contact.classification}
               </Text>
             ) : null}
