@@ -421,6 +421,9 @@ export interface ParsedPropertyDraft {
   google_map_link: string | null;
   images: string[];
   documents?: string[];
+  /** Walkthrough video forwarded during WhatsApp intake — uploaded to
+   *  the property-videos bucket, becomes properties.video_url. */
+  video_url?: string | null;
   owner_contact_name: string | null;
   owner_contact_phone: string | null;
   owner_contact_role: string | null;

@@ -921,6 +921,11 @@ export interface Property {
   video_language?: string | null;
   video_error?: string | null;
   video_generated_at?: string | null;
+  /** Unlisted YouTube copy of the listing video (migration 153). */
+  youtube_video_id?: string | null;
+  youtube_status?: 'queued' | 'uploading' | 'ready' | 'failed' | null;
+  youtube_error?: string | null;
+  youtube_uploaded_at?: string | null;
   documents?: string[];
   google_map_link?: string | null;
   property_code?: string;

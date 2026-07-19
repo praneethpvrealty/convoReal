@@ -1585,8 +1585,21 @@ export function ShowcaseView({
                   </div>
 
                   {/* Listing video — rendered above the thumbnails so
-                      visitors see moving footage next to the photos. */}
-                  {selectedProperty.video_url && selectedProperty.video_status === 'ready' && (
+                      visitors see moving footage next to the photos.
+                      Prefer the unlisted YouTube copy (adaptive
+                      streaming, zero delivery cost); fall back to the
+                      storage-hosted MP4. */}
+                  {selectedProperty.youtube_video_id && selectedProperty.youtube_status === 'ready' ? (
+                    <div className="border-t border-slate-850 bg-slate-950/80 p-2">
+                      <iframe
+                        src={`https://www.youtube-nocookie.com/embed/${selectedProperty.youtube_video_id}`}
+                        title={`${selectedProperty.title} — listing video`}
+                        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="mx-auto aspect-[9/16] h-64 rounded-lg border border-slate-800"
+                      />
+                    </div>
+                  ) : selectedProperty.video_url && selectedProperty.video_status === 'ready' ? (
                     <div className="border-t border-slate-850 bg-slate-950/80 p-2">
                       <video
                         src={selectedProperty.video_url}
@@ -1596,7 +1609,7 @@ export function ShowcaseView({
                         className="mx-auto max-h-64 rounded-lg border border-slate-800"
                       />
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Thumbnail Row */}
                   {selectedProperty.images.length > 1 && (
