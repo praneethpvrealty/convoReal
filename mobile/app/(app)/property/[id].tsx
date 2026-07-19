@@ -1,16 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
-import { Link, Stack, useLocalSearchParams } from 'expo-router';
+import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -22,7 +24,12 @@ import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SectionLabel, Tag } from '@/components/ui';
+import { apiFetch, ApiError } from '@/lib/api';
+import { ENV } from '@/lib/env';
+import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
+import { haptic } from '@/lib/haptics';
+import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Property } from '@/lib/types';
@@ -301,6 +308,8 @@ export default function PropertyDetailScreen() {
           <Text style={{ fontSize: 12.5, color: colors.success, marginTop: -6 }}>{priceWords}</Text>
         ) : null}
 
+        <ActionRail property={property} />
+
         {specs.length > 0 ? (
           <View style={styles.specGrid}>
             {specs.map((sp) => (
@@ -557,6 +566,145 @@ export default function PropertyDetailScreen() {
 }
 
 /**
+ * Web-parity quick actions. Flyer / Post Ad stay web-only (canvas
+ * rendering and the Chrome portal extension); Promote and full Edit
+ * arrive with broadcast composing / property editing.
+ */
+function ActionRail({ property }: { property: Property }) {
+  const { colors, fonts: f } = useTheme();
+  const [busy, setBusy] = useState<'archive' | 'delete' | null>(null);
+  const archived = property.status === 'Archived';
+  // Same link the web Share dialog builds — the public showcase page.
+  const shareUrl = `${ENV.apiBaseUrl}/?property_id=${property.id}`;
+
+  async function share() {
+    haptic.tap();
+    await Share.share(
+      Platform.OS === 'ios'
+        ? { message: property.title, url: shareUrl }
+        : { message: `${property.title}\n${shareUrl}` }
+    );
+  }
+
+  function email() {
+    haptic.tap();
+    const subject = encodeURIComponent(property.title);
+    const priceLine = property.price ? `\n${formatInr(property.price)}` : '';
+    const body = encodeURIComponent(`${property.title}${priceLine}\n\n${shareUrl}`);
+    Linking.openURL(`mailto:?subject=${subject}&body=${body}`);
+  }
+
+  function confirmArchive() {
+    Alert.alert(
+      archived ? 'Unarchive this property?' : 'Archive this property?',
+      archived
+        ? 'It becomes Available and shows in searches again.'
+        : 'Archived listings are hidden from searches and the showcase.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: archived ? 'Unarchive' : 'Archive', onPress: doArchive },
+      ]
+    );
+  }
+
+  async function doArchive() {
+    setBusy('archive');
+    try {
+      // Same mutation as the web inventory: status flip via PUT.
+      await apiFetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: archived ? 'Available' : 'Archived' }),
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['property', property.id] });
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+    } catch (e) {
+      haptic.warn();
+      Alert.alert(
+        'Could not update',
+        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function confirmDelete() {
+    Alert.alert(
+      'Delete this property?',
+      'This permanently removes the listing, its photos and inquiry history. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: doDelete },
+      ]
+    );
+  }
+
+  async function doDelete() {
+    setBusy('delete');
+    try {
+      await apiFetch(`/api/properties/${property.id}`, { method: 'DELETE' });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['properties'] });
+      router.back();
+    } catch (e) {
+      haptic.warn();
+      Alert.alert(
+        'Could not delete',
+        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
+      );
+      setBusy(null);
+    }
+  }
+
+  const actions = [
+    { key: 'share', icon: 'share-social-outline' as const, label: 'Share', onPress: share },
+    { key: 'email', icon: 'mail-outline' as const, label: 'Email', onPress: email },
+    {
+      key: 'archive',
+      icon: 'file-tray-outline' as const,
+      label: archived ? 'Unarchive' : 'Archive',
+      onPress: confirmArchive,
+    },
+    { key: 'delete', icon: 'trash-outline' as const, label: 'Delete', onPress: confirmDelete, danger: true },
+  ];
+
+  return (
+    <View style={styles.actionRail}>
+      {actions.map((a) => {
+        const isBusy = busy === a.key;
+        const fg = a.danger ? colors.danger : colors.primary;
+        return (
+          <Pressable
+            key={a.key}
+            onPress={a.onPress}
+            disabled={busy !== null}
+            accessibilityRole="button"
+            accessibilityLabel={`${a.label} property`}
+            accessibilityState={{ disabled: busy !== null, busy: isBusy }}
+            style={[
+              styles.actionPill,
+              {
+                backgroundColor: a.danger ? colors.dangerSoft : colors.glass,
+                borderColor: a.danger ? colors.danger : colors.glassBorder,
+                opacity: busy !== null && !isBusy ? 0.5 : 1,
+              },
+            ]}
+          >
+            {isBusy ? (
+              <ActivityIndicator size="small" color={fg} />
+            ) : (
+              <Ionicons name={a.icon} size={16} color={fg} />
+            )}
+            <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: fg }}>{a.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/**
  * Full-screen photo viewer: paged, pinch-to-zoom on iOS (ScrollView
  * zoom props are iOS-only; Android gets full-screen contain), photo
  * counter and safe-area close button.
@@ -750,6 +898,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionRail: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    minHeight: 38,
   },
   metaCard: {
     borderRadius: radius.lg,
