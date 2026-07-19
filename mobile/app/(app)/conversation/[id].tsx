@@ -397,7 +397,7 @@ function Composer({ conversationId }: { conversationId: string }) {
         <BlurView
           intensity={16}
           tint={dark ? 'dark' : 'light'}
-          experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+          blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
           style={StyleSheet.absoluteFill}
         />
         <Pressable

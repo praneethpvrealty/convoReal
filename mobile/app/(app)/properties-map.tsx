@@ -6,7 +6,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as Linking from 'expo-linking';
+
 import { apiFetch } from '@/lib/api';
+import { nativeMapsAvailable } from '@/lib/maps-support';
 import { formatInr } from '@/lib/format';
 import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
 import { usePropertySearch } from '@/lib/property-search-store';
@@ -70,6 +73,9 @@ export default function PropertiesMapScreen() {
           title: near ? `Map · ${near.label}` : 'Map',
         }}
       />
+      {!nativeMapsAvailable ? (
+        <MapFallback count={pinned.length} near={near} />
+      ) : (
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
@@ -111,6 +117,7 @@ export default function PropertiesMapScreen() {
           );
         })}
       </MapView>
+      )}
 
       <View
         style={[
@@ -143,6 +150,73 @@ export default function PropertiesMapScreen() {
     </View>
   );
 }
+
+/**
+ * Expo Go on Android can't draw Google Maps (see lib/maps-support) —
+ * explain instead of showing a black canvas, and hand off to the
+ * Google Maps app for the current search area.
+ */
+function MapFallback({ count, near }: { count: number; near: { label: string; latitude: number; longitude: number } | null }) {
+  const { colors, fonts: f } = useTheme();
+  const mapsUrl = near
+    ? `https://maps.google.com/?q=${near.latitude},${near.longitude}`
+    : 'https://maps.google.com/?q=Bengaluru';
+  return (
+    <View style={fallbackStyles.wrap}>
+      <View style={[fallbackStyles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+        <Ionicons name="map-outline" size={34} color={colors.primary} />
+        <Text style={{ fontSize: 16.5, fontFamily: f.bold, color: colors.text, textAlign: 'center' }}>
+          Map tiles need the installed app
+        </Text>
+        <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textMuted, textAlign: 'center' }}>
+          Expo Go on Android can't render Google Maps. Your {count} pinned
+          result{count === 1 ? '' : 's'} will appear here in the full app build —
+          for now, browse them in the List or open the area in Google Maps.
+        </Text>
+        <Pressable
+          onPress={() => Linking.openURL(mapsUrl)}
+          accessibilityRole="button"
+          accessibilityLabel="Open area in Google Maps"
+          style={[fallbackStyles.button, { backgroundColor: colors.primary }]}
+        >
+          <Ionicons name="navigate-outline" size={16} color={colors.onPrimary} />
+          <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.onPrimary }}>
+            Open in Google Maps
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const fallbackStyles = StyleSheet.create({
+  wrap: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.xl,
+  },
+  card: {
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.xl,
+    maxWidth: 420,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 999,
+    paddingHorizontal: 20,
+    minHeight: 46,
+  },
+});
 
 const styles = StyleSheet.create({
   pricePin: {

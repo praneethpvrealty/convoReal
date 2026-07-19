@@ -47,9 +47,7 @@ export function GlassCard({
         <BlurView
           intensity={blurIntensity ?? (dark ? 18 : 16)}
           tint={dark ? 'dark' : 'light'}
-          experimentalBlurMethod={
-            Platform.OS === 'android' ? 'dimezisBlurView' : undefined
-          }
+          blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
           style={StyleSheet.absoluteFill}
         />
       ) : null}
