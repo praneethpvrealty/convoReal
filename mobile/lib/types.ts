@@ -36,9 +36,18 @@ export interface Contact {
   requirements?: string | null;
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
   status?: string | null;
+  referrer?: string | null;
+  source?: string | null;
   last_contacted_at?: string | null;
   last_inquired_property_id?: string | null;
   property_interests?: string[] | null;
+}
+
+export interface ContactNote {
+  id: string;
+  contact_id: string;
+  note_text: string;
+  created_at: string;
 }
 
 export interface Conversation {

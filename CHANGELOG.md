@@ -22,6 +22,19 @@ and polish.
 
 ### Added
 
+- **Mobile: Agents directory + contact review actions.** A briefcase
+  button on the Contacts tab opens the web Agents tab's mobile
+  counterpart: every "Agent"-classified contact with company, phone
+  and linked-property counts, searchable by name/company/phone. An
+  agent's contact screen now shows their showcase properties (tap
+  to open, unlink with confirmation — `owner_contact_id` cleared,
+  same as the web) and agent notes (`contact_notes`, add + newest
+  first). Review actions arrive too: contacts in Needs Review get an
+  amber approve button right on the list row, and their contact
+  screen shows a "Needs review — From {source}" banner with Approve
+  (`status` → active), matching the web's approve flow. Sending
+  property details after approval stays in the conversation thread.
+
 - **Mobile Contacts: web-parity list features.** The Contacts tab
   gains the web page's marked features: quick-filter segments —
   All / Needs Review / Transacted / Active Buyers — with live counts
@@ -36,8 +49,7 @@ and polish.
   (expo-contacts) and create them through the same gated
   `POST /api/contacts` route, with duplicate/limit failures counted
   in the result. New dependency: `expo-contacts` — run `npm install`
-  in `mobile/`. The Requirements and Agents tabs stay web-only for
-  now.
+  in `mobile/`. The Requirements tab stays web-only for now.
 
 
 - **Mobile: the web's rich share dialog, on the property screen.**

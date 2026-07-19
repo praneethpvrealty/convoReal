@@ -5,6 +5,7 @@ import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -226,6 +227,13 @@ export default function ContactsScreen() {
           <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Contacts</Text>
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
             <IconButton
+              icon="briefcase-outline"
+              label="Agents directory"
+              size={20}
+              color={colors.primary}
+              onPress={() => router.push('/(app)/agents')}
+            />
+            <IconButton
               icon="phone-portrait-outline"
               label="Import from phone"
               size={20}
@@ -438,6 +446,32 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
   );
 }
 
+/** Web parity: approve a pending_review contact into the active list
+ *  (contact-detail-view's approveContact). */
+function approveContact(contact: Contact) {
+  const name = contact.name || contact.phone;
+  Alert.alert('Approve this contact?', `${name} moves into your active contacts.`, [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Approve',
+      onPress: async () => {
+        const { error } = await supabase
+          .from('contacts')
+          .update({ status: 'active', updated_at: new Date().toISOString() })
+          .eq('id', contact.id);
+        if (error) {
+          haptic.warn();
+          Alert.alert('Could not approve', friendlyError(error.message));
+          return;
+        }
+        haptic.success();
+        queryClient.invalidateQueries({ queryKey: ['contacts'] });
+        queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+      },
+    },
+  ]);
+}
+
 /** Tap the chat bubble → jump into the contact's latest conversation
  *  (falls back to plain WhatsApp when no thread exists yet). */
 async function openChat(contactId: string, phone: string) {
@@ -521,6 +555,17 @@ function ContactRow({
           ) : null}
         </View>
         <View style={{ gap: 6 }}>
+          {contact.status === 'pending_review' ? (
+            <Pressable
+              hitSlop={8}
+              onPress={() => approveContact(contact)}
+              accessibilityRole="button"
+              accessibilityLabel={`Approve ${name}`}
+              style={[styles.action, { backgroundColor: colors.warningSoft }]}
+            >
+              <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
+            </Pressable>
+          ) : null}
           <Pressable
             hitSlop={8}
             onPress={() => openChat(contact.id, contact.phone)}
