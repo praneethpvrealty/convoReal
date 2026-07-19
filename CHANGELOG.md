@@ -251,6 +251,19 @@ and polish.
 
 ### Added
 
+- **Mobile property detail: web parity + readable locality
+  dropdown.** The locality autocomplete dropdown now sits on a solid
+  panel — its translucent glass fill let the filter chips and cards
+  underneath read through the suggestions, making them illegible.
+  The property detail screen now mirrors the web modal's view mode:
+  type / Agent Referred / Via WhatsApp badges, "Equivalent to: ₹15
+  Crore" wording under the price, Locality / Frontage / Ownership
+  spec tiles, a conditional Listing Metadata card (super built area,
+  dimensions, frontage/depth, road width, land zone, ideal for,
+  rental income with computed yield), a floor-wise tenancy rent-roll
+  section, Nearby Landmarks chips, and the amber CRM-only Internal
+  Notes block. Every section hides when the property has no data.
+
 - **Mobile property detail: gallery + empty-field cleanup.** (1) Spec
   tiles (Bedrooms/Bathrooms/Area/Facing) and contact-card rows now
   hide when there's no value — web parity — instead of showing "—"
