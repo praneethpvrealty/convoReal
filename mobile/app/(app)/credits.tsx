@@ -15,6 +15,7 @@ import {
 
 import { ConvoRealLoader } from '@/components/loader';
 import { AnimatedCounter } from '@/components/motion';
+import { SuccessSheet } from '@/components/success-sheet';
 import { FilterChip, GradientHero, PrimaryButton, SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { ENV } from '@/lib/env';
@@ -68,9 +69,12 @@ const TX_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   refund: 'arrow-undo-outline',
 };
 
+const SUBSCRIPTION_TYPES = ['subscription_grant', 'commitment_bonus'];
+
 export default function CreditsScreen() {
   const { colors, fonts: f } = useTheme();
   const [filter, setFilter] = useState<TxFilter>('All');
+  const [celebration, setCelebration] = useState<'subscription' | 'purchase' | null>(null);
 
   const wallet = useQuery({
     queryKey: ['wallet'],
@@ -96,6 +100,37 @@ export default function CreditsScreen() {
 
   const transactions = history.data?.pages.flatMap((p) => p.transactions) ?? [];
   const w = wallet.data;
+
+  /** Checkout happens on the web; when the in-app browser closes,
+   *  diff the ledger to see whether a payment actually landed — a
+   *  new subscription/commitment grant gets the congratulations, a
+   *  plain top-up gets the credits-added cheer. */
+  async function openCheckout() {
+    let before: Set<string> | null = null;
+    try {
+      const snap = await apiFetch<HistoryPage>('/api/billing/credits/history?page=1&filter=all');
+      before = new Set(snap.transactions.map((t) => t.id));
+    } catch {
+      before = null;
+    }
+    await WebBrowser.openBrowserAsync(`${ENV.apiBaseUrl}/settings?tab=billing`);
+    wallet.refetch();
+    history.refetch();
+    queryClient.invalidateQueries({ queryKey: ['credits'] });
+    if (!before) return;
+    const seen = before;
+    try {
+      const fresh = await apiFetch<HistoryPage>('/api/billing/credits/history?page=1&filter=all');
+      const landed = fresh.transactions.filter((t) => !seen.has(t.id) && t.amount > 0);
+      if (landed.some((t) => SUBSCRIPTION_TYPES.includes(t.type))) {
+        setCelebration('subscription');
+      } else if (landed.some((t) => t.type === 'purchase')) {
+        setCelebration('purchase');
+      }
+    } catch {
+      // Payment still landed via the refetch above — just no celebration.
+    }
+  }
 
   return (
     <ScrollView
@@ -151,7 +186,7 @@ export default function CreditsScreen() {
         icon="flash"
         // In-app browser keeps the session warm and returns cleanly,
         // instead of dumping the user in the system browser.
-        onPress={() => WebBrowser.openBrowserAsync(`${ENV.apiBaseUrl}/settings?tab=billing`)}
+        onPress={openCheckout}
       />
       <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center', marginTop: -4 }}>
         Checkout opens in your browser — purchases land here instantly.
@@ -217,6 +252,24 @@ export default function CreditsScreen() {
           ) : null}
         </View>
       )}
+
+      <SuccessSheet
+        visible={celebration !== null}
+        onClose={() => setCelebration(null)}
+        title={celebration === 'subscription' ? 'Congratulations — welcome aboard!' : 'Credits added'}
+        message={
+          celebration === 'subscription'
+            ? 'You’ve made the best decision to serve your customers professionally and with transparent service. We’re sure you’ll close more deals and build a loyal customer base in the real estate market.'
+            : 'Your top-up landed and the balance above is already updated. Spend it on AI descriptions, smart matching and more.'
+        }
+        actions={[
+          {
+            icon: 'sparkles',
+            label: celebration === 'subscription' ? 'Start closing deals' : 'Great',
+            onPress: () => setCelebration(null),
+          },
+        ]}
+      />
     </ScrollView>
   );
 }

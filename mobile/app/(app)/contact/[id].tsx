@@ -22,9 +22,11 @@ import {
   AgentSchedule,
   InterestedProperties,
 } from '@/components/agent-detail';
+import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
 import { ConvoRealLoader } from '@/components/loader';
+import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
-import { approveAndSendDetails } from '@/lib/approve-contact';
+import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
 import { formatBudgetRange } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -152,6 +154,7 @@ export default function ContactDetailScreen() {
 
 function ContactCard({ contact }: { contact: Contact }) {
   const { colors, dark, fonts: f } = useTheme();
+  const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
   const name = contact.name || contact.phone;
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
@@ -165,7 +168,12 @@ function ContactCard({ contact }: { contact: Contact }) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      {contact.status === 'pending_review' ? <ReviewBanner contact={contact} /> : null}
+      {contact.status === 'pending_review' ? (
+        <ReviewBanner
+          contact={contact}
+          onApproved={(outcome) => setCelebration({ contact, outcome })}
+        />
+      ) : null}
       <View style={styles.identity}>
         <Avatar name={name} size={72} />
         <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}>{name}</Text>
@@ -255,6 +263,7 @@ function ContactCard({ contact }: { contact: Contact }) {
         Budgets, areas and deeper profile fields are edited on the web for now.
       </Text>
     </ScrollView>
+    <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
     </KeyboardAvoidingView>
   );
 }
@@ -265,7 +274,13 @@ function ContactCard({ contact }: { contact: Contact }) {
  * inquired property's details via WhatsApp (contact-detail-view's
  * approveContact + sendPropertyDetailsHelper).
  */
-function ReviewBanner({ contact }: { contact: Contact }) {
+function ReviewBanner({
+  contact,
+  onApproved,
+}: {
+  contact: Contact;
+  onApproved: (outcome: ApproveOutcome) => void;
+}) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
 
@@ -278,23 +293,10 @@ function ReviewBanner({ contact }: { contact: Contact }) {
       Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
       return;
     }
-    haptic.success();
+    onApproved(result);
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
-    if (result.reengageConversationId) {
-      const convId = result.reengageConversationId;
-      Alert.alert(
-        'Approved — template needed',
-        'WhatsApp allows free text only within 24 hours of their last message. Opening the thread so you can send the details as a template.',
-        [{ text: 'Open thread', onPress: () => router.push(`/(app)/conversation/${convId}`) }]
-      );
-    } else if (result.error) {
-      Alert.alert(
-        'Approved',
-        'But sending the property details failed — check the WhatsApp configuration.'
-      );
-    }
   }
 
   return (
@@ -304,6 +306,20 @@ function ReviewBanner({ contact }: { contact: Contact }) {
         { backgroundColor: colors.warningSoft, borderColor: colors.warning },
       ]}
     >
+      <PulseRing size={26} color={colors.warning}>
+        <View
+          style={{
+            width: 26,
+            height: 26,
+            borderRadius: 13,
+            backgroundColor: colors.warning,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="hourglass-outline" size={14} color="#FFFFFF" />
+        </View>
+      </PulseRing>
       <View style={{ flex: 1, gap: 2 }}>
         <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.warning }}>
           Needs review

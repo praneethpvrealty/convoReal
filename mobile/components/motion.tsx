@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
@@ -92,6 +93,68 @@ export function EnterRow({
     >
       {children}
     </Animated.View>
+  );
+}
+
+/**
+ * One expanding-fading ring of the pulse. Rings restart from 0 each
+ * loop; the second ring's initial delay offsets its phase so the
+ * pulse reads as a continuous heartbeat.
+ */
+function Ring({ size, color, delay }: { size: number; color: string; delay: number }) {
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    progress.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration: 1900, easing: Easing.out(Easing.quad) }), -1, false)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: 0.65 * (1 - progress.value),
+    transform: [{ scale: 1 + 0.55 * progress.value }],
+  }));
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        {
+          position: 'absolute',
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: 2,
+          borderColor: color,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+/**
+ * Pulsating attention ring — wraps a circular control (approve
+ * button, status dot) with soft radiating rings that say "waiting
+ * for you" without alarming. Size the wrapper to the child.
+ */
+export function PulseRing({
+  size,
+  color,
+  children,
+}: {
+  size: number;
+  color: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <Ring size={size} color={color} delay={0} />
+      <Ring size={size} color={color} delay={950} />
+      {children}
+    </View>
   );
 }
 

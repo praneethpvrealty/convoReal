@@ -20,7 +20,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
-import { EnterRow, PressScale } from '@/components/motion';
+import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
+import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
 import { BottomSheet } from '@/components/sheet';
 import {
@@ -39,10 +40,10 @@ import {
 } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { approveAndSendDetails } from '@/lib/approve-contact';
-import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
@@ -259,6 +260,7 @@ export default function ContactsScreen() {
   const [importing, setImporting] = useState(false);
   const [peekId, setPeekId] = useState<string | null>(null);
   const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
+  const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
@@ -269,6 +271,24 @@ export default function ContactsScreen() {
     placeholderData: keepPreviousData,
   });
   const counts = useQuery({ queryKey: ['contact-counts'], queryFn: fetchSegmentCounts });
+
+  /** Desktop-parity approve: no confirmation dialog — flip active and
+   *  auto-send the inquired property's details via WhatsApp, then
+   *  celebrate with the follow-up funnel (falling back to the thread's
+   *  template picker outside the 24-hour window). */
+  async function handleApprove(contact: Contact) {
+    haptic.tap();
+    const result = await approveAndSendDetails(contact);
+    if (!result.ok) {
+      haptic.warn();
+      Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+    queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+    setCelebration({ contact, outcome: result });
+  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -372,6 +392,7 @@ export default function ContactsScreen() {
               <ContactRow
                 contact={item}
                 dark={dark}
+                onApprove={() => handleApprove(item)}
                 onPeekStart={() => setPeekId(item.id)}
                 onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
@@ -390,6 +411,7 @@ export default function ContactsScreen() {
 
       <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
       <DeviceImportSheet visible={importing} onClose={() => setImporting(false)} />
+      <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
       <ContextMenu
         anchor={waMenu ? { x: waMenu.x, y: waMenu.y } : null}
         onClose={() => setWaMenu(null)}
@@ -405,7 +427,7 @@ export default function ContactsScreen() {
                 {
                   icon: 'chatbubbles-outline',
                   label: 'Internal message (Inbox)',
-                  onPress: () => openInternalChat(waMenu.contact),
+                  onPress: () => openContactChat(waMenu.contact),
                 },
               ]
             : []
@@ -540,81 +562,17 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
   );
 }
 
-/** Desktop-parity approve: no confirmation dialog — flip active and
- *  auto-send the inquired property's details via WhatsApp, falling
- *  back to the thread's template picker outside the 24-hour window. */
-async function approveContact(contact: Contact) {
-  haptic.tap();
-  const result = await approveAndSendDetails(contact);
-  if (!result.ok) {
-    haptic.warn();
-    Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
-    return;
-  }
-  haptic.success();
-  queryClient.invalidateQueries({ queryKey: ['contacts'] });
-  queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
-  queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
-  if (result.reengageConversationId) {
-    const convId = result.reengageConversationId;
-    Alert.alert(
-      'Approved — template needed',
-      'WhatsApp allows free text only within 24 hours of their last message. Opening the thread so you can send the details as a template.',
-      [{ text: 'Open thread', onPress: () => router.push(`/(app)/conversation/${convId}`) }]
-    );
-  } else if (result.error) {
-    Alert.alert(
-      'Approved',
-      'But sending the property details failed — check the WhatsApp configuration.'
-    );
-  }
-}
-
-/** "Send internal message": the CRM inbox thread — open the latest
- *  conversation, or create one first (same insert as the web's
- *  handleWhatsAppClick) when the contact has never been messaged. */
-async function openInternalChat(contact: Contact) {
-  haptic.tap();
-  const { data } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('contact_id', contact.id)
-    .order('last_message_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (data?.id) {
-    router.push(`/(app)/conversation/${data.id}`);
-    return;
-  }
-  const { profile, session } = useAuthStore.getState();
-  if (!profile?.account_id) return;
-  const { data: conv, error } = await supabase
-    .from('conversations')
-    .insert({
-      account_id: profile.account_id,
-      user_id: session?.user.id,
-      contact_id: contact.id,
-    })
-    .select('id')
-    .single();
-  if (error) {
-    haptic.warn();
-    Alert.alert('Could not open thread', friendlyError(error.message));
-    return;
-  }
-  queryClient.invalidateQueries({ queryKey: ['conversations'] });
-  router.push(`/(app)/conversation/${conv.id}`);
-}
-
 function ContactRow({
   contact,
   dark,
+  onApprove,
   onPeekStart,
   onPeekEnd,
   onWhatsAppMenu,
 }: {
   contact: Contact;
   dark: boolean;
+  onApprove: () => void;
   onPeekStart: () => void;
   onPeekEnd: () => void;
   onWhatsAppMenu: (at: { x: number; y: number }) => void;
@@ -674,15 +632,17 @@ function ContactRow({
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {contact.status === 'pending_review' ? (
-            <Pressable
-              hitSlop={8}
-              onPress={() => approveContact(contact)}
-              accessibilityRole="button"
-              accessibilityLabel={`Approve ${name}`}
-              style={[styles.action, { backgroundColor: colors.warningSoft }]}
-            >
-              <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
-            </Pressable>
+            <PulseRing size={38} color={colors.warning}>
+              <Pressable
+                hitSlop={8}
+                onPress={onApprove}
+                accessibilityRole="button"
+                accessibilityLabel={`Approve ${name}`}
+                style={[styles.action, { backgroundColor: colors.warningSoft }]}
+              >
+                <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
+              </Pressable>
+            </PulseRing>
           ) : null}
           <Pressable
             hitSlop={8}
