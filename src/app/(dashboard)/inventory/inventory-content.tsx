@@ -32,6 +32,7 @@ import {
   Share2,
   Archive,
   RefreshCw,
+  FolderInput,
   X,
 } from 'lucide-react';
 import { PropertyForm } from '@/components/inventory/property-form';
@@ -44,6 +45,7 @@ import { PromotePropertyDialog } from '@/components/inventory/promote-property-d
 // configured on the deployment (see docs/meta-ads-integration-plan.md §2).
 const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
+import { ImportSharedDialog } from '@/components/inventory/import-shared-dialog';
 import { PropertyEmailShareDialog } from '@/components/inventory/property-email-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
 import { localCache } from '@/lib/cache-store';
@@ -111,6 +113,7 @@ export default function InventoryPage() {
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false);
+  const [importSharedOpen, setImportSharedOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [formViewOnly, setFormViewOnly] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -678,6 +681,15 @@ export default function InventoryPage() {
           </Button>
           {canEdit && (
             <Button
+              onClick={() => setImportSharedOpen(true)}
+              variant="outline"
+              className="border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200 font-semibold text-sm flex items-center gap-2 shadow"
+            >
+              <FolderInput className="size-4 text-primary" /> Import Shared
+            </Button>
+          )}
+          {canEdit && (
+            <Button
               onClick={handleAddClick}
               data-tour="add-property"
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-sm flex items-center gap-2 shadow"
@@ -1021,6 +1033,13 @@ export default function InventoryPage() {
         property={selectedProperty}
         onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
         viewOnly={formViewOnly}
+      />
+
+      {/* Import Shared Property Dialog */}
+      <ImportSharedDialog
+        open={importSharedOpen}
+        onOpenChange={setImportSharedOpen}
+        onImported={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
       />
 
       {/* Flyer Creator Dialog */}

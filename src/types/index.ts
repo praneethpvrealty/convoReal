@@ -941,6 +941,10 @@ export interface Property {
    *  Shape: src/lib/inventory/floor-tenancies.ts FloorTenancy[]. */
   floor_tenancies?: import('@/lib/inventory/floor-tenancies').FloorTenancy[] | null;
   listing_source?: 'owner' | 'agent' | 'whatsapp_lister' | 'web_lister';
+  /** Upstream property this listing was imported from via a co-broker
+   *  share (migration 154) — cross-account lineage for indirect-reach
+   *  counting. Never shown on the public showcase. */
+  source_property_id?: string | null;
   /** Owners Den sell-readiness flag (migration 133). 'soft' = quietly
    *  open to offers (masked matching pool only), 'aggressive' =
    *  actively selling (matched buyers notified immediately). */

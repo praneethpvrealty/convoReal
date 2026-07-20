@@ -35,6 +35,7 @@ import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
 import { ActiveUsers } from '@/components/dashboard/active-users'
 import { TeamWorkload } from '@/components/dashboard/team-workload'
+import { NetworkReach } from '@/components/dashboard/network-reach'
 import { getCurrencyIcon, formatCurrency } from '@/lib/currency-utils'
 import { useAuth } from '@/hooks/use-auth'
 
@@ -223,6 +224,7 @@ export default function DashboardContent() {
             <PipelineDonut data={pipeline} loading={pipelineLoading} currency={currency} />
             <ResponseTimeChart data={responseTime} loading={responseTimeLoading} />
           </div>
+          <NetworkReach />
         </div>
 
         {/* Right Columns (Active Roster & Activity Feed) */}

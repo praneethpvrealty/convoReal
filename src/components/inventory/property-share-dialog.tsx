@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { captureJourneyItems } from '@/lib/journey/capture';
+import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import {
@@ -785,6 +786,19 @@ export function PropertyShareDialog({
         if (r.error) console.error('Journey share capture failed:', r.error);
       })
       .catch((err) => console.error('Journey share capture failed:', err));
+    recordPropertyShares({
+      accountId,
+      propertyId: property.id,
+      userId: user?.id,
+      recipients: sentContactIds.map((contactId) => ({
+        contactId,
+        classification: contacts.find((c) => c.id === contactId)?.classification,
+      })),
+    })
+      .then((r) => {
+        if (r.error) console.error('Property share log failed:', r.error);
+      })
+      .catch((err) => console.error('Property share log failed:', err));
   }
 
   // Execute broadcast sharing request

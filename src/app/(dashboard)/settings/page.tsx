@@ -34,6 +34,7 @@ import {
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { WhatsAppFlowsCard } from '@/components/settings/whatsapp-flows-card';
 import { OwnerDigestCard } from '@/components/settings/owner-digest-card';
+import { AgentInventoryDigestCard } from '@/components/settings/agent-inventory-digest-card';
 import { MetaAdsTab } from '@/components/settings/meta-ads-tab';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
@@ -479,7 +480,12 @@ export default function SettingsPage() {
             {whatsappSub === 'connection' && <WhatsAppConfig />}
             {whatsappSub === 'templates' && <TemplateManager />}
             {whatsappSub === 'flows' && <WhatsAppFlowsCard />}
-            {whatsappSub === 'digest' && <OwnerDigestCard />}
+            {whatsappSub === 'digest' && (
+              <div className="space-y-6">
+                <OwnerDigestCard />
+                <AgentInventoryDigestCard />
+              </div>
+            )}
           </TabsContent>
 
           {metaAdsEnabled && (

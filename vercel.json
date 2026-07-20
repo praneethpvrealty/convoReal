@@ -15,6 +15,10 @@
       "schedule": "30 4 * * *"
     },
     {
+      "path": "/api/cron/agent-inventory-digest",
+      "schedule": "45 4 * * *"
+    },
+    {
       "path": "/api/cron/deal-mode-matching",
       "schedule": "0 5 * * *"
     },
