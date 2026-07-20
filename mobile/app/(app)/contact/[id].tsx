@@ -6,6 +6,7 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -36,7 +37,13 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
-import { CLASSIFICATIONS, type AreaOfInterestGeo, type Classification, type Contact } from '@/lib/types';
+import {
+  CLASSIFICATIONS,
+  type AreaOfInterestGeo,
+  type Classification,
+  type Contact,
+  type Property,
+} from '@/lib/types';
 
 const PROPERTY_INTEREST_OPTIONS = [
   'Vacant plot',
@@ -340,46 +347,101 @@ function ReviewBanner({
         { backgroundColor: colors.warningSoft, borderColor: colors.warning },
       ]}
     >
-      <PulseRing size={26} color={colors.warning}>
-        <View
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            backgroundColor: colors.warning,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Ionicons name="hourglass-outline" size={14} color="#FFFFFF" />
+      <View style={styles.reviewTop}>
+        <PulseRing size={26} color={colors.warning}>
+          <View
+            style={{
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              backgroundColor: colors.warning,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="hourglass-outline" size={14} color="#FFFFFF" />
+          </View>
+        </PulseRing>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.warning }}>
+            Needs review
+          </Text>
+          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={2}>
+            From {contact.referrer || contact.source || 'an external source'} — approve to move it
+            into your active contacts{contact.last_inquired_property_id ? ' and send them the details below' : ''}.
+          </Text>
         </View>
-      </PulseRing>
-      <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.warning }}>
-          Needs review
-        </Text>
-        <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={2}>
-          From {contact.referrer || contact.source || 'an external source'} — approve to move it
-          into your active contacts.
-        </Text>
+        <Pressable
+          onPress={approve}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel="Approve contact"
+          style={[styles.approveButton, { backgroundColor: colors.warning, opacity: busy ? 0.6 : 1 }]}
+        >
+          {busy ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+              <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: '#FFFFFF' }}>Approve</Text>
+            </>
+          )}
+        </Pressable>
       </View>
-      <Pressable
-        onPress={approve}
-        disabled={busy}
-        accessibilityRole="button"
-        accessibilityLabel="Approve contact"
-        style={[styles.approveButton, { backgroundColor: colors.warning, opacity: busy ? 0.6 : 1 }]}
-      >
-        {busy ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
-          <>
-            <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-            <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: '#FFFFFF' }}>Approve</Text>
-          </>
-        )}
-      </Pressable>
+      {contact.last_inquired_property_id ? (
+        <ContactedProperty propertyId={contact.last_inquired_property_id} />
+      ) : null}
     </View>
+  );
+}
+
+/** The listing the lead contacted about — shown in the review banner so
+ *  the agent sees the inquiry before approving (web parity). */
+function ContactedProperty({ propertyId }: { propertyId: string }) {
+  const { colors, fonts: f } = useTheme();
+  const { data: property } = useQuery({
+    queryKey: ['contacted-property', propertyId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id, title, location, images')
+        .eq('id', propertyId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as Pick<Property, 'id' | 'title' | 'location' | 'images'> | null;
+    },
+  });
+  if (!property) return null;
+
+  return (
+    <Pressable
+      onPress={() => router.push(`/(app)/property/${property.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={`Contacted about ${property.title}`}
+      style={[styles.contactedProperty, { backgroundColor: colors.surfaceRaised, borderColor: colors.glassBorder }]}
+    >
+      {property.images?.[0] ? (
+        <Image source={{ uri: property.images[0] }} style={styles.contactedThumb} />
+      ) : (
+        <View style={[styles.contactedThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+          <Ionicons name="home-outline" size={18} color={colors.textFaint} />
+        </View>
+      )}
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ fontSize: 10.5, fontFamily: f.bold, color: colors.warning, letterSpacing: 0.3 }}>
+          CONTACTED ABOUT
+        </Text>
+        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+          {property.title}
+        </Text>
+        {property.location ? (
+          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+            {property.location}
+          </Text>
+        ) : null}
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+    </Pressable>
   );
 }
 
@@ -760,12 +822,28 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 12.5, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
   hint: { fontSize: 12, fontFamily: fonts.medium, paddingHorizontal: 2 },
   reviewBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: spacing.md,
     borderRadius: radius.md,
     borderWidth: 1,
     padding: spacing.md,
+  },
+  reviewTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  contactedProperty: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 8,
+  },
+  contactedThumb: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.sm,
   },
   approveButton: {
     flexDirection: 'row',

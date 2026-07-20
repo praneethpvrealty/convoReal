@@ -27,9 +27,13 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "test-anon-key";
 
 const { proxy } = await import("./proxy");
 
-function req(path: string) {
-  return new NextRequest(`https://example.com${path}`, { method: "POST" });
+function req(path: string, headers?: Record<string, string>) {
+  return new NextRequest(`https://example.com${path}`, { method: "POST", headers });
 }
+
+// A syntactically valid (three-segment) JWT shape — value is never
+// verified by the middleware, only its structure gates the exemption.
+const BEARER_JWT = "Bearer aaa.bbb.ccc";
 
 describe("proxy — Meta Flows endpoint auth exemption", () => {
   beforeEach(() => {
@@ -70,5 +74,42 @@ describe("proxy — Meta Flows endpoint auth exemption", () => {
     mockUser = { id: "user-1" };
     const res = await proxy(req("/api/whatsapp/flows/setup"));
     expect(res.status).not.toBe(401);
+  });
+});
+
+/**
+ * Regression test: the mobile app authenticates with
+ * `Authorization: Bearer <jwt>` and carries no cookies, so the
+ * cookie-based getUser() in the middleware always sees no user for it.
+ * The `/api/whatsapp/*` gate is an early-exit optimisation, not the
+ * boundary — the route handlers re-validate the bearer token via
+ * createClient() + getUser(). A bearer-carrying request must therefore
+ * pass through to its handler instead of being 401'd at the gate, or
+ * every mobile send/react/media/broadcast call fails "Unauthorized"
+ * before the route runs (while cookie-based web sessions work).
+ */
+describe("proxy — mobile bearer-token transport", () => {
+  beforeEach(() => {
+    mockUser = null;
+  });
+
+  it("passes a cookieless bearer-JWT request through to /api/whatsapp/send", async () => {
+    const res = await proxy(req("/api/whatsapp/send", { authorization: BEARER_JWT }));
+    expect(res.status).not.toBe(401);
+  });
+
+  it("passes a cookieless bearer-JWT request through to other /api/whatsapp/* routes", async () => {
+    const res = await proxy(req("/api/whatsapp/react", { authorization: BEARER_JWT }));
+    expect(res.status).not.toBe(401);
+  });
+
+  it("still 401s a cookieless request whose Authorization is not a JWT-shaped bearer", async () => {
+    const res = await proxy(req("/api/whatsapp/send", { authorization: "Bearer notajwt" }));
+    expect(res.status).toBe(401);
+  });
+
+  it("still 401s a cookieless request with no Authorization header", async () => {
+    const res = await proxy(req("/api/whatsapp/send"));
+    expect(res.status).toBe(401);
   });
 });

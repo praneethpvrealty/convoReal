@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -25,9 +26,11 @@ import Animated, {
 
 import { ConvoRealLoader } from '@/components/loader';
 import { MediaImage } from '@/components/media-image';
+import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
-import { ApiError, sendTemplateMessage, sendTextMessage } from '@/lib/api';
+import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
+import { buildPropertyDetailsMessage } from '@/lib/approve-contact';
 import { haptic } from '@/lib/haptics';
 import type { MessageTemplate } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
@@ -66,7 +69,13 @@ async function fetchConversation(id: string): Promise<Conversation | null> {
 
 export default function ConversationScreen() {
   const { colors, fonts: f } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `draftPropertyId` is set when the thread is opened from a contact
+  // approval whose 24h window had closed — pre-draft the inquired
+  // property's details so the agent can send them in one tap.
+  const { id, draftPropertyId } = useLocalSearchParams<{
+    id: string;
+    draftPropertyId?: string;
+  }>();
   const headerHeight = useHeaderHeight();
 
   const { data: conversation } = useQuery({
@@ -74,6 +83,25 @@ export default function ConversationScreen() {
     queryFn: () => fetchConversation(id),
     enabled: Boolean(id),
   });
+
+  const { data: draftProperty } = useQuery({
+    queryKey: ['draft-property', draftPropertyId],
+    enabled: Boolean(draftPropertyId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id, title, location, google_map_link')
+        .eq('id', draftPropertyId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as {
+        title: string;
+        location: string | null;
+        google_map_link: string | null;
+      } | null;
+    },
+  });
+  const seedDraft = draftProperty ? buildPropertyDetailsMessage(draftProperty) : undefined;
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
     queryFn: () => fetchMessages(id),
@@ -161,7 +189,11 @@ export default function ConversationScreen() {
         />
       )}
 
-      <Composer conversationId={id} />
+      <Composer
+        conversationId={id}
+        contactName={conversation?.contact?.name || undefined}
+        seedDraft={seedDraft}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -366,31 +398,85 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-function Composer({ conversationId }: { conversationId: string }) {
+function Composer({
+  conversationId,
+  contactName,
+  seedDraft,
+}: {
+  conversationId: string;
+  contactName?: string;
+  seedDraft?: string;
+}) {
   const { colors, dark, fonts: f } = useTheme();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
 
-  async function send() {
-    const text = draft.trim();
-    if (!text || sending) return;
+  // Seed the composer once when arriving from an approval that needs a
+  // re-engagement send — never clobber text the agent has typed.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seedDraft && !seededRef.current) {
+      seededRef.current = true;
+      setDraft((prev) => (prev.trim() ? prev : seedDraft));
+    }
+  }, [seedDraft]);
+
+  async function loadSuggestions() {
+    if (suggesting) return;
+    setSuggesting(true);
+    setError(null);
+    haptic.tap();
+    try {
+      const { suggestions: next } = await suggestReplies(conversationId);
+      if (next.length === 0) {
+        setError('No suggestions right now — nothing recent to reply to.');
+      }
+      setSuggestions(next);
+    } catch (err) {
+      haptic.warn();
+      setError(err instanceof ApiError ? err.message : 'Could not load suggestions.');
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  function useSuggestion(text: string) {
+    haptic.tap();
+    setDraft(text);
+    setSuggestions([]);
+  }
+
+  // Shared send path for the composer draft and the property shortlist
+  // sheet. Returns whether it went out so callers can clear/close.
+  async function sendText(text: string): Promise<boolean> {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return false;
     setSending(true);
     setError(null);
-    haptic.send();
     try {
-      await sendTextMessage(conversationId, text);
-      setDraft('');
+      await sendTextMessage(conversationId, trimmed);
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      return true;
     } catch (err) {
       haptic.warn();
       // Outside WhatsApp's 24h service window the API rejects free-form
       // text — surface its message rather than silently retrying.
       setError(err instanceof ApiError ? err.message : 'Failed to send — try again.');
+      return false;
     } finally {
       setSending(false);
     }
+  }
+
+  async function send() {
+    haptic.send();
+    const ok = await sendText(draft);
+    if (ok) setDraft('');
   }
 
   async function sendTemplate(
@@ -428,6 +514,47 @@ function Composer({ conversationId }: { conversationId: string }) {
         onSend={sendTemplate}
         sending={sending}
       />
+      <PropertyPickerSheet
+        visible={propertiesOpen}
+        onClose={() => setPropertiesOpen(false)}
+        onSend={sendText}
+        sending={sending}
+        contactName={contactName}
+      />
+      {suggestions.length > 0 ? (
+        <View style={styles.suggestionRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.suggestionScroll}
+            keyboardShouldPersistTaps="handled"
+          >
+            {suggestions.map((s, i) => (
+              <Pressable
+                key={`${i}-${s.slice(0, 12)}`}
+                style={[styles.suggestionChip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+                onPress={() => useSuggestion(s)}
+                accessibilityRole="button"
+                accessibilityLabel={`Use suggested reply: ${s}`}
+              >
+                <Ionicons name="sparkles" size={12} color={colors.primary} />
+                <Text style={{ flexShrink: 1, fontSize: 13, color: colors.text }} numberOfLines={2}>
+                  {s}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <Pressable
+            onPress={() => setSuggestions([])}
+            hitSlop={10}
+            style={styles.suggestionDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss suggestions"
+          >
+            <Ionicons name="close" size={14} color={colors.textMuted} />
+          </Pressable>
+        </View>
+      ) : null}
       {error ? (
         <View style={[styles.errorBar, { backgroundColor: colors.dangerSoft }]}>
           <Ionicons name="warning-outline" size={14} color={colors.danger} />
@@ -458,6 +585,33 @@ function Composer({ conversationId }: { conversationId: string }) {
           accessibilityLabel="Send a template message"
         >
           <Ionicons name="albums-outline" size={19} color={colors.primary} />
+        </Pressable>
+        <Pressable
+          style={[styles.templateButton, { backgroundColor: colors.surface }]}
+          onPress={() => {
+            haptic.tap();
+            setPropertiesOpen(true);
+          }}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Share properties into this chat"
+        >
+          <Ionicons name="home-outline" size={19} color={colors.primary} />
+        </Pressable>
+        <Pressable
+          style={[styles.templateButton, { backgroundColor: colors.surface, opacity: suggesting ? 0.6 : 1 }]}
+          onPress={loadSuggestions}
+          disabled={suggesting}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Suggest replies"
+          accessibilityState={{ disabled: suggesting }}
+        >
+          {suggesting ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+          )}
         </Pressable>
         <TextInput
           style={[
@@ -513,6 +667,31 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingRight: spacing.sm,
+  },
+  suggestionScroll: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  suggestionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: 260,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  suggestionDismiss: {
+    padding: 4,
   },
   composer: {
     flexDirection: 'row',

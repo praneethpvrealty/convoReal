@@ -75,6 +75,19 @@ export async function proxy(request: NextRequest) {
 
   const user = data?.user ?? null
 
+  // The mobile app authenticates with `Authorization: Bearer <jwt>` and
+  // sends no cookies, so the cookie-based getUser() above always resolves
+  // to no user for it. The `/api/whatsapp/*` gate below is an early-exit
+  // optimisation, not the boundary — every route re-validates auth via
+  // createClient() + getUser(), which DOES read the bearer token — so a
+  // bearer-carrying request must be allowed through to its handler rather
+  // than 401'd here. Without this, every authenticated mobile call to
+  // /api/whatsapp/* (send, react, media, broadcast) fails "Unauthorized"
+  // before the route runs, while cookie-based web sessions work.
+  const hasBearerJwt = /^Bearer\s+[\w-]+\.[\w-]+\.[\w-]+$/i.test(
+    request.headers.get('authorization') ?? ''
+  )
+
   if (
     error &&
     ((error as { code?: string }).code === 'refresh_token_not_found' ||
@@ -165,7 +178,7 @@ export async function proxy(request: NextRequest) {
   // Also fails open when auth was unavailable — every route handler
   // calls getUser()/requireRole itself, so this gate is an early-exit
   // optimisation, not the boundary.
-  if (!user && !authUnavailable && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
+  if (!user && !authUnavailable && !hasBearerJwt && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook') &&
       !request.nextUrl.pathname.startsWith('/api/whatsapp/flows/endpoint/')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
