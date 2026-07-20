@@ -24,6 +24,7 @@ import {
   InterestedProperties,
 } from '@/components/agent-detail';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
+import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
@@ -35,7 +36,7 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
-import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
+import { CLASSIFICATIONS, type AreaOfInterestGeo, type Classification, type Contact } from '@/lib/types';
 
 const PROPERTY_INTEREST_OPTIONS = [
   'Vacant plot',
@@ -56,9 +57,9 @@ async function fetchContact(id: string): Promise<Contact | null> {
     .from('contacts')
     .select(
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
-        'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, strict_area_match, ' +
-        'min_roi, requirements, lead_temp, status, referrer, source, property_interests, ' +
-        'last_inquired_property_id'
+        'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
+        'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
+        'property_interests, last_inquired_property_id'
     )
     .eq('id', id)
     .maybeSingle();
@@ -414,7 +415,9 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
   );
   const [noBudget, setNoBudget] = useState(Boolean(contact.no_budget));
   const [areas, setAreas] = useState<string[]>(contact.areas_of_interest ?? []);
-  const [areaInput, setAreaInput] = useState('');
+  const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>(
+    contact.areas_of_interest_geo ?? []
+  );
   const [strictArea, setStrictArea] = useState(Boolean(contact.strict_area_match));
   const [propertyInterests, setPropertyInterests] = useState<string[]>(
     contact.property_interests ?? []
@@ -424,13 +427,6 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
   const [saving, setSaving] = useState(false);
 
   const showPrefs = Boolean(classification && BUYER_PREF_CLASSIFICATIONS.includes(classification));
-
-  function addArea() {
-    const v = areaInput.trim();
-    if (!v) return;
-    if (!areas.some((a) => a.toLowerCase() === v.toLowerCase())) setAreas((prev) => [...prev, v]);
-    setAreaInput('');
-  }
 
   function toggleInterest(option: string) {
     setPropertyInterests((prev) =>
@@ -459,6 +455,10 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         max_budget: noBudget ? null : parseAmount(maxBudget),
         no_budget: noBudget,
         areas_of_interest: areas,
+        // Drop coordinates for any area no longer in the list (web parity).
+        areas_of_interest_geo: areasGeo.filter((g) =>
+          areas.some((a) => a.trim().toLowerCase() === g.name.trim().toLowerCase())
+        ),
         strict_area_match: strictArea,
         property_interests: propertyInterests,
         min_roi: parseAmount(minRoi),
@@ -583,47 +583,14 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
 
             <View style={{ gap: spacing.sm }}>
               <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Areas of interest</Text>
-              {areas.length ? (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-                  {areas.map((a) => (
-                    <View
-                      key={a}
-                      style={[styles.areaChip, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
-                    >
-                      <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.primary }}>
-                        {a}
-                      </Text>
-                      <Pressable
-                        onPress={() => setAreas((prev) => prev.filter((x) => x !== a))}
-                        hitSlop={6}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Remove ${a}`}
-                      >
-                        <Ionicons name="close" size={14} color={colors.primary} />
-                      </Pressable>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-              <View style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'center' }}>
-                <View style={{ flex: 1 }}>
-                  <TextField
-                    value={areaInput}
-                    onChangeText={setAreaInput}
-                    placeholder="Add a locality…"
-                    onSubmitEditing={addArea}
-                    returnKeyType="done"
-                  />
-                </View>
-                <Pressable
-                  onPress={addArea}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add area"
-                  style={[styles.addAreaBtn, { backgroundColor: colors.primarySoft }]}
-                >
-                  <Ionicons name="add" size={20} color={colors.primary} />
-                </Pressable>
-              </View>
+              <AreasOfInterestInput
+                areas={areas}
+                geo={areasGeo}
+                onChange={(nextAreas, nextGeo) => {
+                  setAreas(nextAreas);
+                  setAreasGeo(nextGeo);
+                }}
+              />
             </View>
 
             <CheckRow
@@ -792,23 +759,6 @@ const styles = StyleSheet.create({
   },
   fieldLabel: { fontSize: 12.5, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
   hint: { fontSize: 12, fontFamily: fonts.medium, paddingHorizontal: 2 },
-  areaChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: radius.full,
-    borderWidth: 1,
-    paddingLeft: 12,
-    paddingRight: 8,
-    paddingVertical: 6,
-  },
-  addAreaBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   reviewBanner: {
     flexDirection: 'row',
     alignItems: 'center',

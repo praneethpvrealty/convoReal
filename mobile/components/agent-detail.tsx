@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { BottomSheet } from '@/components/sheet';
 import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
@@ -334,27 +335,19 @@ function PropertyPicker({
   const filtered = (results ?? []).filter((p) => !excludeIds.includes(p.id));
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet">
-      <View style={{ flex: 1, backgroundColor: colors.background }}>
-        <View style={[styles.pickerHeader, { borderBottomColor: colors.border }]}>
-          <Text style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}>
-            Assign property
-          </Text>
-          <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close">
-            <Text style={{ fontSize: 15.5, fontFamily: f.bold, color: colors.primary }}>Done</Text>
-          </Pressable>
-        </View>
-        <View style={{ padding: spacing.lg, gap: spacing.md, flex: 1 }}>
-          <SearchBar
-            value={q}
-            onChangeText={setQ}
-            placeholder="Search by title, code or location"
-            autoFocus
-          />
+    <BottomSheet visible={visible} onClose={onClose} title="Assign property">
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+        <SearchBar
+          value={q}
+          onChangeText={setQ}
+          placeholder="Search by title, code or location"
+          autoFocus
+        />
+        <View style={{ maxHeight: 400 }}>
           {isLoading ? (
-            <Text style={{ fontSize: 13, color: colors.textFaint, textAlign: 'center', paddingVertical: spacing.lg }}>
-              Loading…
-            </Text>
+            <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
           ) : filtered.length === 0 ? (
             <EmptyState
               icon="business-outline"
@@ -362,7 +355,11 @@ function PropertyPicker({
               subtitle="Try a different search term."
             />
           ) : (
-            <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.sm }}>
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.sm }}
+            >
               {filtered.map((p) => (
                 <Pressable
                   key={p.id}
@@ -397,7 +394,7 @@ function PropertyPicker({
           )}
         </View>
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -813,14 +810,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   propertyThumb: { width: 52, height: 52, borderRadius: radius.sm },
-  pickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
   pickerRow: {
     flexDirection: 'row',
     alignItems: 'center',

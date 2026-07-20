@@ -19,6 +19,14 @@ export const CLASSIFICATIONS = [
 ] as const;
 export type Classification = (typeof CLASSIFICATIONS)[number];
 
+/** Coordinates for one area of interest, resolved via Google Places.
+ *  `name` matches the entry in areas_of_interest (web parity). */
+export interface AreaOfInterestGeo {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Contact {
   id: string;
   phone: string;
@@ -33,6 +41,9 @@ export interface Contact {
   max_budget?: number | null;
   no_budget?: boolean;
   areas_of_interest?: string[];
+  /** Coordinates for Google-picked areas_of_interest entries (web parity,
+   *  migration 126). `name` matches the entry in areas_of_interest. */
+  areas_of_interest_geo?: AreaOfInterestGeo[] | null;
   strict_area_match?: boolean;
   min_roi?: number | null;
   requirements?: string | null;
