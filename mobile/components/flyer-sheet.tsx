@@ -22,6 +22,7 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
+import { useAppConfig } from '@/lib/use-app-config';
 import { useDebounced } from '@/lib/use-debounced';
 
 type FlyerTemplate = 'minimalist' | 'glassmorphism' | 'vignette';
@@ -31,9 +32,6 @@ const TEMPLATES: { value: FlyerTemplate; label: string }[] = [
   { value: 'glassmorphism', label: 'Glass card' },
   { value: 'vignette', label: 'Vignette' },
 ];
-
-/** Mirror of the web dialog's credit price tag (AI_FEATURE_COSTS.image_enhance). */
-const AI_IMAGE_CREDITS = 25;
 
 function defaultAiPrompt(property: Property): string {
   return `A high-end, professional architectural photograph of a luxury ${(property.type || 'property').toLowerCase()} in ${property.sublocality || property.city || 'Bangalore'}, clean composition, beautiful morning sunlight, modern real estate marketing photography style`;
@@ -78,6 +76,9 @@ export function FlyerSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const session = useAuthStore((s) => s.session);
+  const config = useAppConfig();
+  const brandDefault = config?.branding.name ?? 'ConvoReal';
+  const aiCredits = config?.ai_costs.image_enhance ?? 25;
   const hasOriginal = Boolean(property.images && property.images.length > 0);
 
   const [template, setTemplate] = useState<FlyerTemplate>('minimalist');
@@ -98,6 +99,7 @@ export function FlyerSheet({
 
   // Prefill on open, same defaults as the web dialog.
   const openedForRef = useRef<string | null>(null);
+  const brandTouchedRef = useRef(false);
   useEffect(() => {
     if (!visible) {
       openedForRef.current = null;
@@ -105,14 +107,21 @@ export function FlyerSheet({
     }
     if (openedForRef.current === property.id) return;
     openedForRef.current = property.id;
+    brandTouchedRef.current = false;
     setImageSource(hasOriginal ? 'original' : 'ai');
     setAiPrompt(defaultAiPrompt(property));
     setAiImageUrl(null);
     setPreviewUri(null);
     setPreviewError(null);
-    setBrandName('ConvoReal');
+    setBrandName(brandDefault);
     setBrandContact(session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : '');
-  }, [visible, property, hasOriginal, session]);
+  }, [visible, property, hasOriginal, session, brandDefault]);
+
+  // Config can land after the very first open (cold cache) — adopt the
+  // deployment brand name as long as the user hasn't edited the field.
+  useEffect(() => {
+    if (!brandTouchedRef.current) setBrandName(brandDefault);
+  }, [brandDefault]);
 
   const dBrandName = useDebounced(brandName, 400);
   const dBrandContact = useDebounced(brandContact, 400);
@@ -277,7 +286,7 @@ export function FlyerSheet({
             />
           ) : null}
           <FilterChip
-            label={aiImageUrl ? '✨ AI image' : `✨ Generate with AI (${AI_IMAGE_CREDITS} cr)`}
+            label={aiImageUrl ? '✨ AI image' : `✨ Generate with AI (${aiCredits} cr)`}
             active={useAi}
             onPress={() => {
               if (aiImageUrl) setImageSource('ai');
@@ -307,7 +316,7 @@ export function FlyerSheet({
             >
               <Ionicons name="refresh" size={15} color={colors.primary} />
               <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.primary }}>
-                {aiImageUrl ? 'Regenerate' : 'Generate'} ({AI_IMAGE_CREDITS} credits)
+                {aiImageUrl ? 'Regenerate' : 'Generate'} ({aiCredits} credits)
               </Text>
             </Pressable>
           </View>
@@ -340,7 +349,14 @@ export function FlyerSheet({
         {showBranding ? (
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <TextField label="Brand name" value={brandName} onChangeText={setBrandName} />
+              <TextField
+                label="Brand name"
+                value={brandName}
+                onChangeText={(v) => {
+                  brandTouchedRef.current = true;
+                  setBrandName(v);
+                }}
+              />
             </View>
             <View style={{ flex: 1 }}>
               <TextField
