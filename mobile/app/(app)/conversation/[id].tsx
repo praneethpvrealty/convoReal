@@ -30,6 +30,7 @@ import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
 import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
+import { buildPropertyDetailsMessage } from '@/lib/approve-contact';
 import { haptic } from '@/lib/haptics';
 import type { MessageTemplate } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
@@ -68,7 +69,13 @@ async function fetchConversation(id: string): Promise<Conversation | null> {
 
 export default function ConversationScreen() {
   const { colors, fonts: f } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `draftPropertyId` is set when the thread is opened from a contact
+  // approval whose 24h window had closed — pre-draft the inquired
+  // property's details so the agent can send them in one tap.
+  const { id, draftPropertyId } = useLocalSearchParams<{
+    id: string;
+    draftPropertyId?: string;
+  }>();
   const headerHeight = useHeaderHeight();
 
   const { data: conversation } = useQuery({
@@ -76,6 +83,25 @@ export default function ConversationScreen() {
     queryFn: () => fetchConversation(id),
     enabled: Boolean(id),
   });
+
+  const { data: draftProperty } = useQuery({
+    queryKey: ['draft-property', draftPropertyId],
+    enabled: Boolean(draftPropertyId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('properties')
+        .select('id, title, location, google_map_link')
+        .eq('id', draftPropertyId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as {
+        title: string;
+        location: string | null;
+        google_map_link: string | null;
+      } | null;
+    },
+  });
+  const seedDraft = draftProperty ? buildPropertyDetailsMessage(draftProperty) : undefined;
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
     queryFn: () => fetchMessages(id),
@@ -163,7 +189,11 @@ export default function ConversationScreen() {
         />
       )}
 
-      <Composer conversationId={id} contactName={conversation?.contact?.name || undefined} />
+      <Composer
+        conversationId={id}
+        contactName={conversation?.contact?.name || undefined}
+        seedDraft={seedDraft}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -371,9 +401,11 @@ function MessageBubble({ message }: { message: Message }) {
 function Composer({
   conversationId,
   contactName,
+  seedDraft,
 }: {
   conversationId: string;
   contactName?: string;
+  seedDraft?: string;
 }) {
   const { colors, dark, fonts: f } = useTheme();
   const [draft, setDraft] = useState('');
@@ -383,6 +415,16 @@ function Composer({
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
+
+  // Seed the composer once when arriving from an approval that needs a
+  // re-engagement send — never clobber text the agent has typed.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seedDraft && !seededRef.current) {
+      seededRef.current = true;
+      setDraft((prev) => (prev.trim() ? prev : seedDraft));
+    }
+  }, [seedDraft]);
 
   async function loadSuggestions() {
     if (suggesting) return;
