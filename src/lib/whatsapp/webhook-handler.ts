@@ -974,13 +974,22 @@ async function processMessage(
     return;
   }
 
+  // The account owner texting their own CRM number (the WhatsApp
+  // lister/self-chat) is not a lead: keep that thread archived and
+  // unread-free so it never surfaces in the shared inbox. Checked
+  // here (before the conversation update) and reused below for the
+  // owner chatbot routing.
+  const ownerCheck = await checkIsAccountOwner(senderPhone, accountId)
+
   const { error: convError } = await supabaseAdmin()
     .from('conversations')
     .update({
       last_message_text: contentText || `[${message.type}]`,
       last_message_at: new Date().toISOString(),
-      unread_count: (conversation.unread_count || 0) + 1,
       updated_at: new Date().toISOString(),
+      ...(ownerCheck.isOwner
+        ? { unread_count: 0, is_archived: true }
+        : { unread_count: (conversation.unread_count || 0) + 1 }),
       ...routingUpdate,
     })
     .eq('id', conversation.id)
@@ -1059,7 +1068,6 @@ async function processMessage(
     if (handledListingVerification) return
   }
 
-  const ownerCheck = await checkIsAccountOwner(senderPhone, accountId)
   if (ownerCheck.isOwner) {
     console.log(`[webhook] Intercepted message from CRM owner: ${senderPhone}`)
     const handled = await processOwnerChatbotMessage(
