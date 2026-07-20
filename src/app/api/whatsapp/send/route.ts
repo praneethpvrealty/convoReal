@@ -26,16 +26,30 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      // Diagnostic: distinguish "Authorization header never arrived"
+      // (stripped by a redirect/proxy — cookie path with no cookie) from
+      // "header arrived but the JWT was rejected by GoTrue". Report only
+      // the header's SHAPE, never its value.
+      const authHeader = request.headers.get('authorization')
+      const hasBearer = /^Bearer\s+\S/i.test(authHeader ?? '')
+      const isJwtShaped =
+        hasBearer &&
+        /^Bearer\s+[\w-]+\.[\w-]+\.[\w-]+$/i.test(authHeader ?? '')
+      const transport = !authHeader
+        ? 'no-auth-header'
+        : !hasBearer
+          ? 'auth-header-not-bearer'
+          : !isJwtShaped
+            ? 'bearer-not-jwt-shaped'
+            : 'bearer-jwt-present'
+      const reason = authError
+        ? `${authError.name ?? authError.code ?? 'AuthError'}: ${authError.message}`
+        : 'no user in session'
       console.error(
-        '[whatsapp/send] auth.getUser() rejected the request:',
-        authError ? `${authError.name ?? authError.code ?? 'AuthError'}: ${authError.message}` : 'no user in session'
+        `[whatsapp/send] 401 — transport=${transport} reason=${reason}`
       )
       return NextResponse.json(
-        {
-          error: authError
-            ? `Unauthorized: ${authError.message}`
-            : 'Unauthorized: no user in session',
-        },
+        { error: `Unauthorized [${transport}]: ${reason}` },
         { status: 401 }
       )
     }
