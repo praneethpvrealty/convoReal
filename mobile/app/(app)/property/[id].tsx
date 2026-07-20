@@ -22,6 +22,7 @@ import { BlurView } from 'expo-blur';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FlyerSheet } from '@/components/flyer-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { SectionLabel, Tag } from '@/components/ui';
@@ -589,14 +590,15 @@ export default function PropertyDetailScreen() {
 }
 
 /**
- * Web-parity quick actions. Flyer / Post Ad stay web-only (canvas
- * rendering and the Chrome portal extension); Promote and full Edit
- * arrive with broadcast composing / property editing.
+ * Web-parity quick actions. Post Ad stays web-only (the Chrome portal
+ * extension); the flyer creator renders server-side via
+ * POST /api/properties/[id]/flyer, so it works here too.
  */
 function ActionRail({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState<'archive' | 'delete' | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [flyerOpen, setFlyerOpen] = useState(false);
   const archived = property.status === 'Archived';
 
   function confirmArchive() {
@@ -682,6 +684,15 @@ function ActionRail({ property }: { property: Property }) {
       },
     },
     {
+      key: 'flyer',
+      icon: 'sparkles-outline' as const,
+      label: 'Flyer',
+      onPress: () => {
+        haptic.tap();
+        setFlyerOpen(true);
+      },
+    },
+    {
       key: 'archive',
       icon: 'file-tray-outline' as const,
       label: archived ? 'Unarchive' : 'Archive',
@@ -696,6 +707,11 @@ function ActionRail({ property }: { property: Property }) {
         property={property}
         visible={sharing}
         onClose={() => setSharing(false)}
+      />
+      <FlyerSheet
+        property={property}
+        visible={flyerOpen}
+        onClose={() => setFlyerOpen(false)}
       />
       {actions.map((a) => {
         const isBusy = busy === a.key;

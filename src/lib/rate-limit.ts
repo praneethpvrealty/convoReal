@@ -163,6 +163,10 @@ export const RATE_LIMITS = {
    *  copilotChatDaily. Fixed window resets on deploy — fine for a cost
    *  cap, not a billing meter. */
   suggestRepliesDaily: { limit: 400, windowMs: 86_400_000 },
+  /** Server-side flyer rendering (next/og). CPU-bound satori work per
+   *  call; 60/min per user keeps a debounced preview slider responsive
+   *  while bounding a stuck client re-rendering in a loop. */
+  flyerRender: { limit: 60, windowMs: 60_000 },
   /** Admin plan-override OTP issue + verify. Tighter than adminAction —
    *  this gates a billing-bypassing action, so both the code-send and
    *  code-check endpoints share one strict budget per admin to blunt
