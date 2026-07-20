@@ -273,35 +273,45 @@ export default function InventoryPage() {
     }
   }, [page, searchParams, router]);
 
-  // Automatically open property form modal if propertyId is specified in query parameters
+  // Automatically open property form modal if propertyId is specified in query parameters.
+  // The id is read from the live URL (window.location) as well as useSearchParams: on
+  // cached/prerendered page loads useSearchParams can hydrate with empty params, which left
+  // deep links (e.g. the "View it in your dashboard" link from the WhatsApp chatbot) silently
+  // landing on the list instead of opening the property. Opening always goes through a fresh
+  // fetch so it works even when the property is not on the currently loaded page.
   useEffect(() => {
-    const pid = searchParams?.get('propertyId');
-    if (pid && !hasAutoOpened) {
-      // Try finding in current list first
+    if (hasAutoOpened) return;
+    const pid =
+      searchParams?.get('propertyId') ||
+      (typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('propertyId')
+        : null);
+    if (!pid) return;
+
+    setHasAutoOpened(true);
+
+    const loadAndOpen = async () => {
       let prop = properties.find((p) => p.id === pid || p.property_code === pid);
-      
-      const loadAndOpen = async () => {
-        if (!prop) {
-          // Not in current page, fetch from API
-          try {
-            const response = await fetch(`/api/properties/${pid}`, { cache: 'no-store' });
-            if (response.ok) {
-              prop = await response.json();
-            }
-          } catch {
-            // ignore
+      if (!prop) {
+        try {
+          const response = await fetch(`/api/properties/${pid}`, { cache: 'no-store' });
+          if (response.ok) {
+            prop = await response.json();
           }
+        } catch {
+          // ignore
         }
-        if (prop) {
-          setSelectedProperty(prop);
-          setFormViewOnly(true);
-          setFormOpen(true);
-          setHasAutoOpened(true);
-        }
-      };
-      
-      loadAndOpen();
-    }
+      }
+      if (prop) {
+        setSelectedProperty(prop);
+        setFormViewOnly(true);
+        setFormOpen(true);
+      } else {
+        toast.error('Could not open that property. It may have been removed.');
+      }
+    };
+
+    loadAndOpen();
   }, [searchParams, properties, hasAutoOpened]);
 
   // Keep active modal property states in sync with the fetched properties list.
