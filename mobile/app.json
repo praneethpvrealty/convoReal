@@ -19,7 +19,7 @@
       "package": "com.convoreal.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#1A4D42"
+        "backgroundColor": "#0A1F16"
       },
       "predictiveBackGestureEnabled": true,
       "intentFilters": [
@@ -62,9 +62,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#1A4D42",
+          "backgroundColor": "#0A1F16",
           "dark": {
-            "backgroundColor": "#0F1513"
+            "backgroundColor": "#0A1F16"
           }
         }
       ],
