@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,6 +14,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import Animated, {
+  interpolateColor,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { ConvoRealLoader } from '@/components/loader';
 import { MediaImage } from '@/components/media-image';
@@ -213,7 +221,34 @@ function DaySeparator({ label }: { label: string }) {
   );
 }
 
+const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
+
+/** WhatsApp-style ticks that MORPH on status change: a small pop as
+ *  the tick doubles on delivery, and a colour sweep to blue on read —
+ *  instead of an instant icon swap. */
 function StatusTicks({ status, colors }: { status: MessageStatus; colors: ThemeColors }) {
+  const read = status === 'read';
+  const pop = useSharedValue(1);
+  const blue = useSharedValue(read ? 1 : 0);
+  const prev = useRef(status);
+
+  useEffect(() => {
+    if (prev.current !== status) {
+      prev.current = status;
+      pop.value = withSequence(
+        withSpring(1.35, { damping: 14, stiffness: 420 }),
+        withSpring(1, { damping: 12, stiffness: 260 })
+      );
+    }
+    blue.value = withTiming(read ? 1 : 0, { duration: 350 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, read]);
+
+  const tickStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pop.value }],
+    color: interpolateColor(blue.value, [0, 1], [colors.outgoingMeta, colors.readTick]),
+  }));
+
   if (status === 'failed') {
     return (
       <Ionicons
@@ -234,13 +269,13 @@ function StatusTicks({ status, colors }: { status: MessageStatus; colors: ThemeC
       />
     );
   }
-  const double = status === 'delivered' || status === 'read';
+  const double = status === 'delivered' || read;
   return (
-    <Ionicons
+    <AnimatedIonicons
       name={double ? 'checkmark-done' : 'checkmark'}
       size={13}
-      color={status === 'read' ? colors.readTick : colors.outgoingMeta}
-      accessibilityLabel={status === 'read' ? 'Read' : double ? 'Delivered' : 'Sent'}
+      style={tickStyle}
+      accessibilityLabel={read ? 'Read' : double ? 'Delivered' : 'Sent'}
     />
   );
 }

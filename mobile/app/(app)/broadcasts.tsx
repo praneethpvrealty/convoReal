@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack } from 'expo-router';
+import { useEffect, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -9,7 +10,14 @@ import {
   Text,
   View,
 } from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
+import { AnimatedCounter } from '@/components/motion';
 import { EmptyState } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
@@ -123,14 +131,7 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
           {chatListTime(broadcast.scheduled_at ?? broadcast.created_at)}
         </Text>
 
-        <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
-          <View
-            style={[
-              styles.progressFill,
-              { backgroundColor: colors.primary, width: `${progress * 100}%` },
-            ]}
-          />
-        </View>
+        <ProgressBar progress={progress} />
 
         <View style={styles.statsRow}>
           <Stat label="Recipients" value={broadcast.total_recipients} />
@@ -144,19 +145,44 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
   );
 }
 
+/** Delivery bar that fills smoothly as webhook counts land, instead
+ *  of snapping to each new width on refetch. */
+function ProgressBar({ progress }: { progress: number }) {
+  const { colors } = useTheme();
+  const [track, setTrack] = useState(0);
+  const width = useSharedValue(0);
+
+  useEffect(() => {
+    width.value = withTiming(progress * track, {
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [progress, track, width]);
+
+  const fill = useAnimatedStyle(() => ({ width: width.value }));
+
+  return (
+    <View
+      style={[styles.progressTrack, { backgroundColor: colors.border }]}
+      onLayout={(e) => setTrack(e.nativeEvent.layout.width)}
+    >
+      <Animated.View style={[styles.progressFill, { backgroundColor: colors.primary }, fill]} />
+    </View>
+  );
+}
+
 function Stat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
   const { colors, fonts: f } = useTheme();
   return (
     <View style={{ alignItems: 'center', gap: 1 }}>
-      <Text
+      <AnimatedCounter
+        value={value}
         style={{
           fontSize: 15,
           fontFamily: f.extrabold,
           color: danger ? colors.danger : colors.text,
         }}
-      >
-        {value}
-      </Text>
+      />
       <Text style={{ fontSize: 10.5, color: colors.textFaint }}>{label}</Text>
     </View>
   );

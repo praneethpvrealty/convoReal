@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
@@ -158,7 +158,9 @@ export function PulseRing({
   );
 }
 
-/** Count-up number for stat cards. */
+/** Count-up number for stat cards. Counts from 0 on mount, then from
+ *  the previously shown value on live updates — so refreshing stats
+ *  tick upward instead of restarting. */
 export function AnimatedCounter({
   value,
   format,
@@ -169,16 +171,23 @@ export function AnimatedCounter({
   style?: React.ComponentProps<typeof Text>['style'];
 }) {
   const [display, setDisplay] = useState(0);
+  const fromRef = useRef(0);
 
   useEffect(() => {
+    const from = fromRef.current;
+    if (from === value) {
+      setDisplay(value);
+      return;
+    }
     const duration = 650;
     const startTime = Date.now();
-    const from = 0;
     let raf: number;
     const tick = () => {
       const t = Math.min(1, (Date.now() - startTime) / duration);
       const eased = 1 - Math.pow(1 - t, 3);
-      setDisplay(Math.round(from + (value - from) * eased));
+      const next = Math.round(from + (value - from) * eased);
+      fromRef.current = next;
+      setDisplay(next);
       if (t < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);

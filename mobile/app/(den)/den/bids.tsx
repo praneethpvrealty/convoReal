@@ -1,7 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
+import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { EmptyState, PrimaryButton } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -39,11 +48,14 @@ export default function DenBidsScreen() {
     queryFn: fetchDenBids,
   });
 
+  const [revealedId, setRevealedId] = useState<string | null>(null);
+
   const respond = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'accept' | 'reject' }) =>
       respondToBid(id, action),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       haptic.success();
+      if (variables.action === 'accept') setRevealedId(variables.id);
       queryClient.invalidateQueries({ queryKey: ['den-bids'] });
     },
     onError: (e) => {
@@ -176,33 +188,7 @@ export default function DenBidsScreen() {
               ) : null}
 
               {bid.status === 'accepted' && bid.bidder_contact ? (
-                <View
-                  style={[styles.revealRow, { backgroundColor: colors.successSoft, borderColor: colors.success }]}
-                >
-                  <Ionicons name="person-circle-outline" size={20} color={colors.success} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}>
-                      {bid.bidder_contact.name || 'Buyer contact'}
-                    </Text>
-                    {bid.bidder_contact.phone ? (
-                      <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                        {bid.bidder_contact.phone}
-                      </Text>
-                    ) : null}
-                  </View>
-                  {bid.bidder_contact.phone ? (
-                    <Pressable
-                      onPress={() =>
-                        Linking.openURL(`https://wa.me/${bid.bidder_contact!.phone!.replace(/\D/g, '')}`)
-                      }
-                      hitSlop={8}
-                      accessibilityRole="button"
-                      accessibilityLabel="WhatsApp the buyer"
-                    >
-                      <Ionicons name="logo-whatsapp" size={22} color={colors.success} />
-                    </Pressable>
-                  ) : null}
-                </View>
+                <BuyerReveal bid={bid} unlock={revealedId === bid.id} />
               ) : null}
 
               {bid.deal_room_id ? (
@@ -215,6 +201,92 @@ export default function DenBidsScreen() {
         })
       )}
     </ScrollView>
+  );
+}
+
+/**
+ * The buyer-contact reveal, played as a vault unlock right after the
+ * owner accepts: a frosted shroud with a padlock sits over the
+ * contact card, the lock swings open and dissolves, and the contact
+ * scales into clarity. Old accepted bids render instantly revealed.
+ */
+function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
+  const { colors, dark, fonts: f } = useTheme();
+  const progress = useSharedValue(unlock ? 0 : 1);
+
+  useEffect(() => {
+    if (unlock) {
+      progress.value = withDelay(
+        350,
+        withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) })
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlock]);
+
+  const content = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ scale: 0.94 + 0.06 * progress.value }],
+  }));
+  const shroud = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0.35, 1], [1, 0], 'clamp'),
+  }));
+  const lock = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.5], [1, 0], 'clamp'),
+    transform: [
+      { rotate: `${-70 * Math.min(1, progress.value * 2)}deg` },
+      { scale: 1 - 0.35 * Math.min(1, progress.value * 2) },
+    ],
+  }));
+
+  return (
+    <View
+      style={[
+        styles.revealRow,
+        { backgroundColor: colors.successSoft, borderColor: colors.success, overflow: 'hidden' },
+      ]}
+    >
+      <Animated.View style={[styles.revealContent, content]}>
+        <Ionicons name="person-circle-outline" size={20} color={colors.success} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}>
+            {bid.bidder_contact!.name || 'Buyer contact'}
+          </Text>
+          {bid.bidder_contact!.phone ? (
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+              {bid.bidder_contact!.phone}
+            </Text>
+          ) : null}
+        </View>
+        {bid.bidder_contact!.phone ? (
+          <Pressable
+            onPress={() =>
+              Linking.openURL(`https://wa.me/${bid.bidder_contact!.phone!.replace(/\D/g, '')}`)
+            }
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="WhatsApp the buyer"
+          >
+            <Ionicons name="logo-whatsapp" size={22} color={colors.success} />
+          </Pressable>
+        ) : null}
+      </Animated.View>
+      {unlock ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            StyleSheet.absoluteFill,
+            styles.revealShroud,
+            { backgroundColor: dark ? 'rgba(16,42,30,0.97)' : 'rgba(255,255,255,0.97)' },
+            shroud,
+          ]}
+        >
+          <Animated.View style={lock}>
+            <Ionicons name="lock-closed" size={20} color={colors.success} />
+          </Animated.View>
+        </Animated.View>
+      ) : null}
+    </View>
   );
 }
 
@@ -236,11 +308,17 @@ const styles = StyleSheet.create({
     minHeight: 52,
   },
   revealRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
+  },
+  revealContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  revealShroud: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
