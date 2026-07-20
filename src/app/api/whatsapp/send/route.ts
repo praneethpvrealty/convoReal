@@ -26,8 +26,16 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      console.error(
+        '[whatsapp/send] auth.getUser() rejected the request:',
+        authError ? `${authError.name ?? authError.code ?? 'AuthError'}: ${authError.message}` : 'no user in session'
+      )
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        {
+          error: authError
+            ? `Unauthorized: ${authError.message}`
+            : 'Unauthorized: no user in session',
+        },
         { status: 401 }
       )
     }
