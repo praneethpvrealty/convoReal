@@ -52,7 +52,7 @@ export function PropertyPickerSheet({
   const debounced = useDebounced(search.trim());
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['property-picker', debounced],
+    queryKey: ['property-share-search', debounced],
     enabled: visible,
     queryFn: () => fetchPropertyPage(0, debounced, 'All', null),
   });

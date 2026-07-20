@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { useEffect } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -111,7 +111,7 @@ export default function TabsLayout() {
           <BlurView
             intensity={40}
             tint={dark ? 'dark' : 'light'}
-            blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
+            blurMethod="none"
             style={StyleSheet.absoluteFill}
           />
         ),

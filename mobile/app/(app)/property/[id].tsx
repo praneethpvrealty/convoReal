@@ -9,7 +9,6 @@ import {
   FlatList,
   Image,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -549,7 +548,7 @@ export default function PropertyDetailScreen() {
       <BlurView
         intensity={16}
         tint={dark ? 'dark' : 'light'}
-        blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
+        blurMethod="none"
         style={StyleSheet.absoluteFill}
       />
       <View style={{ flex: 1 }}>
