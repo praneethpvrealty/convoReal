@@ -174,6 +174,19 @@ export function placeDetails(placeId: string, session: string) {
   }>(`/api/maps/place-details?place_id=${encodeURIComponent(placeId)}&session=${session}`);
 }
 
+/**
+ * AI draft replies for a conversation — POST /api/whatsapp/suggest-replies.
+ * Returns 2-3 short reply options built from the recent messages; the
+ * agent taps one to insert it into the composer. Empty array when the
+ * server has no Gemini key or there's nothing to reply to.
+ */
+export function suggestReplies(conversationId: string) {
+  return apiFetch<{ suggestions: string[] }>('/api/whatsapp/suggest-replies', {
+    method: 'POST',
+    body: JSON.stringify({ conversation_id: conversationId }),
+  })
+}
+
 /** Contract of POST /api/whatsapp/send (src/app/api/whatsapp/send/route.ts). */
 export function sendTextMessage(conversationId: string, text: string) {
   return apiFetch<{ message?: unknown; error?: string }>('/api/whatsapp/send', {

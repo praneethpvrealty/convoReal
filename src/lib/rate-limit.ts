@@ -154,6 +154,15 @@ export const RATE_LIMITS = {
   copilotNudges: { limit: 6, windowMs: 60_000 },
   /** Copilot answer 👍/👎 — one write per tap, same posture as react. */
   copilotFeedback: { limit: 30, windowMs: 60_000 },
+  /** AI suggested-replies, per user. On-demand (agent taps a button), so
+   *  bursts are naturally small; 20/min is comfortable for a human
+   *  working an inbox while bounding a stuck client that re-requests. */
+  suggestReplies: { limit: 20, windowMs: 60_000 },
+  /** AI suggested-replies, per account per day. Backstop that bounds a
+   *  single tenant's worst-case Gemini spend on this feature, mirroring
+   *  copilotChatDaily. Fixed window resets on deploy — fine for a cost
+   *  cap, not a billing meter. */
+  suggestRepliesDaily: { limit: 400, windowMs: 86_400_000 },
   /** Admin plan-override OTP issue + verify. Tighter than adminAction —
    *  this gates a billing-bypassing action, so both the code-send and
    *  code-check endpoints share one strict budget per admin to blunt
