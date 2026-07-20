@@ -33,6 +33,8 @@ export interface Contact {
   max_budget?: number | null;
   no_budget?: boolean;
   areas_of_interest?: string[];
+  strict_area_match?: boolean;
+  min_roi?: number | null;
   requirements?: string | null;
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
   status?: string | null;
@@ -41,6 +43,12 @@ export interface Contact {
   last_contacted_at?: string | null;
   last_inquired_property_id?: string | null;
   property_interests?: string[] | null;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string | null;
 }
 
 export interface ContactNote {
