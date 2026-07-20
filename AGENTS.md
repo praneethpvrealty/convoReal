@@ -211,7 +211,7 @@ convoReal/
 │   │   ├── backfill-property-coords.ts
 │   │   └── ...
 │   ├── types/                    # Shared TypeScript definitions
-│   └── proxy.ts                  # Auth-redirect helper (unit tested; not wired as Next.js middleware)
+│   └── proxy.ts                  # Next.js 16 middleware (middleware.ts was renamed to proxy.ts in v16) — auth gating, runs before every matched route
 ├── go-ingress/                   # Standalone Go webhook ingress
 │   ├── main.go                   # HMAC verify + Redis enqueue
 │   ├── main_test.go              # Go tests
@@ -414,15 +414,20 @@ Plus:
 - Client-side: `useCan(action)` hook for conditional rendering.
 - Common helpers: `canManageMembers`, `canSendMessages`, `canViewOnly`.
 
-### 8.3 Auth gating (no Next.js middleware.ts)
+### 8.3 Auth gating (`src/proxy.ts` is the Next.js 16 middleware)
 
-There is **no `middleware.ts`** in the project. Auth gating is handled by:
+**Next.js 16 renamed `middleware.ts` to `proxy.ts`.** So `src/proxy.ts` **is** the project's active middleware — it exports a `proxy(request)` function plus a `config.matcher`, and Next.js runs it before every matched route (confirmed by the `ƒ Proxy (Middleware)` line in `next build` output). There is no separate `middleware.ts`; do not add one. Auth gating is handled by, in order:
 
-- Server-side checks in each API route.
+- `src/proxy.ts` (middleware) — redirects unauthenticated page requests to `/login` (or `/den/login`) and returns `401` early for auth-gated API routes.
+- Server-side checks in each API route (the real boundary — the middleware gate is an early-exit optimisation).
 - Client-side checks in layouts/components (e.g. `AuthProvider`, `DashboardShell`).
-- `src/proxy.ts` is an exported helper function that is unit tested, but it is **not wired as automatic Next.js middleware**.
 
-If you add a `middleware.ts`, keep the same rules as `proxy.ts` — especially the exemption for `/api/whatsapp/flows/endpoint/[accountId]` (Meta calls it without a browser session, using its own HMAC + RSA/AES crypto).
+**The middleware authenticates via cookies only.** It builds a cookie-based Supabase client, so it never sees the mobile app's `Authorization: Bearer <jwt>` transport. Two consequences to respect when editing `proxy.ts`:
+
+- **Bearer requests are let through the API gate** (a JWT-shaped `Authorization: Bearer` header skips the `/api/whatsapp/*` 401 gate) so the route handler — which *does* read the bearer via `createClient()` — can authenticate them. Removing this reintroduces the bug where every mobile WhatsApp call fails `Unauthorized` before the route runs. See `src/proxy.test.ts` for the regression tests.
+- **`/api/whatsapp/flows/endpoint/[accountId]` is exempt** — Meta calls it without a browser session, using its own HMAC + RSA/AES crypto (`webhook-signature.ts` / `flow-crypto.ts`).
+
+When adding a new auth-gated API path that mobile will call, either route it under a path the middleware already lets bearer tokens through, or make sure the bearer exemption covers it — otherwise the cookie-only gate will 401 mobile before the handler runs.
 
 ---
 
