@@ -28,6 +28,15 @@ and polish.
 
 ### Added
 
+- **Mobile: release scaffolding.** `mobile/eas.json` with
+  development / preview (internal APK) / production (Play .aab,
+  auto-increment) profiles; a brand launcher icon, adaptive icon,
+  splash and favicon in the aurora-glass palette (lime chat bubble
+  with a house cutout on the deep aurora green — generator in
+  `scratch/gen_app_icons.py`); and `mobile/RELEASE.md` documenting
+  the path to stores: EAS env setup, build/submit commands, App-Link
+  cert envs, store checklists, and OTA updates via `eas update`.
+
 - **Mobile: Connection check (More → Workspace).** A support screen
   that runs the probes separating the "Unauthorized" failure modes —
   which Supabase project the app points at, session and refresh-token
