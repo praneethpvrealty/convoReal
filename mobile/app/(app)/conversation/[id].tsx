@@ -26,6 +26,7 @@ import Animated, {
 
 import { ConvoRealLoader } from '@/components/loader';
 import { MediaImage } from '@/components/media-image';
+import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
 import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
@@ -162,7 +163,7 @@ export default function ConversationScreen() {
         />
       )}
 
-      <Composer conversationId={id} />
+      <Composer conversationId={id} contactName={conversation?.contact?.name || undefined} />
     </KeyboardAvoidingView>
   );
 }
@@ -367,12 +368,19 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-function Composer({ conversationId }: { conversationId: string }) {
+function Composer({
+  conversationId,
+  contactName,
+}: {
+  conversationId: string;
+  contactName?: string;
+}) {
   const { colors, dark, fonts: f } = useTheme();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
 
@@ -401,24 +409,32 @@ function Composer({ conversationId }: { conversationId: string }) {
     setSuggestions([]);
   }
 
-  async function send() {
-    const text = draft.trim();
-    if (!text || sending) return;
+  // Shared send path for the composer draft and the property shortlist
+  // sheet. Returns whether it went out so callers can clear/close.
+  async function sendText(text: string): Promise<boolean> {
+    const trimmed = text.trim();
+    if (!trimmed || sending) return false;
     setSending(true);
     setError(null);
-    haptic.send();
     try {
-      await sendTextMessage(conversationId, text);
-      setDraft('');
+      await sendTextMessage(conversationId, trimmed);
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+      return true;
     } catch (err) {
       haptic.warn();
       // Outside WhatsApp's 24h service window the API rejects free-form
       // text — surface its message rather than silently retrying.
       setError(err instanceof ApiError ? err.message : 'Failed to send — try again.');
+      return false;
     } finally {
       setSending(false);
     }
+  }
+
+  async function send() {
+    haptic.send();
+    const ok = await sendText(draft);
+    if (ok) setDraft('');
   }
 
   async function sendTemplate(
@@ -455,6 +471,13 @@ function Composer({ conversationId }: { conversationId: string }) {
         onClose={() => setTemplatesOpen(false)}
         onSend={sendTemplate}
         sending={sending}
+      />
+      <PropertyPickerSheet
+        visible={propertiesOpen}
+        onClose={() => setPropertiesOpen(false)}
+        onSend={sendText}
+        sending={sending}
+        contactName={contactName}
       />
       {suggestions.length > 0 ? (
         <View style={styles.suggestionRow}>
@@ -520,6 +543,18 @@ function Composer({ conversationId }: { conversationId: string }) {
           accessibilityLabel="Send a template message"
         >
           <Ionicons name="albums-outline" size={19} color={colors.primary} />
+        </Pressable>
+        <Pressable
+          style={[styles.templateButton, { backgroundColor: colors.surface }]}
+          onPress={() => {
+            haptic.tap();
+            setPropertiesOpen(true);
+          }}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Share properties into this chat"
+        >
+          <Ionicons name="home-outline" size={19} color={colors.primary} />
         </Pressable>
         <Pressable
           style={[styles.templateButton, { backgroundColor: colors.surface, opacity: suggesting ? 0.6 : 1 }]}
