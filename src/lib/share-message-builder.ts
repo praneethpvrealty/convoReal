@@ -198,6 +198,38 @@ export function buildPropertyShareMessage(input: ShareMessageInput): string {
     .join('\n\n');
 }
 
+/** Append `property_id` to the account's showcase base, preserving any
+ *  query params (`?ref=` when there's no subdomain). */
+export function propertyShowcaseUrl(baseUrl: string, property: Property): string {
+  const id = property.property_code || property.id;
+  const sep = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${sep}property_id=${encodeURIComponent(id)}`;
+}
+
+/**
+ * Post-approval "details reveal" for the lead's own inquiry: the same
+ * complete-detail body a 'complete' share carries, plus the exact
+ * address and the property's showcase link. Sent through the CRM
+ * inside the 24-hour window and via a wa.me deep link outside it.
+ */
+export function buildInquiryDetailsMessage(input: {
+  property: Property;
+  url: string;
+  currency?: string;
+}): string {
+  const { property, url } = input;
+  const currency = input.currency || 'INR';
+  const body = [completeBody(property, currency)];
+  if (property.location && locationLine(property) !== property.location) {
+    body.push(`📍 *Exact Address:* ${property.location}`);
+  }
+  return [
+    `Here are the complete details for the property "${property.title}" you inquired about:`,
+    body.join('\n'),
+    `📸 Photos & full details:\n${url}`,
+  ].join('\n\n');
+}
+
 // ── External share targets ──────────────────────────────────────
 // Deep links that open the target app with the message pre-filled.
 // The message already contains the property URL, so WhatsApp/SMS

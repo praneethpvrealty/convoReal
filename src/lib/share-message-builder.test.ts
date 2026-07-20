@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { Property } from '@/types';
 import {
+  buildInquiryDetailsMessage,
   buildPropertyShareMessage,
   buildShareTargets,
   formatShareAmount,
+  propertyShowcaseUrl,
 } from './share-message-builder';
 
 const baseProperty = {
@@ -133,6 +135,59 @@ describe('buildPropertyShareMessage', () => {
     expect(msg).not.toContain('📍');
     expect(msg).not.toContain('✨');
     expect(msg).not.toContain('🗺');
+  });
+});
+
+describe('propertyShowcaseUrl', () => {
+  it('appends property_id preserving existing query params', () => {
+    expect(propertyShowcaseUrl('https://www.convoreal.com/', baseProperty)).toBe(
+      'https://www.convoreal.com/?property_id=p1'
+    );
+    expect(propertyShowcaseUrl('https://www.convoreal.com/?ref=acc1', baseProperty)).toBe(
+      'https://www.convoreal.com/?ref=acc1&property_id=p1'
+    );
+  });
+
+  it('prefers the property code over the id', () => {
+    const withCode = { ...baseProperty, property_code: 'PROP-1006' } as Property;
+    expect(propertyShowcaseUrl('https://www.convoreal.com/', withCode)).toBe(
+      'https://www.convoreal.com/?property_id=PROP-1006'
+    );
+  });
+});
+
+describe('buildInquiryDetailsMessage', () => {
+  it('carries the complete details plus the showcase link', () => {
+    const msg = buildInquiryDetailsMessage({ property: baseProperty, url: URL });
+    expect(msg).toContain(
+      'Here are the complete details for the property "15000 sqft Residential Land in Koramangala" you inquired about:'
+    );
+    expect(msg).toContain('💰 *₹45 Cr*');
+    expect(msg).toContain('📍 Koramangala, Bangalore, Karnataka');
+    expect(msg).toContain('✨ Corner plot | Clear title | BBMP A-khata');
+    expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
+    expect(msg).toContain(`📸 Photos & full details:\n${URL}`);
+  });
+
+  it('adds the exact address when it differs from the locality line', () => {
+    const withAddress = {
+      ...baseProperty,
+      location: '80 Feet Road, Koramangala 4th Block',
+    } as Property;
+    const msg = buildInquiryDetailsMessage({ property: withAddress, url: URL });
+    expect(msg).toContain('📍 *Exact Address:* 80 Feet Road, Koramangala 4th Block');
+  });
+
+  it('omits the exact address line when it would duplicate the locality', () => {
+    const bare = {
+      id: 'p2',
+      title: 'Plot',
+      location: 'BTM Layout',
+      price: 5000000,
+    } as unknown as Property;
+    const msg = buildInquiryDetailsMessage({ property: bare, url: URL });
+    expect(msg).toContain('📍 BTM Layout');
+    expect(msg).not.toContain('*Exact Address:*');
   });
 });
 
