@@ -12,12 +12,6 @@
       "bundleIdentifier": "com.convoreal.app",
       "associatedDomains": [
         "applinks:convoreal.com",
-        "applinks:www.convoreal.com",
-        "applinks:convoreal.com",
-        "applinks:www.convoreal.com",
-        "applinks:convoreal.com",
-        "applinks:www.convoreal.com",
-        "applinks:convoreal.com",
         "applinks:www.convoreal.com"
       ],
       "infoPlist": {
@@ -32,24 +26,6 @@
       },
       "predictiveBackGestureEnabled": true,
       "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "convoreal.com"
-            },
-            {
-              "scheme": "https",
-              "host": "www.convoreal.com"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        },
         {
           "action": "VIEW",
           "autoVerify": true,
