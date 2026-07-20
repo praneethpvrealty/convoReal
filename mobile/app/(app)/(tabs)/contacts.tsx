@@ -847,6 +847,12 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
     setResult(
       `Imported ${ok} contact${ok === 1 ? '' : 's'}${failed ? ` · ${failed} failed (duplicates or limits)` : ''}`
     );
+    // Success: give the banner a beat to register, then collapse the
+    // sheet — the imported contacts are already in the list behind it.
+    // All-failed imports keep the sheet open so the message is read.
+    if (ok > 0) {
+      setTimeout(onClose, 1200);
+    }
   }
 
   return (
