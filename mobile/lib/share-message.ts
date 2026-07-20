@@ -205,6 +205,59 @@ export function buildPropertyShareMessage(input: ShareMessageInput): string {
     .join('\n\n');
 }
 
+/** Append `property_id` to the account's showcase base, preserving any
+ *  query params (getShowcaseUrl adds `?ref=` when there's no subdomain). */
+export function propertyShowcaseUrl(baseUrl: string, property: Property): string {
+  const id = property.property_code || property.id;
+  const sep = baseUrl.includes('?') ? '&' : '?';
+  return `${baseUrl}${sep}property_id=${encodeURIComponent(id)}`;
+}
+
+/**
+ * Multi-property "shortlist" message an agent sends into an existing
+ * WhatsApp chat — a greeting, each option as a numbered compact block
+ * (title · specs · price · showcase link), and a sign-off. Reuses the
+ * same spec/price formatting as the single-property share.
+ */
+export function buildShortlistMessage(input: {
+  properties: Property[];
+  baseUrl: string;
+  contactName?: string;
+  agentName?: string;
+  agentPhone?: string;
+  currency?: string;
+}): string {
+  const { properties, baseUrl, contactName, agentName, agentPhone } = input;
+  const currency = input.currency || 'INR';
+  const count = properties.length;
+  const greeting = contactName ? `Hi ${contactName},` : 'Hi,';
+  const header = `${greeting}\n\nBased on your requirements, here ${
+    count === 1 ? 'is a property' : `are ${count} options`
+  } I've shortlisted for you:`;
+
+  const blocks = properties.map((property, i) => {
+    const specs = specsLine(property);
+    return [
+      `*${i + 1}. ${property.title}*`,
+      specs || '',
+      `💰 *${priceLine(property, currency)}*`,
+      `📸 ${propertyShowcaseUrl(baseUrl, property)}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  });
+
+  const base = agentName ? `Best regards, ${agentName}` : 'Best regards';
+  const sign = agentPhone ? `${base}\n${agentPhone}` : base;
+
+  return [
+    header,
+    ...blocks,
+    "Let me know which ones you'd like to explore — happy to arrange a visit.",
+    sign,
+  ].join('\n\n');
+}
+
 export interface ShareTargetLinks {
   whatsapp: string;
   telegram: string;
