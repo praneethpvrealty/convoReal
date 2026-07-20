@@ -1,5 +1,5 @@
 import { BlurView } from 'expo-blur';
-import { Platform, StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { radius, useTheme } from '@/lib/theme';
 
@@ -47,7 +47,7 @@ export function GlassCard({
         <BlurView
           intensity={blurIntensity ?? (dark ? 18 : 16)}
           tint={dark ? 'dark' : 'light'}
-          blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
+          blurMethod="none"
           style={StyleSheet.absoluteFill}
         />
       ) : null}

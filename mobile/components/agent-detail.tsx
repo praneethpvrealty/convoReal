@@ -312,7 +312,7 @@ function PropertyPicker({
   const [q, setQ] = useState('');
 
   const { data: results, isLoading } = useQuery({
-    queryKey: ['property-picker', q],
+    queryKey: ['property-assign-search', q],
     enabled: visible,
     queryFn: async () => {
       let query = supabase
@@ -332,7 +332,9 @@ function PropertyPicker({
     },
   });
 
-  const filtered = (results ?? []).filter((p) => !excludeIds.includes(p.id));
+  const filtered = (Array.isArray(results) ? results : []).filter(
+    (p) => !excludeIds.includes(p.id)
+  );
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Assign property">

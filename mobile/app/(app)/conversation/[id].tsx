@@ -574,7 +574,7 @@ function Composer({
         <BlurView
           intensity={16}
           tint={dark ? 'dark' : 'light'}
-          blurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : 'none'}
+          blurMethod="none"
           style={StyleSheet.absoluteFill}
         />
         <Pressable
