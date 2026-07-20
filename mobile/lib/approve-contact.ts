@@ -9,13 +9,36 @@ import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import type { Contact } from '@/lib/types';
 
+/** The listing the lead inquired about, as far as approve/re-engage
+ *  need it: enough to show a card and to draft the details message. */
+export interface ApprovedProperty {
+  id: string;
+  title: string;
+  location: string | null;
+  google_map_link: string | null;
+}
+
 export interface ApproveOutcome {
   ok: boolean;
   /** Property details went out via WhatsApp free text. */
   sent: boolean;
+  /** The property the contact inquired about, when there is one — so
+   *  the celebration/thread can show and re-send it. */
+  property?: ApprovedProperty;
   /** Session >24h — send a template from this conversation instead. */
   reengageConversationId?: string;
   error?: string;
+}
+
+/** The exact WhatsApp text the web's sendPropertyDetailsHelper sends —
+ *  kept in one place so the approve flow and the conversation draft
+ *  (re-engagement) stay byte-identical. */
+export function buildPropertyDetailsMessage(property: {
+  title: string;
+  location: string | null;
+  google_map_link: string | null;
+}): string {
+  return `Here are the complete details for the property "${property.title}" you inquired about:\n\n📍 *Exact Address:* ${property.location || 'Not available'}\n🗺️ *Google Maps Link:* ${property.google_map_link || 'Not available'}`;
 }
 
 export async function approveAndSendDetails(contact: Contact): Promise<ApproveOutcome> {
@@ -31,14 +54,15 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     return { ok: true, sent: false };
   }
 
-  const { data: property } = await supabase
+  const { data: propertyRow } = await supabase
     .from('properties')
-    .select('title, location, google_map_link')
+    .select('id, title, location, google_map_link')
     .eq('id', contact.last_inquired_property_id)
     .maybeSingle();
-  if (!property) {
+  if (!propertyRow) {
     return { ok: true, sent: false };
   }
+  const property = propertyRow as ApprovedProperty;
 
   const { data: existingConv } = await supabase
     .from('conversations')
@@ -93,10 +117,10 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     }
   }
   if (!within24h) {
-    return { ok: true, sent: false, reengageConversationId: convId };
+    return { ok: true, sent: false, property, reengageConversationId: convId };
   }
 
-  const messageText = `Here are the complete details for the property "${property.title}" you inquired about:\n\n📍 *Exact Address:* ${property.location}\n🗺️ *Google Maps Link:* ${property.google_map_link || 'Not available'}`;
+  const messageText = buildPropertyDetailsMessage(property);
 
   try {
     await apiFetch('/api/whatsapp/send', {
@@ -114,10 +138,10 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
       msg.toLowerCase().includes('24 hours') ||
       msg.toLowerCase().includes('re-engagement');
     if (isReengagement) {
-      return { ok: true, sent: false, reengageConversationId: convId };
+      return { ok: true, sent: false, property, reengageConversationId: convId };
     }
-    return { ok: true, sent: false, error: msg };
+    return { ok: true, sent: false, property, error: msg };
   }
 
-  return { ok: true, sent: true };
+  return { ok: true, sent: true, property };
 }

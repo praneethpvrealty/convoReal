@@ -66,6 +66,8 @@ export interface ContactsPage {
   tags: Record<string, string[]>;
   /** property_id → property_code, for "Interested in" chips. */
   propertyCodes: Record<string, string>;
+  /** property_id → title, for the "Contacted about" line on review rows. */
+  propertyTitles: Record<string, string>;
 }
 
 /**
@@ -128,7 +130,7 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
         .select('contact_id')
         .eq('status', 'won');
       const ids = Array.from(new Set((wonDeals ?? []).map((d) => d.contact_id).filter(Boolean)));
-      if (ids.length === 0) return { contacts: [], tags: {}, propertyCodes: {} };
+      if (ids.length === 0) return { contacts: [], tags: {}, propertyCodes: {}, propertyTitles: {} };
       query = query.in('id', ids);
     } else if (segment === 'market_active') {
       query = query.or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
@@ -198,7 +200,7 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
           .limit(600)
       : Promise.resolve({ data: [] }),
     interestIds.length
-      ? supabase.from('properties').select('id, property_code').in('id', interestIds)
+      ? supabase.from('properties').select('id, property_code, title').in('id', interestIds)
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -209,11 +211,17 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
     (tags[row.contact_id] ??= []).push(tag.name);
   }
   const propertyCodes: Record<string, string> = {};
-  for (const row of (propRows.data ?? []) as { id: string; property_code: string | null }[]) {
+  const propertyTitles: Record<string, string> = {};
+  for (const row of (propRows.data ?? []) as {
+    id: string;
+    property_code: string | null;
+    title: string | null;
+  }[]) {
     if (row.property_code) propertyCodes[row.id] = row.property_code;
+    if (row.title) propertyTitles[row.id] = row.title;
   }
 
-  return { contacts, tags, propertyCodes };
+  return { contacts, tags, propertyCodes, propertyTitles };
 }
 
 /** Segment counts, same head-count technique as the web tabs. */
@@ -392,6 +400,11 @@ export default function ContactsScreen() {
               <ContactRow
                 contact={item}
                 dark={dark}
+                contactedProperty={
+                  item.status === 'pending_review' && item.last_inquired_property_id
+                    ? data?.propertyTitles?.[item.last_inquired_property_id]
+                    : undefined
+                }
                 onApprove={() => handleApprove(item)}
                 onPeekStart={() => setPeekId(item.id)}
                 onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
@@ -565,6 +578,7 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
 function ContactRow({
   contact,
   dark,
+  contactedProperty,
   onApprove,
   onPeekStart,
   onPeekEnd,
@@ -572,6 +586,7 @@ function ContactRow({
 }: {
   contact: Contact;
   dark: boolean;
+  contactedProperty?: string;
   onApprove: () => void;
   onPeekStart: () => void;
   onPeekEnd: () => void;
@@ -629,6 +644,14 @@ function ContactRow({
               <Text style={{ fontSize: 12.5, color: colors.textFaint }}>{contact.phone}</Text>
             ) : null}
           </View>
+          {contactedProperty ? (
+            <View style={styles.contactedRow}>
+              <Ionicons name="home" size={11} color={colors.warning} />
+              <Text style={{ flex: 1, fontSize: 11.5, color: colors.textMuted }} numberOfLines={1}>
+                Contacted about {contactedProperty}
+              </Text>
+            </View>
+          ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {contact.status === 'pending_review' ? (
@@ -904,6 +927,7 @@ const styles = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  contactedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   inlineCall: {
     width: 26,
     height: 26,
