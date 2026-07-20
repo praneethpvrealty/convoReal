@@ -21,29 +21,52 @@ import {
   AgentProperties,
   AgentRequirements,
   AgentSchedule,
+  ContactTags,
   InterestedProperties,
 } from '@/components/agent-detail';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
+import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
-import { formatBudgetRange } from '@/lib/format';
+import { formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
-import { CLASSIFICATIONS, type Classification, type Contact, type Property } from '@/lib/types';
+import {
+  CLASSIFICATIONS,
+  type AreaOfInterestGeo,
+  type Classification,
+  type Contact,
+  type Property,
+} from '@/lib/types';
+
+const PROPERTY_INTEREST_OPTIONS = [
+  'Vacant plot',
+  'Vacant building',
+  'Rental building with some ROI',
+  'Old building selling at site rate',
+];
+
+const BUYER_PREF_CLASSIFICATIONS: Classification[] = ['Buyer', 'Owner & Buyer', 'Agent'];
+
+function parseAmount(s: string): number | null {
+  const n = Number(s.replace(/[^\d.]/g, ''));
+  return s.trim() && !Number.isNaN(n) && n > 0 ? n : null;
+}
 
 async function fetchContact(id: string): Promise<Contact | null> {
   const { data, error } = await supabase
     .from('contacts')
     .select(
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
-        'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, requirements, ' +
-        'lead_temp, status, referrer, source, property_interests, last_inquired_property_id'
+        'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
+        'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
+        'property_interests, last_inquired_property_id'
     )
     .eq('id', id)
     .maybeSingle();
@@ -233,8 +256,21 @@ function ContactCard({ contact }: { contact: Contact }) {
           <InfoRow
             icon="location-outline"
             label="Areas of interest"
-            value={contact.areas_of_interest.join(', ')}
+            value={
+              contact.areas_of_interest.join(', ') +
+              (contact.strict_area_match ? ' · strict match' : '')
+            }
           />
+        ) : null}
+        {contact.property_interests?.length ? (
+          <InfoRow
+            icon="pricetags-outline"
+            label="Property interests"
+            value={contact.property_interests.join(', ')}
+          />
+        ) : null}
+        {contact.min_roi ? (
+          <InfoRow icon="trending-up-outline" label="Min ROI" value={`${contact.min_roi}%`} />
         ) : null}
         {contact.requirements ? (
           <InfoRow icon="list-outline" label="Requirements" value={contact.requirements} />
@@ -256,12 +292,16 @@ function ContactCard({ contact }: { contact: Contact }) {
         <>
           <AgentRequirements key={`req-${contact.id}`} agent={contact} />
           <AgentSchedule contact={contact} />
-          <AgentNotes contactId={contact.id} />
         </>
       ) : null}
+      <ContactTags contactId={contact.id} />
+      <AgentNotes
+        contactId={contact.id}
+        title={contact.classification === 'Agent' ? 'Agent notes' : 'Notes'}
+      />
 
       <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-        Budgets, areas and deeper profile fields are edited on the web for now.
+        Tap Edit above to update budget, areas and buyer preferences.
       </Text>
     </ScrollView>
     <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
@@ -429,8 +469,32 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
   const [classification, setClassification] = useState<Classification | undefined>(
     contact.classification
   );
+  const [minBudget, setMinBudget] = useState(
+    contact.min_budget != null ? String(contact.min_budget) : ''
+  );
+  const [maxBudget, setMaxBudget] = useState(
+    contact.max_budget != null ? String(contact.max_budget) : ''
+  );
+  const [noBudget, setNoBudget] = useState(Boolean(contact.no_budget));
+  const [areas, setAreas] = useState<string[]>(contact.areas_of_interest ?? []);
+  const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>(
+    contact.areas_of_interest_geo ?? []
+  );
+  const [strictArea, setStrictArea] = useState(Boolean(contact.strict_area_match));
+  const [propertyInterests, setPropertyInterests] = useState<string[]>(
+    contact.property_interests ?? []
+  );
+  const [minRoi, setMinRoi] = useState(contact.min_roi != null ? String(contact.min_roi) : '');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const showPrefs = Boolean(classification && BUYER_PREF_CLASSIFICATIONS.includes(classification));
+
+  function toggleInterest(option: string) {
+    setPropertyInterests((prev) =>
+      prev.includes(option) ? prev.filter((o) => o !== option) : [...prev, option]
+    );
+  }
 
   async function save() {
     const cleanEmail = email.trim();
@@ -449,6 +513,17 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         company: company.trim() || null,
         requirements: requirements.trim() || null,
         classification: classification ?? null,
+        min_budget: noBudget ? null : parseAmount(minBudget),
+        max_budget: noBudget ? null : parseAmount(maxBudget),
+        no_budget: noBudget,
+        areas_of_interest: areas,
+        // Drop coordinates for any area no longer in the list (web parity).
+        areas_of_interest_geo: areasGeo.filter((g) =>
+          areas.some((a) => a.trim().toLowerCase() === g.name.trim().toLowerCase())
+        ),
+        strict_area_match: strictArea,
+        property_interests: propertyInterests,
+        min_roi: parseAmount(minRoi),
       })
       .eq('id', contact.id);
     setSaving(false);
@@ -530,11 +605,150 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
           </View>
         </View>
 
+        {showPrefs ? (
+          <View style={{ gap: spacing.md, marginTop: spacing.sm }}>
+            <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Buyer preferences</Text>
+
+            <CheckRow label="No budget limit" checked={noBudget} onToggle={() => setNoBudget((v) => !v)} />
+            {!noBudget ? (
+              <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                <View style={{ flex: 1, gap: spacing.xs }}>
+                  <TextField
+                    label="Min budget (₹)"
+                    value={minBudget}
+                    onChangeText={setMinBudget}
+                    placeholder="e.g. 5000000"
+                    keyboardType="number-pad"
+                  />
+                  {parseAmount(minBudget) ? (
+                    <Text style={[styles.hint, { color: colors.textFaint }]}>
+                      {formatInr(parseAmount(minBudget))}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={{ flex: 1, gap: spacing.xs }}>
+                  <TextField
+                    label="Max budget (₹)"
+                    value={maxBudget}
+                    onChangeText={setMaxBudget}
+                    placeholder="e.g. 8000000"
+                    keyboardType="number-pad"
+                  />
+                  {parseAmount(maxBudget) ? (
+                    <Text style={[styles.hint, { color: colors.textFaint }]}>
+                      {formatInr(parseAmount(maxBudget))}
+                    </Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : null}
+
+            <View style={{ gap: spacing.sm }}>
+              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Areas of interest</Text>
+              <AreasOfInterestInput
+                areas={areas}
+                geo={areasGeo}
+                onChange={(nextAreas, nextGeo) => {
+                  setAreas(nextAreas);
+                  setAreasGeo(nextGeo);
+                }}
+              />
+            </View>
+
+            <CheckRow
+              label="Strict area match (within 5 km)"
+              checked={strictArea}
+              onToggle={() => setStrictArea((v) => !v)}
+            />
+
+            <View style={{ gap: spacing.sm }}>
+              <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>Property interests</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+                {PROPERTY_INTEREST_OPTIONS.map((option) => {
+                  const active = propertyInterests.includes(option);
+                  return (
+                    <Pressable
+                      key={option}
+                      onPress={() => toggleInterest(option)}
+                      accessibilityRole="button"
+                      accessibilityLabel={option}
+                      accessibilityState={{ selected: active }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 7,
+                        borderRadius: radius.full,
+                        backgroundColor: active ? colors.primarySoft : colors.surface,
+                        borderWidth: active ? 1.5 : StyleSheet.hairlineWidth,
+                        borderColor: active ? colors.primary : colors.border,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 13,
+                          fontFamily: f.semibold,
+                          color: active ? colors.primary : colors.textMuted,
+                        }}
+                      >
+                        {option}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <TextField
+              label="Expected min ROI (%)"
+              value={minRoi}
+              onChangeText={setMinRoi}
+              placeholder="e.g. 4"
+              keyboardType="decimal-pad"
+            />
+          </View>
+        ) : null}
+
         <View style={{ marginTop: spacing.sm }}>
           <PrimaryButton label="Save changes" busy={saving} onPress={save} />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function CheckRow({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <Pressable
+      onPress={onToggle}
+      accessibilityRole="checkbox"
+      accessibilityLabel={label}
+      accessibilityState={{ checked }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+    >
+      <View
+        style={{
+          width: 22,
+          height: 22,
+          borderRadius: radius.sm,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: checked ? colors.primary : colors.surface,
+          borderWidth: checked ? 0 : StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+        }}
+      >
+        {checked ? <Ionicons name="checkmark" size={15} color={colors.onPrimary} /> : null}
+      </View>
+      <Text style={{ fontSize: 14.5, fontFamily: f.medium, color: colors.text }}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -606,6 +820,7 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   fieldLabel: { fontSize: 12.5, fontFamily: fonts.bold, textTransform: 'uppercase', letterSpacing: 0.4 },
+  hint: { fontSize: 12, fontFamily: fonts.medium, paddingHorizontal: 2 },
   reviewBanner: {
     gap: spacing.md,
     borderRadius: radius.md,

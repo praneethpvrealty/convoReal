@@ -3,9 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
+import { BottomSheet } from '@/components/sheet';
+import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
@@ -14,7 +15,7 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
-import type { Appointment, Contact, ContactNote, Property } from '@/lib/types';
+import type { Appointment, Contact, ContactNote, Property, Tag as TagRow } from '@/lib/types';
 
 export async function openConversation(contactId: string) {
   const { data } = await supabase
@@ -134,23 +135,32 @@ export function AgentProperties({
 
 /**
  * Web contact detail's "Interested Properties": the listings a buyer
- * inquired about or was marked interested in (property_interests +
- * last_inquired_property_id), tap-through to the property screen.
+ * inquired about or was marked interested in. Source of truth is the
+ * contact_property_inquiries junction (web parity) plus the contact's
+ * last_inquired_property_id pointer. Assign via the picker, unlink per
+ * row — mirrors handleLinkInterestProperty/handleRemoveInquiredProperty.
  */
 export function InterestedProperties({ contact }: { contact: Contact }) {
   const { colors, fonts: f } = useTheme();
-  const ids = Array.from(
-    new Set(
-      [...(contact.property_interests ?? []), contact.last_inquired_property_id].filter(
-        (v): v is string => Boolean(v)
-      )
-    )
-  );
+  const [picking, setPicking] = useState(false);
 
   const { data: props } = useQuery({
-    queryKey: ['interested-properties', contact.id, ids.join(',')],
-    enabled: ids.length > 0,
+    queryKey: ['interested-properties', contact.id],
     queryFn: async () => {
+      const { data: inquiries, error: inqError } = await supabase
+        .from('contact_property_inquiries')
+        .select('property_id')
+        .eq('contact_id', contact.id);
+      if (inqError) throw inqError;
+      const ids = Array.from(
+        new Set(
+          [
+            ...(inquiries ?? []).map((i: { property_id: string }) => i.property_id),
+            contact.last_inquired_property_id,
+          ].filter((v): v is string => Boolean(v))
+        )
+      );
+      if (ids.length === 0) return [] as Property[];
       const { data, error } = await supabase
         .from('properties')
         .select('id, title, location, price, status, images, property_code')
@@ -160,52 +170,338 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
     },
   });
 
-  if (ids.length === 0) return null;
+  async function assign(propertyId: string) {
+    const { error: updateError } = await supabase
+      .from('contacts')
+      .update({ last_inquired_property_id: propertyId })
+      .eq('id', contact.id);
+    const { error: inqError } = await supabase
+      .from('contact_property_inquiries')
+      .upsert(
+        { contact_id: contact.id, property_id: propertyId, inquiry_source: 'Manual' },
+        { onConflict: 'contact_id,property_id' }
+      );
+    if (updateError || inqError) {
+      haptic.warn();
+      Alert.alert('Could not assign', friendlyError((updateError ?? inqError)!.message));
+      return;
+    }
+    haptic.success();
+    setPicking(false);
+    queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+    queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+  }
+
+  function confirmRemove(p: Property) {
+    Alert.alert('Remove interest?', `"${p.title}" will no longer be linked to this contact.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase
+            .from('contact_property_inquiries')
+            .delete()
+            .eq('contact_id', contact.id)
+            .eq('property_id', p.id);
+          if (error) {
+            haptic.warn();
+            Alert.alert('Could not remove', friendlyError(error.message));
+            return;
+          }
+          if (contact.last_inquired_property_id === p.id) {
+            await supabase
+              .from('contacts')
+              .update({ last_inquired_property_id: null })
+              .eq('id', contact.id);
+          }
+          haptic.success();
+          queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+          queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+          queryClient.invalidateQueries({ queryKey: ['contacts'] });
+        },
+      },
+    ]);
+  }
+
+  const excludeIds = (props ?? []).map((p) => p.id);
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <SectionLabel text={`Interested properties${props ? ` (${props.length})` : ''}`} />
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        {(props ?? []).map((p) => (
-          <Pressable
-            key={p.id}
-            onPress={() => router.push(`/(app)/property/${p.id}`)}
-            accessibilityRole="button"
-            accessibilityLabel={`Open property ${p.title}`}
-            style={[styles.propertyRow, { borderTopColor: colors.border }]}
-          >
-            {p.images?.[0] ? (
-              <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
-            ) : (
-              <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
-                <Ionicons name="business-outline" size={20} color={colors.textFaint} />
-              </View>
-            )}
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
-                {p.property_code ? `[${p.property_code}] ` : ''}
-                {p.title}
-              </Text>
-              <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
-                {[p.location, p.status].filter(Boolean).join(' · ')}
-              </Text>
-              <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
-                {formatInr(p.price)}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-          </Pressable>
-        ))}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <SectionLabel text={`Interested properties${props ? ` (${props.length})` : ''}`} />
+        <Pressable
+          onPress={() => setPicking(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Assign interest property"
+          style={[styles.scheduleButton, { backgroundColor: colors.primarySoft }]}
+        >
+          <Ionicons name="add" size={15} color={colors.primary} />
+          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>Assign</Text>
+        </Pressable>
       </View>
-      <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
-        Assigning interest properties is done on the web contact card.
-      </Text>
+      {props && props.length === 0 ? (
+        <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
+          No interest properties yet — tap Assign to link a listing this contact inquired about.
+        </Text>
+      ) : (
+        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+          {(props ?? []).map((p) => (
+            <Pressable
+              key={p.id}
+              onPress={() => router.push(`/(app)/property/${p.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Open property ${p.title}`}
+              style={[styles.propertyRow, { borderTopColor: colors.border }]}
+            >
+              {p.images?.[0] ? (
+                <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
+              ) : (
+                <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="business-outline" size={20} color={colors.textFaint} />
+                </View>
+              )}
+              <View style={{ flex: 1, gap: 2 }}>
+                <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+                  {p.property_code ? `[${p.property_code}] ` : ''}
+                  {p.title}
+                </Text>
+                <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+                  {[p.location, p.status].filter(Boolean).join(' · ')}
+                </Text>
+                <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+                  {formatInr(p.price)}
+                </Text>
+              </View>
+              <Pressable
+                hitSlop={10}
+                onPress={() => confirmRemove(p)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${p.title}`}
+              >
+                <Ionicons name="unlink-outline" size={18} color={colors.textMuted} />
+              </Pressable>
+            </Pressable>
+          ))}
+        </View>
+      )}
+      <PropertyPicker
+        visible={picking}
+        excludeIds={excludeIds}
+        onClose={() => setPicking(false)}
+        onSelect={assign}
+      />
     </View>
   );
 }
 
-/** Web Agents tab: contact_notes for this agent — add + newest-first list. */
-export function AgentNotes({ contactId }: { contactId: string }) {
+/** Search-and-pick modal over inventory, used to assign interest properties. */
+function PropertyPicker({
+  visible,
+  excludeIds,
+  onClose,
+  onSelect,
+}: {
+  visible: boolean;
+  excludeIds: string[];
+  onClose: () => void;
+  onSelect: (propertyId: string) => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const [q, setQ] = useState('');
+
+  const { data: results, isLoading } = useQuery({
+    queryKey: ['property-picker', q],
+    enabled: visible,
+    queryFn: async () => {
+      let query = supabase
+        .from('properties')
+        .select('id, title, location, price, status, images, property_code')
+        .order('created_at', { ascending: false })
+        .limit(25);
+      const term = q.trim();
+      if (term) {
+        query = query.or(
+          `title.ilike.%${term}%,property_code.ilike.%${term}%,location.ilike.%${term}%`
+        );
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as Property[];
+    },
+  });
+
+  const filtered = (results ?? []).filter((p) => !excludeIds.includes(p.id));
+
+  return (
+    <BottomSheet visible={visible} onClose={onClose} title="Assign property">
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+        <SearchBar
+          value={q}
+          onChangeText={setQ}
+          placeholder="Search by title, code or location"
+          autoFocus
+        />
+        <View style={{ maxHeight: 400 }}>
+          {isLoading ? (
+            <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
+              <ActivityIndicator color={colors.primary} />
+            </View>
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon="business-outline"
+              title="No properties found"
+              subtitle="Try a different search term."
+            />
+          ) : (
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ gap: spacing.sm }}
+            >
+              {filtered.map((p) => (
+                <Pressable
+                  key={p.id}
+                  onPress={() => onSelect(p.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Assign ${p.title}`}
+                  style={[styles.pickerRow, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+                >
+                  {p.images?.[0] ? (
+                    <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
+                  ) : (
+                    <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="business-outline" size={20} color={colors.textFaint} />
+                    </View>
+                  )}
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+                      {p.property_code ? `[${p.property_code}] ` : ''}
+                      {p.title}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+                      {[p.location, p.status].filter(Boolean).join(' · ')}
+                    </Text>
+                    <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+                      {formatInr(p.price)}
+                    </Text>
+                  </View>
+                  <Ionicons name="add-circle" size={22} color={colors.primary} />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      </View>
+    </BottomSheet>
+  );
+}
+
+/**
+ * Contact tags: toggle the account's tags on/off for this contact via
+ * the contact_tags join — web parity with the detail view's Tags tab.
+ */
+export function ContactTags({ contactId }: { contactId: string }) {
+  const { colors, fonts: f } = useTheme();
+
+  const { data } = useQuery({
+    queryKey: ['contact-tags', contactId],
+    queryFn: async () => {
+      const [allRes, linkedRes] = await Promise.all([
+        supabase.from('tags').select('id, name, color').order('name'),
+        supabase.from('contact_tags').select('tag_id').eq('contact_id', contactId),
+      ]);
+      if (allRes.error) throw allRes.error;
+      if (linkedRes.error) throw linkedRes.error;
+      return {
+        all: (allRes.data ?? []) as TagRow[],
+        linked: new Set((linkedRes.data ?? []).map((r: { tag_id: string }) => r.tag_id)),
+      };
+    },
+  });
+
+  async function toggle(tagId: string, selected: boolean) {
+    if (selected) {
+      const { error } = await supabase
+        .from('contact_tags')
+        .delete()
+        .eq('contact_id', contactId)
+        .eq('tag_id', tagId);
+      if (error) {
+        haptic.warn();
+        Alert.alert('Could not update tags', friendlyError(error.message));
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from('contact_tags')
+        .insert({ contact_id: contactId, tag_id: tagId });
+      if (error) {
+        haptic.warn();
+        Alert.alert('Could not update tags', friendlyError(error.message));
+        return;
+      }
+    }
+    haptic.tap();
+    queryClient.invalidateQueries({ queryKey: ['contact-tags', contactId] });
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+  }
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <SectionLabel text="Tags" />
+      {!data ? null : data.all.length === 0 ? (
+        <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
+          No tags created yet — add tags from the web app, then apply them here.
+        </Text>
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          {data.all.map((t) => {
+            const selected = data.linked.has(t.id);
+            return (
+              <Pressable
+                key={t.id}
+                onPress={() => toggle(t.id, selected)}
+                accessibilityRole="button"
+                accessibilityLabel={`${selected ? 'Remove' : 'Add'} tag ${t.name}`}
+                accessibilityState={{ selected }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  borderRadius: radius.full,
+                  backgroundColor: selected ? colors.primarySoft : colors.surface,
+                  borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth,
+                  borderColor: selected ? colors.primary : colors.border,
+                }}
+              >
+                {t.color ? (
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.color }} />
+                ) : null}
+                <Text
+                  style={{
+                    fontSize: 13,
+                    fontFamily: f.semibold,
+                    color: selected ? colors.primary : colors.textMuted,
+                  }}
+                >
+                  {t.name}
+                </Text>
+                {selected ? <Ionicons name="checkmark" size={13} color={colors.primary} /> : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
+/** Web Agents tab: contact_notes for this contact — add + newest-first list. */
+export function AgentNotes({ contactId, title = 'Notes' }: { contactId: string; title?: string }) {
   const { colors } = useTheme();
   const session = useAuthStore((s) => s.session);
   const accountId = useAuthStore((s) => s.profile?.account_id);
@@ -248,7 +544,7 @@ export function AgentNotes({ contactId }: { contactId: string }) {
 
   return (
     <View style={{ gap: spacing.sm }}>
-      <SectionLabel text="Agent notes" />
+      <SectionLabel text={title} />
       <TextField
         placeholder="Add brief details, todo points, tasks…"
         value={text}
@@ -494,7 +790,7 @@ export function AgentDetail({ agent }: { agent: Contact }) {
       <AgentProperties contactId={agent.id} />
       <AgentRequirements key={`req-${agent.id}`} agent={agent} />
       <AgentSchedule contact={agent} />
-      <AgentNotes contactId={agent.id} />
+      <AgentNotes contactId={agent.id} title="Agent notes" />
     </View>
   );
 }
@@ -514,6 +810,14 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   propertyThumb: { width: 52, height: 52, borderRadius: radius.sm },
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    padding: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+  },
   noteCard: {
     gap: 6,
     borderRadius: radius.md,
