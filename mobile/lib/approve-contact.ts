@@ -1,22 +1,16 @@
 // Port of the web's approveContact + sendPropertyDetailsHelper
 // (contact-detail-view.tsx): flip the contact active, then send the
-// inquired property's details through the CRM WhatsApp number. Meta
-// only allows free text inside the 24-hour customer window — outside
-// it the caller is pointed at the conversation's template picker.
+// inquired property's complete details + showcase link through the
+// CRM WhatsApp number. Meta only allows free text inside the 24-hour
+// customer window — outside it the caller gets the drafted message
+// (wa.me deep link) and the conversation for a template.
 
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message';
 import { supabase } from '@/lib/supabase';
-import type { Contact } from '@/lib/types';
-
-/** The listing the lead inquired about, as far as approve/re-engage
- *  need it: enough to show a card and to draft the details message. */
-export interface ApprovedProperty {
-  id: string;
-  title: string;
-  location: string | null;
-  google_map_link: string | null;
-}
+import { getShowcaseUrl } from '@/lib/welcome-message';
+import type { Contact, Property } from '@/lib/types';
 
 export interface ApproveOutcome {
   ok: boolean;
@@ -24,21 +18,35 @@ export interface ApproveOutcome {
   sent: boolean;
   /** The property the contact inquired about, when there is one — so
    *  the celebration/thread can show and re-send it. */
-  property?: ApprovedProperty;
+  property?: Property;
+  /** The drafted details message (complete specs + showcase link) —
+   *  what went out on send, or what wa.me should carry on re-engage. */
+  detailsMessage?: string;
   /** Session >24h — send a template from this conversation instead. */
   reengageConversationId?: string;
   error?: string;
 }
 
-/** The exact WhatsApp text the web's sendPropertyDetailsHelper sends —
- *  kept in one place so the approve flow and the conversation draft
- *  (re-engagement) stay byte-identical. */
-export function buildPropertyDetailsMessage(property: {
-  title: string;
-  location: string | null;
-  google_map_link: string | null;
-}): string {
-  return `Here are the complete details for the property "${property.title}" you inquired about:\n\n📍 *Exact Address:* ${property.location || 'Not available'}\n🗺️ *Google Maps Link:* ${property.google_map_link || 'Not available'}`;
+/** Complete details + showcase link for a property id — the message
+ *  the approve flow sends and the conversation seed draft pre-fills. */
+export async function buildInquiryDraft(
+  propertyId: string
+): Promise<{ property: Property; message: string } | null> {
+  const { data } = await supabase
+    .from('properties')
+    .select('*')
+    .eq('id', propertyId)
+    .maybeSingle();
+  if (!data) return null;
+  const property = data as Property;
+  const base = await getShowcaseUrl();
+  return {
+    property,
+    message: buildInquiryDetailsMessage({
+      property,
+      url: propertyShowcaseUrl(base, property),
+    }),
+  };
 }
 
 export async function approveAndSendDetails(contact: Contact): Promise<ApproveOutcome> {
@@ -54,15 +62,11 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     return { ok: true, sent: false };
   }
 
-  const { data: propertyRow } = await supabase
-    .from('properties')
-    .select('id, title, location, google_map_link')
-    .eq('id', contact.last_inquired_property_id)
-    .maybeSingle();
-  if (!propertyRow) {
+  const draft = await buildInquiryDraft(contact.last_inquired_property_id);
+  if (!draft) {
     return { ok: true, sent: false };
   }
-  const property = propertyRow as ApprovedProperty;
+  const { property, message: detailsMessage } = draft;
 
   const { data: existingConv } = await supabase
     .from('conversations')
@@ -117,10 +121,8 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     }
   }
   if (!within24h) {
-    return { ok: true, sent: false, property, reengageConversationId: convId };
+    return { ok: true, sent: false, property, detailsMessage, reengageConversationId: convId };
   }
-
-  const messageText = buildPropertyDetailsMessage(property);
 
   try {
     await apiFetch('/api/whatsapp/send', {
@@ -128,7 +130,7 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
       body: JSON.stringify({
         conversation_id: convId,
         message_type: 'text',
-        content_text: messageText,
+        content_text: detailsMessage,
       }),
     });
   } catch (e) {
@@ -138,10 +140,10 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
       msg.toLowerCase().includes('24 hours') ||
       msg.toLowerCase().includes('re-engagement');
     if (isReengagement) {
-      return { ok: true, sent: false, property, reengageConversationId: convId };
+      return { ok: true, sent: false, property, detailsMessage, reengageConversationId: convId };
     }
-    return { ok: true, sent: false, property, error: msg };
+    return { ok: true, sent: false, property, detailsMessage, error: msg };
   }
 
-  return { ok: true, sent: true, property };
+  return { ok: true, sent: true, property, detailsMessage };
 }

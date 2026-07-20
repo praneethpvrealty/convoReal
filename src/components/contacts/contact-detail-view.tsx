@@ -57,6 +57,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { getCurrencyIcon } from '@/lib/currency-utils';
+import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message-builder';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { BRANDING } from '@/config/branding';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
@@ -868,6 +869,27 @@ export function ContactDetailView({
     }, 1500);
   }
 
+  // Resolve the account's public showcase base URL (subdomain-aware,
+  // `?ref=` fallback) — shared by the welcome link and the approval
+  // details message.
+  const getShowcaseBaseUrl = (): string => {
+    if (typeof window === 'undefined') return '';
+    const baseDomain = window.location.host;
+    const parts = baseDomain.split('.');
+    let hostDomain = baseDomain;
+    if (parts.length > 2 && !baseDomain.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)) {
+      hostDomain = parts.slice(1).join('.');
+    }
+    const targetDomain = showcaseSettings?.subdomain
+      ? `${showcaseSettings.subdomain}.${hostDomain}`
+      : baseDomain;
+    const url = new URL(`${window.location.protocol}//${targetDomain}`);
+    if (!showcaseSettings?.subdomain && accountId) {
+      url.searchParams.set('ref', accountId);
+    }
+    return url.toString();
+  };
+
   const getPrefilledWhatsAppLink = () => {
     if (!contact) return '';
     const cleanPhone = contact.phone.replace(/\D/g, '');
@@ -875,26 +897,9 @@ export function ContactDetailView({
 
     const agentName = profile?.full_name || '';
     const displayName = contact.name || 'there';
-    
-    // Resolve showcase URL
-    let finalShowcaseUrl = '';
-    let showcaseUrlObj: URL | null = null;
-    if (typeof window !== 'undefined') {
-      const baseDomain = window.location.host;
-      const parts = baseDomain.split('.');
-      let hostDomain = baseDomain;
-      if (parts.length > 2 && !baseDomain.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)) {
-        hostDomain = parts.slice(1).join('.');
-      }
-      const targetDomain = showcaseSettings?.subdomain 
-        ? `${showcaseSettings.subdomain}.${hostDomain}` 
-        : baseDomain;
-      showcaseUrlObj = new URL(`${window.location.protocol}//${targetDomain}`);
-      if (!showcaseSettings?.subdomain && accountId) {
-        showcaseUrlObj.searchParams.set('ref', accountId);
-      }
-      finalShowcaseUrl = showcaseUrlObj.toString();
-    }
+
+    const finalShowcaseUrl = getShowcaseBaseUrl();
+    const showcaseUrlObj: URL | null = finalShowcaseUrl ? new URL(finalShowcaseUrl) : null;
 
     let linkSection = '';
     if (showcaseUrlObj) {
@@ -1097,7 +1102,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       throw new Error('WhatsApp session has expired (over 24 hours). Re-engagement message must be sent via template.');
     }
 
-    const messageText = `Here are the complete details for the property "${inquiredProperty.title}" you inquired about:\n\n📍 *Exact Address:* ${inquiredProperty.location}\n🗺️ *Google Maps Link:* ${inquiredProperty.google_map_link || 'Not available'}`;
+    const showcaseBase = getShowcaseBaseUrl();
+    const messageText = buildInquiryDetailsMessage({
+      property: inquiredProperty,
+      url: showcaseBase ? propertyShowcaseUrl(showcaseBase, inquiredProperty) : '',
+      currency: showcaseSettings?.currency,
+    });
 
     const res = await fetch('/api/whatsapp/send', {
       method: 'POST',

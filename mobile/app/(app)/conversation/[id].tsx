@@ -30,7 +30,7 @@ import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
 import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
-import { buildPropertyDetailsMessage } from '@/lib/approve-contact';
+import { buildInquiryDraft } from '@/lib/approve-contact';
 import { haptic } from '@/lib/haptics';
 import type { MessageTemplate } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
@@ -84,24 +84,12 @@ export default function ConversationScreen() {
     enabled: Boolean(id),
   });
 
-  const { data: draftProperty } = useQuery({
+  const { data: draftInquiry } = useQuery({
     queryKey: ['draft-property', draftPropertyId],
     enabled: Boolean(draftPropertyId),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('properties')
-        .select('id, title, location, google_map_link')
-        .eq('id', draftPropertyId)
-        .maybeSingle();
-      if (error) throw error;
-      return data as {
-        title: string;
-        location: string | null;
-        google_map_link: string | null;
-      } | null;
-    },
+    queryFn: () => buildInquiryDraft(draftPropertyId!),
   });
-  const seedDraft = draftProperty ? buildPropertyDetailsMessage(draftProperty) : undefined;
+  const seedDraft = draftInquiry?.message;
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
     queryFn: () => fetchMessages(id),

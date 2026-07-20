@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet';
@@ -403,9 +403,16 @@ function PropertyPicker({
 /**
  * Contact tags: toggle the account's tags on/off for this contact via
  * the contact_tags join — web parity with the detail view's Tags tab.
+ * Accounts accumulate dozens of tags, so the cloud collapses to two
+ * rows with a "more" chip; rows are measured (chips wrap by width),
+ * not counted.
  */
 export function ContactTags({ contactId }: { contactId: string }) {
   const { colors, fonts: f } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const [chipH, setChipH] = useState(0);
+  const [contentH, setContentH] = useState(0);
+  const chipYs = useRef<Record<string, number>>({});
 
   const { data } = useQuery({
     queryKey: ['contact-tags', contactId],
@@ -450,6 +457,15 @@ export function ContactTags({ contactId }: { contactId: string }) {
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
   }
 
+  // Two measured rows; the estimate only covers the frame before the
+  // first chip's onLayout lands, so the collapsed clamp never flashes
+  // the full cloud.
+  const collapsedH = (chipH || 33) * 2 + spacing.sm;
+  const overflows = contentH > collapsedH + 1;
+  const hiddenCount = overflows
+    ? Object.values(chipYs.current).filter((y) => y >= collapsedH - (chipH || 33) / 2).length
+    : 0;
+
   return (
     <View style={{ gap: spacing.sm }}>
       <SectionLabel text="Tags" />
@@ -458,45 +474,88 @@ export function ContactTags({ contactId }: { contactId: string }) {
           No tags created yet — add tags from the web app, then apply them here.
         </Text>
       ) : (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-          {data.all.map((t) => {
-            const selected = data.linked.has(t.id);
-            return (
-              <Pressable
-                key={t.id}
-                onPress={() => toggle(t.id, selected)}
-                accessibilityRole="button"
-                accessibilityLabel={`${selected ? 'Remove' : 'Add'} tag ${t.name}`}
-                accessibilityState={{ selected }}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 5,
-                  paddingHorizontal: 12,
-                  paddingVertical: 7,
-                  borderRadius: radius.full,
-                  backgroundColor: selected ? colors.primarySoft : colors.surface,
-                  borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth,
-                  borderColor: selected ? colors.primary : colors.border,
-                }}
-              >
-                {t.color ? (
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.color }} />
-                ) : null}
-                <Text
-                  style={{
-                    fontSize: 13,
-                    fontFamily: f.semibold,
-                    color: selected ? colors.primary : colors.textMuted,
-                  }}
-                >
-                  {t.name}
-                </Text>
-                {selected ? <Ionicons name="checkmark" size={13} color={colors.primary} /> : null}
-              </Pressable>
-            );
-          })}
-        </View>
+        <>
+          <View style={!expanded ? { maxHeight: collapsedH, overflow: 'hidden' } : undefined}>
+            <View
+              style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+              onLayout={(e) => setContentH(e.nativeEvent.layout.height)}
+            >
+              {data.all.map((t, i) => {
+                const selected = data.linked.has(t.id);
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => toggle(t.id, selected)}
+                    onLayout={(e) => {
+                      chipYs.current[t.id] = e.nativeEvent.layout.y;
+                      if (i === 0) setChipH(e.nativeEvent.layout.height);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${selected ? 'Remove' : 'Add'} tag ${t.name}`}
+                    accessibilityState={{ selected }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 5,
+                      paddingHorizontal: 12,
+                      paddingVertical: 7,
+                      borderRadius: radius.full,
+                      backgroundColor: selected ? colors.primarySoft : colors.surface,
+                      borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth,
+                      borderColor: selected ? colors.primary : colors.border,
+                    }}
+                  >
+                    {t.color ? (
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.color }} />
+                    ) : null}
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontFamily: f.semibold,
+                        color: selected ? colors.primary : colors.textMuted,
+                      }}
+                    >
+                      {t.name}
+                    </Text>
+                    {selected ? <Ionicons name="checkmark" size={13} color={colors.primary} /> : null}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          {overflows || expanded ? (
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                setExpanded(!expanded);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={expanded ? 'Show fewer tags' : 'Show all tags'}
+              accessibilityState={{ expanded }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                alignSelf: 'flex-start',
+                gap: 4,
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+                borderRadius: radius.full,
+                borderWidth: StyleSheet.hairlineWidth,
+                borderColor: colors.border,
+                backgroundColor: colors.surface,
+              }}
+            >
+              <Ionicons
+                name={expanded ? 'chevron-up' : 'chevron-down'}
+                size={13}
+                color={colors.primary}
+              />
+              <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.primary }}>
+                {expanded ? 'Show less' : hiddenCount > 0 ? `${hiddenCount} more` : 'More'}
+              </Text>
+            </Pressable>
+          ) : null}
+        </>
       )}
     </View>
   );

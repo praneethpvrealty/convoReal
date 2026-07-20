@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 
 import { SuccessSheet, type SuccessAction } from '@/components/success-sheet';
-import { buildPropertyDetailsMessage, type ApproveOutcome } from '@/lib/approve-contact';
+import { type ApproveOutcome } from '@/lib/approve-contact';
 import { openContactChat } from '@/lib/open-chat';
 import type { Contact } from '@/lib/types';
 
@@ -55,9 +55,10 @@ export function ApproveCelebration({
   const actions: SuccessAction[] = reengageId
     ? [
         // Guaranteed delivery: the native deep link opens WhatsApp to
-        // the lead with the details pre-filled — no 24h window limit
-        // (the CRM free-text send would be rejected here).
-        ...(contact && property
+        // the lead with the complete details + showcase link pre-filled
+        // — no 24h window limit (the CRM free-text send would be
+        // rejected here).
+        ...(contact && outcome?.detailsMessage
           ? [
               {
                 icon: 'logo-whatsapp' as const,
@@ -65,7 +66,7 @@ export function ApproveCelebration({
                 onPress: () => {
                   onClose();
                   const phone = contact.phone.replace(/\D/g, '');
-                  const text = encodeURIComponent(buildPropertyDetailsMessage(property));
+                  const text = encodeURIComponent(outcome.detailsMessage!);
                   Linking.openURL(`https://wa.me/${phone}?text=${text}`);
                 },
               },

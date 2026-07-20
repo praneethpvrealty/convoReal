@@ -214,6 +214,30 @@ export function propertyShowcaseUrl(baseUrl: string, property: Property): string
 }
 
 /**
+ * Post-approval "details reveal" for the lead's own inquiry: the same
+ * complete-detail body a 'complete' share carries, plus the exact
+ * address and the property's showcase link. Sent through the CRM
+ * inside the 24-hour window and via a wa.me deep link outside it.
+ */
+export function buildInquiryDetailsMessage(input: {
+  property: Property;
+  url: string;
+  currency?: string;
+}): string {
+  const { property, url } = input;
+  const currency = input.currency || 'INR';
+  const body = [completeBody(property, currency)];
+  if (property.location && locationLine(property) !== property.location) {
+    body.push(`📍 *Exact Address:* ${property.location}`);
+  }
+  return [
+    `Here are the complete details for the property "${property.title}" you inquired about:`,
+    body.join('\n'),
+    `📸 Photos & full details:\n${url}`,
+  ].join('\n\n');
+}
+
+/**
  * Multi-property "shortlist" message an agent sends into an existing
  * WhatsApp chat — a greeting, each option as a numbered compact block
  * (title · specs · price · showcase link), and a sign-off. Reuses the
