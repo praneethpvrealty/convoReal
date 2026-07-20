@@ -1,8 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, useTheme } from '@/lib/theme';
+
+/** Track the on-screen keyboard height so a bottom-anchored sheet can
+ *  lift its content above it (RN Modals don't resize for the keyboard,
+ *  so an input at the sheet's foot would otherwise sit behind it). */
+function useKeyboardHeight(active: boolean): number {
+  const [height, setHeight] = useState(0);
+  useEffect(() => {
+    if (!active) {
+      setHeight(0);
+      return;
+    }
+    const show = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hide = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSub = Keyboard.addListener(show, (e) => setHeight(e.endCoordinates?.height ?? 0));
+    const hideSub = Keyboard.addListener(hide, () => setHeight(0));
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [active]);
+  return height;
+}
 
 /**
  * The one bottom sheet: themed scrim, glass border, drag handle,
@@ -28,6 +51,7 @@ export function BottomSheet({
 }) {
   const { colors, dark, type } = useTheme();
   const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight(visible);
   // Near-opaque on purpose: the sheet floats over arbitrary screen
   // content, and a translucent glass fill lets the list underneath
   // read straight through the sheet (same rule as dropdowns and
@@ -42,7 +66,7 @@ export function BottomSheet({
       statusBarTranslucent
     >
       <Pressable
-        style={[styles.backdrop, { backgroundColor: colors.backdrop }]}
+        style={[styles.backdrop, { backgroundColor: colors.backdrop, paddingBottom: keyboardHeight }]}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close"
@@ -55,7 +79,10 @@ export function BottomSheet({
             {
               backgroundColor: sheetFill,
               borderColor: colors.glassBorder,
-              paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.md,
+              paddingBottom:
+                keyboardHeight > 0
+                  ? spacing.md
+                  : Math.max(insets.bottom, spacing.md) + spacing.md,
             },
             contentStyle,
           ]}

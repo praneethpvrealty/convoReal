@@ -81,8 +81,8 @@ export const lightColors: ThemeColors = {
   warning: '#B07E1F',
   warningSoft: 'rgba(176,126,31,0.12)',
   readTick: '#53bdeb',
-  tabBar: 'rgba(255,255,255,0.6)',
-  tabBarGlass: 'rgba(255,255,255,0.6)',
+  tabBar: 'rgba(255,255,255,0.92)',
+  tabBarGlass: 'rgba(255,255,255,0.92)',
 };
 
 /** Dark — Option 4 "Liquid Glass". */
@@ -115,8 +115,8 @@ export const darkColors: ThemeColors = {
   warning: '#FFC24B',
   warningSoft: 'rgba(255,194,75,0.16)',
   readTick: '#53bdeb',
-  tabBar: 'rgba(20,40,32,0.45)',
-  tabBarGlass: 'rgba(20,40,32,0.45)',
+  tabBar: 'rgba(16,33,25,0.88)',
+  tabBarGlass: 'rgba(16,33,25,0.88)',
 };
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
