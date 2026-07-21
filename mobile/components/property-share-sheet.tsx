@@ -4,7 +4,6 @@ import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -14,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, type DialogAction } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet } from '@/components/sheet';
 import { FilterChip, SectionLabel } from '@/components/ui';
@@ -25,6 +25,7 @@ import {
   sendPropertyViaCrm,
 } from '@/lib/property-share-actions';
 import {
+  addRecipientGreeting,
   buildPropertyShareMessage,
   buildShareTargets,
   type ShareAudience,
@@ -70,6 +71,7 @@ export function PropertyShareSheet({
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
   const [picker, setPicker] = useState<'external' | 'crm' | null>(null);
   const [crmSending, setCrmSending] = useState(false);
+  const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
 
   // Client link opens the showcase (inquiry form); co-broker gets the
   // clean view-only page — same URLs the web dialog builds.
@@ -115,7 +117,8 @@ export function PropertyShareSheet({
     haptic.send();
     void logExternalShare(contact, property);
     const phone = contact.phone.replace(/\D/g, '');
-    Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
+    const text = addRecipientGreeting(message, contact.name);
+    Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`);
     onClose();
   }
 
@@ -130,7 +133,7 @@ export function PropertyShareSheet({
   async function sendViaConvoReal(contact: Contact) {
     setCrmSending(true);
     haptic.send();
-    const outcome = await sendPropertyViaCrm(contact, message);
+    const outcome = await sendPropertyViaCrm(contact, addRecipientGreeting(message, contact.name));
     setCrmSending(false);
     setPicker(null);
     if (outcome.sent) {
@@ -140,16 +143,32 @@ export function PropertyShareSheet({
       return;
     }
     if (outcome.reengage && outcome.conversationId) {
-      onClose();
-      router.push(`/(app)/conversation/${outcome.conversationId}`);
-      Alert.alert(
-        'Outside the 24-hour window',
-        `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so free text can’t be delivered. Send an approved template from the conversation thread.`
-      );
+      haptic.warn();
+      const convId = outcome.conversationId;
+      setDialog({
+        title: 'Outside the 24-hour window',
+        message: `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so WhatsApp only allows an approved template. Open the chat to send one.`,
+        actions: [
+          { label: 'Not now', variant: 'muted', onPress: () => setDialog(null) },
+          {
+            label: 'Open chat',
+            variant: 'primary',
+            onPress: () => {
+              setDialog(null);
+              onClose();
+              router.push(`/(app)/conversation/${convId}`);
+            },
+          },
+        ],
+      });
       return;
     }
     haptic.warn();
-    Alert.alert('Could not send', outcome.error ?? 'Please try again.');
+    setDialog({
+      title: 'Could not send',
+      message: outcome.error ?? 'Please try again.',
+      actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+    });
   }
 
   const channels = [
@@ -164,7 +183,7 @@ export function PropertyShareSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Share property">
       <ScrollView
-        style={{ maxHeight: '100%' }}
+        style={{ flexShrink: 1 }}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm }}
         keyboardShouldPersistTaps="handled"
       >
@@ -300,6 +319,13 @@ export function PropertyShareSheet({
         hint="Choose who receives this listing from your business number."
         busy={crmSending}
         busyLabel="Sending from ConvoReal…"
+      />
+      <AppDialog
+        visible={dialog !== null}
+        onClose={() => setDialog(null)}
+        title={dialog?.title ?? ''}
+        message={dialog?.message}
+        actions={dialog?.actions ?? []}
       />
     </BottomSheet>
   );

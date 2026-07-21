@@ -29,11 +29,18 @@ function renderBody(body: string, values: string[]): string {
   return body.replace(/\{\{(\d+)\}\}/g, (_, n) => values[Number(n) - 1] || `{{${n}}}`);
 }
 
+type TemplateRow = MessageTemplate & {
+  header_media_url?: string | null;
+  header_handle?: string | null;
+};
+
 /**
  * Approved-template picker + variable form — the way to message
  * customers outside WhatsApp's 24-hour service window. Mirrors the
  * web picker's source query (message_templates, status APPROVED).
- * v1 supports text-only headers; media-header templates stay on web.
+ * Media-header templates are included when they carry a stored sample
+ * image/handle — the server rebuilds the header component from it, so
+ * they send without a mobile-side upload.
  */
 export function TemplatePicker({
   visible,
@@ -56,13 +63,19 @@ export function TemplatePicker({
     queryFn: async () => {
       const { data, error } = await supabase
         .from('message_templates')
-        .select('id, name, language, category, header_type, header_content, body_text, footer_text, status')
+        .select(
+          'id, name, language, category, header_type, header_content, header_media_url, header_handle, body_text, footer_text, status'
+        )
         .eq('status', 'APPROVED')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      // Media-header templates need upload handles — not supported in v1.
-      return ((data ?? []) as MessageTemplate[]).filter(
-        (t) => !t.header_type || t.header_type === 'text'
+      // Show text/no-header templates, plus media-header ones that carry
+      // a stored sample the server can rebuild the header from.
+      return ((data ?? []) as TemplateRow[]).filter(
+        (t) =>
+          !t.header_type ||
+          t.header_type === 'text' ||
+          Boolean(t.header_media_url || t.header_handle)
       );
     },
   });
