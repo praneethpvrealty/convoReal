@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
               pref_budget_max: prefs.budget_max,
               pref_areas: prefs.areas,
               pref_excluded_areas: prefs.excluded_areas,
+              pref_projects: prefs.projects,
               pref_suggested_tags: prefs.suggested_tags,
               pref_min_roi: prefs.min_roi,
               pref_listing_types: prefs.listing_types,
