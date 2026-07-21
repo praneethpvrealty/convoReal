@@ -630,8 +630,14 @@
           fillBtn.disabled = false;
         }
       });
+      const clearBtn = el('button',
+        'align-self:center;background:#1e293b;border:none;border-radius:8px;color:#cbd5e1;font-weight:600;padding:8px 10px;cursor:pointer;font-size:12px',
+        'Clear');
+      clearBtn.title = 'Clear the sent listing from the extension';
+      clearBtn.addEventListener('click', () => clearPayload());
       actions.appendChild(fillBtn);
       actions.appendChild(status);
+      actions.appendChild(clearBtn);
       body.appendChild(actions);
 
       const list = el('div', 'overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px');
@@ -719,6 +725,17 @@
   }
 
   let lastPayload = {};
+
+  // Drops the listing sent from the CRM so the panel returns to its
+  // empty state — the reset for "wrong property sent" without hunting
+  // through chrome://extensions storage.
+  function clearPayload() {
+    chrome.storage.local.remove('convorealPortalPayload', () => {
+      lastPayload = {};
+      hasPayload = false;
+      renderPanel(lastPayload);
+    });
+  }
 
   chrome.storage.local.get('convorealPortalPayload', ({ convorealPortalPayload }) => {
     lastPayload = convorealPortalPayload || {};

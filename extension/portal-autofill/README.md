@@ -30,6 +30,9 @@ extension card.
 5. Back in ConvoReal, hit **Mark as Posted** so the CRM tracks the listing and
    reminds you before it expires.
 
+Sent the wrong property, or want a blank panel? Click **Clear** in the panel to
+drop the stored listing and reset it to the empty state.
+
 ## How data flows
 
 CRM dialog → `window.postMessage` → `crm-bridge.js` (runs only on ConvoReal
