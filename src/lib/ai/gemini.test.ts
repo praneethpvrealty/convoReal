@@ -25,7 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
 }
 
-import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, classifyImageOrText } from './gemini';
+import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, classifyImageOrText, normalizeListingFeatures } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
@@ -356,6 +356,37 @@ describe('inferBuyerFromRequirements', () => {
 
   it('leaves an existing Buyer as Buyer', () => {
     expect(inferBuyerFromRequirements('Buyer', 'budget 90L')).toBe('Buyer');
+  });
+});
+
+describe('normalizeListingFeatures', () => {
+  it('replaces "Black and white payment" with "Mixed payment terms"', () => {
+    expect(
+      normalizeListingFeatures(['A Khata', 'Black and white payment', 'Corner land'])
+    ).toEqual(['A Khata', 'Mixed payment terms', 'Corner land']);
+  });
+
+  it('matches casing and "&"/"n" variants', () => {
+    expect(normalizeListingFeatures(['Black & White Payment'])).toEqual(['Mixed payment terms']);
+    expect(normalizeListingFeatures(['black n white'])).toEqual(['Mixed payment terms']);
+  });
+
+  it('dedupes when the neutral label already exists', () => {
+    expect(
+      normalizeListingFeatures(['Mixed payment terms', 'Black and white payment'])
+    ).toEqual(['Mixed payment terms']);
+  });
+
+  it('trims, drops empties, and leaves other features untouched', () => {
+    expect(normalizeListingFeatures(['  Access Road  ', '', 'Fenced Boundary'])).toEqual([
+      'Access Road',
+      'Fenced Boundary',
+    ]);
+  });
+
+  it('returns an empty array for non-array input', () => {
+    expect(normalizeListingFeatures(null)).toEqual([]);
+    expect(normalizeListingFeatures(undefined)).toEqual([]);
   });
 });
 
