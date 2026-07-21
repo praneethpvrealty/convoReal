@@ -25,7 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
 }
 
-import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft } from './gemini';
+import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
@@ -273,5 +273,40 @@ Hi User, Omi NA, 919986033197 is interested in SJR Blue Waters, Sarjapur Road Ma
         throw err;
       }
     });
+  });
+});
+
+describe('looksLikePropertyListing', () => {
+  it('treats a forwarded listing ending in owner name+phone as a property', () => {
+    const message =
+      '571, 16th A Main Rd · Bengaluru, Karnataka\n' +
+      '3750 sqft\n50*75\nEast facing\n17cr.\nSite number 569\n' +
+      'https://maps.app.goo.gl/abc\nDeepak P\n9886217718';
+    expect(looksLikePropertyListing(message)).toBe(true);
+  });
+
+  it('keeps a buyer-lead forward as a contact', () => {
+    expect(
+      looksLikePropertyListing('Praveen, 919686194933 is interested in SJR Blue Waters, 3 BHK')
+    ).toBe(false);
+  });
+
+  it('keeps a portal lead forward as a contact', () => {
+    expect(
+      looksLikePropertyListing('Hi User, LAKSHMAN, 917502598759 is interested in SJR Blue Waters Magicbricks')
+    ).toBe(false);
+  });
+
+  it('does not misclassify a plain contact card', () => {
+    expect(looksLikePropertyListing('Deepak P\n9886217718\ndeepak@example.com')).toBe(false);
+  });
+
+  it('requires more than one property spec to override', () => {
+    expect(looksLikePropertyListing('Nice villa available, call Deepak 9886217718')).toBe(false);
+  });
+
+  it('returns false for empty text', () => {
+    expect(looksLikePropertyListing('')).toBe(false);
+    expect(looksLikePropertyListing(undefined)).toBe(false);
   });
 });

@@ -291,6 +291,32 @@ export async function isListingMessage(text: string): Promise<boolean> {
   }
 }
 
+const LEAD_FORWARD_SIGNAL = /interested in|looking for|requirement|refer(?:red|ral)\b|budget|magicbricks|99acres|housing\.com/i;
+
+const PROPERTY_LISTING_SIGNALS: RegExp[] = [
+  /\bsq\.?\s?ft\b|\bsqft\b|\bsq\s?feet\b/i,
+  /\b\d{2,4}\s*[*x×]\s*\d{2,4}\b/,
+  /\b(?:east|west|north|south)(?:[-\s]?(?:east|west))?\s*facing\b/i,
+  /\bsite\s*(?:no\.?|number|#)\b/i,
+  /\b\d+(?:\.\d+)?\s*(?:cr|crore|lakhs?|lacs?)\b/i,
+  /\b\d+\s*bhk\b/i,
+  /\b(?:plot|villa|acres?|guntha|cents?|dimension)\b/i,
+];
+
+/**
+ * A property listing forwarded with the owner's name and phone at the end
+ * (e.g. "3750 sqft / 50*75 / East facing / 17cr / Site number 569 / Deepak
+ * 98862...") reads as 'contact' to the LLM classifier because it ends in a
+ * name and number. Treat it as a listing when it carries at least two
+ * distinct property specs and no buyer-lead markers, so it enters the
+ * property intake flow instead of the contact-draft flow.
+ */
+export function looksLikePropertyListing(text?: string): boolean {
+  const cleanText = (text || '').trim();
+  if (!cleanText || LEAD_FORWARD_SIGNAL.test(cleanText)) return false;
+  return PROPERTY_LISTING_SIGNALS.filter((re) => re.test(cleanText)).length >= 2;
+}
+
 /**
  * Classifies if a message (text or image) is a real estate listing, contact details, or neither.
  */
@@ -323,14 +349,16 @@ export async function classifyImageOrText(
     const response = await generateContentRaw(contents, systemInstruction, false, { tier: 'lite', feature: 'chatbot_classify' });
     const classification = response.toLowerCase().trim();
     if (classification.includes("property")) return "property";
-    if (classification.includes("contact")) return "contact";
+    if (classification.includes("contact")) {
+      return looksLikePropertyListing(text) ? "property" : "contact";
+    }
     return "none";
   } catch (err) {
     console.error("[Gemini AI] Error in classifyImageOrText:", err);
     // Fallback logic
     const lowerText = text?.toLowerCase() || "";
     const contactKeywords = ["add contact", "save contact", "new lead", "create contact", "add lead", "email is", "phone is", "save as contact", "is interested in", "magicbricks", "99acres", "housing.com"];
-    if (contactKeywords.some(kw => lowerText.includes(kw))) {
+    if (contactKeywords.some(kw => lowerText.includes(kw)) && !looksLikePropertyListing(text)) {
       return "contact";
     }
     const propertyKeywords = ["bhk", "sqft", "flat", "plot", "villa", "sale", "rent", "layout", "crore", "lakh", "price", "location"];
