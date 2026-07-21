@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Pressable,
   ScrollView,
   Share,
@@ -12,11 +14,16 @@ import {
   View,
 } from 'react-native';
 
+import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet } from '@/components/sheet';
 import { FilterChip, SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
 import { haptic } from '@/lib/haptics';
+import {
+  logExternalShare,
+  sendPropertyViaCrm,
+} from '@/lib/property-share-actions';
 import {
   buildPropertyShareMessage,
   buildShareTargets,
@@ -25,7 +32,7 @@ import {
   type ShareTone,
 } from '@/lib/share-message';
 import { radius, spacing, useTheme } from '@/lib/theme';
-import type { Property } from '@/lib/types';
+import type { Contact, Property } from '@/lib/types';
 
 const TONES: { value: ShareTone; label: string }[] = [
   { value: 'professional', label: '💼 Professional' },
@@ -61,6 +68,8 @@ export function PropertyShareSheet({
   const [detail, setDetail] = useState<ShareDetailLevel>('standard');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
+  const [picker, setPicker] = useState<'external' | 'crm' | null>(null);
+  const [crmSending, setCrmSending] = useState(false);
 
   // Client link opens the showcase (inquiry form); co-broker gets the
   // clean view-only page — same URLs the web dialog builds.
@@ -98,8 +107,53 @@ export function PropertyShareSheet({
     setTimeout(() => setCopied(null), 1500);
   }
 
+  // External WhatsApp: address the deep link to the picked contact and
+  // log the share on their timeline so it's tracked; "skip" keeps the
+  // old behaviour (WhatsApp's own contact chooser, untracked).
+  async function shareExternalWithContact(contact: Contact) {
+    setPicker(null);
+    haptic.send();
+    void logExternalShare(contact, property);
+    const phone = contact.phone.replace(/\D/g, '');
+    Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`);
+    onClose();
+  }
+
+  function shareExternalWithoutContact() {
+    setPicker(null);
+    haptic.send();
+    Linking.openURL(targets.whatsapp);
+  }
+
+  // ConvoReal WhatsApp: send from the account's business number so the
+  // message is delivered and logged in the shared inbox thread.
+  async function sendViaConvoReal(contact: Contact) {
+    setCrmSending(true);
+    haptic.send();
+    const outcome = await sendPropertyViaCrm(contact, message);
+    setCrmSending(false);
+    setPicker(null);
+    if (outcome.sent) {
+      haptic.success();
+      onClose();
+      if (outcome.conversationId) router.push(`/(app)/conversation/${outcome.conversationId}`);
+      return;
+    }
+    if (outcome.reengage && outcome.conversationId) {
+      onClose();
+      router.push(`/(app)/conversation/${outcome.conversationId}`);
+      Alert.alert(
+        'Outside the 24-hour window',
+        `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so free text can’t be delivered. Send an approved template from the conversation thread.`
+      );
+      return;
+    }
+    haptic.warn();
+    Alert.alert('Could not send', outcome.error ?? 'Please try again.');
+  }
+
   const channels = [
-    { key: 'whatsapp', icon: 'logo-whatsapp' as const, label: 'WhatsApp', color: colors.success, onPress: () => Linking.openURL(targets.whatsapp) },
+    { key: 'whatsapp', icon: 'logo-whatsapp' as const, label: 'WhatsApp', color: colors.success, onPress: () => setPicker('external') },
     { key: 'telegram', icon: 'paper-plane' as const, label: 'Telegram', color: colors.readTick, onPress: () => Linking.openURL(targets.telegram) },
     { key: 'email', icon: 'mail-outline' as const, label: 'Email', color: colors.primary, onPress: () => Linking.openURL(targets.email) },
     { key: 'sms', icon: 'chatbox-outline' as const, label: 'SMS', color: colors.primary, onPress: () => Linking.openURL(targets.sms) },
@@ -185,6 +239,25 @@ export function PropertyShareSheet({
           />
         </Pressable>
 
+        <SectionLabel text="Send from ConvoReal" />
+        <Pressable
+          onPress={() => setPicker('crm')}
+          accessibilityRole="button"
+          accessibilityLabel="Send via ConvoReal WhatsApp"
+          style={[styles.crmButton, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+        >
+          <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.primary }}>
+              Send via ConvoReal WhatsApp
+            </Text>
+            <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
+              Delivers from your business number and logs to the chat thread
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+        </Pressable>
+
         <SectionLabel text="Send via" />
         <View style={styles.channelGrid}>
           {channels.map((c) => (
@@ -204,10 +277,30 @@ export function PropertyShareSheet({
         </View>
 
         <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
-          Sending via your CRM WhatsApp number (templates, tracking) lives in the
-          conversation thread and on the web share dialog.
+          Sending via ConvoReal WhatsApp delivers from your business number and is
+          tracked in the conversation thread. Pick a contact on WhatsApp to log the
+          share on their timeline too.
         </Text>
       </ScrollView>
+
+      <ContactPickerSheet
+        visible={picker === 'external'}
+        onClose={() => setPicker(null)}
+        onSelect={shareExternalWithContact}
+        title="Share on WhatsApp"
+        hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline."
+        skipLabel="Open WhatsApp without a contact"
+        onSkip={shareExternalWithoutContact}
+      />
+      <ContactPickerSheet
+        visible={picker === 'crm'}
+        onClose={() => setPicker(null)}
+        onSelect={sendViaConvoReal}
+        title="Send via ConvoReal WhatsApp"
+        hint="Choose who receives this listing from your business number."
+        busy={crmSending}
+        busyLabel="Sending from ConvoReal…"
+      />
     </BottomSheet>
   );
 }
@@ -271,6 +364,15 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
+  },
+  crmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 12,
   },
   channelGrid: {
     flexDirection: 'row',
