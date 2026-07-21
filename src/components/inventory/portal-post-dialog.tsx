@@ -243,7 +243,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 grid-cols-1 sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader className="border-b border-slate-800 pb-3 mb-2">
           <DialogTitle className="text-white flex items-center gap-2 text-lg font-black tracking-tight">
             <Globe className="size-5 text-primary" />
