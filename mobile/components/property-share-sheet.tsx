@@ -64,6 +64,7 @@ export function PropertyShareSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const session = useAuthStore((s) => s.session);
+  const fullName = useAuthStore((s) => s.profile?.full_name);
   const [audience, setAudience] = useState<ShareAudience>('client');
   const [tone, setTone] = useState<ShareTone>('professional');
   const [detail, setDetail] = useState<ShareDetailLevel>('standard');
@@ -77,8 +78,13 @@ export function PropertyShareSheet({
   // clean view-only page — same URLs the web dialog builds.
   const url = `${ENV.apiBaseUrl}/?property_id=${property.id}${audience === 'agent' ? '&mode=view' : ''}`;
 
-  const firstName = (session?.user.email?.split('@')[0] ?? '').split(/[._-]/)[0];
-  const agentName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : undefined;
+  // Sign the message with the account's own name (Settings → profile),
+  // reactive via the auth store, and fall back to the email handle only
+  // until a name is set.
+  const emailName = (session?.user.email?.split('@')[0] ?? '').split(/[._-]/)[0];
+  const agentName =
+    fullName?.trim() ||
+    (emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : undefined);
   const agentPhone = session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : undefined;
 
   const generated = useMemo(
