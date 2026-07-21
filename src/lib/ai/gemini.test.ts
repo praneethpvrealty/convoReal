@@ -25,7 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
 }
 
-import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, inferBuyerFromRequirements } from './gemini';
+import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, inferBuyerFromRequirements, classifyImageOrText } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
@@ -330,5 +330,35 @@ describe('inferBuyerFromRequirements', () => {
 
   it('leaves an existing Buyer as Buyer', () => {
     expect(inferBuyerFromRequirements('Buyer', 'budget 90L')).toBe('Buyer');
+  });
+});
+
+describe('classifyImageOrText image-only override', () => {
+  const stubClassifyThenOcr = (ocrText: string) => {
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(init.body as string) : {};
+      const sys = body.systemInstruction?.parts?.[0]?.text || '';
+      let text = 'none';
+      if (sys.includes('real estate CRM classifier')) text = 'contact';
+      else if (sys.includes('OCR engine')) text = ocrText;
+      return {
+        ok: true,
+        json: async () => ({ candidates: [{ content: { parts: [{ text }] } }] }),
+      };
+    });
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reclassifies an image-only listing poster from contact to property', async () => {
+    stubClassifyThenOcr('3750 sqft\n50*75\nEast facing\n17cr.\nSite number 569\nDeepak P 9886217718');
+    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    expect(result).toBe('property');
+  });
+
+  it('keeps an image-only contact card as contact', async () => {
+    stubClassifyThenOcr('Deepak P\n9886217718\ndeepak@example.com');
+    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    expect(result).toBe('contact');
   });
 });
