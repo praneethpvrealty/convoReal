@@ -26,7 +26,10 @@ export async function getPlanLimits(ctx: AccountContext): Promise<PlanLimits> {
     .single();
 
   if (error || !data) {
-    // Default to Starter if the view row is missing (shouldn't happen)
+    // Default to Starter if the view row is missing (shouldn't happen).
+    // These mirror the account_plan_limits view — keep in lockstep with
+    // the latest migration (156_restore_starter_caps.sql) and
+    // PLAN_CONFIG.starter.
     return {
       account_id: ctx.accountId,
       plan: 'starter',
@@ -36,8 +39,8 @@ export async function getPlanLimits(ctx: AccountContext): Promise<PlanLimits> {
       pending_plan: null,
       pending_plan_effective_at: null,
       max_users: 1,
-      max_contacts: 50,
-      max_properties: 10,
+      max_contacts: 150,
+      max_properties: 50,
       max_broadcasts_per_month: 0,
       has_ai: false,
       has_teams: false,

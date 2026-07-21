@@ -75,7 +75,8 @@ const { POST } = await import('./route');
 
 const SECRET = 'whsec_test';
 
-function chargedEvent(withId: boolean) {
+function chargedEvent(withId: boolean, opts: { paymentId?: string | null } = {}) {
+  const paymentId = 'paymentId' in opts ? opts.paymentId : 'pay_1';
   return {
     ...(withId ? { id: 'evt_charged_1' } : {}),
     event: 'subscription.charged',
@@ -88,7 +89,7 @@ function chargedEvent(withId: boolean) {
           plan_id: 'plan_team_monthly',
         },
       },
-      payment: { entity: { id: 'pay_1', amount: 79900 } },
+      payment: { entity: { ...(paymentId ? { id: paymentId } : {}), amount: 79900 } },
     },
   };
 }
@@ -129,16 +130,24 @@ describe('POST /api/billing/razorpay-webhook — redelivery dedup', () => {
     expect(grantMock).toHaveBeenCalledTimes(1);
   });
 
-  it('BUG: an id-less event is re-granted on every redelivery (double-spend)', async () => {
-    // Razorpay retries webhooks; the dedup guard is gated on
-    // `if (event.id)`, so an event delivered without a top-level id
-    // skips dedup entirely and re-grants a full cycle of credits each
-    // time. This asserts the current (buggy) behavior — when the guard
-    // is fixed to dedup on a stable fallback ref, flip this to
-    // toHaveBeenCalledTimes(1).
+  it('dedups an id-less redelivery by its per-charge payment id (grants once)', async () => {
+    // Razorpay retries webhooks and some deliveries lack a top-level
+    // event id. The dedup now falls back to the payment entity id, so a
+    // redelivered charge is still recognized as already-processed.
     await post(chargedEvent(false));
     await post(chargedEvent(false));
     await post(chargedEvent(false));
-    expect(grantMock).toHaveBeenCalledTimes(3);
+    expect(grantMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT dedup on the subscription id when neither event id nor payment id exists', async () => {
+    // Chosen semantics: with no stable per-event ref we accept a
+    // re-grant rather than dedup on the subscription id, which repeats
+    // across renewals and would drop a legitimate later charge. This
+    // guards that decision — if someone starts deduping on sub id, a
+    // real renewal would silently lose its credits.
+    await post(chargedEvent(false, { paymentId: null }));
+    await post(chargedEvent(false, { paymentId: null }));
+    expect(grantMock).toHaveBeenCalledTimes(2);
   });
 });

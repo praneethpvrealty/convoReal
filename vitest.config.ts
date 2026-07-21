@@ -24,5 +24,28 @@ export default defineConfig({
       META_APP_SECRET: "test-meta-app-secret",
     },
     clearMocks: true,
+    coverage: {
+      provider: "v8",
+      // Instrument the whole app (all: true is implied by an include
+      // glob) so untested routes count against the denominator — the
+      // point is to discourage new code landing with no test.
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/**/*.d.ts",
+        "src/types/**",
+        "src/scripts/**",
+      ],
+      reporter: ["text-summary", "json-summary"],
+      // Ratchet floor: set just under the current numbers with a little
+      // headroom. `npm run test:coverage` fails if coverage drops below
+      // these — raise them as coverage climbs; never lower them.
+      thresholds: {
+        lines: 10,
+        statements: 10,
+        branches: 10,
+        functions: 8,
+      },
+    },
   },
 });
