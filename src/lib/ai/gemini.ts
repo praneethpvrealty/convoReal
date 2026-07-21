@@ -589,7 +589,7 @@ function parseGeminiResponse(rawResult: string): Record<string, unknown> {
     fallback.land_area = extractNumber("land_area");
     fallback.land_area_unit = extractString("land_area_unit");
     fallback.description = extractString("description");
-    fallback.features = extractArray("features");
+    fallback.features = normalizeListingFeatures(extractArray("features"));
     fallback.nearby_highlights = extractArray("nearby_highlights");
     fallback.dimensions = extractString("dimensions");
     fallback.facing_direction = extractString("facing_direction");
@@ -633,6 +633,31 @@ function parseGeminiResponse(rawResult: string): Record<string, unknown> {
 
   // Final fallback: throw the original JSON parse error
   throw new Error(`Failed to parse Gemini response: ${rawResult}`);
+}
+
+const MIXED_PAYMENT_LABEL = 'Mixed payment terms';
+const BLACK_WHITE_PAYMENT_RE = /black\s*(?:and|&|n)\s*white/i;
+
+/**
+ * Normalize AI-extracted listing features: replace the legally-loaded
+ * "black and white payment" phrasing (part-cash / part-cheque) with the
+ * neutral "Mixed payment terms", trim, drop empties, and dedupe
+ * (case-insensitive, order preserved). Exported for unit tests.
+ */
+export function normalizeListingFeatures(features?: unknown): string[] {
+  if (!Array.isArray(features)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of features) {
+    if (typeof raw !== 'string') continue;
+    const label = BLACK_WHITE_PAYMENT_RE.test(raw) ? MIXED_PAYMENT_LABEL : raw.trim();
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
 }
 
 /**
@@ -745,7 +770,7 @@ export async function parseListingFromImageOrText(
       land_area: parsed.land_area || null,
       land_area_unit: parsed.land_area_unit || "Sq.Ft.",
       description: parsed.description || null,
-      features: parsed.features || [],
+      features: normalizeListingFeatures(parsed.features),
       nearby_highlights: parsed.nearby_highlights || [],
       dimensions: parsed.dimensions || null,
       facing_direction: parsed.facing_direction || null,
@@ -818,6 +843,8 @@ export async function updateListingDraft(
         parsed.floor_tenancies !== undefined
           ? sanitizeFloorTenancies(parsed.floor_tenancies)
           : currentDraft.floor_tenancies ?? null,
+      // Normalize features whether the update touched them or not.
+      features: normalizeListingFeatures(parsed.features ?? currentDraft.features),
       // Retain images and other fields if they were omitted in the response
       images: currentDraft.images || []
     };
