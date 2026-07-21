@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { File, Paths } from 'expo-file-system';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
@@ -17,9 +19,11 @@ import { AppDialog, type DialogAction } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { BottomSheet } from '@/components/sheet';
 import { FilterChip, SectionLabel } from '@/components/ui';
+import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
 import { haptic } from '@/lib/haptics';
+import { storagePublicUrl } from '@/lib/storage-url';
 import {
   logExternalShare,
   sendPropertyViaCrm,
@@ -72,6 +76,7 @@ export function PropertyShareSheet({
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
   const [picker, setPicker] = useState<'external' | 'crm' | null>(null);
   const [crmSending, setCrmSending] = useState(false);
+  const [sharingPhoto, setSharingPhoto] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
 
   // Client link opens the showcase (inquiry form); co-broker gets the
@@ -134,6 +139,68 @@ export function PropertyShareSheet({
     Linking.openURL(targets.whatsapp);
   }
 
+  // Share the cover photo itself as an image attachment. Uses the listing's
+  // first photo; when it has none (common for land/plots), renders a branded
+  // flyer server-side and shares that — so a photoless listing still sends a
+  // real image, mirroring the web dialog's cover-photo behaviour.
+  async function sharePhoto() {
+    if (sharingPhoto) return;
+    setSharingPhoto(true);
+    haptic.tap();
+    try {
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Sharing is not available on this device.');
+      }
+
+      let bytes: Uint8Array;
+      let ext = 'jpg';
+      let mimeType = 'image/jpeg';
+
+      const firstImage = property.images?.find((u) => u && u.trim().length > 0);
+      if (firstImage) {
+        const res = await fetch(storagePublicUrl(firstImage));
+        if (!res.ok) throw new Error('Could not load the listing photo.');
+        bytes = new Uint8Array(await res.arrayBuffer());
+        const ct = res.headers.get('content-type');
+        if (ct?.startsWith('image/')) {
+          mimeType = ct;
+          ext = ct.split('/')[1] || 'jpg';
+        }
+      } else {
+        const flyer = await apiFetch<{ data: { image: string } }>(
+          `/api/properties/${property.id}/flyer`,
+          { method: 'POST', body: JSON.stringify({ size: 1080 }) },
+        );
+        const dataUrl = flyer.data.image;
+        const b64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+        const bin = atob(b64);
+        bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        ext = 'png';
+        mimeType = 'image/png';
+      }
+
+      const file = new File(Paths.cache, `property-${property.id}-${Date.now()}.${ext}`);
+      file.create();
+      file.write(bytes);
+
+      await Sharing.shareAsync(file.uri, {
+        mimeType,
+        dialogTitle: property.title || 'Property',
+      });
+      haptic.success();
+    } catch (err) {
+      haptic.warn();
+      setDialog({
+        title: 'Could not share the photo',
+        message: err instanceof Error ? err.message : 'Please try again.',
+        actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+      });
+    } finally {
+      setSharingPhoto(false);
+    }
+  }
+
   // ConvoReal WhatsApp: send from the account's business number so the
   // message is delivered and logged in the shared inbox thread.
   async function sendViaConvoReal(contact: Contact) {
@@ -183,6 +250,7 @@ export function PropertyShareSheet({
     { key: 'email', icon: 'mail-outline' as const, label: 'Email', color: colors.primary, onPress: () => Linking.openURL(targets.email) },
     { key: 'sms', icon: 'chatbox-outline' as const, label: 'SMS', color: colors.primary, onPress: () => Linking.openURL(targets.sms) },
     { key: 'copy', icon: (copied === 'message' ? 'checkmark' : 'copy-outline') as 'checkmark' | 'copy-outline', label: copied === 'message' ? 'Copied!' : 'Copy message', color: colors.primary, onPress: () => copy('message') },
+    { key: 'photo', icon: (sharingPhoto ? 'hourglass-outline' : 'image-outline') as 'hourglass-outline' | 'image-outline', label: sharingPhoto ? 'Preparing…' : 'Share photo', color: colors.primary, onPress: sharePhoto },
     { key: 'more', icon: 'share-social-outline' as const, label: 'More apps…', color: colors.primary, onPress: () => Share.share({ message }) },
   ];
 
