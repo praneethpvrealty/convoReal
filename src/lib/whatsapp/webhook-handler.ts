@@ -2,6 +2,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { isValidStatusTransition } from '@/lib/whatsapp/recipient-status'
+import { parseUpdateIntent } from '@/lib/whatsapp/update-intent'
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -459,33 +461,6 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
     }
   }
-}
-
-const RECIPIENT_STATUS_LADDER = [
-  'pending',
-  'sent',
-  'delivered',
-  'read',
-  'replied',
-] as const
-
-function ladderLevel(s: string): number {
-  const idx = (RECIPIENT_STATUS_LADDER as readonly string[]).indexOf(s)
-  return idx < 0 ? -1 : idx
-}
-
-function isValidStatusTransition(current: string, incoming: string): boolean {
-  if (incoming === 'failed') {
-    return current === 'pending' || current === 'sent'
-  }
-  if (current === 'failed') {
-    return false
-  }
-  const ci = ladderLevel(current)
-  const ii = ladderLevel(incoming)
-  if (ii < 0) return false
-  if (ci < 0) return true
-  return ii > ci
 }
 
 async function handleStatusUpdate(status: {
@@ -2104,37 +2079,6 @@ async function handlePreferenceFlowNfmReply(
     senderType: 'bot',
     text: summarizePreferenceUpdate(update),
   })
-}
-
-function parseUpdateIntent(text: string): {
-  type: 'property' | 'contact' | null
-  identifier?: string
-} | null {
-  const cleaned = text.trim().toLowerCase()
-  
-  // Match patterns like "update property PROP-1018", "update contact", "update PROP-1018"
-  const propertyWithCode = /\bupdate\s+(?:property\s+)?(prop-?\d+)\b/i.exec(cleaned)
-  if (propertyWithCode) {
-    return { type: 'property', identifier: propertyWithCode[1].toUpperCase() }
-  }
-  
-  const propertyGeneric = /\bupdate\s+property\b/i.test(cleaned)
-  if (propertyGeneric) {
-    return { type: 'property' }
-  }
-  
-  const contactUpdate = /\bupdate\s+contact\b/i.test(cleaned)
-  if (contactUpdate) {
-    return { type: 'contact' }
-  }
-  
-  // Generic "update" might default to contact update for the current conversation
-  const genericUpdate = /^update$/i.test(cleaned)
-  if (genericUpdate) {
-    return { type: 'contact' }
-  }
-  
-  return null
 }
 
 // Org roles (org_manager > org_leader > org_agent) are the source of truth;
