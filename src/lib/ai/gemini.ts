@@ -318,6 +318,29 @@ export function looksLikePropertyListing(text?: string): boolean {
 }
 
 /**
+ * Transcribe the visible text from an image (a forwarded listing poster,
+ * screenshot, etc.) so deterministic listing detection can run on an
+ * image-only message that has no caption. Returns '' on failure so the
+ * caller falls back to the model's own verdict.
+ */
+async function transcribeImageText(buffer: Buffer, mimeType: string): Promise<string> {
+  const systemInstruction =
+    "You are an OCR engine. Transcribe ALL visible text from the image verbatim, preserving line breaks. " +
+    "Return only the transcribed text with no commentary. If there is no text, return an empty string.";
+  try {
+    const parts: GeminiPart[] = [
+      { inlineData: { mimeType, data: buffer.toString("base64") } },
+      { text: "Transcribe all text in this image." },
+    ];
+    const response = await generateContentRaw([{ parts }], systemInstruction, false, { tier: 'lite', feature: 'chatbot_classify' });
+    return (response || "").trim();
+  } catch (err) {
+    console.error("[Gemini AI] Error transcribing image text:", err);
+    return "";
+  }
+}
+
+/**
  * Classifies if a message (text or image) is a real estate listing, contact details, or neither.
  */
 export async function classifyImageOrText(
@@ -330,6 +353,7 @@ export async function classifyImageOrText(
     "1. 'property': A property listing to be added to inventory, layout plan, listing advertisement, or property details description.\n" +
     "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, screenshot of contact/profile details, or lead forwarding/inquiry messages containing contact name/phone and their property interest (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters' or Magicbricks/99acres/Housing forwards).\n" +
     "3. 'none': Neither of the above.\n\n" +
+    "Precedence: when BOTH property listing details (area/sq ft, dimensions like 50x75, facing, price in cr/lakh, plot/site number, BHK) AND a person's name/phone are present, classify as 'property' — the listing is the primary intent. Reserve 'contact' for messages whose main purpose is saving a person or forwarding a buyer's interest/requirement.\n" +
     "Only respond with exactly 'property', 'contact', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
 
   const parts: GeminiPart[] = [];
@@ -350,7 +374,16 @@ export async function classifyImageOrText(
     const classification = response.toLowerCase().trim();
     if (classification.includes("property")) return "property";
     if (classification.includes("contact")) {
-      return looksLikePropertyListing(text) ? "property" : "contact";
+      if (looksLikePropertyListing(text)) return "property";
+      // Image-only forwards have no caption to test deterministically;
+      // transcribe the image (e.g. a listing poster whose specs the model
+      // overlooked next to a phone number) and re-check so a listing isn't
+      // misrouted into the contact-draft flow.
+      if (!text?.trim() && buffer && mimeType) {
+        const imageText = await transcribeImageText(buffer, mimeType);
+        if (looksLikePropertyListing(imageText)) return "property";
+      }
+      return "contact";
     }
     return "none";
   } catch (err) {
