@@ -25,7 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
 }
 
-import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing } from './gemini';
+import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, inferBuyerFromRequirements } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
@@ -308,5 +308,27 @@ describe('looksLikePropertyListing', () => {
   it('returns false for empty text', () => {
     expect(looksLikePropertyListing('')).toBe(false);
     expect(looksLikePropertyListing(undefined)).toBe(false);
+  });
+});
+
+describe('inferBuyerFromRequirements', () => {
+  it('upgrades an Others contact with requirements to Buyer', () => {
+    expect(
+      inferBuyerFromRequirements('Others', 'Looking for 2bhks in purva vantage, hsr layout.')
+    ).toBe('Buyer');
+  });
+
+  it('leaves Others unchanged when there are no requirements', () => {
+    expect(inferBuyerFromRequirements('Others', null)).toBe('Others');
+    expect(inferBuyerFromRequirements('Others', '   ')).toBe('Others');
+  });
+
+  it('does not override a deliberately set role', () => {
+    expect(inferBuyerFromRequirements('Seller', 'Looking for a 2BHK')).toBe('Seller');
+    expect(inferBuyerFromRequirements('Owner & Buyer', 'wants a plot in Whitefield')).toBe('Owner & Buyer');
+  });
+
+  it('leaves an existing Buyer as Buyer', () => {
+    expect(inferBuyerFromRequirements('Buyer', 'budget 90L')).toBe('Buyer');
   });
 });

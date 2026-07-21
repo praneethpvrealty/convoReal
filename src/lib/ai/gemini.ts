@@ -845,6 +845,23 @@ export function normalizeClassification(val?: string | null): "Owner" | "Seller"
 }
 
 /**
+ * `requirements` holds a buyer's stated buying criteria, so a contact that
+ * has requirements is a buyer. When the parser/updater leaves the
+ * classification unresolved ('Others') but a requirement is present, treat
+ * the contact as a 'Buyer'. Any deliberately-set role (Owner/Seller/Agent/
+ * Developer/Owner & Buyer) is left untouched.
+ */
+export function inferBuyerFromRequirements(
+  classification: ParsedContactDraft["classification"],
+  requirements: string | null
+): ParsedContactDraft["classification"] {
+  if (classification === "Others" && requirements && requirements.trim()) {
+    return "Buyer";
+  }
+  return classification;
+}
+
+/**
  * Parses contact details from an image buffer (screenshot) and/or text block.
  */
 export async function parseContactFromImageOrText(
@@ -903,17 +920,20 @@ export async function parseContactFromImageOrText(
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
 
     return {
-      contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
-        name: c.name || null,
-        phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
-        email: c.email || null,
-        company: c.company || null,
-        classification: normalizeClassification(c.classification),
-        notes: c.notes || null,
-        requirements: c.requirements || null,
-        referrer_name: c.referrer_name || null,
-        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone) || null) : null
-      }))
+      contacts: contactsList.map((c: Partial<ParsedContactDraft>) => {
+        const requirements = c.requirements || null;
+        return {
+          name: c.name || null,
+          phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
+          email: c.email || null,
+          company: c.company || null,
+          classification: inferBuyerFromRequirements(normalizeClassification(c.classification), requirements),
+          notes: c.notes || null,
+          requirements,
+          referrer_name: c.referrer_name || null,
+          referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone) || null) : null
+        };
+      })
     };
   } catch (err) {
     console.error("[Gemini AI] Error parsing contact details:", err);
@@ -932,6 +952,7 @@ export async function updateContactDraft(
     "You are an expert contact data updater. You are given a current contact drafts JSON object containing an array of contacts and a natural language instruction from the user.\n" +
     "Your job is to apply the updates requested by the user and return the complete updated JSON object matching the exact structure.\n" +
     "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name. If they add buying criteria (e.g. 'budget is 90L', 'wants a plot in Whitefield', 'looking for 2 acres near Hosur'), merge it into the `requirements` field, preserving any requirements already captured.\n" +
+    "When you populate `requirements` with buying criteria and the contact's classification is 'Others', set that contact's classification to 'Buyer'.\n" +
     "Do not change any other fields unless requested by the user.\n" +
     "Output MUST be valid JSON.";
 
@@ -944,17 +965,20 @@ export async function updateContactDraft(
     const contactsList = Array.isArray(parsed.contacts) ? parsed.contacts : [];
 
     return {
-      contacts: contactsList.map((c: Partial<ParsedContactDraft>) => ({
-        name: c.name || null,
-        phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
-        email: c.email || null,
-        company: c.company || null,
-        classification: normalizeClassification(c.classification),
-        notes: c.notes || null,
-        requirements: c.requirements || null,
-        referrer_name: c.referrer_name || null,
-        referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone) || null) : null
-      }))
+      contacts: contactsList.map((c: Partial<ParsedContactDraft>) => {
+        const requirements = c.requirements || null;
+        return {
+          name: c.name || null,
+          phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
+          email: c.email || null,
+          company: c.company || null,
+          classification: inferBuyerFromRequirements(normalizeClassification(c.classification), requirements),
+          notes: c.notes || null,
+          requirements,
+          referrer_name: c.referrer_name || null,
+          referrer_phone: c.referrer_phone ? (normalizePhoneWithCountryCode(c.referrer_phone) || null) : null
+        };
+      })
     };
   } catch (err) {
     console.error("[Gemini AI] Error updating contact draft:", err);
