@@ -34,16 +34,20 @@ const GREETING_HONORIFICS = new Set([
 ]);
 
 /**
- * First name to greet a contact by, skipping a leading honorific so
- * "Mr Jitender Kothari" greets as "Jitender", not "Mr". Falls back to the
- * first token when the name is only an honorific.
+ * Name to greet a contact by: the full name with any leading honorific
+ * dropped, so "Mr Jitender Kothari" greets as "Jitender Kothari" and
+ * "KP Anand" as "KP Anand". Falls back to the raw name when it is only an
+ * honorific.
  */
-export function greetingFirstName(name?: string | null): string | null {
+export function greetingName(name?: string | null): string | null {
   const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
-  for (const t of tokens) {
-    if (!GREETING_HONORIFICS.has(t.replace(/\./g, '').toLowerCase())) return t;
+  let i = 0;
+  while (i < tokens.length && GREETING_HONORIFICS.has(tokens[i].replace(/\./g, '').toLowerCase())) {
+    i++;
   }
-  return tokens[0] || null;
+  const rest = tokens.slice(i);
+  if (rest.length > 0) return rest.join(' ');
+  return tokens.length > 0 ? tokens.join(' ') : null;
 }
 
 export function formatShareAmount(amount: number | null | undefined, currency: string = 'INR'): string {

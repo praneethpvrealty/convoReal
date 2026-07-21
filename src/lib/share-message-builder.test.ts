@@ -5,7 +5,7 @@ import {
   buildPropertyShareMessage,
   buildShareTargets,
   formatShareAmount,
-  greetingFirstName,
+  greetingName,
   propertyShowcaseUrl,
 } from './share-message-builder';
 
@@ -202,25 +202,26 @@ describe('buildShareTargets', () => {
   });
 });
 
-describe('greetingFirstName', () => {
-  it('skips a leading honorific', () => {
-    expect(greetingFirstName('Mr Jitender Kothari')).toBe('Jitender');
-    expect(greetingFirstName('Dr. Anand')).toBe('Anand');
-    expect(greetingFirstName('Smt Radha Rao')).toBe('Radha');
+describe('greetingName', () => {
+  it('drops a leading honorific and keeps the full name', () => {
+    expect(greetingName('Mr Jitender Kothari')).toBe('Jitender Kothari');
+    expect(greetingName('Dr. Anand Rao')).toBe('Anand Rao');
+    expect(greetingName('Smt Radha Rao')).toBe('Radha Rao');
   });
 
-  it('returns the first token when there is no honorific', () => {
-    expect(greetingFirstName('Jitender Kothari')).toBe('Jitender');
-    expect(greetingFirstName('Anand')).toBe('Anand');
+  it('keeps the full name when there is no honorific', () => {
+    expect(greetingName('KP Anand')).toBe('KP Anand');
+    expect(greetingName('Jitender Kothari')).toBe('Jitender Kothari');
+    expect(greetingName('Anand')).toBe('Anand');
   });
 
   it('falls back to the honorific when that is all there is', () => {
-    expect(greetingFirstName('Mr')).toBe('Mr');
+    expect(greetingName('Mr')).toBe('Mr');
   });
 
   it('handles empty / missing names', () => {
-    expect(greetingFirstName('')).toBeNull();
-    expect(greetingFirstName(null)).toBeNull();
-    expect(greetingFirstName(undefined)).toBeNull();
+    expect(greetingName('')).toBeNull();
+    expect(greetingName(null)).toBeNull();
+    expect(greetingName(undefined)).toBeNull();
   });
 });
