@@ -294,22 +294,26 @@ const GREETING_HONORIFICS = new Set([
   'smt', 'kum', 'sir', 'madam', 'mx',
 ]);
 
-/** First name to greet by, skipping a leading honorific so
- *  "Mr Jitender Kothari" greets as "Jitender", not "Mr". */
-export function greetingFirstName(name?: string | null): string | null {
+/** Name to greet by: the full name minus any leading honorific, so
+ *  "Mr Jitender Kothari" greets as "Jitender Kothari" and "KP Anand" as
+ *  "KP Anand". Falls back to the raw name when it is only an honorific. */
+export function greetingName(name?: string | null): string | null {
   const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
-  for (const t of tokens) {
-    if (!GREETING_HONORIFICS.has(t.replace(/\./g, '').toLowerCase())) return t;
+  let i = 0;
+  while (i < tokens.length && GREETING_HONORIFICS.has(tokens[i].replace(/\./g, '').toLowerCase())) {
+    i++;
   }
-  return tokens[0] || null;
+  const rest = tokens.slice(i);
+  if (rest.length > 0) return rest.join(' ');
+  return tokens.length > 0 ? tokens.join(' ') : null;
 }
 
 export function addRecipientGreeting(message: string, name?: string | null): string {
-  const first = greetingFirstName(name);
-  if (!first) return message;
+  const greetName = greetingName(name);
+  if (!greetName) return message;
   return message.replace(
     /^(Hi|Hey|Hello)([!,])( 👋)?/,
-    (_m, word, punct, wave) => `${word} ${first}${punct}${wave ?? ''}`
+    (_m, word, punct, wave) => `${word} ${greetName}${punct}${wave ?? ''}`
   );
 }
 
