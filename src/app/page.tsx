@@ -56,9 +56,19 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   const description =
     (property.description || '').slice(0, 160) ||
     [property.type, property.location].filter(Boolean).join(' · ');
+
+  // Photoless listings (common for land/plots) fall back to a branded flyer
+  // rendered from the listing, so a shared link still previews an image
+  // instead of a bare text card.
+  const h = await headers();
+  const host = h.get('host');
+  const proto = h.get('x-forwarded-proto') || 'https';
+  const origin = host
+    ? `${proto}://${host}`
+    : (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(/\/$/, '');
   const heroImage = property.images?.[0]
     ? showcaseImageUrl(storagePublicUrl(property.images[0]), SHOWCASE_IMAGE_WIDTHS.hero)
-    : null;
+    : `${origin}/api/properties/${property.id}/og-image`;
 
   return {
     title: property.title,
@@ -67,7 +77,13 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
       title: property.title,
       description,
       type: 'website',
-      ...(heroImage ? { images: [{ url: heroImage }] } : {}),
+      images: [{ url: heroImage }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: property.title,
+      description,
+      images: [heroImage],
     },
     robots: { index: true, follow: true },
   };
