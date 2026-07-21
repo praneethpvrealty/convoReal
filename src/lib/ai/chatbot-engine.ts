@@ -8,6 +8,7 @@ import {
   updateListingDraft, 
   type ParsedPropertyDraft,
   classifyImageOrText,
+  looksLikeBuyerRequirement,
   parseContactFromImageOrText,
   updateContactDraft,
   type ParsedContactDraftsContainer,
@@ -676,14 +677,22 @@ export async function processOwnerChatbotMessage(
     }
   } else if (contactSession && cleanedText) {
     const isNewContactForward = /is interested in|referred by|magicbricks|99acres|housing\.com/i.test(cleanedText);
-    const isPropertyListing = /\b(bhk|sqft|flat|plot|villa|crore|lakh|price)\b/i.test(cleanedText) && cleanedText.length > 50;
-    
+    // A buyer requirement for the contact being drafted ("Requirements - ...",
+    // "looking for a 2BHK plot in HSR") states what they WANT and must merge
+    // into their requirements — never spin up a property listing, even though
+    // it mentions sqft/plot/BHK/localities.
+    const isBuyerRequirement = looksLikeBuyerRequirement(cleanedText);
+    const isPropertyListing =
+      !isBuyerRequirement &&
+      /\b(bhk|sqft|flat|plot|villa|crore|lakh|price)\b/i.test(cleanedText) &&
+      cleanedText.length > 50;
+
     if (isNewContactForward || isPropertyListing) {
       if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
         return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
       }
       const classification = await classifyImageOrText(cleanedText, undefined, undefined);
-      if (classification === 'property') {
+      if (classification === 'property' && !isBuyerRequirement) {
         console.log(`[chatbot-engine] Discarding active contact session ${contactSession.id} to start property flow`);
         await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
         contactSession = null;
