@@ -2137,16 +2137,23 @@ function parseUpdateIntent(text: string): {
   return null
 }
 
+// Org roles (org_manager > org_leader > org_agent) are the source of truth;
+// account_role (owner/admin/agent/viewer) is the legacy mirror kept in
+// lockstep by a trigger: owner↔org_manager, admin↔org_leader, agent↔org_agent,
+// viewer→org_agent. All three org roles (manager, leader, agent) may update.
+// Agents are matched via account_role='agent' rather than org_role='org_agent'
+// ON PURPOSE: viewers collapse to org_agent too (with is_read_only), so
+// org_agent cannot distinguish an agent from a read-only viewer. Do NOT add
+// 'org_agent' to the org-role set — it would let viewers mutate records.
 const UPDATE_STAFF_ACCOUNT_ROLES = ['owner', 'admin', 'agent']
 const UPDATE_STAFF_ORG_ROLES = ['org_manager', 'org_leader']
 
 /**
  * Account staff who may update ANY property or contact over WhatsApp:
- * owner/admin/agent (legacy account_role) or org_manager/org_leader
- * (org hierarchy). Matched by the sender's phone against a staff profile
- * on the same account. Non-staff senders can still update a specific
- * record they own — see isAuthorizedForUpdateSession / the owner checks
- * in the intent handlers.
+ * managers, leaders, and agents (via the role sets above). Matched by the
+ * sender's phone against a staff profile on the same account. Non-staff
+ * senders can still update a specific record they own — see
+ * isAuthorizedForUpdateSession / the owner checks in the intent handlers.
  */
 async function isUpdateStaffSender(
   senderPhone: string,
