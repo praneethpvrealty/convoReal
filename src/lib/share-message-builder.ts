@@ -28,6 +28,24 @@ export interface ShareMessageInput {
   agentPhone?: string;
 }
 
+const GREETING_HONORIFICS = new Set([
+  'mr', 'mrs', 'ms', 'miss', 'mstr', 'master', 'dr', 'prof', 'shri', 'sri',
+  'smt', 'kum', 'sir', 'madam', 'mx',
+]);
+
+/**
+ * First name to greet a contact by, skipping a leading honorific so
+ * "Mr Jitender Kothari" greets as "Jitender", not "Mr". Falls back to the
+ * first token when the name is only an honorific.
+ */
+export function greetingFirstName(name?: string | null): string | null {
+  const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
+  for (const t of tokens) {
+    if (!GREETING_HONORIFICS.has(t.replace(/\./g, '').toLowerCase())) return t;
+  }
+  return tokens[0] || null;
+}
+
 export function formatShareAmount(amount: number | null | undefined, currency: string = 'INR'): string {
   const n = Number(amount);
   if (!n || isNaN(n) || n <= 0) return '';
