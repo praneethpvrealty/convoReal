@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
+import { BRANDING } from '@/config/branding';
 import type { Contact } from '@/types';
 import { 
   parseListingFromImageOrText, 
@@ -1505,7 +1506,7 @@ export async function processOwnerChatbotMessage(
       }
 
       if (toInsert.length === 0) {
-        const reply = `⚠️ *All contacts already exist in CRM:* \n` + 
+        const reply = `⚠️ *All contacts already exist in ${BRANDING.name}:* \n` +
           duplicates.map(d => `• ${d}`).join('\n') + 
           `\n\nContact draft session discarded.`;
         await supabaseAdmin()
@@ -1644,7 +1645,7 @@ export async function processOwnerChatbotMessage(
         .delete()
         .eq('id', contactSession.id);
 
-      let reply = `✅ *Successfully saved ${inserted.length} new contact(s) to CRM!*\n\n`;
+      let reply = `✅ *Successfully saved ${inserted.length} new contact(s) to ${BRANDING.name}!*\n\n`;
       inserted.forEach((c: Contact) => {
         const tagNote = c.name_tag ? ` — 🏷️ ${c.name_tag}` : '';
         reply += `• *Name:* ${c.name}${tagNote} (${c.phone}) [${c.classification}]\n`;
