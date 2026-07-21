@@ -16,6 +16,7 @@ import { fetchPropertyPage } from '@/app/(app)/(tabs)/properties';
 import { BottomSheet } from '@/components/sheet';
 import { EmptyState, SearchBar, SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { buildShortlistMessage } from '@/lib/share-message';
@@ -214,7 +215,7 @@ function PickerRow({
   onPress: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  const cover = property.images?.[0];
+  const cover = storagePublicUrl(property.images?.[0]);
   const price =
     property.listing_type === 'Rent'
       ? property.rent_per_month

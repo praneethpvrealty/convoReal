@@ -26,6 +26,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { SectionLabel, Tag } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
@@ -209,7 +210,7 @@ export default function PropertyDetailScreen() {
                 accessibilityLabel={`View photo ${i + 1} full screen`}
               >
                 <Image
-                  source={{ uri: url }}
+                  source={{ uri: storagePublicUrl(url) }}
                   style={{ width: winW, height: 270 }}
                   resizeMode="cover"
                 />
@@ -246,7 +247,7 @@ export default function PropertyDetailScreen() {
                   accessibilityLabel={`Photo ${i + 1} of ${property.images!.length}`}
                 >
                   <Image
-                    source={{ uri: url }}
+                    source={{ uri: storagePublicUrl(url) }}
                     style={[
                       styles.thumb,
                       i === activeImage && { borderColor: '#fff', borderWidth: 2 },
@@ -268,7 +269,7 @@ export default function PropertyDetailScreen() {
           ) : null}
           {viewerOpen ? (
             <GalleryViewer
-              images={property.images}
+              images={property.images.map(storagePublicUrl)}
               initialIndex={activeImage}
               onClose={() => setViewerOpen(false)}
             />

@@ -28,6 +28,7 @@ import {
   type PlaceSuggestion,
 } from '@/lib/api';
 import { formatInr } from '@/lib/format';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { getShowcaseUrl } from '@/lib/welcome-message';
 import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
@@ -471,7 +472,7 @@ function LocalitySearchBox() {
 function PropertyCard({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
   const gradient = useBrandGradient();
-  const cover = property.images?.[0];
+  const cover = storagePublicUrl(property.images?.[0]);
   const price =
     property.listing_type === 'Rent'
       ? property.rent_per_month

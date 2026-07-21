@@ -14,6 +14,7 @@ import Animated, {
 
 import { EmptyState, PrimaryButton } from '@/components/ui';
 import { ApiError } from '@/lib/api';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { fetchDenBids, respondToBid, type DenBid } from '@/lib/den-api';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime } from '@/lib/format';
@@ -110,7 +111,7 @@ export default function DenBidsScreen() {
             >
               <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
                 {bid.property_image ? (
-                  <Image source={{ uri: bid.property_image }} style={styles.cover} resizeMode="cover" />
+                  <Image source={{ uri: storagePublicUrl(bid.property_image) }} style={styles.cover} resizeMode="cover" />
                 ) : (
                   <View
                     style={[

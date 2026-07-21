@@ -30,6 +30,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -421,7 +422,7 @@ function ContactedProperty({ propertyId }: { propertyId: string }) {
       style={[styles.contactedProperty, { backgroundColor: colors.surfaceRaised, borderColor: colors.glassBorder }]}
     >
       {property.images?.[0] ? (
-        <Image source={{ uri: property.images[0] }} style={styles.contactedThumb} />
+        <Image source={{ uri: storagePublicUrl(property.images[0]) }} style={styles.contactedThumb} />
       ) : (
         <View style={[styles.contactedThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
           <Ionicons name="home-outline" size={18} color={colors.textFaint} />

@@ -8,6 +8,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { BottomSheet } from '@/components/sheet';
 import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -100,7 +101,7 @@ export function AgentProperties({
               style={[styles.propertyRow, { borderTopColor: colors.border }]}
             >
               {p.images?.[0] ? (
-                <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
+                <Image source={{ uri: storagePublicUrl(p.images[0]) }} style={styles.propertyThumb} />
               ) : (
                 <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
                   <Ionicons name="business-outline" size={20} color={colors.textFaint} />
@@ -256,7 +257,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
               style={[styles.propertyRow, { borderTopColor: colors.border }]}
             >
               {p.images?.[0] ? (
-                <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
+                <Image source={{ uri: storagePublicUrl(p.images[0]) }} style={styles.propertyThumb} />
               ) : (
                 <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
                   <Ionicons name="business-outline" size={20} color={colors.textFaint} />
@@ -371,7 +372,7 @@ function PropertyPicker({
                   style={[styles.pickerRow, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
                 >
                   {p.images?.[0] ? (
-                    <Image source={{ uri: p.images[0] }} style={styles.propertyThumb} />
+                    <Image source={{ uri: storagePublicUrl(p.images[0]) }} style={styles.propertyThumb} />
                   ) : (
                     <View style={[styles.propertyThumb, { backgroundColor: colors.surfaceSunken, alignItems: 'center', justifyContent: 'center' }]}>
                       <Ionicons name="business-outline" size={20} color={colors.textFaint} />

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState, FilterChip, Tag } from '@/components/ui';
 import { fetchDenBids, fetchDenDashboard, fetchDenMe } from '@/lib/den-api';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
@@ -143,7 +144,7 @@ export default function DenHomeScreen() {
             style={[styles.propCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
           >
             {p.cover_image ? (
-              <Image source={{ uri: p.cover_image }} style={styles.cover} resizeMode="cover" />
+              <Image source={{ uri: storagePublicUrl(p.cover_image) }} style={styles.cover} resizeMode="cover" />
             ) : (
               <View style={[styles.cover, { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }]}>
                 <Ionicons name="home-outline" size={26} color={colors.primary} />

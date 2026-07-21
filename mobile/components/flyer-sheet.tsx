@@ -15,6 +15,7 @@ import {
 import { BottomSheet } from '@/components/sheet';
 import { FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
+import { storagePublicUrl } from '@/lib/storage-url';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -253,7 +254,7 @@ export function FlyerSheet({
           ]}
         >
           {previewUri ? (
-            <Image source={{ uri: previewUri }} style={styles.previewImage} resizeMode="cover" />
+            <Image source={{ uri: storagePublicUrl(previewUri) }} style={styles.previewImage} resizeMode="cover" />
           ) : (
             <View style={styles.previewEmpty}>
               <Ionicons name="image-outline" size={36} color={colors.textFaint} />
