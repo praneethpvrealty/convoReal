@@ -25,7 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
 }
 
-import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, inferBuyerFromRequirements, classifyImageOrText } from './gemini';
+import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, classifyImageOrText } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
@@ -308,6 +308,32 @@ describe('looksLikePropertyListing', () => {
   it('returns false for empty text', () => {
     expect(looksLikePropertyListing('')).toBe(false);
     expect(looksLikePropertyListing(undefined)).toBe(false);
+  });
+});
+
+describe('looksLikeBuyerRequirement', () => {
+  it('treats an explicit "Requirements -" message as a buyer requirement', () => {
+    expect(
+      looksLikeBuyerRequirement('Requirements - 4000 sqft residential plots in Koramangala 3rd block or in HSR layout.')
+    ).toBe(true);
+  });
+
+  it('recognises "looking for" / "wants to buy" / "budget is" phrasing', () => {
+    expect(looksLikeBuyerRequirement('looking for a 2BHK in HSR layout')).toBe(true);
+    expect(looksLikeBuyerRequirement('client wants to buy a plot near Hosur')).toBe(true);
+    expect(looksLikeBuyerRequirement('budget is around 90L')).toBe(true);
+  });
+
+  it('does not flag a property listing being offered', () => {
+    expect(looksLikeBuyerRequirement('3 BHK flat for sale in HSR, 1.2cr, contact owner Raju')).toBe(false);
+    expect(
+      looksLikeBuyerRequirement('3750 sqft\n50*75\nEast facing\n17cr.\nSite number 569\nDeepak 9886217718')
+    ).toBe(false);
+  });
+
+  it('returns false for empty text', () => {
+    expect(looksLikeBuyerRequirement('')).toBe(false);
+    expect(looksLikeBuyerRequirement(undefined)).toBe(false);
   });
 });
 

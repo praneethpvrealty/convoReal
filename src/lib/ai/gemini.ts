@@ -317,6 +317,21 @@ export function looksLikePropertyListing(text?: string): boolean {
   return PROPERTY_LISTING_SIGNALS.filter((re) => re.test(cleanText)).length >= 2;
 }
 
+const BUYER_REQUIREMENT_SIGNAL =
+  /\brequirements?\b|\b(?:looking (?:for|to buy|to rent)|want(?:s|ed)? to (?:buy|rent|purchase)|searching for|in the market for|budget (?:is|of|around|up ?to)|interested in buying)\b/i;
+
+/**
+ * True when the text reads as a BUYER stating what they want (a
+ * "requirement" / "looking for …"), rather than a property being offered.
+ * Used to keep a buyer requirement attached to the contact draft instead of
+ * misrouting it into the property-listing flow, even though it mentions
+ * sqft/plot/BHK/localities.
+ */
+export function looksLikeBuyerRequirement(text?: string): boolean {
+  const cleanText = (text || '').trim();
+  return !!cleanText && BUYER_REQUIREMENT_SIGNAL.test(cleanText);
+}
+
 /**
  * Transcribe the visible text from an image (a forwarded listing poster,
  * screenshot, etc.) so deterministic listing detection can run on an
