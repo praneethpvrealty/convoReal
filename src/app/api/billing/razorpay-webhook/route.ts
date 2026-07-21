@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { billingAdmin } from '@/lib/billing/admin-client';
+import { verifyRazorpaySignature } from '@/lib/billing/razorpay-signature';
 import type { Plan } from '@/lib/billing/types';
 import { creditPurchase, grantSubscriptionCredits } from '@/lib/credits/grant';
 import { processReferralConversion } from '@/lib/credits/referral';
@@ -11,14 +11,6 @@ import type { SubscriptionPlanForCredits } from '@/lib/credits/types';
 // payments. Updates our DB accordingly.
 // No auth — verified via HMAC-SHA256 signature.
 // Register this URL in Razorpay Dashboard → Settings → Webhooks.
-
-function verifyRazorpaySignature(body: string, signature: string, secret: string): boolean {
-  const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
-  const a = Buffer.from(expected);
-  const b = Buffer.from(signature);
-  // Bail if lengths differ — timingSafeEqual throws otherwise.
-  return a.length === b.length && crypto.timingSafeEqual(a, b);
-}
 
 // Maps Razorpay plan IDs back to our internal plan name.
 // Built from the same env vars used in create-subscription.

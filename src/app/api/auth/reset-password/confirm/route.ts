@@ -1,48 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
-
-/**
- * Verifies the HMAC-signed reset token.
- * Returns the userId if valid, or null if invalid/expired.
- */
-function verifyResetToken(
-  token: string,
-  secret: string
-): string | null {
-  try {
-    const decoded = Buffer.from(token, 'base64url').toString('utf-8');
-    const parts = decoded.split('.');
-    if (parts.length !== 3) return null;
-
-    const [userId, expiresAtStr, providedSig] = parts;
-    const expiresAt = Number(expiresAtStr);
-
-    // Check expiry
-    if (isNaN(expiresAt) || Date.now() > expiresAt) return null;
-
-    // Verify HMAC signature
-    const payload = `${userId}.${expiresAtStr}`;
-    const expectedSig = crypto
-      .createHmac('sha256', secret)
-      .update(payload)
-      .digest('hex');
-
-    if (
-      providedSig.length !== expectedSig.length ||
-      !crypto.timingSafeEqual(
-        Buffer.from(providedSig, 'hex'),
-        Buffer.from(expectedSig, 'hex')
-      )
-    ) {
-      return null;
-    }
-
-    return userId;
-  } catch {
-    return null;
-  }
-}
+import { verifyResetToken } from '@/lib/auth/reset-token';
 
 export async function POST(request: Request) {
   try {

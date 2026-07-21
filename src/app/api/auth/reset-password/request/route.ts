@@ -1,24 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { sendTransactionalEmail } from '@/lib/email';
-import crypto from 'crypto';
-
-/**
- * Generates an HMAC-signed password-reset token that encodes the user ID
- * and an expiry timestamp.  No Supabase redirect flow needed — the token
- * travels as a plain query parameter and is verified server-side when the
- * user submits a new password.
- */
-function generateResetToken(userId: string, secret: string): string {
-  const expiresAt = Date.now() + 60 * 60 * 1000; // 1 hour
-  const payload = `${userId}.${expiresAt}`;
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(payload)
-    .digest('hex');
-  // URL-safe base64 of "userId.expiresAt.signature"
-  return Buffer.from(`${payload}.${signature}`).toString('base64url');
-}
+import { generateResetToken } from '@/lib/auth/reset-token';
 
 export async function POST(request: Request) {
   try {
