@@ -88,6 +88,7 @@ interface ConsolidatedContact {
   pref_property_categories?: string[] | null
   pref_property_types?: string[] | null
   pref_suggested_tags?: string[] | null
+  pref_projects?: string[] | null
   contact_notes?: ContactNote[]
   contact_tags?: ContactTagJoin[]
   conversations?: ConversationJoin[]
@@ -667,6 +668,44 @@ export default function RequirementsPage() {
                           {(areas?.value ?? []).map((v, i) =>
                             chip(`📍 ${v}`, areas!.source === "ai", `area-${i}`),
                           )}
+                        </div>
+                      )
+                    })()}
+
+                    {/* Named-project watchlist — the buyer asked for these
+                        specific projects. Tap to save one as a tag for
+                        segmentation/broadcasts. Hidden once tagged. */}
+                    {(() => {
+                      const projects = visibleTagSuggestions(
+                        c.pref_projects,
+                        (c.contact_tags ?? []).map((t) => t.tags?.name),
+                      )
+                      if (projects.length === 0) return null
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[9px] font-black text-slate-550 uppercase tracking-widest">
+                            Projects
+                          </span>
+                          {projects.map((name) => {
+                            const busy = acceptingTag === `${c.id}:${name}`
+                            return (
+                              <button
+                                key={name}
+                                type="button"
+                                disabled={busy}
+                                onClick={() => acceptSuggestedTag(c, name)}
+                                title="Project the buyer named — tap to add as a tag"
+                                className="inline-flex items-center gap-1 rounded-full border border-dashed border-emerald-500/40 bg-emerald-500/5 px-2 py-0.5 text-[10px] font-bold text-emerald-300/90 hover:bg-emerald-500/15 transition-colors cursor-pointer disabled:opacity-50"
+                              >
+                                {busy ? (
+                                  <Loader2 className="size-2.5 animate-spin" />
+                                ) : (
+                                  <Building className="size-2.5" />
+                                )}
+                                {name}
+                              </button>
+                            )
+                          })}
                         </div>
                       )
                     })()}

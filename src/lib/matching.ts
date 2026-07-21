@@ -1,5 +1,6 @@
 import type { Contact, Property } from '@/types';
 import { normalizePropertyType } from '@/lib/property-types';
+import { textContainsLocality } from '@/lib/locality-match';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
 const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> = {
@@ -108,6 +109,12 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
 /**
  * Property → contact matching engine.
  *
+ * A named-project match (the property's project/title is one the contact
+ * listed in pref_projects) short-circuits the hierarchy: it qualifies the
+ * contact, satisfies location, survives a type/excluded-area mismatch, and
+ * scores above a generic locality hit — a buyer naming a project is the
+ * strongest intent signal available.
+ *
  * Matching hierarchy (product rule): Property type → Location (if given) → Budget.
  *  - Type is a hard gate at the subtype level: an apartment seeker never
  *    matches an independent house, a residential buyer never matches
@@ -138,6 +145,9 @@ export interface MatchDetails {
   budget: MatchVerdict;
   bhk: MatchVerdict;
   roi: MatchVerdict;
+  /** 'match' = the property's project/title is one the contact named
+   *  in pref_projects — a decisive, high-intent signal. */
+  project?: MatchVerdict;
 }
 
 export interface MatchingResult {
@@ -150,6 +160,8 @@ export interface MatchingResult {
     area: boolean;
     interest: boolean;
     roi?: boolean;
+    /** The property is in a project the contact explicitly named. */
+    project?: boolean;
   };
 }
 
@@ -400,6 +412,20 @@ export function getMatchingContacts(
     const combinedText = `${contact.requirements || ''} ${notesText}`.toLowerCase();
     const hasExtraction = !!contact.pref_extracted_at;
 
+    // ── Named-project match ───────────────────────────────────────
+    // The buyer named specific projects/societies (pref_projects). A
+    // property in one of them is the strongest intent signal we have:
+    // it qualifies the contact and forces a location match regardless
+    // of the type/locality gates below.
+    const wantedProjects = (contact.pref_projects || []).map((p) => p.trim()).filter(Boolean);
+    const projectMatch =
+      wantedProjects.length > 0 &&
+      wantedProjects.some(
+        (p) =>
+          textContainsLocality(property.project || '', p) ||
+          textContainsLocality(property.title || '', p)
+      );
+
     // ── 0. Listing intent gate (Sale / Rent / JV/JD / Built to Suit) ──
     // JV/JD and Built to Suit are niche deals: they only ever surface for
     // contacts who have explicitly stated that intent, regardless of type/
@@ -473,7 +499,9 @@ export function getMatchingContacts(
       typeVerdict = 'mismatch';
     }
 
-    if (typeVerdict === 'mismatch') continue;
+    // A named-project match is decisive — don't drop it on a type
+    // mismatch (e.g. the property's type field is blank or slightly off).
+    if (typeVerdict === 'mismatch' && !projectMatch) continue;
 
     // ── 2. ROI expectation ────────────────────────────────────────
     const minExpectedRoi =
@@ -520,12 +548,14 @@ export function getMatchingContacts(
       !!area &&
       (propLoc.includes(area) || propSub.includes(area) || propProject.includes(area));
 
-    // A negated/excluded locality covering this property disqualifies the contact
+    // A negated/excluded locality covering this property disqualifies the
+    // contact — unless they explicitly named this project, which wins over
+    // a coincidental excluded-area overlap.
     const negativeHit =
       excludedAreas.some(areaHitsProperty) ||
       (propSub && isNegated(combinedText, propSub)) ||
       (propProject && isNegated(combinedText, propProject));
-    if (negativeHit) continue;
+    if (negativeHit && !projectMatch) continue;
 
     let locationVerdict: MatchVerdict = 'unknown';
     if (wantedAreas.length > 0) {
@@ -581,6 +611,9 @@ export function getMatchingContacts(
         locationVerdict = 'match';
       }
     }
+
+    // A named-project match satisfies location outright.
+    if (projectMatch) locationVerdict = 'match';
 
     if (locationVerdict === 'mismatch') {
       // Yield-focused commercial purchases are location-agnostic
@@ -648,6 +681,7 @@ export function getMatchingContacts(
     // Budget alone never qualifies: require a type match, or — when the
     // contact has no type preference at all — a location or explicit-ROI match.
     const qualifies =
+      projectMatch ||
       typeVerdict === 'match' ||
       typeVerdict === 'partial' ||
       (!hasTypePrefs && (locationVerdict === 'match' || roiVerdict === 'match'));
@@ -657,6 +691,10 @@ export function getMatchingContacts(
     let score = 0;
     if (typeVerdict === 'match') score += 45;
     else if (typeVerdict === 'partial') score += 35;
+
+    // A named-project hit is the highest-intent signal — score it above a
+    // generic locality match so these land at the top of the list.
+    if (projectMatch) score += 40;
 
     if (locationVerdict === 'match') score += 30;
     else if (locationVerdict === 'partial') score += 12;
@@ -680,12 +718,14 @@ export function getMatchingContacts(
         budget: budgetVerdict,
         bhk: bhkVerdict,
         roi: roiVerdict,
+        project: projectMatch ? 'match' : 'unknown',
       },
       matchedFields: {
         budget: budgetVerdict === 'match',
         area: locationVerdict === 'match',
         interest: typeVerdict === 'match' || typeVerdict === 'partial',
         roi: roiVerdict === 'match',
+        project: projectMatch,
       },
     });
   }

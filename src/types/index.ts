@@ -158,6 +158,10 @@ export interface Contact {
   pref_budget_max?: number | null;
   pref_areas?: string[] | null;
   pref_excluded_areas?: string[] | null;
+  /** AI-extracted named projects/societies the buyer wants (migration 156),
+   *  distinct from pref_areas localities. A property whose project/title
+   *  matches one is a strong, decisive signal in src/lib/matching.ts. */
+  pref_projects?: string[] | null;
   pref_min_roi?: number | null;
   /** AI-suggested CRM tag labels (migration 150) — display-only until
    *  an agent confirms one, which creates/attaches a real tag. */

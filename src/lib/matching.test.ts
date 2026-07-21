@@ -571,4 +571,91 @@ describe('getMatchingContacts', () => {
       expect(results[0].details.budget).toBe('partial');
     });
   });
+
+  describe('Named-project signal (pref_projects)', () => {
+    it('matches a property in a named project via the project field', () => {
+      const contact = createTestContact({
+        pref_projects: ['Purva Vantage'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({ project: 'Purva Vantage', type: 'Flat/ Apartment' });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.project).toBe('match');
+      expect(results[0].matchedFields.project).toBe(true);
+      expect(results[0].score).toBeGreaterThanOrEqual(60);
+    });
+
+    it('matches when the project name appears in the property title', () => {
+      const contact = createTestContact({
+        pref_projects: ['DSR Rainbow Heights'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({ title: '2 BHK in DSR Rainbow Heights, HSR', project: undefined });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.project).toBe('match');
+    });
+
+    it('does not match a contact who did not name the project', () => {
+      const contact = createTestContact({
+        pref_projects: ['Purva Vantage'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({
+        project: 'Prestige Lakeside',
+        type: 'Flat/ Apartment',
+        location: 'Whitefield',
+      });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(0);
+    });
+
+    it('surfaces a named project even when the property type conflicts', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        pref_projects: ['Meenakshi Classic'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({ type: 'Residential Plot', project: 'Meenakshi Classic Sector 1' });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.project).toBe('match');
+    });
+
+    it('lets a named project win over an excluded-area overlap', () => {
+      const contact = createTestContact({
+        pref_projects: ['Purva Vantage'],
+        pref_excluded_areas: ['HSR Layout'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({
+        project: 'Purva Vantage',
+        location: 'HSR Layout, Bangalore',
+        type: 'Flat/ Apartment',
+      });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.project).toBe('match');
+    });
+
+    it('ranks a project match above a plain locality match', () => {
+      const projectContact = createTestContact({
+        id: 'c-proj',
+        pref_projects: ['Purva Vantage'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const areaContact = createTestContact({
+        id: 'c-area',
+        pref_areas: ['HSR Layout'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({
+        project: 'Purva Vantage',
+        location: 'HSR Layout, Bangalore',
+        type: 'Flat/ Apartment',
+      });
+      const results = getMatchingContacts(prop, [projectContact, areaContact]);
+      expect(results[0].contact.id).toBe('c-proj');
+    });
+  });
 });
