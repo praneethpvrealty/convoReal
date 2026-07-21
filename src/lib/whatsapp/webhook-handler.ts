@@ -1314,7 +1314,7 @@ async function processMessage(
     .eq('status', 'collecting')
     .maybeSingle()
 
-  if (activeUpdateSession) {
+  if (activeUpdateSession && (await isAuthorizedUpdateSender(senderPhone, accountId))) {
     const handled = await handleUpdateSessionInput(
       activeUpdateSession.id,
       contentText || '',
@@ -1343,18 +1343,22 @@ async function processMessage(
     if (handledPreferenceFlow) return
   }
 
-  // Check for update intent
+  // Check for update intent — restricted to account staff (owner/admin/agent).
+  // Unauthorized senders fall through to normal handling so external contacts
+  // cannot mutate property/contact records and never learn the feature exists.
   const updateIntent = parseUpdateIntent(contentText || '')
   if (updateIntent && updateIntent.type) {
-    await handleUpdateIntent(
-      updateIntent as { type: 'property' | 'contact'; identifier?: string },
-      accountId,
-      configOwnerUserId,
-      contactRecord,
-      conversation,
-      senderPhone
-    )
-    return
+    if (await isAuthorizedUpdateSender(senderPhone, accountId)) {
+      await handleUpdateIntent(
+        updateIntent as { type: 'property' | 'contact'; identifier?: string },
+        accountId,
+        configOwnerUserId,
+        contactRecord,
+        conversation,
+        senderPhone
+      )
+      return
+    }
   }
 
   if (interactiveReplyId) {
@@ -2128,6 +2132,41 @@ function parseUpdateIntent(text: string): {
   }
   
   return null
+}
+
+const UPDATE_AUTHORIZED_ROLES = ['owner', 'admin', 'agent']
+
+/**
+ * Only account staff (owner/admin/agent) may update property or contact
+ * records over WhatsApp. Viewers are read-only and external contacts/leads
+ * must never be able to mutate CRM data through the update-session feature,
+ * so their sender phone must match a staff profile on the same account.
+ */
+async function isAuthorizedUpdateSender(
+  senderPhone: string,
+  accountId: string
+): Promise<boolean> {
+  try {
+    const { data: staffProfiles, error } = await supabaseAdmin()
+      .from('profiles')
+      .select('phone, account_role')
+      .eq('account_id', accountId)
+      .in('account_role', UPDATE_AUTHORIZED_ROLES)
+
+    if (error || !staffProfiles || staffProfiles.length === 0) {
+      if (error) {
+        console.error('[webhook] Error querying staff profiles for update authorization:', error)
+      }
+      return false
+    }
+
+    return staffProfiles.some(
+      (p: { phone: string | null }) => p.phone && phonesMatch(p.phone, senderPhone)
+    )
+  } catch (err) {
+    console.error('[webhook] Exception in isAuthorizedUpdateSender:', err)
+    return false
+  }
 }
 
 // Handle incoming update intent
