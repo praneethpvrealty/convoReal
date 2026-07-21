@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Link } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { ProfileEditSheet } from '@/components/profile-edit-sheet';
 import { Avatar, SectionLabel } from '@/components/ui';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import {
@@ -39,8 +41,10 @@ export default function MoreScreen() {
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
   const credits = useCredits();
+  const [editOpen, setEditOpen] = useState(false);
 
-  const displayName = session?.user.email?.split('@')[0] ?? 'Account';
+  const displayName =
+    profile?.full_name?.trim() || session?.user.email?.split('@')[0] || 'Account';
 
   return (
     <ScrollView
@@ -50,7 +54,13 @@ export default function MoreScreen() {
       <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>More</Text>
 
       <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        <View style={styles.profileRow}>
+        <Pressable
+          style={styles.profileRow}
+          onPress={() => setEditOpen(true)}
+          android_ripple={{ color: colors.border }}
+          accessibilityRole="button"
+          accessibilityLabel="Edit profile"
+        >
           <Avatar name={displayName} size={54} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
@@ -65,7 +75,8 @@ export default function MoreScreen() {
               {profile?.account_role ?? '—'}
             </Text>
           </View>
-        </View>
+          <Ionicons name="pencil-outline" size={16} color={colors.textFaint} />
+        </Pressable>
         <InfoRow
           icon="logo-whatsapp"
           label="WhatsApp number"
@@ -124,6 +135,8 @@ export default function MoreScreen() {
       <Text style={[styles.footer, { color: colors.textFaint }]}>
         ConvoReal companion · v{Constants.expoConfig?.version ?? '0.1.0'}
       </Text>
+
+      <ProfileEditSheet visible={editOpen} onClose={() => setEditOpen(false)} />
     </ScrollView>
   );
 }
