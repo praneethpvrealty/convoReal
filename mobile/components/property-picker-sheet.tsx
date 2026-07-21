@@ -46,6 +46,7 @@ export function PropertyPickerSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const session = useAuthStore((s) => s.session);
+  const fullName = useAuthStore((s) => s.profile?.full_name);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Property[]>([]);
   const [message, setMessage] = useState('');
@@ -66,8 +67,10 @@ export function PropertyPickerSheet({
     queryFn: getShowcaseUrl,
   });
 
-  const firstName = (session?.user.email?.split('@')[0] ?? '').split(/[._-]/)[0];
-  const agentName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : undefined;
+  const emailName = (session?.user.email?.split('@')[0] ?? '').split(/[._-]/)[0];
+  const agentName =
+    fullName?.trim() ||
+    (emailName ? emailName.charAt(0).toUpperCase() + emailName.slice(1) : undefined);
   const agentPhone = session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : undefined;
 
   const generated = useMemo(() => {

@@ -239,7 +239,7 @@ export function FlyerSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Flyer creator">
       <ScrollView
-        style={{ maxHeight: '100%' }}
+        style={{ flexShrink: 1 }}
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           gap: spacing.md,

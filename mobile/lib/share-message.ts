@@ -282,6 +282,22 @@ export function buildShortlistMessage(input: {
   ].join('\n\n');
 }
 
+/**
+ * Personalize the leading greeting with the recipient's first name once
+ * a contact is chosen — "Hi," → "Hi Anand,", "Hey!" → "Hey Anand!",
+ * "Hello! 👋" → "Hello Anand! 👋". Applied to the current draft at send
+ * time so the agent's edits are preserved; a no-match (edited greeting)
+ * returns the message untouched.
+ */
+export function addRecipientGreeting(message: string, name?: string | null): string {
+  const first = name?.trim().split(/\s+/)[0];
+  if (!first) return message;
+  return message.replace(
+    /^(Hi|Hey|Hello)([!,])( 👋)?/,
+    (_m, word, punct, wave) => `${word} ${first}${punct}${wave ?? ''}`
+  );
+}
+
 export interface ShareTargetLinks {
   whatsapp: string;
   telegram: string;
