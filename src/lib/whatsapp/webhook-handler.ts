@@ -2,6 +2,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
+import { BRANDING } from '@/config/branding'
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
@@ -1180,7 +1181,7 @@ async function processMessage(
           importedNames.push(name || normalizedImportPhone);
         }
       } else {
-        importedNames.push(`${existingContact.name} (already in CRM)`);
+        importedNames.push(`${existingContact.name} (already in ${BRANDING.name})`);
       }
     }
 
