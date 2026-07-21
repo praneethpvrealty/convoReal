@@ -1314,7 +1314,10 @@ async function processMessage(
     .eq('status', 'collecting')
     .maybeSingle()
 
-  if (activeUpdateSession) {
+  if (
+    activeUpdateSession &&
+    (await isAuthorizedForUpdateSession(activeUpdateSession, contactRecord, senderPhone, accountId))
+  ) {
     const handled = await handleUpdateSessionInput(
       activeUpdateSession.id,
       contentText || '',
@@ -1343,10 +1346,14 @@ async function processMessage(
     if (handledPreferenceFlow) return
   }
 
-  // Check for update intent
+  // Check for update intent. Allowed for account staff (owner/admin/agent,
+  // org_manager/org_leader) or the WhatsApp contact that owns the target
+  // record (their own contact, or a property they listed). Unauthorized
+  // senders fall through to normal handling so they cannot mutate records
+  // and never learn the feature exists.
   const updateIntent = parseUpdateIntent(contentText || '')
   if (updateIntent && updateIntent.type) {
-    await handleUpdateIntent(
+    const handledUpdate = await handleUpdateIntent(
       updateIntent as { type: 'property' | 'contact'; identifier?: string },
       accountId,
       configOwnerUserId,
@@ -1354,7 +1361,7 @@ async function processMessage(
       conversation,
       senderPhone
     )
-    return
+    if (handledUpdate) return
   }
 
   if (interactiveReplyId) {
@@ -2130,6 +2137,82 @@ function parseUpdateIntent(text: string): {
   return null
 }
 
+// Org roles (org_manager > org_leader > org_agent) are the source of truth;
+// account_role (owner/admin/agent/viewer) is the legacy mirror kept in
+// lockstep by a trigger: owner↔org_manager, admin↔org_leader, agent↔org_agent,
+// viewer→org_agent. All three org roles (manager, leader, agent) may update.
+// Agents are matched via account_role='agent' rather than org_role='org_agent'
+// ON PURPOSE: viewers collapse to org_agent too (with is_read_only), so
+// org_agent cannot distinguish an agent from a read-only viewer. Do NOT add
+// 'org_agent' to the org-role set — it would let viewers mutate records.
+const UPDATE_STAFF_ACCOUNT_ROLES = ['owner', 'admin', 'agent']
+const UPDATE_STAFF_ORG_ROLES = ['org_manager', 'org_leader']
+
+/**
+ * Account staff who may update ANY property or contact over WhatsApp:
+ * managers, leaders, and agents (via the role sets above). Matched by the
+ * sender's phone against a staff profile on the same account. Non-staff
+ * senders can still update a specific record they own — see
+ * isAuthorizedForUpdateSession / the owner checks in the intent handlers.
+ */
+async function isUpdateStaffSender(
+  senderPhone: string,
+  accountId: string
+): Promise<boolean> {
+  try {
+    const { data: staffProfiles, error } = await supabaseAdmin()
+      .from('profiles')
+      .select('phone, account_role, org_role')
+      .eq('account_id', accountId)
+      .or(
+        `account_role.in.(${UPDATE_STAFF_ACCOUNT_ROLES.join(',')}),org_role.in.(${UPDATE_STAFF_ORG_ROLES.join(',')})`
+      )
+
+    if (error || !staffProfiles || staffProfiles.length === 0) {
+      if (error) {
+        console.error('[webhook] Error querying staff profiles for update authorization:', error)
+      }
+      return false
+    }
+
+    return staffProfiles.some(
+      (p: { phone: string | null }) => p.phone && phonesMatch(p.phone, senderPhone)
+    )
+  } catch (err) {
+    console.error('[webhook] Exception in isUpdateStaffSender:', err)
+    return false
+  }
+}
+
+/**
+ * Authorize an inbound sender to continue an in-progress update session.
+ * A session is owned by the sender when it targets their own contact
+ * record, or a property they listed (properties.owner_contact_id). Staff
+ * may act on any session. Guards pre-existing sessions and any session
+ * whose ownership must be re-verified on each incoming message.
+ */
+async function isAuthorizedForUpdateSession(
+  session: { update_type: string; target_id: string },
+  contactRecord: { id: string },
+  senderPhone: string,
+  accountId: string
+): Promise<boolean> {
+  if (session.update_type === 'contact') {
+    if (session.target_id === contactRecord.id) return true
+  } else if (session.update_type === 'property') {
+    const { data: prop } = await supabaseAdmin()
+      .from('properties')
+      .select('owner_contact_id')
+      .eq('id', session.target_id)
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (prop && prop.owner_contact_id && prop.owner_contact_id === contactRecord.id) {
+      return true
+    }
+  }
+  return isUpdateStaffSender(senderPhone, accountId)
+}
+
 // Handle incoming update intent
 export async function handleUpdateIntent(
   intent: { type: 'property' | 'contact'; identifier?: string },
@@ -2138,7 +2221,7 @@ export async function handleUpdateIntent(
   contactRecord: { id: string; name?: string; phone: string },
   conversation: { id: string },
   senderPhone: string
-) {
+): Promise<boolean> {
   try {
     // Check for existing active update session
     const { data: existingSession } = await supabaseAdmin()
@@ -2159,14 +2242,13 @@ export async function handleUpdateIntent(
         text: `You have an ongoing update session. Please complete or cancel it first by sending "cancel".`,
         senderType: 'bot',
       })
-      return
+      return true
     }
 
     if (intent.type === 'property') {
-      await handlePropertyUpdateIntent(intent.identifier, accountId, configOwnerUserId, contactRecord, conversation, senderPhone)
-    } else {
-      await handleContactUpdateIntent(accountId, configOwnerUserId, contactRecord, conversation, senderPhone)
+      return await handlePropertyUpdateIntent(intent.identifier, accountId, configOwnerUserId, contactRecord, conversation, senderPhone)
     }
+    return await handleContactUpdateIntent(accountId, configOwnerUserId, contactRecord, conversation, senderPhone)
   } catch (err) {
     console.error('[webhook] Failed to handle update intent:', err)
     await sendWhatsAppMessageAndPersist({
@@ -2179,6 +2261,7 @@ export async function handleUpdateIntent(
       text: 'Sorry, something went wrong. Please try again.',
       senderType: 'bot',
     })
+    return true
   }
 }
 
@@ -2190,7 +2273,7 @@ async function handlePropertyUpdateIntent(
   contactRecord: { id: string; name?: string; phone: string },
   conversation: { id: string },
   senderPhone: string
-) {
+): Promise<boolean> {
   let property = null
 
   if (identifier) {
@@ -2217,6 +2300,9 @@ async function handlePropertyUpdateIntent(
   }
 
   if (!property) {
+    // Only reveal that a property does or doesn't exist to account staff;
+    // for everyone else fall through silently so the feature stays hidden.
+    if (!(await isUpdateStaffSender(senderPhone, accountId))) return false
     await sendWhatsAppMessageAndPersist({
       accountId,
       userId: configOwnerUserId,
@@ -2229,7 +2315,15 @@ async function handlePropertyUpdateIntent(
         : `I couldn't find a property associated with your account. Please specify the property code (e.g., "Update Property PROP-1018").`,
       senderType: 'bot',
     })
-    return
+    return true
+  }
+
+  // Authorize: account staff may update any property; a non-staff sender
+  // may only update a property they listed over WhatsApp
+  // (properties.owner_contact_id). Unauthorized senders fall through.
+  const isOwner = property.owner_contact_id != null && property.owner_contact_id === contactRecord.id
+  if (!isOwner && !(await isUpdateStaffSender(senderPhone, accountId))) {
+    return false
   }
 
   // Create update session
@@ -2257,6 +2351,7 @@ async function handlePropertyUpdateIntent(
     text: `Let's update *${property.title || property.property_code}*\n\nCurrent values:\n${PROPERTY_UPDATABLE_FIELDS.map(f => `• ${f.label}: ${property[f.name] || 'not set'}`).join('\n')}\n\nWhat would you like to update?\n\nSend the field name (e.g., "price", "status", "title") or send "all" to update fields one by one.`,
     senderType: 'bot',
   })
+  return true
 }
 
 // Handle contact update intent
@@ -2266,7 +2361,9 @@ async function handleContactUpdateIntent(
   contactRecord: { id: string; name?: string; phone: string },
   conversation: { id: string },
   senderPhone: string
-) {
+): Promise<boolean> {
+  // The contact update always targets the sender's own contact record, so
+  // the sender is by definition the owner of what they're editing.
   // Create update session for contact
   const pendingFields = CONTACT_UPDATABLE_FIELDS.map(f => f.name)
   
@@ -2292,6 +2389,7 @@ async function handleContactUpdateIntent(
     text: `Let's update your contact details\n\nCurrent values:\n${CONTACT_UPDATABLE_FIELDS.map(f => `• ${f.label}: ${(contactRecord as Record<string, unknown>)[f.name] || 'not set'}`).join('\n')}\n\nWhat would you like to update?\n\nSend the field name (e.g., "name", "email", "classification") or send "all" to update fields one by one.`,
     senderType: 'bot',
   })
+  return true
 }
 
 // Handle update session input
