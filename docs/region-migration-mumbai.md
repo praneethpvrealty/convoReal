@@ -128,22 +128,28 @@ simple loop with the two service-role keys: list objects per bucket
 from the old project, upload to the same bucket/path on the new one.
 Verify a handful of image URLs render from the new project.
 
-**Rewrite stored media URLs.** Historically the upload helpers persisted
-ABSOLUTE public URLs (with the old project ref) into `properties.images`,
-`.documents`, `.video_url`, `profiles.avatar_url`, `flow_nodes.config`,
-etc. After the DB dump those rows still point at the old project, so the
-live app keeps fetching media from it. Fix the data with one of:
+**Make stored media references host-independent.** Historically the
+upload helpers persisted ABSOLUTE public URLs (with the project ref) into
+`properties.images`, `.documents`, `.video_url`, `profiles.avatar_url`,
+`flow_nodes.config`, etc. After the DB dump those rows still point at the
+old project, so the live app keeps fetching media from it. The permanent
+fix:
 
-- `scripts/migrate-storage-urls.sql` — rewrites the old host to the new
-  host (run once in the new project's SQL editor; set the two hosts at the
-  top). Use this if you have NOT deployed the `storagePublicUrl()` refactor.
-- Deploy the app (it resolves stored media through `src/lib/storage/url.ts`,
-  which re-bases any Supabase URL onto the current host at read time), then
-  optionally run `scripts/normalize-storage-paths.sql` to convert stored
-  URLs to the portable bucket-relative form.
+1. Deploy the app. Reads now resolve stored media through
+   `src/lib/storage/url.ts`, which rebuilds the URL from the current host
+   (and re-bases any absolute Supabase URL) at read time.
+2. Run `scripts/migrate-storage-urls.sql` once in the new project's SQL
+   editor. It strips the host from every stored value, leaving only the
+   bucket-relative path — so the data is portable and **no future
+   migration will ever need a URL rewrite again.**
 
-Either way, watch the OLD project's Storage logs: real user image reads
-must fall to zero before you delete it (allow 24–48h for browser/CDN cache).
+Order matters: run the script only AFTER the app is deployed — bare
+relative paths render only through the resolver. (If you must fix the data
+before deploying, do a host-to-host rewrite instead — see the note at the
+top of the script.)
+
+Then watch the OLD project's Storage logs: real user image reads must fall
+to zero before you delete it (allow 24–48h for browser/CDN cache).
 
 ### 5. Cut over
 
