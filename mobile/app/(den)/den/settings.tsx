@@ -5,11 +5,11 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 
 import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { ApiError } from '@/lib/api';
+import { signOut } from '@/lib/auth-store';
 import { fetchDenMe, updateDenSettings } from '@/lib/den-api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
-import { supabase } from '@/lib/supabase';
 import { useSurface } from '@/lib/surface';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
@@ -55,8 +55,8 @@ export default function DenSettingsScreen() {
     },
   });
 
-  async function signOut() {
-    await supabase.auth.signOut();
+  async function handleSignOut() {
+    await signOut();
     setSurface('staff');
   }
 
@@ -116,7 +116,7 @@ export default function DenSettingsScreen() {
       <PrimaryButton label="Save settings" busy={save.isPending} onPress={() => save.mutate()} />
 
       <Pressable
-        onPress={signOut}
+        onPress={handleSignOut}
         accessibilityRole="button"
         style={[styles.signOut, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
       >

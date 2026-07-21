@@ -6,8 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { Avatar, SectionLabel } from '@/components/ui';
-import { useAuthStore } from '@/lib/auth-store';
-import { supabase } from '@/lib/supabase';
+import { signOut, useAuthStore } from '@/lib/auth-store';
 import {
   fonts,
   radius,
@@ -116,7 +115,7 @@ export default function MoreScreen() {
           styles.signOut,
           { backgroundColor: colors.glass, borderColor: colors.glassBorder, opacity: pressed ? 0.7 : 1 },
         ]}
-        onPress={() => supabase.auth.signOut()}
+        onPress={() => signOut()}
       >
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
         <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}>Sign out</Text>

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 
 export async function PUT(
   request: Request,
@@ -7,28 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
-      )
-    }
+    const { supabase, accountId } = await requireRole('agent')
 
     const body = await request.json()
     const {
@@ -95,7 +74,7 @@ export async function PUT(
     return NextResponse.json(appointment)
   } catch (error) {
     console.error('Error updating appointment:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return toErrorResponse(error)
   }
 }
 
@@ -105,28 +84,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
-      )
-    }
+    const { supabase, accountId } = await requireRole('agent')
 
     const { error } = await supabase
       .from('appointments')
@@ -141,6 +99,6 @@ export async function DELETE(
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error deleting appointment:', error)
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
+    return toErrorResponse(error)
   }
 }

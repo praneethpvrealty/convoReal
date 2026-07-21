@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { assignTagsToContact } from "@/app/api/leads/email-webhook/db-utils";
+
+const REQUIREMENTS_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
+const REQUIREMENTS_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
+const MAX_NAME_LEN = 120;
+const MAX_NOTES_LEN = 2000;
 
 function resolveBudgetVal(val: number | null | undefined): number | null {
   if (val === null || val === undefined) return null;
@@ -16,19 +22,19 @@ function resolveBudgetVal(val: number | null | undefined): number | null {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { 
-      name, 
-      phone, 
-      email, 
+    const {
+      phone,
+      email,
       categories, // string[]
       locations, // string[]
       minBudget, // number | null
       maxBudget, // number | null
       minRoi, // number | null
-      notes, // string
-      accountId, 
-      referrerContactId 
+      accountId,
+      referrerContactId
     } = body;
+    const name = typeof body.name === "string" ? body.name.slice(0, MAX_NAME_LEN) : body.name;
+    const notes = typeof body.notes === "string" ? body.notes.slice(0, MAX_NOTES_LEN) : body.notes;
 
     if (!accountId) {
       return NextResponse.json(
@@ -36,6 +42,15 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const sessionLimit = checkRateLimit(`requirements:session:${ip}`, REQUIREMENTS_SESSION_LIMIT);
+    if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
+    const accountLimit = checkRateLimit(`requirements:account:${accountId}`, REQUIREMENTS_ACCOUNT_LIMIT);
+    if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     if (!phone) {
       return NextResponse.json(

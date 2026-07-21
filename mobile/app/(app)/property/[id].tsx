@@ -52,6 +52,10 @@ function equivalentInr(n: number | null | undefined): string | null {
   return `Equivalent to: ₹${n.toLocaleString('en-IN')}`;
 }
 
+function safeMapUrl(link: string | null | undefined, fallback: string): string {
+  return link && link.startsWith('https://') ? link : fallback;
+}
+
 async function fetchProperty(id: string): Promise<Property | null> {
   // Single-property reads pass RLS directly, same as the web's
   // count/star queries; only the list/search flow is API-gated.
@@ -469,8 +473,10 @@ export default function PropertyDetailScreen() {
               <Pressable
                 onPress={() =>
                   Linking.openURL(
-                    property.google_map_link ||
+                    safeMapUrl(
+                      property.google_map_link,
                       `https://maps.google.com/?q=${property.latitude},${property.longitude}`
+                    )
                   )
                 }
                 accessibilityRole="button"
@@ -500,8 +506,10 @@ export default function PropertyDetailScreen() {
                 toolbarEnabled={false}
                 onPress={() =>
                   Linking.openURL(
-                    property.google_map_link ||
+                    safeMapUrl(
+                      property.google_map_link,
                       `https://maps.google.com/?q=${property.latitude},${property.longitude}`
+                    )
                   )
                 }
               >
@@ -518,7 +526,14 @@ export default function PropertyDetailScreen() {
         {property.google_map_link ? (
           <Pressable
             style={[styles.mapButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
-            onPress={() => Linking.openURL(property.google_map_link!)}
+            onPress={() =>
+              Linking.openURL(
+                safeMapUrl(
+                  property.google_map_link,
+                  `https://maps.google.com/?q=${property.latitude},${property.longitude}`
+                )
+              )
+            }
           >
             <Ionicons name="map-outline" size={17} color={colors.primary} />
             <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
@@ -569,8 +584,10 @@ export default function PropertyDetailScreen() {
           ownerPhone
             ? Linking.openURL(`https://wa.me/${ownerPhone.replace(/\D/g, '')}`)
             : Linking.openURL(
-                property.google_map_link ||
+                safeMapUrl(
+                  property.google_map_link,
                   `https://maps.google.com/?q=${encodeURIComponent(property.title)}`
+                )
               )
         }
       >

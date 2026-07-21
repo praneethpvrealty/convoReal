@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassCard } from '@/components/glass-card';
 import { OtpInput } from '@/components/otp-input';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
-import { useAuthStore } from '@/lib/auth-store';
+import { signOut, useAuthStore } from '@/lib/auth-store';
 import { cleanPhoneInput } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { spacing, useTheme , fonts } from '@/lib/theme';
@@ -147,7 +147,7 @@ export default function VerifyPhoneScreen() {
 
           </GlassCard>
           <Pressable
-            onPress={() => supabase.auth.signOut()}
+            onPress={() => signOut()}
             hitSlop={10}
             accessibilityRole="button"
             style={{ alignItems: 'center', paddingVertical: 10 }}

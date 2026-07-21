@@ -212,7 +212,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
         .from('appointments')
         .select('title, event_type, start_time, location, status, contact:contacts(name)')
         .eq('account_id', accountId)
-        .or(`assigned_to.eq.${userId},and(assigned_to.is.null,user_id.eq.${userId})`)
+        .or(`assigned_to.eq."${String(userId).replace(/[\\"]/g, '\\$&')}",and(assigned_to.is.null,user_id.eq."${String(userId).replace(/[\\"]/g, '\\$&')}")`)
         .gte('start_time', startIso)
         .lt('start_time', endIso)
         .order('start_time', { ascending: true }),

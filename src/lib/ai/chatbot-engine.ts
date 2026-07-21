@@ -369,7 +369,7 @@ async function computeContactDuplicateWarnings(
             .from('contacts')
             .select('id, name')
             .eq('account_id', accountId)
-            .or(`phone.eq.${draft.phone},phone.eq.${normalized},phone.eq.${cleanPhone}`)
+            .or(`phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`)
             .maybeSingle();
 
           if (byPhone) {
@@ -742,7 +742,7 @@ export async function processOwnerChatbotMessage(
             .from('contacts')
             .select('id, name, classification')
             .eq('account_id', accountId)
-            .or(`phone.eq.${ownerPhone},phone.eq.${normalizedPhone},phone.eq.${cleanPhone}`);
+            .or(`phone.eq."${String(ownerPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalizedPhone},phone.eq.${cleanPhone}`);
 
           if (existingContacts && existingContacts.length > 0) {
             const contact = existingContacts[0];
@@ -1383,7 +1383,7 @@ export async function processOwnerChatbotMessage(
           .from('contacts')
           .select('id, name')
           .eq('account_id', accountId)
-          .or(`phone.eq.${draft.phone},phone.eq.${normalized},phone.eq.${cleanPhone}`)
+          .or(`phone.eq."${String(draft.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`)
           .maybeSingle();
 
         if (existingContact) {
@@ -1401,8 +1401,8 @@ export async function processOwnerChatbotMessage(
             if (refPhone) {
               const refNormalized = normalizePhoneWithCountryCode(refPhone);
               const refCleanPhone = refNormalized.replace(/\D/g, '');
-              const escapedRefName = refName.replace(/"/g, '\\"');
-              refQuery = refQuery.or(`phone.eq.${refPhone},phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike."${escapedRefName}"`);
+              const escapedRefName = refName.replace(/[\\"]/g, '\\$&');
+              refQuery = refQuery.or(`phone.eq."${String(refPhone).replace(/[\\"]/g, '\\$&')}",phone.eq.${refNormalized},phone.eq.${refCleanPhone},name.ilike."${escapedRefName}"`);
             } else {
               refQuery = refQuery.ilike('name', refName);
             }

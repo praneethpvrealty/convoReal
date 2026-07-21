@@ -14,7 +14,10 @@ import type { SubscriptionPlanForCredits } from '@/lib/credits/types';
 
 function verifyRazorpaySignature(body: string, signature: string, secret: string): boolean {
   const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signature);
+  // Bail if lengths differ — timingSafeEqual throws otherwise.
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 // Maps Razorpay plan IDs back to our internal plan name.

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentAccount } from '@/lib/auth/account'
+import { hasMinRole, type AccountRole } from '@/lib/auth/roles'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 
 /**
@@ -19,6 +21,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client'
 
 async function requireOwnership(
   flowId: string,
+  minRole: AccountRole = 'viewer',
 ): Promise<
   | {
       ok: true
@@ -27,16 +30,27 @@ async function requireOwnership(
     }
   | { ok: false; status: number; body: { error: string } }
 > {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return { ok: false, status: 401, body: { error: 'Unauthorized' } }
+  let ctx
+  try {
+    ctx = await getCurrentAccount()
+  } catch (err) {
+    const status = (err as { status?: number })?.status ?? 401
+    return {
+      ok: false,
+      status,
+      body: { error: status === 403 ? 'Forbidden' : 'Unauthorized' },
+    }
   }
-  // RLS scopes this to the caller — a flow owned by another user
-  // returns null (404 below).
-  const { data: flow } = await supabase
+  if (!hasMinRole(ctx.role, minRole)) {
+    return {
+      ok: false,
+      status: 403,
+      body: { error: `This action requires the '${minRole}' role or higher` },
+    }
+  }
+  // RLS scopes this to the caller's account — a flow in another
+  // account returns null (404 below).
+  const { data: flow } = await ctx.supabase
     .from('flows')
     .select('id')
     .eq('id', flowId)
@@ -44,7 +58,7 @@ async function requireOwnership(
   if (!flow) {
     return { ok: false, status: 404, body: { error: 'Not found' } }
   }
-  return { ok: true, userId: user.id, supabase }
+  return { ok: true, userId: ctx.userId, supabase: ctx.supabase }
 }
 
 export async function GET(
@@ -91,7 +105,7 @@ export async function PUT(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params
-  const guard = await requireOwnership(id)
+  const guard = await requireOwnership(id, 'agent')
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
 
   const body = (await request.json().catch(() => null)) as PutBody | null
@@ -177,7 +191,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params
-  const guard = await requireOwnership(id)
+  const guard = await requireOwnership(id, 'agent')
   if (!guard.ok) return NextResponse.json(guard.body, { status: guard.status })
 
   // Clear active_flow_id on contacts referencing this flow to prevent foreign key constraint violation

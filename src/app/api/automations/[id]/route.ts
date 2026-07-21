@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getCurrentAccount } from '@/lib/auth/account'
+import { hasMinRole } from '@/lib/auth/roles'
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import {
   loadStepsTree,
@@ -17,6 +19,28 @@ async function requireUser() {
     data: { user },
   } = await supabase.auth.getUser()
   return user
+}
+
+// Mutating an automation (editing steps, activation → outbound sends,
+// deletion) requires the 'agent' role. Returns the caller's userId, or a
+// NextResponse to return directly on auth/role failure.
+async function requireAgentUser(): Promise<{ userId: string } | NextResponse> {
+  try {
+    const ctx = await getCurrentAccount()
+    if (!hasMinRole(ctx.role, 'agent')) {
+      return NextResponse.json(
+        { error: "This action requires the 'agent' role or higher" },
+        { status: 403 },
+      )
+    }
+    return { userId: ctx.userId }
+  } catch (err) {
+    const status = (err as { status?: number })?.status ?? 401
+    return NextResponse.json(
+      { error: status === 403 ? 'Forbidden' : 'Unauthorized' },
+      { status },
+    )
+  }
 }
 
 export async function GET(
@@ -47,8 +71,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const user = await requireUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await requireAgentUser()
+  if (gate instanceof NextResponse) return gate
+  const user = { id: gate.userId }
 
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
@@ -125,14 +150,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const user = await requireUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const gate = await requireAgentUser()
+  if (gate instanceof NextResponse) return gate
 
   const { error } = await supabaseAdmin()
     .from('automations')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id)
+    .eq('user_id', gate.userId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

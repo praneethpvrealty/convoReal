@@ -15,6 +15,7 @@
 // external-listing flow.
 // ============================================================
 
+import { randomInt } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { parseListingFromImageOrText } from '@/lib/ai/gemini';
 import { validateDraft, backfillLocationFromMapLink } from '@/lib/ai/intake-core';
@@ -40,7 +41,7 @@ const CODE_PREFIX = 'LIST-';
 export function generateSubmissionCode(): string {
   let body = '';
   for (let i = 0; i < CODE_LEN; i++) {
-    body += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+    body += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
   }
   return CODE_PREFIX + body;
 }

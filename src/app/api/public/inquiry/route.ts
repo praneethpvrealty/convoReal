@@ -1,12 +1,20 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { findOrCreateContact } from "@/lib/contacts/find-or-create";
+
+const INQUIRY_SESSION_LIMIT = { limit: 5, windowMs: 60_000 };
+const INQUIRY_ACCOUNT_LIMIT = { limit: 60, windowMs: 60_000 };
+const MAX_NAME_LEN = 120;
+const MAX_MESSAGE_LEN = 2000;
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, phone, email, message, propertyId, propertyTitle, propertyCode, accountId, referrerContactId, sessionKey } = body;
+    const { phone, email, propertyId, propertyTitle, propertyCode, accountId, referrerContactId, sessionKey } = body;
+    const name = typeof body.name === "string" ? body.name.slice(0, MAX_NAME_LEN) : body.name;
+    const message = typeof body.message === "string" ? body.message.slice(0, MAX_MESSAGE_LEN) : body.message;
 
     if (!accountId) {
       return NextResponse.json(
@@ -14,6 +22,16 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const sessionId = typeof sessionKey === "string" && sessionKey.trim() ? sessionKey.trim().slice(0, 64) : ip;
+    const sessionLimit = checkRateLimit(`inquiry:session:${sessionId}`, INQUIRY_SESSION_LIMIT);
+    if (!sessionLimit.success) return rateLimitResponse(sessionLimit);
+    const accountLimit = checkRateLimit(`inquiry:account:${accountId}`, INQUIRY_ACCOUNT_LIMIT);
+    if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     if (!phone) {
       return NextResponse.json(

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import {
@@ -31,9 +32,15 @@ function supabaseAdmin() {
  */
 export async function GET(request: Request) {
   try {
-    // Verify cron secret
-    const secret = request.headers.get('x-cron-secret')
-    if (secret !== process.env.AUTOMATION_CRON_SECRET) {
+    // Verify cron secret (constant-time; fail closed when unset)
+    const expected = process.env.AUTOMATION_CRON_SECRET
+    if (!expected) {
+      return NextResponse.json({ error: 'cron not configured' }, { status: 503 })
+    }
+    const supplied = request.headers.get('x-cron-secret') || ''
+    const suppliedBuf = Buffer.from(supplied)
+    const expectedBuf = Buffer.from(expected)
+    if (suppliedBuf.length !== expectedBuf.length || !timingSafeEqual(suppliedBuf, expectedBuf)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

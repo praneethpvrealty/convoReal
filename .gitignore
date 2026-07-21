@@ -45,6 +45,9 @@ next-env.d.ts
 
 # npm cache
 .npm-cache/
+
+# local debug/scratch scripts — never commit (may hold live secrets)
+/scratch/
 AI_ENGINEERING_CONSTITUTION.md
 ARCHITECTURE.md
 PROJECT_CONTEXT.md

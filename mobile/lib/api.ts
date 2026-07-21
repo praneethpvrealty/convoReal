@@ -1,3 +1,4 @@
+import { signOut } from './auth-store';
 import { ENV } from './env';
 import { supabase } from './supabase';
 
@@ -99,7 +100,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   // switching). Reads keep working until the cached token expires,
   // which hides the breakage — recover by forcing a clean sign-in.
   if (res.status === 401 && refreshDied) {
-    await supabase.auth.signOut();
+    await signOut();
     throw new ApiError(401, 'Session expired — please sign in again.');
   }
 

@@ -285,7 +285,7 @@ export async function POST(request: Request) {
           params: [otpCode],
         });
       }
-      console.log(`[SMS Hook] Verification code ${otpCode} successfully sent via template to: ${cleanPhone}`);
+      console.log(`[SMS Hook] Verification code sent via template (success=true) to: ****${cleanPhone.slice(-4)}`);
     })().catch(async (templateError) => {
       console.warn('[SMS Hook] Template sending failed, falling back to free-form text message:', templateError);
       try {
@@ -295,7 +295,7 @@ export async function POST(request: Request) {
           to: cleanPhone,
           text: `Your convoReal CRM verification code is: *${otpCode}*\n\nIt is valid for 5 minutes.`,
         });
-        console.log(`[SMS Hook] Verification code ${otpCode} successfully sent via fallback text message to: ${cleanPhone}`);
+        console.log(`[SMS Hook] Verification code sent via fallback text message (success=true) to: ****${cleanPhone.slice(-4)}`);
       } catch (fallbackError) {
         console.error('[SMS Hook] Fallback text sending failed:', fallbackError);
       }

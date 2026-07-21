@@ -509,7 +509,9 @@ export function PropertyForm({
   // Auto-generate 4-digit passcode when document share dialog opens
   useEffect(() => {
     if (shareDocDialogOpen) {
-      setSharePassword(String(Math.floor(1000 + Math.random() * 9000)));
+      const buf = new Uint32Array(1);
+      window.crypto.getRandomValues(buf);
+      setSharePassword(String(1000 + (buf[0] % 9000)));
       setShareSuccessData(null);
     }
   }, [shareDocDialogOpen]);

@@ -17,6 +17,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const maxWebhookBodyBytes = 1 << 20
+
 var (
 	redisClient *redis.Client
 	appSecret   string
@@ -143,7 +145,16 @@ func handleVerification(w http.ResponseWriter, r *http.Request) {
 func handleEvent(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
-	// 1. Read request body
+	// 1. Reject when the secret is unset — fail closed, never skip
+	//    signature validation (mirrors webhook-signature.ts contract).
+	if appSecret == "" {
+		log.Println("[POST] META_APP_SECRET is not set; rejecting request")
+		http.Error(w, "Server misconfigured", http.StatusServiceUnavailable)
+		return
+	}
+
+	// 2. Read request body (capped to guard against oversized payloads)
+	r.Body = http.MaxBytesReader(w, r.Body, maxWebhookBodyBytes)
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("[POST] Failed to read body: %v", err)
@@ -152,25 +163,21 @@ func handleEvent(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// 2. Validate HMAC signature
+	// 3. Validate HMAC signature
 	signature := r.Header.Get("X-Hub-Signature-256")
-	if appSecret != "" {
-		if signature == "" {
-			log.Println("[POST] Missing X-Hub-Signature-256 header")
-			http.Error(w, "Missing signature", http.StatusUnauthorized)
-			return
-		}
-
-		if !verifySignature(bodyBytes, signature, appSecret) {
-			log.Printf("[POST] Invalid HMAC signature. Header: %s", signature)
-			http.Error(w, "Invalid signature", http.StatusUnauthorized)
-			return
-		}
-	} else {
-		log.Println("[Warning] META_APP_SECRET is not set; skipping signature validation.")
+	if signature == "" {
+		log.Println("[POST] Missing X-Hub-Signature-256 header")
+		http.Error(w, "Missing signature", http.StatusUnauthorized)
+		return
 	}
 
-	// 3. Enqueue to Redis
+	if !verifySignature(bodyBytes, signature, appSecret) {
+		log.Printf("[POST] Invalid HMAC signature. Header: %s", signature)
+		http.Error(w, "Invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// 4. Enqueue to Redis
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
@@ -181,7 +188,7 @@ func handleEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 4. Return HTTP 200 instantly
+	// 5. Return HTTP 200 instantly
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "queued"})

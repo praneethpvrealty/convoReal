@@ -35,8 +35,8 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     if (p === '/settings') return '/more';
     if (p === '' || p === '/' || p === '/dashboard') return '/';
 
-    return path;
+    return '/';
   } catch {
-    return path;
+    return '/';
   }
 }

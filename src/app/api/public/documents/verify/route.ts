@@ -1,6 +1,24 @@
+import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { trackDocumentView } from "@/lib/documents/track-view";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
+
+function getClientIp(request: Request): string {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  const xri = request.headers.get("x-real-ip");
+  if (xri) return xri.trim();
+  return "unknown";
+}
+
+function passwordMatches(stored: string, supplied: string): boolean {
+  const a = Buffer.from(stored);
+  const b = Buffer.from(supplied);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+const DOC_VERIFY_LIMIT = { limit: 8, windowMs: 60_000 };
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +32,9 @@ export async function POST(request: Request) {
     if (!token || !password) {
       return NextResponse.json({ error: "Token and password are required" }, { status: 400 });
     }
+
+    const rate = checkRateLimit(`doc-verify:${token}:${getClientIp(request)}`, DOC_VERIFY_LIMIT);
+    if (!rate.success) return rateLimitResponse(rate);
 
     const admin = supabaseAdmin();
     // Look up doc request by share token
@@ -42,7 +63,7 @@ export async function POST(request: Request) {
 
     // Verify password
     const storedPassword = docRequest.access_password?.trim();
-    if (!storedPassword || storedPassword.toLowerCase() !== password.trim().toLowerCase()) {
+    if (!storedPassword || !passwordMatches(storedPassword, password.trim())) {
       return NextResponse.json({ error: "Incorrect password" }, { status: 401 });
     }
 

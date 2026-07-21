@@ -50,13 +50,13 @@ export async function GET(request: Request) {
     // NOTE: 'documents' is intentionally excluded — documents are private and
     // only accessible via approved share links (/docs/[token]).
     const PUBLIC_PROPERTY_COLUMNS = [
-      "id", "account_id", "user_id", "title", "description", "price",
+      "id", "account_id", "title", "description", "price",
       "location", "sublocality", "city", "state", "type", "status",
       "listing_type", "bedrooms", "bathrooms", "area_sqft", "area_unit",
       "land_area", "land_area_unit", "super_built_area", "project",
       "land_zone", "ideal_for", "dimensions", "road_width", "road_width_unit",
       "facing_direction", "nearby_highlights", "is_published", "features",
-      "images", "google_map_link", "property_code", "owner_contact_id",
+      "images", "google_map_link", "property_code",
       "rental_income", "roi", "listing_source", "rent_per_month",
       "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
       "builder_share_percent", "goodwill_amount", "bts_lease_years",
@@ -94,7 +94,8 @@ export async function GET(request: Request) {
       if (parsed.maxPrice !== null) query = query.lte("price", parsed.maxPrice);
       if (parsed.types.length > 0) query = query.in("type", parsed.types);
       if (parsed.remainingSearch) {
-        const term = `%${parsed.remainingSearch}%`;
+        const escaped = parsed.remainingSearch.replace(/[\\"]/g, '\\$&');
+        const term = `"%${escaped}%"`;
         query = query.or(`title.ilike.${term},location.ilike.${term},sublocality.ilike.${term},city.ilike.${term},project.ilike.${term},property_code.ilike.${term}`);
       }
     }

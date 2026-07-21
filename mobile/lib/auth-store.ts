@@ -1,7 +1,9 @@
 import type { Session } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect } from 'react';
 import { create } from 'zustand';
 
+import { asyncStoragePersister, queryClient } from './query';
 import { supabase } from './supabase';
 import type { Profile } from './types';
 
@@ -70,4 +72,17 @@ export function useAuthListener() {
  */
 export function isPhoneVerified(session: Session): boolean {
   return Boolean(session.user.phone_confirmed_at);
+}
+
+/**
+ * Single sign-out path. Beyond ending the Supabase session it wipes the
+ * TanStack Query cache — in memory and the plaintext AsyncStorage copy —
+ * so CRM PII (contacts, phone numbers, message bodies, deals) never
+ * outlives the signed-in user on the device.
+ */
+export async function signOut(): Promise<void> {
+  await supabase.auth.signOut();
+  queryClient.clear();
+  await asyncStoragePersister.removeClient();
+  await AsyncStorage.removeItem('convoreal-query-cache');
 }

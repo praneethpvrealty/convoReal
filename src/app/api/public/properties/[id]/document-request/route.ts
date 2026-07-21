@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
 import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
+
+// Per-IP and per-account caps that bound abuse even when the requester
+// rotates the phone number (the per-phone pending cap below is trivially
+// bypassed by changing the phone).
+const DOCREQ_IP_LIMIT = { limit: 5, windowMs: 60_000 };
+const DOCREQ_ACCOUNT_LIMIT = { limit: 40, windowMs: 60_000 };
 
 // POST /api/public/properties/[id]/document-request
 // Lets any visitor request access to the documents for a property.
@@ -30,6 +37,15 @@ export async function POST(
     if (!account_id) {
       return NextResponse.json({ error: "account_id is required" }, { status: 400 });
     }
+
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const ipLimit = checkRateLimit(`docreq:ip:${ip}`, DOCREQ_IP_LIMIT);
+    if (!ipLimit.success) return rateLimitResponse(ipLimit);
+    const accountLimit = checkRateLimit(`docreq:account:${account_id}`, DOCREQ_ACCOUNT_LIMIT);
+    if (!accountLimit.success) return rateLimitResponse(accountLimit);
 
     const normalizedPhone = normalizePhoneWithCountryCode(requester_phone.trim());
     if (!normalizedPhone) {

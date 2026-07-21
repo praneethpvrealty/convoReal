@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { processUnclaimedReferralSignups, activatePendingReferrals } from '@/lib/credits/referral';
 
@@ -11,8 +12,10 @@ export async function GET(request: Request) {
   if (!expected) {
     return NextResponse.json({ error: 'cron not configured' }, { status: 503 });
   }
-  const supplied = request.headers.get('x-cron-secret');
-  if (supplied !== expected) {
+  const supplied = request.headers.get('x-cron-secret') || '';
+  const suppliedBuf = Buffer.from(supplied);
+  const expectedBuf = Buffer.from(expected);
+  if (suppliedBuf.length !== expectedBuf.length || !timingSafeEqual(suppliedBuf, expectedBuf)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

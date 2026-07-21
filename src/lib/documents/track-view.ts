@@ -90,7 +90,7 @@ export async function trackDocumentView(
       .from('contacts')
       .select('id, user_id')
       .eq('account_id', docRequest.account_id)
-      .or(`phone.eq.${docRequest.requester_phone},phone.eq.${normalized},phone.eq.${cleanPhone}`)
+      .or(`phone.eq."${String(docRequest.requester_phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normalized},phone.eq.${cleanPhone}`)
       .maybeSingle();
 
     if (!contact) return;

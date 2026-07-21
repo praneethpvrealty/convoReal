@@ -570,6 +570,7 @@ Content-Transfer-Encoding: quoted-printable
 
   describe('POST Webhook Endpoint', () => {
     beforeEach(() => {
+      process.env.LEADS_WEBHOOK_TOKEN = 'test-token';
       mockDb.contacts = [];
       mockDb.contact_property_inquiries = [];
       mockDb.contact_tags = [];

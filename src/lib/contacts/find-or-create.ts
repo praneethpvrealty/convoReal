@@ -63,7 +63,7 @@ export async function findOrCreateContact(
     .select('id')
     .eq('account_id', input.accountId)
     .eq('is_merged', false)
-    .or(`phone.eq.${input.phone},phone.eq.${normPhone}`)
+    .or(`phone.eq."${String(input.phone).replace(/[\\"]/g, '\\$&')}",phone.eq.${normPhone}`)
     .limit(1)
     .maybeSingle();
 

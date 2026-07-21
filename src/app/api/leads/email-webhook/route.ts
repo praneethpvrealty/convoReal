@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'node:crypto';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getAdminClient } from './admin-client';
 import {
   parseMimeEmail,
@@ -145,6 +147,8 @@ export function checkIsNonLeadEmail(subject: string, sender: string): boolean {
   return false;
 }
 
+const LEAD_WEBHOOK_LIMIT = { limit: 60, windowMs: 60_000 };
+
 export async function POST(request: Request) {
   let accountId = '';
   let sender = '';
@@ -154,14 +158,32 @@ export async function POST(request: Request) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const token = searchParams.get('token');
+    const token = searchParams.get('token') || '';
     accountId = searchParams.get('account_id') || '';
 
-    // Token validation (Optional check)
+    // Token is REQUIRED — fail closed. A missing LEADS_WEBHOOK_TOKEN must
+    // never leave the endpoint open, since it can create contacts and send
+    // WhatsApp messages from a tenant's number.
     const expectedToken = process.env.LEADS_WEBHOOK_TOKEN;
-    if (expectedToken && token !== expectedToken) {
+    if (!expectedToken) {
+      console.error('[lead-webhook] LEADS_WEBHOOK_TOKEN is not set — rejecting request.');
+      return NextResponse.json({ error: 'Webhook not configured' }, { status: 503 });
+    }
+    const tokenBuf = Buffer.from(token);
+    const expectedBuf = Buffer.from(expectedToken);
+    if (
+      tokenBuf.length !== expectedBuf.length ||
+      !timingSafeEqual(tokenBuf, expectedBuf)
+    ) {
       return NextResponse.json({ error: 'Unauthorized token' }, { status: 401 });
     }
+
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
+    const limit = checkRateLimit(`lead-webhook:${ip}`, LEAD_WEBHOOK_LIMIT);
+    if (!limit.success) return rateLimitResponse(limit);
 
     const payload = await request.json();
     
@@ -235,16 +257,9 @@ export async function POST(request: Request) {
       const code = codeMatch ? codeMatch[1] : null;
       const link = linkMatch ? linkMatch[0] : null;
       
-      if (code) {
-        console.log(`[lead-webhook] ---> CONFIRMATION CODE: ${code}`);
-      }
-      if (link) {
-        console.log(`[lead-webhook] ---> CONFIRMATION LINK: ${link}`);
-      }
-      if (!code && !link) {
-        // Fallback: log raw text to help find details
-        console.log(`[lead-webhook] Raw Content: ${bodyText.slice(0, 1500)}`);
-      }
+      console.log(
+        `[lead-webhook] confirmation received (code: ${code ? 'yes' : 'no'}, link: ${link ? 'yes' : 'no'}) — value stored to DB, not logged`,
+      );
       console.log(`[lead-webhook] ==========================================`);
 
       if (accountId) {
@@ -329,21 +344,21 @@ export async function POST(request: Request) {
 
     const supabase = getAdminClient();
 
-    // 1. Resolve account_id if missing
+    // 1. account_id must be provided explicitly. Never fall back to the
+    //    "first whatsapp_config" — that let a lead be routed to (and an
+    //    auto-reply sent from) an arbitrary tenant's WhatsApp number.
     if (!accountId) {
-      const { data: firstConfig } = await supabase
-        .from('whatsapp_config')
-        .select('account_id')
-        .limit(1)
-        .maybeSingle();
-      
-      if (firstConfig) {
-        accountId = firstConfig.account_id;
-      }
+      return NextResponse.json({ error: 'account_id is required' }, { status: 400 });
     }
 
-    if (!accountId) {
-      return NextResponse.json({ error: 'No account ID resolved' }, { status: 400 });
+    const { data: accountConfig } = await supabase
+      .from('whatsapp_config')
+      .select('account_id')
+      .eq('account_id', accountId)
+      .maybeSingle();
+
+    if (!accountConfig) {
+      return NextResponse.json({ error: 'Invalid account ID' }, { status: 400 });
     }
 
     if (!parsed.phone) {
