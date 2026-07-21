@@ -72,10 +72,15 @@ export async function POST(request: Request) {
     let resolvedReferrerContactId = referrerContactId || null;
 
     if (propertyId) {
+      // Scope to this account — a propertyId belonging to another tenant
+      // must not resolve that tenant's user_id into rows we write under
+      // `accountId` (service-role client bypasses RLS, so this filter is
+      // the boundary).
       const { data: propData } = await admin
         .from("properties")
         .select("user_id")
         .eq("id", propertyId)
+        .eq("account_id", accountId)
         .maybeSingle();
 
       if (propData?.user_id) {

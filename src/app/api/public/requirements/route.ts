@@ -87,12 +87,16 @@ export async function POST(request: Request) {
     const systemUserId = account.owner_user_id;
     let targetAgentUserId = systemUserId;
 
-    // Resolve target agent's user_id from the referrer contact ID
+    // Resolve target agent's user_id from the referrer contact ID.
+    // Scope to this account — a referrerContactId from another tenant
+    // must not resolve that tenant's agent user_id into rows we write
+    // under `accountId` (service-role client bypasses RLS).
     if (referrerContactId) {
       const { data: refContact } = await admin
         .from("contacts")
         .select("email")
         .eq("id", referrerContactId)
+        .eq("account_id", accountId)
         .maybeSingle();
 
       if (refContact?.email) {
