@@ -218,25 +218,54 @@ export function PropertyShareDialog({
 
   const currentMessage = messageDraft ?? autoMessage;
 
-  // Default (cover) photo as a File, for attaching to native shares
-  // and clipboard copies. Null when the listing has no photos or the
-  // fetch fails — callers fall back to text-only.
+  // Default (cover) photo as a File, for attaching to native shares and
+  // clipboard copies. Uses the listing's first photo; when the listing has
+  // none (common for land/plots), falls back to a branded flyer rendered
+  // from the listing so the share still carries an image instead of going
+  // out text-only. Null only when both the photo and the flyer fail.
   const fetchCoverImageFile = useCallback(async (): Promise<File | null> => {
+    const sanitizedTitle = (property?.title || 'property')
+      .replace(/[^a-zA-Z0-9\s_-]/g, '')
+      .trim()
+      .replace(/\s+/g, '_')
+      .slice(0, 50) || 'property';
+
     const imageUrl = storagePublicUrl(property?.images?.find((img) => img.trim().length > 0));
-    if (!imageUrl) return null;
-    try {
-      const response = await fetch(imageUrl);
-      const blob = await response.blob();
-      const sanitizedTitle = (property?.title || 'property')
-        .replace(/[^a-zA-Z0-9\s_-]/g, '')
-        .trim()
-        .replace(/\s+/g, '_')
-        .slice(0, 50);
-      return new File([blob], `${sanitizedTitle || 'property'}.jpg`, { type: blob.type || 'image/jpeg' });
-    } catch {
-      return null;
+    if (imageUrl) {
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        return new File([blob], `${sanitizedTitle}.jpg`, { type: blob.type || 'image/jpeg' });
+      } catch {
+        // fall through to the generated flyer cover
+      }
     }
-  }, [property]);
+
+    if (property?.id) {
+      try {
+        const res = await fetch(`/api/properties/${property.id}/flyer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            size: 1080,
+            brand_name: profile?.full_name || '',
+            brand_contact: profile?.phone || '',
+          }),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const dataUrl: unknown = json?.data?.image;
+          if (typeof dataUrl === 'string' && dataUrl.startsWith('data:image')) {
+            const blob = await (await fetch(dataUrl)).blob();
+            return new File([blob], `${sanitizedTitle}.png`, { type: 'image/png' });
+          }
+        }
+      } catch {
+        // fall back to text-only
+      }
+    }
+    return null;
+  }, [property, profile]);
 
   const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
   const [copyingPhoto, setCopyingPhoto] = useState(false);
@@ -1376,15 +1405,16 @@ export function PropertyShareDialog({
                           {copiedMessage ? 'Copied!' : 'Copy Message'}
                         </Button>
                         <Button
-                          disabled={copyingPhoto || !(property.images || []).some((img) => img.trim().length > 0)}
+                          disabled={copyingPhoto}
                           onClick={async () => {
                             // Clipboard images must be PNG in Chromium — convert
                             // the (usually JPEG) cover photo via canvas first.
+                            // Photoless listings fall back to a branded flyer.
                             setCopyingPhoto(true);
                             try {
                               const file = await fetchCoverImageFile();
                               if (!file) {
-                                toast.error('No photo on this listing.');
+                                toast.error('Could not prepare a photo for this listing.');
                                 return;
                               }
                               const bitmap = await createImageBitmap(file);
