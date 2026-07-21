@@ -289,8 +289,23 @@ export function buildShortlistMessage(input: {
  * time so the agent's edits are preserved; a no-match (edited greeting)
  * returns the message untouched.
  */
+const GREETING_HONORIFICS = new Set([
+  'mr', 'mrs', 'ms', 'miss', 'mstr', 'master', 'dr', 'prof', 'shri', 'sri',
+  'smt', 'kum', 'sir', 'madam', 'mx',
+]);
+
+/** First name to greet by, skipping a leading honorific so
+ *  "Mr Jitender Kothari" greets as "Jitender", not "Mr". */
+export function greetingFirstName(name?: string | null): string | null {
+  const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
+  for (const t of tokens) {
+    if (!GREETING_HONORIFICS.has(t.replace(/\./g, '').toLowerCase())) return t;
+  }
+  return tokens[0] || null;
+}
+
 export function addRecipientGreeting(message: string, name?: string | null): string {
-  const first = name?.trim().split(/\s+/)[0];
+  const first = greetingFirstName(name);
   if (!first) return message;
   return message.replace(
     /^(Hi|Hey|Hello)([!,])( 👋)?/,

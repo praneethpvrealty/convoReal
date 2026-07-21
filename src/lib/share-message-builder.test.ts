@@ -5,6 +5,7 @@ import {
   buildPropertyShareMessage,
   buildShareTargets,
   formatShareAmount,
+  greetingFirstName,
   propertyShowcaseUrl,
 } from './share-message-builder';
 
@@ -198,5 +199,28 @@ describe('buildShareTargets', () => {
     expect(targets.telegram).toContain(encodeURIComponent(URL));
     expect(targets.email).toContain('subject=My%20Property');
     expect(targets.sms.startsWith('sms:?&body=')).toBe(true);
+  });
+});
+
+describe('greetingFirstName', () => {
+  it('skips a leading honorific', () => {
+    expect(greetingFirstName('Mr Jitender Kothari')).toBe('Jitender');
+    expect(greetingFirstName('Dr. Anand')).toBe('Anand');
+    expect(greetingFirstName('Smt Radha Rao')).toBe('Radha');
+  });
+
+  it('returns the first token when there is no honorific', () => {
+    expect(greetingFirstName('Jitender Kothari')).toBe('Jitender');
+    expect(greetingFirstName('Anand')).toBe('Anand');
+  });
+
+  it('falls back to the honorific when that is all there is', () => {
+    expect(greetingFirstName('Mr')).toBe('Mr');
+  });
+
+  it('handles empty / missing names', () => {
+    expect(greetingFirstName('')).toBeNull();
+    expect(greetingFirstName(null)).toBeNull();
+    expect(greetingFirstName(undefined)).toBeNull();
   });
 });

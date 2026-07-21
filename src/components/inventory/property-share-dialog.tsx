@@ -44,6 +44,7 @@ import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import {
   buildPropertyShareMessage,
   buildShareTargets,
+  greetingFirstName,
   type ShareDetailLevel,
   type ShareTone,
 } from '@/lib/share-message-builder';
@@ -325,7 +326,7 @@ export function PropertyShareDialog({
       let msg = currentMessage.includes(baseUrl)
         ? currentMessage.replaceAll(baseUrl, trackedUrl)
         : `${currentMessage}\n\n📸 Photos & full details:\n${trackedUrl}`;
-      const firstName = contact.name?.trim().split(/\s+/)[0];
+      const firstName = greetingFirstName(contact.name);
       if (firstName) msg = msg.replace(/^(Hi|Hey|Hello)([,!])/, `$1 ${firstName}$2`);
       return msg;
     },
