@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { slugify, type BuilderNode } from "../shared";
 import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
 
@@ -1015,7 +1016,7 @@ function SendMediaForm({
           <div className="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs">
             <Paperclip className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
             <a
-              href={cfg.media_url}
+              href={storagePublicUrl(cfg.media_url)}
               target="_blank"
               rel="noopener noreferrer"
               className="min-w-0 flex-1 truncate text-slate-200 hover:text-cyan-300"

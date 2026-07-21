@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import {
   uploadAdImage,
@@ -93,10 +94,11 @@ export async function POST(request: NextRequest) {
     }
     const images: string[] = Array.isArray(property.images) ? property.images : [];
     // The chosen image must be one of the property's own photos.
-    const chosenImage = imageUrl && images.includes(imageUrl) ? imageUrl : images[0];
-    if (!chosenImage) {
+    const selectedImage = imageUrl && images.includes(imageUrl) ? imageUrl : images[0];
+    if (!selectedImage) {
       return NextResponse.json({ error: 'Add at least one photo to this property before advertising it.' }, { status: 400 });
     }
+    const chosenImage = storagePublicUrl(selectedImage);
 
     // One live campaign per property (the unique index also enforces
     // this, but check first for a friendly message).
@@ -409,7 +411,7 @@ export async function GET() {
         propertyId: c.property_id,
         propertyTitle: property?.title ?? 'Property',
         propertyCode: property?.property_code ?? null,
-        propertyImage: property?.images?.[0] ?? null,
+        propertyImage: storagePublicUrl(property?.images?.[0] ?? null) || null,
         status: c.status,
         dailyBudgetInr: Math.round((c.daily_budget_minor as number) / 100),
         currency: c.currency,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { useAuth } from '@/hooks/use-auth';
 import { useCan } from '@/hooks/use-can';
 import { toast } from 'sonner';
@@ -1038,7 +1039,7 @@ export function PropertyForm({
           buttonParams?: Record<number, string>;
         } = {};
         if (hasImageHeader && propertyImage) {
-          messageParams.headerMediaUrl = propertyImage;
+          messageParams.headerMediaUrl = storagePublicUrl(propertyImage);
         }
         if (Object.keys(buttonParams).length > 0) {
           messageParams.buttonParams = buttonParams;
@@ -1809,11 +1810,7 @@ export function PropertyForm({
           throw new Error(`Upload failed: ${uploadError.message}`);
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('property-images')
-          .getPublicUrl(path);
-
-        uploadedUrls.push(publicUrl);
+        uploadedUrls.push(`property-images/${path}`);
       }
 
       if (uploadedUrls.length > 0) {
@@ -1870,11 +1867,7 @@ export function PropertyForm({
           throw new Error(`Upload failed: ${uploadError.message}`);
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('property-documents')
-          .getPublicUrl(path);
-
-        uploadedUrls.push(publicUrl);
+        uploadedUrls.push(`property-documents/${path}`);
       }
 
       if (uploadedUrls.length > 0) {
@@ -2357,7 +2350,7 @@ export function PropertyForm({
                       and touch swipe both navigate. */}
                   <div className="space-y-2">
                     {(() => {
-                      const validImages = (images || []).filter(img => img && img.trim().length > 0);
+                      const validImages = (images || []).filter(img => img && img.trim().length > 0).map(storagePublicUrl);
                       const hasVideo = Boolean(property?.video_url && property.video_status === 'ready');
                       const mediaCount = validImages.length + (hasVideo ? 1 : 0);
                       if (mediaCount === 0) {
@@ -2396,7 +2389,7 @@ export function PropertyForm({
                           >
                             {isVideoSlide ? (
                               <video
-                                src={property!.video_url!}
+                                src={storagePublicUrl(property!.video_url!)}
                                 controls
                                 playsInline
                                 preload="metadata"
@@ -2466,7 +2459,7 @@ export function PropertyForm({
                                   }`}
                                 >
                                   <video
-                                    src={property!.video_url!}
+                                    src={storagePublicUrl(property!.video_url!)}
                                     muted
                                     playsInline
                                     preload="metadata"
@@ -3069,7 +3062,7 @@ export function PropertyForm({
                           return (
                             <a
                               key={idx}
-                              href={docUrl}
+                              href={storagePublicUrl(docUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="p-3 rounded-lg border border-slate-800 bg-slate-950/40 hover:bg-slate-950 hover:border-slate-700 flex items-center justify-between gap-3 text-xs font-medium text-slate-200 transition-colors"
@@ -4528,7 +4521,7 @@ export function PropertyForm({
                         {property?.video_url && property.video_status === 'ready' && (
                           <div className="flex gap-2 items-center">
                             <video
-                              src={property.video_url}
+                              src={storagePublicUrl(property.video_url)}
                               muted
                               playsInline
                               preload="metadata"
@@ -4538,7 +4531,7 @@ export function PropertyForm({
                               Listing video — plays in the Showcase gallery
                             </span>
                             <a
-                              href={property.video_url}
+                              href={storagePublicUrl(property.video_url)}
                               target="_blank"
                               rel="noreferrer"
                               title="Play video"
@@ -4554,7 +4547,7 @@ export function PropertyForm({
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
                                 key={imgUrl}
-                                src={imgUrl}
+                                src={storagePublicUrl(imgUrl)}
                                 alt={`Property ${idx + 1}`}
                                 className="size-8 object-cover rounded border border-slate-700 shrink-0"
                                 onError={(e) => {
@@ -4657,7 +4650,7 @@ export function PropertyForm({
                             <div className="flex gap-1.5 shrink-0 self-end sm:self-auto">
                               {doc.url.trim().length > 0 && (
                                 <a
-                                  href={doc.url}
+                                  href={storagePublicUrl(doc.url)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="h-8 w-8 flex items-center justify-center shrink-0 border border-slate-700 rounded bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700"
@@ -5249,7 +5242,7 @@ export function PropertyForm({
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     key={imgUrl}
-                                    src={imgUrl}
+                                    src={storagePublicUrl(imgUrl)}
                                     alt={`Option ${idx + 1}`}
                                     className="w-full h-full object-cover"
                                     onError={(e) => {

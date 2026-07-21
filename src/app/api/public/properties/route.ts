@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
+import { storagePublicUrl } from "@/lib/storage/url";
 
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 12;
@@ -110,8 +111,13 @@ export async function GET(request: Request) {
       );
     }
 
+    const resolved = ((data ?? []) as unknown as Array<Record<string, unknown>>).map((p) => ({
+      ...p,
+      images: Array.isArray(p.images) ? (p.images as string[]).map(storagePublicUrl) : p.images,
+    }));
+
     return NextResponse.json({
-      data: data ?? [],
+      data: resolved,
       pagination: {
         page,
         limit,

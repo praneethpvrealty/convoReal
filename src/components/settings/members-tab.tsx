@@ -57,6 +57,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { RequireRole } from '@/components/auth/require-role';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { useAuth } from '@/hooks/use-auth';
 import type { AccountRole } from '@/lib/auth/roles';
 import { InviteMemberDialog } from './invite-member-dialog';
@@ -338,7 +339,7 @@ export function MembersTab() {
                     <Avatar className="size-9 shrink-0">
                       {member.avatar_url ? (
                         <AvatarImage
-                          src={member.avatar_url}
+                          src={storagePublicUrl(member.avatar_url)}
                           alt={member.full_name || 'Member'}
                         />
                       ) : null}

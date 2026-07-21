@@ -128,6 +128,23 @@ simple loop with the two service-role keys: list objects per bucket
 from the old project, upload to the same bucket/path on the new one.
 Verify a handful of image URLs render from the new project.
 
+**Rewrite stored media URLs.** Historically the upload helpers persisted
+ABSOLUTE public URLs (with the old project ref) into `properties.images`,
+`.documents`, `.video_url`, `profiles.avatar_url`, `flow_nodes.config`,
+etc. After the DB dump those rows still point at the old project, so the
+live app keeps fetching media from it. Fix the data with one of:
+
+- `scripts/migrate-storage-urls.sql` — rewrites the old host to the new
+  host (run once in the new project's SQL editor; set the two hosts at the
+  top). Use this if you have NOT deployed the `storagePublicUrl()` refactor.
+- Deploy the app (it resolves stored media through `src/lib/storage/url.ts`,
+  which re-bases any Supabase URL onto the current host at read time), then
+  optionally run `scripts/normalize-storage-paths.sql` to convert stored
+  URLs to the portable bucket-relative form.
+
+Either way, watch the OLD project's Storage logs: real user image reads
+must fall to zero before you delete it (allow 24–48h for browser/CDN cache).
+
 ### 5. Cut over
 
 Update environment variables everywhere they exist (Vercel project
@@ -170,6 +187,12 @@ Then:
 
 Keep the Sydney project **paused, not deleted, for 2–4 weeks** as a
 fallback, then delete. (Paused projects don't bill for compute.)
+
+Before deleting, confirm the stored-URL rewrite above is done: the old
+project's Storage logs should show no real user media reads (only Supabase
+infra health checks), and `grep`-style checks against the new DB should
+find zero rows still referencing the old ref. Deleting the old project
+also permanently invalidates its leaked `service_role` key.
 
 ## Rollback
 

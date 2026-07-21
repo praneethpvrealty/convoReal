@@ -22,9 +22,13 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://cvmgojajtegbuuujtptn.supabase.co';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+if (!supabaseUrl) {
+  console.error("❌ NEXT_PUBLIC_SUPABASE_URL is not defined in env variables.");
+  process.exit(1);
+}
 if (!supabaseKey) {
   console.error("❌ SUPABASE_SERVICE_ROLE_KEY is not defined in env variables.");
   process.exit(1);

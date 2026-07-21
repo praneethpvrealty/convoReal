@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { createShowcaseTracker } from '@/lib/pulse/tracker';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 import { toast } from 'sonner';
@@ -174,11 +175,11 @@ export function ShowcaseView({
   // the last slide (index = images.length) instead of its own panel.
   // Prefer the unlisted YouTube copy (adaptive streaming, zero delivery
   // cost); fall back to the storage-hosted MP4.
-  const detailImages = selectedProperty?.images ?? [];
+  const detailImages = (selectedProperty?.images ?? []).map(storagePublicUrl);
   const detailYouTubeId =
     selectedProperty?.youtube_status === 'ready' ? selectedProperty.youtube_video_id : null;
   const detailVideoUrl =
-    selectedProperty?.video_status === 'ready' ? selectedProperty.video_url : null;
+    selectedProperty?.video_status === 'ready' ? storagePublicUrl(selectedProperty.video_url) : null;
   const detailHasVideo = Boolean(detailYouTubeId || detailVideoUrl);
   const detailMediaCount = detailImages.length + (detailHasVideo ? 1 : 0);
   const isVideoSlide = detailHasVideo && activeImageIdx >= detailImages.length;
@@ -209,7 +210,7 @@ export function ShowcaseView({
   // Start fetching the share target's hero image from the document head,
   // before hydration and ahead of the grid's card images.
   const initialHeroUrl = selectedProperty?.images?.[0]
-    ? showcaseImageUrl(selectedProperty.images[0], SHOWCASE_IMAGE_WIDTHS.hero)
+    ? showcaseImageUrl(storagePublicUrl(selectedProperty.images[0]), SHOWCASE_IMAGE_WIDTHS.hero)
     : null;
   if (initialHeroUrl) {
     ReactDOM.preload(initialHeroUrl, { as: 'image', fetchPriority: 'high' });
@@ -1256,7 +1257,7 @@ export function ShowcaseView({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
             {filteredProperties.map((property) => {
               const hasImages = property.images && property.images.length > 0;
-              const mainImage = hasImages ? property.images[0] : null;
+              const mainImage = hasImages ? storagePublicUrl(property.images[0]) : null;
               const isLand = [
                 'Residential Land/ Plot',
                 'Commercial Land',
@@ -2058,7 +2059,7 @@ export function ShowcaseView({
                         {selectedProperty.agent_details.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={selectedProperty.agent_details.avatar_url}
+                            src={storagePublicUrl(selectedProperty.agent_details.avatar_url)}
                             alt={selectedProperty.agent_details.name}
                             className="size-10 rounded-full border border-slate-800 object-cover"
                           />

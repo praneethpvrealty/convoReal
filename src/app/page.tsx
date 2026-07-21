@@ -8,6 +8,7 @@ import { MarketingLanding } from '@/components/landing/marketing-landing';
 import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 const DEFAULT_METADATA: Metadata = {
   title: `${BRANDING.name} — AI-Powered WhatsApp CRM & Property Portals`,
@@ -56,7 +57,7 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     (property.description || '').slice(0, 160) ||
     [property.type, property.location].filter(Boolean).join(' · ');
   const heroImage = property.images?.[0]
-    ? showcaseImageUrl(property.images[0], SHOWCASE_IMAGE_WIDTHS.hero)
+    ? showcaseImageUrl(storagePublicUrl(property.images[0]), SHOWCASE_IMAGE_WIDTHS.hero)
     : null;
 
   return {

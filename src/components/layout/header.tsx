@@ -23,6 +23,7 @@ import {
   DialogContent,
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { formatCurrency } from "@/lib/currency-utils";
 import { CreditMeter } from "@/components/layout/CreditMeter";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
@@ -325,7 +326,7 @@ export function Header({ onOpenSidebar }: HeaderProps) {
             <Avatar className="size-8">
               {profile?.avatar_url ? (
                 <AvatarImage
-                  src={profile.avatar_url}
+                  src={storagePublicUrl(profile.avatar_url)}
                   alt={profile.full_name ?? "Avatar"}
                 />
               ) : null}

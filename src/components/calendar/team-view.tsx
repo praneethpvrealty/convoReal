@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
 import { CalendarEvent, TeamMember, eventTypeMeta, memberInitials, formatTimeShort } from "./event-types";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
@@ -114,7 +115,7 @@ export function TeamView({ events, members, selectedDate, onSelectDate, onEventC
                 <div className="flex w-28 shrink-0 items-center gap-2">
                   {m.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+                    <img src={storagePublicUrl(m.avatar_url)} alt="" className="h-8 w-8 rounded-full object-cover" />
                   ) : (
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-[11px] font-bold text-primary">
                       {memberInitials(m.full_name)}

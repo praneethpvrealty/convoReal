@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { storagePublicUrl } from '@/lib/storage/url'
 import {
   sendTextMessage,
   sendTemplateMessage,
@@ -250,7 +251,7 @@ export async function sendWhatsAppMessageAndPersist(
             accessToken,
             to: phone,
             kind: args.mediaKind,
-            link: args.mediaLink,
+            link: storagePublicUrl(args.mediaLink),
             caption: args.mediaCaption || undefined,
             filename: args.mediaFilename || undefined,
           })
@@ -394,7 +395,7 @@ export async function sendWhatsAppMessageAndPersist(
         sender_type: args.senderType,
         content_type,
         content_text,
-        media_url: args.kind === 'media' ? args.mediaLink || null : null,
+        media_url: args.kind === 'media' && args.mediaLink ? storagePublicUrl(args.mediaLink) : null,
         template_name,
         message_id: waMessageId,
         status: 'sent',

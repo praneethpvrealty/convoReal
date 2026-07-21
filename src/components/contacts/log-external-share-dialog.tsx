@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Property } from '@/types';
+import { storagePublicUrl } from '@/lib/storage/url';
 import {
   Dialog,
   DialogContent,
@@ -208,7 +209,7 @@ export function LogExternalShareDialog({
       };
 
       // Try to attach the property thumbnail image if available
-      const imageUrl = selectedProperty.images?.find((img) => img.trim().length > 0);
+      const imageUrl = storagePublicUrl(selectedProperty.images?.find((img) => img.trim().length > 0));
       if (imageUrl && typeof navigator !== 'undefined' && 'canShare' in navigator) {
         try {
           const response = await fetch(imageUrl);

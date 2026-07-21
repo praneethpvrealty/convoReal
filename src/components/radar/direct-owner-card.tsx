@@ -23,6 +23,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { matchUnlockCost } from "@/lib/den/costs";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { TokenSafePanel, type TokenEscrow } from "@/components/den/token-safe-panel";
 import type { MatchEvent } from "@/types";
 
@@ -417,7 +418,7 @@ export function DirectOwnerCard({
                 <div className="flex gap-1.5 overflow-x-auto">
                   {(property.images as string[]).slice(0, 4).map((url) => (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img key={url} src={url} alt="" className="h-16 w-24 shrink-0 rounded-md object-cover" />
+                    <img key={url} src={storagePublicUrl(url)} alt="" className="h-16 w-24 shrink-0 rounded-md object-cover" />
                   ))}
                 </div>
               )}

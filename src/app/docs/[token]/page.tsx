@@ -4,6 +4,7 @@ import { FileText, Download, AlertTriangle, Clock, CheckCircle } from 'lucide-re
 import Link from 'next/link';
 import { DocAccessGate } from '@/components/documents/doc-access-gate';
 import { trackDocumentView } from '@/lib/documents/track-view';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 export const metadata: Metadata = {
   title: 'Property Documents',
@@ -93,12 +94,12 @@ export default async function DocumentsPage({ params }: PageProps) {
     if (doc.trim().startsWith('{')) {
       try {
         const parsed = JSON.parse(doc);
-        return { url: parsed.url || '', title: parsed.title || '' };
+        return { url: storagePublicUrl(parsed.url || ''), title: parsed.title || '' };
       } catch {
         // Fall back to plain string
       }
     }
-    return { url: doc, title: '' };
+    return { url: storagePublicUrl(doc), title: '' };
   }).filter(d => d.url.length > 0);
 
   return (

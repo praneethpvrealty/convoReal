@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ImageCleanupConfig } from './image-cleanup-config';
 import { notifyOwnerImageCleanup } from './image-cleanup-notify';
+import { storageObjectPath } from './url';
 
 /**
  * Property image cleanup engine — the reversible state machine behind the
@@ -41,14 +42,13 @@ interface PropRow {
 
 /** Reverse a public URL to its bucket key (`<accountId>/img-...`). */
 export function extractStoragePath(url: string): string | null {
-  try {
-    const marker = `/public/${BUCKET}/`;
-    const idx = new URL(url).pathname.indexOf(marker);
-    if (idx === -1) return null;
-    return new URL(url).pathname.slice(idx + marker.length);
-  } catch {
-    return null;
-  }
+  // Handles both legacy absolute public URLs and the bucket-relative
+  // paths new uploads store ("property-images/<acct>/img.jpg"). Returns
+  // the path WITHIN the bucket, or null if it is not a property-images ref.
+  const ref = storageObjectPath(url);
+  if (!ref) return null;
+  const prefix = `${BUCKET}/`;
+  return ref.startsWith(prefix) ? ref.slice(prefix.length) : null;
 }
 
 function hasImages(r: PropRow): boolean {

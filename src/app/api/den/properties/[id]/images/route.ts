@@ -13,6 +13,7 @@ import { UserFacingError } from "@/lib/auth/account";
 import { withDenAuth, denAdmin } from "@/lib/den/auth";
 import { loadOwnedProperty } from "@/lib/den/properties";
 import { uploadPropertyImage } from "@/lib/storage/upload";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 const MAX_FILES_PER_REQUEST = 10;
@@ -69,5 +70,9 @@ export const POST = withDenAuth(async (ctx, req, routeCtx) => {
     return NextResponse.json({ error: "Could not attach photos" }, { status: 500 });
   }
 
-  return NextResponse.json({ property_id: id, images: data.images, added: uploaded });
+  return NextResponse.json({
+    property_id: id,
+    images: Array.isArray(data.images) ? data.images.map(storagePublicUrl) : data.images,
+    added: uploaded.map(storagePublicUrl),
+  });
 });

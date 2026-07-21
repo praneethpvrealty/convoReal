@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { parseFlyerOptions } from "@/lib/inventory/flyer-options";
 import { renderFlyer } from "@/lib/inventory/flyer-render";
+import { storagePublicUrl } from "@/lib/storage/url";
 
 // POST /api/properties/[id]/flyer
 // Renders a marketing flyer for a property server-side (next/og), so
@@ -70,7 +71,11 @@ export async function POST(
       ? property.images.filter((u): u is string => typeof u === "string")
       : [];
     const background =
-      options.imageSource === "ai" ? options.aiImage : currentImages[0] ?? null;
+      options.imageSource === "ai"
+        ? options.aiImage
+        : currentImages[0]
+          ? storagePublicUrl(currentImages[0])
+          : null;
 
     let png: Buffer;
     try {
@@ -109,11 +114,9 @@ export async function POST(
       );
     }
 
-    const {
-      data: { publicUrl },
-    } = ctx.supabase.storage.from("property-images").getPublicUrl(path);
+    const storedPath = `property-images/${path}`;
 
-    const updatedImages = [publicUrl, ...currentImages.filter((u) => u !== publicUrl)];
+    const updatedImages = [storedPath, ...currentImages.filter((u) => u !== storedPath)];
 
     const { error: updateError } = await ctx.supabase
       .from("properties")
@@ -129,7 +132,12 @@ export async function POST(
       );
     }
 
-    return NextResponse.json({ data: { url: publicUrl, images: updatedImages } });
+    return NextResponse.json({
+      data: {
+        url: storagePublicUrl(storedPath),
+        images: updatedImages.map(storagePublicUrl),
+      },
+    });
   } catch (err) {
     return toErrorResponse(err);
   }

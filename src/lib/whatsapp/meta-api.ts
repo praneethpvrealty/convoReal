@@ -593,6 +593,7 @@ export async function sendMediaMessage(
 }
 
 import type { MessageTemplate } from '@/types'
+import { storagePublicUrl } from '@/lib/storage/url'
 import {
   buildSendComponents,
   sanitizeParamText,
@@ -1517,9 +1518,10 @@ export async function syncProductToCatalog(
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://convoreal.com'
   const productUrl = `${siteUrl}/?property_id=${property.id}`
-  const heroImage = (Array.isArray(property.images) ? property.images : [])
+  const heroImageRef = (Array.isArray(property.images) ? property.images : [])
     .map((img: string) => img.trim())
-    .find((img: string) => img.length > 0) || `${siteUrl}/placeholder.png`
+    .find((img: string) => img.length > 0)
+  const heroImage = heroImageRef ? storagePublicUrl(heroImageRef) : `${siteUrl}/placeholder.png`
 
   const retailerId = property.property_code || property.id
 

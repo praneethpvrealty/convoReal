@@ -17,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { BRANDING } from '@/config/branding';
 import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-loader';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -123,7 +124,7 @@ export function FlyerCreatorDialog({
         body: JSON.stringify({
           prompt: aiPrompt.trim(),
           aspectRatio: '1:1',
-          image: (property && property.images && property.images.length > 0) ? property.images[0] : null,
+          image: (property && property.images && property.images.length > 0) ? storagePublicUrl(property.images[0]) : null,
         }),
       });
 
@@ -163,8 +164,8 @@ export function FlyerCreatorDialog({
     setBgImageElement(null);
 
     const hasOriginal = property.images && property.images.length > 0;
-    const urlToLoad = imageSource === 'original' && hasOriginal 
-      ? property.images[0] 
+    const urlToLoad = imageSource === 'original' && hasOriginal
+      ? storagePublicUrl(property.images[0])
       : aiImageUrl;
 
     if (!urlToLoad) return;
@@ -665,14 +666,12 @@ export function FlyerCreatorDialog({
       
       console.log('[FlyerCreatorDialog] Upload successful');
 
-      // 3. Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('property-images')
-        .getPublicUrl(path);
+      // 3. Store the bucket-relative object path
+      const storedPath = `property-images/${path}`;
 
       // 4. Update the property's images in the database (placing flyer at index 0)
       const currentImages = property.images || [];
-      const updatedImages = [publicUrl, ...currentImages.filter(url => url !== publicUrl)];
+      const updatedImages = [storedPath, ...currentImages.filter(url => url !== storedPath)];
 
       console.log('[FlyerCreatorDialog] Updating property images...');
       const { error: updateError } = await supabase

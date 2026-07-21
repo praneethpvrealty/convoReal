@@ -9,6 +9,7 @@ import { formatINR, DEAL_MODE_META } from "./format";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { Building2, MapPin, Plus } from "lucide-react";
 
 export interface DenProperty {
@@ -98,7 +99,7 @@ export function DenPropertiesContent() {
                   <div className="relative h-36 w-full bg-muted">
                     {p.images?.[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.images[0]} alt="" className="h-full w-full object-cover" />
+                      <img src={storagePublicUrl(p.images[0])} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
                         <Building2 className="h-8 w-8 text-muted-foreground" />

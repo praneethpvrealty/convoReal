@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { uploadPropertyImage } from '@/lib/storage/upload';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 // POST /api/public/list-property/upload  (multipart/form-data)
 // Public photo upload for the seller listing funnel. Accepts a single
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const url = await uploadPropertyImage(accountId, buffer, file.type);
 
-    return NextResponse.json({ url });
+    return NextResponse.json({ url: storagePublicUrl(url) });
   } catch (err) {
     console.error('[POST /api/public/list-property/upload] Unexpected error:', err);
     return NextResponse.json({ error: 'Upload failed. Please try again.' }, { status: 500 });

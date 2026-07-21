@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Property, ContactNote } from '@/types';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -562,7 +563,7 @@ export default function AgentsPage() {
                             {prop.images && prop.images.length > 0 && prop.images[0] ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img
-                                src={prop.images[0]}
+                                src={storagePublicUrl(prop.images[0])}
                                 alt={prop.title}
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                               />

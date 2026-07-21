@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
@@ -357,7 +358,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <Avatar className="size-8 shrink-0">
                 {profile?.avatar_url ? (
                   <AvatarImage
-                    src={profile.avatar_url}
+                    src={storagePublicUrl(profile.avatar_url)}
                     alt={profile.full_name ?? "Avatar"}
                   />
                 ) : null}

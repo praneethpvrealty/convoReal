@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { AD_COPY_LIMITS } from '@/lib/meta-ads/ad-copy';
 import { BUDGET_BOUNDS, RADIUS_BOUNDS } from '@/lib/meta-ads/campaign-build';
 import type { Property } from '@/types';
@@ -203,7 +204,7 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
                           }`}
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={showcaseImageUrl(img, SHOWCASE_IMAGE_WIDTHS.thumb)} alt="" className="w-full h-full object-cover" />
+                          <img src={showcaseImageUrl(storagePublicUrl(img), SHOWCASE_IMAGE_WIDTHS.thumb)} alt="" className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -242,7 +243,7 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
                       your_page
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={showcaseImageUrl(selectedImage, SHOWCASE_IMAGE_WIDTHS.card)} alt="" className="w-full aspect-square object-cover" />
+                    <img src={showcaseImageUrl(storagePublicUrl(selectedImage), SHOWCASE_IMAGE_WIDTHS.card)} alt="" className="w-full aspect-square object-cover" />
                     <div className="p-2 space-y-1">
                       <div className="bg-emerald-600 text-white text-xs font-semibold text-center rounded py-1.5 flex items-center justify-center gap-1">
                         <MessageCircle className="h-3.5 w-3.5" /> Send WhatsApp message

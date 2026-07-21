@@ -37,8 +37,11 @@ async function compressImage(buffer: Buffer, mimeType: string): Promise<{ buffer
 }
 
 /**
- * Uploads a file buffer directly to the 'property-images' Supabase storage bucket under the account's folder,
- * returning the public URL.
+ * Uploads a file buffer to the 'property-images' bucket under the
+ * account's folder and returns the bucket-relative object path
+ * ("property-images/<accountId>/img-...."). Resolve it to a live URL at
+ * the read boundary via storagePublicUrl() — storing the path rather than
+ * an absolute URL keeps stored media portable across project migrations.
  */
 export async function uploadPropertyImage(
   accountId: string,
@@ -50,7 +53,7 @@ export async function uploadPropertyImage(
   const compressed = await compressImage(buffer, mimeType);
   buffer = compressed.buffer;
   mimeType = compressed.mimeType;
-  
+
   // Resolve file extension from mime type
   let ext = 'jpg';
   if (mimeType) {
@@ -59,7 +62,7 @@ export async function uploadPropertyImage(
       ext = parts[1].split('+')[0]; // strip any metadata like xml+svg
     }
   }
-  
+
   const randomStr = Math.random().toString(36).substring(2, 7);
   // Construct path under the account ID folder
   const path = `${accountId}/img-${Date.now()}-${randomStr}.${ext}`;
@@ -76,11 +79,7 @@ export async function uploadPropertyImage(
     throw new Error(`Storage upload failed: ${uploadError.message}`);
   }
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('property-images')
-    .getPublicUrl(path);
-
-  return publicUrl;
+  return `property-images/${path}`;
 }
 
 /**
@@ -109,11 +108,7 @@ export async function uploadPropertyVideo(
     throw new Error(`Storage video upload failed: ${uploadError.message}`);
   }
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('property-videos')
-    .getPublicUrl(path);
-
-  return publicUrl;
+  return `property-videos/${path}`;
 }
 
 /**
@@ -157,9 +152,5 @@ export async function uploadPropertyDocument(
     throw new Error(`Storage document upload failed: ${uploadError.message}`);
   }
 
-  const { data: { publicUrl } } = supabase.storage
-    .from('property-documents')
-    .getPublicUrl(path);
-
-  return publicUrl;
+  return `property-documents/${path}`;
 }

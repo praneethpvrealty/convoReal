@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 
 import { withDenAuth, denAdmin, resolveOwnerPropertyIds } from "@/lib/den/auth";
+import { storagePublicUrl } from "@/lib/storage/url";
 
 export const GET = withDenAuth(async (ctx) => {
   const propertyIds = await resolveOwnerPropertyIds(ctx);
@@ -69,7 +70,7 @@ export const GET = withDenAuth(async (ctx) => {
       property_id: bid.property_id,
       property_title: (property?.title as string) ?? "Your property",
       property_image: Array.isArray(property?.images)
-        ? ((property?.images as string[])[0] ?? null)
+        ? storagePublicUrl((property?.images as string[])[0] ?? null) || null
         : null,
       amount: bid.amount,
       bid_type: bid.bid_type,

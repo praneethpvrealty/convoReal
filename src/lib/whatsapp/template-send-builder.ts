@@ -31,6 +31,7 @@
  */
 
 import type { MessageTemplate, TemplateButton } from '@/types';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { extractVariableIndices } from './template-validators';
 
 export interface SendTimeParams {
@@ -195,7 +196,7 @@ function buildHeaderComponent(
       `${headerType} header requires a media link or id at send time — set header_media_url on the template or pass headerMediaUrl/headerMediaId.`,
     );
   }
-  const mediaPayload: { link?: string; id?: string } = id ? { id } : { link: link! };
+  const mediaPayload: { link?: string; id?: string } = id ? { id } : { link: storagePublicUrl(link!) };
   return {
     type: 'header',
     parameters: [

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Property, Contact, MessageTemplate } from '@/types';
+import { storagePublicUrl } from '@/lib/storage/url';
 import {
   Dialog,
   DialogContent,
@@ -221,7 +222,7 @@ export function PropertyShareDialog({
   // and clipboard copies. Null when the listing has no photos or the
   // fetch fails — callers fall back to text-only.
   const fetchCoverImageFile = useCallback(async (): Promise<File | null> => {
-    const imageUrl = property?.images?.find((img) => img.trim().length > 0);
+    const imageUrl = storagePublicUrl(property?.images?.find((img) => img.trim().length > 0));
     if (!imageUrl) return null;
     try {
       const response = await fetch(imageUrl);
@@ -893,7 +894,7 @@ export function PropertyShareDialog({
           buttonParams?: Record<number, string>;
         } = {};
         if (hasImageHeader && propertyImage) {
-          messageParams.headerMediaUrl = propertyImage;
+          messageParams.headerMediaUrl = storagePublicUrl(propertyImage);
         }
 
         const hasTextHeaderVar = selectedTemplate.header_type === 'text' &&
@@ -2116,7 +2117,7 @@ export function PropertyShareDialog({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           key={imgUrl}
-                          src={imgUrl}
+                          src={storagePublicUrl(imgUrl)}
                           alt={`Option ${idx + 1}`}
                           className="w-full h-full object-cover"
                           onError={(e) => {

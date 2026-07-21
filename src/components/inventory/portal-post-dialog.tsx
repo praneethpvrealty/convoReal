@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Property } from '@/types';
+import { storagePublicUrl } from '@/lib/storage/url';
 import {
   Dialog,
   DialogContent,
@@ -137,7 +138,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           propertyId: property.id,
           title: property.title,
           portals,
-          photos: (property.images || []).filter((img) => img.trim().length > 0),
+          photos: (property.images || []).filter((img) => img.trim().length > 0).map(storagePublicUrl),
         },
       },
       window.location.origin
@@ -153,7 +154,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
   );
 
   const images = useMemo(
-    () => (property?.images || []).filter((img) => img.trim().length > 0),
+    () => (property?.images || []).filter((img) => img.trim().length > 0).map(storagePublicUrl),
     [property]
   );
 

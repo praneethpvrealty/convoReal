@@ -13,6 +13,7 @@ import { formatINR } from "./format";
 import type { DenProperty } from "./properties-content";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -188,7 +189,7 @@ export function DenPropertyDetailContent() {
               {property.images.map((url, idx) => (
                 <div key={`${url}-${idx}`} className="aspect-video overflow-hidden rounded-lg bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt="" className="h-full w-full object-cover" />
+                  <img src={storagePublicUrl(url)} alt="" className="h-full w-full object-cover" />
                 </div>
               ))}
             </div>

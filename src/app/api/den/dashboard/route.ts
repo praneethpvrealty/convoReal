@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 
 import { withDenAuth, denAdmin } from "@/lib/den/auth";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { gatherOwnerDigests, type DigestPeriod } from "@/lib/owners/owner-digest";
 
 export const GET = withDenAuth(async (ctx, req) => {
@@ -70,7 +71,7 @@ export const GET = withDenAuth(async (ctx, req) => {
           listing_type: (meta.listing_type as string) ?? null,
           price: (meta.price as number) ?? null,
           rent_per_month: (meta.rent_per_month as number) ?? null,
-          cover_image: Array.isArray(meta.images) ? ((meta.images as string[])[0] ?? null) : null,
+          cover_image: Array.isArray(meta.images) ? storagePublicUrl((meta.images as string[])[0] ?? null) || null : null,
         };
       }),
     ),

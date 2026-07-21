@@ -4,6 +4,7 @@ import { useState, ElementType } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Property } from '@/types';
 import { totalMonthlyRent } from '@/lib/inventory/floor-tenancies';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -211,7 +212,7 @@ export function PropertyList({
       {properties.map((property) => {
         const TypeIcon = getTypeIcon(property.type);
         const hasImages = property.images && property.images.length > 0;
-        const mainImage = hasImages ? property.images[0] : null;
+        const mainImage = hasImages ? storagePublicUrl(property.images[0]) : null;
         const isLand = [
           'Residential Land/ Plot',
           'Commercial Land',

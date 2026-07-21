@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { storagePublicUrl } from "@/lib/storage/url";
 import type { Property } from "@/types";
 
 /**
@@ -221,6 +222,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       data: relevant.map((s) => ({
         ...s.property,
+        images: Array.isArray(s.property.images)
+          ? s.property.images.map(storagePublicUrl)
+          : s.property.images,
         _similarity_score: s.score,
         _match_reasons: s.matchReasons,
       })),

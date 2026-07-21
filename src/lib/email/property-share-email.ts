@@ -1,4 +1,5 @@
 import type { Property } from '@/types';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 /**
  * Prefill generator for the "Share via Email" draft — pure, transport-
@@ -132,7 +133,7 @@ export function buildPropertyShareEmailContent(
   const images = (property.images || []).filter(Boolean);
   if (images.length > 0) {
     lines.push('', 'Photos:');
-    images.slice(0, IMAGE_LINK_CAP).forEach((url, i) => lines.push(`${i + 1}. ${url}`));
+    images.slice(0, IMAGE_LINK_CAP).forEach((url, i) => lines.push(`${i + 1}. ${storagePublicUrl(url)}`));
     if (images.length > IMAGE_LINK_CAP) {
       lines.push(
         showcaseUrl
@@ -147,7 +148,7 @@ export function buildPropertyShareEmailContent(
     .filter((d): d is { title: string; url: string } => !!d.url);
   if (documents.length > 0) {
     lines.push('', documents.length === 1 ? 'Sketch:' : 'Documents:');
-    documents.slice(0, DOCUMENT_LINK_CAP).forEach((d, i) => lines.push(`${i + 1}. ${d.title} - ${d.url}`));
+    documents.slice(0, DOCUMENT_LINK_CAP).forEach((d, i) => lines.push(`${i + 1}. ${d.title} - ${storagePublicUrl(d.url)}`));
     if (documents.length > DOCUMENT_LINK_CAP) {
       lines.push(`...plus ${documents.length - DOCUMENT_LINK_CAP} more document(s) available on request.`);
     }

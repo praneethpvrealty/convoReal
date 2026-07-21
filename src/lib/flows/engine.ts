@@ -33,6 +33,7 @@
  */
 
 import { supabaseAdmin } from "./admin-client";
+import { storagePublicUrl } from "@/lib/storage/url";
 import {
   engineSendInteractiveButtons,
   engineSendInteractiveList,
@@ -963,7 +964,7 @@ async function advanceFromNodeKey(
           conversationId: run.conversation_id!,
           contactId: run.contact_id!,
           kind: cfg.media_type,
-          link: cfg.media_url,
+          link: storagePublicUrl(cfg.media_url),
           caption: cfg.caption
             ? interpolateVars(cfg.caption, run.vars)
             : undefined,

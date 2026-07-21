@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { trackDocumentView } from "@/lib/documents/track-view";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -77,12 +78,12 @@ export async function POST(request: Request) {
       if (doc.trim().startsWith("{")) {
         try {
           const parsed = JSON.parse(doc);
-          return { url: parsed.url || "", title: parsed.title || "" };
+          return { url: storagePublicUrl(parsed.url || ""), title: parsed.title || "" };
         } catch {
           // fall through
         }
       }
-      return { url: doc, title: "" };
+      return { url: storagePublicUrl(doc), title: "" };
     }).filter(d => d.url.length > 0);
 
     // Best-effort: never let view tracking block the recipient's access.

@@ -21,6 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { storagePublicUrl } from '@/lib/storage/url';
 import { syncPropertyVideoToYouTube } from '@/lib/youtube/upload';
 import { refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -278,7 +279,7 @@ export async function processListingVideoJob(job: ListingVideoJob): Promise<void
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'listing-video-'));
   try {
-    const photoUrls = (property.images ?? []).filter((u: string) => u?.trim()).slice(0, MAX_PHOTOS);
+    const photoUrls = (property.images ?? []).filter((u: string) => u?.trim()).slice(0, MAX_PHOTOS).map(storagePublicUrl);
     if (photoUrls.length === 0) throw new Error('Listing has no photos to build a video from.');
     const photoFiles: string[] = [];
     for (let i = 0; i < photoUrls.length; i++) {

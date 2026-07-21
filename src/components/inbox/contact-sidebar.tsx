@@ -24,6 +24,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { storagePublicUrl } from "@/lib/storage/url";
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -252,7 +253,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               {contact.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={contact.avatar_url}
+                  src={storagePublicUrl(contact.avatar_url)}
                   alt={displayName}
                   className="h-16 w-16 rounded-full object-cover"
                 />

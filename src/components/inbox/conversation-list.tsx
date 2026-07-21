@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { storagePublicUrl } from "@/lib/storage/url";
 import { useAuth } from "@/hooks/use-auth";
 import type { Conversation, ConversationStatus, Team } from "@/types";
 import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore, Users } from "lucide-react";
@@ -509,7 +510,7 @@ function ConversationItem({
           {contact?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={contact.avatar_url}
+              src={storagePublicUrl(contact.avatar_url)}
               alt={displayName}
               className="h-10 w-10 rounded-full object-cover"
             />
