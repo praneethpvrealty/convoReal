@@ -7,8 +7,6 @@ import { ShowcaseView } from '@/components/showcase/showcase-view';
 import { MarketingLanding } from '@/components/landing/marketing-landing';
 import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
-import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
-import { storagePublicUrl } from '@/lib/storage/url';
 
 const DEFAULT_METADATA: Metadata = {
   title: `${BRANDING.name} — AI-Powered WhatsApp CRM & Property Portals`,
@@ -57,18 +55,18 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
     (property.description || '').slice(0, 160) ||
     [property.type, property.location].filter(Boolean).join(' · ');
 
-  // Photoless listings (common for land/plots) fall back to a branded flyer
-  // rendered from the listing, so a shared link still previews an image
-  // instead of a bare text card.
+  // Always point the preview image at our own OG route. It renders the
+  // listing's first photo (or a branded card when photoless) via next/og,
+  // served from this app — so it never depends on the Supabase image-render
+  // transform endpoint, which requires a paid add-on and which messenger
+  // crawlers (WhatsApp/Telegram) could not fetch, leaving shares imageless.
   const h = await headers();
   const host = h.get('host');
   const proto = h.get('x-forwarded-proto') || 'https';
   const origin = host
     ? `${proto}://${host}`
     : (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(/\/$/, '');
-  const heroImage = property.images?.[0]
-    ? showcaseImageUrl(storagePublicUrl(property.images[0]), SHOWCASE_IMAGE_WIDTHS.hero)
-    : `${origin}/api/properties/${property.id}/og-image`;
+  const heroImage = `${origin}/api/properties/${property.id}/og-image`;
 
   return {
     title: property.title,
