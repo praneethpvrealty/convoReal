@@ -6,10 +6,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import * as Linking from 'expo-linking';
 
 import { apiFetch } from '@/lib/api';
 import { nativeMapsAvailable } from '@/lib/maps-support';
+import { openInMaps } from '@/lib/open-maps';
 import { formatInr } from '@/lib/format';
 import { buildPropertyParams } from '@/app/(app)/(tabs)/properties';
 import { usePropertySearch } from '@/lib/property-search-store';
@@ -158,9 +158,12 @@ export default function PropertiesMapScreen() {
  */
 function MapFallback({ count, near }: { count: number; near: { label: string; latitude: number; longitude: number } | null }) {
   const { colors, fonts: f } = useTheme();
-  const mapsUrl = near
-    ? `https://maps.google.com/?q=${near.latitude},${near.longitude}`
-    : 'https://maps.google.com/?q=Bengaluru';
+  const openArea = () =>
+    openInMaps({
+      latitude: near?.latitude,
+      longitude: near?.longitude,
+      label: near?.label ?? 'Bengaluru',
+    });
   return (
     <View style={fallbackStyles.wrap}>
       <View style={[fallbackStyles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
@@ -174,7 +177,7 @@ function MapFallback({ count, near }: { count: number; near: { label: string; la
           for now, browse them in the List or open the area in Google Maps.
         </Text>
         <Pressable
-          onPress={() => Linking.openURL(mapsUrl)}
+          onPress={openArea}
           accessibilityRole="button"
           accessibilityLabel="Open area in Google Maps"
           style={[fallbackStyles.button, { backgroundColor: colors.primary }]}
