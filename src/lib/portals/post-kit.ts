@@ -39,7 +39,7 @@ export const PORTALS: Record<PortalKey, PortalMeta> = {
   magicbricks: {
     key: 'magicbricks',
     label: 'MagicBricks',
-    postUrl: 'https://www.magicbricks.com/postproperty/',
+    postUrl: 'https://post.magicbricks.com/',
     maxTitle: 100,
     maxDescription: 3000,
     chip: 'bg-red-500/10 border-red-500/30 text-red-400',
