@@ -175,6 +175,10 @@ export interface Contact {
   contact_notes?: { note_text: string }[] | null;
   last_inquired_property_id?: string | null;
   source?: string | null;
+  /** Buyer's WhatsApp property-alert consent (migration 160) — managed
+   *  by STOP ALERTS/START ALERTS chat commands and the buyer portal.
+   *  'declined' excludes the contact from broadcast audiences. */
+  buyer_alerts_consent?: 'pending' | 'granted' | 'declined';
   /** Org hierarchy (migration 082) — which agent/team this contact is
    *  scoped to. Null = unassigned (visible to Org Manager/Leader via the
    *  "unassigned queue" RLS branch; invisible to Org Agents). */

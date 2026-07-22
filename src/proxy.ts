@@ -167,6 +167,23 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Buyer portal pages — same pattern as the Den: own login at
+  // /buyer/login, every /api/buyer route re-checks via
+  // getBuyerContext(), and the portal layout redirects unverified
+  // sessions client-side.
+  const buyerPublicPaths = ['/buyer/login']
+  if (
+    !user &&
+    !authUnavailable &&
+    request.nextUrl.pathname.startsWith('/buyer') &&
+    !buyerPublicPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  ) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/buyer/login'
+    url.search = ''
+    return NextResponse.redirect(url)
+  }
+
   // API routes that need auth (not webhooks, and not Meta's Flows
   // data-exchange endpoint — /api/whatsapp/flows/endpoint/[accountId]
   // is called directly by Meta with no browser session at all, for
