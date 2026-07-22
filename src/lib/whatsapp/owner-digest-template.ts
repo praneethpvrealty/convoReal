@@ -77,15 +77,28 @@ export function buildOwnerDigestConsentTemplatePayload(): TemplatePayload {
   }
 }
 
+/**
+ * "your listing" reads as spam when the owner has no idea which
+ * property triggered the message ("Which land are you talking about?").
+ * Naming the property answers that before the owner has to ask.
+ */
+export function buildListingsPhrase(propertyTitles: string[]): string {
+  const titles = propertyTitles.map((t) => t?.trim()).filter(Boolean)
+  if (titles.length === 1) return `your listing "${titles[0]}"`
+  if (titles.length === 2) return `your listings "${titles[0]}" and "${titles[1]}"`
+  if (titles.length > 2) return `your ${titles.length} listings ("${titles[0]}" and more)`
+  return 'your listing'
+}
+
 /** Body params {{1}}..{{2}}: first name, listings phrase. */
 export function buildOwnerDigestConsentParams(
   contactName: string | null | undefined,
-  propertyCount: number
+  propertyTitles: string[]
 ): [name: string, listings: string] {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there'
   return [
     sanitizeTemplateParam(firstName),
-    sanitizeTemplateParam(propertyCount === 1 ? 'your listing' : `your ${propertyCount} listings`),
+    sanitizeTemplateParam(buildListingsPhrase(propertyTitles)),
   ]
 }
 
@@ -96,16 +109,14 @@ export function buildOwnerDigestConsentParams(
  */
 export function buildOwnerDigestParams(
   contactName: string | null | undefined,
-  propertyCount: number,
+  propertyTitles: string[],
   periodLabel: string,
   summaryLine: string
 ): [name: string, listings: string, summary: string] {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
-  const listingPhrase =
-    propertyCount === 1 ? 'your listing' : `your ${propertyCount} listings`;
   return [
     sanitizeTemplateParam(firstName),
-    sanitizeTemplateParam(`${listingPhrase} (${periodLabel})`),
+    sanitizeTemplateParam(`${buildListingsPhrase(propertyTitles)} (${periodLabel})`),
     sanitizeTemplateParam(summaryLine || 'New buyer activity'),
   ];
 }

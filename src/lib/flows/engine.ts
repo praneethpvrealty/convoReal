@@ -1246,7 +1246,13 @@ export async function dispatchInboundToFlows(
       return handleReplyForActiveRun(db, activeRun, input.message, nodes);
     }
 
-    // No active run → look for a flow whose entry trigger matches.
+    // No active run → look for a flow whose entry trigger matches,
+    // unless the caller suppressed entry (owner contacts must never be
+    // greeted by a buyer-intake flow).
+    if (input.allowEntry === false) {
+      console.log(`${logPrefix} Entry suppressed by caller (allowEntry=false).`);
+      return { consumed: false, outcome: "entry_suppressed" };
+    }
     console.log(`${logPrefix} No active run. Searching for matching flow... message_kind=${input.message.kind}`);
     const flow = await findEntryFlow(
       db,

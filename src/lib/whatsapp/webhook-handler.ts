@@ -31,6 +31,12 @@ import {
   parseBuyerAlertsCommand,
   applyBuyerAlertsCommand,
 } from '@/lib/buyer/alerts'
+import {
+  isOwnerContact,
+  findOwnedListings,
+  handleOwnerInboundMessage,
+  type OwnedListing,
+} from '@/lib/owners/owner-reply'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
@@ -1439,12 +1445,25 @@ async function processMessage(
     }
   }
 
+  // A property owner (owner-ish classification, digest targeting, or an
+  // actual listing linked to their contact) replying to us must never be
+  // greeted by a buyer-intake flow ("let's find your dream property").
+  // Suppress flow ENTRY for them — active runs still advance — and
+  // answer their free text below with a reply grounded in their own
+  // listings instead.
+  let ownedListings: OwnedListing[] = []
+  if (isOwnerContact(contactRecord)) {
+    ownedListings = await findOwnedListings(accountId, contactRecord.id)
+  }
+  const isPropertyOwnerSender = ownedListings.length > 0
+
   console.log(`[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`);
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
     contactId: contactRecord.id,
     conversationId: conversation.id,
+    allowEntry: !isPropertyOwnerSender,
     message:
       interactiveReplyId
         ? {
@@ -1464,6 +1483,25 @@ async function processMessage(
   const flowConsumed = flowResult.consumed
 
   const inboundText = contentText ?? message.text?.body ?? ''
+
+  if (
+    !flowConsumed &&
+    isPropertyOwnerSender &&
+    (message.type === 'text' || message.type === 'button')
+  ) {
+    const ownerHandled = await handleOwnerInboundMessage({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contactRecord.id,
+      contactName: contactRecord.name || null,
+      conversationId: conversation.id,
+      digestConsent: contactRecord.owner_digest_consent,
+      text: message.button?.text ?? inboundText,
+      listings: ownedListings,
+    })
+    if (ownerHandled) return
+  }
+
   const automationTriggers: (
     | 'new_contact_created'
     | 'first_inbound_message'
@@ -1651,6 +1689,8 @@ interface ContactRow {
   phone: string
   name: string
   classification?: string
+  owner_digest_consent?: string | null
+  owner_digest_consent_requested_at?: string | null
 }
 
 interface PropertyRow {
@@ -1703,11 +1743,25 @@ async function findOrCreateContact(
   const existingContact = contacts?.find((c: ContactRow) => phonesMatch(c.phone, phone))
 
   if (existingContact) {
+    // Only adopt the sender's WhatsApp profile name when the contact has
+    // no real name yet (blank, or still just the phone number). A name the
+    // user saved by hand must never be clobbered by the sender's own
+    // WhatsApp display name — instead record that display name as a note
+    // (once) so the information isn't lost.
+    const storedName = (existingContact.name || '').trim()
+    const phoneDigits = phone.replace(/\D/g, '')
+    const isPlaceholderName = !storedName || storedName.replace(/\D/g, '') === phoneDigits
+
     if (name && name !== existingContact.name) {
-      await supabaseAdmin()
-        .from('contacts')
-        .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existingContact.id)
+      if (isPlaceholderName) {
+        await supabaseAdmin()
+          .from('contacts')
+          .update({ name, updated_at: new Date().toISOString() })
+          .eq('id', existingContact.id)
+        existingContact.name = name
+      } else if (name.replace(/\D/g, '') !== phoneDigits) {
+        await recordWhatsAppProfileName(accountId, configOwnerUserId, existingContact.id, name)
+      }
     }
     return { contact: existingContact, wasCreated: false }
   }
@@ -1730,6 +1784,32 @@ async function findOrCreateContact(
   }
 
   return { contact: newContact, wasCreated: true }
+}
+
+/** Log the sender's current WhatsApp profile name against a contact whose
+ *  name the user set by hand, so the display name is captured without
+ *  overwriting the saved name. Deduped on the exact note text so it isn't
+ *  re-added on every inbound message. */
+async function recordWhatsAppProfileName(
+  accountId: string,
+  userId: string,
+  contactId: string,
+  profileName: string
+): Promise<void> {
+  const noteText = `WhatsApp profile name: ${profileName}`
+  const { data: existing } = await supabaseAdmin()
+    .from('contact_notes')
+    .select('id')
+    .eq('contact_id', contactId)
+    .eq('note_text', noteText)
+    .limit(1)
+  if (existing && existing.length > 0) return
+  await supabaseAdmin().from('contact_notes').insert({
+    contact_id: contactId,
+    account_id: accountId,
+    user_id: userId,
+    note_text: noteText,
+  })
 }
 
 async function findOrCreateConversation(
