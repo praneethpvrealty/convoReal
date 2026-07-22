@@ -54,10 +54,13 @@ export async function POST(request: NextRequest) {
     const planId = razorpayPlanId(plan, cycle);
     const hasKeys = !!razorpayKeyId && !!razorpayKeySecret;
 
-    // Sandbox/Development Bypass: if Razorpay configuration is incomplete or plan ID is missing,
-    // we bypass the live Razorpay API and automatically activate/upgrade the plan directly
-    // in the database. This allows offline/sandbox testing and easy onboarding without live payment keys.
-    if (!hasKeys || !planId) {
+    // Sandbox/Development bypass: with NO Razorpay keys configured there's no
+    // way to charge, so activate the plan directly in the DB (offline/local
+    // testing, easy onboarding). When keys ARE present but this plan/cycle has
+    // no Razorpay plan id, we deliberately do NOT bypass — see the guard below —
+    // so a missing plan-id env var can't silently hand out a free plan in a
+    // payment-enabled deployment.
+    if (!hasKeys) {
       console.log(`[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-activating ${plan} (${cycle}) for account ${ctx.accountId}`);
       
       const admin = billingAdmin();
@@ -103,6 +106,18 @@ export async function POST(request: NextRequest) {
         subscriptionId: 'mock_sub_' + Math.random().toString(36).substring(2, 11),
         checkoutUrl: '/settings?checkout=success',
       });
+    }
+
+    // Keys are configured (payments enabled) but this plan/cycle has no Razorpay
+    // plan id — refuse rather than silently activating a free plan. Set
+    // RAZORPAY_PLAN_<PLAN>_<CYCLE> (named in the message) to enable it.
+    if (!planId) {
+      const planKey = `RAZORPAY_PLAN_${plan.toUpperCase()}_${cycle.toUpperCase()}`;
+      console.error(`[billing/create-subscription] ${planKey} is not set — refusing free activation for account ${ctx.accountId}`);
+      return NextResponse.json(
+        { error: `Billing is not configured for this plan yet (${planKey} is not set).` },
+        { status: 503 },
+      );
     }
 
     const priceConfig = PLAN_CONFIG[plan];
