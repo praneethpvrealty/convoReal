@@ -45,16 +45,18 @@ export async function POST(request: NextRequest) {
     const newRazorpayPlanId = process.env[newPlanKey];
     const hasKeys = !!razorpayKeyId && !!razorpayKeySecret;
 
-    // Sandbox/Development Bypass: if Razorpay configuration is incomplete or plan ID is missing,
-    // we bypass the live Razorpay API and automatically activate/upgrade the plan directly
-    // in the database. This allows offline/sandbox testing and easy onboarding without live payment keys.
+    // Sandbox/Development bypass: with NO Razorpay keys configured there's no
+    // way to charge, so activate the upgrade directly in the DB (offline/local
+    // testing, easy onboarding). When keys ARE present but this plan/cycle has
+    // no Razorpay plan id, we deliberately do NOT bypass — see the guard below —
+    // so a missing plan-id env var can't silently hand out a free upgrade in a
+    // payment-enabled deployment.
     //
-    // This runs BEFORE the razorpay_subscription_id guard below on purpose: an account whose
-    // current plan was set without a live Razorpay subscription (offline/comped/admin-override, or a
-    // prior sandbox create-subscription) has no razorpay_subscription_id to PATCH, yet must still be
-    // able to upgrade. When Razorpay IS configured, this block is skipped and the live path below
-    // enforces the guard as before.
-    if (!hasKeys || !newRazorpayPlanId) {
+    // This runs BEFORE the razorpay_subscription_id guard below on purpose: an
+    // account whose current plan was set without a live Razorpay subscription
+    // (offline/comped/admin-override, or a prior sandbox create-subscription) has
+    // no razorpay_subscription_id to PATCH, yet must still be able to upgrade.
+    if (!hasKeys) {
       console.log(`[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-upgrading to ${newPlan} for account ${ctx.accountId}`);
       
       const admin = billingAdmin();
@@ -90,6 +92,17 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({ success: true, plan: newPlan });
+    }
+
+    // Keys are configured (payments enabled) but this plan/cycle has no Razorpay
+    // plan id — refuse rather than silently granting a free upgrade. Set
+    // RAZORPAY_PLAN_<PLAN>_<CYCLE> (named in the message) to enable it.
+    if (!newRazorpayPlanId) {
+      console.error(`[billing/upgrade] ${newPlanKey} is not set — refusing free upgrade for account ${ctx.accountId}`);
+      return NextResponse.json(
+        { error: `Billing is not configured for this plan yet (${newPlanKey} is not set).` },
+        { status: 503 },
+      );
     }
 
     // Live Razorpay path — needs an existing subscription object to modify.

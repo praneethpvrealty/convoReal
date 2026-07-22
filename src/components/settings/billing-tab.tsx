@@ -98,24 +98,26 @@ function PlanCard({
         </span>
       )}
 
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <PlanIcon plan={plan} />
-            <span className="font-semibold">{config.name}</span>
+            <span className="font-semibold truncate">{config.name}</span>
             {isCurrent && (
-              <Badge variant="default" className="text-[10px] h-4 px-1.5">Current</Badge>
+              <Badge variant="default" className="text-[10px] h-4 px-1.5 shrink-0">Current</Badge>
             )}
           </div>
           <p className="text-xs text-muted-foreground">{config.tagline}</p>
         </div>
-        <div className="text-right">
+        <div className="text-right shrink-0">
           {price === 0 ? (
             <span className="text-2xl font-bold">Free</span>
           ) : (
             <>
-              <span className="text-2xl font-bold">{formatINR(price)}</span>
-              <span className="text-xs text-muted-foreground">/mo</span>
+              <div className="whitespace-nowrap">
+                <span className="text-2xl font-bold">{formatINR(price)}</span>
+                <span className="text-xs text-muted-foreground">/mo</span>
+              </div>
               <div className="text-[10px] text-muted-foreground mt-0.5">+ 18% GST</div>
               {cycle === 'annual' && (
                 <div className="text-xs text-emerald-600 font-medium">{formatINR(config.annualPrice)} billed annually</div>
