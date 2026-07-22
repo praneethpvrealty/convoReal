@@ -272,16 +272,28 @@
     return wants;
   }
 
-  /** Best row for the candidate names: an exact match on any candidate
-   *  ("Bangalore" for a "Bengaluru" query) beats every prefix match,
-   *  then comma boundary ("Koramangala, Hosur Road" beats "Koramangala
-   *  Industrial Layout"), then plain prefix. */
-  function pickSuggestion(rows, wants) {
-    return rows.find((c) => wants.some((w) => c.text === w))
+  /** A confident match on any candidate: the whole text equals it, its
+   *  pre-comma head equals it ("Bangalore, Karnataka"), or it sits on a
+   *  comma boundary ("Koramangala, Hosur Road"). "Bangalore" for a
+   *  "Bengaluru" query lands here and must beat any loose prefix. */
+  function pickExact(rows, wants) {
+    const head = (t) => t.split(',')[0].trim();
+    return rows.find((c) => wants.some((w) => c.text === w || head(c.text) === w))
       || rows.find((c) => wants.some((w) => c.text.startsWith(`${w},`)))
-      || rows.find((c) => wants.some((w) => c.text.startsWith(`${w} `)))
+      || null;
+  }
+
+  /** A loose prefix match — "Bengaluru East" for "Bengaluru". Fine when
+   *  nothing exact exists, but a sub-region should never be picked over
+   *  an exact city, so callers try pickExact first (and wait for it). */
+  function pickPrefix(rows, wants) {
+    return rows.find((c) => wants.some((w) => c.text.startsWith(`${w} `)))
       || rows.find((c) => wants.some((w) => c.text.startsWith(w)))
       || null;
+  }
+
+  function pickSuggestion(rows, wants) {
+    return pickExact(rows, wants) || pickPrefix(rows, wants);
   }
 
   /** After typing into a typeahead, hover then press the suggestion
@@ -295,19 +307,26 @@
 
     let sawRows = false;
     let staleRounds = 0;
-    for (let attempt = 0; attempt < 6; attempt++) {
+    let looseRounds = 0;
+    for (let attempt = 0; attempt < 7; attempt++) {
       await sleep(attempt === 0 ? 450 : 300);
       const rows = suggestionRows(input);
       if (rows.length === 0) continue;
       sawRows = true;
 
-      const hit = pickSuggestion(rows, wants);
+      const exact = pickExact(rows, wants);
+      const hit = exact || pickPrefix(rows, wants);
       if (!hit) {
         // Rendered, but no matching row — give the list one more
         // refresh, then stop wasting time.
         if (++staleRounds >= 2) return 'nomatch';
         continue;
       }
+      // Only a loose prefix so far (e.g. "Bengaluru East"): portals
+      // stream results, and the exact/alias row ("Bangalore") often
+      // lands a beat later — hold out a couple refreshes for it before
+      // settling for the sub-region.
+      if (!exact && looseRounds++ < 2) continue;
 
       hit.row.scrollIntoView({ block: 'nearest' });
       simulateHover(hit.target);
@@ -658,7 +677,11 @@
 
     const header = el('div', 'display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1e1b4b;cursor:pointer');
     const title = el('div', 'flex:1;min-width:0');
-    title.appendChild(el('div', 'font-weight:800;color:#c4b5fd', 'ConvoReal Autofill'));
+    let version = '';
+    try { version = chrome.runtime?.getManifest?.().version || ''; } catch { /* orphaned */ }
+    const brand = el('div', 'font-weight:800;color:#c4b5fd', 'ConvoReal Autofill');
+    if (version) brand.appendChild(el('span', 'margin-left:6px;font-weight:600;color:#6d5bd0;font-size:10px', `v${version}`));
+    title.appendChild(brand);
     title.appendChild(el('div', 'color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis', payload.title || 'No listing sent yet'));
     header.appendChild(title);
     const collapseBtn = el('button', 'background:none;border:none;color:#94a3b8;font-size:14px;cursor:pointer', '−');
