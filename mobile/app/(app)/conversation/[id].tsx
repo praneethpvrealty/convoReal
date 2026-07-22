@@ -7,7 +7,6 @@ import {
   ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -146,8 +145,11 @@ export default function ConversationScreen() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? headerHeight : 0}
+      // Android needs an explicit behavior too: under SDK 57 edge-to-edge
+      // the window no longer auto-resizes for the keyboard, so without this
+      // the composer sits behind it.
+      behavior="padding"
+      keyboardVerticalOffset={headerHeight}
     >
       <Stack.Screen
         options={{
