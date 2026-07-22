@@ -236,6 +236,12 @@ export default function SettingsPage() {
       label: 'Account',
       items: [
         { value: 'profile', label: 'Profile', icon: User },
+        // Billing + Credits sit right next to Profile so plan/seat status
+        // (e.g. the "1 / 1 users" meter that gates inviting teammates) is a
+        // first-glance, top-level tab rather than tucked into its own
+        // cluster further along the bar.
+        { value: 'billing', label: 'Billing', icon: CreditCard },
+        { value: 'credits', label: 'Credits', icon: Coins },
         { value: 'appearance', label: 'Appearance', icon: Palette },
       ],
     },
@@ -246,13 +252,6 @@ export default function SettingsPage() {
         { value: 'whatsapp', label: 'WhatsApp', icon: Settings },
         ...(metaAdsEnabled ? [{ value: 'ads' as TabValue, label: 'Ads', icon: Megaphone }] : []),
         { value: 'tags', label: 'Tags', icon: Tag },
-      ],
-    },
-    {
-      label: 'Billing',
-      items: [
-        { value: 'billing', label: 'Billing', icon: CreditCard },
-        { value: 'credits', label: 'Credits', icon: Coins },
       ],
     },
     // "Public", "AI", and "Advanced" used to be three separate groups that
@@ -274,10 +273,10 @@ export default function SettingsPage() {
     },
   ];
 
-  // On phones only the first two groups (Account + Messaging — the
-  // daily-driver tabs) stay inline; Billing + Workspace collapse into
-  // a "More" menu so the bar needs little or no scrolling. Desktop
-  // (md+) shows every group inline exactly as before.
+  // On phones only the first two groups (Account — now including Billing
+  // & Credits — and Messaging, the daily-driver tabs) stay inline;
+  // Workspace collapses into a "More" menu so the bar needs little or no
+  // scrolling. Desktop (md+) shows every group inline exactly as before.
   const MOBILE_INLINE_GROUPS = 2;
   const moreItems = navGroups
     .slice(MOBILE_INLINE_GROUPS)
