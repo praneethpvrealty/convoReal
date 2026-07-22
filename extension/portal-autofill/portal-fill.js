@@ -156,25 +156,39 @@
     return node;
   }
 
-  /** MagicBricks only fetches typeahead suggestions on key events —
-   *  a synthetic input event alone never opens the dropdown (and MB
-   *  then clears the uncommitted text on validation). Click + focus
-   *  first (some dropdowns open on click, pre-listing every city),
-   *  then type character by character with keydown/keyup around each
-   *  value update. */
+  /** Portals only fetch locality/city suggestions after a few
+   *  characters and debounce every keystroke — typing too fast lets a
+   *  synthetic burst race their onChange, leaving a truncated query
+   *  (e.g. "hsr lay") whose dropdown never contains the full match, so
+   *  nothing is selectable. Mimic a real typist: an initial burst to
+   *  open the dropdown, then the rest letter by letter with pauses, and
+   *  a final settle so the last fetch reflects the whole value. */
+  function typeChar(el, ch, text) {
+    el.dispatchEvent(keyEvent('keydown', ch));
+    el.dispatchEvent(keyEvent('keypress', ch));
+    nativeSet(el, text);
+    el.dispatchEvent(keyEvent('keyup', ch));
+  }
+
   async function typeLikeUser(el, value) {
     simulateClick(el);
     el.focus();
     nativeSet(el, '');
+    await sleep(60);
+    const cs = [...value];
+    const burst = Math.min(3, cs.length);
     let text = '';
-    for (const ch of value) {
-      text += ch;
-      el.dispatchEvent(keyEvent('keydown', ch));
-      el.dispatchEvent(keyEvent('keypress', ch));
-      nativeSet(el, text);
-      el.dispatchEvent(keyEvent('keyup', ch));
-      await sleep(25);
+    for (let i = 0; i < burst; i++) {
+      text += cs[i];
+      typeChar(el, cs[i], text);
     }
+    await sleep(250);
+    for (let i = burst; i < cs.length; i++) {
+      text += cs[i];
+      typeChar(el, cs[i], text);
+      await sleep(90);
+    }
+    await sleep(300);
   }
 
   /** All suggestion rows for a typeahead, deduped. Starts from
