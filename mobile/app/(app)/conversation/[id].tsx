@@ -23,6 +23,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { ConversationMenu } from '@/components/conversation-menu';
 import { ConvoRealLoader } from '@/components/loader';
 import { MediaImage } from '@/components/media-image';
 import { PropertyPickerSheet } from '@/components/property-picker-sheet';
@@ -76,6 +77,7 @@ export default function ConversationScreen() {
     draftPropertyId?: string;
   }>();
   const headerHeight = useHeaderHeight();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const { data: conversation } = useQuery({
     queryKey: ['conversation', id],
@@ -155,6 +157,17 @@ export default function ConversationScreen() {
         options={{
           headerShown: true,
           headerTitle: () => <ThreadHeader title={title} status={conversation?.status} />,
+          headerRight: () => (
+            <Pressable
+              onPress={() => setMenuOpen(true)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel="Manage chat"
+              style={{ paddingHorizontal: 4 }}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color={colors.text} />
+            </Pressable>
+          ),
         }}
       />
 
@@ -183,6 +196,14 @@ export default function ConversationScreen() {
         conversationId={id}
         contactName={conversation?.contact?.name || undefined}
         seedDraft={seedDraft}
+      />
+
+      <ConversationMenu
+        visible={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        conversationId={id}
+        status={conversation?.status}
+        isArchived={conversation?.is_archived}
       />
     </KeyboardAvoidingView>
   );

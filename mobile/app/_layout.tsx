@@ -16,6 +16,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuroraBackground } from '@/components/aurora-background';
 import { ConvoRealLoader } from '@/components/loader';
@@ -58,29 +59,31 @@ export default function RootLayout() {
   }
 
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister: asyncStoragePersister }}
-    >
-      <View style={{ flex: 1 }}>
-        <AuroraBackground />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: 'transparent' },
-            // Swipe-back everywhere: iOS gets full-screen swipe, Android
-            // rides the system predictive back gesture (app.json flag);
-            // content slides with the gesture instead of the default fade.
-            animation: 'slide_from_right',
-            gestureEnabled: true,
-            fullScreenGestureEnabled: true,
-          }}
-        >
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(app)" />
-        </Stack>
-      </View>
-      <StatusBar style={dark ? 'light' : 'dark'} />
-    </PersistQueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: asyncStoragePersister }}
+      >
+        <View style={{ flex: 1 }}>
+          <AuroraBackground />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: 'transparent' },
+              // Swipe-back everywhere: iOS gets full-screen swipe, Android
+              // rides the system predictive back gesture (app.json flag);
+              // content slides with the gesture instead of the default fade.
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
+            }}
+          >
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(app)" />
+          </Stack>
+        </View>
+        <StatusBar style={dark ? 'light' : 'dark'} />
+      </PersistQueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
