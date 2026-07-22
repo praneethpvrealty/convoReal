@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -67,6 +68,11 @@ export function PropertyShareSheet({
   onClose: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
+  // A definite pixel cap keeps the scroll area bounded so it renders and
+  // scrolls inside the sheet — a percentage/flex height collapses to zero
+  // against the sheet's content-sized (maxHeight-only) container.
+  const { height: winH } = useWindowDimensions();
+  const scrollMax = Math.round(winH * 0.72);
   const session = useAuthStore((s) => s.session);
   const fullName = useAuthStore((s) => s.profile?.full_name);
   const [audience, setAudience] = useState<ShareAudience>('client');
@@ -257,7 +263,7 @@ export function PropertyShareSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Share property">
       <ScrollView
-        style={{ flexShrink: 1 }}
+        style={{ maxHeight: scrollMax }}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm }}
         keyboardShouldPersistTaps="handled"
       >
