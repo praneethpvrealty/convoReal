@@ -676,6 +676,34 @@
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  // The wizard's "advance" button, matched by exact label.
+  const CONTINUE_RE = /^(continue|next|save (?:&|and) continue|save (?:&|and) next|proceed|next step|save & proceed)$/;
+
+  /** Click the step's primary Continue/Next button to advance the
+   *  wizard. Only called after a clean fill (no failed fields), so it
+   *  never skips a step that still needs a manual fix. Exact-label plus
+   *  most-prominent, to avoid stray "next"/"continue" links. */
+  function clickContinue() {
+    const candidates = [...document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]')]
+      .filter((elm) => {
+        if (elm.closest(`#${PANEL_ID}, nav, header, footer`)) return false;
+        if (elm.disabled) return false;
+        const text = normalizedText(elm.tagName === 'INPUT' ? elm.value : elm.textContent);
+        if (!CONTINUE_RE.test(text)) return false;
+        const r = elm.getBoundingClientRect();
+        return r.width > 60 && r.height > 20 && r.top >= 0 && r.top < window.innerHeight;
+      })
+      .sort((a, b) => {
+        const ra = a.getBoundingClientRect();
+        const rb = b.getBoundingClientRect();
+        return rb.width * rb.height - ra.width * ra.height;
+      });
+    if (candidates.length === 0) return false;
+    simulateClick(candidates[0]);
+    flashOutline(candidates[0]);
+    return true;
+  }
+
   async function autofill(fields) {
     const handled = new Set();
     const report = { satisfied: new Set(), failed: new Set() };
@@ -696,7 +724,14 @@
     // A field handled by any pass is not a failure (e.g. a typeahead
     // that failed once then committed on a later sweep).
     for (const label of report.satisfied) report.failed.delete(label);
-    return { done, report };
+    // Advance the wizard only when the step filled cleanly — a red flag
+    // means the agent still has something to copy in by hand here.
+    let advanced = false;
+    if (done > 0 && report.failed.size === 0) {
+      await sleep(350);
+      advanced = clickContinue();
+    }
+    return { done, report, advanced };
   }
 
   function copyText(text, btn) {
@@ -778,10 +813,11 @@
         fillBtn.disabled = true;
         status.textContent = 'Filling…';
         try {
-          const { done, report } = await autofill(fields);
+          const { done, report, advanced } = await autofill(fields);
           applyFieldStatus(rowByLabel, report);
           const misses = report.failed.size;
           if (done > 0 && misses > 0) status.textContent = `${done} filled · ${misses} to copy`;
+          else if (advanced) status.textContent = `${done} filled ✓ · continued`;
           else if (done > 0) status.textContent = `${done} filled ✓`;
           else status.textContent = 'No matches on this step';
         } finally {
@@ -824,7 +860,7 @@
       body.appendChild(list);
 
       body.appendChild(el('div', 'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
-        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK), and commits city/locality suggestions. Fields it couldn’t complete turn red — use their Copy button and fill them by hand. Re-run on each wizard step, review, then submit.'));
+        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK), and commits city/locality suggestions. When a step fills cleanly it also clicks Continue to advance; if any field turns red it stops there — use that field’s Copy button, fix it, then run Autofill again. Review before you submit.'));
     }
 
     // The − minimizes the whole panel back to the floating launcher.
