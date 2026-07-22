@@ -1715,11 +1715,25 @@ async function findOrCreateContact(
   const existingContact = contacts?.find((c: ContactRow) => phonesMatch(c.phone, phone))
 
   if (existingContact) {
+    // Only adopt the sender's WhatsApp profile name when the contact has
+    // no real name yet (blank, or still just the phone number). A name the
+    // user saved by hand must never be clobbered by the sender's own
+    // WhatsApp display name — instead record that display name as a note
+    // (once) so the information isn't lost.
+    const storedName = (existingContact.name || '').trim()
+    const phoneDigits = phone.replace(/\D/g, '')
+    const isPlaceholderName = !storedName || storedName.replace(/\D/g, '') === phoneDigits
+
     if (name && name !== existingContact.name) {
-      await supabaseAdmin()
-        .from('contacts')
-        .update({ name, updated_at: new Date().toISOString() })
-        .eq('id', existingContact.id)
+      if (isPlaceholderName) {
+        await supabaseAdmin()
+          .from('contacts')
+          .update({ name, updated_at: new Date().toISOString() })
+          .eq('id', existingContact.id)
+        existingContact.name = name
+      } else if (name.replace(/\D/g, '') !== phoneDigits) {
+        await recordWhatsAppProfileName(accountId, configOwnerUserId, existingContact.id, name)
+      }
     }
     return { contact: existingContact, wasCreated: false }
   }
@@ -1742,6 +1756,32 @@ async function findOrCreateContact(
   }
 
   return { contact: newContact, wasCreated: true }
+}
+
+/** Log the sender's current WhatsApp profile name against a contact whose
+ *  name the user set by hand, so the display name is captured without
+ *  overwriting the saved name. Deduped on the exact note text so it isn't
+ *  re-added on every inbound message. */
+async function recordWhatsAppProfileName(
+  accountId: string,
+  userId: string,
+  contactId: string,
+  profileName: string
+): Promise<void> {
+  const noteText = `WhatsApp profile name: ${profileName}`
+  const { data: existing } = await supabaseAdmin()
+    .from('contact_notes')
+    .select('id')
+    .eq('contact_id', contactId)
+    .eq('note_text', noteText)
+    .limit(1)
+  if (existing && existing.length > 0) return
+  await supabaseAdmin().from('contact_notes').insert({
+    contact_id: contactId,
+    account_id: accountId,
+    user_id: userId,
+    note_text: noteText,
+  })
 }
 
 async function findOrCreateConversation(
