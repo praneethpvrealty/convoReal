@@ -28,6 +28,7 @@ import {
   Star,
   Globe,
   Waypoints,
+  ThumbsUp,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -358,6 +359,15 @@ export function PropertyList({
                         {code}
                       </span>
                     ))}
+                    {(property.like_count ?? 0) > 0 && (
+                      <span
+                        className="flex items-center gap-1 text-[10px] font-bold text-primary bg-primary/10 border border-primary/25 px-1.5 py-0.5 rounded"
+                        title={`${property.like_count} showcase ${property.like_count === 1 ? 'like' : 'likes'}`}
+                      >
+                        <ThumbsUp className="size-3" />
+                        {property.like_count}
+                      </span>
+                    )}
                     {property.property_code && (
                       <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded select-all" title="Copy Property Code">
                         {property.property_code}

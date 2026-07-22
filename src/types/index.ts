@@ -938,6 +938,8 @@ export interface Property {
   owner_contact_id?: string | null;
   owner?: Contact | null;
   interested_contacts?: Contact[];
+  /** Thumbs-up tally from public showcase visitors (migration 158). */
+  like_count?: number;
   rental_income?: number | null;
   roi?: number | null;
   /** Floor-wise rent roll for pre-leased commercial buildings
