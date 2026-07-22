@@ -29,6 +29,13 @@ describe("roleRank", () => {
     expect(roleRank("agent")).toBe(2);
     expect(roleRank("viewer")).toBe(1);
   });
+
+  it("ranks coordinator equal to agent (scoped operator, agent-level gates)", () => {
+    // coordinator's extra power is account-wide data visibility in the
+    // RLS policies (migration 148), NOT a higher rank — every hasMinRole
+    // gate treats it exactly like an agent.
+    expect(roleRank("coordinator")).toBe(roleRank("agent"));
+  });
 });
 
 describe("hasMinRole", () => {
@@ -89,6 +96,7 @@ describe("capability predicates", () => {
   it("canManageMembers: admin+ only", () => {
     expect(canManageMembers("owner")).toBe(true);
     expect(canManageMembers("admin")).toBe(true);
+    expect(canManageMembers("coordinator")).toBe(false);
     expect(canManageMembers("agent")).toBe(false);
     expect(canManageMembers("viewer")).toBe(false);
   });
@@ -96,13 +104,15 @@ describe("capability predicates", () => {
   it("canEditSettings: admin+ only", () => {
     expect(canEditSettings("owner")).toBe(true);
     expect(canEditSettings("admin")).toBe(true);
+    expect(canEditSettings("coordinator")).toBe(false);
     expect(canEditSettings("agent")).toBe(false);
     expect(canEditSettings("viewer")).toBe(false);
   });
 
-  it("canSendMessages: agent+ only", () => {
+  it("canSendMessages: agent+ only (coordinator included)", () => {
     expect(canSendMessages("owner")).toBe(true);
     expect(canSendMessages("admin")).toBe(true);
+    expect(canSendMessages("coordinator")).toBe(true);
     expect(canSendMessages("agent")).toBe(true);
     expect(canSendMessages("viewer")).toBe(false);
   });
@@ -110,6 +120,7 @@ describe("capability predicates", () => {
   it("canViewOnly: viewer only", () => {
     expect(canViewOnly("owner")).toBe(false);
     expect(canViewOnly("admin")).toBe(false);
+    expect(canViewOnly("coordinator")).toBe(false);
     expect(canViewOnly("agent")).toBe(false);
     expect(canViewOnly("viewer")).toBe(true);
   });
@@ -117,6 +128,7 @@ describe("capability predicates", () => {
   it("canDeleteAccount: owner only", () => {
     expect(canDeleteAccount("owner")).toBe(true);
     expect(canDeleteAccount("admin")).toBe(false);
+    expect(canDeleteAccount("coordinator")).toBe(false);
     expect(canDeleteAccount("agent")).toBe(false);
     expect(canDeleteAccount("viewer")).toBe(false);
   });
@@ -124,6 +136,7 @@ describe("capability predicates", () => {
   it("canTransferOwnership: owner only", () => {
     expect(canTransferOwnership("owner")).toBe(true);
     expect(canTransferOwnership("admin")).toBe(false);
+    expect(canTransferOwnership("coordinator")).toBe(false);
     expect(canTransferOwnership("agent")).toBe(false);
     expect(canTransferOwnership("viewer")).toBe(false);
   });

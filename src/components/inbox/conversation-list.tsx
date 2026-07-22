@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { useAuth } from "@/hooks/use-auth";
+import type { OrgRole } from "@/lib/auth/roles";
 import type { Conversation, ConversationStatus, Team } from "@/types";
 import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore, Users } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -75,7 +76,7 @@ const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
 type ScopeFilterValue = "all" | "unassigned" | "mine" | `team:${string}`;
 
 function scopeOptionsFor(
-  orgRole: "org_manager" | "org_leader" | "org_agent" | null,
+  orgRole: OrgRole | null,
   teams: Team[],
 ): { label: string; value: ScopeFilterValue; icon?: boolean }[] {
   if (orgRole === "org_manager") {
@@ -84,6 +85,16 @@ function scopeOptionsFor(
       { label: "Unassigned", value: "unassigned" },
       { label: "Mine", value: "mine" },
       ...teams.map((t) => ({ label: t.name, value: `team:${t.id}` as ScopeFilterValue, icon: true })),
+    ];
+  }
+  // Coordinator sees the whole account (RLS grants account-wide
+  // visibility) but doesn't manage teams — so All / Unassigned / Mine
+  // without the per-team dropdown a Manager gets.
+  if (orgRole === "org_coordinator") {
+    return [
+      { label: "All", value: "all" },
+      { label: "Unassigned", value: "unassigned" },
+      { label: "Mine", value: "mine" },
     ];
   }
   if (orgRole === "org_leader") {

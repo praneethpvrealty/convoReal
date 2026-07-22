@@ -15,12 +15,13 @@
 // changes a one-file diff.
 // ============================================================
 
-export type AccountRole = "owner" | "admin" | "agent" | "viewer";
+export type AccountRole = "owner" | "admin" | "coordinator" | "agent" | "viewer";
 
 /** Ordered list of every valid role, lowest privilege first. */
 export const ACCOUNT_ROLES: readonly AccountRole[] = [
   "viewer",
   "agent",
+  "coordinator",
   "admin",
   "owner",
 ] as const;
@@ -28,6 +29,14 @@ export const ACCOUNT_ROLES: readonly AccountRole[] = [
 /**
  * Numeric rank of a role. Higher = more privileged. Mirrors the
  * CASE expression in `is_account_member` so JS/SQL stay aligned.
+ *
+ * `coordinator` ranks EQUAL to `agent` on purpose. Its extra power
+ * — account-wide visibility of contacts + conversations, including
+ * the unassigned queue — is not a rank threshold; it's expressed as
+ * an explicit `org_role` check inside the RLS policies (migration
+ * 148). For every `hasMinRole` gate (write operational data yes,
+ * manage members / edit settings no) a coordinator behaves exactly
+ * like an agent, which is what these numbers encode.
  */
 export function roleRank(role: AccountRole): number {
   switch (role) {
@@ -35,6 +44,8 @@ export function roleRank(role: AccountRole): number {
       return 4;
     case "admin":
       return 3;
+    case "coordinator":
+      return 2;
     case "agent":
       return 2;
     case "viewer":
@@ -120,11 +131,16 @@ export function canTransferOwnership(role: AccountRole): boolean {
 // the old predicates above become the deprecated path.
 // ============================================================
 
-export type OrgRole = "org_manager" | "org_leader" | "org_agent";
+export type OrgRole =
+  | "org_manager"
+  | "org_leader"
+  | "org_coordinator"
+  | "org_agent";
 
 /** Ordered list of every valid org role, lowest privilege first. */
 export const ORG_ROLES: readonly OrgRole[] = [
   "org_agent",
+  "org_coordinator",
   "org_leader",
   "org_manager",
 ] as const;
@@ -133,6 +149,12 @@ export const ORG_ROLES: readonly OrgRole[] = [
  * Numeric rank of an org role. Higher = more privileged. Mirrors
  * the CASE expression in `is_account_member`'s rewritten body so
  * JS/SQL stay aligned, same as the legacy `roleRank()` above.
+ *
+ * `org_coordinator` ranks EQUAL to `org_agent` — see `roleRank`
+ * above for why. It clears `canSendMessages` (agent+) but not
+ * `canManageMembers` / `canEditSettings` (leader+), which is
+ * exactly the scoped-operator role it represents. Its account-wide
+ * data visibility lives in the RLS policies, not this rank.
  */
 export function orgRoleRank(role: OrgRole): number {
   switch (role) {
@@ -140,6 +162,8 @@ export function orgRoleRank(role: OrgRole): number {
       return 4;
     case "org_leader":
       return 3;
+    case "org_coordinator":
+      return 2;
     case "org_agent":
       return 2;
   }

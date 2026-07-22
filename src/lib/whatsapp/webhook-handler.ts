@@ -2246,15 +2246,18 @@ function parseUpdateIntent(text: string): {
   return null
 }
 
-// Org roles (org_manager > org_leader > org_agent) are the source of truth;
-// account_role (owner/admin/agent/viewer) is the legacy mirror kept in
-// lockstep by a trigger: owner↔org_manager, admin↔org_leader, agent↔org_agent,
-// viewer→org_agent. All three org roles (manager, leader, agent) may update.
-// Agents are matched via account_role='agent' rather than org_role='org_agent'
+// Org roles (org_manager > org_leader > org_coordinator > org_agent) are the
+// source of truth; account_role (owner/admin/coordinator/agent/viewer) is the
+// legacy mirror kept in lockstep by a trigger: owner↔org_manager,
+// admin↔org_leader, coordinator↔org_coordinator, agent↔org_agent, viewer→org_agent.
+// Managers, leaders, coordinators, and agents may update.
+// Agents (and coordinators) are matched via account_role rather than org_role
 // ON PURPOSE: viewers collapse to org_agent too (with is_read_only), so
 // org_agent cannot distinguish an agent from a read-only viewer. Do NOT add
 // 'org_agent' to the org-role set — it would let viewers mutate records.
-const UPDATE_STAFF_ACCOUNT_ROLES = ['owner', 'admin', 'agent']
+// (Coordinator is safe on the account_role side: it's a distinct value and is
+// never read-only.)
+const UPDATE_STAFF_ACCOUNT_ROLES = ['owner', 'admin', 'coordinator', 'agent']
 const UPDATE_STAFF_ORG_ROLES = ['org_manager', 'org_leader']
 
 /**

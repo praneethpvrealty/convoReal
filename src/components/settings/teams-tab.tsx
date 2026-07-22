@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Crown,
+  Headset,
   Loader2,
   Plus,
   Shield,
@@ -60,6 +61,11 @@ const ROLE_CHIP: Record<OrgRole, { icon: typeof Crown; label: string; className:
     icon: Shield,
     label: 'Leader',
     className: 'border-primary/40 bg-primary/10 text-primary',
+  },
+  org_coordinator: {
+    icon: Headset,
+    label: 'Coordinator',
+    className: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300',
   },
   org_agent: {
     icon: UserCog,
