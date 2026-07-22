@@ -230,14 +230,57 @@
     return [...rows.values()];
   }
 
-  /** Best row for a value: exact ("Bangalore" beats "Bangalore East"),
+  // Portals list cities under one name while the CRM may hold the
+  // other (renames + colloquial forms), so "Bengaluru" would miss the
+  // exact "Bangalore" row and grab "Bengaluru East" by prefix instead.
+  // Each group is a set of interchangeable names.
+  const CITY_ALIASES = [
+    ['bengaluru', 'bangalore'],
+    ['mumbai', 'bombay'],
+    ['kolkata', 'calcutta'],
+    ['chennai', 'madras'],
+    ['gurugram', 'gurgaon'],
+    ['pune', 'poona'],
+    ['kochi', 'cochin'],
+    ['thiruvananthapuram', 'trivandrum'],
+    ['vadodara', 'baroda'],
+    ['prayagraj', 'allahabad'],
+    ['varanasi', 'banaras', 'benares'],
+    ['mysuru', 'mysore'],
+    ['mangaluru', 'mangalore'],
+    ['belagavi', 'belgaum'],
+    ['hubballi', 'hubli'],
+    ['puducherry', 'pondicherry'],
+    ['visakhapatnam', 'vizag'],
+    ['tiruchirappalli', 'trichy'],
+    ['kalaburagi', 'gulbarga'],
+    ['panaji', 'panjim'],
+  ];
+
+  /** Ordered candidate names to match against suggestions: the typed
+   *  value first, then any city aliases so an exact alias row wins over
+   *  a partial prefix on the original. */
+  function typeaheadWants(label, value) {
+    const want = normalizedText(value);
+    if (!want) return [];
+    const wants = [want];
+    if (label === 'City') {
+      for (const group of CITY_ALIASES) {
+        if (group.includes(want)) for (const name of group) if (name !== want) wants.push(name);
+      }
+    }
+    return wants;
+  }
+
+  /** Best row for the candidate names: an exact match on any candidate
+   *  ("Bangalore" for a "Bengaluru" query) beats every prefix match,
    *  then comma boundary ("Koramangala, Hosur Road" beats "Koramangala
    *  Industrial Layout"), then plain prefix. */
-  function pickSuggestion(rows, want) {
-    return rows.find((c) => c.text === want)
-      || rows.find((c) => c.text.startsWith(`${want},`))
-      || rows.find((c) => c.text.startsWith(`${want} `))
-      || rows.find((c) => c.text.startsWith(want))
+  function pickSuggestion(rows, wants) {
+    return rows.find((c) => wants.some((w) => c.text === w))
+      || rows.find((c) => wants.some((w) => c.text.startsWith(`${w},`)))
+      || rows.find((c) => wants.some((w) => c.text.startsWith(`${w} `)))
+      || rows.find((c) => wants.some((w) => c.text.startsWith(w)))
       || null;
   }
 
@@ -246,9 +289,9 @@
    *  landed (row gone, input kept a value), 'nomatch' when suggestions
    *  rendered but ours isn't among them (retyping won't change that),
    *  or 'norows' when no dropdown ever appeared. */
-  async function commitTypeahead(input, value) {
-    const want = normalizedText(value);
-    if (!want) return 'nomatch';
+  async function commitTypeahead(input, value, label) {
+    const wants = typeaheadWants(label, value);
+    if (wants.length === 0) return 'nomatch';
 
     let sawRows = false;
     let staleRounds = 0;
@@ -258,7 +301,7 @@
       if (rows.length === 0) continue;
       sawRows = true;
 
-      const hit = pickSuggestion(rows, want);
+      const hit = pickSuggestion(rows, wants);
       if (!hit) {
         // Rendered, but no matching row — give the list one more
         // refresh, then stop wasting time.
@@ -270,7 +313,7 @@
       simulateHover(hit.target);
       // The hover re-render can replace the node — re-find by text.
       await sleep(250);
-      const fresh = pickSuggestion(suggestionRows(input), want) || hit;
+      const fresh = pickSuggestion(suggestionRows(input), wants) || hit;
       simulateClick(fresh.target);
       await sleep(450);
 
@@ -336,10 +379,10 @@
             // suggestions rendered without our value, retrying is
             // pointless and just slow.
             await typeLikeUser(best, value);
-            let result = await commitTypeahead(best, field.value);
+            let result = await commitTypeahead(best, field.value, field.label);
             if (result === 'norows') {
               await typeLikeUser(best, value);
-              result = await commitTypeahead(best, field.value);
+              result = await commitTypeahead(best, field.value, field.label);
             }
             used.add(best);
             handled.add(field.label);
