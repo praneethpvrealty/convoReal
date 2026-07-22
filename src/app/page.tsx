@@ -107,16 +107,34 @@ const cachedResolveAccountFromSubdomain = unstable_cache(
   { revalidate: 3600 },
 );
 
+// UUID share links (bot sends, Radar, email digests, share dialogs) must
+// resolve regardless of which tenant owns the listing — scoping them to
+// NEXT_PUBLIC_DEFAULT_ACCOUNT_ID silently broke every deep link from a
+// non-default account. UUIDs are globally unique, so the lookup is safe
+// unscoped; the caller re-derives account_id from the row it gets back.
+// property_code links stay scoped when a scope is known (codes repeat
+// across tenants), falling back to a global lookup only when the code is
+// unambiguous.
 const cachedResolvePropertyById = unstable_cache(
   async (propertyId: string, scopedAccountId: string | null) => {
     const admin = supabaseAdmin();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId);
-    let query = admin.from('properties').select('*');
-    if (isUuid) query = query.eq('id', propertyId);
-    else query = query.eq('property_code', propertyId.toUpperCase());
-    if (scopedAccountId) query = query.eq('account_id', scopedAccountId);
-    const { data } = await query.maybeSingle();
-    return data as Property | null;
+    if (isUuid) {
+      const { data } = await admin.from('properties').select('*').eq('id', propertyId).maybeSingle();
+      return data as Property | null;
+    }
+    const code = propertyId.toUpperCase();
+    if (scopedAccountId) {
+      const { data } = await admin
+        .from('properties')
+        .select('*')
+        .eq('property_code', code)
+        .eq('account_id', scopedAccountId)
+        .maybeSingle();
+      if (data) return data as Property;
+    }
+    const { data: rows } = await admin.from('properties').select('*').eq('property_code', code).limit(2);
+    return rows && rows.length === 1 ? (rows[0] as Property) : null;
   },
   ['showcase-property'],
   { revalidate: 3600 },

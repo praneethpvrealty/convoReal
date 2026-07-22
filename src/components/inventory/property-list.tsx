@@ -368,6 +368,15 @@ export function PropertyList({
                         {property.like_count}
                       </span>
                     )}
+                    {(property.rating_count ?? 0) > 0 && (
+                      <span
+                        className="flex items-center gap-1 text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded"
+                        title={`Average buyer rating ${((property.rating_total ?? 0) / (property.rating_count ?? 1)).toFixed(1)}/10 from ${property.rating_count} ${property.rating_count === 1 ? 'visitor' : 'visitors'}`}
+                      >
+                        <Star className="size-3" />
+                        {((property.rating_total ?? 0) / (property.rating_count ?? 1)).toFixed(1)}
+                      </span>
+                    )}
                     {property.property_code && (
                       <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded select-all" title="Copy Property Code">
                         {property.property_code}
