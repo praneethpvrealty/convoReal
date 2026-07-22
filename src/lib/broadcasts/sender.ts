@@ -215,7 +215,10 @@ export async function resolveAudienceOnServer(
     contacts = contacts.filter((c) => !excludedIds.has(c.id));
   }
 
-  return contacts;
+  // Respect the buyer's WhatsApp alert opt-out (STOP ALERTS / portal
+  // settings, migration 160) — declined contacts never enter the
+  // audience, regardless of how it was built.
+  return contacts.filter((c) => c.buyer_alerts_consent !== 'declined');
 }
 
 export async function sendBroadcastRecipients(
@@ -334,6 +337,19 @@ export async function sendBroadcastRecipients(
           .update({
             status: 'failed',
             error_message: 'No phone number on contact',
+          })
+          .eq('id', recipient.id);
+        continue;
+      }
+
+      // A contact can opt out (STOP ALERTS / portal) after the
+      // broadcast was queued — re-check at send time.
+      if (recipient.contact.buyer_alerts_consent === 'declined') {
+        await supabase
+          .from('broadcast_recipients')
+          .update({
+            status: 'failed',
+            error_message: 'Contact opted out of WhatsApp alerts (STOP ALERTS)',
           })
           .eq('id', recipient.id);
         continue;
