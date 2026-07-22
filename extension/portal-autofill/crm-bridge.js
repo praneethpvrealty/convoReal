@@ -19,14 +19,41 @@
 
 (() => {
   const SOURCE = 'convoreal-portal-autofill';
+  const HANDLED = new Set([
+    'CONVOREAL_PORTAL_EXT_PING',
+    'CONVOREAL_HARVEST_PULL',
+    'CONVOREAL_HARVEST_CLEAR',
+    'CONVOREAL_PORTAL_PAYLOAD',
+  ]);
+
+  const reply = (message) => window.postMessage({ ...message, source: SOURCE }, window.location.origin);
+
+  // After the extension is reloaded/updated, content scripts already
+  // injected into open tabs are orphaned: chrome.* is torn down and
+  // chrome.storage becomes undefined, so touching it throws "Cannot
+  // read properties of undefined (reading 'local')". Detect that and
+  // tell the page to reload instead of crashing.
+  function extensionAlive() {
+    try {
+      return !!(chrome.runtime && chrome.runtime.id && chrome.storage);
+    } catch {
+      return false;
+    }
+  }
 
   window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     const data = event.data;
     if (!data || typeof data !== 'object') return;
+    if (!HANDLED.has(data.type)) return;
+
+    if (!extensionAlive()) {
+      reply({ type: 'CONVOREAL_PORTAL_EXT_STALE' });
+      return;
+    }
 
     if (data.type === 'CONVOREAL_PORTAL_EXT_PING') {
-      window.postMessage({ type: 'CONVOREAL_PORTAL_EXT_PONG', source: SOURCE, version: '1.0.0' }, window.location.origin);
+      reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.5.1' });
       return;
     }
 
@@ -40,7 +67,7 @@
           accountStats: bucket.accountStats || null,
           listings: Object.values(bucket.listings || {}),
         }));
-        window.postMessage({ type: 'CONVOREAL_HARVEST_DATA', source: SOURCE, harvests }, window.location.origin);
+        reply({ type: 'CONVOREAL_HARVEST_DATA', harvests });
       });
       return;
     }
@@ -50,7 +77,7 @@
         const store = convorealHarvest || {};
         delete store[data.portal];
         chrome.storage.local.set({ convorealHarvest: store }, () => {
-          window.postMessage({ type: 'CONVOREAL_HARVEST_CLEARED', source: SOURCE, portal: data.portal }, window.location.origin);
+          reply({ type: 'CONVOREAL_HARVEST_CLEARED', portal: data.portal });
         });
       });
       return;
@@ -62,14 +89,11 @@
         savedAt: Date.now(),
       };
       chrome.storage.local.set({ convorealPortalPayload: payload }, () => {
-        window.postMessage(
-          { type: 'CONVOREAL_PORTAL_PAYLOAD_SAVED', source: SOURCE, propertyTitle: payload.title || '' },
-          window.location.origin
-        );
+        reply({ type: 'CONVOREAL_PORTAL_PAYLOAD_SAVED', propertyTitle: payload.title || '' });
       });
     }
   });
 
   // Announce on load so an already-open dialog can flip to "detected".
-  window.postMessage({ type: 'CONVOREAL_PORTAL_EXT_PONG', source: SOURCE, version: '1.0.0' }, window.location.origin);
+  if (extensionAlive()) reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.5.1' });
 })();

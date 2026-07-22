@@ -730,6 +730,11 @@
   // empty state — the reset for "wrong property sent" without hunting
   // through chrome://extensions storage.
   function clearPayload() {
+    try {
+      if (!chrome.runtime?.id) return; // orphaned after an extension reload
+    } catch {
+      return;
+    }
     chrome.storage.local.remove('convorealPortalPayload', () => {
       lastPayload = {};
       hasPayload = false;
