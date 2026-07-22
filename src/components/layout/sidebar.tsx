@@ -94,11 +94,11 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/inventory", label: "Inventory", icon: Home },
   { href: "/liaisons", label: "Liaisons", icon: Landmark },
   { href: "/calendar", label: "Calendar", icon: Calendar },
-  { href: "/inbox", label: "Inbox", icon: MessageSquare },
   { href: "/journey", label: "Journey", icon: Waypoints, beta: true },
   { href: "/automations", label: "Automations", icon: Workflow },
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
