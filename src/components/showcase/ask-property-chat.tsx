@@ -55,6 +55,9 @@ export function AskPropertyChat({
   const sessionKey = useMemo(getShowcaseSessionKey, []);
   const threadRef = useRef<HTMLDivElement>(null);
 
+  const asked = new Set(messages.filter((m) => m.role === 'user').map((m) => m.text));
+  const suggestions = SUGGESTIONS.filter((s) => !asked.has(s));
+
   const scrollToEnd = () => {
     requestAnimationFrame(() => {
       threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
@@ -166,14 +169,15 @@ export function AskPropertyChat({
         </div>
       )}
 
-      {messages.length === 0 && (
+      {suggestions.length > 0 && !needsPhone && (
         <div className="flex flex-wrap gap-1.5 mb-2">
-          {SUGGESTIONS.map((s) => (
+          {suggestions.map((s) => (
             <button
               key={s}
               type="button"
+              disabled={loading}
               onClick={() => ask(s)}
-              className="text-[11px] text-slate-300 border border-slate-800 hover:border-primary hover:text-white rounded-full px-2.5 py-1 transition-colors"
+              className="text-[11px] text-slate-300 border border-slate-800 hover:border-primary hover:text-white rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
             >
               {s}
             </button>
