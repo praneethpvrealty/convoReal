@@ -106,6 +106,8 @@ export function ActiveUsers() {
             let action = "Viewing Dashboard"
             if (member.account_role === "admin") {
               action = "Reviewing Analytics"
+            } else if (member.account_role === "coordinator") {
+              action = "Managing Inventory"
             } else if (member.account_role === "agent") {
               action = "Answering Inbox"
             }

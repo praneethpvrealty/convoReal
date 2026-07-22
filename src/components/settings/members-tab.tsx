@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import {
   AlertTriangle,
   Crown,
+  Headset,
   Loader2,
   Mail,
   MailX,
@@ -73,7 +74,7 @@ interface Member {
 
 interface Invitation {
   id: string;
-  role: 'admin' | 'agent' | 'viewer';
+  role: 'admin' | 'coordinator' | 'agent' | 'viewer';
   label: string | null;
   created_at: string;
   expires_at: string;
@@ -83,6 +84,11 @@ interface Invitation {
 // promotions go through the (deferred) Transfer Ownership flow.
 const EDITABLE_ROLES: { value: AccountRole; label: string; hint: string }[] = [
   { value: 'admin', label: 'Admin', hint: 'Manage members + everything' },
+  {
+    value: 'coordinator',
+    label: 'Coordinator',
+    hint: 'Inventory, contacts + unassigned inbox; no settings',
+  },
   { value: 'agent', label: 'Agent', hint: 'Use features; no settings' },
   { value: 'viewer', label: 'Viewer', hint: 'Read-only across the app' },
 ];
@@ -107,6 +113,11 @@ const ROLE_CHIP: Record<
     icon: Shield,
     label: 'Admin',
     className: 'border-primary/40 bg-primary/10 text-primary',
+  },
+  coordinator: {
+    icon: Headset,
+    label: 'Coordinator',
+    className: 'border-cyan-500/40 bg-cyan-500/10 text-cyan-300',
   },
   agent: {
     icon: UserCog,

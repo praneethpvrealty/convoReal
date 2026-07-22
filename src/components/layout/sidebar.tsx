@@ -11,6 +11,7 @@ import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
 import { FavoritesCard } from "@/components/layout/favorites-card";
 import {
   Crown,
+  Headset,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -52,6 +53,14 @@ const ROLE_CHIP: Record<
     // Primary-tinted: significant but not as scarce as owner.
     className:
       "border-primary/40 bg-primary/10 text-primary",
+  },
+  coordinator: {
+    icon: Headset,
+    label: "Coordinator",
+    // Cyan: a senior operator (above agent, below admin) — distinct
+    // hue so it reads apart from both neighbours at a glance.
+    className:
+      "border-cyan-500/40 bg-cyan-500/10 text-cyan-300",
   },
   agent: {
     icon: UserCog,

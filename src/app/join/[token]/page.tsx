@@ -57,7 +57,7 @@ import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
 interface PeekOk {
   ok: true;
   account_name: string;
-  role: 'admin' | 'agent' | 'viewer';
+  role: 'admin' | 'coordinator' | 'agent' | 'viewer';
   expires_at: string;
 }
 interface PeekFail {
@@ -68,6 +68,7 @@ type PeekResult = PeekOk | PeekFail;
 
 const ROLE_LABEL: Record<PeekOk['role'], string> = {
   admin: 'Admin',
+  coordinator: 'Coordinator',
   agent: 'Agent',
   viewer: 'Viewer',
 };

@@ -38,7 +38,7 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/hooks/use-auth';
 
-type InviteRole = 'admin' | 'agent' | 'viewer';
+type InviteRole = 'admin' | 'coordinator' | 'agent' | 'viewer';
 
 interface InviteMemberDialogProps {
   open: boolean;
@@ -57,6 +57,8 @@ const EXPIRY_OPTIONS: { value: string; label: string }[] = [
 const ROLE_DESCRIPTIONS: Record<InviteRole, string> = {
   admin:
     'Can invite teammates, manage settings, send messages, and edit data.',
+  coordinator:
+    'Maintains inventory, contacts, and portal listings, and can reply to any unassigned conversation. No settings or member access.',
   agent:
     'Can use the inbox, contacts, broadcasts, automations, and flows. No settings or member access.',
   viewer: 'Read-only access across every page. Cannot send or edit anything.',
@@ -289,6 +291,7 @@ export function InviteMemberDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="coordinator">Coordinator</SelectItem>
                     <SelectItem value="agent">Agent</SelectItem>
                     <SelectItem value="viewer">Viewer</SelectItem>
                   </SelectContent>

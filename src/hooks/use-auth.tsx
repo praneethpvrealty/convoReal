@@ -139,6 +139,10 @@ interface AuthContextValue {
   isOrgManager: boolean;
   /** True if `orgRole === 'org_leader'`. */
   isOrgLeader: boolean;
+  /** True if `orgRole === 'org_coordinator'` — a scoped operator with
+   *  agent-level capabilities plus account-wide contact/inbox visibility
+   *  (incl. the unassigned queue), but no member or settings access. */
+  isOrgCoordinator: boolean;
   /** True if `orgRole === 'org_agent'`. */
   isOrgAgent: boolean;
 }
@@ -446,6 +450,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isReadOnly: profile?.is_read_only ?? false,
       isOrgManager: orgRole === "org_manager",
       isOrgLeader: orgRole === "org_leader",
+      isOrgCoordinator: orgRole === "org_coordinator",
       isOrgAgent: orgRole === "org_agent",
       // Capability predicates read orgRole when available (source of
       // truth going forward), falling back to the legacy accountRole
@@ -525,6 +530,7 @@ export function useAuth(): AuthContextValue {
       isReadOnly: false,
       isOrgManager: false,
       isOrgLeader: false,
+      isOrgCoordinator: false,
       isOrgAgent: false,
     };
   }
