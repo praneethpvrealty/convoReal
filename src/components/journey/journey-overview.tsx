@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * All-journeys overview — every relationship's funnel in one
@@ -17,7 +17,7 @@
  * canvases are heavy, so the rest mount lazily on click.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Building2,
   ChevronDown,
@@ -27,19 +27,19 @@ import {
   Plus,
   UserRound,
   X,
-} from "lucide-react";
-import { toast } from "sonner";
+} from 'lucide-react';
+import { toast } from 'sonner';
 
-import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { Button } from "@/components/ui/button";
-import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
-import { NameTagBadge } from "@/components/contacts/name-tag-badge";
-import type { Contact, JourneyItem, JourneyStage, Property } from "@/types";
-import { JourneySection } from "./journey-section";
-import { NewJourneyDialog } from "./new-journey-dialog";
-import { navigateJourney, stageIndexOf, type JourneyMode } from "./shared";
+import { cn } from '@/lib/utils';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { Button } from '@/components/ui/button';
+import { ConvoRealLoader } from '@/components/ui/convoreal-loader';
+import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import type { Contact, JourneyItem, JourneyStage, Property } from '@/types';
+import { JourneySection } from './journey-section';
+import { NewJourneyDialog } from './new-journey-dialog';
+import { navigateJourney, stageIndexOf, type JourneyMode } from './shared';
 
 interface JourneyGroup {
   subjectId: string;
@@ -54,9 +54,9 @@ interface JourneyGroup {
 
 // localStorage helpers — view preferences only, never data.
 function readIdSet(key: string): Set<string> {
-  if (typeof window === "undefined") return new Set();
+  if (typeof window === 'undefined') return new Set();
   try {
-    return new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
+    return new Set(JSON.parse(localStorage.getItem(key) ?? '[]') as string[]);
   } catch {
     return new Set();
   }
@@ -89,7 +89,7 @@ export function JourneyOverview({
   const [groups, setGroups] = useState<JourneyGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() =>
-    readIdSet(hiddenKey),
+    readIdSet(hiddenKey)
   );
   const [openIds, setOpenIds] = useState<Set<string> | null>(() => {
     const stored = readIdSet(openKey);
@@ -109,29 +109,37 @@ export function JourneyOverview({
   const loadGroups = useCallback(async () => {
     if (!accountId) return;
     const select =
-      mode === "buyer"
-        ? "id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(*)"
-        : "id, contact_id, property_id, stage_id, status, hidden, updated_at, property:properties(*)";
+      mode === 'buyer'
+        ? 'id, contact_id, property_id, stage_id, status, hidden, updated_at, contact:contacts(*), property:properties(owner_contact_id)'
+        : 'id, contact_id, property_id, stage_id, status, hidden, updated_at, property:properties(*)';
     const { data, error } = await supabase
-      .from("journey_items")
+      .from('journey_items')
       .select(select)
-      .eq("account_id", accountId)
-      .order("updated_at", { ascending: false })
+      .eq('account_id', accountId)
+      .order('updated_at', { ascending: false })
       .limit(2000);
     if (error) {
-      console.error("Failed to load journeys:", error.message);
+      console.error('Failed to load journeys:', error.message);
       setLoading(false);
       return;
     }
     const byId = new Map<string, JourneyGroup>();
     for (const row of (data ?? []) as unknown as JourneyItem[]) {
-      const key = mode === "buyer" ? row.contact_id : row.property_id;
+      // Owners aren't buyers for their own listing — keep self-owned
+      // rows out of the buyer overview (counts and section alike).
+      if (
+        mode === 'buyer' &&
+        row.property?.owner_contact_id === row.contact_id
+      ) {
+        continue;
+      }
+      const key = mode === 'buyer' ? row.contact_id : row.property_id;
       let g = byId.get(key);
       if (!g) {
         g = {
           subjectId: key,
-          contact: mode === "buyer" ? (row.contact ?? null) : null,
-          property: mode === "buyer" ? null : (row.property ?? null),
+          contact: mode === 'buyer' ? (row.contact ?? null) : null,
+          property: mode === 'buyer' ? null : (row.property ?? null),
           active: 0,
           dropped: 0,
           captured: 0,
@@ -141,9 +149,12 @@ export function JourneyOverview({
         byId.set(key, g);
       }
       if (row.hidden) g.captured += 1;
-      else if (row.status === "dropped") g.dropped += 1;
+      else if (row.status === 'dropped') g.dropped += 1;
       else g.active += 1;
-      g.furthestStageIdx = Math.max(g.furthestStageIdx, stageIndexOf(row, stages));
+      g.furthestStageIdx = Math.max(
+        g.furthestStageIdx,
+        stageIndexOf(row, stages)
+      );
       if (row.updated_at > g.lastUpdated) g.lastUpdated = row.updated_at;
     }
     // Rows arrive newest-first, so map insertion order is already
@@ -158,11 +169,11 @@ export function JourneyOverview({
 
   const visibleGroups = useMemo(
     () => groups.filter((g) => !hiddenIds.has(g.subjectId)),
-    [groups, hiddenIds],
+    [groups, hiddenIds]
   );
   const hiddenGroups = useMemo(
     () => groups.filter((g) => hiddenIds.has(g.subjectId)),
-    [groups, hiddenIds],
+    [groups, hiddenIds]
   );
 
   // Default expansion: the most recently touched journey only.
@@ -194,10 +205,10 @@ export function JourneyOverview({
   const deleteJourney = async (g: JourneyGroup) => {
     if (!accountId) return;
     const { error } = await supabase
-      .from("journey_items")
+      .from('journey_items')
       .delete()
-      .eq("account_id", accountId)
-      .eq(mode === "buyer" ? "contact_id" : "property_id", g.subjectId);
+      .eq('account_id', accountId)
+      .eq(mode === 'buyer' ? 'contact_id' : 'property_id', g.subjectId);
     if (error) {
       toast.error(`Failed to remove: ${error.message}`);
       return;
@@ -208,16 +219,16 @@ export function JourneyOverview({
   };
 
   const groupTitle = (g: JourneyGroup) =>
-    mode === "buyer"
-      ? g.contact?.name || g.contact?.phone || "Unknown contact"
-      : g.property?.title || "Unknown property";
+    mode === 'buyer'
+      ? g.contact?.name || g.contact?.phone || 'Unknown contact'
+      : g.property?.title || 'Unknown property';
 
   const groupSubtitle = (g: JourneyGroup) =>
-    mode === "buyer"
-      ? g.contact?.phone ?? ""
+    mode === 'buyer'
+      ? (g.contact?.phone ?? '')
       : [g.property?.property_code, g.property?.location]
           .filter(Boolean)
-          .join(" · ");
+          .join(' · ');
 
   if (loading) {
     return (
@@ -231,7 +242,7 @@ export function JourneyOverview({
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          {visibleGroups.length} journey{visibleGroups.length === 1 ? "" : "s"}
+          {visibleGroups.length} journey{visibleGroups.length === 1 ? '' : 's'}
           {hiddenGroups.length > 0 && ` · ${hiddenGroups.length} hidden`}
         </p>
         <Button size="sm" onClick={() => setNewJourneyOpen(true)}>
@@ -243,8 +254,8 @@ export function JourneyOverview({
       {visibleGroups.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-700 bg-slate-900/50 px-6 py-12 text-center">
           <p className="text-sm text-slate-400">
-            {mode === "buyer"
-              ? "No buyer journeys yet. Share a property over WhatsApp or start one manually."
+            {mode === 'buyer'
+              ? 'No buyer journeys yet. Share a property over WhatsApp or start one manually.'
               : "No property journeys yet. Add contacts to a property's journey to start one."}
           </p>
           <Button size="sm" onClick={() => setNewJourneyOpen(true)}>
@@ -267,7 +278,7 @@ export function JourneyOverview({
                 tabIndex={0}
                 onClick={() => toggleOpen(g.subjectId)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     toggleOpen(g.subjectId);
                   }
@@ -276,15 +287,15 @@ export function JourneyOverview({
               >
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 shrink-0 text-slate-500 transition-transform",
-                    !open && "-rotate-90",
+                    'h-4 w-4 shrink-0 text-slate-500 transition-transform',
+                    !open && '-rotate-90'
                   )}
                 />
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                  {mode === "buyer" ? (
-                    <UserRound className="h-3.5 w-3.5 text-primary" />
+                <span className="bg-primary/10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full">
+                  {mode === 'buyer' ? (
+                    <UserRound className="text-primary h-3.5 w-3.5" />
                   ) : (
-                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                    <Building2 className="text-primary h-3.5 w-3.5" />
                   )}
                 </span>
                 <span className="min-w-0 flex-1">
@@ -292,7 +303,7 @@ export function JourneyOverview({
                     <span className="truncate text-sm font-bold text-white">
                       {groupTitle(g)}
                     </span>
-                    {mode === "buyer" && g.contact?.name && (
+                    {mode === 'buyer' && g.contact?.name && (
                       <NameTagBadge tag={g.contact.name_tag} />
                     )}
                   </span>
@@ -333,9 +344,9 @@ export function JourneyOverview({
                     onClick={(e) => {
                       e.stopPropagation();
                       navigateJourney(
-                        mode === "buyer"
+                        mode === 'buyer'
                           ? `/journey?contact=${g.subjectId}`
-                          : `/journey?property=${g.subjectId}`,
+                          : `/journey?property=${g.subjectId}`
                       );
                     }}
                     className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-800 hover:text-white"
@@ -379,7 +390,7 @@ export function JourneyOverview({
 
       {hiddenGroups.length > 0 && (
         <div className="rounded-xl border border-slate-800/60 bg-slate-950/50 px-3.5 py-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <p className="mb-2 text-[11px] font-semibold tracking-wider text-slate-500 uppercase">
             Hidden journeys
           </p>
           <div className="flex flex-wrap gap-2">
@@ -392,7 +403,7 @@ export function JourneyOverview({
                   type="button"
                   onClick={() => setHidden(g.subjectId, false)}
                   title="Show this journey again"
-                  className="inline-flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 transition-colors hover:text-white"
+                  className="inline-flex items-center gap-1.5 py-1 pr-1.5 pl-2.5 transition-colors hover:text-white"
                 >
                   <Eye className="h-3 w-3" />
                   {groupTitle(g)}
@@ -414,7 +425,10 @@ export function JourneyOverview({
         </div>
       )}
 
-      <NewJourneyDialog open={newJourneyOpen} onOpenChange={setNewJourneyOpen} />
+      <NewJourneyDialog
+        open={newJourneyOpen}
+        onOpenChange={setNewJourneyOpen}
+      />
     </div>
   );
 }

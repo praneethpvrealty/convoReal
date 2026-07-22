@@ -15,9 +15,9 @@
  * branch, or un-hides anything the agent tucked away.
  */
 
-import { createClient } from "@/lib/supabase/client";
-import type { JourneyItemSource, JourneyStage } from "@/types";
-import { DEFAULT_JOURNEY_STAGES } from "@/components/journey/shared";
+import { createClient } from '@/lib/supabase/client';
+import type { JourneyItemSource, JourneyStage } from '@/types';
+import { DEFAULT_JOURNEY_STAGES } from '@/components/journey/shared';
 
 /**
  * Load the account's journey stages, seeding the defaults first if the
@@ -25,16 +25,16 @@ import { DEFAULT_JOURNEY_STAGES } from "@/components/journey/shared";
  * share can be captured before the map is ever visited.
  */
 export async function ensureJourneyStages(
-  accountId: string,
+  accountId: string
 ): Promise<JourneyStage[]> {
   const supabase = createClient();
   const load = async () => {
     const { data, error } = await supabase
-      .from("journey_stages")
-      .select("*")
-      .order("position");
+      .from('journey_stages')
+      .select('*')
+      .order('position');
     if (error) {
-      console.error("Failed to load journey stages:", error.message);
+      console.error('Failed to load journey stages:', error.message);
       return [];
     }
     return (data ?? []) as JourneyStage[];
@@ -42,18 +42,18 @@ export async function ensureJourneyStages(
 
   let stages = await load();
   if (stages.length === 0) {
-    const { error } = await supabase.from("journey_stages").insert(
+    const { error } = await supabase.from('journey_stages').insert(
       DEFAULT_JOURNEY_STAGES.map((s, idx) => ({
         account_id: accountId,
         name: s.name,
         color: s.color,
         position: idx,
-      })),
+      }))
     );
     // A racing seed from another tab violates nothing (no unique
     // name constraint) but is rare enough not to guard beyond the
     // page's own StrictMode ref; a failed insert just re-loads.
-    if (error) console.error("Failed to seed journey stages:", error.message);
+    if (error) console.error('Failed to seed journey stages:', error.message);
     stages = await load();
   }
   return stages;
@@ -96,7 +96,7 @@ export async function captureJourneyItems({
   const stages = await ensureJourneyStages(accountId);
   const firstStage = stages[0];
   if (!firstStage) {
-    return { created: 0, error: "Journey stages could not be loaded" };
+    return { created: 0, error: 'Journey stages could not be loaded' };
   }
 
   // Dedupe input pairs (a broadcast can list the same contact twice
@@ -121,42 +121,63 @@ export async function captureJourneyItems({
       created_by: userId ?? null,
     }));
 
+  // Never route a property into its own owner's buyer journey — an
+  // owner is the seller of that listing, not a buyer for it. This is
+  // the single choke point for every capture path (WhatsApp share,
+  // chat import, inquiry import, manual add), so guarding here keeps a
+  // contact out of their own property's funnel in all directions.
+  const propertyIds = Array.from(new Set(payload.map((p) => p.property_id)));
+  const { data: owned } = await supabase
+    .from('properties')
+    .select('id, owner_contact_id')
+    .in('id', propertyIds);
+  const ownerByProperty = new Map(
+    (owned ?? []).map((p) => [
+      p.id as string,
+      p.owner_contact_id as string | null,
+    ])
+  );
+  const routable = payload.filter(
+    (p) => ownerByProperty.get(p.property_id) !== p.contact_id
+  );
+  if (routable.length === 0) return { created: 0, error: null };
+
   const { data, error } = await supabase
-    .from("journey_items")
-    .upsert(payload, {
-      onConflict: "account_id,contact_id,property_id",
+    .from('journey_items')
+    .upsert(routable, {
+      onConflict: 'account_id,contact_id,property_id',
       ignoreDuplicates: true,
     })
-    .select("id");
+    .select('id');
 
   if (error) {
-    console.error("Journey capture failed:", error.message);
+    console.error('Journey capture failed:', error.message);
     return { created: 0, error: error.message };
   }
 
   const created = data ?? [];
   if (created.length > 0) {
-    const { error: evError } = await supabase.from("journey_events").insert(
+    const { error: evError } = await supabase.from('journey_events').insert(
       created.map((row) => ({
         account_id: accountId,
         item_id: row.id,
-        event_type: "added",
+        event_type: 'added',
         to_stage_id: firstStage.id,
         reason:
-          source === "whatsapp_share"
-            ? "Captured from WhatsApp share"
-            : source === "chat_import"
-              ? "Imported from chat history"
-              : source === "inquiry_import"
-                ? "Imported from property inquiries"
+          source === 'whatsapp_share'
+            ? 'Captured from WhatsApp share'
+            : source === 'chat_import'
+              ? 'Imported from chat history'
+              : source === 'inquiry_import'
+                ? 'Imported from property inquiries'
                 : null,
         created_by: userId ?? null,
-      })),
+      }))
     );
     if (evError) {
       // Timeline entry is best-effort — the item row is already in;
       // don't fail the capture over its audit line.
-      console.error("Journey capture event log failed:", evError.message);
+      console.error('Journey capture event log failed:', evError.message);
     }
   }
   return { created: created.length, error: null };
