@@ -27,6 +27,10 @@ import {
   parseOwnerDigestCommand,
   applyOwnerDigestCommand,
 } from '@/lib/owners/owner-digest'
+import {
+  parseBuyerAlertsCommand,
+  applyBuyerAlertsCommand,
+} from '@/lib/buyer/alerts'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
@@ -1037,6 +1041,30 @@ async function processMessage(
   if (digestCommand) {
     const confirmation = await applyOwnerDigestCommand({
       command: digestCommand,
+      accountId,
+      contactId: contactRecord.id,
+    })
+    if (confirmation) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: confirmation,
+      })
+      return
+    }
+  }
+
+  // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
+  // free text. Same chat-as-control-panel pattern as the owner digest
+  // commands above, editing contacts.buyer_alerts_consent.
+  const alertsCommand = parseBuyerAlertsCommand(contentText)
+  if (alertsCommand) {
+    const confirmation = await applyBuyerAlertsCommand({
+      command: alertsCommand,
       accountId,
       contactId: contactRecord.id,
     })
