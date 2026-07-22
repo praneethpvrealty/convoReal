@@ -169,6 +169,12 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
       `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},` +
       `email.ilike.${term},company.ilike.${term},requirements.ilike.${term},` +
       `classification.ilike.${term}`;
+    // Phone match ignoring formatting: "+91 97006 06010" → "919700606010"
+    // matches the stored "+919700606010".
+    const digits = q.replace(/\D/g, '');
+    if (digits.length >= 4) {
+      orFilter += `,phone.ilike.%${digits}%`;
+    }
     if (matchedIds.length > 0) {
       orFilter += `,id.in.(${matchedIds.join(',')})`;
     }

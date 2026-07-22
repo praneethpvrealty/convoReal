@@ -51,10 +51,16 @@ export function ContactPickerSheet({
     enabled: visible && debounced.length >= 2,
     queryFn: async () => {
       const term = `%${debounced}%`;
+      // Digits-only phone match so "+91 97006 06010" finds "+919700606010".
+      const digits = debounced.replace(/\D/g, '');
+      const or =
+        digits.length >= 4
+          ? `name.ilike.${term},phone.ilike.${term},phone.ilike.%${digits}%`
+          : `name.ilike.${term},phone.ilike.${term}`;
       const { data } = await supabase
         .from('contacts')
         .select('id, name, phone')
-        .or(`name.ilike.${term},phone.ilike.${term}`)
+        .or(or)
         .limit(8);
       return (data ?? []) as Contact[];
     },
