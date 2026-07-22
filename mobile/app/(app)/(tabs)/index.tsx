@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack, router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -11,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnterRow, PressScale } from '@/components/motion';
@@ -26,6 +28,8 @@ import {
 } from '@/components/ui';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
+import { setConversationArchived } from '@/lib/conversation-actions';
+import { haptic } from '@/lib/haptics';
 import type { Contact } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
@@ -34,14 +38,14 @@ import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import type { Conversation } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
 
-const FILTERS = ['All', 'Unread', 'Open', 'Pending', 'Closed'] as const;
+const FILTERS = ['All', 'Unread', 'Open', 'Pending', 'Closed', 'Archived'] as const;
 type Filter = (typeof FILTERS)[number];
 
-async function fetchConversations(): Promise<Conversation[]> {
+async function fetchConversations(archived: boolean): Promise<Conversation[]> {
   const { data, error } = await supabase
     .from('conversations')
     .select('*, contact:contacts(*)')
-    .eq('is_archived', false)
+    .eq('is_archived', archived)
     .order('last_message_at', { ascending: false })
     .limit(200);
   if (error) throw error;
@@ -54,10 +58,11 @@ export default function InboxScreen() {
   const userId = useAuthStore((s) => s.session?.user.id);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
+  const archived = filter === 'Archived';
 
   const { data, isLoading, isFetching, refetch } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: fetchConversations,
+    queryKey: ['conversations', archived],
+    queryFn: () => fetchConversations(archived),
   });
 
   useEffect(() => {
@@ -78,7 +83,8 @@ export default function InboxScreen() {
   const filtered = useMemo(() => {
     let list = data ?? [];
     if (filter === 'Unread') list = list.filter((c) => c.unread_count > 0);
-    else if (filter !== 'All') list = list.filter((c) => c.status === filter.toLowerCase());
+    else if (filter !== 'All' && filter !== 'Archived')
+      list = list.filter((c) => c.status === filter.toLowerCase());
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -146,7 +152,7 @@ export default function InboxScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <ConversationRow conversation={item} />
+              <ConversationRow conversation={item} archived={archived} />
             </EnterRow>
           )}
         />
@@ -264,23 +270,59 @@ function InboxHeader({
   );
 }
 
-function ConversationRow({ conversation }: { conversation: Conversation }) {
+function ConversationRow({
+  conversation,
+  archived,
+}: {
+  conversation: Conversation;
+  archived: boolean;
+}) {
   const { colors, fonts: f } = useTheme();
   const name = conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
+  const swipeRef = useRef<Swipeable>(null);
+
+  async function toggleArchive() {
+    haptic.tap();
+    swipeRef.current?.close();
+    try {
+      await setConversationArchived(conversation.id, !archived);
+    } catch (e) {
+      haptic.warn();
+      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+    }
+  }
 
   return (
-    // PressScale + router.push instead of Link asChild: gives iOS
-    // press feedback (scale) and avoids the Slot flat-style rule.
-    <PressScale
-      onPress={() => router.push(`/(app)/conversation/${conversation.id}`)}
-      accessibilityRole="button"
-      accessibilityLabel={`Open conversation with ${name}`}
-      contentStyle={StyleSheet.flatten([
-        listCard,
-        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-      ])}
+    <Swipeable
+      ref={swipeRef}
+      overshootRight={false}
+      renderRightActions={() => (
+        <Pressable
+          onPress={toggleArchive}
+          accessibilityRole="button"
+          accessibilityLabel={archived ? 'Unarchive conversation' : 'Archive conversation'}
+          style={[
+            styles.swipeAction,
+            { backgroundColor: archived ? colors.primary : colors.warning },
+          ]}
+        >
+          <Ionicons name={archived ? 'arrow-undo' : 'archive'} size={20} color="#fff" />
+          <Text style={styles.swipeActionText}>{archived ? 'Unarchive' : 'Archive'}</Text>
+        </Pressable>
+      )}
     >
+      {/* PressScale + router.push instead of Link asChild: gives iOS
+          press feedback (scale) and avoids the Slot flat-style rule. */}
+      <PressScale
+        onPress={() => router.push(`/(app)/conversation/${conversation.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={`Open conversation with ${name}`}
+        contentStyle={StyleSheet.flatten([
+          listCard,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ])}
+      >
         <Avatar name={name} size={50} />
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
@@ -320,7 +362,8 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
             <UnreadBadge count={conversation.unread_count} />
           </View>
         </View>
-    </PressScale>
+      </PressScale>
+    </Swipeable>
   );
 }
 
@@ -353,4 +396,14 @@ const styles = StyleSheet.create({
   },
   nameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
+  swipeAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+    width: 96,
+    marginRight: spacing.lg,
+    marginBottom: spacing.md - 2,
+    borderRadius: radius.lg,
+  },
+  swipeActionText: { color: '#fff', fontSize: 12, fontFamily: fonts.bold },
 });
