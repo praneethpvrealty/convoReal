@@ -742,6 +742,66 @@
     });
   }
 
+  function describeEl(node, maxLen) {
+    const html = node.outerHTML || '';
+    return html.length > maxLen ? `${html.slice(0, maxLen)}\n…[truncated]` : html;
+  }
+
+  /** Support helper: copy the portal's own markup for a field to the
+   *  clipboard so a failing control (e.g. MagicBricks' city typeahead or
+   *  its property-type dropdown) can be pasted back for a precise fix.
+   *  For typeaheads it types the value first and grabs whatever dropdown
+   *  appears, since those rows aren't in the DOM until you type. */
+  async function dumpFieldDom(field, btn) {
+    const prev = btn.textContent;
+    btn.textContent = '…';
+    const hints = FIELD_HINTS[field.label] || [field.label.toLowerCase()];
+    const antihints = FIELD_ANTIHINTS[field.label];
+    let best = null;
+    let bestScore = 0;
+    for (const elm of [...document.querySelectorAll('input, select, textarea')]) {
+      if (elm.closest(`#${PANEL_ID}`)) continue;
+      const r = elm.getBoundingClientRect();
+      if (r.width < 20 || r.height < 8) continue;
+      const ctx = contextText(elm);
+      if (!ctx || (antihints && antihints.some((h) => ctx.includes(h)))) continue;
+      let score = 0;
+      hints.forEach((hint, idx) => { if (ctx.includes(hint)) score = Math.max(score, hints.length - idx); });
+      if (score > bestScore) { best = elm; bestScore = score; }
+    }
+
+    const parts = [`ConvoReal DOM dump — ${PORTAL} — field "${field.label}" (value: ${field.value})`, `URL: ${location.href}`];
+    if (!best) {
+      parts.push('No matching input/select/textarea found on this step.');
+    } else {
+      let container = best;
+      for (let i = 0; i < 4 && container.parentElement && normalizedText(container.parentElement.textContent).length < 220; i++) {
+        container = container.parentElement;
+      }
+      parts.push('=== control ===', describeEl(container, 4000));
+      if (TYPEAHEAD_FIELDS.has(field.label)) {
+        try {
+          await typeLikeUser(best, field.value);
+          await sleep(700);
+          const overlays = [...document.querySelectorAll('[role="listbox"], [role="option"], ul, ol, [class*="dropdown" i], [class*="suggest" i], [class*="autocomplete" i], [class*="menu" i], [class*="option" i]')]
+            .filter((o) => {
+              if (o.closest(`#${PANEL_ID}`)) return false;
+              const r = o.getBoundingClientRect();
+              return r.width > 40 && r.height > 12 && r.height < 520 && normalizedText(o.textContent).length > 0;
+            })
+            .slice(0, 6);
+          parts.push(overlays.length ? '=== dropdown/overlay candidates ===' : '=== dropdown: none detected after typing ===');
+          overlays.forEach((o) => parts.push(describeEl(o, 2500)));
+        } catch (err) {
+          parts.push(`typeahead capture failed: ${err && err.message}`);
+        }
+      }
+    }
+    await navigator.clipboard.writeText(parts.join('\n\n'));
+    btn.textContent = '✓';
+    setTimeout(() => { btn.textContent = prev; }, 1500);
+  }
+
   function el(tag, style, text) {
     const node = document.createElement(tag);
     if (style) node.style.cssText = style;
@@ -842,6 +902,10 @@
         meta.appendChild(labelEl);
         meta.appendChild(el('div', 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e2e8f0', field.value));
         row.appendChild(meta);
+        const domBtn = el('button', 'background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#64748b;padding:4px 6px;cursor:pointer;font-size:10px', 'DOM');
+        domBtn.title = 'Copy this field’s page markup (for support) — types the value first to capture a typeahead’s dropdown';
+        domBtn.addEventListener('click', () => dumpFieldDom(field, domBtn));
+        row.appendChild(domBtn);
         const copyBtn = el('button', 'background:#1e293b;border:none;border-radius:6px;color:#cbd5e1;padding:4px 8px;cursor:pointer', 'Copy');
         copyBtn.addEventListener('click', () => copyText(field.value, copyBtn));
         row.appendChild(copyBtn);
@@ -860,7 +924,7 @@
       body.appendChild(list);
 
       body.appendChild(el('div', 'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
-        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK), and commits city/locality suggestions. When a step fills cleanly it also clicks Continue to advance; if any field turns red it stops there — use that field’s Copy button, fix it, then run Autofill again. Review before you submit.'));
+        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK), and commits city/locality suggestions. When a step fills cleanly it also clicks Continue to advance; if any field turns red it stops there — use that field’s Copy button, fix it, then run Autofill again. Review before you submit. (A red field not filling? Hit its DOM button and paste to support.)'));
     }
 
     // The − minimizes the whole panel back to the floating launcher.
