@@ -26,6 +26,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { SectionLabel, Tag } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
+import { openInMaps } from '@/lib/open-maps';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
@@ -51,10 +52,6 @@ function equivalentInr(n: number | null | undefined): string | null {
     return `Equivalent to: ₹${lakhs} Lakhs`;
   }
   return `Equivalent to: ₹${n.toLocaleString('en-IN')}`;
-}
-
-function safeMapUrl(link: string | null | undefined, fallback: string): string {
-  return link && link.startsWith('https://') ? link : fallback;
 }
 
 async function fetchProperty(id: string): Promise<Property | null> {
@@ -473,12 +470,12 @@ export default function PropertyDetailScreen() {
             {!nativeMapsAvailable ? (
               <Pressable
                 onPress={() =>
-                  Linking.openURL(
-                    safeMapUrl(
-                      property.google_map_link,
-                      `https://maps.google.com/?q=${property.latitude},${property.longitude}`
-                    )
-                  )
+                  openInMaps({
+                    latitude: property.latitude,
+                    longitude: property.longitude,
+                    label: property.title,
+                    fallbackUrl: property.google_map_link,
+                  })
                 }
                 accessibilityRole="button"
                 accessibilityLabel="Open location in Google Maps"
@@ -506,12 +503,12 @@ export default function PropertyDetailScreen() {
                 pitchEnabled={false}
                 toolbarEnabled={false}
                 onPress={() =>
-                  Linking.openURL(
-                    safeMapUrl(
-                      property.google_map_link,
-                      `https://maps.google.com/?q=${property.latitude},${property.longitude}`
-                    )
-                  )
+                  openInMaps({
+                    latitude: property.latitude,
+                    longitude: property.longitude,
+                    label: property.title,
+                    fallbackUrl: property.google_map_link,
+                  })
                 }
               >
                 <Marker
@@ -528,12 +525,12 @@ export default function PropertyDetailScreen() {
           <Pressable
             style={[styles.mapButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
             onPress={() =>
-              Linking.openURL(
-                safeMapUrl(
-                  property.google_map_link,
-                  `https://maps.google.com/?q=${property.latitude},${property.longitude}`
-                )
-              )
+              openInMaps({
+                latitude: property.latitude,
+                longitude: property.longitude,
+                label: property.title,
+                fallbackUrl: property.google_map_link,
+              })
             }
           >
             <Ionicons name="map-outline" size={17} color={colors.primary} />
@@ -584,12 +581,12 @@ export default function PropertyDetailScreen() {
         onPress={() =>
           ownerPhone
             ? Linking.openURL(`https://wa.me/${ownerPhone.replace(/\D/g, '')}`)
-            : Linking.openURL(
-                safeMapUrl(
-                  property.google_map_link,
-                  `https://maps.google.com/?q=${encodeURIComponent(property.title)}`
-                )
-              )
+            : openInMaps({
+                latitude: property.latitude,
+                longitude: property.longitude,
+                label: property.title,
+                fallbackUrl: property.google_map_link,
+              })
         }
       >
         <Ionicons
