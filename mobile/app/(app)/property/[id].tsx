@@ -104,6 +104,14 @@ export default function PropertyDetailScreen() {
   const place = [property.location, property.sublocality, property.city]
     .filter(Boolean)
     .join(', ');
+  const hasCoords =
+    typeof property.latitude === 'number' && typeof property.longitude === 'number';
+  // Address-based search so a listing without coordinates still lands on
+  // the right place (the title is a description and won't geocode).
+  const mapQuery =
+    [property.location, property.sublocality, property.city, property.state]
+      .filter(Boolean)
+      .join(', ') || property.title;
   const ownerPhone = property.owner?.phone;
   const area = property.area_sqft
     ? `${property.area_sqft} ${property.area_unit || 'sqft'}`
@@ -473,7 +481,7 @@ export default function PropertyDetailScreen() {
                   openInMaps({
                     latitude: property.latitude,
                     longitude: property.longitude,
-                    label: property.title,
+                    label: mapQuery,
                     fallbackUrl: property.google_map_link,
                   })
                 }
@@ -506,7 +514,7 @@ export default function PropertyDetailScreen() {
                   openInMaps({
                     latitude: property.latitude,
                     longitude: property.longitude,
-                    label: property.title,
+                    label: mapQuery,
                     fallbackUrl: property.google_map_link,
                   })
                 }
@@ -521,14 +529,16 @@ export default function PropertyDetailScreen() {
           </Section>
         ) : null}
 
-        {property.google_map_link ? (
+        {/* Only when the owner CTA isn't already the maps button and there's
+            no inline map above — keeps a single "open maps" entry point. */}
+        {ownerPhone && !hasCoords && (property.google_map_link || place) ? (
           <Pressable
             style={[styles.mapButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
             onPress={() =>
               openInMaps({
                 latitude: property.latitude,
                 longitude: property.longitude,
-                label: property.title,
+                label: mapQuery,
                 fallbackUrl: property.google_map_link,
               })
             }
@@ -584,7 +594,7 @@ export default function PropertyDetailScreen() {
             : openInMaps({
                 latitude: property.latitude,
                 longitude: property.longitude,
-                label: property.title,
+                label: mapQuery,
                 fallbackUrl: property.google_map_link,
               })
         }
