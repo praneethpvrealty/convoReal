@@ -9,6 +9,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -76,6 +77,10 @@ export function FlyerSheet({
   onClose: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
+  // Definite cap so the scroll area renders and scrolls inside the sheet;
+  // a percentage/flex height collapses against the maxHeight-only sheet.
+  const { height: winH } = useWindowDimensions();
+  const scrollMax = Math.round(winH * 0.72);
   const session = useAuthStore((s) => s.session);
   const config = useAppConfig();
   const brandDefault = config?.branding.name ?? 'ConvoReal';
@@ -239,7 +244,7 @@ export function FlyerSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Flyer creator">
       <ScrollView
-        style={{ flexShrink: 1 }}
+        style={{ maxHeight: scrollMax }}
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           gap: spacing.md,
