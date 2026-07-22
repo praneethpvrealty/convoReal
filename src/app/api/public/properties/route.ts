@@ -61,7 +61,8 @@ export async function GET(request: Request) {
       "rental_income", "roi", "listing_source", "rent_per_month",
       "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
       "builder_share_percent", "goodwill_amount", "bts_lease_years",
-      "bts_lock_in_years", "bts_escalation_percent", "created_at", "updated_at",
+      "bts_lock_in_years", "bts_escalation_percent", "like_count",
+      "created_at", "updated_at",
     ].join(", ");
 
     let query = client

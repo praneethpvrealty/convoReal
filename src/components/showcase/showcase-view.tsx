@@ -45,6 +45,10 @@ import { SimilarProperties } from '@/components/showcase/similar-properties';
 // background must not report hours of "viewing".
 const MAX_DWELL_MS = 30 * 60 * 1000;
 
+// How long a visitor must dwell on a property's detail modal before we
+// nudge them to Like it.
+const LIKE_NUDGE_DELAY_MS = 7000;
+
 const trackPixelEvent = (
   eventName: string,
   params?: Record<string, unknown>
@@ -229,6 +233,113 @@ export function ShowcaseView({
   const [visitorPhone, setVisitorPhone] = useState('');
   const [visitorEmail, setVisitorEmail] = useState('');
   const [interestStatus, setInterestStatus] = useState<Record<string, 'interested' | 'not_interested'>>({});
+
+  // ── Property Likes ──────────────────────────────────────────────
+  // A one-tap, anonymous thumbs-up (distinct from the lead-capturing
+  // "interested" flow). Counts seed from the server-rendered like_count,
+  // then a mount fetch refreshes them and learns which properties this
+  // session has already liked. Buyers only — hidden in agent mode.
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>(() => {
+    const seed: Record<string, number> = {};
+    for (const p of properties) seed[p.id] = p.like_count ?? 0;
+    return seed;
+  });
+  const [likedIds, setLikedIds] = useState<Set<string>>(() => new Set());
+  const nudgedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (isAgentMode) return;
+    const sessionKey = getShowcaseSessionKey();
+    fetch(`/api/public/property-likes?account_id=${accountId}&session_key=${sessionKey}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data) return;
+        if (data.counts) setLikeCounts((prev) => ({ ...prev, ...data.counts }));
+        if (Array.isArray(data.liked)) setLikedIds(new Set(data.liked));
+      })
+      .catch(() => {});
+    // Mount-only: accountId is fixed per page load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const toggleLike = async (property: Property) => {
+    const wasLiked = likedIds.has(property.id);
+    const nextLiked = !wasLiked;
+
+    setLikedIds((prev) => {
+      const next = new Set(prev);
+      if (nextLiked) next.add(property.id);
+      else next.delete(property.id);
+      return next;
+    });
+    setLikeCounts((prev) => ({
+      ...prev,
+      [property.id]: Math.max((prev[property.id] ?? 0) + (nextLiked ? 1 : -1), 0),
+    }));
+
+    if (nextLiked) {
+      trackPixelEvent('ViewContent', {
+        content_name: property.title,
+        content_ids: [property.property_code || property.id],
+        content_type: 'product',
+        engagement: 'like',
+      });
+    }
+
+    try {
+      const res = await fetch('/api/public/property-likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account_id: accountId,
+          property_id: property.id,
+          session_key: getShowcaseSessionKey(),
+          liked: nextLiked,
+          ref: visitorRef || referrerContactId || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error('like failed');
+      const data = await res.json();
+      if (typeof data.count === 'number') {
+        setLikeCounts((prev) => ({ ...prev, [property.id]: data.count }));
+      }
+    } catch {
+      // Revert the optimistic update on failure.
+      setLikedIds((prev) => {
+        const next = new Set(prev);
+        if (nextLiked) next.delete(property.id);
+        else next.add(property.id);
+        return next;
+      });
+      setLikeCounts((prev) => ({
+        ...prev,
+        [property.id]: Math.max((prev[property.id] ?? 0) + (nextLiked ? -1 : 1), 0),
+      }));
+    }
+  };
+
+  // Nudge: once a visitor has dwelled on a property for a few seconds
+  // (they opened the detail modal and stuck around), gently prompt a
+  // Like — but only once per property per session, and never if they
+  // already liked it.
+  useEffect(() => {
+    if (isAgentMode || !selectedProperty) return;
+    const property = selectedProperty;
+    if (likedIds.has(property.id) || nudgedRef.current.has(property.id)) return;
+    const timer = setTimeout(() => {
+      if (likedIds.has(property.id) || nudgedRef.current.has(property.id)) return;
+      nudgedRef.current.add(property.id);
+      toast('Liking what you see?', {
+        description: 'Tap 👍 Like so the agent knows this one caught your eye.',
+        action: {
+          label: 'Like',
+          onClick: () => toggleLike(property),
+        },
+      });
+    }, LIKE_NUDGE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPropertyId, isAgentMode, likedIds]);
 
   // Trigger modal for interest submission
   const [interestProperty, setInterestProperty] = useState<Property | null>(null);
@@ -1341,6 +1452,26 @@ export function ShowcaseView({
                         Interested
                       </div>
                     )}
+
+                    {!isAgentMode && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLike(property);
+                        }}
+                        aria-pressed={likedIds.has(property.id)}
+                        title={likedIds.has(property.id) ? 'You liked this property' : 'Like this property'}
+                        className={`absolute bottom-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full backdrop-blur-md border text-[11px] font-bold transition-all cursor-pointer hover:scale-105 ${
+                          likedIds.has(property.id)
+                            ? 'bg-primary/90 border-primary text-white shadow-lg shadow-primary/30'
+                            : 'bg-slate-950/70 border-slate-800/80 text-slate-200 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <ThumbsUp className={`size-3.5 ${likedIds.has(property.id) ? 'fill-current' : ''}`} />
+                        {(likeCounts[property.id] ?? 0) > 0 && <span>{likeCounts[property.id]}</span>}
+                      </button>
+                    )}
                   </div>
 
                   {/* Body Content */}
@@ -2118,6 +2249,42 @@ export function ShowcaseView({
                   currentProperty={selectedProperty}
                   onSelect={openPropertyModal}
                 />
+
+                {/* Like bar inside Modal — hidden in agent mode */}
+                {!isAgentMode && (
+                <button
+                  type="button"
+                  onClick={() => toggleLike(selectedProperty)}
+                  aria-pressed={likedIds.has(selectedProperty.id)}
+                  className={`w-full flex items-center justify-between gap-4 p-4 rounded-xl border transition-all cursor-pointer ${
+                    likedIds.has(selectedProperty.id)
+                      ? 'bg-primary/15 border-primary/40'
+                      : 'bg-slate-950/30 border-slate-850 hover:border-slate-800'
+                  }`}
+                >
+                  <div className="flex flex-col text-left">
+                    <h5 className="text-[11px] font-bold text-slate-350 uppercase tracking-wider">
+                      {likedIds.has(selectedProperty.id) ? 'You liked this property' : 'Like this property'}
+                    </h5>
+                    <p className="text-[10px] text-slate-500">
+                      A quick thumbs-up tells the agent it caught your eye.
+                    </p>
+                  </div>
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                      likedIds.has(selectedProperty.id)
+                        ? 'bg-primary text-white shadow-md shadow-primary/30'
+                        : 'bg-slate-900 border border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <ThumbsUp className={`size-3.5 ${likedIds.has(selectedProperty.id) ? 'fill-current' : ''}`} />
+                    <span>{likedIds.has(selectedProperty.id) ? 'Liked' : 'Like'}</span>
+                    {(likeCounts[selectedProperty.id] ?? 0) > 0 && (
+                      <span className="ml-0.5 opacity-90">· {likeCounts[selectedProperty.id]}</span>
+                    )}
+                  </div>
+                </button>
+                )}
 
                 {/* Quick Feedback Bar inside Modal — hidden in agent mode */}
                 {!isAgentMode && (
