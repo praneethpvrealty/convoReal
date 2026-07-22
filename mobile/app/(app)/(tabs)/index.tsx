@@ -34,8 +34,8 @@ import type { Contact } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
-import type { Conversation } from '@/lib/types';
+import { radius, spacing, useTheme , fonts, type ThemeColors } from '@/lib/theme';
+import type { Conversation, MessageStatus, SenderType } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
 
 const FILTERS = ['All', 'Unread', 'Open', 'Pending', 'Closed', 'Archived'] as const;
@@ -270,6 +270,26 @@ function InboxHeader({
   );
 }
 
+/** WhatsApp-style delivery ticks for the last outgoing message. */
+function MessageTicks({ status, colors }: { status: MessageStatus; colors: ThemeColors }) {
+  if (status === 'sending') {
+    return <Ionicons name="time-outline" size={14} color={colors.textFaint} style={styles.tick} />;
+  }
+  if (status === 'failed') {
+    return <Ionicons name="alert-circle" size={14} color={colors.danger} style={styles.tick} />;
+  }
+  const read = status === 'read';
+  const double = read || status === 'delivered';
+  return (
+    <Ionicons
+      name={double ? 'checkmark-done' : 'checkmark'}
+      size={15}
+      color={read ? colors.readTick : colors.textFaint}
+      style={styles.tick}
+    />
+  );
+}
+
 function ConversationRow({
   conversation,
   archived,
@@ -281,6 +301,28 @@ function ConversationRow({
   const name = conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
   const swipeRef = useRef<Swipeable>(null);
+
+  // Delivery ticks for the last message, WhatsApp-style — only when we
+  // sent it. Keyed on last_message_at so a new message refreshes it; the
+  // conversations row carries no status, so the latest message's meta is
+  // fetched per visible row (FlatList only mounts what's on screen).
+  const { data: lastMsg } = useQuery({
+    queryKey: ['last-msg-status', conversation.id, conversation.last_message_at],
+    enabled: Boolean(conversation.last_message_at),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('messages')
+        .select('sender_type, status')
+        .eq('conversation_id', conversation.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return (data ?? null) as { sender_type: SenderType; status: MessageStatus } | null;
+    },
+  });
+  const outgoingTicks =
+    lastMsg && lastMsg.sender_type !== 'customer' ? lastMsg.status : null;
 
   async function toggleArchive() {
     haptic.tap();
@@ -348,17 +390,20 @@ function ConversationRow({
             </Text>
           </View>
           <View style={styles.rowTop}>
-            <Text
-              style={{
-                flex: 1,
-                fontSize: 14,
-                color: unread ? colors.text : colors.textMuted,
-                fontFamily: unread ? fonts.bold : fonts.medium,
-              }}
-              numberOfLines={1}
-            >
-              {conversation.last_message_text ?? ''}
-            </Text>
+            <View style={styles.previewWrap}>
+              {outgoingTicks ? <MessageTicks status={outgoingTicks} colors={colors} /> : null}
+              <Text
+                style={{
+                  flex: 1,
+                  fontSize: 14,
+                  color: unread ? colors.text : colors.textMuted,
+                  fontFamily: unread ? fonts.bold : fonts.medium,
+                }}
+                numberOfLines={1}
+              >
+                {conversation.last_message_text ?? ''}
+              </Text>
+            </View>
             <UnreadBadge count={conversation.unread_count} />
           </View>
         </View>
@@ -396,6 +441,8 @@ const styles = StyleSheet.create({
   },
   nameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
+  previewWrap: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  tick: { marginRight: 3 },
   swipeAction: {
     justifyContent: 'center',
     alignItems: 'center',
