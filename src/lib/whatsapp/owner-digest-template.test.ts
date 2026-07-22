@@ -33,28 +33,33 @@ describe('buildOwnerDigestTemplatePayload', () => {
 });
 
 describe('buildOwnerDigestParams', () => {
-  it('builds first name, listings phrase and summary', () => {
+  it('names both listings for two properties', () => {
     const params = buildOwnerDigestParams(
       'Gopi Krishnan',
-      2,
+      ['Premium Commercial Property, Hoodi', 'Vacant Plot, JP Nagar'],
       'this week',
       '4 new enquiries · 1 site visit scheduled'
     );
     expect(params).toEqual([
       'Gopi',
-      'your 2 listings (this week)',
+      'your listings "Premium Commercial Property, Hoodi" and "Vacant Plot, JP Nagar" (this week)',
       '4 new enquiries · 1 site visit scheduled',
     ]);
   });
 
-  it('uses singular phrasing for one property and a fallback name', () => {
-    const params = buildOwnerDigestParams(null, 1, 'today', '1 showcase view');
+  it('names the single property and falls back on the name', () => {
+    const params = buildOwnerDigestParams(null, ['Vacant Plot, JP Nagar'], 'today', '1 showcase view');
     expect(params[0]).toBe('there');
-    expect(params[1]).toBe('your listing (today)');
+    expect(params[1]).toBe('your listing "Vacant Plot, JP Nagar" (today)');
+  });
+
+  it('uses a count phrase for more than two properties', () => {
+    const params = buildOwnerDigestParams('Gopi', ['A', 'B', 'C'], 'this week', 'x');
+    expect(params[1]).toBe('your 3 listings ("A" and more) (this week)');
   });
 
   it('never produces empty or multi-line params', () => {
-    const params = buildOwnerDigestParams('  ', 3, 'this week', '');
+    const params = buildOwnerDigestParams('  ', ['', '  ', ''], 'this week', '');
     for (const p of params) {
       expect(p.length).toBeGreaterThan(0);
       expect(p).not.toMatch(/\n/);
@@ -84,11 +89,14 @@ describe('buildOwnerDigestConsentTemplatePayload', () => {
 });
 
 describe('buildOwnerDigestConsentParams', () => {
-  it('builds first name and listings phrase', () => {
-    expect(buildOwnerDigestConsentParams('Gopi Krishnan', 2)).toEqual([
-      'Gopi',
-      'your 2 listings',
+  it('builds first name and a listings phrase that names the properties', () => {
+    expect(
+      buildOwnerDigestConsentParams('Gopi Krishnan', ['Premium Plot, Hoodi', 'Vacant Plot, JP Nagar'])
+    ).toEqual(['Gopi', 'your listings "Premium Plot, Hoodi" and "Vacant Plot, JP Nagar"']);
+    expect(buildOwnerDigestConsentParams(null, ['Premium Plot, Hoodi'])).toEqual([
+      'there',
+      'your listing "Premium Plot, Hoodi"',
     ]);
-    expect(buildOwnerDigestConsentParams(null, 1)).toEqual(['there', 'your listing']);
+    expect(buildOwnerDigestConsentParams(null, [''])).toEqual(['there', 'your listing']);
   });
 });

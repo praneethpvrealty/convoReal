@@ -27,6 +27,12 @@ import {
   parseOwnerDigestCommand,
   applyOwnerDigestCommand,
 } from '@/lib/owners/owner-digest'
+import {
+  isOwnerContact,
+  findOwnedListings,
+  handleOwnerInboundMessage,
+  type OwnedListing,
+} from '@/lib/owners/owner-reply'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
@@ -1411,12 +1417,25 @@ async function processMessage(
     }
   }
 
+  // A property owner (owner-ish classification, digest targeting, or an
+  // actual listing linked to their contact) replying to us must never be
+  // greeted by a buyer-intake flow ("let's find your dream property").
+  // Suppress flow ENTRY for them — active runs still advance — and
+  // answer their free text below with a reply grounded in their own
+  // listings instead.
+  let ownedListings: OwnedListing[] = []
+  if (isOwnerContact(contactRecord)) {
+    ownedListings = await findOwnedListings(accountId, contactRecord.id)
+  }
+  const isPropertyOwnerSender = ownedListings.length > 0
+
   console.log(`[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`);
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
     contactId: contactRecord.id,
     conversationId: conversation.id,
+    allowEntry: !isPropertyOwnerSender,
     message:
       interactiveReplyId
         ? {
@@ -1436,6 +1455,25 @@ async function processMessage(
   const flowConsumed = flowResult.consumed
 
   const inboundText = contentText ?? message.text?.body ?? ''
+
+  if (
+    !flowConsumed &&
+    isPropertyOwnerSender &&
+    (message.type === 'text' || message.type === 'button')
+  ) {
+    const ownerHandled = await handleOwnerInboundMessage({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contactRecord.id,
+      contactName: contactRecord.name || null,
+      conversationId: conversation.id,
+      digestConsent: contactRecord.owner_digest_consent,
+      text: message.button?.text ?? inboundText,
+      listings: ownedListings,
+    })
+    if (ownerHandled) return
+  }
+
   const automationTriggers: (
     | 'new_contact_created'
     | 'first_inbound_message'
@@ -1623,6 +1661,8 @@ interface ContactRow {
   phone: string
   name: string
   classification?: string
+  owner_digest_consent?: string | null
+  owner_digest_consent_requested_at?: string | null
 }
 
 interface PropertyRow {

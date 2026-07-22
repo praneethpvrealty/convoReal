@@ -377,6 +377,13 @@ export interface DispatchInboundInput {
   contactId: string;
   conversationId: string;
   message: ParsedInbound;
+  /**
+   * When false, the message may still advance an ACTIVE run but never
+   * starts a new one. The webhook sets this for property-owner contacts
+   * so a buyer-intake welcome flow can't greet an owner asking about
+   * their own listing.
+   */
+  allowEntry?: boolean;
 }
 
 export interface DispatchInboundResult {
@@ -396,6 +403,7 @@ export interface DispatchInboundResult {
     | "handed_off"
     | "fallback_fired"
     | "duplicate_inbound_ignored"
+    | "entry_suppressed"
     | "no_match";
 }
 
