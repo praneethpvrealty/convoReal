@@ -119,6 +119,9 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
         setExtensionDetected(true);
       } else if (data?.type === 'CONVOREAL_PORTAL_PAYLOAD_SAVED') {
         toast.success('Sent to the extension — open the portal tab and use the Autofill panel.');
+      } else if (data?.type === 'CONVOREAL_PORTAL_EXT_STALE') {
+        setExtensionDetected(false);
+        toast.error('The autofill extension was updated — reload this page, then try again.');
       }
     };
     window.addEventListener('message', onMessage);
