@@ -62,6 +62,7 @@ export async function GET(request: Request) {
       "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
       "builder_share_percent", "goodwill_amount", "bts_lease_years",
       "bts_lock_in_years", "bts_escalation_percent", "like_count",
+      "rating_count", "rating_total",
       "created_at", "updated_at",
     ].join(", ");
 

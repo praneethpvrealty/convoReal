@@ -940,6 +940,9 @@ export interface Property {
   interested_contacts?: Contact[];
   /** Thumbs-up tally from public showcase visitors (migration 158). */
   like_count?: number;
+  /** 1–10 buyer interest rating tallies from showcase visitors (migration 159). */
+  rating_count?: number;
+  rating_total?: number;
   rental_income?: number | null;
   roi?: number | null;
   /** Floor-wise rent roll for pre-leased commercial buildings

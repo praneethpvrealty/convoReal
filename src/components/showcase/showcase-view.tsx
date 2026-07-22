@@ -27,8 +27,6 @@ import {
   Send,
   CheckCircle,
   Share2,
-  ThumbsUp,
-  ThumbsDown,
   Bell,
   Home,
   Play,
@@ -40,14 +38,18 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
+import {
+  PropertyRatingBar,
+  HIGH_INTEREST_RATING,
+} from '@/components/showcase/property-rating-bar';
 
 // Dwell-time cap for Pulse view_property events — a tab left open in the
 // background must not report hours of "viewing".
 const MAX_DWELL_MS = 30 * 60 * 1000;
 
 // How long a visitor must dwell on a property's detail modal before we
-// nudge them to Like it.
-const LIKE_NUDGE_DELAY_MS = 7000;
+// nudge them to rate it.
+const RATING_NUDGE_DELAY_MS = 7000;
 
 const trackPixelEvent = (
   eventName: string,
@@ -234,117 +236,47 @@ export function ShowcaseView({
   const [visitorEmail, setVisitorEmail] = useState('');
   const [interestStatus, setInterestStatus] = useState<Record<string, 'interested' | 'not_interested'>>({});
 
-  // ── Property Likes ──────────────────────────────────────────────
-  // A one-tap, anonymous thumbs-up (distinct from the lead-capturing
-  // "interested" flow). Counts seed from the server-rendered like_count,
-  // then a mount fetch refreshes them and learns which properties this
-  // session has already liked. Buyers only — hidden in agent mode.
-  const [likeCounts, setLikeCounts] = useState<Record<string, number>>(() => {
-    const seed: Record<string, number> = {};
-    for (const p of properties) seed[p.id] = p.like_count ?? 0;
-    return seed;
-  });
-  const [likedIds, setLikedIds] = useState<Set<string>>(() => new Set());
+  // ── Property Ratings ───────────────────────────────────────────
+  // A one-tap, anonymous 1–10 "how well does this fit?" score — the single
+  // feedback control that replaced the separate Like and Interested
+  // prompts. A mount fetch hydrates this session's earlier ratings so a
+  // returning visitor sees their scores. Buyers only — hidden in agent mode.
+  const [ratings, setRatings] = useState<
+    Record<string, { rating: number; miss_reasons: string[] }>
+  >({});
   const nudgedRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (isAgentMode) return;
     const sessionKey = getShowcaseSessionKey();
-    fetch(`/api/public/property-likes?account_id=${accountId}&session_key=${sessionKey}`)
+    fetch(`/api/public/property-ratings?account_id=${accountId}&session_key=${sessionKey}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data) return;
-        if (data.counts) setLikeCounts((prev) => ({ ...prev, ...data.counts }));
-        if (Array.isArray(data.liked)) setLikedIds(new Set(data.liked));
+        if (data?.ratings) setRatings((prev) => ({ ...data.ratings, ...prev }));
       })
       .catch(() => {});
     // Mount-only: accountId is fixed per page load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const toggleLike = async (property: Property) => {
-    const wasLiked = likedIds.has(property.id);
-    const nextLiked = !wasLiked;
-
-    setLikedIds((prev) => {
-      const next = new Set(prev);
-      if (nextLiked) next.add(property.id);
-      else next.delete(property.id);
-      return next;
-    });
-    setLikeCounts((prev) => ({
-      ...prev,
-      [property.id]: Math.max((prev[property.id] ?? 0) + (nextLiked ? 1 : -1), 0),
-    }));
-
-    if (nextLiked) {
-      trackPixelEvent('ViewContent', {
-        content_name: property.title,
-        content_ids: [property.property_code || property.id],
-        content_type: 'product',
-        engagement: 'like',
-      });
-    }
-
+  const postRating = async (property: Property, rating: number, missReasons: string[]) => {
     try {
-      const res = await fetch('/api/public/property-likes', {
+      await fetch('/api/public/property-ratings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           account_id: accountId,
           property_id: property.id,
           session_key: getShowcaseSessionKey(),
-          liked: nextLiked,
+          rating,
+          miss_reasons: missReasons,
           ref: visitorRef || referrerContactId || undefined,
         }),
       });
-      if (!res.ok) throw new Error('like failed');
-      const data = await res.json();
-      if (typeof data.count === 'number') {
-        setLikeCounts((prev) => ({ ...prev, [property.id]: data.count }));
-      }
     } catch {
-      // Revert the optimistic update on failure.
-      setLikedIds((prev) => {
-        const next = new Set(prev);
-        if (nextLiked) next.delete(property.id);
-        else next.add(property.id);
-        return next;
-      });
-      setLikeCounts((prev) => ({
-        ...prev,
-        [property.id]: Math.max((prev[property.id] ?? 0) + (nextLiked ? -1 : 1), 0),
-      }));
+      // Fire-and-forget: the optimistic UI keeps the visitor's score.
     }
   };
-
-  // Nudge: once a visitor has dwelled on a property for a few seconds
-  // (they opened the detail modal and stuck around), gently prompt a
-  // Like — but only once per property per session, and never if they
-  // already liked it.
-  useEffect(() => {
-    if (isAgentMode || !selectedProperty) return;
-    const property = selectedProperty;
-    if (likedIds.has(property.id) || nudgedRef.current.has(property.id)) return;
-    const timer = setTimeout(() => {
-      if (likedIds.has(property.id) || nudgedRef.current.has(property.id)) return;
-      nudgedRef.current.add(property.id);
-      toast('Liking what you see?', {
-        description: 'Tap 👍 Like so the agent knows this one caught your eye.',
-        action: {
-          label: 'Like',
-          onClick: () => toggleLike(property),
-        },
-      });
-    }, LIKE_NUDGE_DELAY_MS);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPropertyId, isAgentMode, likedIds]);
-
-  // Trigger modal for interest submission
-  const [interestProperty, setInterestProperty] = useState<Property | null>(null);
-  const [interestModalOpen, setInterestModalOpen] = useState(false);
-  const [interestSubmitting, setInterestSubmitting] = useState(false);
 
   // Document request states
   const [docReqOpen, setDocReqOpen] = useState(false);
@@ -628,77 +560,25 @@ export function ShowcaseView({
     localStorage.setItem('visitor_interests', JSON.stringify(updated));
   };
 
-  const handleInterestSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!visitorName.trim() || !visitorPhone.trim() || !interestProperty) return;
+  // High ratings from a visitor we already know become a priority
+  // follow-up lead, exactly like the old "Interested — Yes" flow, but
+  // without interrupting the rating tap. First threshold-crossing only —
+  // re-rating 8 → 9 must not create duplicate inquiries.
+  const recordPriorityInterest = async (property: Property, rating: number) => {
+    if (interestStatus[property.id] === 'interested') return;
+    updateInterestStatus(property.id, 'interested');
 
-    setInterestSubmitting(true);
+    trackPixelEvent('Lead', {
+      content_name: property.title,
+      content_ids: [property.property_code || property.id],
+      content_type: 'product',
+      value: Number(property.price) || 0,
+      currency: settings?.currency || 'INR',
+      inquiry_type: 'high_rating',
+    });
+
+    if (!visitorName.trim() || !visitorPhone.trim()) return;
     try {
-      const res = await fetch('/api/public/inquiry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: visitorName.trim(),
-          phone: visitorPhone.trim(),
-          email: visitorEmail.trim() || undefined,
-          message: `Visitor expressed quick interest in this property listing.`,
-          propertyId: interestProperty.id,
-          propertyTitle: interestProperty.title,
-          propertyCode: interestProperty.property_code,
-          accountId,
-          referrerContactId: interestProperty.agent_details?.id || referrerContactId,
-          sessionKey: getShowcaseSessionKey(),
-        }),
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to register interest');
-      }
-
-      saveVisitorInfo(visitorName, visitorPhone, visitorEmail);
-      updateInterestStatus(interestProperty.id, 'interested');
-      setInterestModalOpen(false);
-      setInterestProperty(null);
-      toast.success(`Interest recorded for "${interestProperty.title}"!`);
-
-      // Track Meta Pixel Lead event
-      trackPixelEvent('Lead', {
-        content_name: interestProperty.title,
-        content_ids: [interestProperty.property_code || interestProperty.id],
-        content_type: 'product',
-        value: Number(interestProperty.price) || 0,
-        currency: settings?.currency || 'INR',
-        inquiry_type: 'quick_interest',
-      });
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to register interest. Please try again.');
-    } finally {
-      setInterestSubmitting(false);
-    }
-  };
-
-  const handleQuickInterestClick = async (property: Property) => {
-    if (!visitorName || !visitorPhone) {
-      setInterestProperty(property);
-      setInterestModalOpen(true);
-      return;
-    }
-
-    try {
-      updateInterestStatus(property.id, 'interested');
-      toast.success(`Interest recorded for "${property.title}"!`);
-
-      // Track Meta Pixel Lead event
-      trackPixelEvent('Lead', {
-        content_name: property.title,
-        content_ids: [property.property_code || property.id],
-        content_type: 'product',
-        value: Number(property.price) || 0,
-        currency: settings?.currency || 'INR',
-        inquiry_type: 'quick_interest_prefilled',
-      });
-
       await fetch('/api/public/inquiry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -706,7 +586,7 @@ export function ShowcaseView({
           name: visitorName.trim(),
           phone: visitorPhone.trim(),
           email: visitorEmail.trim() || undefined,
-          message: `Visitor expressed quick interest in this property listing.`,
+          message: `Visitor rated this property ${rating}/10 — high interest.`,
           propertyId: property.id,
           propertyTitle: property.title,
           propertyCode: property.property_code,
@@ -717,13 +597,65 @@ export function ShowcaseView({
       });
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const submitRating = (property: Property, rating: number) => {
+    const existing = ratings[property.id];
+    const missReasons = rating < HIGH_INTEREST_RATING ? (existing?.miss_reasons ?? []) : [];
+    setRatings((prev) => ({
+      ...prev,
+      [property.id]: { rating, miss_reasons: missReasons },
+    }));
+
+    if (rating >= HIGH_INTEREST_RATING) {
+      void recordPriorityInterest(property, rating);
+    } else if (interestStatus[property.id] === 'interested') {
       const updated = { ...interestStatus };
       delete updated[property.id];
       setInterestStatus(updated);
       localStorage.setItem('visitor_interests', JSON.stringify(updated));
-      toast.error('Failed to register interest. Please try again.');
     }
+
+    void postRating(property, rating, missReasons);
   };
+
+  const toggleMissReason = (property: Property, reason: string) => {
+    const existing = ratings[property.id];
+    if (!existing) return;
+    const missReasons = existing.miss_reasons.includes(reason)
+      ? existing.miss_reasons.filter((r) => r !== reason)
+      : [...existing.miss_reasons, reason];
+    setRatings((prev) => ({
+      ...prev,
+      [property.id]: { ...existing, miss_reasons: missReasons },
+    }));
+    void postRating(property, existing.rating, missReasons);
+  };
+
+  const hideProperty = (property: Property) => {
+    updateInterestStatus(property.id, 'not_interested');
+    toast.info('Property hidden. You can undo this anytime.');
+  };
+
+  // Nudge: once a visitor has dwelled on a property for a few seconds
+  // (they opened the detail modal and stuck around), gently prompt a
+  // rating — but only once per property per session, and never if they
+  // already rated it.
+  useEffect(() => {
+    if (isAgentMode || !selectedProperty) return;
+    const property = selectedProperty;
+    if (ratings[property.id] || nudgedRef.current.has(property.id)) return;
+    const timer = setTimeout(() => {
+      if (ratings[property.id] || nudgedRef.current.has(property.id)) return;
+      nudgedRef.current.add(property.id);
+      toast('How well does this one fit?', {
+        description: 'Rate it 1–10 below — one tap helps us fine-tune your matches.',
+      });
+    }, RATING_NUDGE_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPropertyId, isAgentMode, ratings]);
 
   const openRequirementsModal = () => {
     setReqName(visitorName);
@@ -1453,25 +1385,6 @@ export function ShowcaseView({
                       </div>
                     )}
 
-                    {!isAgentMode && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleLike(property);
-                        }}
-                        aria-pressed={likedIds.has(property.id)}
-                        title={likedIds.has(property.id) ? 'You liked this property' : 'Like this property'}
-                        className={`absolute bottom-3 right-3 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full backdrop-blur-md border text-[11px] font-bold transition-all cursor-pointer hover:scale-105 ${
-                          likedIds.has(property.id)
-                            ? 'bg-primary/90 border-primary text-white shadow-lg shadow-primary/30'
-                            : 'bg-slate-950/70 border-slate-800/80 text-slate-200 hover:text-white hover:border-slate-700'
-                        }`}
-                      >
-                        <ThumbsUp className={`size-3.5 ${likedIds.has(property.id) ? 'fill-current' : ''}`} />
-                        {(likeCounts[property.id] ?? 0) > 0 && <span>{likeCounts[property.id]}</span>}
-                      </button>
-                    )}
                   </div>
 
                   {/* Body Content */}
@@ -1540,39 +1453,17 @@ export function ShowcaseView({
                     </div>
 
                     <div>
-                      {/* Quick Feedback Bar — hidden in agent mode */}
+                      {/* Quick rating bar — hidden in agent mode */}
                       {!isAgentMode && (
-                      <div className="flex items-center justify-between border-b border-slate-900/60 pb-3 mb-3 text-xs">
-                        <span className="text-[10px] text-slate-550 font-bold uppercase tracking-wider">Are you interested?</span>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleQuickInterestClick(property);
-                            }}
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg transition-all font-bold text-[10px] cursor-pointer ${
-                              interestStatus[property.id] === 'interested'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-slate-950 border border-slate-900 text-slate-400 hover:text-slate-200'
-                            }`}
-                          >
-                            <ThumbsUp className="size-3" />
-                            <span>{interestStatus[property.id] === 'interested' ? 'Interested' : 'Yes'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updateInterestStatus(property.id, 'not_interested');
-                              toast.info('Property hidden. You can undo this anytime.');
-                            }}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950 hover:bg-slate-900 border border-slate-900 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-all font-semibold text-[10px] cursor-pointer"
-                          >
-                            <ThumbsDown className="size-3" />
-                            <span>No</span>
-                          </button>
-                        </div>
+                      <div className="border-b border-slate-900/60 pb-3 mb-3">
+                        <PropertyRatingBar
+                          compact
+                          value={ratings[property.id]?.rating ?? null}
+                          missReasons={ratings[property.id]?.miss_reasons ?? []}
+                          onRate={(rating) => submitRating(property, rating)}
+                          onToggleReason={(reason) => toggleMissReason(property, reason)}
+                          onHide={() => hideProperty(property)}
+                        />
                       </div>
                       )}
 
@@ -1679,22 +1570,44 @@ export function ShowcaseView({
           </div>
         </div>
       </footer>
-         {/* Property Detail Modal */}
+         {/* Property Detail Modal.
+             Mobile/tablet: the card takes its natural height and the overlay
+             itself scrolls — centering a taller-than-viewport card with
+             items-center clipped its top half off-screen with no way to
+             scroll up to it (the "partially visible" modal). The close
+             button is pinned to the overlay so it survives the scroll.
+             Desktop (lg): side-by-side panes capped at 90dvh, details
+             pane scrolls internally. */}
       {selectedProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-          <div className="relative max-w-4xl w-full bg-slate-900/85 border border-slate-900/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col lg:flex-row my-8 animate-zoom-in max-h-[90dvh] backdrop-blur-xl">
-            
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/80 backdrop-blur-md">
+          <div className="sticky top-0 z-20 h-0 lg:hidden">
+            <button
+              onClick={closePropertyModal}
+              className="absolute top-3 right-3 p-2 rounded-full bg-slate-950/80 text-slate-300 hover:text-white border border-slate-700 cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+          <div
+            className="flex min-h-full items-center justify-center sm:p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closePropertyModal();
+            }}
+          >
+          <div className="relative max-w-4xl w-full bg-slate-900/85 border border-slate-900/60 sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col lg:flex-row animate-zoom-in lg:max-h-[90dvh] backdrop-blur-xl">
+
             {/* Close Button */}
             <button
               onClick={closePropertyModal}
-              className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-slate-950/80 text-slate-400 hover:text-white border border-slate-800/80 cursor-pointer"
+              className="hidden lg:block absolute top-3 right-3 z-10 p-1.5 rounded-full bg-slate-950/80 text-slate-400 hover:text-white border border-slate-800/80 cursor-pointer"
             >
               <X className="size-4" />
             </button>
 
             {/* Left Pane: Gallery — shrink-0 so the details pane below
-                can't squeeze it (or its thumbnail strip) on mobile. */}
-            <div className="w-full lg:w-[50%] h-[300px] lg:h-auto bg-slate-950 relative flex flex-col min-h-[300px] shrink-0 lg:shrink">
+                can't squeeze it (or its thumbnail strip) on mobile.
+                45dvh gives portrait listing videos a usable stage. */}
+            <div className="w-full lg:w-[50%] h-[45dvh] lg:h-auto bg-slate-950 relative flex flex-col min-h-[300px] shrink-0 lg:shrink">
               {detailMediaCount > 0 ? (
                 <>
                   {/* Main Viewer — photos first, the listing video as
@@ -1773,7 +1686,7 @@ export function ShowcaseView({
 
                   {/* Thumbnail Row */}
                   {detailMediaCount > 1 && (
-                    <div className="h-16 border-t border-slate-850 p-2 flex gap-1.5 bg-slate-950/80 overflow-x-auto">
+                    <div className="h-16 shrink-0 border-t border-slate-850 p-2 flex gap-1.5 bg-slate-950/80 overflow-x-auto">
                       {detailImages.map((imgUrl, i) => (
                         <button
                           key={imgUrl}
@@ -1831,12 +1744,10 @@ export function ShowcaseView({
               )}
             </div>
 
-            {/* Right Pane: Details & Form. On mobile this must take the
-                REMAINING card height (flex-1 min-h-0) so overflow-y-auto
-                actually scrolls — with max-h-none the implicit
-                min-height:auto let it grow past the clipped 90vh card,
-                making everything below the fold unreachable. */}
-            <div className="w-full lg:w-[50%] p-6 flex flex-col justify-between overflow-y-auto flex-1 min-h-0 lg:flex-none lg:max-h-[90dvh]">
+            {/* Right Pane: Details & Form. Mobile: natural height, the
+                overlay scrolls the whole card as one flow. Desktop: the
+                pane scrolls internally inside the 90dvh card. */}
+            <div className="w-full lg:w-[50%] p-6 flex flex-col justify-between lg:overflow-y-auto lg:max-h-[90dvh]">
               
               {/* Header Info */}
               <div className="space-y-4">
@@ -2250,78 +2161,18 @@ export function ShowcaseView({
                   onSelect={openPropertyModal}
                 />
 
-                {/* Like bar inside Modal — hidden in agent mode */}
+                {/* Interest rating bar inside Modal — hidden in agent mode */}
                 {!isAgentMode && (
-                <button
-                  type="button"
-                  onClick={() => toggleLike(selectedProperty)}
-                  aria-pressed={likedIds.has(selectedProperty.id)}
-                  className={`w-full flex items-center justify-between gap-4 p-4 rounded-xl border transition-all cursor-pointer ${
-                    likedIds.has(selectedProperty.id)
-                      ? 'bg-primary/15 border-primary/40'
-                      : 'bg-slate-950/30 border-slate-850 hover:border-slate-800'
-                  }`}
-                >
-                  <div className="flex flex-col text-left">
-                    <h5 className="text-[11px] font-bold text-slate-350 uppercase tracking-wider">
-                      {likedIds.has(selectedProperty.id) ? 'You liked this property' : 'Like this property'}
-                    </h5>
-                    <p className="text-[10px] text-slate-500">
-                      A quick thumbs-up tells the agent it caught your eye.
-                    </p>
-                  </div>
-                  <div
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
-                      likedIds.has(selectedProperty.id)
-                        ? 'bg-primary text-white shadow-md shadow-primary/30'
-                        : 'bg-slate-900 border border-slate-800 text-slate-300'
-                    }`}
-                  >
-                    <ThumbsUp className={`size-3.5 ${likedIds.has(selectedProperty.id) ? 'fill-current' : ''}`} />
-                    <span>{likedIds.has(selectedProperty.id) ? 'Liked' : 'Like'}</span>
-                    {(likeCounts[selectedProperty.id] ?? 0) > 0 && (
-                      <span className="ml-0.5 opacity-90">· {likeCounts[selectedProperty.id]}</span>
-                    )}
-                  </div>
-                </button>
-                )}
-
-                {/* Quick Feedback Bar inside Modal — hidden in agent mode */}
-                {!isAgentMode && (
-                <div className="bg-slate-950/30 border border-slate-850 p-4 rounded-xl flex items-center justify-between gap-4">
-                  <div className="flex flex-col">
-                    <h5 className="text-[11px] font-bold text-slate-350 uppercase tracking-wider">Are you interested?</h5>
-                    <p className="text-[10px] text-slate-500">Expressing interest creates a priority follow-up.</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleQuickInterestClick(selectedProperty);
-                      }}
-                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition-all text-xs font-bold cursor-pointer ${
-                        interestStatus[selectedProperty.id] === 'interested'
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                          : 'bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      <ThumbsUp className="size-3.5" />
-                      <span>{interestStatus[selectedProperty.id] === 'interested' ? 'Interested' : 'Yes'}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        updateInterestStatus(selectedProperty.id, 'not_interested');
-                        toast.info('Property marked as not interested.');
-                        closePropertyModal();
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-400 hover:text-red-400 hover:border-red-550/20 transition-all text-xs font-semibold cursor-pointer"
-                    >
-                      <ThumbsDown className="size-3.5" />
-                      <span>No</span>
-                    </button>
-                  </div>
-                </div>
+                <PropertyRatingBar
+                  value={ratings[selectedProperty.id]?.rating ?? null}
+                  missReasons={ratings[selectedProperty.id]?.miss_reasons ?? []}
+                  onRate={(rating) => submitRating(selectedProperty, rating)}
+                  onToggleReason={(reason) => toggleMissReason(selectedProperty, reason)}
+                  onHide={() => {
+                    hideProperty(selectedProperty);
+                    closePropertyModal();
+                  }}
+                />
                 )}
                 {submitSuccess ? (
                   <div className="bg-green-500/10 border border-green-500/30 p-4 rounded-xl text-center space-y-2 animate-zoom-in">
@@ -2412,83 +2263,6 @@ export function ShowcaseView({
 
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Quick Interest Modal */}
-      {interestModalOpen && interestProperty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="relative max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4 animate-zoom-in">
-            {/* Close Button */}
-            <button
-              onClick={() => {
-                setInterestModalOpen(false);
-                setInterestProperty(null);
-              }}
-              className="absolute top-3 right-3 p-1.5 rounded-full bg-slate-950/80 text-slate-400 hover:text-white border border-slate-800/80 cursor-pointer"
-            >
-              <X className="size-4" />
-            </button>
-
-            <div className="text-center space-y-1">
-              <h3 className="text-lg font-bold text-white">Express Interest</h3>
-              <p className="text-xs text-slate-400">
-                Share your details for &quot;{interestProperty.title}&quot; to receive priority updates.
-              </p>
-            </div>
-
-            <form onSubmit={handleInterestSubmit} className="space-y-3 pt-2">
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-550 font-bold uppercase tracking-wider">Your Name</label>
-                <Input
-                  required
-                  value={visitorName}
-                  onChange={(e) => setVisitorName(e.target.value)}
-                  placeholder="John Doe"
-                  className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-700 focus:border-primary text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-550 font-bold uppercase tracking-wider">Mobile Number</label>
-                <Input
-                  required
-                  type="tel"
-                  value={visitorPhone}
-                  onChange={(e) => setVisitorPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                  className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-700 focus:border-primary text-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] text-slate-550 font-bold uppercase tracking-wider">Email (Optional)</label>
-                <Input
-                  type="email"
-                  value={visitorEmail}
-                  onChange={(e) => setVisitorEmail(e.target.value)}
-                  placeholder="john@example.com"
-                  className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-700 focus:border-primary text-xs w-full"
-                />
-              </div>
-
-              <div className="pt-2">
-                <Button
-                  type="submit"
-                  disabled={interestSubmitting}
-                  className="w-full bg-primary hover:bg-primary-hover text-white text-xs font-bold py-2.5 rounded-lg flex items-center justify-center gap-1.5 shadow-lg shadow-primary/20 cursor-pointer"
-                >
-                  {interestSubmitting ? (
-                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                  ) : (
-                    <>
-                      <Send className="size-3.5" />
-                      Submit Interest
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
           </div>
         </div>
       )}
