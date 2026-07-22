@@ -56,6 +56,9 @@ interface PropertyShareDialogProps {
   property: Property | null;
   onSaved?: () => void;
   preSelectedContactId?: string;
+  /** When provided (Meta Ads enabled), shows a "Promote as WhatsApp Ad"
+   *  action that opens the Click-to-WhatsApp Meta ad wizard. */
+  onPromote?: (property: Property) => void;
 }
 
 // On desktop, navigator.share opens the OS share sheet, which has no
@@ -75,6 +78,7 @@ export function PropertyShareDialog({
   property,
   onSaved,
   preSelectedContactId,
+  onPromote,
 }: PropertyShareDialogProps) {
   const supabase = createClient();
   const { user, accountId, profile } = useAuth();
@@ -1485,6 +1489,19 @@ export function PropertyShareDialog({
                           <Share2 className="size-3.5" />
                           More apps…
                         </Button>
+                        {onPromote && (
+                          <Button
+                            onClick={() => {
+                              onOpenChange(false);
+                              if (property) onPromote(property);
+                            }}
+                            title="Run a Click-to-WhatsApp Meta ad for this listing — clicks open a WhatsApp chat with you"
+                            className="bg-gradient-to-r from-fuchsia-600 to-violet-600 hover:from-fuchsia-700 hover:to-violet-700 text-white font-semibold text-xs h-9 px-4 flex items-center gap-1.5"
+                          >
+                            <Megaphone className="size-3.5" />
+                            Promote as WhatsApp Ad
+                          </Button>
+                        )}
                       </div>
                     );
                   })()}
