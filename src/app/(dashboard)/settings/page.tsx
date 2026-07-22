@@ -128,13 +128,6 @@ function isWhatsAppSub(v: string | null): v is WhatsAppSub {
   return !!v && WHATSAPP_SUBTABS.some((s) => s.value === v);
 }
 
-// Flag key matches what migration 011 introduced. The Members tab
-// stays hidden until the user's profile.beta_features array contains
-// this string; flip it via Supabase Studio:
-//   UPDATE profiles SET beta_features = beta_features || ARRAY['account_sharing']
-//   WHERE user_id = '<theirs>';
-const ACCOUNT_SHARING_FLAG = 'account_sharing';
-
 // Grouped sidebar items for compact navigation
 interface NavGroup {
   label: string;
@@ -144,12 +137,16 @@ interface NavGroup {
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { profile, profileLoading, isOrgManager, isOrgLeader } = useAuth();
+  const { canManageMembers, isOrgManager, isOrgLeader } = useAuth();
   const { isAllowed, isLoading: planLoading } = usePlan();
 
-  const accountSharingEnabled =
-    !profileLoading &&
-    !!profile?.beta_features?.includes(ACCOUNT_SHARING_FLAG);
+  // The Members tab is visible to anyone who can manage members — every
+  // account owner (org_manager) plus admins (org_leader). It used to sit
+  // behind the `account_sharing` beta flag; that gate is retired. Lower
+  // roles don't get the tab, and the tab's own controls stay role-gated
+  // regardless. `canManageMembers` already fails closed while the profile
+  // is still loading.
+  const membersEnabled = canManageMembers;
 
   // Teams/Routing Rules require both the plan flag (has_teams) and
   // Org Leader+ (Agents don't manage teams, so no point showing an
@@ -181,7 +178,7 @@ export default function SettingsPage() {
   const tab: TabValue =
     requestedTab === 'templates'
       ? 'whatsapp'
-      : (requestedTab === 'members' && !accountSharingEnabled) ||
+      : (requestedTab === 'members' && !membersEnabled) ||
           (requestedTab === 'teams' && !teamsEnabled) ||
           (requestedTab === 'routing' && !routingEnabled) ||
           (requestedTab === 'ads' && !metaAdsEnabled)
@@ -270,7 +267,7 @@ export default function SettingsPage() {
         { value: 'showcase', label: 'Showcase', icon: Globe },
         { value: 'ai', label: 'AI Config', icon: Sparkles },
         { value: 'other', label: 'Other', icon: Sliders },
-        ...(accountSharingEnabled ? [{ value: 'members' as TabValue, label: 'Members', icon: UsersRound }] : []),
+        ...(membersEnabled ? [{ value: 'members' as TabValue, label: 'Members', icon: UsersRound }] : []),
         ...(teamsEnabled ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }] : []),
         ...(routingEnabled ? [{ value: 'routing' as TabValue, label: 'Routing', icon: Route }] : []),
       ],
@@ -525,7 +522,7 @@ export default function SettingsPage() {
             <CreditsTab />
           </TabsContent>
 
-          {accountSharingEnabled && (
+          {membersEnabled && (
             <TabsContent value="members" className="mt-0">
               <MembersTab />
             </TabsContent>
