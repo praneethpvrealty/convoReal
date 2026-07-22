@@ -27,9 +27,11 @@ export function showcaseImageUrl(
   return `${url.slice(0, idx)}${RENDER_MARKER}${path}?width=${width}&quality=${quality}`;
 }
 
-/** Standard widths used across the showcase so the CDN cache stays hot. */
+/** Standard widths used across the showcase so the CDN cache stays hot.
+ *  thumb is 2x the largest thumbnail CSS box (~64-80px) so 3x-DPR phones
+ *  don't upscale — 160 rendered visibly soft there. */
 export const SHOWCASE_IMAGE_WIDTHS = {
   card: 640,
   hero: 1280,
-  thumb: 160,
+  thumb: 320,
 } as const;

@@ -132,7 +132,7 @@ export function SimilarProperties({ accountId, currentProperty, onSelect }: Simi
                 {p.images?.[0] && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={showcaseImageUrl(p.images[0], SHOWCASE_IMAGE_WIDTHS.thumb)}
+                    src={showcaseImageUrl(p.images[0], SHOWCASE_IMAGE_WIDTHS.card)}
                     alt={p.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     onError={(e) => {
