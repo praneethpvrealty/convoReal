@@ -6,6 +6,7 @@ import {
   buildPortalDescription,
   buildPortalFields,
   parseDimensions,
+  missingRequiredFields,
 } from './post-kit';
 
 const saleProperty = {
@@ -148,5 +149,42 @@ describe('parseDimensions', () => {
     expect(parseDimensions('100ft x 150ft')).toEqual({ length: '100', width: '150' });
     expect(parseDimensions('irregular')).toBeNull();
     expect(parseDimensions(undefined)).toBeNull();
+  });
+});
+
+describe('missingRequiredFields', () => {
+  it('reports nothing for a complete land listing', () => {
+    expect(missingRequiredFields(saleProperty)).toEqual([]);
+  });
+
+  it('lists the portal-mandatory fields that are empty', () => {
+    const bare = {
+      ...saleProperty,
+      city: '',
+      description: '',
+      price: 0,
+    } as unknown as Property;
+    const missing = missingRequiredFields(bare);
+    expect(missing).toContain('City');
+    expect(missing).toContain('Description');
+    expect(missing).toContain('Expected Price');
+  });
+
+  it('requires bedrooms for a residential non-land property but not for commercial', () => {
+    const flat = {
+      ...saleProperty,
+      type: '3 BHK Apartment',
+      area_sqft: 1850,
+      land_area: null,
+    } as unknown as Property;
+    expect(missingRequiredFields(flat)).toContain('Bedrooms');
+
+    const commercial = {
+      ...saleProperty,
+      type: 'Commercial Building',
+      area_sqft: 3600,
+      land_area: null,
+    } as unknown as Property;
+    expect(missingRequiredFields(commercial)).not.toContain('Bedrooms');
   });
 });

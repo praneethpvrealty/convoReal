@@ -213,5 +213,32 @@ export function buildPortalFields(property: Property, portal: PortalKey, currenc
   return fields.filter((f) => f.value.trim().length > 0);
 }
 
+const COMMERCIAL_TYPE_RE = /commercial|office|shop|showroom|industrial|warehouse|godown/i;
+
+/** Fields every portal marks mandatory on its post form. A listing
+ *  missing any of these can't be posted, so the dialog blocks the
+ *  handoff and points the agent back to ConvoReal to fill them first —
+ *  making the portals' required fields effectively required here too. */
+export function missingRequiredFields(property: Property): string[] {
+  const rental = property.listing_type === 'Rent' || property.listing_type === 'Built to Suit';
+  const land = isLand(property);
+  const commercial = COMMERCIAL_TYPE_RE.test(property.type || '');
+  const missing: string[] = [];
+  const need = (ok: unknown, label: string) => {
+    if (!ok) missing.push(label);
+  };
+
+  need(property.type?.trim(), 'Property Type');
+  need(property.city?.trim(), 'City');
+  need((property.sublocality || property.location || '').trim(), 'Locality');
+  need(property.title?.trim(), 'Title');
+  need(land ? property.land_area : property.area_sqft, land ? 'Plot Area' : 'Built-up Area');
+  need(rental ? property.rent_per_month : property.price, rental ? 'Monthly Rent' : 'Expected Price');
+  need(property.description?.trim(), 'Description');
+  if (!land && !commercial) need(property.bedrooms, 'Bedrooms');
+
+  return missing;
+}
+
 /** How soon before expiry the WhatsApp nudge fires. */
 export const PORTAL_EXPIRY_REMINDER_DAYS = 3;

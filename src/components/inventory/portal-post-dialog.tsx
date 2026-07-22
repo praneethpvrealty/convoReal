@@ -26,12 +26,14 @@ import {
   Trash2,
   Download,
   CalendarClock,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   PORTALS,
   PORTAL_KEYS,
   buildPortalFields,
+  missingRequiredFields,
   type PortalKey,
 } from '@/lib/portals/post-kit';
 
@@ -161,6 +163,8 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
     [property]
   );
 
+  const missing = useMemo(() => (property ? missingRequiredFields(property) : []), [property]);
+
   const copyField = async (label: string, value: string) => {
     await navigator.clipboard.writeText(value);
     setCopiedField(label);
@@ -286,6 +290,26 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           })}
         </div>
 
+        {/* Portal-mandatory fields the CRM is missing */}
+        {missing.length > 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-amber-300">
+              <AlertTriangle className="size-4 shrink-0" />
+              The portals require these — fill them on the property before posting
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {missing.map((label) => (
+                <span
+                  key={label}
+                  className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200"
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Posted status */}
         {loading ? (
           <div className="flex items-center gap-2 text-xs text-slate-500 px-1">
@@ -387,8 +411,9 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
             )}
           </div>
           <Button
-            disabled={!extensionDetected}
+            disabled={!extensionDetected || missing.length > 0}
             onClick={sendToExtension}
+            title={missing.length > 0 ? `Fill required fields first: ${missing.join(', ')}` : undefined}
             className="h-7 bg-violet-600 hover:bg-violet-700 text-white text-xs px-3 flex items-center gap-1 shrink-0 disabled:opacity-40"
           >
             <Globe className="size-3" />

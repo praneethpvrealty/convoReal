@@ -459,11 +459,17 @@
     if (/villa|independent house/.test(type)) sub.push('independent house / villa', 'villa', 'independent house');
     if (/builder floor/.test(type)) sub.push('independent / builder floor', 'builder floor');
     if (/studio|1 rk/.test(type)) sub.push('1 rk/ studio apartment', 'studio apartment');
-    if (/office/.test(type)) sub.push('office', 'office space');
-    if (/shop|showroom|retail/.test(type)) sub.push('shop', 'showroom', 'retail');
-    if (/warehouse|godown/.test(type)) sub.push('warehouse / godown', 'warehouse');
+    if (/office/.test(type)) sub.push('office space', 'office', 'commercial office space');
+    if (/shop|showroom|retail/.test(type)) sub.push('retail shop', 'shop', 'showroom', 'retail', 'shop/showroom');
+    if (/warehouse|godown/.test(type)) sub.push('warehouse / godown', 'warehouse', 'godown');
     if (/farm/.test(type)) sub.push('farmhouse', 'farm house');
     if (/pg|hostel/.test(type)) sub.push('pg');
+    // Commercial types the portals don't list verbatim (e.g. "Commercial
+    // Building") fall back to the generic bucket each portal does offer,
+    // so the mandatory subtype still gets picked and the step unblocks.
+    if (COMMERCIAL_RE.test(type) && sub.length === 0) {
+      sub.push('commercial building', 'building', 'commercial space', 'other', 'others');
+    }
     return sub;
   }
 
