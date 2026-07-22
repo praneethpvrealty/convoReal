@@ -178,14 +178,29 @@ describe('buildConsentRequestMessage', () => {
   it('greets by first name and asks for consent with the control hint', () => {
     const msg = buildConsentRequestMessage(digest());
     expect(msg).toContain('Hi Gopi');
-    expect(msg).toContain('your 2 listings');
+    expect(msg).toContain(
+      'your listings *Premium Commercial Property, Hoodi* and *Vacant Plot, JP Nagar*'
+    );
     expect(msg).toContain('Would you like to receive');
     expect(msg).toContain('STOP UPDATES');
   });
 
-  it('uses singular phrasing for one listing', () => {
+  it('names the property for one listing', () => {
     const single = digest({ properties: [digest().properties[0]] });
-    expect(buildConsentRequestMessage(single)).toContain('your listing');
+    expect(buildConsentRequestMessage(single)).toContain(
+      'your listing *Premium Commercial Property, Hoodi*'
+    );
+  });
+
+  it('falls back to a count for more than two listings', () => {
+    const many = digest({
+      properties: [
+        digest().properties[0],
+        digest().properties[1],
+        { ...digest().properties[0], property_id: 'p3', title: 'Farm Land, Kanakapura' },
+      ],
+    });
+    expect(buildConsentRequestMessage(many)).toContain('your 3 listings');
   });
 });
 

@@ -247,8 +247,13 @@ interface AccountRunSummary {
 /** Freeform consent request (open 24h window). Pure — unit tested. */
 export function buildConsentRequestMessage(digest: OwnerDigest): string {
   const firstName = digest.name?.trim().split(/\s+/)[0] || 'there'
+  const titles = digest.properties.map((p) => p.title?.trim()).filter(Boolean)
   const listingPhrase =
-    digest.properties.length === 1 ? 'your listing' : `your ${digest.properties.length} listings`
+    titles.length === 1
+      ? `your listing *${titles[0]}*`
+      : titles.length === 2
+        ? `your listings *${titles[0]}* and *${titles[1]}*`
+        : `your ${digest.properties.length} listings`
   return [
     `Hi ${firstName}, buyers have been showing interest in ${listingPhrase}. 👀`,
     '',
@@ -335,7 +340,10 @@ async function sendConsentRequest(
     return 'no_template'
   }
 
-  const params = buildOwnerDigestConsentParams(digest.name, digest.properties.length)
+  const params = buildOwnerDigestConsentParams(
+    digest.name,
+    digest.properties.map((p) => p.title)
+  )
   const bodyParams = truncateParametersToBudget(consentTemplate.body_text, [...params])
   const res = await sendWhatsAppMessageAndPersist({
     accountId,
@@ -657,7 +665,7 @@ export async function sendOwnerStatusDigests(options?: {
 
         const params = buildOwnerDigestParams(
           digest.name,
-          activeProps.length,
+          activeProps.map((p) => p.title),
           period.label,
           buildOwnerDigestSummaryLine(digest)
         )
