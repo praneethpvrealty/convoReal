@@ -39,13 +39,6 @@ export async function POST(request: NextRequest) {
       .eq('account_id', ctx.accountId)
       .maybeSingle();
 
-    if (!sub?.razorpay_subscription_id) {
-      return NextResponse.json(
-        { error: 'No active subscription found. Use /api/billing/create-subscription to subscribe first.' },
-        { status: 404 },
-      );
-    }
-
     const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
     const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
     const newPlanKey = `RAZORPAY_PLAN_${newPlan.toUpperCase()}_${limits.billing_cycle?.toUpperCase() ?? 'MONTHLY'}`;
@@ -55,6 +48,12 @@ export async function POST(request: NextRequest) {
     // Sandbox/Development Bypass: if Razorpay configuration is incomplete or plan ID is missing,
     // we bypass the live Razorpay API and automatically activate/upgrade the plan directly
     // in the database. This allows offline/sandbox testing and easy onboarding without live payment keys.
+    //
+    // This runs BEFORE the razorpay_subscription_id guard below on purpose: an account whose
+    // current plan was set without a live Razorpay subscription (offline/comped/admin-override, or a
+    // prior sandbox create-subscription) has no razorpay_subscription_id to PATCH, yet must still be
+    // able to upgrade. When Razorpay IS configured, this block is skipped and the live path below
+    // enforces the guard as before.
     if (!hasKeys || !newRazorpayPlanId) {
       console.log(`[DEVELOPMENT BYPASS] Razorpay key/plan not configured. Auto-upgrading to ${newPlan} for account ${ctx.accountId}`);
       
@@ -91,6 +90,14 @@ export async function POST(request: NextRequest) {
       }
 
       return NextResponse.json({ success: true, plan: newPlan });
+    }
+
+    // Live Razorpay path — needs an existing subscription object to modify.
+    if (!sub?.razorpay_subscription_id) {
+      return NextResponse.json(
+        { error: 'No active subscription found. Use /api/billing/create-subscription to subscribe first.' },
+        { status: 404 },
+      );
     }
 
     const credentials = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
