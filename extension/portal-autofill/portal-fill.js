@@ -346,7 +346,7 @@
     return sawRows ? 'nomatch' : 'norows';
   }
 
-  async function fillTextFields(fields, handled) {
+  async function fillTextFields(fields, handled, report) {
     const used = new Set();
     let filled = 0;
     let committedTypeahead = false;
@@ -405,20 +405,28 @@
             }
             used.add(best);
             handled.add(field.label);
-            if (result === 'committed' || normalizedText(best.value)) filled++;
             if (result === 'committed') {
+              filled++;
+              report?.satisfied.add(field.label);
               committedTypeahead = true;
               // Beat for the portal to reveal the next input.
               await sleep(400);
+            } else {
+              // The input was found but no suggestion committed — the
+              // portal clears uncommitted typeahead text, so flag it for
+              // a manual Copy rather than pretend it filled.
+              report?.failed.add(field.label);
             }
           } else {
             nativeSet(best, value);
             used.add(best);
             flashOutline(best);
             filled++;
+            report?.satisfied.add(field.label);
           }
         } catch {
           // Portal blocked the write — the copy button still covers it.
+          report?.failed.add(field.label);
         }
       }
     }
@@ -451,11 +459,17 @@
     if (/villa|independent house/.test(type)) sub.push('independent house / villa', 'villa', 'independent house');
     if (/builder floor/.test(type)) sub.push('independent / builder floor', 'builder floor');
     if (/studio|1 rk/.test(type)) sub.push('1 rk/ studio apartment', 'studio apartment');
-    if (/office/.test(type)) sub.push('office', 'office space');
-    if (/shop|showroom|retail/.test(type)) sub.push('shop', 'showroom', 'retail');
-    if (/warehouse|godown/.test(type)) sub.push('warehouse / godown', 'warehouse');
+    if (/office/.test(type)) sub.push('office space', 'office', 'commercial office space');
+    if (/shop|showroom|retail/.test(type)) sub.push('retail shop', 'shop', 'showroom', 'retail', 'shop/showroom');
+    if (/warehouse|godown/.test(type)) sub.push('warehouse / godown', 'warehouse', 'godown');
     if (/farm/.test(type)) sub.push('farmhouse', 'farm house');
     if (/pg|hostel/.test(type)) sub.push('pg');
+    // Commercial types the portals don't list verbatim (e.g. "Commercial
+    // Building") fall back to the generic bucket each portal does offer,
+    // so the mandatory subtype still gets picked and the step unblocks.
+    if (COMMERCIAL_RE.test(type) && sub.length === 0) {
+      sub.push('commercial building', 'building', 'commercial space', 'other', 'others');
+    }
     return sub;
   }
 
@@ -464,40 +478,72 @@
     const targets = [];
 
     const listingFor = get('Listing For');
-    if (listingFor) targets.push({ synonyms: listingSynonyms(listingFor) });
+    if (listingFor) targets.push({ label: 'Listing For', synonyms: listingSynonyms(listingFor) });
 
     const type = normalizedText(get('Property Type'));
     if (type) {
-      targets.push({ synonyms: [COMMERCIAL_RE.test(type) ? 'commercial' : 'residential'] });
+      targets.push({ label: 'Property Type', synonyms: [COMMERCIAL_RE.test(type) ? 'commercial' : 'residential'] });
       const sub = typeSynonyms(type);
-      if (sub.length > 0) targets.push({ synonyms: sub });
+      if (sub.length > 0) targets.push({ label: 'Property Type', synonyms: sub });
     }
 
     const beds = get('Bedrooms');
-    if (beds) targets.push({ synonyms: [`${beds} bhk`, `${beds}bhk`, beds], scope: /bedroom|bhk/ });
+    if (beds) targets.push({ label: 'Bedrooms', synonyms: [`${beds} bhk`, `${beds}bhk`, beds], scope: /bedroom|bhk/ });
     const baths = get('Bathrooms');
-    if (baths) targets.push({ synonyms: [baths], scope: /bathroom|bath/ });
+    if (baths) targets.push({ label: 'Bathrooms', synonyms: [baths], scope: /bathroom|bath/ });
     const facing = normalizedText(get('Facing'));
-    if (facing) targets.push({ synonyms: [facing], scope: /facing/ });
+    if (facing) targets.push({ label: 'Facing', synonyms: [facing], scope: /facing/ });
 
     // Housing mandatory chips (also match 99acres/MB wording where the
     // same question exists).
     const txn = normalizedText(get('Transaction Type'));
-    if (txn) targets.push({ synonyms: txn === 'resale' ? ['resale'] : ['new booking', 'new property'] });
+    if (txn) targets.push({ label: 'Transaction Type', synonyms: txn === 'resale' ? ['resale'] : ['new booking', 'new property'] });
     const possession = normalizedText(get('Possession Status'));
     if (possession) {
       targets.push({
+        label: 'Possession Status',
         synonyms: possession === 'immediate' ? ['immediate', 'ready to move'] : ['in future', 'under construction'],
       });
     }
     const boundary = normalizedText(get('Boundary Wall'));
-    if (boundary) targets.push({ synonyms: [boundary], scope: /boundary/ });
+    if (boundary) targets.push({ label: 'Boundary Wall', synonyms: [boundary], scope: /boundary/ });
     const chargeBrokerage = normalizedText(get('Charge Brokerage'));
-    if (chargeBrokerage) targets.push({ synonyms: [chargeBrokerage], scope: /brokerage/ });
+    if (chargeBrokerage) targets.push({ label: 'Charge Brokerage', synonyms: [chargeBrokerage], scope: /brokerage/ });
     const openSides = normalizedText(get('Open Sides'));
-    if (openSides) targets.push({ synonyms: [openSides], scope: /open side/ });
+    if (openSides) targets.push({ label: 'Open Sides', synonyms: [openSides], scope: /open side/ });
 
     return targets;
+  }
+
+  /** The real radio/checkbox behind a choice, if any: the input itself,
+   *  a label's [for] target, or an input nested in / beside the control.
+   *  99acres' Residential/Commercial is a hidden real radio styled as a
+   *  circle — clicking the visible label "clicks" (and flashes) but never
+   *  fires the input's change, so the selection never flips. */
+  function choiceInput(node) {
+    if (!node) return null;
+    if (node.tagName === 'INPUT' && /^(radio|checkbox)$/.test(node.type)) return node;
+    if (node.tagName === 'LABEL' && node.htmlFor) {
+      const byFor = document.getElementById(node.htmlFor);
+      if (byFor && byFor.tagName === 'INPUT') return byFor;
+    }
+    const inside = node.querySelector && node.querySelector('input[type="radio"], input[type="checkbox"]');
+    if (inside) return inside;
+    const parent = node.parentElement;
+    const near = parent && parent.querySelector('input[type="radio"], input[type="checkbox"]');
+    return near || null;
+  }
+
+  function clickChoiceElement(el) {
+    const control = el.closest('button, label, [role="radio"], [role="button"], [role="tab"]') || el;
+    const input = choiceInput(control) || choiceInput(el);
+    if (input) {
+      input.click();
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    simulateClick(control);
+    flashOutline(control);
   }
 
   function clickChoice(target) {
@@ -524,15 +570,9 @@
         .sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width);
 
       if (matches.length > 0) {
-        // The exact-text match is often an inner <span>; segmented
-        // toggles like Residential/Commercial carry their handler on the
-        // enclosing button/radio/tab, and clicking only the label span
-        // doesn't flip them. Click the real control when there is one.
         const el = matches[0];
-        const control = el.closest('button, label, [role="radio"], [role="button"], [role="tab"]') || el;
         try {
-          simulateClick(control);
-          flashOutline(control);
+          clickChoiceElement(el);
           return true;
         } catch {
           // Ignore and try the next synonym.
@@ -564,16 +604,17 @@
     return null;
   }
 
-  function fillSelects(fields) {
+  function fillSelects(fields, report) {
     const get = (label) => fields.find((f) => f.label === label)?.value || '';
     const jobs = [];
 
     const listingFor = get('Listing For');
-    if (listingFor) jobs.push({ hints: ['listed for', 'listing for', 'property for', 'want to'], synonyms: listingSynonyms(listingFor) });
+    if (listingFor) jobs.push({ label: 'Listing For', hints: ['listed for', 'listing for', 'property for', 'want to'], synonyms: listingSynonyms(listingFor) });
 
     const type = normalizedText(get('Property Type'));
     if (type) {
       jobs.push({
+        label: 'Property Type',
         hints: ['property type', 'propertytype'],
         synonyms: typeSynonyms(type),
         // "Residential Land/ Plot" must never land on "Commercial Plot".
@@ -582,11 +623,11 @@
     }
 
     const beds = get('Bedrooms');
-    if (beds) jobs.push({ hints: ['bedroom', 'bhk'], synonyms: [`${beds} bhk`, `${beds}bhk`, beds] });
+    if (beds) jobs.push({ label: 'Bedrooms', hints: ['bedroom', 'bhk'], synonyms: [`${beds} bhk`, `${beds}bhk`, beds] });
     const baths = get('Bathrooms');
-    if (baths) jobs.push({ hints: ['bathroom', 'bath'], synonyms: [baths] });
+    if (baths) jobs.push({ label: 'Bathrooms', hints: ['bathroom', 'bath'], synonyms: [baths] });
     const facing = normalizedText(get('Facing'));
-    if (facing) jobs.push({ hints: ['facing'], synonyms: [facing] });
+    if (facing) jobs.push({ label: 'Facing', hints: ['facing'], synonyms: [facing] });
 
     const AREA_UNIT_SYNONYMS = {
       sqft: ['sq. ft.', 'sq.ft.', 'sq ft', 'sqft', 'square feet'],
@@ -599,7 +640,7 @@
       guntha: ['guntha', 'gunta'],
     };
     const areaUnit = normalizedText(get('Area Unit')).replace(/[^a-z]/g, '');
-    if (areaUnit) jobs.push({ hints: ['area unit', 'unit'], synonyms: AREA_UNIT_SYNONYMS[areaUnit] || [areaUnit] });
+    if (areaUnit) jobs.push({ label: 'Area Unit', hints: ['area unit', 'unit'], synonyms: AREA_UNIT_SYNONYMS[areaUnit] || [areaUnit] });
 
     const selects = [...document.querySelectorAll('select')].filter((el) => {
       if (el.disabled || el.closest(`#${PANEL_ID}`)) return false;
@@ -617,6 +658,7 @@
         const opt = pickOption([...sel.options], job.synonyms, job.avoid);
         if (!opt) continue;
         used.add(sel);
+        if (job.label) report?.satisfied.add(job.label);
         if (sel.value !== opt.value) {
           try {
             nativeSelectSet(sel, opt);
@@ -636,20 +678,25 @@
 
   async function autofill(fields) {
     const handled = new Set();
-    let done = await fillTextFields(fields, handled);
-    done += fillSelects(fields);
+    const report = { satisfied: new Set(), failed: new Set() };
+    let done = await fillTextFields(fields, handled, report);
+    done += fillSelects(fields, report);
     // Chips first-to-last: each click can reveal the next section, so
     // pause briefly and re-scan between clicks, then sweep selects and
     // text fields again over whatever the selections revealed.
     for (const target of choiceTargets(fields)) {
       if (clickChoice(target)) {
         done++;
+        if (target.label) report.satisfied.add(target.label);
         await sleep(450);
       }
     }
-    done += fillSelects(fields);
-    done += await fillTextFields(fields, handled);
-    return done;
+    done += fillSelects(fields, report);
+    done += await fillTextFields(fields, handled, report);
+    // A field handled by any pass is not a failure (e.g. a typeahead
+    // that failed once then committed on a later sweep).
+    for (const label of report.satisfied) report.failed.delete(label);
+    return { done, report };
   }
 
   function copyText(text, btn) {
@@ -665,6 +712,27 @@
     if (style) node.style.cssText = style;
     if (text) node.textContent = text;
     return node;
+  }
+
+  const ROW_BORDER = '#1e293b';
+  const ROW_OK = '#10b981';
+  const ROW_FAIL = '#f43f5e';
+
+  /** Recolour panel rows after an autofill run: red for fields whose
+   *  control was found on the page but couldn't be committed (copy those
+   *  manually), green for the ones that went in, neutral for fields that
+   *  belong to a later wizard step and weren't touched. */
+  function applyFieldStatus(rowByLabel, report) {
+    for (const [label, ref] of rowByLabel) {
+      const failed = report.failed.has(label);
+      const ok = !failed && report.satisfied.has(label);
+      const color = failed ? ROW_FAIL : ok ? ROW_OK : ROW_BORDER;
+      ref.row.style.borderColor = color;
+      ref.row.style.borderLeftColor = color;
+      ref.labelEl.style.color = failed ? '#fb7185' : ok ? '#6ee7b7' : '#64748b';
+      ref.copyBtn.style.background = failed ? 'rgba(244,63,94,0.18)' : '#1e293b';
+      ref.copyBtn.style.color = failed ? '#fecaca' : '#cbd5e1';
+    }
   }
 
   function renderPanel(payload) {
@@ -705,12 +773,17 @@
         'flex:1;background:#7c3aed;border:none;border-radius:8px;color:#fff;font-weight:700;padding:8px;cursor:pointer;font-size:12px',
         'Autofill this page');
       const status = el('span', 'align-self:center;color:#94a3b8;white-space:nowrap');
+      const rowByLabel = new Map();
       fillBtn.addEventListener('click', async () => {
         fillBtn.disabled = true;
         status.textContent = 'Filling…';
         try {
-          const n = await autofill(fields);
-          status.textContent = n > 0 ? `${n} filled ✓` : 'No matches on this step';
+          const { done, report } = await autofill(fields);
+          applyFieldStatus(rowByLabel, report);
+          const misses = report.failed.size;
+          if (done > 0 && misses > 0) status.textContent = `${done} filled · ${misses} to copy`;
+          else if (done > 0) status.textContent = `${done} filled ✓`;
+          else status.textContent = 'No matches on this step';
         } finally {
           fillBtn.disabled = false;
         }
@@ -727,15 +800,17 @@
 
       const list = el('div', 'overflow-y:auto;padding:6px 8px;display:flex;flex-direction:column;gap:4px');
       for (const field of fields) {
-        const row = el('div', 'display:flex;align-items:center;gap:6px;background:#020617;border:1px solid #1e293b;border-radius:8px;padding:6px 8px');
+        const row = el('div', `display:flex;align-items:center;gap:6px;background:#020617;border:1px solid ${ROW_BORDER};border-radius:8px;padding:6px 8px;border-left-width:3px`);
         const meta = el('div', 'flex:1;min-width:0');
-        meta.appendChild(el('div', 'font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b', field.label));
+        const labelEl = el('div', 'font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b', field.label);
+        meta.appendChild(labelEl);
         meta.appendChild(el('div', 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e2e8f0', field.value));
         row.appendChild(meta);
         const copyBtn = el('button', 'background:#1e293b;border:none;border-radius:6px;color:#cbd5e1;padding:4px 8px;cursor:pointer', 'Copy');
         copyBtn.addEventListener('click', () => copyText(field.value, copyBtn));
         row.appendChild(copyBtn);
         list.appendChild(row);
+        rowByLabel.set(field.label, { row, labelEl, copyBtn });
       }
 
       if (Array.isArray(payload.photos) && payload.photos.length > 0) {
@@ -749,7 +824,7 @@
       body.appendChild(list);
 
       body.appendChild(el('div', 'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
-        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK), and commits city/locality suggestions. Re-run it on each wizard step, fix anything it missed, review, then submit.'));
+        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK), and commits city/locality suggestions. Fields it couldn’t complete turn red — use their Copy button and fill them by hand. Re-run on each wizard step, review, then submit.'));
     }
 
     // The − minimizes the whole panel back to the floating launcher.
