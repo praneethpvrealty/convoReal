@@ -1065,6 +1065,7 @@ export default function InventoryPage() {
         onOpenChange={setShareOpen}
         property={shareProperty}
         onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
+        onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
       />
 
       {/* Share via Email Dialog */}

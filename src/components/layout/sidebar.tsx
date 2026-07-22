@@ -15,6 +15,7 @@ import {
   LogOut,
   MessageSquare,
   Radio,
+  Megaphone,
   Settings,
   Shield,
   User,
@@ -101,6 +102,11 @@ const navItems: NavItem[] = [
   { href: "/journey", label: "Journey", icon: Waypoints, beta: true },
   { href: "/automations", label: "Automations", icon: Workflow },
   { href: "/broadcasts", label: "Broadcasts", icon: Radio },
+  // Meta Ads surfaces (incl. this nav item) only render when the feature is
+  // enabled at build via NEXT_PUBLIC_META_ADS_APP_ID.
+  ...(process.env.NEXT_PUBLIC_META_ADS_APP_ID
+    ? [{ href: "/ads", label: "Ads", icon: Megaphone }]
+    : []),
 ];
 
 const bottomNavItems = [
