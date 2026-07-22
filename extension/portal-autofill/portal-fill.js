@@ -524,10 +524,15 @@
         .sort((a, b) => a.getBoundingClientRect().width - b.getBoundingClientRect().width);
 
       if (matches.length > 0) {
+        // The exact-text match is often an inner <span>; segmented
+        // toggles like Residential/Commercial carry their handler on the
+        // enclosing button/radio/tab, and clicking only the label span
+        // doesn't flip them. Click the real control when there is one.
         const el = matches[0];
+        const control = el.closest('button, label, [role="radio"], [role="button"], [role="tab"]') || el;
         try {
-          simulateClick(el);
-          flashOutline(el);
+          simulateClick(control);
+          flashOutline(control);
           return true;
         } catch {
           // Ignore and try the next synonym.
