@@ -40,6 +40,7 @@ interface Body {
   daily_budget_inr?: number;
   duration_days?: number;
   radius_km?: number;
+  target_city?: string;
   headline?: string;
   primary_text?: string;
   image_url?: string;
@@ -130,24 +131,28 @@ export async function POST(request: NextRequest) {
     const adAccountId = config.ad_account_id as string;
     const pageId = config.page_id as string;
 
-    // Targeting: radius around coordinates when available, else the
-    // property's city resolved to a Meta geo key.
+    // Targeting: an explicit target city (e.g. Bangalore buyers for a
+    // Coorg property) overrides everything; otherwise a radius around the
+    // property's coordinates, else the property's own city resolved to a
+    // Meta geo key.
+    const targetCity = (body?.target_city || '').trim();
     let targeting: Record<string, unknown>;
     let precise = true;
     const built = buildTargeting(property, radiusKm);
-    if (built.precise && built.targeting) {
+    if (!targetCity && built.precise && built.targeting) {
       targeting = built.targeting;
     } else {
       precise = false;
-      if (!built.cityFallback) {
+      const cityToResolve = targetCity || built.cityFallback;
+      if (!cityToResolve) {
         return NextResponse.json(
-          { error: 'This property has no location set. Add a city or map location to advertise it.' },
+          { error: 'This property has no location set. Add a city or map location, or enter a target city, to advertise it.' },
           { status: 400 },
         );
       }
       let cityKey: string | null;
       try {
-        cityKey = await resolveCityGeoKey(accessToken, built.cityFallback);
+        cityKey = await resolveCityGeoKey(accessToken, cityToResolve);
       } catch (err) {
         if (isTokenError(err)) {
           await db.from('meta_ads_config').update({ status: 'token_expired' }).eq('account_id', ctx.accountId);
@@ -157,7 +162,7 @@ export async function POST(request: NextRequest) {
       }
       if (!cityKey) {
         return NextResponse.json(
-          { error: `Couldn't match "${built.cityFallback}" to a city. Add a map location to this property instead.` },
+          { error: `Couldn't match "${cityToResolve}" to a city. Try a nearby major city name.` },
           { status: 400 },
         );
       }
