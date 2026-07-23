@@ -1923,9 +1923,18 @@ CREATE TRIGGER tr_update_contact_last_contacted
 -- 037_add_flyer_ai_provider.sql — Add flyer_ai_provider column to showcase_settings table
 -- ============================================================
 
-ALTER TABLE showcase_settings 
-  ADD COLUMN IF NOT EXISTS flyer_ai_provider TEXT NOT NULL DEFAULT 'huggingface'
-  CHECK (flyer_ai_provider IN ('google', 'huggingface'));
+ALTER TABLE showcase_settings
+  ADD COLUMN IF NOT EXISTS flyer_ai_provider TEXT NOT NULL DEFAULT 'huggingface';
+
+ALTER TABLE showcase_settings
+  DROP CONSTRAINT IF EXISTS showcase_settings_flyer_ai_provider_check;
+ALTER TABLE showcase_settings
+  ADD CONSTRAINT showcase_settings_flyer_ai_provider_check
+  CHECK (flyer_ai_provider IN ('google', 'huggingface', 'stability'));
+
+ALTER TABLE showcase_settings
+  ADD COLUMN IF NOT EXISTS flyer_stability_model TEXT NOT NULL DEFAULT 'sd3.5-large'
+  CHECK (flyer_stability_model IN ('sd3.5-large', 'sd3.5-large-turbo', 'sd3.5-medium', 'ultra'));
 
 -- ============================================================
 -- 038_add_currency_to_showcase_settings.sql — Add currency column to showcase_settings table

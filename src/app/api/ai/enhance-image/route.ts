@@ -21,11 +21,12 @@ export async function POST(request: Request) {
     // Fetch the showcase settings to check the preferred provider
     const { data: settings } = await supabase
       .from('showcase_settings')
-      .select('flyer_ai_provider')
+      .select('flyer_ai_provider, flyer_stability_model')
       .eq('account_id', accountId)
       .maybeSingle();
 
     const provider = settings?.flyer_ai_provider || 'huggingface';
+    const stabilityModel = settings?.flyer_stability_model || undefined;
 
     const body = await request.json().catch(() => null);
     if (!body || !body.prompt) {
@@ -41,6 +42,13 @@ export async function POST(request: Request) {
       if (!process.env.GEMINI_API_KEY) {
         return NextResponse.json(
           { error: 'GEMINI_API_KEY is not configured on the server.' },
+          { status: 500 }
+        );
+      }
+    } else if (provider === 'stability') {
+      if (!process.env.STABILITY_API_KEY && !process.env.GEMINI_API_KEY) {
+        return NextResponse.json(
+          { error: 'STABILITY_API_KEY is not configured on the server.' },
           { status: 500 }
         );
       }
@@ -75,7 +83,7 @@ export async function POST(request: Request) {
     let imageResult: string;
     try {
       console.log(`[AI Enhance] Requesting generation (provider=${provider}) with prompt: "${prompt}"`);
-      imageResult = await generateAiImage({ prompt, aspectRatio, provider });
+      imageResult = await generateAiImage({ prompt, aspectRatio, provider, stabilityModel });
     } catch (apiErr: unknown) {
       // API or network failure: refund the credits
       await refundCredits(accountId, 'image_enhance', cost, { client: supabase });

@@ -31,12 +31,13 @@ function statusError(message: string, status: number): StatusError {
   return err;
 }
 
-// HF router endpoint for the free image path. Defaults to FLUX.1-schnell
-// via fal-ai (a live provider on the HF router); override with
-// HF_IMAGE_URL to point at whichever provider a given token can reach.
+// HF router endpoint for the free image path. Defaults to FLUX.1-dev
+// via fal-ai (higher quality than schnell, still a live provider on the
+// HF router); override with HF_IMAGE_URL to point at whichever provider
+// a given token can reach.
 const HF_IMAGE_URL =
   process.env.HF_IMAGE_URL ||
-  'https://router.huggingface.co/fal-ai/models/black-forest-labs/FLUX.1-schnell';
+  'https://router.huggingface.co/fal-ai/models/black-forest-labs/FLUX.1-dev';
 
 // Gemini image model used for text-to-image. Defaults to the current
 // replacement for the retired Imagen 4 models; override with
@@ -148,10 +149,78 @@ export async function generateWithHuggingFace(prompt: string, token: string): Pr
   throw statusError('Hugging Face returned no image.', 502);
 }
 
+// Stability AI Stable Image models. sd3.5-* hit the /sd3 endpoint (the
+// `model` field selects the variant); `ultra` hits the dedicated /ultra
+// endpoint. Default is env-overridable via STABILITY_MODEL.
+export const STABILITY_MODELS = [
+  'sd3.5-large',
+  'sd3.5-large-turbo',
+  'sd3.5-medium',
+  'ultra',
+] as const;
+const DEFAULT_STABILITY_MODEL = process.env.STABILITY_MODEL || 'sd3.5-large';
+
+// Stability only accepts a fixed set of aspect ratios; map the ones our
+// callers use that it doesn't support to the closest allowed value.
+const STABILITY_ASPECTS = new Set([
+  '16:9', '1:1', '21:9', '2:3', '3:2', '4:5', '5:4', '9:16', '9:21',
+]);
+function stabilityAspect(aspectRatio: string): string {
+  if (STABILITY_ASPECTS.has(aspectRatio)) return aspectRatio;
+  if (aspectRatio === '4:3') return '3:2';
+  if (aspectRatio === '3:4') return '2:3';
+  return '1:1';
+}
+
+export async function generateWithStability(
+  prompt: string,
+  aspectRatio: string,
+  apiKey: string,
+  model: string = DEFAULT_STABILITY_MODEL
+): Promise<string> {
+  const useUltra = model === 'ultra';
+  const endpoint = useUltra
+    ? 'https://api.stability.ai/v2beta/stable-image/generate/ultra'
+    : 'https://api.stability.ai/v2beta/stable-image/generate/sd3';
+
+  const form = new FormData();
+  form.append('prompt', prompt);
+  form.append('aspect_ratio', stabilityAspect(aspectRatio));
+  form.append('output_format', 'png');
+  if (!useUltra) form.append('model', model);
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, Accept: 'image/*' },
+    body: form,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    let message = `Stability API error: ${response.statusText}`;
+    try {
+      const errorData = JSON.parse(errorText);
+      message =
+        (Array.isArray(errorData.errors) ? errorData.errors.join('; ') : null) ||
+        errorData.error ||
+        errorData.message ||
+        message;
+    } catch {
+      if (errorText) message = errorText;
+    }
+    throw statusError(message, response.status);
+  }
+
+  const buffer = await response.arrayBuffer();
+  const contentType = (response.headers.get('content-type') || 'image/png').split(';')[0];
+  return `data:${contentType};base64,${Buffer.from(buffer).toString('base64')}`;
+}
+
 export interface GenerateAiImageOptions {
   prompt: string;
   aspectRatio?: string;
-  provider: 'google' | 'huggingface';
+  provider: 'google' | 'huggingface' | 'stability';
+  stabilityModel?: string;
 }
 
 /**
@@ -161,14 +230,33 @@ export interface GenerateAiImageOptions {
  * StatusError when no configured provider can produce one.
  */
 export async function generateAiImage(opts: GenerateAiImageOptions): Promise<string> {
-  const { prompt, aspectRatio = '1:1', provider } = opts;
+  const { prompt, aspectRatio = '1:1', provider, stabilityModel } = opts;
   const geminiKey = process.env.GEMINI_API_KEY;
+  const stabilityKey = process.env.STABILITY_API_KEY;
 
   if (provider === 'google') {
     if (!geminiKey) throw statusError('GEMINI_API_KEY is not configured on the server.', 500);
     return generateWithImagen(prompt, aspectRatio, geminiKey);
   }
 
+  if (provider === 'stability') {
+    if (!stabilityKey) throw statusError('STABILITY_API_KEY is not configured on the server.', 500);
+    try {
+      return await generateWithStability(prompt, aspectRatio, stabilityKey, stabilityModel);
+    } catch (stErr) {
+      if (geminiKey) {
+        console.warn(
+          '[image-gen] Stability path failed, falling back to Gemini:',
+          (stErr as Error).message
+        );
+        return generateWithImagen(prompt, aspectRatio, geminiKey);
+      }
+      throw stErr;
+    }
+  }
+
+  // Hugging Face (free) — fall back to Gemini, then Stability, if a key
+  // for either is configured, so the flyer still gets an image.
   const hfToken = process.env.HF_ACCESS_TOKEN;
   try {
     if (!hfToken) throw statusError('HF_ACCESS_TOKEN is not configured on the server.', 400);
@@ -180,6 +268,13 @@ export async function generateAiImage(opts: GenerateAiImageOptions): Promise<str
         (hfErr as Error).message
       );
       return generateWithImagen(prompt, aspectRatio, geminiKey);
+    }
+    if (stabilityKey) {
+      console.warn(
+        '[image-gen] Hugging Face path failed, falling back to Stability:',
+        (hfErr as Error).message
+      );
+      return generateWithStability(prompt, aspectRatio, stabilityKey, stabilityModel);
     }
     throw hfErr;
   }
