@@ -34,6 +34,7 @@ import {
 import { dedupeConsecutiveEvents } from "@/lib/pulse/dedupe-feed";
 import { HeartbeatLoader } from "@/components/ui/heartbeat-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
+import { PropertyViewersDialog } from "@/components/pulse/property-viewers-dialog";
 
 type FeedFilter = "all" | "property_views" | "identified";
 
@@ -56,6 +57,7 @@ export default function PulsePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
+  const [viewersFor, setViewersFor] = useState<{ id: string; title: string } | null>(null);
 
   const fetchStatsAndFeed = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -416,9 +418,12 @@ export default function PulsePage() {
               ) : (
                 <div className="space-y-3">
                   {stats.topProperties.map(({ property, viewsCount, uniqueViewsCount }) => (
-                    <div
+                    <button
+                      type="button"
                       key={property.id}
-                      className="rounded-lg border border-slate-800 bg-slate-950/20 p-3 space-y-2"
+                      onClick={() => setViewersFor({ id: property.id, title: property.title })}
+                      className="w-full text-left rounded-lg border border-slate-800 bg-slate-950/20 p-3 space-y-2 transition-colors hover:border-slate-700 hover:bg-slate-950/40 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+                      title="See who viewed this listing"
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div className="min-w-0">
@@ -444,7 +449,11 @@ export default function PulsePage() {
                           {viewsCount} views
                         </span>
                       </div>
-                    </div>
+                      <span className="flex items-center justify-end gap-1 text-[10px] font-bold text-primary/80">
+                        See viewers
+                        <ArrowRight className="size-3" />
+                      </span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -452,6 +461,15 @@ export default function PulsePage() {
           </div>
         </>
       )}
+
+      <PropertyViewersDialog
+        propertyId={viewersFor?.id ?? null}
+        propertyTitle={viewersFor?.title ?? ""}
+        open={!!viewersFor}
+        onOpenChange={(o) => {
+          if (!o) setViewersFor(null);
+        }}
+      />
     </div>
   );
 }
