@@ -1589,7 +1589,6 @@ BEGIN
       header_type,
       header_content,
       body_text,
-      buttons,
       status
     )
     VALUES (
@@ -1617,9 +1616,6 @@ Please let me know if you would like to arrange a site visit or need more detail
 Regards,
 {{7}}
 PV Realty',
-      '[
-        {"type": "URL", "text": "View Property", "url": "https://www.convoreal.com/{{1}}"}
-      ]'::jsonb,
       'APPROVED'
     );
 
@@ -1666,7 +1662,7 @@ Regards,
 {{7}}
 PV Realty',
       '[
-        {"type": "URL", "text": "View Property", "url": "https://www.convoreal.com/{{1}}"},
+        {"type": "URL", "text": "View Photo Gallery", "url": "https://pvrealty.in/properties"},
         {"type": "PHONE_NUMBER", "text": "Contact Agent", "phone_number": "+919999999999"}
       ]'::jsonb,
       'APPROVED'
