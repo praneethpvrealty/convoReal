@@ -3,6 +3,7 @@ import {
   looksLikeSchedulingText,
   isAgendaCommand,
   formatAgendaMessage,
+  formatInboundConfirmation,
   istDayWindow,
 } from './whatsapp-scheduler';
 
@@ -82,6 +83,39 @@ describe('formatAgendaMessage', () => {
   it('has a friendly empty state', () => {
     const msg = formatAgendaMessage('Tuesday, 14 Jul', [], []);
     expect(msg).toContain('Nothing scheduled');
+  });
+});
+
+describe('formatInboundConfirmation', () => {
+  it('greets the lead and shows the event in IST with property and location', () => {
+    const msg = formatInboundConfirmation({
+      contactName: 'Rakesh',
+      title: 'Site visit - JP Nagar flat',
+      eventType: 'site_visit',
+      startIso: '2026-07-25T09:30:00.000Z', // 3:00 pm IST
+      propertyTitle: '3BHK JP Nagar',
+      location: 'JP Nagar 5th Phase',
+    });
+    expect(msg).toContain('Hi Rakesh,');
+    expect(msg).toContain('Site visit - JP Nagar flat');
+    expect(msg).toContain('3:00 pm');
+    expect(msg).toContain('3BHK JP Nagar');
+    expect(msg).toContain('JP Nagar 5th Phase');
+    expect(msg).toContain('confirm shortly');
+  });
+
+  it('falls back to a generic greeting and omits optional lines', () => {
+    const msg = formatInboundConfirmation({
+      contactName: null,
+      title: 'Call about the plot',
+      eventType: 'call',
+      startIso: '2026-07-25T09:30:00.000Z',
+      propertyTitle: null,
+      location: null,
+    });
+    expect(msg).toContain('Hi there,');
+    expect(msg).not.toContain('🏡');
+    expect(msg).not.toContain('📌');
   });
 });
 
