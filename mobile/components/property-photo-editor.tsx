@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -47,6 +46,19 @@ export function PropertyPhotoEditor({
 
   async function addPhotos() {
     if (busy) return;
+    // Loaded lazily so an older installed build that predates this
+    // native module degrades to a friendly prompt instead of crashing
+    // the whole editor at import time.
+    let ImagePicker: typeof import('expo-image-picker');
+    try {
+      ImagePicker = await import('expo-image-picker');
+    } catch {
+      Alert.alert(
+        'Update the app',
+        'Adding photos needs the latest ConvoReal build. Install the newest version, then try again.'
+      );
+      return;
+    }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert('Permission needed', 'Allow photo access to add listing images.');

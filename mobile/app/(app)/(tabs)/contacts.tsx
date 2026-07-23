@@ -1,8 +1,5 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-// SDK 57 moved the function API behind /legacy (the default export is
-// the new class-based API and throws on these methods).
-import * as DeviceContacts from 'expo-contacts/legacy';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -783,6 +780,17 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
     if (!visible) return;
     setResult(null);
     (async () => {
+      // SDK 57 moved the function API behind /legacy (the default export
+      // is the new class-based API and throws on these methods). Loaded
+      // lazily so an older installed build that predates this native
+      // module degrades gracefully instead of crashing the tab at import.
+      let DeviceContacts: typeof import('expo-contacts/legacy');
+      try {
+        DeviceContacts = await import('expo-contacts/legacy');
+      } catch {
+        setResult('Importing from your phone needs the latest ConvoReal build. Install the newest version to use it.');
+        return;
+      }
       const { status } = await DeviceContacts.requestPermissionsAsync();
       if (status !== 'granted') {
         setDenied(true);
