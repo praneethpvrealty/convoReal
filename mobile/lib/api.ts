@@ -129,6 +129,17 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return session ? { Authorization: `Bearer ${session.access_token}` } : {};
 }
 
+/** Register this device's Expo push token so the backend can push to it. */
+export function registerDevice(token: string, platform: string) {
+  return apiFetch<{ data?: { ok: boolean }; error?: string }>(
+    '/api/notifications/register-device',
+    {
+      method: 'POST',
+      body: JSON.stringify({ token, platform }),
+    }
+  );
+}
+
 // ------------------------------------------------------------------
 // Typed wrappers for the routes the app uses today
 // ------------------------------------------------------------------

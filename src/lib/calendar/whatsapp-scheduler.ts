@@ -22,6 +22,7 @@ import {
   type ParsedEventDraft,
 } from '@/lib/calendar/event-parse';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
+import { createNotification } from '@/lib/notifications/create';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -104,6 +105,43 @@ export function formatAgendaMessage(dateLabel: string, events: AgendaEvent[], to
   }
 
   return lines.join('\n');
+}
+
+/** Confirmation sent back to a lead whose inbound message we turned
+ *  into an appointment. Deliberately non-committal — the event lands on
+ *  the agent's calendar and the agent confirms — and phrased for the
+ *  contact, not the CRM owner. */
+export function formatInboundConfirmation(params: {
+  contactName: string | null;
+  title: string;
+  eventType: string;
+  startIso: string;
+  propertyTitle: string | null;
+  location: string | null;
+}): string {
+  const when = new Date(params.startIso).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const emoji = EVENT_TYPE_EMOJI[params.eventType] || '🗓';
+  return [
+    `Hi ${params.contactName || 'there'},`,
+    '',
+    "🗓 *I've noted your request:*",
+    `${emoji} ${params.title}`,
+    `🕐 ${when}`,
+    params.propertyTitle ? `🏡 ${params.propertyTitle}` : null,
+    params.location ? `📌 ${params.location}` : null,
+    '',
+    'Our team will confirm shortly. Reply here if you need a different time.',
+  ]
+    .filter((l): l is string => l !== null)
+    .join('\n');
 }
 
 /** Current hour-of-day in IST (0-23). hourCycle 'h23' avoids the
@@ -430,6 +468,156 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     toPhone: contactRecord.phone,
     conversationId: conversation.id,
     text: confirmation,
+  });
+  return true;
+}
+
+export interface InboundSchedulingParams {
+  message: { type: string };
+  contentText: string | null;
+  contactRecord: { id: string; phone: string; name?: string | null };
+  conversation: { id: string };
+  accountId: string;
+  ownerUserId: string;
+  /** The agent this lead's conversation is routed to; the booking is
+   *  assigned to them and they get the notification. Falls back to the
+   *  account owner when the conversation is unassigned. */
+  assignedAgentUserId?: string | null;
+  accessToken: string;
+  phoneNumberId: string;
+}
+
+/**
+ * Turns a lead's inbound WhatsApp message ("can we visit the JP Nagar
+ * flat this Saturday at 3pm?") into an appointment on the agent's
+ * calendar, linked to the sender's contact and owned by the account
+ * owner. Text-only and keyword-gated so ordinary chatter and forwarded
+ * listings never burn AI credits, and only a concrete date/time creates
+ * anything — vague messages fall through to normal handling.
+ *
+ * Returns true when an appointment was created and the lead acknowledged.
+ */
+export async function tryHandleInboundScheduling(params: InboundSchedulingParams): Promise<boolean> {
+  const { message, contentText, contactRecord, conversation, accountId, ownerUserId, assignedAgentUserId, accessToken, phoneNumberId } = params;
+  const text = contentText?.trim() || '';
+  const agentUserId = assignedAgentUserId || ownerUserId;
+
+  if (!ownerUserId || message.type !== 'text' || !text || !looksLikeSchedulingText(text)) {
+    return false;
+  }
+
+  if (!(await hardBurn(accountId, 'event_parse'))) {
+    return false;
+  }
+
+  let draft: ParsedEventDraft;
+  try {
+    draft = await parseEventFromInput({ text });
+  } catch (err) {
+    console.error('[wa-scheduler] inbound parse failed:', err);
+    return false;
+  }
+
+  const startIso = istLocalToUtcIso(draft.start_time);
+  if (draft.intent !== 'schedule' || !startIso) {
+    return false;
+  }
+
+  let endIso = istLocalToUtcIso(draft.end_time);
+  if (!endIso) {
+    endIso = new Date(new Date(startIso).getTime() + (draft.duration_minutes || 60) * 60 * 1000).toISOString();
+  }
+
+  const admin = supabaseAdmin();
+  const { data: properties } = await admin
+    .from('properties')
+    .select('id, title, property_code, location, sublocality')
+    .eq('account_id', accountId);
+  const property = resolveByName(
+    draft.property_hint,
+    properties || [],
+    (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
+  );
+
+  const { data: inserted, error } = await admin
+    .from('appointments')
+    .insert({
+      account_id: accountId,
+      user_id: ownerUserId,
+      assigned_to: agentUserId,
+      title: draft.title,
+      description: draft.notes,
+      event_type: draft.event_type,
+      start_time: startIso,
+      end_time: endIso,
+      location: draft.location,
+      status: 'scheduled',
+      contact_id: contactRecord.id,
+      contact_ids: [contactRecord.id],
+      property_id: property?.id || null,
+      source: 'whatsapp',
+      transcript: text,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    console.error('[wa-scheduler] inbound appointment insert failed:', error);
+    return false;
+  }
+
+  const whenLabel = new Date(startIso).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const leadName = contactRecord.name || contactRecord.phone;
+  await createNotification({
+    accountId,
+    userId: agentUserId,
+    type: 'appointment_booked',
+    title: `New booking from ${leadName}`,
+    body: [
+      `${draft.title}`,
+      `🕐 ${whenLabel}`,
+      property ? `🏠 ${property.title}` : null,
+      draft.location ? `📌 ${draft.location}` : null,
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n'),
+    entityType: 'appointment',
+    entityId: inserted.id as string,
+    link: '/calendar',
+    whatsappText: [
+      '📅 *New booking from a lead*',
+      `👤 ${leadName}`,
+      `${EVENT_TYPE_EMOJI[draft.event_type] || '🗓'} ${draft.title}`,
+      `🕐 ${whenLabel}`,
+      property ? `🏠 ${property.title}` : null,
+      draft.location ? `📌 ${draft.location}` : null,
+      '',
+      '_Confirm or adjust it on your Calendar._',
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n'),
+  });
+
+  await replyAndLog({
+    phoneNumberId,
+    accessToken,
+    toPhone: contactRecord.phone,
+    conversationId: conversation.id,
+    text: formatInboundConfirmation({
+      contactName: contactRecord.name ?? null,
+      title: draft.title,
+      eventType: draft.event_type,
+      startIso,
+      propertyTitle: property?.title || null,
+      location: draft.location,
+    }),
   });
   return true;
 }

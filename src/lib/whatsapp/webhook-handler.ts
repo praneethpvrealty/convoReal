@@ -38,6 +38,8 @@ import {
   type OwnedListing,
 } from '@/lib/owners/owner-reply'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
+import { tryHandleInboundScheduling } from '@/lib/calendar/whatsapp-scheduler'
+import { createNotification } from '@/lib/notifications/create'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
@@ -1009,6 +1011,38 @@ async function processMessage(
     console.error('Error updating conversation:', convError)
   }
 
+  // The agent this lead is routed to (freshly resolved above, or a prior
+  // assignment), falling back to the account owner. Used to target
+  // booking + new-lead notifications at the right person.
+  const assignedAgentUserId =
+    routingUpdate.assigned_agent_id ||
+    (conversation as { assigned_agent_id?: string | null }).assigned_agent_id ||
+    configOwnerUserId
+
+  // First message on a brand-new lead thread — alert the assigned agent
+  // once (in-app + push + WhatsApp). Later replies don't re-notify.
+  if (!ownerCheck.isOwner && isFirstInboundMessage) {
+    const preview = (contentText || `[${message.type}]`).slice(0, 140)
+    await createNotification({
+      accountId,
+      userId: assignedAgentUserId,
+      type: 'new_message',
+      title: `New lead: ${contactRecord.name || senderPhone}`,
+      body: preview,
+      entityType: 'conversation',
+      entityId: conversation.id,
+      link: `/inbox?conversation=${conversation.id}`,
+      whatsappText: [
+        '💬 *New lead just messaged you*',
+        `👤 ${contactRecord.name || senderPhone}`,
+        '',
+        preview,
+        '',
+        '_Open your Inbox to reply._',
+      ].join('\n'),
+    })
+  }
+
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
 
   if (message.type === 'button') {
@@ -1256,6 +1290,26 @@ async function processMessage(
         console.error('[webhook] Failed to send contact import confirmation auto-reply:', err);
       }
     }
+  }
+
+  // A lead asking to meet ("can we visit the JP Nagar flat Saturday 3pm?")
+  // books the appointment on the agent's calendar. Runs before the
+  // read-only calendar query below so a concrete date/time creates an
+  // event instead of just listing existing ones; vague schedule talk
+  // ("what visits do I have?") falls through untouched.
+  if (!ownerCheck.isOwner) {
+    const booked = await tryHandleInboundScheduling({
+      message,
+      contentText,
+      contactRecord,
+      conversation,
+      accountId,
+      ownerUserId: configOwnerUserId,
+      assignedAgentUserId,
+      accessToken,
+      phoneNumberId,
+    })
+    if (booked) return
   }
 
   const cleanedText = contentText?.trim()?.toLowerCase() || ''

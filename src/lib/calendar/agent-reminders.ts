@@ -21,6 +21,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { formatAgendaMessage, istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler';
+import { createNotification } from '@/lib/notifications/create';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -166,6 +167,19 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
 
     if (result.success) {
       await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
+      // Fire in-app + push only alongside a successful WhatsApp send, so a
+      // retrying window-closed appointment doesn't re-notify every tick.
+      await createNotification({
+        accountId: appt.account_id,
+        userId: assigneeId as string,
+        type: 'appointment_reminder',
+        title: `Coming up at ${istTime(appt.start_time)}`,
+        body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
+        entityType: 'appointment',
+        entityId: appt.id,
+        link: '/calendar',
+        channels: { inApp: true, push: true, whatsapp: false },
+      });
     } else {
       console.warn(`[Agent Reminder] send failed for appt ${appt.id}:`, result.error);
     }
@@ -272,6 +286,18 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
     if (!result.success) {
       console.warn(`[Daily Digest] send failed for user ${entry.userId}:`, result.error);
     }
+
+    const apptCount = entry.events.length;
+    const todoCount = entry.todos.length;
+    await createNotification({
+      accountId: entry.accountId,
+      userId: entry.userId,
+      type: 'daily_digest',
+      title: `☀️ Your schedule for ${label}`,
+      body: `${apptCount} appointment${apptCount === 1 ? '' : 's'}${todoCount > 0 ? ` · ${todoCount} task${todoCount === 1 ? '' : 's'} due` : ''}`,
+      link: '/calendar',
+      channels: { inApp: true, push: true, whatsapp: false },
+    });
   }
 }
 
@@ -328,5 +354,17 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
     if (!result.success) {
       console.warn(`[Overdue Nudge] send failed for appt ${appt.id}:`, result.error);
     }
+
+    await createNotification({
+      accountId: appt.account_id,
+      userId: assigneeId as string,
+      type: 'appointment_overdue',
+      title: `How did it go? ${appt.title}`,
+      body: `${emoji} Scheduled for ${istTime(appt.start_time)} and still open — mark it complete or reschedule.`,
+      entityType: 'appointment',
+      entityId: appt.id,
+      link: '/calendar',
+      channels: { inApp: true, push: true, whatsapp: false },
+    });
   }
 }
