@@ -23,6 +23,11 @@ import {
 } from '@/lib/whatsapp/phone-utils'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 
+/** Window within which an identical template to the same conversation is
+ *  treated as a duplicate and skipped (double-submit / overlapping-trigger
+ *  guard). */
+const DUPLICATE_TEMPLATE_WINDOW_MS = 20_000
+
 // Lazy initialize admin client fallback
 let _adminClient: ReturnType<typeof createClient> | null = null
 function defaultAdminClient() {
@@ -190,6 +195,39 @@ export async function sendWhatsAppMessageAndPersist(
           throw new Error(`Failed to find or create conversation: ${createError?.message || 'Unknown error'}`)
         }
         resolvedConversationId = newConv.id
+      }
+    }
+
+    // 2b. Idempotency guard for template sends. A rapid double-submit or
+    // two overlapping triggers (e.g. a manual share plus an automation, or
+    // the same automation firing twice) must not deliver the identical
+    // template to the same conversation twice. If the same rendered
+    // template went out in the last few seconds, treat this call as
+    // already-sent rather than firing a duplicate. Keyed on the rendered
+    // body (`text`) so genuinely different sends (e.g. two properties) are
+    // never collapsed.
+    if (args.kind === 'template' && args.templateName) {
+      let dupQuery = db
+        .from('messages')
+        .select('id, message_id')
+        .eq('conversation_id', resolvedConversationId)
+        .eq('sender_type', args.senderType)
+        .eq('content_type', 'template')
+        .eq('template_name', args.templateName)
+        .gte('created_at', new Date(Date.now() - DUPLICATE_TEMPLATE_WINDOW_MS).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (args.text) dupQuery = dupQuery.eq('content_text', args.text)
+      const { data: recentDuplicate } = await dupQuery.maybeSingle()
+      if (recentDuplicate) {
+        console.warn(
+          `[meta-api-dispatcher] skipped duplicate template "${args.templateName}" to conversation ${resolvedConversationId}`,
+        )
+        return {
+          success: true,
+          messageId: recentDuplicate.id,
+          whatsappMessageId: recentDuplicate.message_id,
+        }
       }
     }
 
