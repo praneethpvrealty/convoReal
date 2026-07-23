@@ -82,6 +82,13 @@
         {
           "contactsPermission": "ConvoReal imports contacts you choose into your CRM."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ConvoReal adds photos you choose to your property listings.",
+          "cameraPermission": "ConvoReal uses the camera to add photos to your property listings."
+        }
       ]
     ],
     "experiments": {
