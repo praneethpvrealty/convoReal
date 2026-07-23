@@ -1,9 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -12,13 +14,23 @@ import {
 } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
+import { OptionSheet } from '@/components/option-sheet';
+import { PropertyPhotoEditor } from '@/components/property-photo-editor';
 import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
+import {
+  AMENITIES_BY_CATEGORY,
+  AREA_UNITS,
+  FACING_DIRECTIONS,
+  LISTING_TYPES,
+  NEARBY_HIGHLIGHTS_OPTIONS,
+  PROPERTY_TYPE_GROUPS,
+} from '@/lib/property-options';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
@@ -28,7 +40,9 @@ async function fetchProperty(id: string): Promise<Property | null> {
     .from('properties')
     .select(
       'id, title, description, price, rent_per_month, maintenance, status, listing_type, ' +
-        'bedrooms, bathrooms, area_sqft, area_unit, is_published'
+        'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
+        'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
+        'dimensions, facing_direction, google_map_link, features, nearby_highlights'
     )
     .eq('id', id)
     .maybeSingle();
@@ -37,13 +51,13 @@ async function fetchProperty(id: string): Promise<Property | null> {
 }
 
 /**
- * Quick edit: the handful of fields agents change from the field —
- * title, price/rent, status, specs, description, published. The full
- * 50-field form (photos, documents, locality, deal terms) stays on
- * the web; saves go through the same PUT /api/properties/[id].
+ * Property editor — mirrors the web form's common fields: photos, type,
+ * listing type, price/rent, status, specs, land & dimensions, location,
+ * features, nearby highlights, description and publish. Saves through the
+ * same PUT /api/properties/[id]. Documents, floor tenancies and deal
+ * terms remain on the web's full form.
  */
 export default function PropertyEditScreen() {
-  const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const { data: property, isLoading } = useQuery({
@@ -68,9 +82,11 @@ export default function PropertyEditScreen() {
 
 function EditForm({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
-  const isRent = property.listing_type === 'Rent' || property.listing_type === 'Built to Suit';
 
+  const [images, setImages] = useState<string[]>(property.images ?? []);
   const [title, setTitle] = useState(property.title);
+  const [type, setType] = useState(property.type ?? '');
+  const [listingType, setListingType] = useState<string>(property.listing_type ?? 'Sale');
   const [price, setPrice] = useState(property.price ? String(property.price) : '');
   const [rent, setRent] = useState(property.rent_per_month ? String(property.rent_per_month) : '');
   const [maintenance, setMaintenance] = useState(
@@ -80,10 +96,28 @@ function EditForm({ property }: { property: Property }) {
   const [bedrooms, setBedrooms] = useState(property.bedrooms ? String(property.bedrooms) : '');
   const [bathrooms, setBathrooms] = useState(property.bathrooms ? String(property.bathrooms) : '');
   const [area, setArea] = useState(property.area_sqft ? String(property.area_sqft) : '');
+  const areaUnit = property.area_unit || 'Sq.Ft.';
+  const [landArea, setLandArea] = useState(property.land_area ? String(property.land_area) : '');
+  const [landAreaUnit, setLandAreaUnit] = useState(property.land_area_unit || 'Sq.Ft.');
+  const [superBuilt, setSuperBuilt] = useState(
+    property.super_built_area ? String(property.super_built_area) : ''
+  );
+  const [dimensions, setDimensions] = useState(property.dimensions ?? '');
+  const [facing, setFacing] = useState(property.facing_direction ?? '');
+  const [location, setLocation] = useState(property.location ?? '');
+  const [sublocality, setSublocality] = useState(property.sublocality ?? '');
+  const [city, setCity] = useState(property.city ?? '');
+  const [stateVal, setStateVal] = useState(property.state ?? '');
+  const [mapLink, setMapLink] = useState(property.google_map_link ?? '');
+  const [features, setFeatures] = useState<string[]>(property.features ?? []);
+  const [nearby, setNearby] = useState<string[]>(property.nearby_highlights ?? []);
   const [description, setDescription] = useState(property.description ?? '');
   const [published, setPublished] = useState(Boolean(property.is_published));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [sheet, setSheet] = useState<'type' | 'features' | 'nearby' | null>(null);
+
+  const isRent = listingType === 'Rent' || listingType === 'Built to Suit';
 
   useEffect(() => {
     setError(null);
@@ -104,11 +138,26 @@ function EditForm({ property }: { property: Property }) {
     const body: Record<string, unknown> = {
       title: title.trim(),
       status,
+      type: type || null,
+      listing_type: listingType,
       description: description.trim() || null,
       is_published: published,
       bedrooms: num(bedrooms),
       bathrooms: num(bathrooms),
       area_sqft: num(area),
+      land_area: num(landArea),
+      land_area_unit: landAreaUnit,
+      super_built_area: num(superBuilt),
+      dimensions: dimensions.trim() || null,
+      facing_direction: facing || null,
+      location: location.trim() || null,
+      sublocality: sublocality.trim() || null,
+      city: city.trim() || null,
+      state: stateVal.trim() || null,
+      google_map_link: mapLink.trim() || null,
+      features,
+      nearby_highlights: nearby,
+      images,
     };
     if (isRent) {
       body.rent_per_month = num(rent);
@@ -144,7 +193,28 @@ function EditForm({ property }: { property: Property }) {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {error ? <Banner kind="error" text={error} /> : null}
 
+        <PropertyPhotoEditor images={images} onChange={setImages} />
+
         <TextField label="Title" value={title} onChangeText={setTitle} />
+
+        <SelectField
+          label="Type"
+          value={type}
+          placeholder="Choose a property type"
+          onPress={() => setSheet('type')}
+        />
+
+        <SectionLabel text="Listing type" />
+        <View style={styles.chips}>
+          {LISTING_TYPES.map((lt) => (
+            <FilterChip
+              key={lt.value}
+              label={lt.label}
+              active={listingType === lt.value}
+              onPress={() => setListingType(lt.value)}
+            />
+          ))}
+        </View>
 
         {isRent ? (
           <View style={styles.row}>
@@ -178,37 +248,75 @@ function EditForm({ property }: { property: Property }) {
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
-            <TextField
-              label="Bedrooms"
-              value={bedrooms}
-              onChangeText={setBedrooms}
-              keyboardType="numeric"
-            />
+            <TextField label="Bedrooms" value={bedrooms} onChangeText={setBedrooms} keyboardType="numeric" />
           </View>
           <View style={{ flex: 1 }}>
-            <TextField
-              label="Bathrooms"
-              value={bathrooms}
-              onChangeText={setBathrooms}
-              keyboardType="numeric"
-            />
+            <TextField label="Bathrooms" value={bathrooms} onChangeText={setBathrooms} keyboardType="numeric" />
           </View>
           <View style={{ flex: 1 }}>
-            <TextField
-              label={`Area (${property.area_unit || 'sqft'})`}
-              value={area}
-              onChangeText={setArea}
-              keyboardType="numeric"
-            />
+            <TextField label={`Area (${areaUnit})`} value={area} onChangeText={setArea} keyboardType="numeric" />
           </View>
         </View>
 
+        <SectionLabel text="Land & dimensions" />
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <TextField label="Land area" value={landArea} onChangeText={setLandArea} keyboardType="numeric" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextField label="Super built (sqft)" value={superBuilt} onChangeText={setSuperBuilt} keyboardType="numeric" />
+          </View>
+        </View>
+        <View style={styles.chips}>
+          {AREA_UNITS.map((u) => (
+            <FilterChip key={u} label={u} active={landAreaUnit === u} onPress={() => setLandAreaUnit(u)} />
+          ))}
+        </View>
+        <TextField label="Dimensions (e.g. 80x50)" value={dimensions} onChangeText={setDimensions} />
+        <SectionLabel text="Facing" />
+        <View style={styles.chips}>
+          {FACING_DIRECTIONS.map((d) => (
+            <FilterChip
+              key={d}
+              label={d}
+              active={facing === d}
+              onPress={() => setFacing(facing === d ? '' : d)}
+            />
+          ))}
+        </View>
+
+        <SectionLabel text="Location" />
+        <TextField label="Address / area" value={location} onChangeText={setLocation} />
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <TextField label="Locality" value={sublocality} onChangeText={setSublocality} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <TextField label="City" value={city} onChangeText={setCity} />
+          </View>
+        </View>
+        <TextField label="State" value={stateVal} onChangeText={setStateVal} />
         <TextField
-          label="Description"
-          value={description}
-          onChangeText={setDescription}
-          multiline
+          label="Google Maps link"
+          value={mapLink}
+          onChangeText={setMapLink}
+          autoCapitalize="none"
         />
+
+        <SelectField
+          label="Features"
+          value={features.length ? `${features.length} selected` : ''}
+          placeholder="Add amenities & features"
+          onPress={() => setSheet('features')}
+        />
+        <SelectField
+          label="Nearby highlights"
+          value={nearby.length ? `${nearby.length} selected` : ''}
+          placeholder="Metro, school, mall…"
+          onPress={() => setSheet('nearby')}
+        />
+
+        <TextField label="Description" value={description} onChangeText={setDescription} multiline />
 
         <View style={styles.publishRow}>
           <View style={{ flex: 1, gap: 2 }}>
@@ -216,7 +324,7 @@ function EditForm({ property }: { property: Property }) {
               Published on showcase
             </Text>
             <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-              Unpublished listings stay internal to the CRM.
+              Unpublished listings stay internal to ConvoReal.
             </Text>
           </View>
           <Switch
@@ -229,10 +337,75 @@ function EditForm({ property }: { property: Property }) {
 
         <PrimaryButton label="Save changes" busy={saving} onPress={save} />
         <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-          Photos, documents, locality and deal terms are edited in the web app's full form.
+          Documents, floor tenancies and deal terms are still edited in the web app's full form.
         </Text>
       </ScrollView>
+
+      <OptionSheet
+        visible={sheet === 'type'}
+        onClose={() => setSheet(null)}
+        title="Property type"
+        groups={PROPERTY_TYPE_GROUPS}
+        selected={type ? [type] : []}
+        onChange={(v) => setType(v[0] ?? '')}
+      />
+      <OptionSheet
+        visible={sheet === 'features'}
+        onClose={() => setSheet(null)}
+        title="Features & amenities"
+        multi
+        groups={AMENITIES_BY_CATEGORY.map((c) => ({ group: c.category, options: c.items }))}
+        selected={features}
+        onChange={setFeatures}
+      />
+      <OptionSheet
+        visible={sheet === 'nearby'}
+        onClose={() => setSheet(null)}
+        title="Nearby highlights"
+        multi
+        groups={[{ options: NEARBY_HIGHLIGHTS_OPTIONS }]}
+        selected={nearby}
+        onChange={setNearby}
+      />
     </KeyboardAvoidingView>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  placeholder,
+  onPress,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onPress: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <View style={{ gap: 6 }}>
+      <SectionLabel text={label} />
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        style={[styles.select, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      >
+        <Text
+          style={{
+            flex: 1,
+            fontSize: 15,
+            fontFamily: f.medium,
+            color: value ? colors.text : colors.textFaint,
+          }}
+          numberOfLines={1}
+        >
+          {value || placeholder}
+        </Text>
+        <Ionicons name="chevron-down" size={18} color={colors.textFaint} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -240,6 +413,15 @@ const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   row: { flexDirection: 'row', gap: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  select: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    minHeight: 48,
+  },
   publishRow: {
     flexDirection: 'row',
     alignItems: 'center',
