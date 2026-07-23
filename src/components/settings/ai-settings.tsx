@@ -161,7 +161,7 @@ export function AiSettingsPanel() {
                       Paid API
                     </span>
                   </div>
-                  <h4 className="text-base font-bold text-slate-100">Imagen 4.0</h4>
+                  <h4 className="text-base font-bold text-slate-100">Google Gemini Image</h4>
                   <p className="text-[11px] text-slate-400 leading-normal">
                     Generates ultra-high-quality property visuals using Google AI Studio. Faster processing with consistent performance (no queue wait times).
                   </p>
