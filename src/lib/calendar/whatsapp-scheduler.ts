@@ -22,6 +22,7 @@ import {
   type ParsedEventDraft,
 } from '@/lib/calendar/event-parse';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
+import { createNotification } from '@/lib/notifications/create';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -478,6 +479,10 @@ export interface InboundSchedulingParams {
   conversation: { id: string };
   accountId: string;
   ownerUserId: string;
+  /** The agent this lead's conversation is routed to; the booking is
+   *  assigned to them and they get the notification. Falls back to the
+   *  account owner when the conversation is unassigned. */
+  assignedAgentUserId?: string | null;
   accessToken: string;
   phoneNumberId: string;
 }
@@ -493,8 +498,9 @@ export interface InboundSchedulingParams {
  * Returns true when an appointment was created and the lead acknowledged.
  */
 export async function tryHandleInboundScheduling(params: InboundSchedulingParams): Promise<boolean> {
-  const { message, contentText, contactRecord, conversation, accountId, ownerUserId, accessToken, phoneNumberId } = params;
+  const { message, contentText, contactRecord, conversation, accountId, ownerUserId, assignedAgentUserId, accessToken, phoneNumberId } = params;
   const text = contentText?.trim() || '';
+  const agentUserId = assignedAgentUserId || ownerUserId;
 
   if (!ownerUserId || message.type !== 'text' || !text || !looksLikeSchedulingText(text)) {
     return false;
@@ -533,27 +539,71 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     (p) => `${p.property_code || ''} ${p.title || ''} ${p.location || ''} ${p.sublocality || ''}`
   );
 
-  const { error } = await admin.from('appointments').insert({
-    account_id: accountId,
-    user_id: ownerUserId,
-    assigned_to: ownerUserId,
-    title: draft.title,
-    description: draft.notes,
-    event_type: draft.event_type,
-    start_time: startIso,
-    end_time: endIso,
-    location: draft.location,
-    status: 'scheduled',
-    contact_id: contactRecord.id,
-    contact_ids: [contactRecord.id],
-    property_id: property?.id || null,
-    source: 'whatsapp',
-    transcript: text,
-  });
+  const { data: inserted, error } = await admin
+    .from('appointments')
+    .insert({
+      account_id: accountId,
+      user_id: ownerUserId,
+      assigned_to: agentUserId,
+      title: draft.title,
+      description: draft.notes,
+      event_type: draft.event_type,
+      start_time: startIso,
+      end_time: endIso,
+      location: draft.location,
+      status: 'scheduled',
+      contact_id: contactRecord.id,
+      contact_ids: [contactRecord.id],
+      property_id: property?.id || null,
+      source: 'whatsapp',
+      transcript: text,
+    })
+    .select('id')
+    .single();
   if (error) {
     console.error('[wa-scheduler] inbound appointment insert failed:', error);
     return false;
   }
+
+  const whenLabel = new Date(startIso).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  const leadName = contactRecord.name || contactRecord.phone;
+  await createNotification({
+    accountId,
+    userId: agentUserId,
+    type: 'appointment_booked',
+    title: `New booking from ${leadName}`,
+    body: [
+      `${draft.title}`,
+      `🕐 ${whenLabel}`,
+      property ? `🏠 ${property.title}` : null,
+      draft.location ? `📌 ${draft.location}` : null,
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n'),
+    entityType: 'appointment',
+    entityId: inserted.id as string,
+    link: '/calendar',
+    whatsappText: [
+      '📅 *New booking from a lead*',
+      `👤 ${leadName}`,
+      `${EVENT_TYPE_EMOJI[draft.event_type] || '🗓'} ${draft.title}`,
+      `🕐 ${whenLabel}`,
+      property ? `🏠 ${property.title}` : null,
+      draft.location ? `📌 ${draft.location}` : null,
+      '',
+      '_Confirm or adjust it on your Calendar._',
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n'),
+  });
 
   await replyAndLog({
     phoneNumberId,

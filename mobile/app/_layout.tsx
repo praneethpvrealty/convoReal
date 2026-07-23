@@ -21,6 +21,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuroraBackground } from '@/components/aurora-background';
 import { ConvoRealLoader } from '@/components/loader';
 import { useAuthListener, useAuthStore } from '@/lib/auth-store';
+import { usePushRegistration } from '@/lib/push';
 import { asyncStoragePersister, queryClient } from '@/lib/query';
 import { useTheme } from '@/lib/theme';
 
@@ -28,6 +29,7 @@ export default function RootLayout() {
   useAuthListener();
   const { colors, dark } = useTheme();
   const session = useAuthStore((s) => s.session);
+  usePushRegistration(!!session);
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,

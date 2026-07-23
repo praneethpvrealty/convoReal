@@ -89,6 +89,12 @@
           "photosPermission": "ConvoReal adds photos you choose to your property listings.",
           "cameraPermission": "ConvoReal uses the camera to add photos to your property listings."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0A1F16"
+        }
       ]
     ],
     "experiments": {
