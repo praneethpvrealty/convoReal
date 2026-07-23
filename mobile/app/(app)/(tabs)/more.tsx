@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { ProfileEditSheet } from '@/components/profile-edit-sheet';
+import { SubscriptionCard } from '@/components/subscription-card';
 import { Avatar, SectionLabel } from '@/components/ui';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import {
@@ -88,6 +89,8 @@ export default function MoreScreen() {
           value={credits.isLoading ? '…' : String(credits.total)}
         />
       </View>
+
+      <SubscriptionCard />
 
       <SectionLabel text="Workspace" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
