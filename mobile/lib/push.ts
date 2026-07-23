@@ -2,20 +2,8 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 
 import { registerDevice } from './api';
-
-// Foreground notifications still surface a banner + sound rather than
-// being swallowed while the app is open.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
 
 function projectId(): string | undefined {
   return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
@@ -23,6 +11,29 @@ function projectId(): string | undefined {
 
 async function registerForPushNotifications(): Promise<void> {
   if (!Device.isDevice) return;
+
+  // Loaded lazily: remote notifications were removed from Expo Go (SDK
+  // 53+), where importing the module throws. Keeping it out of the
+  // module top level lets the app boot in Expo Go with push simply
+  // disabled; a development/production build has the native module and
+  // registers normally.
+  let Notifications: typeof import('expo-notifications');
+  try {
+    Notifications = await import('expo-notifications');
+  } catch {
+    return;
+  }
+
+  // Foreground notifications still surface a banner + sound rather than
+  // being swallowed while the app is open.
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
