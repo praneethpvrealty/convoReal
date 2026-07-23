@@ -12,6 +12,7 @@ import {
   Pencil,
   RotateCcw,
   Send,
+  Upload,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -42,6 +43,7 @@ import type {
   TemplateSampleValues,
 } from '@/types';
 import { templateStatusConfig } from '@/lib/template-status';
+import { storagePublicUrl } from '@/lib/storage/url';
 import {
   extractVariableIndices,
   TEMPLATE_LIMITS,
@@ -149,6 +151,7 @@ export function TemplateManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [uploadingHeader, setUploadingHeader] = useState(false);
   const [form, setForm] = useState<TemplateFormData>(emptyForm);
   // Non-null when the dialog is pre-filled from an existing row (edit
   // OR submitting a not-yet-submitted DRAFT) — set to the template id.
@@ -476,6 +479,47 @@ export function TemplateManager() {
       ...prev,
       buttons: [...prev.buttons, emptyButton('QUICK_REPLY')],
     }));
+  }
+
+  async function handleHeaderUpload(file: File) {
+    if (!accountId) return;
+    const bucket =
+      form.header_format === 'video'
+        ? 'property-videos'
+        : form.header_format === 'document'
+          ? 'property-documents'
+          : 'property-images';
+    const dotExt = file.name.includes('.')
+      ? file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase()
+      : form.header_format === 'video'
+        ? 'mp4'
+        : form.header_format === 'document'
+          ? 'pdf'
+          : 'jpg';
+    const randomStr = Math.random().toString(36).substring(2, 7);
+    const path = `${accountId}/template-headers/${Date.now()}-${randomStr}.${dotExt}`;
+
+    setUploadingHeader(true);
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type || undefined,
+        });
+      if (uploadError) throw uploadError;
+      setForm((prev) => ({
+        ...prev,
+        header_media_url: storagePublicUrl(`${bucket}/${path}`),
+      }));
+      toast.success('Sample uploaded');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      toast.error(message);
+    } finally {
+      setUploadingHeader(false);
+    }
   }
 
   // Keep spinning while the profile row is still resolving — role and
@@ -867,24 +911,68 @@ export function TemplateManager() {
 
               {headerNeedsMedia && (
                 <div className="mt-2 space-y-2">
-                  <Input
-                    placeholder={`https://… (public link to a sample ${form.header_format})`}
-                    value={form.header_media_url}
-                    onChange={(e) =>
-                      setForm({ ...form, header_media_url: e.target.value })
-                    }
-                    className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder={`https://… (public link to a sample ${form.header_format})`}
+                      value={form.header_media_url}
+                      onChange={(e) =>
+                        setForm({ ...form, header_media_url: e.target.value })
+                      }
+                      className="border-slate-700 bg-slate-800 text-white placeholder:text-slate-500"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={uploadingHeader}
+                      onClick={() =>
+                        document
+                          .getElementById('header-media-upload')
+                          ?.click()
+                      }
+                      className="shrink-0 border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
+                    >
+                      {uploadingHeader ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Upload className="size-4" />
+                      )}
+                      Upload
+                    </Button>
+                    <input
+                      id="header-media-upload"
+                      type="file"
+                      hidden
+                      accept={
+                        form.header_format === 'video'
+                          ? 'video/mp4'
+                          : form.header_format === 'document'
+                            ? 'application/pdf'
+                            : 'image/png,image/jpeg,image/webp'
+                      }
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) void handleHeaderUpload(file);
+                      }}
+                    />
+                  </div>
+                  {form.header_media_url && form.header_format === 'image' && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={storagePublicUrl(form.header_media_url)}
+                      alt="Header sample preview"
+                      className="max-h-32 rounded-md border border-slate-700 object-cover"
+                    />
+                  )}
                   <p className="text-[11px] leading-relaxed text-slate-500">
-                    Must be publicly accessible HTTPS. Meta fetches it once
-                    during review, so the file needs to stay live for ~24 hrs.
+                    Paste a public HTTPS link or upload a file. Meta fetches it
+                    once during review, so it needs to stay live for ~24 hrs.
                     {form.header_format === 'image' &&
                       ' Recommended: JPEG or PNG, ≥800×418 px, ≤5 MB.'}
                     {form.header_format === 'video' &&
-                      ' Recommended: MP4 / 3GPP, ≤16 MB, ≤60 seconds.'}
+                      ' Recommended: MP4, ≤16 MB, ≤60 seconds.'}
                     {form.header_format === 'document' &&
-                      ' Recommended: PDF, ≤100 MB.'}{' '}
-                    Direct file upload is coming in a follow-up.
+                      ' Recommended: PDF, ≤10 MB.'}
                   </p>
                 </div>
               )}
