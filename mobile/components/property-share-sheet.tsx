@@ -313,6 +313,7 @@ export function PropertyShareSheet({
         <SectionLabel text="Message — tap to edit" />
         <TextInput
           multiline
+          scrollEnabled={false}
           value={message}
           onChangeText={setMessage}
           accessibilityLabel="Share message"
@@ -460,7 +461,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
     minHeight: 140,
-    maxHeight: 220,
     textAlignVertical: 'top',
   },
   linkRow: {
