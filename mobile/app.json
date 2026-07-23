@@ -108,7 +108,7 @@
     },
     "owner": "praneethpvrealtys-team",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "updates": {
       "url": "https://u.expo.dev/35ac40bb-d476-4b1f-ae5f-139b38e409dd"
