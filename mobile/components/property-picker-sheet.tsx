@@ -162,6 +162,7 @@ export function PropertyPickerSheet({
             <SectionLabel text={`Message — ${selected.length} selected · tap to edit`} />
             <TextInput
               multiline
+              scrollEnabled={false}
               value={message}
               onChangeText={(t) => {
                 setEdited(true);
@@ -294,7 +295,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
     minHeight: 120,
-    maxHeight: 200,
     textAlignVertical: 'top',
   },
   sendButton: {
