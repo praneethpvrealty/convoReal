@@ -28,11 +28,43 @@ import type {
 
 type DB = SupabaseClient
 
+// The account owner texting their own CRM WhatsApp number is not a lead;
+// those self-chats are archived (webhook-handler + migration 154's
+// backfill), so `conversations.is_archived = false` cleanly excludes them
+// from every dashboard metric and the activity feed. Contacts carry no
+// archive flag, so we exclude the owner's own contact by the contact_ids
+// attached to archived conversations.
+async function archivedContactIds(db: DB): Promise<string[]> {
+  const { data } = await db.from('conversations').select('contact_id').eq('is_archived', true)
+  const ids = new Set<string>()
+  for (const r of (data ?? []) as { contact_id: string | null }[]) {
+    if (r.contact_id) ids.add(r.contact_id)
+  }
+  return Array.from(ids)
+}
+
 // --- 1. Metric cards ---------------------------------------------------
 
 export async function loadMetrics(db: DB): Promise<MetricsBundle> {
   const todayStart = startOfLocalDay().toISOString()
   const yesterdayStart = daysAgoStart(1).toISOString()
+
+  const excludedContacts = await archivedContactIds(db)
+  const ownContactFilter = excludedContacts.length > 0 ? `(${excludedContacts.join(',')})` : null
+
+  let newContactsTodayQ = db
+    .from('contacts')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', todayStart)
+  let newContactsYesterdayQ = db
+    .from('contacts')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', yesterdayStart)
+    .lt('created_at', todayStart)
+  if (ownContactFilter) {
+    newContactsTodayQ = newContactsTodayQ.not('id', 'in', ownContactFilter)
+    newContactsYesterdayQ = newContactsYesterdayQ.not('id', 'in', ownContactFilter)
+  }
 
   const [
     openConvCur,
@@ -44,34 +76,34 @@ export async function loadMetrics(db: DB): Promise<MetricsBundle> {
     messagesToday,
     messagesYesterday,
   ] = await Promise.all([
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open').eq('is_archived', false),
     db
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')
+      .eq('is_archived', false)
       .gte('created_at', todayStart),
     db
       .from('conversations')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')
+      .eq('is_archived', false)
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
-    db.from('contacts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-    db
-      .from('contacts')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
+    newContactsTodayQ,
+    newContactsYesterdayQ,
     db.from('deals').select('value, brokerage_amount, status').eq('status', 'open'),
     db
       .from('messages')
-      .select('id', { count: 'exact', head: true })
+      .select('id, conversations!inner(is_archived)', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
+      .eq('conversations.is_archived', false)
       .gte('created_at', todayStart),
     db
       .from('messages')
-      .select('id', { count: 'exact', head: true })
+      .select('id, conversations!inner(is_archived)', { count: 'exact', head: true })
       .eq('sender_type', 'agent')
+      .eq('conversations.is_archived', false)
       .gte('created_at', yesterdayStart)
       .lt('created_at', todayStart),
   ])
@@ -114,7 +146,8 @@ export async function loadConversationsSeries(
   const start = daysAgoStart(rangeDays - 1).toISOString()
   const { data, error } = await db
     .from('messages')
-    .select('created_at, sender_type')
+    .select('created_at, sender_type, conversations!inner(is_archived)')
+    .eq('conversations.is_archived', false)
     .gte('created_at', start)
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -187,7 +220,8 @@ export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
   const fourteenDaysAgo = daysAgoStart(13).toISOString()
   const { data, error } = await db
     .from('messages')
-    .select('conversation_id, sender_type, created_at')
+    .select('conversation_id, sender_type, created_at, conversations!inner(is_archived)')
+    .eq('conversations.is_archived', false)
     .gte('created_at', fourteenDaysAgo)
     .order('conversation_id', { ascending: true })
     .order('created_at', { ascending: true })
@@ -286,6 +320,7 @@ export async function loadUnassignedQueueDepth(db: DB): Promise<number> {
     .from('conversations')
     .select('id', { count: 'exact', head: true })
     .eq('status', 'open')
+    .eq('is_archived', false)
     .is('assigned_agent_id', null)
     .is('assigned_team_id', null)
   if (error) throw error
@@ -297,6 +332,7 @@ export async function loadAgentLoad(db: DB): Promise<AgentLoadEntry[]> {
     .from('conversations')
     .select('assigned_agent_id')
     .eq('status', 'open')
+    .eq('is_archived', false)
     .not('assigned_agent_id', 'is', null)
   if (error) throw error
 
@@ -327,11 +363,13 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   // Pull ~10 from each source (plenty of headroom after merge-sort),
   // then interleave by timestamp. The individual per-table limits
   // keep the payload small; the final limit is enforced after sort.
+  const excludedContacts = new Set(await archivedContactIds(db))
   const [msgs, contacts, deals, broadcasts, autoLogs] = await Promise.all([
     db
       .from('messages')
-      .select('id, content_text, sender_type, created_at, conversation_id, conversations(contact_id, contacts(name, phone))')
+      .select('id, content_text, sender_type, created_at, conversation_id, conversations!inner(contact_id, is_archived, contacts(name, phone))')
       .eq('sender_type', 'customer')
+      .eq('conversations.is_archived', false)
       .order('created_at', { ascending: false })
       .limit(10),
     db
@@ -383,6 +421,7 @@ export async function loadActivity(db: DB, limit = 20): Promise<ActivityItem[]> 
   }
 
   for (const c of (contacts.data ?? []) as Array<{ id: string; name: string | null; phone: string; created_at: string }>) {
+    if (excludedContacts.has(c.id)) continue
     items.push({
       id: `contact-${c.id}`,
       kind: 'contact',
