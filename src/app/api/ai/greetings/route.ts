@@ -5,6 +5,7 @@ import { checkPlanLimit, gateResponse } from '@/lib/billing/gates';
 import { burnCredits, refundCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { generateText } from '@/lib/ai/gemini';
+import { generateAiImage } from '@/lib/ai/image-gen';
 
 // POST /api/ai/greetings
 // Generates a personalized text greeting and a festive graphic card image
@@ -35,10 +36,11 @@ export async function POST(request: Request) {
 
     const { occasion, contactName, generateImage = false } = body;
 
-    // Validate Hugging Face config if image is requested
-    if (generateImage && !process.env.HF_ACCESS_TOKEN) {
+    // Validate image-provider config if a card image is requested. Either
+    // a Hugging Face token or a Gemini key (Imagen fallback) works.
+    if (generateImage && !process.env.HF_ACCESS_TOKEN && !process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: 'HF_ACCESS_TOKEN is not configured on the server. Image generation is disabled.' },
+        { error: 'No AI image provider is configured (HF_ACCESS_TOKEN or GEMINI_API_KEY). Image generation is disabled.' },
         { status: 400 },
       );
     }
@@ -67,28 +69,16 @@ export async function POST(request: Request) {
       
       textResult = await generateText(prompt, systemInstruction, { feature: 'greetings_generate' });
 
-      // 2. Generate graphic card image via Hugging Face if requested
+      // 2. Generate graphic card image if requested. Uses the shared
+      // generator (Hugging Face free path, Imagen fallback). Image
+      // failure never fails the request — the text greeting still ships.
       if (generateImage) {
         const imagePrompt = getImagePromptForOccasion(occasion);
-        const hfToken = process.env.HF_ACCESS_TOKEN;
-        const url = 'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell';
-
-        console.log(`[Greetings AI] Generating image using HuggingFace with prompt: "${imagePrompt}"`);
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${hfToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ inputs: imagePrompt }),
-        });
-
-        if (!response.ok) {
-          console.error(`[Greetings AI] Image generation failed: ${response.statusText}`);
-          // We don't crash the entire request if image generation fails, just return the text greeting
-        } else {
-          const buffer = await response.arrayBuffer();
-          imageResult = `data:image/jpeg;base64,${Buffer.from(buffer).toString('base64')}`;
+        console.log(`[Greetings AI] Generating card image with prompt: "${imagePrompt}"`);
+        try {
+          imageResult = await generateAiImage({ prompt: imagePrompt, provider: 'huggingface' });
+        } catch (imgErr) {
+          console.error('[Greetings AI] Image generation failed, returning text only:', (imgErr as Error).message);
         }
       }
 
