@@ -32,8 +32,10 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
   const [primaryText, setPrimaryText] = useState('');
   const [generating, setGenerating] = useState(false);
 
+  const [targetMode, setTargetMode] = useState<'radius' | 'city'>('radius');
+  const [targetCity, setTargetCity] = useState('');
   const [radiusKm, setRadiusKm] = useState(5);
-  const [dailyBudget, setDailyBudget] = useState(500);
+  const [dailyBudget, setDailyBudget] = useState('500');
   const [durationDays, setDurationDays] = useState<number | null>(14);
 
   const [policyChecked, setPolicyChecked] = useState(false);
@@ -49,8 +51,10 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
     setSelectedImage(images[0] ?? '');
     setHeadline('');
     setPrimaryText('');
+    setTargetMode('radius');
+    setTargetCity('');
     setRadiusKm(5);
-    setDailyBudget(500);
+    setDailyBudget('500');
     setDurationDays(14);
     setPolicyChecked(false);
     setLaunched(false);
@@ -103,9 +107,10 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           property_id: property.id,
-          daily_budget_inr: dailyBudget,
+          daily_budget_inr: budgetNum,
           duration_days: durationDays ?? undefined,
           radius_km: radiusKm,
+          target_city: targetMode === 'city' ? targetCity.trim() : undefined,
           headline,
           primary_text: primaryText,
           image_url: selectedImage,
@@ -127,7 +132,10 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
   if (!property) return null;
 
   const canContinueCreative = !!selectedImage && headline.trim().length > 0 && primaryText.trim().length > 0;
-  const totalEstimate = durationDays ? dailyBudget * durationDays : null;
+  const budgetNum = Number(dailyBudget) || 0;
+  const totalEstimate = durationDays ? budgetNum * durationDays : null;
+  const canContinueBudget =
+    budgetNum >= BUDGET_BOUNDS.minInr && (targetMode === 'radius' || targetCity.trim().length > 1);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -265,29 +273,62 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
             {step === 'budget' && (
               <div className="space-y-5">
                 <div>
-                  <label className="text-sm font-medium">
-                    Target radius: <span className="text-primary">{radiusKm} km</span> around this property
-                  </label>
-                  <input
-                    type="range"
-                    min={RADIUS_BOUNDS.minKm}
-                    max={RADIUS_BOUNDS.maxKm}
-                    value={radiusKm}
-                    onChange={(e) => setRadiusKm(Number(e.target.value))}
-                    className="w-full mt-2"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    If this property has no map location set, we&apos;ll target its city instead.
-                  </p>
+                  <label className="text-sm font-medium">Who should see this ad?</label>
+                  <div className="flex gap-2 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setTargetMode('radius')}
+                      className={`text-xs px-3 py-1.5 rounded-full border ${targetMode === 'radius' ? 'border-primary text-primary' : 'text-muted-foreground'}`}
+                    >
+                      Near this property
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTargetMode('city')}
+                      className={`text-xs px-3 py-1.5 rounded-full border ${targetMode === 'city' ? 'border-primary text-primary' : 'text-muted-foreground'}`}
+                    >
+                      A specific city
+                    </button>
+                  </div>
+
+                  {targetMode === 'radius' ? (
+                    <div className="mt-3">
+                      <label className="text-sm">
+                        Radius: <span className="text-primary">{radiusKm} km</span> around this property
+                      </label>
+                      <input
+                        type="range"
+                        min={RADIUS_BOUNDS.minKm}
+                        max={RADIUS_BOUNDS.maxKm}
+                        value={radiusKm}
+                        onChange={(e) => setRadiusKm(Number(e.target.value))}
+                        className="w-full mt-2"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        If this property has no map location set, we&apos;ll target its city instead.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-3">
+                      <Input
+                        value={targetCity}
+                        onChange={(e) => setTargetCity(e.target.value)}
+                        placeholder="e.g. Bengaluru"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1.5">
+                        Reach buyers in another city — useful when your audience isn&apos;t local to the property (e.g. Bengaluru buyers for a Coorg homestay).
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
                   <label className="text-sm font-medium">Daily budget (₹)</label>
                   <Input
-                    type="number"
-                    min={BUDGET_BOUNDS.minInr}
+                    type="text"
+                    inputMode="numeric"
                     value={dailyBudget}
-                    onChange={(e) => setDailyBudget(Number(e.target.value))}
+                    onChange={(e) => setDailyBudget(e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, ''))}
                     className="mt-1.5"
                   />
                   <div className="flex gap-2 mt-2">
@@ -295,8 +336,8 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
                       <button
                         key={b}
                         type="button"
-                        onClick={() => setDailyBudget(b)}
-                        className={`text-xs px-2.5 py-1 rounded-full border ${dailyBudget === b ? 'border-primary text-primary' : 'text-muted-foreground'}`}
+                        onClick={() => setDailyBudget(String(b))}
+                        className={`text-xs px-2.5 py-1 rounded-full border ${budgetNum === b ? 'border-primary text-primary' : 'text-muted-foreground'}`}
                       >
                         ₹{b}
                       </button>
@@ -335,7 +376,7 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
                   <Button variant="ghost" onClick={() => setStep('creative')}>
                     <ArrowLeft className="h-4 w-4 mr-1.5" /> Back
                   </Button>
-                  <Button onClick={() => setStep('review')} disabled={dailyBudget < BUDGET_BOUNDS.minInr}>
+                  <Button onClick={() => setStep('review')} disabled={!canContinueBudget}>
                     Continue
                   </Button>
                 </div>
@@ -345,12 +386,12 @@ export function PromotePropertyDialog({ open, onOpenChange, property }: PromoteP
             {step === 'review' && (
               <div className="space-y-4">
                 <div className="rounded-lg border p-4 space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Daily budget</span><span>₹{dailyBudget}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Daily budget</span><span>₹{budgetNum}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Duration</span><span>{durationDays ? `${durationDays} days` : 'Ongoing'}</span></div>
                   {totalEstimate !== null && (
                     <div className="flex justify-between font-medium"><span>Estimated total spend</span><span>₹{totalEstimate.toLocaleString('en-IN')}</span></div>
                   )}
-                  <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span>{radiusKm} km radius</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Target</span><span>{targetMode === 'city' ? targetCity.trim() : `${radiusKm} km radius`}</span></div>
                 </div>
 
                 <label className="flex items-start gap-2 text-xs text-muted-foreground">
