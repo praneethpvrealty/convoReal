@@ -47,6 +47,7 @@ export function OptionSheet({
         style={{ maxHeight: 440 }}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {groups.map((g) => (
           <View key={g.group ?? 'all'}>

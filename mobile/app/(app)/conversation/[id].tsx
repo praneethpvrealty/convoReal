@@ -539,6 +539,7 @@ function Composer({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.suggestionScroll}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
             {suggestions.map((s, i) => (
               <Pressable

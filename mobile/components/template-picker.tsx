@@ -172,6 +172,7 @@ export function TemplatePicker({
               style={{ maxHeight: 420 }}
               contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
             >
               {Array.from({ length: varCount }, (_, i) => (
                 <TextField

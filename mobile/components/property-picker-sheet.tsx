@@ -142,7 +142,8 @@ export function PropertyPickerSheet({
               subtitle="No listings match this search."
             />
           ) : (
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <ScrollView keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
               <View style={{ gap: spacing.sm }}>
                 {results.map((property) => (
                   <PickerRow

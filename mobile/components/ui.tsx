@@ -212,9 +212,14 @@ export function Tag({ label, color }: { label: string; color?: string }) {
         backgroundColor: colors.glass,
         borderWidth: 1,
         borderColor: colors.glassBorder,
+        // In a tight row the tag truncates rather than crushing its
+        // sibling (e.g. a long name_tag squeezing the agent's name out).
+        flexShrink: 1,
       }}
     >
-      <Text style={{ fontSize: 11, fontFamily: f.bold, color: fg }}>{label}</Text>
+      <Text style={{ fontSize: 11, fontFamily: f.bold, color: fg }} numberOfLines={1}>
+        {label}
+      </Text>
     </View>
   );
 }

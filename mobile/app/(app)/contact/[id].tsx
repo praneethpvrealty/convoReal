@@ -192,7 +192,8 @@ function ContactCard({ contact }: { contact: Contact }) {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag">
       {contact.status === 'pending_review' ? (
         <ReviewBanner
           contact={contact}
@@ -545,7 +546,8 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag">
         {error ? <Banner kind="error" text={error} /> : null}
 
         <TextField label="Name" value={name} onChangeText={setName} placeholder="Full name" />

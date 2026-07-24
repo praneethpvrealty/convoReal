@@ -101,7 +101,8 @@ export default function DenLoginScreen() {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag">
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
             <View style={[styles.iconBadge, { backgroundColor: colors.successSoft }]}>
               <Ionicons name="home" size={32} color={colors.success} />

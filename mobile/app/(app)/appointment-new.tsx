@@ -127,7 +127,8 @@ export default function NewAppointmentScreen() {
           title: 'New appointment',
         }}
       />
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag">
         {error ? <Banner kind="error" text={error} /> : null}
 
         <TextField

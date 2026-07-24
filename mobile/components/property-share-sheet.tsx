@@ -266,6 +266,7 @@ export function PropertyShareSheet({
         style={{ maxHeight: scrollMax }}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm }}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <AudienceCard
