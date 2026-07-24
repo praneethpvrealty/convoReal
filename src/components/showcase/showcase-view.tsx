@@ -856,6 +856,10 @@ export function ShowcaseView({
         result = result.filter((p) => parsed.types.includes(p.type));
       }
 
+      if (parsed.rentYielding) {
+        result = result.filter((p) => (p.rental_income ?? 0) > 0 || (p.roi ?? 0) > 0);
+      }
+
       // Apply text search on remaining search terms
       if (parsed.remainingSearch) {
         const text = parsed.remainingSearch;

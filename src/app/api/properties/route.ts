@@ -163,6 +163,10 @@ export async function GET(request: Request) {
           query = query.eq("listing_type", parsed.listingType);
         }
 
+        if (parsed.rentYielding) {
+          query = query.or("rental_income.gt.0,roi.gt.0");
+        }
+
         // Apply type filter from NL query ONLY when the dropdown type filter
         // hasn't been set — they would conflict and produce zero results otherwise.
         if (parsed.types.length > 0 && !type) {

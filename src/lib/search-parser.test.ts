@@ -90,4 +90,35 @@ describe('parsePropertyQuery', () => {
     expect(res.types).toContain('Villa');
     expect(res.remainingSearch).toBe('whitefield');
   });
+
+  it('should parse rent yielding queries without misreading rent as listing type', () => {
+    const res = parsePropertyQuery('rent yielding commercial > 10 cr');
+    expect(res.rentYielding).toBe(true);
+    expect(res.listingType).toBeNull();
+    expect(res.minPrice).toBe(100000001);
+    expect(res.maxPrice).toBeNull();
+    expect(res.types).toContain('Commercial');
+    expect(res.remainingSearch).toBe('');
+  });
+
+  it('should detect rent-yield intent from rental yield and pre-leased phrasing', () => {
+    const yieldRes = parsePropertyQuery('rental yield office above 5 cr');
+    expect(yieldRes.rentYielding).toBe(true);
+    expect(yieldRes.listingType).toBeNull();
+    expect(yieldRes.minPrice).toBe(50000000);
+    expect(yieldRes.types).toContain('Commercial Office Space');
+    expect(yieldRes.remainingSearch).toBe('');
+
+    const leasedRes = parsePropertyQuery('pre-leased commercial building');
+    expect(leasedRes.rentYielding).toBe(true);
+    expect(leasedRes.types).toContain('Commercial Building');
+    expect(leasedRes.remainingSearch).toBe('');
+  });
+
+  it('should still classify plain rent queries as Rent listings', () => {
+    const res = parsePropertyQuery('flats for rent in Whitefield');
+    expect(res.rentYielding).toBe(false);
+    expect(res.listingType).toBe('Rent');
+    expect(res.types).toContain('Flat/ Apartment');
+  });
 });

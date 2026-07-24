@@ -96,6 +96,7 @@ export async function GET(request: Request) {
       if (parsed.minPrice !== null) query = query.gte("price", parsed.minPrice);
       if (parsed.maxPrice !== null) query = query.lte("price", parsed.maxPrice);
       if (parsed.types.length > 0) query = query.in("type", parsed.types);
+      if (parsed.rentYielding) query = query.or("rental_income.gt.0,roi.gt.0");
       if (parsed.remainingSearch) {
         const escaped = parsed.remainingSearch.replace(/[\\"]/g, '\\$&');
         const term = `"%${escaped}%"`;

@@ -38,6 +38,7 @@ export interface ParsedQuery {
   bedrooms: number | null;
   types: string[];
   listingType: 'Sale' | 'Rent' | null;
+  rentYielding: boolean;
   locations: string[];
   remainingSearch: string;
 }
@@ -74,7 +75,8 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
 
   if (!q) {
     return { minPrice: null, maxPrice: null, minArea: null, maxArea: null,
-             bedrooms: null, types: [], listingType: null, locations: [], remainingSearch: '' };
+             bedrooms: null, types: [], listingType: null, rentYielding: false,
+             locations: [], remainingSearch: '' };
   }
 
   let minPrice: number | null = null;
@@ -83,6 +85,14 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   let maxArea: number | null = null;
   let bedrooms: number | null = null;
   let listingType: 'Sale' | 'Rent' | null = null;
+
+  // ── Rent-yield intent ─────────────────────────────────────────────────────
+  // "rent yielding commercial > 10 cr" is a sale of an income-producing
+  // asset — consume the phrase before listing-type detection so "rent"
+  // doesn't misclassify the query as a Rent listing.
+  const rentYieldPattern = /\b(?:rent(?:al)?[\s-]?yield(?:ing)?|rent(?:al)?[\s-]?income|income[\s-]?(?:generating|producing|yielding)|revenue[\s-]?generating|pre[\s-]?(?:leased|rented)|tenanted|leased[\s-]?out)\b/gi;
+  const rentYielding = rentYieldPattern.test(q);
+  if (rentYielding) q = q.replace(rentYieldPattern, ' ');
 
   // ── Listing type ──────────────────────────────────────────────────────────
   if (/\bfor\s+rent\b|\bto\s+rent\b|\brent(?:al)?\b|\blease\b/i.test(q)) {
@@ -270,6 +280,8 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     'office space','office','offices','it park','sez',
     'shop','shops','showroom','showrooms','retail space','retail',
     'warehouse','warehouses','godown','godowns',
+    'commercial building','commercial complex','commercial development',
+    'mixed use','mixed-use',
     'industrial building','industrial shed',
     'commercial','residential','agricultural',
   ];
@@ -289,7 +301,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     'from','to','range','between','and','in','at','for','near','around','about',
     'approx','under','above','below','over','more','less','than','the','a','an',
     'all','any','some','give','show','find','search','get','list','want',
-    'vacant','empty','open'];
+    'vacant','empty','open','yield','yielding'];
   FILLERS.sort((a, b) => b.length - a.length);
   FILLERS.forEach(f => {
     remaining = remaining.replace(new RegExp(`\\b${f}\\b`, 'gi'), '');
@@ -305,6 +317,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     bedrooms,
     types,
     listingType,
+    rentYielding,
     locations,
     remainingSearch: remaining,
   };
