@@ -11,6 +11,7 @@ import {
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
+import { parseUpdateIntent } from '@/lib/whatsapp/update-intent'
 import {
   applyPreferenceFlowResponse,
   sendPreferenceFlowToContact,
@@ -2285,37 +2286,6 @@ async function handlePreferenceFlowNfmReply(
     senderType: 'bot',
     text: summarizePreferenceUpdate(update),
   })
-}
-
-function parseUpdateIntent(text: string): {
-  type: 'property' | 'contact' | null
-  identifier?: string
-} | null {
-  const cleaned = text.trim().toLowerCase()
-  
-  // Match patterns like "update property PROP-1018", "update contact", "update PROP-1018"
-  const propertyWithCode = /\bupdate\s+(?:property\s+)?(prop-?\d+)\b/i.exec(cleaned)
-  if (propertyWithCode) {
-    return { type: 'property', identifier: propertyWithCode[1].toUpperCase() }
-  }
-  
-  const propertyGeneric = /\bupdate\s+property\b/i.test(cleaned)
-  if (propertyGeneric) {
-    return { type: 'property' }
-  }
-  
-  const contactUpdate = /\bupdate\s+contact\b/i.test(cleaned)
-  if (contactUpdate) {
-    return { type: 'contact' }
-  }
-  
-  // Generic "update" might default to contact update for the current conversation
-  const genericUpdate = /^update$/i.test(cleaned)
-  if (genericUpdate) {
-    return { type: 'contact' }
-  }
-  
-  return null
 }
 
 // Org roles (org_manager > org_leader > org_coordinator > org_agent) are the

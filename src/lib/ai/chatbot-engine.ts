@@ -31,6 +31,7 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling } from '@/lib/calendar/whatsapp-scheduler';
+import { parseUpdateIntent } from '@/lib/whatsapp/update-intent';
 import {
   validateDraft,
   validateContactDraftsContainer,
@@ -609,6 +610,26 @@ export async function processOwnerChatbotMessage(
       inboundMediaMime = mimeType;
     }
     return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
+  }
+
+  // 1.6. Update-flow yield — "update property PROP-1018" style messages
+  // (and every reply while an update session is collecting) belong to the
+  // update_sessions flow in webhook-handler, which runs AFTER this chatbot.
+  // Returning false hands the message over instead of drafting a brand-new
+  // listing from it.
+  if (!propSession && !contactSession && message.type === 'text' && cleanedText) {
+    if (parseUpdateIntent(cleanedText)) {
+      return false;
+    }
+    const { data: activeUpdateSession } = await supabaseAdmin()
+      .from('update_sessions')
+      .select('id')
+      .eq('contact_id', contactRecord.id)
+      .eq('status', 'collecting')
+      .maybeSingle();
+    if (activeUpdateSession) {
+      return false;
+    }
   }
 
   // 1.7. Calendar scheduling intercept — voice notes and scheduling
