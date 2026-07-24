@@ -99,6 +99,8 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     listingType = 'Rent';
   } else if (/\bfor\s+sale\b|\bto\s+(?:buy|sell)\b|\bsale\b|\bsell\b/i.test(q)) {
     listingType = 'Sale';
+  } else if (rentYielding) {
+    listingType = 'Sale';
   }
 
   // ── Bedrooms ──────────────────────────────────────────────────────────────
