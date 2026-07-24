@@ -126,15 +126,25 @@ export function PropertyShareSheet({
     setTimeout(() => setCopied(null), 1500);
   }
 
-  // External WhatsApp: address the deep link to the picked contact and
-  // log the share on their timeline so it's tracked; "skip" keeps the
-  // old behaviour (WhatsApp's own contact chooser, untracked).
+  // External WhatsApp: address the deep link to the picked contact, tag the
+  // showcase link so their activity is attributed in Pulse, and log the
+  // share on their CRM timeline; "skip" keeps the old behaviour (WhatsApp's
+  // own contact chooser, untracked link).
   async function shareExternalWithContact(contact: Contact) {
     setPicker(null);
     haptic.send();
     void logExternalShare(contact, property);
     const phone = contact.phone.replace(/\D/g, '');
-    const text = addRecipientGreeting(message, contact.name);
+    // Tag the link with v=<contactId> so the recipient's opens, swipes and
+    // dwell show by name in Showcase Pulse instead of as an Anonymous Guest
+    // (v= only attributes events, never filters). `url` already carries
+    // ?property_id=, so &v= is a safe append; swap it into the (possibly
+    // edited) draft, or append the tracked link if the agent removed it.
+    const trackedUrl = `${url}&v=${contact.id}`;
+    const linked = message.includes(url)
+      ? message.split(url).join(trackedUrl)
+      : `${message}\n\n📸 Photos & full details:\n${trackedUrl}`;
+    const text = addRecipientGreeting(linked, contact.name);
     Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`);
     onClose();
   }
