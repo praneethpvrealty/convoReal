@@ -173,12 +173,12 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
         accountId: appt.account_id,
         userId: assigneeId as string,
         type: 'appointment_reminder',
+        eventKey: 'appointment_reminder',
         title: `Coming up at ${istTime(appt.start_time)}`,
         body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
         entityType: 'appointment',
         entityId: appt.id,
         link: '/calendar',
-        channels: { inApp: true, push: true, whatsapp: false },
       });
     } else {
       console.warn(`[Agent Reminder] send failed for appt ${appt.id}:`, result.error);
@@ -293,10 +293,10 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
       accountId: entry.accountId,
       userId: entry.userId,
       type: 'daily_digest',
+      eventKey: 'daily_digest',
       title: `☀️ Your schedule for ${label}`,
       body: `${apptCount} appointment${apptCount === 1 ? '' : 's'}${todoCount > 0 ? ` · ${todoCount} task${todoCount === 1 ? '' : 's'} due` : ''}`,
       link: '/calendar',
-      channels: { inApp: true, push: true, whatsapp: false },
     });
   }
 }
@@ -359,12 +359,12 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       accountId: appt.account_id,
       userId: assigneeId as string,
       type: 'appointment_overdue',
+      eventKey: 'appointment_overdue',
       title: `How did it go? ${appt.title}`,
       body: `${emoji} Scheduled for ${istTime(appt.start_time)} and still open — mark it complete or reschedule.`,
       entityType: 'appointment',
       entityId: appt.id,
       link: '/calendar',
-      channels: { inApp: true, push: true, whatsapp: false },
     });
   }
 }

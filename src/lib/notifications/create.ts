@@ -20,6 +20,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist, type DispatcherResult } from '@/lib/whatsapp/meta-api-dispatcher';
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { sendExpoPush } from '@/lib/notifications/push';
+import { resolveChannels } from '@/lib/notifications/preferences';
 
 export type NotificationType =
   | 'appointment_booked'
@@ -45,6 +46,11 @@ export interface CreateNotificationInput {
   entityId?: string | null;
   link?: string | null;
   channels?: NotificationChannels;
+  /** Catalog event key (src/lib/notifications/events.ts). When set and
+   *  `channels` is not passed, the channels come from the account's saved
+   *  Settings → Notifications preferences (falling back to the event's
+   *  defaults). Explicit `channels` always wins. */
+  eventKey?: string;
   /** Overrides the WhatsApp body when it should differ from title/body. */
   whatsappText?: string | null;
 }
@@ -61,7 +67,10 @@ export async function createNotification(input: CreateNotificationInput): Promis
   const result: NotificationResult = { inAppId: null, whatsapp: null, pushCount: 0 };
   if (!input.userId || !input.accountId) return result;
 
-  const channels = { ...DEFAULT_CHANNELS, ...(input.channels || {}) };
+  const resolved =
+    input.channels ??
+    (input.eventKey ? await resolveChannels(input.accountId, input.eventKey) : undefined);
+  const channels = { ...DEFAULT_CHANNELS, ...(resolved || {}) };
   const admin = supabaseAdmin();
 
   if (channels.inApp) {

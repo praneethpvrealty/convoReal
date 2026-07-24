@@ -579,6 +579,7 @@ export async function tryHandleInboundScheduling(params: InboundSchedulingParams
     accountId,
     userId: agentUserId,
     type: 'appointment_booked',
+    eventKey: 'appointment_booked',
     title: `New booking from ${leadName}`,
     body: [
       `${draft.title}`,
