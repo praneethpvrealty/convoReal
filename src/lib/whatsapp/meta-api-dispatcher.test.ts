@@ -19,7 +19,9 @@ const CONTACT_ID = "contact-1";
 
 type Row = Record<string, unknown>;
 
-function makeDb(overrides: { existingConversation?: Row | null } = {}) {
+function makeDb(
+  overrides: { existingConversation?: Row | null; duplicateMessage?: Row | null } = {},
+) {
   const inserts: Record<string, Row[]> = { conversations: [], messages: [] };
 
   function builder(table: string) {
@@ -27,6 +29,9 @@ function makeDb(overrides: { existingConversation?: Row | null } = {}) {
       select: () => b,
       eq: () => b,
       like: () => b,
+      gte: () => b,
+      order: () => b,
+      limit: () => b,
       update: () => b,
       insert: (payload: Row) => {
         inserts[table] = inserts[table] || [];
@@ -51,6 +56,9 @@ function makeDb(overrides: { existingConversation?: Row | null } = {}) {
             data: { phone: "+919876543210" },
             error: null,
           });
+        }
+        if (table === "messages") {
+          return Promise.resolve({ data: overrides.duplicateMessage ?? null, error: null });
         }
         return Promise.resolve({ data: null, error: null });
       },
@@ -170,5 +178,50 @@ describe("sendWhatsAppMessageAndPersist", () => {
 
     expect(result.success).toBe(true);
     expect(db._inserts.conversations).toHaveLength(0);
+  });
+
+  it("skips a duplicate substantial free-text send to the same conversation", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({
+      existingConversation: { id: "conv-existing" },
+      duplicateMessage: { id: "dup-1", message_id: "wamid.dup" },
+    });
+    const longText = "Here are the complete details for the property ".repeat(4);
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: longText,
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.messageId).toBe("dup-1");
+    expect(result.whatsappMessageId).toBe("wamid.dup");
+    // No new message row and no Meta call — it was collapsed as a duplicate.
+    expect(db._inserts.messages).toHaveLength(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not dedupe short repeated messages (only substantial text)", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({
+      existingConversation: { id: "conv-existing" },
+      duplicateMessage: { id: "dup-1", message_id: "wamid.dup" },
+    });
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: "ok",
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(db._inserts.messages).toHaveLength(1);
   });
 });

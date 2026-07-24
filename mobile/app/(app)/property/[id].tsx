@@ -112,6 +112,10 @@ export default function PropertyDetailScreen() {
     [property.location, property.sublocality, property.city, property.state]
       .filter(Boolean)
       .join(', ') || property.title;
+  // Only offer maps when the property has an actual pinned location —
+  // coordinates or a saved Google Maps link. A text-only address/city
+  // (e.g. "Coorg") would just open a vague search, so we hide it.
+  const hasMapLocation = hasCoords || !!property.google_map_link;
   const ownerPhone = property.owner?.phone;
   const area = property.area_sqft
     ? `${property.area_sqft} ${property.area_unit || 'sqft'}`
@@ -531,7 +535,7 @@ export default function PropertyDetailScreen() {
 
         {/* Only when the owner CTA isn't already the maps button and there's
             no inline map above — keeps a single "open maps" entry point. */}
-        {ownerPhone && !hasCoords && (property.google_map_link || place) ? (
+        {ownerPhone && !hasCoords && property.google_map_link ? (
           <Pressable
             style={[styles.mapButton, { borderColor: colors.border, backgroundColor: colors.surface }]}
             onPress={() =>
@@ -583,31 +587,33 @@ export default function PropertyDetailScreen() {
           {price}
         </Text>
       </View>
-      <Pressable
-        style={({ pressed }) => [
-          styles.ctaButton,
-          { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-        ]}
-        onPress={() =>
-          ownerPhone
-            ? Linking.openURL(`https://wa.me/${ownerPhone.replace(/\D/g, '')}`)
-            : openInMaps({
-                latitude: property.latitude,
-                longitude: property.longitude,
-                label: mapQuery,
-                fallbackUrl: property.google_map_link,
-              })
-        }
-      >
-        <Ionicons
-          name={ownerPhone ? 'logo-whatsapp' : 'map-outline'}
-          size={17}
-          color={colors.onPrimary}
-        />
-        <Text style={{ color: colors.onPrimary, fontSize: 15, fontFamily: f.bold }}>
-          {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
-        </Text>
-      </Pressable>
+      {ownerPhone || hasMapLocation ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.ctaButton,
+            { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+          ]}
+          onPress={() =>
+            ownerPhone
+              ? Linking.openURL(`https://wa.me/${ownerPhone.replace(/\D/g, '')}`)
+              : openInMaps({
+                  latitude: property.latitude,
+                  longitude: property.longitude,
+                  label: mapQuery,
+                  fallbackUrl: property.google_map_link,
+                })
+          }
+        >
+          <Ionicons
+            name={ownerPhone ? 'logo-whatsapp' : 'map-outline'}
+            size={17}
+            color={colors.onPrimary}
+          />
+          <Text style={{ color: colors.onPrimary, fontSize: 15, fontFamily: f.bold }}>
+            {ownerPhone ? 'WhatsApp Owner' : 'Open Maps'}
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
     </View>
   );
