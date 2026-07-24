@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check } from 'lucide-react';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { contactFullName } from '@/lib/contacts/full-name';
 
 interface Contact {
   id: string;
@@ -50,7 +51,7 @@ export function SearchableContactMultiSelect({
     if (!query) return contacts;
 
     return contacts.filter((c) => {
-      const name = (c.name || '').toLowerCase();
+      const name = contactFullName(c).toLowerCase();
       const phone = (c.phone || '').toLowerCase();
       return name.includes(query) || phone.includes(query);
     });
@@ -174,7 +175,7 @@ export function SearchableContactMultiSelect({
               >
                 <div className="min-w-0 pr-3 flex-1">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span className="font-bold truncate block min-w-0 flex-1">{contact.name}</span>
+                    <span className="font-bold truncate block min-w-0 flex-1">{contactFullName(contact)}</span>
                     <NameTagBadge tag={contact.name_tag} />
                   </div>
                   <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
@@ -208,7 +209,7 @@ export function SearchableContactMultiSelect({
                 key={c.id}
                 className="inline-flex items-center gap-1 rounded-full border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold text-violet-400 max-w-full"
               >
-                <span className="truncate">{c.name}</span>
+                <span className="truncate">{contactFullName(c)}</span>
                 <NameTagBadge tag={c.name_tag} />
                 <span
                   role="button"

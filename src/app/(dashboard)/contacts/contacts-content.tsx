@@ -66,6 +66,7 @@ import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
+import { contactFullName } from '@/lib/contacts/full-name';
 import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { CalendarDays } from 'lucide-react';
@@ -1015,7 +1016,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               : [];
             const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
 
-            let orFilter = `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+            let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
             if (cleanSearch) {
               orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
             }
@@ -1039,7 +1040,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             : [];
           const safeNoteIds = noteContactIds.slice(0, 150);
 
-          let orFilter = `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+          let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
           if (cleanSearch) {
             orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
           }
@@ -2029,7 +2030,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   <TableCell className="text-white font-medium py-3">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span>{contact.name || <span className="text-slate-500 italic text-xs">Unnamed</span>}</span>
+                        <span>{contactFullName(contact) || <span className="text-slate-500 italic text-xs">Unnamed</span>}</span>
                         {contact.name_tag && (
                           <span
                             className="inline-flex items-center bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"

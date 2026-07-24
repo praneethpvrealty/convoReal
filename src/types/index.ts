@@ -121,6 +121,10 @@ export interface Contact {
   phone: string;
   secondary_phones?: string[];
   name?: string;
+  /** Second name (surname) — with `name` forms the per-account unique
+   *  full name (migration 166). Never included in outbound messages,
+   *  which address the contact by `name` alone. */
+  second_name?: string | null;
   /** Name Tag — short internal qualifier shown after the name in the CRM
    *  (e.g. "Bank DSA"). Never included in outbound messages, which use
    *  `name` only (migration 122). */

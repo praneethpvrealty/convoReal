@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     const {
-      name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
+      name, second_name, name_tag, phone, secondary_phones, email, company, classification, lead_temp,
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo,
       property_interests, min_roi, source, dob, feedback_status,
@@ -48,6 +48,7 @@ export async function POST(request: Request) {
       user_id: ctx.userId,
       account_id: ctx.accountId,
       name: typeof name === 'string' ? name.trim() || null : null,
+      second_name: typeof second_name === 'string' ? second_name.trim() || null : null,
       name_tag: typeof name_tag === 'string' ? name_tag.trim() || null : null,
       phone: phone.trim(),
       secondary_phones: Array.isArray(secondary_phones)
@@ -81,6 +82,12 @@ export async function POST(request: Request) {
       .single();
 
     if (insertErr || !created) {
+      if (insertErr?.code === '23505') {
+        return NextResponse.json(
+          { error: `A contact named "${contactData.name} ${contactData.second_name}" already exists. Use a different second name to tell them apart.`, code: 'DUPLICATE_FULL_NAME' },
+          { status: 409 },
+        );
+      }
       console.error('[POST /api/contacts] Insert error:', insertErr);
       return NextResponse.json(
         { error: insertErr?.message ?? 'Failed to create contact' },
