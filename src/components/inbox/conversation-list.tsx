@@ -207,6 +207,9 @@ export function ConversationList({
       const { data, error } = await supabase
         .from("conversations")
         .select("*, contact:contacts(*)")
+        // Message-less conversation rows (opened by a flow whose send was
+        // blocked, e.g. outside the 24-hour window) have nothing to show.
+        .not("last_message_at", "is", null)
         .order("last_message_at", { ascending: false });
 
       if (cancelled) return;
