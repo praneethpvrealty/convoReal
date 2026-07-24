@@ -19,11 +19,18 @@ import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuroraBackground } from '@/components/aurora-background';
+import { AppErrorBoundary } from '@/components/error-boundary';
 import { ConvoRealLoader } from '@/components/loader';
 import { useAuthListener, useAuthStore } from '@/lib/auth-store';
 import { usePushRegistration } from '@/lib/push';
 import { asyncStoragePersister, queryClient } from '@/lib/query';
 import { useTheme } from '@/lib/theme';
+
+// Expo Router renders this instead of blanking the whole navigator when
+// a screen throws while rendering (see components/error-boundary).
+export function ErrorBoundary(props: React.ComponentProps<typeof AppErrorBoundary>) {
+  return <AppErrorBoundary {...props} />;
+}
 
 export default function RootLayout() {
   useAuthListener();
