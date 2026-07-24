@@ -12,11 +12,13 @@ function projectId(): string | undefined {
 async function registerForPushNotifications(): Promise<void> {
   if (!Device.isDevice) return;
 
-  // Loaded lazily: remote notifications were removed from Expo Go (SDK
-  // 53+), where importing the module throws. Keeping it out of the
-  // module top level lets the app boot in Expo Go with push simply
-  // disabled; a development/production build has the native module and
-  // registers normally.
+  // Expo Go can never deliver remote push (removed in SDK 53+) and even
+  // importing expo-notifications there logs a loud module-eval error —
+  // skip entirely; a development/production build registers normally.
+  if (Constants.executionEnvironment === 'storeClient') return;
+
+  // Loaded lazily: keeping the module off the top level lets a build
+  // that predates it boot with push simply disabled.
   let Notifications: typeof import('expo-notifications');
   try {
     Notifications = await import('expo-notifications');
