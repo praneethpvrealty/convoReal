@@ -39,6 +39,7 @@ export interface ParsedQuery {
   types: string[];
   listingType: 'Sale' | 'Rent' | null;
   rentYielding: boolean;
+  listingSource: 'owner' | 'agent' | null;
   locations: string[];
   remainingSearch: string;
 }
@@ -76,7 +77,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   if (!q) {
     return { minPrice: null, maxPrice: null, minArea: null, maxArea: null,
              bedrooms: null, types: [], listingType: null, rentYielding: false,
-             locations: [], remainingSearch: '' };
+             listingSource: null, locations: [], remainingSearch: '' };
   }
 
   let minPrice: number | null = null;
@@ -93,6 +94,22 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   const rentYieldPattern = /\b(?:rent(?:al)?[\s-]?yield(?:ing)?|rent(?:al)?[\s-]?income|income[\s-]?(?:generating|producing|yielding)|revenue[\s-]?generating|pre[\s-]?(?:leased|rented)|tenanted|leased[\s-]?out)\b/gi;
   const rentYielding = rentYieldPattern.test(q);
   if (rentYielding) q = q.replace(rentYieldPattern, ' ');
+
+  // ── Listing source ────────────────────────────────────────────────────────
+  // "direct listing" / "by owner" / "no broker" → owner listings;
+  // "agent listing" / "through broker" → agent listings. Owner phrases are
+  // tested first so "no broker" isn't consumed as an agent signal.
+  const ownerSourcePattern = /\b(?:direct|owner)\s+listings?\b|\bdirect\s+(?:owner|deal|sale)s?\b|\bowner\s+direct\b|\b(?:by|from)\s+(?:the\s+)?owner\b|\b(?:no|without|zero)\s+broker(?:age)?\b|\bdirect\b/gi;
+  const agentSourcePattern = /\b(?:agent|broker)\s+listings?\b|\b(?:through|via|by|from)\s+(?:an?\s+)?(?:agent|broker)\b|\bbrokered\b|\bagents?\b|\bbrokers?\b/gi;
+
+  let listingSource: 'owner' | 'agent' | null = null;
+  if (ownerSourcePattern.test(q)) {
+    listingSource = 'owner';
+    q = q.replace(ownerSourcePattern, ' ');
+  } else if (agentSourcePattern.test(q)) {
+    listingSource = 'agent';
+    q = q.replace(agentSourcePattern, ' ');
+  }
 
   // ── Listing type ──────────────────────────────────────────────────────────
   if (/\bfor\s+rent\b|\bto\s+rent\b|\brent(?:al)?\b|\blease\b/i.test(q)) {
@@ -216,7 +233,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     { pattern: /\bresidential\s+(?:land|plot)s?\b/i,        types: ['Residential Land/ Plot'] },
     { pattern: /\bcommercial\s+(?:land|plot)s?\b/i,         types: ['Commercial Land'] },
     { pattern: /\bindustrial\s+(?:land|plot)s?\b/i,         types: ['Industrial Land'] },
-    { pattern: /\bagricultural\s+(?:land|plot|farm)s?\b|\bfarm\s+land\b/i, types: ['Agricultural Land', 'Farm House'] },
+    { pattern: /\bagricultur(?:al|e)\s+(?:land|plot|farm)s?\b|\bagri[\s-]?(?:land|plot)s?\b|\bfarm[\s-]?lands?\b/i, types: ['Agricultural Land', 'Farm House'] },
     { pattern: /\bplots?\b|\bland\b|\blands\b/i,            types: ['Residential Land/ Plot','Commercial Land','Industrial Land','Agricultural Land'] },
     { pattern: /\bvillas?\b/i,                               types: ['Villa'] },
     { pattern: /\bpenthouse[s]?\b/i,                         types: ['Penthouse'] },
@@ -235,7 +252,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     { pattern: /\bmixed[\s-]*use\b|\bcommercial\s+(?:building|complex|development)s?\b/i, types: ['Commercial Building'] },
     { pattern: /\bcommercial\b/i,                            types: ['Commercial','Commercial Office Space','Office in IT Park/ SEZ','Commercial Shop','Commercial Showroom','Commercial Building','Commercial Land','Warehouse/ Godown','Industrial Land','Industrial Building','Industrial Shed'] },
     { pattern: /\bresidential\b/i,                           types: ['Residential','Flat/ Apartment','Residential House','Villa','Builder Floor Apartment','Residential Land/ Plot','Penthouse','Studio Apartment'] },
-    { pattern: /\bagricultural\b/i,                          types: ['Agricultural','Agricultural Land','Farm House'] },
+    { pattern: /\bagricultur(?:al|e)\b|\bagri\b/i,           types: ['Agricultural','Agricultural Land','Farm House'] },
   ];
 
   for (const rule of TYPE_RULES) {
@@ -275,7 +292,8 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
   const TYPE_KEYWORDS = [
     'residential plots','residential plot','commercial land','commercial plot',
     'industrial land','industrial plot','agricultural land','agricultural plot',
-    'farm land','farm house','farmhouse','builder floor',
+    'agriculture land','agriculture plot','agri land','agri plot',
+    'farm land','farm lands','farmland','farmlands','farm house','farmhouse','builder floor',
     'penthouse','penthouses','studio','plot','plots','land','lands',
     'villa','villas','house','houses','independent house','row house',
     'flat','flats','apartment','apartments',
@@ -285,7 +303,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     'commercial building','commercial complex','commercial development',
     'mixed use','mixed-use',
     'industrial building','industrial shed',
-    'commercial','residential','agricultural',
+    'commercial','residential','agricultural','agriculture','agri',
   ];
   TYPE_KEYWORDS.sort((a, b) => b.length - a.length); // longest first
   TYPE_KEYWORDS.forEach(kw => {
@@ -320,6 +338,7 @@ export function parsePropertyQuery(searchQuery: string): ParsedQuery {
     types,
     listingType,
     rentYielding,
+    listingSource,
     locations,
     remainingSearch: remaining,
   };
