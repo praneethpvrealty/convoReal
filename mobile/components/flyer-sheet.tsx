@@ -79,8 +79,13 @@ export function FlyerSheet({
   const { colors, fonts: f } = useTheme();
   // Definite cap so the scroll area renders and scrolls inside the sheet;
   // a percentage/flex height collapses against the maxHeight-only sheet.
+  // The Save footer sits OUTSIDE this scroll area so it is always
+  // reachable, so the cap leaves room for it.
   const { height: winH } = useWindowDimensions();
-  const scrollMax = Math.round(winH * 0.72);
+  const scrollMax = Math.round(winH * 0.58);
+  // On tall/large screens a full-width square preview swallows the whole
+  // sheet — cap its size so the controls stay in view.
+  const previewSize = Math.round(winH * 0.38);
   const session = useAuthStore((s) => s.session);
   const config = useAppConfig();
   const brandDefault = config?.branding.name ?? 'ConvoReal';
@@ -252,11 +257,12 @@ export function FlyerSheet({
         }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        nestedScrollEnabled
       >
         <View
           style={[
             styles.preview,
-            { backgroundColor: colors.surfaceSunken, borderColor: colors.glassBorder },
+            { maxWidth: previewSize, backgroundColor: colors.surfaceSunken, borderColor: colors.glassBorder },
           ]}
         >
           {previewUri ? (
@@ -376,6 +382,9 @@ export function FlyerSheet({
           </View>
         ) : null}
 
+      </ScrollView>
+
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
         <PrimaryButton
           label="Save to property photos"
           icon="save-outline"
@@ -386,7 +395,7 @@ export function FlyerSheet({
         <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
           Saving adds the flyer as the first photo, so it leads showcase pages and shares.
         </Text>
-      </ScrollView>
+      </View>
     </BottomSheet>
   );
 }
@@ -394,6 +403,8 @@ export function FlyerSheet({
 const styles = StyleSheet.create({
   preview: {
     aspectRatio: 1,
+    width: '100%',
+    alignSelf: 'center',
     borderRadius: radius.lg,
     borderWidth: 1,
     overflow: 'hidden',
