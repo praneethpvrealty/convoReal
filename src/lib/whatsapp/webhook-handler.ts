@@ -1027,6 +1027,7 @@ async function processMessage(
       accountId,
       userId: assignedAgentUserId,
       type: 'new_message',
+      eventKey: 'first_inbound_message',
       title: `New lead: ${contactRecord.name || senderPhone}`,
       body: preview,
       entityType: 'conversation',
@@ -1052,12 +1053,12 @@ async function processMessage(
       accountId,
       userId: assignedAgentUserId,
       type: 'new_message',
+      eventKey: 'inbound_reply',
       title: `${contactRecord.name || senderPhone} replied`,
       body: preview,
       entityType: 'conversation',
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
-      channels: { whatsapp: false },
     })
   }
 

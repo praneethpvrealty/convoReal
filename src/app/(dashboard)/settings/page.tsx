@@ -23,6 +23,7 @@ import {
   Plug,
   Workflow,
   Newspaper,
+  Bell,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
@@ -49,6 +50,7 @@ import { RoutingRulesTab } from '@/components/settings/routing-rules-tab';
 import { ShowcaseSettingsPanel } from '@/components/settings/showcase-settings';
 import { YouTubeConnectCard } from '@/components/settings/youtube-connect-card';
 import { AiSettingsPanel } from '@/components/settings/ai-settings';
+import { NotificationSettingsPanel } from '@/components/settings/notification-settings';
 import { OtherSettingsPanel } from '@/components/settings/other-settings';
 import { useAuth } from '@/hooks/use-auth';
 import { usePlan } from '@/hooks/usePlan';
@@ -66,6 +68,7 @@ const BASE_TAB_VALUES = [
   'templates',
   'tags',
   'appearance',
+  'notifications',
   'showcase',
   'ai',
   'other',
@@ -243,6 +246,7 @@ export default function SettingsPage() {
         { value: 'billing', label: 'Billing', icon: CreditCard },
         { value: 'credits', label: 'Credits', icon: Coins },
         { value: 'appearance', label: 'Appearance', icon: Palette },
+        { value: 'notifications', label: 'Notifications', icon: Bell },
       ],
     },
     {
@@ -496,6 +500,10 @@ export default function SettingsPage() {
 
           <TabsContent value="appearance" className="mt-0">
             <AppearancePanel />
+          </TabsContent>
+
+          <TabsContent value="notifications" className="mt-0">
+            <NotificationSettingsPanel />
           </TabsContent>
 
           <TabsContent value="showcase" className="mt-0">
