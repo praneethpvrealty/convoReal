@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, Property, AreaOfInterestGeo } from '@/types';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { contactFullName } from '@/lib/contacts/full-name';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Dialog,
@@ -73,6 +74,7 @@ export function ContactForm({
   const isEdit = !!contact;
 
   const [name, setName] = useState('');
+  const [secondName, setSecondName] = useState('');
   const [nameTag, setNameTag] = useState('');
   const [phone, setPhone] = useState('');
   const [secondaryPhones, setSecondaryPhones] = useState<string[]>([]);
@@ -177,6 +179,7 @@ export function ContactForm({
   useEffect(() => {
     if (open) {
       setName(contact?.name ?? '');
+      setSecondName(contact?.second_name ?? '');
       setNameTag(contact?.name_tag ?? '');
       setPhone(contact?.phone ?? '');
       setSecondaryPhones(contact?.secondary_phones ?? []);
@@ -249,7 +252,7 @@ export function ContactForm({
     return contacts.filter(
       (c) =>
         c.id !== contact?.id &&
-        ((c.name && c.name.toLowerCase().includes(referrer.toLowerCase())) ||
+        (contactFullName(c).toLowerCase().includes(referrer.toLowerCase()) ||
          (c.phone && c.phone.includes(referrer)))
     ).slice(0, 5);
   }, [contacts, referrer, contact]);
@@ -304,6 +307,7 @@ export function ContactForm({
 
       const payload = {
         name: name.trim() || null,
+        second_name: secondName.trim() || null,
         name_tag: nameTag.trim() || null,
         phone: normalizedPrimary,
         secondary_phones: normalizedSecondary,
@@ -373,8 +377,8 @@ export function ContactForm({
 
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-6 pt-4 space-y-4">
-          <div className="grid grid-cols-5 gap-3">
-            <div className="space-y-2 col-span-3">
+          <div className="grid grid-cols-6 gap-3">
+            <div className="space-y-2 col-span-2">
               <Label htmlFor="cf-name" className="text-slate-300">
                 Name
               </Label>
@@ -382,7 +386,19 @@ export function ContactForm({
                 id="cf-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="John Doe"
+                placeholder="John"
+                className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="cf-second-name" className="text-slate-300">
+                Second Name
+              </Label>
+              <Input
+                id="cf-second-name"
+                value={secondName}
+                onChange={(e) => setSecondName(e.target.value)}
+                placeholder="Doe"
                 className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
               />
             </div>
@@ -398,9 +414,10 @@ export function ContactForm({
                 className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
               />
             </div>
-            <p className="col-span-5 -mt-1 text-xs text-slate-500">
-              Name Tag is a quick-recall label shown only inside the CRM — WhatsApp
-              templates and other messages use the Name alone.
+            <p className="col-span-6 -mt-1 text-xs text-slate-500">
+              Messages always address the contact by Name alone — Second Name and
+              Name Tag show only inside the CRM. Name + Second Name must be unique
+              across your contacts.
             </p>
           </div>
 
@@ -570,7 +587,7 @@ export function ContactForm({
                     className="w-full text-left flex items-center justify-between px-2 py-1.5 hover:bg-slate-800 rounded text-xs text-slate-200"
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold">{c.name || 'Unnamed'}</span>
+                      <span className="font-semibold">{contactFullName(c) || 'Unnamed'}</span>
                       <NameTagBadge tag={c.name_tag} />
                       <span className="text-slate-400 ml-1.5 text-[10px]">({c.phone})</span>
                     </div>

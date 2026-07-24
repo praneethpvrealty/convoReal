@@ -77,6 +77,14 @@ interface ShowcaseViewProps {
   /** Contact id from per-contact share links (?v=…) — Showcase Pulse
    *  attribution only, never filters the catalog. */
   visitorRef?: string;
+  /** Destination landing pages override the hero copy. */
+  hero?: { title: string; highlight: string; subtitle: string; badges?: string[] };
+  /** Accent theme applied when the URL has no ?theme= override. */
+  initialTheme?: string;
+  /** Destination pages pre-filter the catalog server-side — filters saved
+   *  from the main showcase must not leak in (a stale search would zero
+   *  the results), nor destination browsing leak back out. */
+  disableSavedState?: boolean;
 }
 
 /** Resolve the share-link target so the detail modal is part of the server render. */
@@ -100,7 +108,10 @@ export function ShowcaseView({
   initialPropertyId,
   initialCategory,
   initialAgentMode = false,
-  visitorRef
+  visitorRef,
+  hero,
+  initialTheme,
+  disableSavedState = false
 }: ShowcaseViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -157,13 +168,13 @@ export function ShowcaseView({
     if (typeof window === 'undefined') return;
     const urlParams = new URLSearchParams(window.location.search);
     const urlTheme = urlParams.get('theme');
-    const resolvedTheme = urlTheme || settings?.theme || 'violet';
-    
+    const resolvedTheme = urlTheme || initialTheme || settings?.theme || 'violet';
+
     const validThemes = ['violet', 'emerald', 'cobalt', 'amber', 'rose'];
     if (validThemes.includes(resolvedTheme)) {
       document.documentElement.dataset.theme = resolvedTheme;
     }
-  }, [settings?.theme]);
+  }, [settings?.theme, initialTheme]);
 
   const [selectedType, setSelectedType] = useState('All');
   const [selectedListingType, setSelectedListingType] = useState<'All' | 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'>('All');
@@ -325,7 +336,7 @@ export function ShowcaseView({
     }
 
     // Load from localStorage if less than 7 days old
-    const savedStateStr = localStorage.getItem('showcase_state');
+    const savedStateStr = disableSavedState ? null : localStorage.getItem('showcase_state');
     let savedState: SavedShowcaseState | null = null;
     if (savedStateStr) {
       try {
@@ -396,11 +407,11 @@ export function ShowcaseView({
     }
 
     isStateLoadedRef.current = true;
-  }, [initialCategory, initialPropertyId, properties]);
+  }, [initialCategory, initialPropertyId, properties, disableSavedState]);
 
   // 2. Hook to save state to localStorage whenever filters or property details modal changes
   useEffect(() => {
-    if (!isStateLoadedRef.current || typeof window === 'undefined') return;
+    if (disableSavedState || !isStateLoadedRef.current || typeof window === 'undefined') return;
 
     const stateToSave = {
       timestamp: Date.now(),
@@ -413,7 +424,7 @@ export function ShowcaseView({
     };
 
     localStorage.setItem('showcase_state', JSON.stringify(stateToSave));
-  }, [selectedType, selectedListingType, minBeds, sortBy, searchQuery, selectedProperty]);
+  }, [selectedType, selectedListingType, minBeds, sortBy, searchQuery, selectedProperty, disableSavedState]);
 
   // 3. Debounced Search Analytics Event
   useEffect(() => {
@@ -1158,14 +1169,27 @@ export function ShowcaseView({
         {/* Hero Section */}
         <div className="text-center max-w-3xl mx-auto mb-12 animate-fade-in">
           <h1 className="text-4xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-            Discover Your Dream{' '}
+            {hero?.title || 'Discover Your Dream'}{' '}
             <span className="bg-gradient-to-r from-primary via-indigo-400 to-primary/80 bg-clip-text text-transparent">
-              Properties & Spaces
+              {hero?.highlight || 'Properties & Spaces'}
             </span>
           </h1>
           <p className="mt-4 text-sm sm:text-base text-slate-400 font-medium leading-relaxed">
-            Browse through our handpicked collection of premium villa plots, residential land, apartments, and commercial spaces. Managed directly by property owners and agents.
+            {hero?.subtitle ||
+              'Browse through our handpicked collection of premium villa plots, residential land, apartments, and commercial spaces. Managed directly by property owners and agents.'}
           </p>
+          {hero?.badges && hero.badges.length > 0 && (
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              {hero.badges.map((badge) => (
+                <span
+                  key={badge}
+                  className="text-xs px-3.5 py-1.5 rounded-full border border-primary/20 bg-primary/8 text-primary font-bold"
+                >
+                  {badge}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Next-step CTAs — get alerted on hot deals, or list your own property */}

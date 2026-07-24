@@ -10,6 +10,7 @@ import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, C
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { contactFullName } from '@/lib/contacts/full-name';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
   Sheet,
@@ -137,6 +138,7 @@ export function ContactDetailView({
 
   // Details tab
   const [editName, setEditName] = useState('');
+  const [editSecondName, setEditSecondName] = useState('');
   const [editNameTag, setEditNameTag] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editSecondaryPhones, setEditSecondaryPhones] = useState<string[]>([]);
@@ -289,6 +291,7 @@ export function ContactDetailView({
       if (initializedContactIdRef.current !== data.id) {
         initializedContactIdRef.current = data.id;
         setEditName(data.name ?? '');
+        setEditSecondName(data.second_name ?? '');
         setEditNameTag(data.name_tag ?? '');
         setEditPhone(data.phone);
         setEditSecondaryPhones(data.secondary_phones ?? []);
@@ -603,7 +606,7 @@ export function ContactDetailView({
     return contactsList.filter(
       (c) =>
         c.id !== contactId &&
-        ((c.name && c.name.toLowerCase().includes(editReferrer.toLowerCase())) ||
+        (contactFullName(c).toLowerCase().includes(editReferrer.toLowerCase()) ||
          (c.phone && c.phone.includes(editReferrer)))
     ).slice(0, 5);
   }, [contactsList, editReferrer, contactId]);
@@ -1004,6 +1007,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       .from('contacts')
       .update({
         name: editName.trim() || null,
+        second_name: editSecondName.trim() || null,
         name_tag: editNameTag.trim() || null,
         phone: normalizedPrimary,
         secondary_phones: normalizedSecondary,
@@ -1023,7 +1027,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       .eq('id', contactId);
 
     if (error) {
-      toast.error('Failed to update contact');
+      toast.error(
+        error.code === '23505'
+          ? `A contact named "${editName.trim()} ${editSecondName.trim()}" already exists. Use a different second name to tell them apart.`
+          : 'Failed to update contact'
+      );
     } else {
       toast.success('Contact updated');
       // Reflect server-side phone normalization locally — the refetch below
@@ -1361,7 +1369,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <SheetTitle className="text-white truncate">
-                    {contact.name || 'Unknown'}
+                    {contactFullName(contact) || 'Unknown'}
                     {contact.name_tag && (
                       <span
                         className="ml-2 inline-flex items-center align-middle bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
@@ -1565,13 +1573,22 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               <TabsContent value="details" className="flex-1 min-h-0 flex flex-col">
                 <div className="flex-1 overflow-y-auto px-4 py-3">
                 <div className="space-y-3">
-                  <div className="grid grid-cols-5 gap-2">
-                    <div className="space-y-1.5 col-span-3">
+                  <div className="grid grid-cols-6 gap-2">
+                    <div className="space-y-1.5 col-span-2">
                       <Label className="text-slate-400 text-xs">Name</Label>
                       <Input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         className="bg-slate-800 border-slate-700 text-white h-8 text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5 col-span-2">
+                      <Label className="text-slate-400 text-xs">Second Name</Label>
+                      <Input
+                        value={editSecondName}
+                        onChange={(e) => setEditSecondName(e.target.value)}
+                        placeholder="Doe"
+                        className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-600"
                       />
                     </div>
                     <div className="space-y-1.5 col-span-2">
@@ -1583,8 +1600,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-600"
                       />
                     </div>
-                    <p className="col-span-5 -mt-0.5 text-[10px] text-slate-500">
-                      Name Tag shows only inside the CRM — messages always use the Name alone.
+                    <p className="col-span-6 -mt-0.5 text-[10px] text-slate-500">
+                      Messages always use the Name alone — Second Name and Name Tag
+                      show only inside the CRM. Name + Second Name must be unique.
                     </p>
                   </div>
                   <div className="space-y-1.5">
@@ -1784,7 +1802,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             className="w-full text-left flex items-center justify-between px-2 py-1.5 hover:bg-slate-800 rounded text-xs text-slate-200"
                           >
                             <div className="flex items-center gap-1.5">
-                              <span className="font-semibold">{c.name || 'Unnamed'}</span>
+                              <span className="font-semibold">{contactFullName(c) || 'Unnamed'}</span>
                               <NameTagBadge tag={c.name_tag} />
                               <span className="text-slate-400 ml-1.5 text-[10px]">({c.phone})</span>
                             </div>
