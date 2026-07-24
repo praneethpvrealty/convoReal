@@ -1512,14 +1512,15 @@ export async function processOwnerChatbotMessage(
             }
           }
 
-          // Phonebook-style names ("Nataraj Bank DSA") get the qualifier moved
-          // into the CRM-only Name Tag so outbound messages stay clean.
-          const nameSplit = suggestNameTagSplit(draft.name!.trim());
+          // An explicit Name Tag from the draft wins; otherwise phonebook-style
+          // names ("Nataraj Bank DSA") get the qualifier moved into the
+          // CRM-only Name Tag so outbound messages stay clean.
+          const nameSplit = draft.name_tag ? null : suggestNameTagSplit(draft.name!.trim());
           toInsert.push({
             account_id: accountId,
             user_id: userId,
             name: nameSplit?.name ?? draft.name!.trim(),
-            name_tag: nameSplit?.nameTag ?? null,
+            name_tag: draft.name_tag || nameSplit?.nameTag || null,
             phone: normalized || draft.phone!.trim(),
             email: draft.email || null,
             company: draft.company || '',

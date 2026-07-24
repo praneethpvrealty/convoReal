@@ -321,6 +321,13 @@ describe('formatContactDraftsPreview', () => {
     const noReq = makeContainer([makeContact({ name: 'A', phone: '1' })]);
     expect(formatContactDraftsPreview('h', noReq, 'awaiting_confirmation', [])).not.toContain('*Requirements:*');
   });
+
+  it('shows the name tag line only when a name tag is present', () => {
+    const withTag = makeContainer([makeContact({ name: 'Naveen', phone: '1', name_tag: 'Athni tower BTM' })]);
+    expect(formatContactDraftsPreview('h', withTag, 'awaiting_confirmation', [])).toContain('• *Name Tag:* 🏷️ Athni tower BTM');
+    const noTag = makeContainer([makeContact({ name: 'Naveen', phone: '1' })]);
+    expect(formatContactDraftsPreview('h', noTag, 'awaiting_confirmation', [])).not.toContain('*Name Tag:*');
+  });
 });
 
 describe('mergeFreeText', () => {
@@ -352,6 +359,14 @@ describe('mergeContactDraft', () => {
     const base = makeContact({ name: 'A', phone: '1', classification: 'Others' });
     const add = makeContact({ classification: 'Buyer' });
     expect(mergeContactDraft(base, add).classification).toBe('Buyer');
+  });
+
+  it('keeps the existing name tag and adopts an incoming one when unset', () => {
+    const base = makeContact({ name: 'A', phone: '1', name_tag: 'Athni tower BTM' });
+    const add = makeContact({ name_tag: 'Other Tag' });
+    expect(mergeContactDraft(base, add).name_tag).toBe('Athni tower BTM');
+    const noTagBase = makeContact({ name: 'A', phone: '1' });
+    expect(mergeContactDraft(noTagBase, add).name_tag).toBe('Other Tag');
   });
 });
 

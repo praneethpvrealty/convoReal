@@ -258,6 +258,29 @@ Referred by Suresh Babu.`;
       expect(updated.contacts[0].referrer_phone).toContain('918888888888');
     });
 
+    it('sets name_tag deterministically from a "Name Tag - ..." message without touching name', async () => {
+      const initialContainer = {
+        contacts: [{
+          name: 'Naveen',
+          phone: '917019460428',
+          email: null,
+          company: null,
+          classification: 'Seller' as const,
+          notes: 'Athni btm owner',
+          requirements: null,
+          referrer_name: null,
+          referrer_phone: null
+        }]
+      };
+
+      for (const text of ['Name Tag - Athni tower BTM', 'name tag: Athni tower BTM', 'Name tag is Athni tower BTM']) {
+        const updated = await updateContactDraft(initialContainer, text);
+        expect(updated.contacts[0].name_tag).toBe('Athni tower BTM');
+        expect(updated.contacts[0].name).toBe('Naveen');
+        expect(updated.contacts[0].notes).toBe('Athni btm owner');
+      }
+    });
+
     it('parses multi-line lead forwarding messages from user screenshot', async () => {
       const message = `Hi User, Shreenath, 91789344713 is interested in SJR Blue Waters, Sarjapur Road Magicbricks
 Hi User, LAKSHMAN, 917502598759 is interested in SJR Blue Waters, Sarjapur Road Magicbricks

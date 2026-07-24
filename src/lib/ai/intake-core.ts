@@ -202,6 +202,7 @@ export function formatContactDraftsPreview(
 
       reply += `*Contact #${idx + 1}:*\n` +
         `• *Name:* ${draft.name || '❓ _Missing_'}\n` +
+        (draft.name_tag ? `• *Name Tag:* 🏷️ ${draft.name_tag}\n` : '') +
         `• *Phone:* ${draft.phone || '❓ _Missing_'}\n` +
         `• *Email:* ${draft.email || '_Not specified_'}\n` +
         `• *Company:* ${draft.company || '_Not specified_'}\n` +
@@ -246,6 +247,7 @@ export function mergeFreeText(a: string | null | undefined, b: string | null | u
 export function mergeContactDraft(base: ParsedContactDraft, add: ParsedContactDraft): ParsedContactDraft {
   return {
     name: base.name ?? add.name,
+    name_tag: base.name_tag ?? add.name_tag,
     phone: base.phone ?? add.phone,
     email: base.email ?? add.email,
     company: base.company ?? add.company,

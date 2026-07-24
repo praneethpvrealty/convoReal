@@ -889,6 +889,10 @@ export async function isContactMessage(text: string): Promise<boolean> {
 
 export interface ParsedContactDraft {
   name: string | null;
+  /** CRM-only qualifier shown alongside the name (e.g. 'Athni Tower BTM',
+   *  'Bank DSA') — keeps outbound messages addressed to the clean name.
+   *  Persisted to contacts.name_tag. */
+  name_tag?: string | null;
   phone: string | null;
   email: string | null;
   company: string | null;
@@ -951,6 +955,7 @@ export async function parseContactFromImageOrText(
     "  \"contacts\": [\n" +
     "    {\n" +
     "      \"name\": \"Full name of the contact or null\",\n" +
+    "      \"name_tag\": \"A short CRM-only qualifier/label for the contact, distinct from their personal name — e.g. a property or project they're associated with ('Athni Tower BTM'), or a role qualifier ('Bank DSA'). Set ONLY when the input explicitly provides one (e.g. 'Name Tag - Athni tower BTM' or 'tag: Bank DSA'); otherwise null.\",\n" +
     "      \"phone\": \"Phone number (numeric digits only, e.g. '9876543210' or with country code if visible like '919876543210') or null\",\n" +
     "      \"email\": \"Email address or null\",\n" +
     "      \"company\": \"Company name if specified or null\",\n" +
@@ -999,6 +1004,7 @@ export async function parseContactFromImageOrText(
         const requirements = c.requirements || null;
         return {
           name: c.name || null,
+          name_tag: c.name_tag || null,
           phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
           email: c.email || null,
           company: c.company || null,
@@ -1023,10 +1029,20 @@ export async function updateContactDraft(
   currentDraft: ParsedContactDraftsContainer,
   updateRequest: string
 ): Promise<ParsedContactDraftsContainer> {
-  const systemInstruction = 
+  // "Name Tag - Athni tower BTM" / "name tag: Bank DSA" as the whole
+  // message is an explicit single-field set — apply it deterministically
+  // instead of round-tripping the draft through the model.
+  const nameTagMatch = /^\s*name\s*tag\s*(?:is|[-:=])?\s*(.+?)\s*$/i.exec(updateRequest);
+  if (nameTagMatch && currentDraft.contacts.length === 1) {
+    return {
+      contacts: [{ ...currentDraft.contacts[0], name_tag: nameTagMatch[1] }]
+    };
+  }
+
+  const systemInstruction =
     "You are an expert contact data updater. You are given a current contact drafts JSON object containing an array of contacts and a natural language instruction from the user.\n" +
     "Your job is to apply the updates requested by the user and return the complete updated JSON object matching the exact structure.\n" +
-    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name. If they add buying criteria (e.g. 'budget is 90L', 'wants a plot in Whitefield', 'looking for 2 acres near Hosur'), merge it into the `requirements` field, preserving any requirements already captured.\n" +
+    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name. If they mention a name tag (e.g. 'Name Tag - Athni tower BTM', 'tag it as Bank DSA'), set the `name_tag` field and do NOT change `name`. If they add buying criteria (e.g. 'budget is 90L', 'wants a plot in Whitefield', 'looking for 2 acres near Hosur'), merge it into the `requirements` field, preserving any requirements already captured.\n" +
     "When you populate `requirements` with buying criteria and the contact's classification is 'Others', set that contact's classification to 'Buyer'.\n" +
     "Do not change any other fields unless requested by the user.\n" +
     "Output MUST be valid JSON.";
@@ -1044,6 +1060,7 @@ export async function updateContactDraft(
         const requirements = c.requirements || null;
         return {
           name: c.name || null,
+          name_tag: c.name_tag || null,
           phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
           email: c.email || null,
           company: c.company || null,
