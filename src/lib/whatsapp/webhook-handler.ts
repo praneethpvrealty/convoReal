@@ -1020,7 +1020,7 @@ async function processMessage(
     configOwnerUserId
 
   // First message on a brand-new lead thread — alert the assigned agent
-  // once (in-app + push + WhatsApp). Later replies don't re-notify.
+  // once (in-app + push + WhatsApp).
   if (!ownerCheck.isOwner && isFirstInboundMessage) {
     const preview = (contentText || `[${message.type}]`).slice(0, 140)
     await createNotification({
@@ -1040,6 +1040,24 @@ async function processMessage(
         '',
         '_Open your Inbox to reply._',
       ].join('\n'),
+    })
+  } else if (!ownerCheck.isOwner && (conversation.unread_count || 0) === 0) {
+    // A reply on an existing thread the agent had already caught up on
+    // (unread was 0 before this message). Alert them with an in-app +
+    // push notification — but not a WhatsApp ping, to avoid messaging
+    // the agent for every back-and-forth. Threads that already had
+    // unseen messages don't re-notify, so a burst of replies is one ping.
+    const preview = (contentText || `[${message.type}]`).slice(0, 140)
+    await createNotification({
+      accountId,
+      userId: assignedAgentUserId,
+      type: 'new_message',
+      title: `${contactRecord.name || senderPhone} replied`,
+      body: preview,
+      entityType: 'conversation',
+      entityId: conversation.id,
+      link: `/inbox?conversation=${conversation.id}`,
+      channels: { whatsapp: false },
     })
   }
 
