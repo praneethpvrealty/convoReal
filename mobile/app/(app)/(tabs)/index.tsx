@@ -16,6 +16,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EnterRow, PressScale } from '@/components/motion';
+import { NotificationBell } from '@/components/notification-bell';
 import {
   Avatar,
   ConversationSkeleton,
@@ -237,6 +238,7 @@ function InboxHeader({
             </Text>
           </View>
         </View>
+        <NotificationBell />
         <View
           style={[
             styles.creditsChip,
@@ -414,7 +416,7 @@ function ConversationRow({
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   headerTitle: { fontSize: 23, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   creditsChip: {
     flexDirection: 'row',
