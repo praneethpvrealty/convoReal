@@ -3712,7 +3712,8 @@ export function PropertyForm({
                         className="border-slate-700 bg-slate-800 text-white"
                       />
                       <p className="text-[11px] text-slate-500">
-                        Optional — improves your area&apos;s price accuracy. Never shown to buyers.
+                        Optional — interested buyers are notified of the sale on WhatsApp and
+                        can ask for this price. Leave blank to keep it hidden.
                       </p>
                     </div>
                   )}

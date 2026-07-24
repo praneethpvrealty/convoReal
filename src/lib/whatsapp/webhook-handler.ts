@@ -13,6 +13,12 @@ import {
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
 import { parseUpdateIntent } from '@/lib/whatsapp/update-intent'
 import {
+  notifyBuyersOfSoldProperty,
+  buildSoldPriceReply,
+  SOLD_PRICE_BUTTON_PREFIX,
+  SOLD_SIMILAR_BUTTON_PREFIX,
+} from '@/lib/whatsapp/sold-notification'
+import {
   applyPreferenceFlowResponse,
   sendPreferenceFlowToContact,
   getPublishedPreferenceFlow,
@@ -1515,6 +1521,28 @@ async function processMessage(
         senderPhone
       )
       return
+    } else if (interactiveReplyId.startsWith(SOLD_PRICE_BUTTON_PREFIX)) {
+      const propertyId = interactiveReplyId.slice(SOLD_PRICE_BUTTON_PREFIX.length)
+      await handleSoldPriceReply(
+        propertyId,
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      )
+      return
+    } else if (interactiveReplyId.startsWith(SOLD_SIMILAR_BUTTON_PREFIX)) {
+      const propertyId = interactiveReplyId.slice(SOLD_SIMILAR_BUTTON_PREFIX.length)
+      await handleShowMoreProperties(
+        propertyId,
+        accountId,
+        configOwnerUserId,
+        contactRecord.id,
+        conversation.id,
+        senderPhone
+      )
+      return
     }
   }
 
@@ -2099,6 +2127,7 @@ export async function handleBrowseAllProperties(
       .select('*')
       .eq('account_id', accountId)
       .eq('is_published', true)
+      .eq('status', 'Available')
       .order('created_at', { ascending: false })
       .limit(10)
 
@@ -2651,14 +2680,28 @@ export async function handleUpdateSessionInput(
       }
     }
 
-    // Update the field
+    // Update the field. Select fields store the canonical option casing
+    // ("status sold" → 'Sold'), matching the values the rest of the app
+    // filters on.
     const updateData: Record<string, unknown> = {}
     if (session.update_type === 'property') {
-      updateData[field.name] = field.type === 'number' ? Number(value) || value : value
+      const storeValue =
+        field.type === 'select' && field.options
+          ? field.options.find(o => o.toLowerCase() === value.toLowerCase()) ?? value
+          : field.type === 'number'
+            ? Number(value) || value
+            : value
+      updateData[field.name] = storeValue
       await supabaseAdmin()
         .from('properties')
         .update(updateData)
         .eq('id', session.target_id)
+
+      if (field.name === 'status' && storeValue === 'Sold') {
+        notifyBuyersOfSoldProperty(accountId, session.target_id).catch(err => {
+          console.error('[webhook] Sold notification background error:', err)
+        })
+      }
     } else {
       updateData[field.name] = field.type === 'number' ? Number(value) || value : value
       await supabaseAdmin()
@@ -2728,6 +2771,60 @@ export async function handleUpdateSessionInput(
 }
 
 // ============================================================
+// Sold Price Reveal Handler
+// ============================================================
+
+export async function handleSoldPriceReply(
+  propertyId: string,
+  accountId: string,
+  configOwnerUserId: string,
+  contactId: string,
+  conversationId: string,
+  toPhone: string
+) {
+  try {
+    const { data: property } = await supabaseAdmin()
+      .from('properties')
+      .select('title, sold_price')
+      .eq('id', propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle()
+
+    if (!property) {
+      console.error('[webhook] Property not found for sold price reply:', propertyId)
+      return
+    }
+
+    let currency = 'INR'
+    const { data: settings } = await supabaseAdmin()
+      .from('showcase_settings')
+      .select('currency')
+      .eq('account_id', accountId)
+      .maybeSingle()
+    if (settings?.currency) {
+      currency = settings.currency
+    }
+
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+      toPhone,
+      kind: 'text',
+      text: buildSoldPriceReply(
+        (property.title as string) || 'This property',
+        property.sold_price as number | null,
+        currency
+      ),
+      senderType: 'bot',
+    })
+  } catch (err) {
+    console.error('[webhook] Failed in handleSoldPriceReply:', err)
+  }
+}
+
+// ============================================================
 // Show More Properties Handler
 // ============================================================
 
@@ -2763,6 +2860,7 @@ export async function handleShowMoreProperties(
       .select('*')
       .eq('account_id', accountId)
       .eq('is_published', true)
+      .eq('status', 'Available')
       .neq('id', currentPropertyId) // Exclude current property
       .or(`type.eq.${currentProperty.type},and(price.gte.${minPrice},price.lte.${maxPrice})`)
       .order('created_at', { ascending: false })

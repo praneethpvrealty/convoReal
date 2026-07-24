@@ -5,6 +5,7 @@ import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-hel
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { notifyBuyersOfSoldProperty } from "@/lib/whatsapp/sold-notification";
 
 // GET /api/properties/[id]
 // Returns a single property with full relations (owner + interested_contacts)
@@ -433,7 +434,7 @@ export async function PUT(
     // Verify it exists in this account before updating (defensive check)
     const { data: existing, error: findError } = await ctx.supabase
       .from("properties")
-      .select("id")
+      .select("id, status")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -543,6 +544,14 @@ export async function PUT(
     autoSyncPropertyCatalogIfNeeded(ctx.supabase, finalData.id, ctx.accountId).catch((err) => {
       console.error("[PUT /api/properties/[id]] Auto-sync background error:", err);
     });
+
+    // Freshly marked Sold — tell everyone who showed interest or received
+    // the listing over WhatsApp (fire-and-forget, never blocks the save).
+    if (updateData.status === "Sold" && existing.status !== "Sold") {
+      notifyBuyersOfSoldProperty(ctx.accountId, id).catch((err) => {
+        console.error("[PUT /api/properties/[id]] Sold notification background error:", err);
+      });
+    }
 
     return NextResponse.json(finalData);
   } catch (err) {
