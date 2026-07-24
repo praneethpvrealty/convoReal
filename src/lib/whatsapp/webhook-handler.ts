@@ -1735,6 +1735,12 @@ async function parseMessageContent(
         return {
           ...empty,
           contentText: `🔘 Button: "${message.button.text}"`,
+          // Template quick replies deliver their send-time payload here —
+          // surfacing it as interactiveReplyId routes taps through the
+          // same handlers as free-form interactive buttons. Payloads
+          // without a registered prefix (Meta defaults them to the button
+          // text) simply fall through unchanged.
+          interactiveReplyId: message.button.payload || null,
         }
       }
       return { ...empty, contentText: '[Button message]' }
