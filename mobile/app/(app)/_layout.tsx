@@ -1,5 +1,7 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
+import { View } from 'react-native';
 
+import { AppLockGate } from '@/components/app-lock-gate';
 import { isPhoneVerified, useAuthStore } from '@/lib/auth-store';
 import { useSurface } from '@/lib/surface';
 import { useTheme } from '@/lib/theme';
@@ -27,6 +29,7 @@ export default function AppLayout() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <Stack
       screenOptions={{
         headerShown: false,
@@ -48,5 +51,7 @@ export default function AppLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="verify-phone" />
     </Stack>
+    <AppLockGate />
+    </View>
   );
 }

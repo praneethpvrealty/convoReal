@@ -2,13 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { ProfileEditSheet } from '@/components/profile-edit-sheet';
 import { SubscriptionCard } from '@/components/subscription-card';
 import { Avatar, SectionLabel } from '@/components/ui';
+import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import {
   fonts,
@@ -111,6 +112,11 @@ export default function MoreScreen() {
         <AppearancePicker />
       </View>
 
+      <SectionLabel text="Security" style={{ marginTop: spacing.sm }} />
+      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+        <BiometricLockRow />
+      </View>
+
       <SectionLabel text="On the web app" style={{ marginTop: spacing.sm }} />
       <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
         {WEB_ONLY.map((f) => (
@@ -199,6 +205,55 @@ function AppearancePicker() {
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/**
+ * "Unlock with fingerprint" switch. Enabling requires biometrics to be
+ * enrolled AND one successful OS prompt (proves the sensor path works
+ * before the app starts locking behind it); disabling re-confirms too.
+ */
+function BiometricLockRow() {
+  const { colors } = useTheme();
+  const enabled = useAppLock((s) => s.enabled);
+  const setEnabled = useAppLock((s) => s.setEnabled);
+  const [busy, setBusy] = useState(false);
+
+  async function toggle(next: boolean) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (next && !(await biometricsAvailable())) {
+        Alert.alert(
+          'No fingerprint set up',
+          'Add a fingerprint or face unlock in your phone settings first — or this build may not support it yet (install the latest app version).'
+        );
+        return;
+      }
+      const ok = await authenticate();
+      if (ok) setEnabled(next);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={styles.navRow}>
+      <Ionicons name="finger-print-outline" size={20} color={colors.primary} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[styles.navLabel, { color: colors.text }]}>Unlock with fingerprint</Text>
+        <Text style={{ fontSize: 12, lineHeight: 16, color: colors.textMuted }}>
+          Require your fingerprint or face each time the app opens.
+        </Text>
+      </View>
+      <Switch
+        value={enabled}
+        disabled={busy}
+        onValueChange={toggle}
+        trackColor={{ true: colors.primary, false: colors.border }}
+        thumbColor="#fff"
+      />
     </View>
   );
 }

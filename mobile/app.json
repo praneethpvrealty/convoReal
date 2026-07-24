@@ -91,6 +91,12 @@
         }
       ],
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "ConvoReal uses Face ID to unlock the app."
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#0A1F16"
