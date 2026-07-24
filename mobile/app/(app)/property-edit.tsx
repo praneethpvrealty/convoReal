@@ -13,10 +13,12 @@ import {
   View,
 } from 'react-native';
 
+import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
 import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import { formatInr } from '@/lib/format';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -30,7 +32,7 @@ import {
 } from '@/lib/property-options';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme } from '@/lib/theme';
+import { fonts, radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
@@ -42,7 +44,8 @@ async function fetchProperty(id: string): Promise<Property | null> {
       'id, title, description, price, rent_per_month, maintenance, status, listing_type, ' +
         'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
-        'dimensions, facing_direction, google_map_link, features, nearby_highlights'
+        'dimensions, facing_direction, google_map_link, features, nearby_highlights, ' +
+        'owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
     .eq('id', id)
     .maybeSingle();
@@ -113,9 +116,15 @@ function EditForm({ property }: { property: Property }) {
   const [nearby, setNearby] = useState<string[]>(property.nearby_highlights ?? []);
   const [description, setDescription] = useState(property.description ?? '');
   const [published, setPublished] = useState(Boolean(property.is_published));
+  const [ownerContactId, setOwnerContactId] = useState<string | null>(
+    property.owner_contact_id ?? null
+  );
+  const [ownerLabel, setOwnerLabel] = useState(
+    property.owner?.name || property.owner?.phone || ''
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [sheet, setSheet] = useState<'type' | 'features' | 'nearby' | null>(null);
+  const [sheet, setSheet] = useState<'type' | 'features' | 'nearby' | 'owner' | null>(null);
 
   const isRent = listingType === 'Rent' || listingType === 'Built to Suit';
 
@@ -158,6 +167,7 @@ function EditForm({ property }: { property: Property }) {
       features,
       nearby_highlights: nearby,
       images,
+      owner_contact_id: ownerContactId,
     };
     if (isRent) {
       body.rent_per_month = num(rent);
@@ -190,7 +200,11 @@ function EditForm({ property }: { property: Property }) {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {error ? <Banner kind="error" text={error} /> : null}
 
         <PropertyPhotoEditor images={images} onChange={setImages} />
@@ -218,25 +232,38 @@ function EditForm({ property }: { property: Property }) {
 
         {isRent ? (
           <View style={styles.row}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: 4 }}>
               <TextField
                 label="Rent / month (₹)"
                 value={rent}
                 onChangeText={setRent}
                 keyboardType="numeric"
               />
+              {num(rent) ? (
+                <Text style={[styles.amountHint, { color: colors.primary }]}>{formatInr(num(rent))}</Text>
+              ) : null}
             </View>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, gap: 4 }}>
               <TextField
                 label="Maintenance (₹)"
                 value={maintenance}
                 onChangeText={setMaintenance}
                 keyboardType="numeric"
               />
+              {num(maintenance) ? (
+                <Text style={[styles.amountHint, { color: colors.primary }]}>
+                  {formatInr(num(maintenance))}
+                </Text>
+              ) : null}
             </View>
           </View>
         ) : (
-          <TextField label="Price (₹)" value={price} onChangeText={setPrice} keyboardType="numeric" />
+          <View style={{ gap: 4 }}>
+            <TextField label="Price (₹)" value={price} onChangeText={setPrice} keyboardType="numeric" />
+            {num(price) ? (
+              <Text style={[styles.amountHint, { color: colors.primary }]}>{formatInr(num(price))}</Text>
+            ) : null}
+          </View>
         )}
 
         <SectionLabel text="Status" />
@@ -304,6 +331,13 @@ function EditForm({ property }: { property: Property }) {
         />
 
         <SelectField
+          label="Owner / Agent"
+          value={ownerLabel}
+          placeholder="Assign the owner or agent contact"
+          onPress={() => setSheet('owner')}
+        />
+
+        <SelectField
           label="Features"
           value={features.length ? `${features.length} selected` : ''}
           placeholder="Add amenities & features"
@@ -367,6 +401,27 @@ function EditForm({ property }: { property: Property }) {
         selected={nearby}
         onChange={setNearby}
       />
+      <ContactPickerSheet
+        visible={sheet === 'owner'}
+        onClose={() => setSheet(null)}
+        title="Owner / Agent"
+        hint="Search your contacts — the assigned person shows on the property and gets owner digests."
+        onSelect={(contact) => {
+          setOwnerContactId(contact.id);
+          setOwnerLabel(contact.name || contact.phone);
+          setSheet(null);
+        }}
+        skipLabel={ownerContactId ? 'Clear assignment' : undefined}
+        onSkip={
+          ownerContactId
+            ? () => {
+                setOwnerContactId(null);
+                setOwnerLabel('');
+                setSheet(null);
+              }
+            : undefined
+        }
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -412,6 +467,7 @@ function SelectField({
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   row: { flexDirection: 'row', gap: spacing.sm },
+  amountHint: { fontSize: 12.5, fontFamily: fonts.bold, paddingHorizontal: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   select: {
     flexDirection: 'row',

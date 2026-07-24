@@ -165,6 +165,7 @@ export default function AgentsScreen() {
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
           >
             {selected ? (
               <AgentDetail key={selected.id} agent={selected} />
@@ -220,7 +221,11 @@ function AgentRow({
           >
             {name}
           </Text>
-          {agent.name_tag ? <Tag label={agent.name_tag} /> : null}
+          {agent.name_tag ? (
+            <View style={{ flexShrink: 1, maxWidth: '50%' }}>
+              <Tag label={agent.name_tag} />
+            </View>
+          ) : null}
         </View>
         <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
           {[agent.company, agent.phone].filter(Boolean).join(' · ')}

@@ -251,6 +251,7 @@ export function FlyerSheet({
           paddingBottom: spacing.sm,
         }}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <View
           style={[

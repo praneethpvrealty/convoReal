@@ -117,7 +117,8 @@ export function ContactPickerSheet({
                   No contacts match “{debounced}”.
                 </Text>
               ) : (
-                <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <ScrollView keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
                   <View style={{ gap: spacing.sm }}>
                     {results.map((c) => (
                       <Pressable

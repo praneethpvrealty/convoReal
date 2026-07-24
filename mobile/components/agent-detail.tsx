@@ -360,6 +360,7 @@ function PropertyPicker({
           ) : (
             <ScrollView
               keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ gap: spacing.sm }}
             >

@@ -88,6 +88,7 @@ export default function VerifyPhoneScreen() {
         <ScrollView
           contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           <GlassCard style={styles.formCard}>
           <View style={{ alignItems: 'center', gap: spacing.sm }}>
