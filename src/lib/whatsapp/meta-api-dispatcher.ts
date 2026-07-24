@@ -28,6 +28,11 @@ import { getSandboxSystemConfig } from '@/lib/system-settings'
  *  guard). */
 const DUPLICATE_TEMPLATE_WINDOW_MS = 20_000
 
+/** Only substantial free-text sends are dedup-guarded, so ordinary short
+ *  replies ("ok", "hi") that a user may legitimately repeat are never
+ *  collapsed. The property-details blast is well over this. */
+const DUPLICATE_TEXT_MIN_LENGTH = 120
+
 // Lazy initialize admin client fallback
 let _adminClient: ReturnType<typeof createClient> | null = null
 function defaultAdminClient() {
@@ -222,6 +227,35 @@ export async function sendWhatsAppMessageAndPersist(
       if (recentDuplicate) {
         console.warn(
           `[meta-api-dispatcher] skipped duplicate template "${args.templateName}" to conversation ${resolvedConversationId}`,
+        )
+        return {
+          success: true,
+          messageId: recentDuplicate.id,
+          whatsappMessageId: recentDuplicate.message_id,
+        }
+      }
+    }
+
+    // 2c. Same idempotency for substantial free-text sends (e.g. the
+    // "complete property details" blast). Two overlapping triggers — a
+    // double-tap, or approve-from-list plus approve-from-detail — must not
+    // deliver the identical long message twice. Length-gated so ordinary
+    // short replies are never collapsed.
+    if (args.kind === 'text' && args.text && args.text.length >= DUPLICATE_TEXT_MIN_LENGTH) {
+      const { data: recentDuplicate } = await db
+        .from('messages')
+        .select('id, message_id')
+        .eq('conversation_id', resolvedConversationId)
+        .eq('sender_type', args.senderType)
+        .eq('content_type', 'text')
+        .eq('content_text', args.text)
+        .gte('created_at', new Date(Date.now() - DUPLICATE_TEMPLATE_WINDOW_MS).toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (recentDuplicate) {
+        console.warn(
+          `[meta-api-dispatcher] skipped duplicate text to conversation ${resolvedConversationId}`,
         )
         return {
           success: true,

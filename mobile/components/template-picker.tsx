@@ -205,7 +205,7 @@ export function TemplatePicker({
               </View>
 
               <PrimaryButton
-                label="Send template"
+                label="Send message"
                 busy={sending}
                 disabled={!allFilled}
                 onPress={() => onSend(selected, values.slice(0, varCount), preview)}
