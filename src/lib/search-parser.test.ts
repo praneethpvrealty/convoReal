@@ -121,4 +121,59 @@ describe('parsePropertyQuery', () => {
     expect(res.listingType).toBe('Rent');
     expect(res.types).toContain('Flat/ Apartment');
   });
+
+  it('should detect direct/owner listing source', () => {
+    const direct = parsePropertyQuery('direct listing commercial > 10 cr');
+    expect(direct.listingSource).toBe('owner');
+    expect(direct.minPrice).toBe(100000001);
+    expect(direct.types).toContain('Commercial');
+    expect(direct.remainingSearch).toBe('');
+
+    const noBroker = parsePropertyQuery('2 bhk flat no broker');
+    expect(noBroker.listingSource).toBe('owner');
+    expect(noBroker.bedrooms).toBe(2);
+    expect(noBroker.remainingSearch).toBe('');
+
+    const byOwner = parsePropertyQuery('villa for sale by owner');
+    expect(byOwner.listingSource).toBe('owner');
+    expect(byOwner.listingType).toBe('Sale');
+    expect(byOwner.types).toContain('Villa');
+  });
+
+  it('should detect agent listing source', () => {
+    const res = parsePropertyQuery('agent listings in Whitefield');
+    expect(res.listingSource).toBe('agent');
+    expect(res.remainingSearch).toBe('whitefield');
+
+    const broker = parsePropertyQuery('shops through broker under 1 cr');
+    expect(broker.listingSource).toBe('agent');
+    expect(broker.maxPrice).toBe(10000000);
+    expect(broker.types).toContain('Commercial Shop');
+    expect(broker.remainingSearch).toBe('');
+  });
+
+  it('should not set listing source without a source phrase', () => {
+    const res = parsePropertyQuery('villa > 3 Cr in Whitefield');
+    expect(res.listingSource).toBeNull();
+  });
+
+  it('should map farm land and agriculture land phrasing to agricultural types', () => {
+    const farm = parsePropertyQuery('farm lands under 2 cr');
+    expect(farm.types).toEqual(['Agricultural Land', 'Farm House']);
+    expect(farm.maxPrice).toBe(20000000);
+    expect(farm.remainingSearch).toBe('');
+
+    const agri = parsePropertyQuery('agriculture land in Devanahalli');
+    expect(agri.types).toEqual(['Agricultural Land', 'Farm House']);
+    expect(agri.remainingSearch).toBe('devanahalli');
+
+    const agriShort = parsePropertyQuery('agri land');
+    expect(agriShort.types).toEqual(['Agricultural Land', 'Farm House']);
+    expect(agriShort.remainingSearch).toBe('');
+
+    const farmland = parsePropertyQuery('farmland above 5 acres');
+    expect(farmland.types).toEqual(['Agricultural Land', 'Farm House']);
+    expect(farmland.minArea).toBe(5 * 43560);
+    expect(farmland.remainingSearch).toBe('');
+  });
 });

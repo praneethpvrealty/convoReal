@@ -167,6 +167,12 @@ export async function GET(request: Request) {
           query = query.or("rental_income.gt.0,roi.gt.0");
         }
 
+        // Apply listing source (owner vs agent) from NL query — the dropdown
+        // param wins, same as listing type above.
+        if (parsed.listingSource && !listingSource) {
+          query = query.eq("listing_source", parsed.listingSource);
+        }
+
         // Apply type filter from NL query ONLY when the dropdown type filter
         // hasn't been set — they would conflict and produce zero results otherwise.
         if (parsed.types.length > 0 && !type) {

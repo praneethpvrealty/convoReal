@@ -860,6 +860,10 @@ export function ShowcaseView({
         result = result.filter((p) => (p.rental_income ?? 0) > 0 || (p.roi ?? 0) > 0);
       }
 
+      if (parsed.listingSource) {
+        result = result.filter((p) => (p.listing_source ?? 'owner') === parsed.listingSource);
+      }
+
       // Apply text search on remaining search terms
       if (parsed.remainingSearch) {
         const text = parsed.remainingSearch;
