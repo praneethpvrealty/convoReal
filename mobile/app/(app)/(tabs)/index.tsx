@@ -47,6 +47,10 @@ async function fetchConversations(archived: boolean): Promise<Conversation[]> {
     .from('conversations')
     .select('*, contact:contacts(*)')
     .eq('is_archived', archived)
+    // A conversation row can exist with no messages yet (e.g. an approve
+    // flow opened it but the send was blocked by the 24-hour window) —
+    // those have nothing to show, so keep them out of the inbox.
+    .not('last_message_at', 'is', null)
     .order('last_message_at', { ascending: false })
     .limit(200);
   if (error) throw error;
