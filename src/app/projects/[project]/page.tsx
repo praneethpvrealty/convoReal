@@ -11,6 +11,9 @@ import {
   type ShowcaseData,
 } from '@/lib/showcase/public-data';
 import { findProjectProperties } from '@/lib/inventory/project-slug';
+import { propertySlug } from '@/lib/showcase/property-slug';
+import { resolveRequestOrigin } from '@/lib/showcase/site-url';
+import { itemListJsonLd, jsonLdScript } from '@/lib/seo/jsonld';
 import { BRANDING } from '@/config/branding';
 import type { Property } from '@/types';
 
@@ -86,9 +89,7 @@ export async function generateMetadata({
   const resolved = await resolveProject(params, searchParams);
   if (!resolved) return { title: `Projects | ${BRANDING.name}` };
 
-  const siteUrl = (
-    process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl
-  ).replace(/\/$/, '');
+  const origin = await resolveRequestOrigin();
   const siteName = resolved.data.settings?.website_name || BRANDING.name;
   const title = `${resolved.projectName} — Available Properties & Prices | ${siteName}`;
   const description = describeProject(resolved);
@@ -97,13 +98,13 @@ export async function generateMetadata({
   return {
     title,
     description,
-    alternates: { canonical: `${siteUrl}/projects/${slug}` },
+    alternates: { canonical: `${origin}/projects/${slug}` },
     robots: { index: true, follow: true },
     openGraph: {
       title,
       description,
       type: 'website',
-      url: `${siteUrl}/projects/${slug}`,
+      url: `${origin}/projects/${slug}`,
     },
     twitter: { card: 'summary', title, description },
   };
@@ -124,18 +125,36 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
     false
   );
 
+  const origin = await resolveRequestOrigin();
+
   return (
-    <ShowcaseView
-      properties={publicProperties}
-      settings={data.settings}
-      accountId={accountId}
-      hero={{
-        title: 'Properties in',
-        highlight: projectName,
-        subtitle: describeProject(resolved),
-        badges: [...(city ? [city] : []), ...types.slice(0, 3)],
-      }}
-      disableSavedState
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            itemListJsonLd(
+              `Properties in ${projectName}`,
+              projectProperties.map((p) => ({
+                name: p.title,
+                url: `${origin}/property/${propertySlug(p)}`,
+              }))
+            )
+          ),
+        }}
+      />
+      <ShowcaseView
+        properties={publicProperties}
+        settings={data.settings}
+        accountId={accountId}
+        hero={{
+          title: 'Properties in',
+          highlight: projectName,
+          subtitle: describeProject(resolved),
+          badges: [...(city ? [city] : []), ...types.slice(0, 3)],
+        }}
+        disableSavedState
+      />
+    </>
   );
 }
