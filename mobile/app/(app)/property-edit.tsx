@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
+import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
@@ -25,6 +26,7 @@ import { haptic } from '@/lib/haptics';
 import {
   AMENITIES_BY_CATEGORY,
   AREA_UNITS,
+  COMMERCIAL_TYPES,
   FACING_DIRECTIONS,
   LISTING_TYPES,
   NEARBY_HIGHLIGHTS_OPTIONS,
@@ -37,6 +39,37 @@ import type { Property } from '@/lib/types';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
 
+// String drafts of lib/inventory/floor-tenancies rows (web parity).
+interface TenancyDraft {
+  floor: string;
+  tenant_name: string;
+  area_sqft: string;
+  monthly_rent: string;
+  lease_start: string;
+  lease_end: string;
+  lock_in_months: string;
+  maintenance: string;
+  notes: string;
+}
+
+const emptyTenancy: TenancyDraft = {
+  floor: '',
+  tenant_name: '',
+  area_sqft: '',
+  monthly_rent: '',
+  lease_start: '',
+  lease_end: '',
+  lock_in_months: '',
+  maintenance: '',
+  notes: '',
+};
+
+function toIsoDate(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
 async function fetchProperty(id: string): Promise<Property | null> {
   const { data, error } = await supabase
     .from('properties')
@@ -45,7 +78,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
         'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
         'dimensions, facing_direction, google_map_link, features, nearby_highlights, ' +
-        'owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
+        'floor_tenancies, owner_contact_id, owner:contacts!properties_owner_contact_id_fkey(id, name, phone)'
     )
     .eq('id', id)
     .maybeSingle();
@@ -56,9 +89,10 @@ async function fetchProperty(id: string): Promise<Property | null> {
 /**
  * Property editor — mirrors the web form's common fields: photos, type,
  * listing type, price/rent, status, specs, land & dimensions, location,
- * features, nearby highlights, description and publish. Saves through the
- * same PUT /api/properties/[id]. Documents, floor tenancies and deal
- * terms remain on the web's full form.
+ * features, nearby highlights, floor-wise tenancy (rent roll) for
+ * commercial types, description and publish. Saves through the same
+ * PUT /api/properties/[id]. Documents and deal terms remain on the
+ * web's full form.
  */
 export default function PropertyEditScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -114,6 +148,19 @@ function EditForm({ property }: { property: Property }) {
   const [mapLink, setMapLink] = useState(property.google_map_link ?? '');
   const [features, setFeatures] = useState<string[]>(property.features ?? []);
   const [nearby, setNearby] = useState<string[]>(property.nearby_highlights ?? []);
+  const [tenancies, setTenancies] = useState<TenancyDraft[]>(
+    (property.floor_tenancies ?? []).map((ft) => ({
+      floor: ft.floor ?? '',
+      tenant_name: ft.tenant_name ?? '',
+      area_sqft: ft.area_sqft != null ? String(ft.area_sqft) : '',
+      monthly_rent: ft.monthly_rent != null ? String(ft.monthly_rent) : '',
+      lease_start: ft.lease_start ?? '',
+      lease_end: ft.lease_end ?? '',
+      lock_in_months: ft.lock_in_months != null ? String(ft.lock_in_months) : '',
+      maintenance: ft.maintenance ?? '',
+      notes: ft.notes ?? '',
+    }))
+  );
   const [description, setDescription] = useState(property.description ?? '');
   const [published, setPublished] = useState(Boolean(property.is_published));
   const [ownerContactId, setOwnerContactId] = useState<string | null>(
@@ -127,6 +174,7 @@ function EditForm({ property }: { property: Property }) {
   const [sheet, setSheet] = useState<'type' | 'features' | 'nearby' | 'owner' | null>(null);
 
   const isRent = listingType === 'Rent' || listingType === 'Built to Suit';
+  const isCommercial = COMMERCIAL_TYPES.includes(type);
 
   useEffect(() => {
     setError(null);
@@ -136,6 +184,12 @@ function EditForm({ property }: { property: Property }) {
     const n = Number(value.replace(/[^\d.]/g, ''));
     return value.trim() && Number.isFinite(n) ? n : null;
   }
+
+  function updateTenancy(idx: number, key: keyof TenancyDraft, value: string) {
+    setTenancies((prev) => prev.map((t, i) => (i === idx ? { ...t, [key]: value } : t)));
+  }
+
+  const tenancyTotal = tenancies.reduce((sum, t) => sum + (num(t.monthly_rent) ?? 0), 0);
 
   async function save() {
     if (!title.trim()) {
@@ -175,6 +229,23 @@ function EditForm({ property }: { property: Property }) {
     } else {
       const p = num(price);
       if (p !== null) body.price = p;
+    }
+    // Only sent while the section is visible — switching to a
+    // non-commercial type leaves the stored rent roll untouched.
+    // Server-side sanitizeFloorTenancies() drops empty rows and
+    // re-validates every value.
+    if (isCommercial) {
+      body.floor_tenancies = tenancies.map((t) => ({
+        floor: t.floor.trim(),
+        tenant_name: t.tenant_name.trim() || null,
+        area_sqft: num(t.area_sqft),
+        monthly_rent: num(t.monthly_rent),
+        lease_start: t.lease_start || null,
+        lease_end: t.lease_end || null,
+        lock_in_months: num(t.lock_in_months),
+        maintenance: t.maintenance.trim() || null,
+        notes: t.notes.trim() || null,
+      }));
     }
     try {
       await apiFetch(`/api/properties/${property.id}`, {
@@ -350,6 +421,145 @@ function EditForm({ property }: { property: Property }) {
           onPress={() => setSheet('nearby')}
         />
 
+        {isCommercial ? (
+          <>
+            <SectionLabel text="Floor-wise tenancy (Rent roll)" />
+            <Text style={{ fontSize: 12.5, color: colors.textMuted, marginTop: -6 }}>
+              For pre-leased buildings — tenant, rent (excluding GST), lease period, lock-in and
+              maintenance per floor. Internal to your CRM; never shown on the showcase.
+            </Text>
+            {tenancies.map((t, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.tenancyCard,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.tenancyHeader}>
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontFamily: f.bold,
+                      color: colors.textFaint,
+                      letterSpacing: 0.8,
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    Floor / Unit {i + 1}
+                  </Text>
+                  <Pressable
+                    onPress={() => setTenancies((prev) => prev.filter((_, idx) => idx !== i))}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove floor ${i + 1}`}
+                  >
+                    <Ionicons name="trash-outline" size={17} color={colors.danger} />
+                  </Pressable>
+                </View>
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Floor / unit"
+                      value={t.floor}
+                      onChangeText={(v) => updateTenancy(i, 'floor', v)}
+                      placeholder="e.g. 2nd + 3rd Floor"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Tenant"
+                      value={t.tenant_name}
+                      onChangeText={(v) => updateTenancy(i, 'tenant_name', v)}
+                      placeholder="e.g. Ramada Hospitality"
+                    />
+                  </View>
+                </View>
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Area (Sq.Ft.)"
+                      value={t.area_sqft}
+                      onChangeText={(v) => updateTenancy(i, 'area_sqft', v)}
+                      keyboardType="numeric"
+                      placeholder="10000"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Rent (₹, excl. GST)"
+                      value={t.monthly_rent}
+                      onChangeText={(v) => updateTenancy(i, 'monthly_rent', v)}
+                      keyboardType="numeric"
+                      placeholder="1350000"
+                    />
+                  </View>
+                </View>
+                <View style={styles.row}>
+                  <TenancyDateField
+                    label="Lease start"
+                    value={t.lease_start}
+                    onChange={(v) => updateTenancy(i, 'lease_start', v)}
+                  />
+                  <TenancyDateField
+                    label="Lease end"
+                    value={t.lease_end}
+                    onChange={(v) => updateTenancy(i, 'lease_end', v)}
+                  />
+                </View>
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Lock-in (months)"
+                      value={t.lock_in_months}
+                      onChangeText={(v) => updateTenancy(i, 'lock_in_months', v)}
+                      keyboardType="numeric"
+                      placeholder="36"
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Maintenance"
+                      value={t.maintenance}
+                      onChangeText={(v) => updateTenancy(i, 'maintenance', v)}
+                      placeholder="e.g. ₹5/sqft, by tenant"
+                    />
+                  </View>
+                </View>
+                <TextField
+                  label="Usage / notes"
+                  value={t.notes}
+                  onChangeText={(v) => updateTenancy(i, 'notes', v)}
+                  placeholder="e.g. 3-Star Hotel · 27 rooms"
+                />
+              </View>
+            ))}
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                setTenancies((prev) => [...prev, { ...emptyTenancy }]);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Add floor to rent roll"
+              style={[styles.addFloorRow, { borderColor: colors.border, backgroundColor: colors.surface }]}
+            >
+              <Ionicons name="add" size={18} color={colors.primary} />
+              <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
+                Add floor
+              </Text>
+            </Pressable>
+            {tenancyTotal > 0 ? (
+              <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+                Total monthly rent:{' '}
+                <Text style={{ color: colors.primary }}>{formatInr(tenancyTotal)}</Text>{' '}
+                <Text style={{ fontFamily: f.medium, color: colors.textMuted }}>
+                  (excluding GST)
+                </Text>
+              </Text>
+            ) : null}
+          </>
+        ) : null}
+
         <TextField label="Description" value={description} onChangeText={setDescription} multiline />
 
         <View style={styles.publishRow}>
@@ -371,7 +581,7 @@ function EditForm({ property }: { property: Property }) {
 
         <PrimaryButton label="Save changes" busy={saving} onPress={save} />
         <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-          Documents, floor tenancies and deal terms are still edited in the web app's full form.
+          Documents and deal terms are still edited in the web app's full form.
         </Text>
       </ScrollView>
 
@@ -423,6 +633,62 @@ function EditForm({ property }: { property: Property }) {
         }
       />
     </KeyboardAvoidingView>
+  );
+}
+
+function TenancyDateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ flex: 1, gap: 6 }}>
+      <SectionLabel text={label} style={{ color: colors.textMuted }} />
+      <View style={[styles.select, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Pressable
+          onPress={() => setOpen((o) => !o)}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          style={{ flex: 1, justifyContent: 'center', alignSelf: 'stretch' }}
+        >
+          <Text
+            style={{
+              fontSize: 15,
+              fontFamily: f.medium,
+              color: value ? colors.text : colors.textFaint,
+            }}
+          >
+            {value || 'Pick a date'}
+          </Text>
+        </Pressable>
+        {value ? (
+          <Pressable
+            onPress={() => onChange('')}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={`Clear ${label}`}
+          >
+            <Ionicons name="close-circle" size={17} color={colors.textFaint} />
+          </Pressable>
+        ) : (
+          <Ionicons name="calendar-outline" size={16} color={colors.textFaint} />
+        )}
+      </View>
+      {open ? (
+        <InlineDateTimePicker
+          value={value ? new Date(`${value}T00:00:00`) : new Date()}
+          mode="date"
+          onChange={(d) => onChange(toIsoDate(d))}
+          onClose={() => setOpen(false)}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -483,5 +749,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     paddingVertical: spacing.sm,
+  },
+  tenancyCard: {
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  tenancyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addFloorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 12,
   },
 });

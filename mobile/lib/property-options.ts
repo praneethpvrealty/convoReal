@@ -2,6 +2,21 @@
 // (src/components/inventory/property-form.tsx) so the mobile editor
 // offers the same choices.
 
+// Same list as the web form's hasCommercialFields — gates the
+// commercial-only fields (rent roll).
+export const COMMERCIAL_TYPES = [
+  'Commercial Office Space',
+  'Office in IT Park/ SEZ',
+  'Commercial Shop',
+  'Commercial Showroom',
+  'Commercial Building',
+  'Commercial Land',
+  'Warehouse/ Godown',
+  'Industrial Land',
+  'Industrial Building',
+  'Industrial Shed',
+];
+
 export const PROPERTY_TYPE_GROUPS: { group: string; options: string[] }[] = [
   {
     group: 'Residential',
@@ -19,18 +34,7 @@ export const PROPERTY_TYPE_GROUPS: { group: string; options: string[] }[] = [
   },
   {
     group: 'Commercial',
-    options: [
-      'Commercial Office Space',
-      'Office in IT Park/ SEZ',
-      'Commercial Shop',
-      'Commercial Showroom',
-      'Commercial Building',
-      'Commercial Land',
-      'Warehouse/ Godown',
-      'Industrial Land',
-      'Industrial Building',
-      'Industrial Shed',
-    ],
+    options: [...COMMERCIAL_TYPES],
   },
   { group: 'Agricultural', options: ['Agricultural Land', 'Farm House'] },
 ];
