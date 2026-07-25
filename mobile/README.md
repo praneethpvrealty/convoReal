@@ -136,6 +136,36 @@ the web's URL shapes: `?property_id=` / `?propertyId=` → property,
   activate with the first EAS build (OS verification needs the real
   signing cert; Expo Go can never claim your domain).
 
+### Activating Android App Links in production
+
+The code above is inert until every step here is done — an empty
+`assetlinks.json` (`[]`) means Android silently keeps opening links in
+the browser.
+
+1. Get the SHA-256 signing-cert fingerprint(s). For Play Store installs
+   use the **App signing key certificate** from Play Console → Test and
+   release → Setup → App signing (NOT the upload key — Google re-signs
+   the app). For direct-APK installs use the fingerprint from
+   `eas credentials` (Android → production → Keystore). If both install
+   paths exist, include both.
+2. Set `ANDROID_APP_CERT_SHA256` in the web host's production env to the
+   colon-separated hex fingerprint(s), comma-separated if several, and
+   redeploy the web app.
+3. Verify: `curl https://www.convoreal.com/.well-known/assetlinks.json`
+   must return a non-empty statement list with a 200 — no redirect. The
+   apex `convoreal.com` currently 308-redirects to `www` at the hosting
+   layer, which verifiers refuse to follow; that is why only
+   `www.convoreal.com` is declared in the Android intent filter.
+4. Rebuild the app with EAS and reinstall it — intent filters bake into
+   the native manifest, and Android runs domain verification at
+   install/update time, not via OTA updates.
+5. Check on-device:
+   `adb shell pm get-app-links com.convoreal.app` should show
+   `www.convoreal.com: verified`. Force a re-check with
+   `adb shell pm verify-app-links --re-verify com.convoreal.app`, then
+   test with
+   `adb shell am start -a android.intent.action.VIEW -d "https://www.convoreal.com/?property_id=<id>"`.
+
 ## `npm audit` noise
 
 `npm install` reports ~11 moderate vulnerabilities. All of them root at
