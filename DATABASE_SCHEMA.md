@@ -130,6 +130,7 @@ Real estate inventory catalog.
 - `area_sqft` (NUMERIC): Built-up/Land area size.
 - `area_unit` (TEXT): e.g. `'Sq.Ft.'`, `'Acre'`.
 - `land_area` / `land_area_unit` (For plot/land specs).
+- `price_per_sqft` (NUMERIC, migration 167): Rate quoted per Sq.Ft. at intake — `price` is derived from it once an area is known (`src/lib/ai/listing-derivations.ts`).
 - `dimensions` (TEXT): e.g., `30x40`.
 - `facing_direction` (TEXT): e.g. `'North'`.
 - `nearby_highlights` (TEXT[]): List of nearby landmarks.

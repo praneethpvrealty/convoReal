@@ -870,6 +870,9 @@ export interface Property {
   title: string;
   description?: string;
   price: number;
+  /** Rate quoted per Sq.Ft. at intake (migration 167). `price` is derived
+   *  from it once an area is known; this keeps what the owner quoted. */
+  price_per_sqft?: number | null;
   /** Final sale price captured when status → Sold. Optional, never buyer-facing. */
   sold_price?: number | null;
   location: string;
