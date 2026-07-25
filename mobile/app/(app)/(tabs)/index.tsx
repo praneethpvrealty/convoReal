@@ -222,7 +222,11 @@ function InboxHeader({
   const insets = useSafeAreaInsets();
   const credits = useCredits();
   const session = useAuthStore((s) => s.session);
-  const firstName = (session?.user.email?.split('@')[0] ?? 'there').split(/[._-]/)[0];
+  const fullName = useAuthStore((s) => s.profile?.full_name);
+  // Greet with the name set in Settings → profile; the email handle is
+  // only a stand-in until that name exists.
+  const emailName = (session?.user.email?.split('@')[0] ?? 'there').split(/[._-]/)[0];
+  const firstName = fullName?.trim().split(/\s+/)[0] || emailName;
   const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
 
   return (

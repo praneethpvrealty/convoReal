@@ -81,11 +81,12 @@ export function FlyerSheet({
   // a percentage/flex height collapses against the maxHeight-only sheet.
   // The Save footer sits OUTSIDE this scroll area so it is always
   // reachable, so the cap leaves room for it.
-  const { height: winH } = useWindowDimensions();
+  const { height: winH, width: winW } = useWindowDimensions();
   const scrollMax = Math.round(winH * 0.58);
-  // On tall/large screens a full-width square preview swallows the whole
-  // sheet — cap its size so the controls stay in view.
-  const previewSize = Math.round(winH * 0.38);
+  // Keep the square preview to roughly half the scroll area so the
+  // Background/Template rows always peek out underneath it — otherwise the
+  // sheet looks like it ends at the preview and nobody thinks to scroll.
+  const previewSize = Math.min(Math.round(winH * 0.26), winW - spacing.lg * 2);
   const session = useAuthStore((s) => s.session);
   const config = useAppConfig();
   const brandDefault = config?.branding.name ?? 'ConvoReal';
@@ -257,16 +258,22 @@ export function FlyerSheet({
         }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        persistentScrollbar
         nestedScrollEnabled
       >
         <View
           style={[
             styles.preview,
-            { maxWidth: previewSize, backgroundColor: colors.surfaceSunken, borderColor: colors.glassBorder },
+            {
+              width: previewSize,
+              height: previewSize,
+              backgroundColor: colors.surfaceSunken,
+              borderColor: colors.glassBorder,
+            },
           ]}
         >
           {previewUri ? (
-            <Image source={{ uri: storagePublicUrl(previewUri) }} style={styles.previewImage} resizeMode="cover" />
+            <Image source={{ uri: storagePublicUrl(previewUri) }} style={styles.previewImage} resizeMode="contain" />
           ) : (
             <View style={styles.previewEmpty}>
               <Ionicons name="image-outline" size={36} color={colors.textFaint} />
@@ -402,8 +409,6 @@ export function FlyerSheet({
 
 const styles = StyleSheet.create({
   preview: {
-    aspectRatio: 1,
-    width: '100%',
     alignSelf: 'center',
     borderRadius: radius.lg,
     borderWidth: 1,

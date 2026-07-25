@@ -65,14 +65,20 @@ export function BottomSheet({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable
+      <View
         style={[styles.backdrop, { backgroundColor: colors.backdrop, paddingBottom: keyboardHeight }]}
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel="Close"
       >
+        {/* Dismiss target sits *behind* the sheet rather than wrapping it:
+            a Pressable ancestor competes with the sheet's own ScrollView for
+            the touch responder, which makes scrolling the sheet's content
+            stutter or fail outright. */}
         <Pressable
-          onPress={() => {}}
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        />
+        <View
           accessibilityViewIsModal
           style={[
             styles.sheet,
@@ -103,8 +109,8 @@ export function BottomSheet({
             </View>
           ) : null}
           {children}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
