@@ -9,10 +9,13 @@ import {
   cachedFetchFallbackAccount,
   cachedFetchShowcaseData,
   cachedResolveAccountFromSubdomain,
+  cachedResolvePropertyById,
   resolveSubdomainFromHost,
   toPublicProperties,
 } from '@/lib/showcase/public-data';
-import type { Property } from '@/types';
+import { propertySlug } from '@/lib/showcase/property-slug';
+import { resolveRequestOrigin } from '@/lib/showcase/site-url';
+import { jsonLdScript, propertyJsonLd } from '@/lib/seo/jsonld';
 import { BRANDING } from '@/config/branding';
 
 const DEFAULT_METADATA: Metadata = {
@@ -49,7 +52,9 @@ interface PageProps {
  * lookup shares the unstable_cache entry with the page render below,
  * so this costs nothing extra per request.
  */
-export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
+export async function generateMetadata({
+  searchParams,
+}: PageProps): Promise<Metadata> {
   const resolvedParams = await searchParams;
   const propertyId = resolvedParams.property_id;
   if (!propertyId) return DEFAULT_METADATA;
@@ -67,21 +72,23 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
   // served from this app — so it never depends on the Supabase image-render
   // transform endpoint, which requires a paid add-on and which messenger
   // crawlers (WhatsApp/Telegram) could not fetch, leaving shares imageless.
-  const h = await headers();
-  const host = h.get('host');
-  const proto = h.get('x-forwarded-proto') || 'https';
-  const origin = host
-    ? `${proto}://${host}`
-    : (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(/\/$/, '');
+  const origin = await resolveRequestOrigin();
   const heroImage = `${origin}/api/properties/${property.id}/og-image`;
+
+  // Share links carry per-visitor tracking params (v=, ref=, mode=) that
+  // spawn unbounded duplicate URLs — the canonical collapses them all onto
+  // the clean crawlable /property/ route.
+  const canonicalUrl = `${origin}/property/${propertySlug(property)}`;
 
   return {
     title: property.title,
     description,
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       title: property.title,
       description,
       type: 'website',
+      url: canonicalUrl,
       images: [{ url: heroImage }],
     },
     twitter: {
@@ -100,50 +107,30 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 // Instead we cache the expensive Supabase queries with unstable_cache
 // so repeat visits with the same parameters are instant.
 
-// UUID share links (bot sends, Radar, email digests, share dialogs) must
-// resolve regardless of which tenant owns the listing — scoping them to
-// NEXT_PUBLIC_DEFAULT_ACCOUNT_ID silently broke every deep link from a
-// non-default account. UUIDs are globally unique, so the lookup is safe
-// unscoped; the caller re-derives account_id from the row it gets back.
-// property_code links stay scoped when a scope is known (codes repeat
-// across tenants), falling back to a global lookup only when the code is
-// unambiguous.
-const cachedResolvePropertyById = unstable_cache(
-  async (propertyId: string, scopedAccountId: string | null) => {
-    const admin = supabaseAdmin();
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(propertyId);
-    if (isUuid) {
-      const { data } = await admin.from('properties').select('*').eq('id', propertyId).maybeSingle();
-      return data as Property | null;
-    }
-    const code = propertyId.toUpperCase();
-    if (scopedAccountId) {
-      const { data } = await admin
-        .from('properties')
-        .select('*')
-        .eq('property_code', code)
-        .eq('account_id', scopedAccountId)
-        .maybeSingle();
-      if (data) return data as Property;
-    }
-    const { data: rows } = await admin.from('properties').select('*').eq('property_code', code).limit(2);
-    return rows && rows.length === 1 ? (rows[0] as Property) : null;
-  },
-  ['showcase-property'],
-  { revalidate: 3600 },
-);
-
 const cachedResolveRef = unstable_cache(
   async (ref: string) => {
     const admin = supabaseAdmin();
     const [accountResult, contactResult, profileResult] = await Promise.all([
       admin.from('accounts').select('id').eq('id', ref).maybeSingle(),
-      admin.from('contacts').select('account_id, id').eq('id', ref).maybeSingle(),
-      admin.from('profiles').select('account_id, user_id').eq('user_id', ref).maybeSingle(),
+      admin
+        .from('contacts')
+        .select('account_id, id')
+        .eq('id', ref)
+        .maybeSingle(),
+      admin
+        .from('profiles')
+        .select('account_id, user_id')
+        .eq('user_id', ref)
+        .maybeSingle(),
     ]);
 
     if (accountResult.data) {
-      return { type: 'account' as const, accountId: accountResult.data.id, filterContactId: null, filterUserId: null };
+      return {
+        type: 'account' as const,
+        accountId: accountResult.data.id,
+        filterContactId: null,
+        filterUserId: null,
+      };
     }
     if (contactResult.data) {
       return {
@@ -164,7 +151,7 @@ const cachedResolveRef = unstable_cache(
     return null;
   },
   ['showcase-ref'],
-  { revalidate: 3600 },
+  { revalidate: 3600 }
 );
 
 const cachedResolveReferrerPhone = unstable_cache(
@@ -172,8 +159,11 @@ const cachedResolveReferrerPhone = unstable_cache(
     accountId: string,
     filterContactId: string | null,
     filterUserId: string | null,
-    targetPropertyUserId: string | null,
-  ): Promise<{ referrerPhone: string | null; resolvedContactId: string | null }> => {
+    targetPropertyUserId: string | null
+  ): Promise<{
+    referrerPhone: string | null;
+    resolvedContactId: string | null;
+  }> => {
     const admin = supabaseAdmin();
 
     if (filterContactId) {
@@ -182,7 +172,10 @@ const cachedResolveReferrerPhone = unstable_cache(
         .select('phone')
         .eq('id', filterContactId)
         .maybeSingle();
-      return { referrerPhone: contact?.phone || null, resolvedContactId: filterContactId };
+      return {
+        referrerPhone: contact?.phone || null,
+        resolvedContactId: filterContactId,
+      };
     }
 
     if (filterUserId) {
@@ -228,7 +221,7 @@ const cachedResolveReferrerPhone = unstable_cache(
     return { referrerPhone: null, resolvedContactId: null };
   },
   ['showcase-referrer'],
-  { revalidate: 3600 },
+  { revalidate: 3600 }
 );
 
 // Server Component: fetches public listings & configuration details
@@ -239,15 +232,19 @@ export default async function RootPage({ searchParams }: PageProps) {
     const inviteParam = resolvedParams.invite
       ? `&invite=${encodeURIComponent(resolvedParams.invite)}`
       : '';
-    redirect(`/auth/callback?code=${encodeURIComponent(resolvedParams.code)}${inviteParam}`);
+    redirect(
+      `/auth/callback?code=${encodeURIComponent(resolvedParams.code)}${inviteParam}`
+    );
   }
 
   const reqHeaders = await headers();
   const host = reqHeaders.get('host') || '';
   const subdomain = resolveSubdomainFromHost(host);
 
-  let accountId: string | null = process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
-  const ref = resolvedParams.ref || resolvedParams.account_id || resolvedParams.agent_id;
+  let accountId: string | null =
+    process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;
+  const ref =
+    resolvedParams.ref || resolvedParams.account_id || resolvedParams.agent_id;
   const initialPropertyId = resolvedParams.property_id;
 
   // If there is no subdomain and no showcase query parameters, serve the product landing page
@@ -258,8 +255,12 @@ export default async function RootPage({ searchParams }: PageProps) {
   // ── Phase 1: Resolve accountId in parallel ─────────────────────
   // Property lookup + subdomain lookup + ref resolution all fire at once.
   const [subdomainAccount, targetProperty] = await Promise.all([
-    subdomain ? cachedResolveAccountFromSubdomain(subdomain) : Promise.resolve(null),
-    initialPropertyId ? cachedResolvePropertyById(initialPropertyId, accountId) : Promise.resolve(null),
+    subdomain
+      ? cachedResolveAccountFromSubdomain(subdomain)
+      : Promise.resolve(null),
+    initialPropertyId
+      ? cachedResolvePropertyById(initialPropertyId, accountId)
+      : Promise.resolve(null),
   ]);
 
   if (subdomainAccount) accountId = subdomainAccount;
@@ -268,7 +269,8 @@ export default async function RootPage({ searchParams }: PageProps) {
   // ── Fast path: clean-view shares don't need referrer/contacts/profiles ─
   // 'view' is the public value ('agent' kept for previously shared links —
   // it read as an internal role name to buyers, so links now say mode=view).
-  const isAgentMode = resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
+  const isAgentMode =
+    resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
 
   let filterContactId: string | null = null;
   let filterUserId: string | null = null;
@@ -291,15 +293,16 @@ export default async function RootPage({ searchParams }: PageProps) {
 
   if (!accountId) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-950 text-white p-6">
-        <div className="max-w-md text-center space-y-3">
+      <div className="flex h-screen items-center justify-center bg-slate-950 p-6 text-white">
+        <div className="max-w-md space-y-3 text-center">
           <h2 className="text-xl font-bold">Showcase Setup Pending</h2>
           <p className="text-sm text-slate-400">
-            Please log in to the admin dashboard and configure your account settings.
+            Please log in to the admin dashboard and configure your account
+            settings.
           </p>
           <a
             href="/login"
-            className="inline-block bg-primary text-primary-foreground font-bold px-4 py-2 rounded-lg text-xs hover:bg-primary-hover"
+            className="bg-primary text-primary-foreground hover:bg-primary-hover inline-block rounded-lg px-4 py-2 text-xs font-bold"
           >
             Go to Login Portal
           </a>
@@ -309,16 +312,24 @@ export default async function RootPage({ searchParams }: PageProps) {
   }
 
   // ── Phase 2: Fetch showcase data (cached) ────────────────────
-  const { settings, properties: publishedProperties, agents: agentContacts, profiles } =
-    await cachedFetchShowcaseData(accountId, isAgentMode);
+  const {
+    settings,
+    properties: publishedProperties,
+    agents: agentContacts,
+    profiles,
+  } = await cachedFetchShowcaseData(accountId, isAgentMode);
 
   let filteredProperties = [...publishedProperties];
 
   // Apply referrer filter client-side
   if (filterContactId) {
-    filteredProperties = filteredProperties.filter((p) => p.owner_contact_id === filterContactId);
+    filteredProperties = filteredProperties.filter(
+      (p) => p.owner_contact_id === filterContactId
+    );
   } else if (filterUserId) {
-    filteredProperties = filteredProperties.filter((p) => p.user_id === filterUserId);
+    filteredProperties = filteredProperties.filter(
+      (p) => p.user_id === filterUserId
+    );
   }
 
   // Merge targeted property if not in list
@@ -338,7 +349,7 @@ export default async function RootPage({ searchParams }: PageProps) {
       accountId,
       filterContactId,
       filterUserId,
-      targetProperty?.user_id || null,
+      targetProperty?.user_id || null
     );
     referrerPhone = referrerResult.referrerPhone;
     if (referrerResult.resolvedContactId) {
@@ -346,20 +357,49 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
   }
 
-  const propertiesWithAgent = toPublicProperties(propertiesList, agentContacts, profiles, isAgentMode);
+  const propertiesWithAgent = toPublicProperties(
+    propertiesList,
+    agentContacts,
+    profiles,
+    isAgentMode
+  );
+
+  const proto = reqHeaders.get('x-forwarded-proto') || 'https';
+  const origin = host
+    ? `${proto}://${host}`
+    : (process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl).replace(
+        /\/$/,
+        ''
+      );
 
   // Render
   return (
-    <ShowcaseView
-      properties={propertiesWithAgent}
-      settings={settings}
-      accountId={accountId}
-      referrerContactId={filterContactId || undefined}
-      referrerPhone={referrerPhone || undefined}
-      initialPropertyId={initialPropertyId}
-      initialCategory={resolvedParams.category}
-      initialAgentMode={isAgentMode}
-      visitorRef={resolvedParams.v}
-    />
+    <>
+      {targetProperty && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: jsonLdScript(
+              propertyJsonLd(
+                targetProperty,
+                `${origin}/property/${propertySlug(targetProperty)}`,
+                `${origin}/api/properties/${targetProperty.id}/og-image`
+              )
+            ),
+          }}
+        />
+      )}
+      <ShowcaseView
+        properties={propertiesWithAgent}
+        settings={settings}
+        accountId={accountId}
+        referrerContactId={filterContactId || undefined}
+        referrerPhone={referrerPhone || undefined}
+        initialPropertyId={initialPropertyId}
+        initialCategory={resolvedParams.category}
+        initialAgentMode={isAgentMode}
+        visitorRef={resolvedParams.v}
+      />
+    </>
   );
 }

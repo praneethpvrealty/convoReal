@@ -13,6 +13,9 @@ import {
   getFarmlandDestination,
   matchesFarmlandDestination,
 } from '@/lib/data/farmland-destinations';
+import { propertySlug } from '@/lib/showcase/property-slug';
+import { resolveRequestOrigin } from '@/lib/showcase/site-url';
+import { itemListJsonLd, jsonLdScript } from '@/lib/seo/jsonld';
 import { BRANDING } from '@/config/branding';
 
 interface PageProps {
@@ -30,21 +33,19 @@ export async function generateMetadata({
   const destination = getFarmlandDestination(slug);
   if (!destination) return { title: `Farm Lands | ${BRANDING.name}` };
 
-  const siteUrl = (
-    process.env.NEXT_PUBLIC_SITE_URL || BRANDING.websiteUrl
-  ).replace(/\/$/, '');
+  const origin = await resolveRequestOrigin();
   const title = `Farm Lands in ${destination.name} (${destination.region}) | ${BRANDING.name}`;
 
   return {
     title,
     description: destination.metaDescription,
-    alternates: { canonical: `${siteUrl}/farmland/${destination.slug}` },
+    alternates: { canonical: `${origin}/farmland/${destination.slug}` },
     robots: { index: true, follow: true },
     openGraph: {
       title,
       description: destination.metaDescription,
       type: 'website',
-      url: `${siteUrl}/farmland/${destination.slug}`,
+      url: `${origin}/farmland/${destination.slug}`,
     },
     twitter: {
       card: 'summary',
@@ -88,19 +89,37 @@ export default async function FarmlandDestinationPage({
     false
   );
 
+  const origin = await resolveRequestOrigin();
+
   return (
-    <ShowcaseView
-      properties={destinationProperties}
-      settings={settings}
-      accountId={accountId}
-      hero={{
-        title: destination.headline,
-        highlight: destination.name,
-        subtitle: destination.subtitle,
-        badges: destination.highlights,
-      }}
-      initialTheme={destination.theme}
-      disableSavedState
-    />
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLdScript(
+            itemListJsonLd(
+              `Farm Lands in ${destination.name}`,
+              destinationProperties.map((p) => ({
+                name: p.title,
+                url: `${origin}/property/${propertySlug(p)}`,
+              }))
+            )
+          ),
+        }}
+      />
+      <ShowcaseView
+        properties={destinationProperties}
+        settings={settings}
+        accountId={accountId}
+        hero={{
+          title: destination.headline,
+          highlight: destination.name,
+          subtitle: destination.subtitle,
+          badges: destination.highlights,
+        }}
+        initialTheme={destination.theme}
+        disableSavedState
+      />
+    </>
   );
 }
