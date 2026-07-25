@@ -14,6 +14,7 @@ import {
   type ParsedContactDraftsContainer,
   normalizeClassification
 } from '@/lib/ai/gemini';
+import { applyListingDerivations } from '@/lib/ai/listing-derivations';
 import { uploadPropertyImage, uploadPropertyDocument, uploadPropertyVideo } from '@/lib/storage/upload';
 import { queueYouTubeUploadIfConnected } from '@/lib/youtube/upload';
 import { sanitizeFloorTenancies } from '@/lib/inventory/floor-tenancies';
@@ -1934,10 +1935,12 @@ export async function processOwnerChatbotMessage(
                 if (latestSession) {
                   const latestDraft = latestSession.draft_data as ParsedPropertyDraft;
                   
-                  mergedDraft = {
+                  mergedDraft = applyListingDerivations({
                     title: latestDraft.title || parsedDraft.title,
                     description: latestDraft.description || parsedDraft.description,
                     price: latestDraft.price || parsedDraft.price,
+                    price_per_sqft: latestDraft.price_per_sqft || parsedDraft.price_per_sqft,
+                    price_from_rate: latestDraft.price_from_rate || parsedDraft.price_from_rate,
                     location: latestDraft.location || parsedDraft.location,
                     type: latestDraft.type || parsedDraft.type,
                     bedrooms: latestDraft.bedrooms || parsedDraft.bedrooms,
@@ -1968,7 +1971,7 @@ export async function processOwnerChatbotMessage(
                     nearby_highlights: Array.from(new Set([...(latestDraft.nearby_highlights || []), ...(parsedDraft.nearby_highlights || [])])),
                     images: Array.from(new Set([...(latestDraft.images || []), ...(parsedDraft.images || [])])),
                     documents: Array.from(new Set([...(latestDraft.documents || []), ...(parsedDraft.documents || [])]))
-                  };
+                  });
 
                   const validation = validateDraft(mergedDraft);
                   nextStatus = validation.isValid ? 'awaiting_confirmation' : 'collecting';

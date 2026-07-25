@@ -140,12 +140,23 @@ export function formatDraftPreviewMessage(
              `*GST:* ${draft.gst ? (draft.gst <= 100 ? draft.gst + '%' : '₹' + draft.gst.toLocaleString('en-IN')) : '_Not specified_'}\n`;
   } else {
     reply += `*Price:* ${draft.price ? '₹' + draft.price.toLocaleString('en-IN') : '❓ _Missing_'}\n`;
+    if (draft.price_per_sqft) {
+      const rate = `₹${Number(draft.price_per_sqft.toFixed(2)).toLocaleString('en-IN')} / Sq.Ft.`;
+      reply += `*Rate:* ${rate}${
+        draft.price
+          ? draft.price_from_rate
+            ? ' _(price auto-calculated from area)_'
+            : ''
+          : ' _(share the land area and I\'ll calculate the price)_'
+      }\n`;
+    }
   }
 
   reply += `*Location:* ${draft.location || '❓ _Missing_'}\n` +
     `*Type:* ${draft.type || '❓ _Missing_'}\n` +
     `*Area:* ${draft.area_sqft ? draft.area_sqft + ' Sq.Ft.' : '_Not specified_'}\n` +
     (draft.land_area ? `*Land Area:* ${draft.land_area} ${draft.land_area_unit || 'Sq.Ft.'}\n` : '') +
+    (draft.dimensions ? `*Dimensions:* ${draft.dimensions}\n` : '') +
     (isCommOrLand ? '' : `*Beds/Baths:* ${draft.bedrooms ? draft.bedrooms + ' BHK' : '_Not specified_'} / ${draft.bathrooms ? draft.bathrooms + ' Bath' : '_Not specified_'}\n`);
 
   if (!isRent && draft.rental_income) {

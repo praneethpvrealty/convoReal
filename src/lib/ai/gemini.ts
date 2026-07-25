@@ -2,6 +2,7 @@ import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { PROPERTY_TYPE_VALUES, normalizePropertyType } from '@/lib/property-types';
 import { sanitizeFloorTenancies, type FloorTenancy } from '@/lib/inventory/floor-tenancies';
 import { logAiCall } from '@/lib/ai/call-log';
+import { applyListingDerivations } from '@/lib/ai/listing-derivations';
 
 export { PROPERTY_TYPE_VALUES, normalizePropertyType };
 
@@ -487,6 +488,13 @@ export interface ParsedPropertyDraft {
   area_sqft: number | null;
   land_area: number | null;
   land_area_unit: string | null;
+  /** Rate quoted per Sq.Ft. ("10500 per sqft"), kept so the total price
+   *  can be derived once an area arrives — often a message or two later. */
+  price_per_sqft?: number | null;
+  /** True while `price` is the product of `price_per_sqft` and the area,
+   *  so it re-derives when the area changes but never overwrites a total
+   *  the user stated outright. */
+  price_from_rate?: boolean;
   description: string | null;
   features: string[] | null;
   nearby_highlights: string[] | null;
@@ -588,6 +596,7 @@ function parseGeminiResponse(rawResult: string): Record<string, unknown> {
     fallback.area_sqft = extractNumber("area_sqft");
     fallback.land_area = extractNumber("land_area");
     fallback.land_area_unit = extractString("land_area_unit");
+    fallback.price_per_sqft = extractNumber("price_per_sqft");
     fallback.description = extractString("description");
     fallback.features = normalizeListingFeatures(extractArray("features"));
     fallback.nearby_highlights = extractArray("nearby_highlights");
@@ -673,7 +682,8 @@ export async function parseListingFromImageOrText(
     "You must return a JSON object conforming to the following structure:\n" +
     "{\n" +
     "  \"title\": \"A descriptive title (e.g. '3 BHK Apartment in HSR Layout' or '30x40 Residential Plot in Devanahalli') or null\",\n" +
-    "  \"price\": Numeric price in INR (e.g. if text says '1.2 Cr' or '120 Lakhs', price is 12000000) or null,\n" +
+    "  \"price\": Numeric TOTAL price in INR (e.g. if text says '1.2 Cr' or '120 Lakhs', price is 12000000) or null,\n" +
+    "  \"price_per_sqft\": Numeric rate in INR per Sq.Ft. when the price is quoted per unit area (e.g. '10500 per sqft' -> 10500, '₹1.2 Cr per acre' -> 275.48) or null,\n" +
     "  \"location\": \"Exact location or address or null\",\n" +
     "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
     "  \"sublocality\": \"Sublocality or neighborhood name or null\",\n" +
@@ -687,7 +697,7 @@ export async function parseListingFromImageOrText(
     "  \"description\": \"A professional description summarizing the listing or null\",\n" +
     "  \"features\": Array of string features/amenities (e.g., ['Fenced Boundary', 'Access Road', '24/7 Security']) or empty array,\n" +
     "  \"nearby_highlights\": Array of string nearby landmarks/highlights (e.g., ['Metro Station', 'School', 'Hospital', 'Mall']) or empty array,\n" +
-    "  \"dimensions\": \"Dimensions if land/plot (e.g., '30x40') or null\",\n" +
+    "  \"dimensions\": \"Plot dimensions in feet if land/plot, including sizes given as 'Size - 60*40' or '30 x 40' (e.g., '30x40') or null\",\n" +
     "  \"facing_direction\": \"E.g. 'North', 'East', 'West', 'South' or null\",\n" +
     "  \"rental_income\": \"Numeric monthly rental income in INR if specified (e.g., if text says 'rent 2.5 Lakhs/month' or '2.5 L rent', rental_income is 250000) or null\",\n" +
     "  \"google_map_link\": \"Google Map link URL if present in text/image (e.g., 'https://maps.app.goo.gl/...' or 'https://google.com/maps/...') or null\",\n" +
@@ -707,6 +717,8 @@ export async function parseListingFromImageOrText(
     "2. For Location: ALWAYS populate the top-level 'location' field with the primary area/neighborhood/address text mentioned anywhere in the input (e.g. if the text says '...for sale in Jayanagar 17th Main' or 'Location - Jayanagar 17th Main', set location to 'Jayanagar 17th Main'). Never leave 'location' null just because the same text is already part of the 'title' — 'location' is a separate required field. Additionally, if a distinct sublocality/layout name (e.g. HSR Layout, Koramangala) is identifiable, also set 'sublocality' — but 'location' must be filled whenever ANY area/address is mentioned, even if it's identical to 'sublocality'.\n" +
     "3. For Bedrooms: 'X BHK' or 'X bhk' means bedrooms = X (numeric). Always set 'bedrooms' whenever a BHK count is mentioned anywhere in the input, even if that same count already appears in the title (e.g. title '5 BHK old house...' still requires bedrooms: 5).\n" +
     "4. For Area vs Land Area: 'area_sqft' is the BUILT-UP / carpet / super built-up area of a structure (a flat's interior, a house's floor area, etc). 'land_area' (with 'land_area_unit') is the SITE/PLOT size the property sits on, or vacant land itself. If the input mentions a 'plot', 'site', or land size figure (e.g. '3870 sqft plot', '30x40 site'), put it in 'land_area', NOT 'area_sqft' — even when the listing is a house/villa built on that plot. Only put a figure in 'area_sqft' when it's explicitly described as built-up/carpet/floor area.\n" +
+    "4a. A plot size given as dimensions ('Size - 60*40', '30 x 40', '40x60 site') is in FEET: record it in 'dimensions' AND set 'land_area' to the product in Sq.Ft. with 'land_area_unit' of 'Sq.Ft.' (e.g. '60*40' -> dimensions '60x40', land_area 2400).\n" +
+    "4b. A price quoted per unit area ('10500 per sqft', '₹4,500/sq.ft.', '1.2 Cr per acre') is a RATE, not the total: put the rate converted to rupees per Sq.Ft. in 'price_per_sqft' and leave 'price' null unless a separate total amount is also stated. Never put a per-unit rate in 'price'.\n" +
     "5. For vacant land/plot without building details (e.g., no bedrooms/bathrooms/apartment mention), map 'type' intelligently based on keywords to 'Residential Land/ Plot', 'Commercial Land', 'Industrial Land', or 'Agricultural Land'. For example, commercial plots go to 'Commercial Land'.\n" +
     "6. For PG/Hostel listings: if the input mentions 'PG', 'paying guest', or 'hostel', map 'type' to 'PG/ Hostel' (or 'Residential PG building' if it's clearly a whole building run as a PG business, not a single room/bed being offered).\n" +
     "7. Set any fields that cannot be found or reasonably inferred to null.\n" +
@@ -739,13 +751,7 @@ export async function parseListingFromImageOrText(
     const rawResult = await generateContentRaw(contents, systemInstruction, true, { feature: 'listing_parse' });
     const parsed = parseGeminiResponse(rawResult) as unknown as Partial<ParsedPropertyDraft>;
 
-    const rental_income = parsed.rental_income || null;
-    let roi = null;
-    if (rental_income && parsed.price) {
-      roi = Number(((rental_income * 12) / parsed.price * 100).toFixed(2));
-    }
-
-    return {
+    const draft: ParsedPropertyDraft = {
       title: parsed.title || null,
       price: parsed.price || null,
       // Deterministic safety net: if the model filled sublocality but left
@@ -769,13 +775,14 @@ export async function parseListingFromImageOrText(
       area_sqft: parsed.area_sqft || null,
       land_area: parsed.land_area || null,
       land_area_unit: parsed.land_area_unit || "Sq.Ft.",
+      price_per_sqft: parsed.price_per_sqft || null,
       description: parsed.description || null,
       features: normalizeListingFeatures(parsed.features),
       nearby_highlights: parsed.nearby_highlights || [],
       dimensions: parsed.dimensions || null,
       facing_direction: parsed.facing_direction || null,
-      rental_income,
-      roi,
+      rental_income: parsed.rental_income || null,
+      roi: null,
       google_map_link: parsed.google_map_link || null,
       images: [],
       owner_contact_name: parsed.owner_contact_name || null,
@@ -788,6 +795,12 @@ export async function parseListingFromImageOrText(
       gst: parsed.gst || null,
       floor_tenancies: sanitizeFloorTenancies(parsed.floor_tenancies)
     };
+
+    const derived = applyListingDerivations(draft, text);
+    if (derived.rental_income && derived.price) {
+      derived.roi = Number(((derived.rental_income * 12) / derived.price * 100).toFixed(2));
+    }
+    return derived;
   } catch (err) {
     console.error("[Gemini AI] Error parsing listing details:", err);
     throw err;
@@ -813,6 +826,8 @@ export async function updateListingDraft(
     "Handle updates to property type intelligently: if the user says 'type is X', 'Type - X', or describes the property category in any way, map it to the closest matching value from this exact list: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others'. For example, 'Type - Residential old house' or 'its an old independent house' both map to 'Residential House'; 'PG for girls' or 'paying guest accommodation' maps to 'PG/ Hostel'. Never leave 'type' null when the user has specified any property category — always pick the closest match from the list above rather than leaving it unset.\n" +
     "Handle updates to bedrooms intelligently: 'X BHK' or 'X bhk' means bedrooms = X. Always update 'bedrooms' when a BHK count is given.\n" +
     "Handle updates to area intelligently: 'area_sqft' is the BUILT-UP/carpet area of a structure; 'land_area' (with 'land_area_unit') is the SITE/PLOT size. If the user gives a 'plot'/'site'/land size figure, set 'land_area', not 'area_sqft' — even for a house/villa on that plot.\n" +
+    "A plot size given as dimensions ('Size - 60*40', '30 x 40') is in FEET: set 'dimensions' AND set 'land_area' to the product in Sq.Ft. with 'land_area_unit' of 'Sq.Ft.' (e.g. '60*40' -> dimensions '60x40', land_area 2400).\n" +
+    "A price quoted per unit area ('10500 per sqft', '1.2 Cr per acre') is a RATE, not the total: set 'price_per_sqft' to the rate in rupees per Sq.Ft. and leave 'price' unchanged unless the user states a separate total amount. Never put a per-unit rate in 'price'.\n" +
     "Include fields for rental vertical updates: listing_type ('Sale' or 'Rent'), rent_per_month, maintenance, advance, and gst.\n" +
     "Output MUST be valid JSON.";
 
@@ -845,17 +860,23 @@ export async function updateListingDraft(
           : currentDraft.floor_tenancies ?? null,
       // Normalize features whether the update touched them or not.
       features: normalizeListingFeatures(parsed.features ?? currentDraft.features),
+      // A correction that doesn't mention the plot size or the per-unit
+      // rate must not blank them out — both feed the price derivation.
+      dimensions: parsed.dimensions ?? currentDraft.dimensions ?? null,
+      price_per_sqft: parsed.price_per_sqft ?? currentDraft.price_per_sqft ?? null,
       // Retain images and other fields if they were omitted in the response
       images: currentDraft.images || []
     };
 
-    if (updatedDraft.rental_income && updatedDraft.price) {
-      updatedDraft.roi = Number(((updatedDraft.rental_income * 12) / updatedDraft.price * 100).toFixed(2));
+    const derived = applyListingDerivations(updatedDraft, updateRequest, currentDraft);
+
+    if (derived.rental_income && derived.price) {
+      derived.roi = Number(((derived.rental_income * 12) / derived.price * 100).toFixed(2));
     } else {
-      updatedDraft.roi = null;
+      derived.roi = null;
     }
 
-    return updatedDraft;
+    return derived;
   } catch (err) {
     console.error("[Gemini AI] Error updating draft:", err);
     return currentDraft; // Return unchanged on error
