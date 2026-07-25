@@ -199,16 +199,20 @@ const nextConfig: NextConfig = {
     const escapedFrom = fromDomain.replace(/\./g, '\\.');
 
     return [
-      // 1. Redirect main domain root and all paths
+      // 1. Redirect main domain root and all paths.
+      // /.well-known is exempt: assetlinks.json and
+      // apple-app-site-association must be served with a 200 on every
+      // host the mobile app claims — Google's and Apple's verifiers do
+      // not follow redirects.
       {
-        source: '/:path*',
+        source: '/:path((?!\\.well-known(?:/|$)).*)',
         has: [
           {
             type: 'host',
             value: escapedFrom,
           },
         ],
-        destination: `https://${toDomain}/:path*`,
+        destination: `https://${toDomain}/:path`,
         permanent: false,
       },
       // 1a. Redirect old crm subdomain to the new main apex domain
