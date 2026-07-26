@@ -13,6 +13,29 @@ import * as SecureStore from 'expo-secure-store';
  * guide: a per-key AES-256-CTR key lives in SecureStore (Keychain /
  * Keystore), the encrypted session lives in AsyncStorage.
  */
+const LAST_LOGIN_PHONE_KEY = 'last-login-phone';
+
+/**
+ * WhatsApp number of the last successful sign-in, so a returning user
+ * taps "Send code" instead of retyping it. It is an identifier, not a
+ * credential — the OTP still gates the session.
+ */
+export async function getLastLoginPhone(): Promise<string | null> {
+  try {
+    return await SecureStore.getItemAsync(LAST_LOGIN_PHONE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export async function setLastLoginPhone(phone: string): Promise<void> {
+  try {
+    await SecureStore.setItemAsync(LAST_LOGIN_PHONE_KEY, phone);
+  } catch {
+    // Convenience only — never let it break sign-in.
+  }
+}
+
 export class LargeSecureStore {
   private async encrypt(key: string, value: string): Promise<string> {
     const encryptionKey = crypto.getRandomValues(new Uint8Array(256 / 8));

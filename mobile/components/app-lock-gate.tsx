@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { authenticate, useAppLock } from '@/lib/app-lock';
@@ -18,12 +18,21 @@ export function AppLockGate() {
   const locked = useAppLock((s) => s.locked);
   const setLocked = useAppLock((s) => s.setLocked);
   const prompting = useRef(false);
+  const declined = useRef(false);
+  const [foreground, setForeground] = useState(true);
 
-  // Re-lock when the app goes to the background.
+  // Re-lock when the app goes to the background. `inactive` is not a
+  // lock — it is the app switcher, control centre, an incoming call —
+  // but iOS takes the switcher snapshot there, so the cover has to be
+  // up before we leave the foreground.
   useEffect(() => {
     if (!enabled) return;
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'background') setLocked(true);
+      if (state === 'background') {
+        declined.current = false;
+        setLocked(true);
+      }
+      setForeground(state === 'active');
     });
     return () => sub.remove();
   }, [enabled, setLocked]);
@@ -34,44 +43,62 @@ export function AppLockGate() {
     prompting.current = true;
     const ok = await authenticate();
     prompting.current = false;
-    if (ok) setLocked(false);
+    if (ok) {
+      declined.current = false;
+      setLocked(false);
+    } else {
+      // Cancelled or failed — wait for a deliberate tap rather than
+      // reopening the sheet the user just dismissed.
+      declined.current = true;
+    }
   }
 
+  // Only prompt in the foreground: the OS sheet cannot come up while
+  // backgrounded, and that failed attempt would leave the user tapping
+  // "Unlock" by hand on return.
   useEffect(() => {
-    if (enabled && locked) void unlock();
+    if (enabled && locked && foreground && !declined.current) void unlock();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, locked]);
+  }, [enabled, locked, foreground]);
 
-  if (!enabled || !locked) return null;
+  if (!enabled || (!locked && foreground)) return null;
 
   return (
     <View style={[StyleSheet.absoluteFill, styles.cover, { backgroundColor: colors.background }]}>
       <View style={[styles.badge, { backgroundColor: colors.primarySoft }]}>
         <Ionicons name="finger-print" size={40} color={colors.primary} />
       </View>
-      <Text style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text }}>
-        ConvoReal is locked
-      </Text>
-      <Text style={{ fontSize: 13.5, color: colors.textMuted, textAlign: 'center' }}>
-        Unlock with your fingerprint or face to continue.
-      </Text>
-      <Pressable
-        onPress={unlock}
-        accessibilityRole="button"
-        accessibilityLabel="Unlock"
-        style={({ pressed }) => [
-          styles.unlockButton,
-          { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
-        ]}
-      >
-        <Ionicons name="lock-open-outline" size={17} color={colors.onPrimary} />
-        <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.onPrimary }}>Unlock</Text>
-      </Pressable>
-      <Pressable onPress={() => signOut()} accessibilityRole="button" accessibilityLabel="Sign out">
-        <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.textMuted }}>
-          Sign out instead
-        </Text>
-      </Pressable>
+      {locked ? (
+        <>
+          <Text style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text }}>
+            ConvoReal is locked
+          </Text>
+          <Text style={{ fontSize: 13.5, color: colors.textMuted, textAlign: 'center' }}>
+            Unlock with your fingerprint or face to continue.
+          </Text>
+          <Pressable
+            onPress={unlock}
+            accessibilityRole="button"
+            accessibilityLabel="Unlock"
+            style={({ pressed }) => [
+              styles.unlockButton,
+              { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 },
+            ]}
+          >
+            <Ionicons name="lock-open-outline" size={17} color={colors.onPrimary} />
+            <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.onPrimary }}>Unlock</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => signOut()}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.textMuted }}>
+              Sign out instead
+            </Text>
+          </Pressable>
+        </>
+      ) : null}
     </View>
   );
 }

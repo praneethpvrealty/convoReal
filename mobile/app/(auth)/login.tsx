@@ -18,6 +18,7 @@ import { GlassCard } from '@/components/glass-card';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { OtpInput } from '@/components/otp-input';
 import { cleanPhoneInput } from '@/lib/format';
+import { getLastLoginPhone, setLastLoginPhone } from '@/lib/secure-store';
 import { supabase } from '@/lib/supabase';
 import { onGradient, radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
 
@@ -151,6 +152,18 @@ function WhatsappLogin() {
   const [busy, setBusy] = useState(false);
   const [resendIn, setResendIn] = useState(0);
 
+  // Prefill the number this device signed in with last time; never
+  // clobber anything already typed while the read was in flight.
+  useEffect(() => {
+    let cancelled = false;
+    void getLastLoginPhone().then((saved) => {
+      if (!cancelled && saved) setPhone((current) => current || saved);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (resendIn <= 0) return;
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
@@ -201,7 +214,9 @@ function WhatsappLogin() {
     if (verifyError) {
       setError(verifyError.message);
       setOtp('');
+      return;
     }
+    void setLastLoginPhone(cleanPhone);
     // Success: the auth listener flips the session and (auth) redirects.
   }
 
