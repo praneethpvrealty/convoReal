@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -12,6 +12,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { EmptyState, PrimaryButton } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -50,6 +51,7 @@ export default function DenBidsScreen() {
   });
 
   const [revealedId, setRevealedId] = useState<string | null>(null);
+  const { show, close, dialogProps } = useAppDialog();
 
   const respond = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'accept' | 'reject' }) =>
@@ -61,28 +63,32 @@ export default function DenBidsScreen() {
     },
     onError: (e) => {
       haptic.warn();
-      Alert.alert(
-        'Could not respond',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-      );
+      show({
+        title: 'Could not respond',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+      });
     },
   });
 
   function confirm(bid: DenBid, action: 'accept' | 'reject') {
-    Alert.alert(
-      action === 'accept' ? 'Accept this offer?' : 'Decline this offer?',
-      action === 'accept'
-        ? `Accepting reveals your contact details to ${bid.bidder_agency} and opens a deal room. This resolves all other offers on the property.`
-        : 'The bidder is notified that you declined.',
-      [
-        { text: 'Cancel', style: 'cancel' },
+    show({
+      title: action === 'accept' ? 'Accept this offer?' : 'Decline this offer?',
+      message:
+        action === 'accept'
+          ? `Accepting reveals your contact details to ${bid.bidder_agency} and opens a deal room. This resolves all other offers on the property.`
+          : 'The bidder is notified that you declined.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
         {
-          text: action === 'accept' ? 'Accept' : 'Decline',
-          style: action === 'reject' ? 'destructive' : 'default',
-          onPress: () => respond.mutate({ id: bid.id, action }),
+          label: action === 'accept' ? 'Accept' : 'Decline',
+          variant: action === 'reject' ? 'destructive' : 'primary',
+          onPress: () => {
+            close();
+            respond.mutate({ id: bid.id, action });
+          },
         },
-      ]
-    );
+      ],
+    });
   }
 
   const bids = data?.bids ?? [];
@@ -201,6 +207,7 @@ export default function DenBidsScreen() {
           );
         })
       )}
+      <AppDialog {...dialogProps} />
     </ScrollView>
   );
 }

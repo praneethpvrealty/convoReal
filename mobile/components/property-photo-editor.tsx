@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SectionLabel } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
@@ -43,6 +43,7 @@ export function PropertyPhotoEditor({
 }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   async function addPhotos() {
     if (busy) return;
@@ -53,15 +54,16 @@ export function PropertyPhotoEditor({
     try {
       ImagePicker = await import('expo-image-picker');
     } catch {
-      Alert.alert(
-        'Update the app',
-        'Adding photos needs the latest ConvoReal build. Install the newest version, then try again.'
-      );
+      show({
+        title: 'Update the app',
+        message:
+          'Adding photos needs the latest ConvoReal build. Install the newest version, then try again.',
+      });
       return;
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Allow photo access to add listing images.');
+      show({ title: 'Permission needed', message: 'Allow photo access to add listing images.' });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -72,7 +74,7 @@ export function PropertyPhotoEditor({
     if (result.canceled) return;
     const accountId = useAuthStore.getState().profile?.account_id;
     if (!accountId) {
-      Alert.alert('Not signed in');
+      show({ title: 'Not signed in' });
       return;
     }
     setBusy(true);
@@ -98,7 +100,7 @@ export function PropertyPhotoEditor({
       }
     } catch (e) {
       haptic.warn();
-      Alert.alert('Upload failed', e instanceof Error ? e.message : 'Please try again.');
+      show({ title: 'Upload failed', message: e instanceof Error ? e.message : 'Please try again.' });
     } finally {
       setBusy(false);
     }
@@ -166,6 +168,7 @@ export function PropertyPhotoEditor({
       <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
         Tap ☆ to make a photo the cover — the first photo leads the listing and shares.
       </Text>
+      <AppDialog {...dialogProps} />
     </View>
   );
 }

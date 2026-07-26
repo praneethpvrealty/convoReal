@@ -5,7 +5,6 @@ import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -24,6 +23,7 @@ import {
   ContactTags,
   InterestedProperties,
 } from '@/components/agent-detail';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
 import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
@@ -326,6 +326,7 @@ function ReviewBanner({
 }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   async function approve() {
     setBusy(true);
@@ -333,7 +334,7 @@ function ReviewBanner({
     setBusy(false);
     if (!result.ok) {
       haptic.warn();
-      Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
+      show({ title: 'Could not approve', message: friendlyError(result.error ?? 'Try again.') });
       return;
     }
     onApproved(result);
@@ -393,6 +394,7 @@ function ReviewBanner({
       {contact.last_inquired_property_id ? (
         <ContactedProperty propertyId={contact.last_inquired_property_id} />
       ) : null}
+      <AppDialog {...dialogProps} />
     </View>
   );
 }

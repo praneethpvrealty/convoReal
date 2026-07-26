@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -15,6 +14,7 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { EnterRow, PressScale } from '@/components/motion';
 import { NotificationBell } from '@/components/notification-bell';
 import {
@@ -307,6 +307,7 @@ function ConversationRow({
   const name = conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
   const swipeRef = useRef<Swipeable>(null);
+  const { show, dialogProps } = useAppDialog();
 
   // Delivery ticks for the last message, WhatsApp-style — only when we
   // sent it. Keyed on last_message_at so a new message refreshes it; the
@@ -337,11 +338,12 @@ function ConversationRow({
       await setConversationArchived(conversation.id, !archived);
     } catch (e) {
       haptic.warn();
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+      show({ title: 'Could not update', message: e instanceof Error ? e.message : 'Please try again.' });
     }
   }
 
   return (
+    <>
     <Swipeable
       ref={swipeRef}
       overshootRight={false}
@@ -415,6 +417,8 @@ function ConversationRow({
         </View>
       </PressScale>
     </Swipeable>
+    <AppDialog {...dialogProps} />
+    </>
   );
 }
 

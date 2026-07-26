@@ -3,8 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet } from '@/components/sheet';
 import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
@@ -53,24 +54,26 @@ export function AgentProperties({
       return (data ?? []) as Property[];
     },
   });
+  const { show, close, dialogProps } = useAppDialog();
 
   function confirmUnlink(p: Property) {
-    Alert.alert(
-      'Unlink this property?',
-      `"${p.title}" stays in inventory but is no longer showcased under this agent.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
+    show({
+      title: 'Unlink this property?',
+      message: `"${p.title}" stays in inventory but is no longer showcased under this agent.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
         {
-          text: 'Unlink',
-          style: 'destructive',
+          label: 'Unlink',
+          variant: 'destructive',
           onPress: async () => {
+            close();
             const { error } = await supabase
               .from('properties')
               .update({ owner_contact_id: null })
               .eq('id', p.id);
             if (error) {
               haptic.warn();
-              Alert.alert('Could not unlink', friendlyError(error.message));
+              show({ title: 'Could not unlink', message: friendlyError(error.message) });
               return;
             }
             haptic.success();
@@ -78,12 +81,13 @@ export function AgentProperties({
             queryClient.invalidateQueries({ queryKey: ['agents-directory'] });
           },
         },
-      ]
-    );
+      ],
+    });
   }
 
   return (
     <View style={{ gap: spacing.sm }}>
+      <AppDialog {...dialogProps} />
       <SectionLabel text={`${title}${props ? ` (${props.length})` : ''}`} />
       {!props || props.length === 0 ? (
         <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
@@ -144,6 +148,7 @@ export function AgentProperties({
 export function InterestedProperties({ contact }: { contact: Contact }) {
   const { colors, fonts: f } = useTheme();
   const [picking, setPicking] = useState(false);
+  const { show, close, dialogProps } = useAppDialog();
 
   const { data: props } = useQuery({
     queryKey: ['interested-properties', contact.id],
@@ -184,7 +189,7 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
       );
     if (updateError || inqError) {
       haptic.warn();
-      Alert.alert('Could not assign', friendlyError((updateError ?? inqError)!.message));
+      show({ title: 'Could not assign', message: friendlyError((updateError ?? inqError)!.message) });
       return;
     }
     haptic.success();
@@ -195,41 +200,47 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
   }
 
   function confirmRemove(p: Property) {
-    Alert.alert('Remove interest?', `"${p.title}" will no longer be linked to this contact.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: async () => {
-          const { error } = await supabase
-            .from('contact_property_inquiries')
-            .delete()
-            .eq('contact_id', contact.id)
-            .eq('property_id', p.id);
-          if (error) {
-            haptic.warn();
-            Alert.alert('Could not remove', friendlyError(error.message));
-            return;
-          }
-          if (contact.last_inquired_property_id === p.id) {
-            await supabase
-              .from('contacts')
-              .update({ last_inquired_property_id: null })
-              .eq('id', contact.id);
-          }
-          haptic.success();
-          queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
-          queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
-          queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    show({
+      title: 'Remove interest?',
+      message: `"${p.title}" will no longer be linked to this contact.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Remove',
+          variant: 'destructive',
+          onPress: async () => {
+            close();
+            const { error } = await supabase
+              .from('contact_property_inquiries')
+              .delete()
+              .eq('contact_id', contact.id)
+              .eq('property_id', p.id);
+            if (error) {
+              haptic.warn();
+              show({ title: 'Could not remove', message: friendlyError(error.message) });
+              return;
+            }
+            if (contact.last_inquired_property_id === p.id) {
+              await supabase
+                .from('contacts')
+                .update({ last_inquired_property_id: null })
+                .eq('id', contact.id);
+            }
+            haptic.success();
+            queryClient.invalidateQueries({ queryKey: ['interested-properties', contact.id] });
+            queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+            queryClient.invalidateQueries({ queryKey: ['contacts'] });
+          },
         },
-      },
-    ]);
+      ],
+    });
   }
 
   const excludeIds = (props ?? []).map((p) => p.id);
 
   return (
     <View style={{ gap: spacing.sm }}>
+      <AppDialog {...dialogProps} />
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <SectionLabel text={`Interested properties${props ? ` (${props.length})` : ''}`} />
         <Pressable
@@ -411,6 +422,7 @@ function PropertyPicker({
  */
 export function ContactTags({ contactId }: { contactId: string }) {
   const { colors, fonts: f } = useTheme();
+  const { show, dialogProps } = useAppDialog();
   const [expanded, setExpanded] = useState(false);
   const [chipH, setChipH] = useState(0);
   const [contentH, setContentH] = useState(0);
@@ -441,7 +453,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
         .eq('tag_id', tagId);
       if (error) {
         haptic.warn();
-        Alert.alert('Could not update tags', friendlyError(error.message));
+        show({ title: 'Could not update tags', message: friendlyError(error.message) });
         return;
       }
     } else {
@@ -450,7 +462,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
         .insert({ contact_id: contactId, tag_id: tagId });
       if (error) {
         haptic.warn();
-        Alert.alert('Could not update tags', friendlyError(error.message));
+        show({ title: 'Could not update tags', message: friendlyError(error.message) });
         return;
       }
     }
@@ -470,6 +482,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
 
   return (
     <View style={{ gap: spacing.sm }}>
+      <AppDialog {...dialogProps} />
       <SectionLabel text="Tags" />
       {!data ? null : data.all.length === 0 ? (
         <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
@@ -570,6 +583,7 @@ export function AgentNotes({ contactId, title = 'Notes' }: { contactId: string; 
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   const { data: notes } = useQuery({
     queryKey: ['contact-notes', contactId],
@@ -597,7 +611,7 @@ export function AgentNotes({ contactId, title = 'Notes' }: { contactId: string; 
     setSaving(false);
     if (error) {
       haptic.warn();
-      Alert.alert('Could not add note', friendlyError(error.message));
+      show({ title: 'Could not add note', message: friendlyError(error.message) });
       return;
     }
     haptic.success();
@@ -607,6 +621,7 @@ export function AgentNotes({ contactId, title = 'Notes' }: { contactId: string; 
 
   return (
     <View style={{ gap: spacing.sm }}>
+      <AppDialog {...dialogProps} />
       <SectionLabel text={title} />
       <TextField
         placeholder="Add brief details, todo points, tasks…"
@@ -745,6 +760,7 @@ export function AgentSchedule({ contact }: { contact: Contact }) {
 export function AgentRequirements({ agent }: { agent: Contact }) {
   const [text, setText] = useState(agent.requirements ?? '');
   const [saving, setSaving] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   async function save() {
     setSaving(true);
@@ -755,7 +771,7 @@ export function AgentRequirements({ agent }: { agent: Contact }) {
     setSaving(false);
     if (error) {
       haptic.warn();
-      Alert.alert('Could not save', friendlyError(error.message));
+      show({ title: 'Could not save', message: friendlyError(error.message) });
       return;
     }
     haptic.success();
@@ -765,6 +781,7 @@ export function AgentRequirements({ agent }: { agent: Contact }) {
 
   return (
     <View style={{ gap: spacing.sm }}>
+      <AppDialog {...dialogProps} />
       <SectionLabel text="Requirements & brief" />
       <TextField
         placeholder="Agent focus, target sublocalities, client profile, matching preferences…"
