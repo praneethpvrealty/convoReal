@@ -7,16 +7,32 @@ const SUPABASE_COOKIE_PREFIXES = [
   'sb-auth-token',
 ]
 
+function isAuthCookie(name: string) {
+  return (
+    SUPABASE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
+    name.includes('-auth-token')
+  )
+}
+
 function clearAuthCookies(res: NextResponse, req: NextRequest) {
   const all = req.cookies.getAll()
   for (const { name } of all) {
-    if (
-      SUPABASE_COOKIE_PREFIXES.some((prefix) => name.startsWith(prefix)) ||
-      name.includes('-auth-token')
-    ) {
+    if (isAuthCookie(name)) {
       res.cookies.set(name, '', { maxAge: 0, path: '/' })
     }
   }
+}
+
+// A refresh token GoTrue no longer knows about — revoked, rotated past
+// the reuse window, or a truncated cookie chunk. The session is
+// unrecoverable, so the caller is signed out, not "auth is down".
+function isStaleRefreshToken(error: { code?: string; message?: string } | null) {
+  if (!error) return false
+  return (
+    error.code === 'refresh_token_not_found' ||
+    error.message?.includes('Refresh Token Not Found') === true ||
+    error.message?.includes('Invalid Refresh Token') === true
+  )
 }
 
 export async function proxy(request: NextRequest) {
@@ -45,35 +61,64 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Race getUser against a 4-second timeout to prevent Supabase outages from freezing page load
-  const getUserPromise = supabase.auth.getUser()
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-  const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((_, reject) => {
-    timeoutHandle = setTimeout(() => reject(new Error('Supabase request timed out')), 4000)
-  })
-
   // A thrown/timed-out getUser means auth is UNAVAILABLE, not that the
   // caller is signed out. Those are handled differently below: definitive
   // "no user" answers gate as usual, while infrastructure failures fail
   // open — every API route re-checks auth itself and RLS scopes all data,
   // so failing open never exposes anything; failing closed would kick
   // validly-signed-in users to /login on every Supabase latency blip.
-  let data = null
-  let error: Error | null = null
+  let data: { user: { id: string } | null } | null = null
+  let error: (Error & { code?: string }) | null = null
   let authUnavailable = false
-  try {
-    const res = await Promise.race([getUserPromise, timeoutPromise])
-    data = res.data
-    error = res.error
-  } catch (err) {
-    console.error('[proxy] getUser failed or timed out:', err)
-    error = err instanceof Error ? err : new Error(String(err))
-    authUnavailable = true
-  } finally {
-    clearTimeout(timeoutHandle)
+
+  // No auth cookie means there is no cookie session to resolve — the
+  // answer is "signed out" without a GoTrue round-trip. Skipping it
+  // keeps every public page, webhook, and cookieless bearer request off
+  // the auth network path entirely.
+  const hasAuthCookie = request.cookies.getAll().some(({ name }) => isAuthCookie(name))
+
+  if (hasAuthCookie) {
+    // Race getUser against a 4-second timeout to prevent Supabase outages from freezing page load
+    const getUserPromise = supabase.auth.getUser()
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<{ data: { user: null }; error: Error }>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error('Supabase request timed out')), 4000)
+    })
+
+    try {
+      const res = await Promise.race([getUserPromise, timeoutPromise])
+      data = res.data
+      error = res.error
+    } catch (err) {
+      console.error('[proxy] getUser failed or timed out:', err)
+      error = err instanceof Error ? err : new Error(String(err))
+      authUnavailable = true
+    } finally {
+      clearTimeout(timeoutHandle)
+    }
   }
 
   const user = data?.user ?? null
+
+  // A dead refresh token is a definitive "signed out", so the request
+  // continues through the normal gates below — public pages and public
+  // /api routes still serve, protected ones redirect to /login. What it
+  // must NOT do is short-circuit: returning early here discarded the
+  // cookie deletions @supabase/ssr had already staged on
+  // supabaseResponse, so the browser kept replaying the dead token and
+  // every request re-ran the same doomed refresh.
+  const staleSession = isStaleRefreshToken(error)
+  if (staleSession) {
+    console.warn('[proxy] stale refresh token — clearing auth cookies and continuing as signed out')
+  }
+
+  // Apply the cookie clearing to whichever response actually goes back,
+  // including the redirects below (each is a fresh NextResponse that
+  // does not inherit supabaseResponse's headers).
+  const finalize = (res: NextResponse) => {
+    if (staleSession) clearAuthCookies(res, request)
+    return res
+  }
 
   // The mobile app authenticates with `Authorization: Bearer <jwt>` and
   // sends no cookies, so the cookie-based getUser() above always resolves
@@ -87,30 +132,6 @@ export async function proxy(request: NextRequest) {
   const hasBearerJwt = /^Bearer\s+[\w-]+\.[\w-]+\.[\w-]+$/i.test(
     request.headers.get('authorization') ?? ''
   )
-
-  if (
-    error &&
-    ((error as { code?: string }).code === 'refresh_token_not_found' ||
-      error.message?.includes('Refresh Token Not Found') ||
-      error.message?.includes('Invalid Refresh Token'))
-  ) {
-    if (request.nextUrl.pathname.startsWith('/api/')) {
-      console.warn('[proxy] stale refresh token detected on API route — returning 401 without clearing cookies')
-      return NextResponse.json(
-        { error: 'Unauthorized', code: 'stale_session' },
-        { status: 401 }
-      )
-    }
-
-    console.warn('[proxy] stale refresh token detected — clearing cookies and redirecting to /login')
-    const loginUrl = request.nextUrl.clone()
-    loginUrl.pathname = '/login'
-    loginUrl.search = ''
-    const redirectResponse = NextResponse.redirect(loginUrl)
-    clearAuthCookies(redirectResponse, request)
-    return redirectResponse
-  }
-
 
   // Auth pages - redirect to dashboard if already logged in.
   // Exception: when an invite token is in the query string we
@@ -136,7 +157,7 @@ export async function proxy(request: NextRequest) {
       url.pathname = '/dashboard'
       url.search = ''
     }
-    return NextResponse.redirect(url)
+    return finalize(NextResponse.redirect(url))
   }
 
   // Protected pages - redirect to login if not authenticated. Skipped
@@ -147,7 +168,7 @@ export async function proxy(request: NextRequest) {
   if (!user && !authUnavailable && protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return finalize(NextResponse.redirect(url))
   }
 
   // Owners Den pages — the owner-facing portal has its own login at
@@ -164,7 +185,7 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/den/login'
     url.search = ''
-    return NextResponse.redirect(url)
+    return finalize(NextResponse.redirect(url))
   }
 
   // Buyer portal pages — same pattern as the Den: own login at
@@ -181,7 +202,7 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/buyer/login'
     url.search = ''
-    return NextResponse.redirect(url)
+    return finalize(NextResponse.redirect(url))
   }
 
   // API routes that need auth (not webhooks, and not Meta's Flows
@@ -198,10 +219,10 @@ export async function proxy(request: NextRequest) {
   if (!user && !authUnavailable && !hasBearerJwt && request.nextUrl.pathname.startsWith('/api/whatsapp/') &&
       !request.nextUrl.pathname.includes('/webhook') &&
       !request.nextUrl.pathname.startsWith('/api/whatsapp/flows/endpoint/')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return finalize(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
   }
 
-  return supabaseResponse
+  return finalize(supabaseResponse)
 }
 
 export const config = {
