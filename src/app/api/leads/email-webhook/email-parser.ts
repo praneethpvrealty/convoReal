@@ -174,8 +174,11 @@ export function isValidContactName(name: string): boolean {
   if (/(?:^OWNER\s*:|^DEVELOPER\s*:|^BUILDER\s*:|^BROKER\s*:)/i.test(trimmed)) return false;
   if (/(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA|ADBHI|MERLIN|CONFIDENT|EMERALD|PURI|SUNTECH|MAHESTRA|OBEROI|MESCAPE|VASCON|VIKRAM|RAVINDRA|SATTVAVIHAR)/i.test(trimmed)) return false;
   
-  // All-caps company/developer names (likely not a person's name)
-  if (/^[A-Z\s]{3,}$/.test(trimmed) && !/^(?:KARTHIK|GANESH|SHARON|JOSEPH|FRANCIS|RAGHU|VIJAY|RAJESH|SURESH|KUMAR|REDDY|NAIR|IYER|AIYER)/i.test(trimmed)) return false;
+  // Company/agency names carrying an entity or realty-business marker
+  // (e.g. "SBS PROPERTIES", "VK Groups Pvt Ltd"). Casing alone says
+  // nothing here — portal leads routinely arrive fully upper-cased, so
+  // "ADH" and "KARTHIK" are people, not builders.
+  if (/\b(?:propert(?:y|ies)|realty|realtors?|estates?|builders?|developers?|constructions?|infra(?:structure)?|ventures?|enterprises?|projects?|associates|homes|housing|groups?|pvt|private|ltd|limited|llp|inc|corp(?:oration)?|company)\b/i.test(trimmed)) return false;
   
   // Addresses (contain state codes, zip codes)
   if (/\b[A-Z]{2}\s+\d{5,6}\b/.test(trimmed)) return false; // CA 94104, TN 600018

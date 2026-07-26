@@ -110,6 +110,7 @@ import {
   classificationFromNameSuffix,
   classifyPortalLead,
   isInquiryAboutOwnListing,
+  isValidContactName,
   checkLocationMatch,
   POST
 } from './route';
@@ -543,6 +544,29 @@ Content-Transfer-Encoding: quoted-printable
     it('does not fire on owner-lead marketplace emails', () => {
       expect(isInquiryAboutOwnListing('An owner has posted a new property for sale')).toBe(false);
       expect(isInquiryAboutOwnListing('')).toBe(false);
+    });
+  });
+
+  describe('isValidContactName', () => {
+    it('accepts upper-cased personal names portals send verbatim', () => {
+      expect(isValidContactName('ADH')).toBe(true);
+      expect(isValidContactName('KARTHIK')).toBe(true);
+      expect(isValidContactName('SYED THANVEER')).toBe(true);
+    });
+
+    it('rejects company names regardless of casing', () => {
+      expect(isValidContactName('SBS PROPERTIES')).toBe(false);
+      expect(isValidContactName('VK GROUPS PVT LTD')).toBe(false);
+      expect(isValidContactName('Anand Builders & Developers')).toBe(false);
+    });
+
+    it('still rejects junk, marketing text, and numeric noise', () => {
+      expect(isValidContactName('')).toBe(false);
+      expect(isValidContactName('A')).toBe(false);
+      expect(isValidContactName('=0A =')).toBe(false);
+      expect(isValidContactName('https://example.com')).toBe(false);
+      expect(isValidContactName('Exclusive savings inside')).toBe(false);
+      expect(isValidContactName('9876543210')).toBe(false);
     });
   });
 
