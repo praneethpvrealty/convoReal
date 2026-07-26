@@ -28,6 +28,7 @@ export {
   classificationFromNameSuffix,
   classifyPortalLead,
   isInquiryAboutOwnListing,
+  isValidContactName,
   parsePortalLead,
 } from './email-parser';
 
