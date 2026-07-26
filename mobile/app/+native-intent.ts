@@ -26,6 +26,17 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
 
     // Path-style web pages -> nearest app screen.
     const p = url.pathname.replace(/\/+$/, '');
+
+    // SEO listing URLs (/property/<title-words>-<uuid>) end in the
+    // listing id. These paths are deliberately NOT claimed as App
+    // Links (buyers must get the browser showcase), but they still
+    // arrive here via convoreal:// scheme links and devices where the
+    // user manually enabled unverified link handling.
+    const propertyPath = p.match(
+      /^\/property\/.*?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+    );
+    if (propertyPath) return `/property/${propertyPath[1].toLowerCase()}`;
+
     if (p === '/inventory') return '/properties';
     if (p === '/pipelines') return '/deals';
     if (p === '/contacts') return '/contacts';
