@@ -3,10 +3,11 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { DeleteAccountRow } from '@/components/delete-account-row';
 import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { signOut } from '@/lib/auth-store';
-import { fetchDenMe, updateDenSettings } from '@/lib/den-api';
+import { deleteDenAccount, fetchDenMe, updateDenSettings } from '@/lib/den-api';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -122,6 +123,12 @@ export default function DenSettingsScreen() {
       >
         <Text style={{ color: colors.danger, fontSize: 15, fontFamily: f.bold }}>Sign out</Text>
       </Pressable>
+
+      <DeleteAccountRow
+        consequence="Your Owners Den login is deleted permanently and unlinked from every agency you are connected to. You stop receiving WhatsApp updates about your properties."
+        onDelete={deleteDenAccount}
+        onDeleted={() => setSurface('staff')}
+      />
 
       <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
         Linked agencies: {me.data?.links.map((l) => l.agency_name).filter(Boolean).join(', ') || '—'}

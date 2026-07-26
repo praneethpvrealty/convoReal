@@ -6,9 +6,11 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { DeleteAccountRow } from '@/components/delete-account-row';
 import { ProfileEditSheet } from '@/components/profile-edit-sheet';
 import { SubscriptionCard } from '@/components/subscription-card';
 import { Avatar, SectionLabel } from '@/components/ui';
+import { deleteAccount } from '@/lib/api';
 import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import {
@@ -141,6 +143,15 @@ export default function MoreScreen() {
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
         <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}>Sign out</Text>
       </Pressable>
+
+      <DeleteAccountRow
+        consequence={
+          profile?.account_role === 'owner'
+            ? 'Your workspace is deleted with you — every contact, property, conversation and deal, permanently. Teammates keep their logins and start again in their own empty workspace.'
+            : 'Your login is deleted permanently. The workspace and its data stay with your organisation.'
+        }
+        onDelete={deleteAccount}
+      />
 
       <Text style={[styles.footer, { color: colors.textFaint }]}>
         ConvoReal companion · v{Constants.expoConfig?.version ?? '0.1.0'}

@@ -27,32 +27,47 @@ landed on.
 | Typecheck | `npm run typecheck` passes clean |
 | expo-doctor | 18/20 checks pass; the 2 failures are network reachability in this sandbox, not project problems |
 
-### Blockers — fix before submitting to review
+### Blockers — fixed, but they need the migration deployed
 
-**1. External purchase links (App Store Guideline 3.1.1).**
-`app/(app)/credits.tsx` renders a "Top up on the web" button that opens
-`{apiBaseUrl}/settings?tab=billing` in an in-app browser, and
-`components/subscription-card.tsx` routes into that same screen with
-"See plans & upgrade". Buying AI credits or a plan is digital content
-consumed inside the app, so on non-US storefronts Apple requires either
-In-App Purchase or an approved External Purchase Link entitlement.
-Linking out with an upgrade CTA is the classic 3.1.1 rejection.
+**1. External purchase links (App Store Guideline 3.1.1).** Buying AI
+credits or a plan is digital content consumed inside the app, so on
+non-US storefronts Apple requires In-App Purchase or an approved
+External Purchase Link entitlement — a "Top up on the web" button and an
+"upgrade" CTA are the classic 3.1.1 rejection.
 
-Safest fix for v1: on iOS, keep the wallet balance, breakdown and
-history, but hide the top-up button and change the plan card CTA to a
-non-actionable status line (Guideline 3.1.3(b) "multiplatform services"
-lets content bought elsewhere be *used* in the app — it just forbids
-pointing users at the external purchase). Android keeps the button.
+`lib/store-policy.ts` now exports `SHOW_PURCHASE_LINKS`
+(`Platform.OS !== 'ios'`). On iOS the wallet balance, breakdown, plan
+badge and ledger all still render — only the top-up button, its
+"checkout opens in your browser" line and the plan card's upgrade CTA
+are gone, which is what Guideline 3.1.3(b) allows for a multiplatform
+service. Android is unchanged.
 
-**2. No in-app account deletion (Guideline 5.1.1(v)).**
-`app/(auth)/den-login.tsx` calls `signInWithOtp` without
-`shouldCreateUser: false`, so the Owners Den flow creates accounts
-inside the app. Apps that support account creation must offer account
-deletion in-app. Staff login is sign-in-only (`shouldCreateUser: false`),
-but the same binary contains Den signup, so the requirement applies.
+**2. No in-app account deletion (Guideline 5.1.1(v)).** Owners Den
+signup happens inside the app, so the app must be able to delete an
+account too.
 
-Needs a delete endpoint on the web (none exists under `src/app/api`
-today) plus a destructive-confirm row in Den settings and the More tab.
+- `DELETE /api/account/delete` — staff. An owner takes the workspace
+  with them (teammates are first relocated to their own fresh accounts
+  via `remove_account_member`, so nobody loses their login); a member
+  deletes only their own profile and login.
+- `DELETE /api/den/account` — Den. Deletes `den_users` (links CASCADE)
+  and the auth user, revoking WhatsApp digest consent on the linked
+  contacts on the way out. The agency's `contacts` rows stay — they are
+  the agency's CRM records.
+- `components/delete-account-row.tsx` — two-prompt destructive
+  confirmation, wired into the More tab and Den settings.
+
+**Before either endpoint works in production, apply
+`supabase/migrations/168_account_deletion_fk_fixes.sql`.** Two columns
+referenced `auth.users` in ways that make deleting a user impossible
+(`contact_merge_log.merged_by` is NOT NULL with no ON DELETE action;
+`marketplace_items.created_by` is NOT NULL with ON DELETE SET NULL).
+Without the migration, deletion fails with a foreign-key error for any
+user who has ever merged a contact.
+
+The web app has no delete-account UI — Apple only requires it in the
+app, but the two endpoints are shared and adding a Settings entry on the
+web later is a UI-only change.
 
 ### Worth fixing, not blocking
 
@@ -78,10 +93,16 @@ today) plus a destructive-confirm row in Den settings and the More tab.
 
 ## Steps
 
-### 1. Fix the blockers above
+### 1. Apply the deletion migration
 
-Do not skip to a build hoping review lets 3.1.1 slide. A rejection costs
-a review cycle (typically 24–48 h) per round.
+```
+supabase/migrations/168_account_deletion_fk_fixes.sql
+```
+
+Run it in the Supabase SQL Editor against the production project before
+the build ships, or account deletion 500s for anyone who has merged a
+contact — and a broken delete button is worse in review than no delete
+button.
 
 ### 2. Set the production environment
 
