@@ -2,7 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
@@ -245,6 +254,7 @@ function BiometricLockRow() {
         <Text style={[styles.navLabel, { color: colors.text }]}>Unlock with fingerprint</Text>
         <Text style={{ fontSize: 12, lineHeight: 16, color: colors.textMuted }}>
           Require your fingerprint or face each time the app opens.
+          {Platform.OS === 'android' ? ' Also blocks screenshots of the app.' : ''}
         </Text>
       </View>
       <Switch

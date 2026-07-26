@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { authenticate, useAppLock } from '@/lib/app-lock';
+import { authenticate, setScreenCaptureBlocked, useAppLock } from '@/lib/app-lock';
 import { signOut } from '@/lib/auth-store';
 import { spacing, radius, useTheme } from '@/lib/theme';
 
@@ -20,6 +20,16 @@ export function AppLockGate() {
   const prompting = useRef(false);
   const declined = useRef(false);
   const [foreground, setForeground] = useState(true);
+
+  // Hold FLAG_SECURE for the whole locked-enabled session, and drop it
+  // when the lock is switched off or the signed-in shell unmounts.
+  useEffect(() => {
+    if (!enabled) return;
+    void setScreenCaptureBlocked(true);
+    return () => {
+      void setScreenCaptureBlocked(false);
+    };
+  }, [enabled]);
 
   // Re-lock when the app goes to the background. `inactive` is not a
   // lock — it is the app switcher, control centre, an incoming call —

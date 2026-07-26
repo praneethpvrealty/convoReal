@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -48,6 +49,31 @@ export async function biometricsAvailable(): Promise<boolean> {
     return hasHardware && enrolled;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Android FLAG_SECURE, via expo-screen-capture. Android grabs the
+ * recents thumbnail as the activity pauses — earlier than a React cover
+ * can paint — so the flag has to be up for as long as the lock is
+ * enabled, not just while backgrounding. It also blocks screenshots and
+ * screen recording of the app, which is the point.
+ *
+ * Android only: iOS already gets its switcher covered by AppLockGate,
+ * and preventScreenCapture there would block agents' screenshots for no
+ * added protection.
+ */
+export async function setScreenCaptureBlocked(blocked: boolean): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  try {
+    const ScreenCapture = await import('expo-screen-capture');
+    if (blocked) {
+      await ScreenCapture.preventScreenCaptureAsync('app-lock');
+    } else {
+      await ScreenCapture.allowScreenCaptureAsync('app-lock');
+    }
+  } catch {
+    // Native module missing (old build) — nothing to toggle.
   }
 }
 
