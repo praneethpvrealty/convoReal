@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, type DialogAction } from '@/components/app-dialog';
 import { BottomSheet } from '@/components/sheet';
 import { FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
@@ -107,6 +107,7 @@ export function FlyerSheet({
   const [rendering, setRendering] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
 
   // Prefill on open, same defaults as the web dialog.
   const openedForRef = useRef<string | null>(null);
@@ -195,21 +196,28 @@ export function FlyerSheet({
     } catch (e) {
       haptic.warn();
       if (e instanceof ApiError && e.status === 402) {
-        Alert.alert('Not enough credits', e.message, [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'View credits',
-            onPress: () => {
-              onClose();
-              router.push('/(app)/credits');
+        setDialog({
+          title: 'Not enough credits',
+          message: e.message,
+          actions: [
+            { label: 'Cancel', variant: 'muted', onPress: () => setDialog(null) },
+            {
+              label: 'View credits',
+              variant: 'primary',
+              onPress: () => {
+                setDialog(null);
+                onClose();
+                router.push('/(app)/credits');
+              },
             },
-          },
-        ]);
+          ],
+        });
       } else {
-        Alert.alert(
-          'Could not generate image',
-          friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-        );
+        setDialog({
+          title: 'Could not generate image',
+          message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+          actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+        });
       }
     } finally {
       setGenerating(false);
@@ -226,14 +234,29 @@ export function FlyerSheet({
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['property', property.id] });
       queryClient.invalidateQueries({ queryKey: ['properties'] });
-      onClose();
-      Alert.alert('Flyer saved', 'The flyer is now the first photo on this property.');
+      // The dialog renders inside the sheet's Modal, so closing the sheet
+      // here would unmount it before it ever showed — dismiss both on OK.
+      setDialog({
+        title: 'Flyer saved',
+        message: 'The flyer is now the first photo on this property.',
+        actions: [
+          {
+            label: 'OK',
+            variant: 'primary',
+            onPress: () => {
+              setDialog(null);
+              onClose();
+            },
+          },
+        ],
+      });
     } catch (e) {
       haptic.warn();
-      Alert.alert(
-        'Could not save flyer',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-      );
+      setDialog({
+        title: 'Could not save flyer',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+        actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+      });
     } finally {
       setSaving(false);
     }
@@ -396,6 +419,13 @@ export function FlyerSheet({
           Saving adds the flyer as the first photo, so it leads showcase pages and shares.
         </Text>
       </View>
+      <AppDialog
+        visible={dialog !== null}
+        onClose={() => setDialog(null)}
+        title={dialog?.title ?? ''}
+        message={dialog?.message}
+        actions={dialog?.actions ?? []}
+      />
     </BottomSheet>
   );
 }
