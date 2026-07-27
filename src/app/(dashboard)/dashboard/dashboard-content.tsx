@@ -83,26 +83,28 @@ export default function DashboardContent() {
   const [activityLoading, setActivityLoading] = useState(true)
 
   const loadAll = useCallback(() => {
+    // Every aggregate now names its account explicitly rather than
+    // leaning on RLS, so there is nothing to load until it resolves.
+    if (!accountId) return
+
     const db = createClient()
 
-    if (accountId) {
-      void loadMetrics(db, accountId)
-        .then((m) => setMetrics(m))
-        .catch((err) => console.error('[dashboard] metrics failed:', err))
-        .finally(() => setMetricsLoading(false))
-    }
+    void loadMetrics(db, accountId)
+      .then((m) => setMetrics(m))
+      .catch((err) => console.error('[dashboard] metrics failed:', err))
+      .finally(() => setMetricsLoading(false))
 
-    void loadConversationsSeries(db, 30)
+    void loadConversationsSeries(db, 30, accountId)
       .then((s) => setSeries((prev) => ({ ...prev, 30: s })))
       .catch((err) => console.error('[dashboard] series failed:', err))
       .finally(() => setSeriesLoading(false))
 
-    void loadPipelineDonut(db)
+    void loadPipelineDonut(db, accountId)
       .then((p) => setPipeline(p))
       .catch((err) => console.error('[dashboard] pipeline failed:', err))
       .finally(() => setPipelineLoading(false))
 
-    void loadResponseTime(db)
+    void loadResponseTime(db, accountId)
       .then((r) => setResponseTime(r))
       .catch((err) => console.error('[dashboard] response time failed:', err))
       .finally(() => setResponseTimeLoading(false))
@@ -132,15 +134,15 @@ export default function DashboardContent() {
   const handleRangeChange = useCallback(
     (r: RangeDays) => {
       setRange(r)
-      if (series[r] !== null) return
+      if (series[r] !== null || !accountId) return
       setSeriesLoading(true)
       const db = createClient()
-      loadConversationsSeries(db, r)
+      loadConversationsSeries(db, r, accountId)
         .then((s) => setSeries((prev) => ({ ...prev, [r]: s })))
         .catch((err) => console.error('[dashboard] series failed:', err))
         .finally(() => setSeriesLoading(false))
     },
-    [series],
+    [series, accountId],
   )
 
   return (

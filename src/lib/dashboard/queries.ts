@@ -3,7 +3,6 @@ import {
   daysAgoStart,
   DOW_SHORT_MON_FIRST,
   lastNDayKeys,
-  localDayKey,
   mondayIndex,
   startOfLocalDay,
 } from './date-utils'
@@ -19,14 +18,25 @@ import type {
 } from './types'
 
 // ------------------------------------------------------------
-// All client-side aggregation. RLS scopes every query to the
-// signed-in user automatically, so we never pass user_id explicitly
-// here. Perf is acceptable for the current scale (low thousands of
-// messages) — if a tenant's dataset outgrows this, we'd migrate the
-// heavy aggregations to SQL RPCs. Noted in the PR.
+// The heavy aggregations — metric cards, conversations series,
+// pipeline donut, response times — run as SQL functions (migrations
+// 169 and 170) and name their account explicitly. They used to fetch
+// raw rows and aggregate here, which meant the payload grew linearly
+// with account activity.
+//
+// What is left client-side is deliberate: the activity feed merges
+// five small per-table reads, and the response-time buckets key off
+// the viewer's local day-of-week. Those still lean on RLS for
+// scoping.
 // ------------------------------------------------------------
 
 type DB = SupabaseClient
+
+/** IANA zone the charts bucket in. Falls back to UTC where the runtime
+ *  doesn't report one. */
+function viewerTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+}
 
 // The account owner texting their own CRM WhatsApp number is not a lead;
 // those self-chats are archived (webhook-handler + migration 154's
@@ -96,26 +106,28 @@ export async function loadMetrics(db: DB, accountId: string): Promise<MetricsBun
 export async function loadConversationsSeries(
   db: DB,
   rangeDays: number,
+  accountId: string,
 ): Promise<ConversationsSeriesPoint[]> {
   const start = daysAgoStart(rangeDays - 1).toISOString()
-  const { data, error } = await db
-    .from('messages')
-    .select('created_at, sender_type, conversations!inner(is_archived)')
-    .eq('conversations.is_archived', false)
-    .gte('created_at', start)
-    .order('created_at', { ascending: true })
+
+  // The chart buckets by the viewer's local day, so the zone travels
+  // with the query rather than the whole message set travelling back.
+  const { data, error } = await db.rpc('dashboard_conversations_series', {
+    p_account_id: accountId,
+    p_start: start,
+    p_time_zone: viewerTimeZone(),
+  })
   if (error) throw error
 
   const keys = lastNDayKeys(rangeDays)
   const buckets = new Map<string, { incoming: number; outgoing: number }>()
   for (const k of keys) buckets.set(k, { incoming: 0, outgoing: 0 })
 
-  for (const row of (data ?? []) as { created_at: string; sender_type: string }[]) {
-    const key = localDayKey(row.created_at)
-    const bucket = buckets.get(key)
-    if (!bucket) continue
-    if (row.sender_type === 'customer') bucket.incoming += 1
-    else bucket.outgoing += 1 // agent + bot both count as outgoing
+  for (const row of (data ?? []) as { day: string; incoming: number; outgoing: number }[]) {
+    // `day` is already a local-day DATE from the function; keep the
+    // seeded keys authoritative so empty days still render.
+    if (!buckets.has(row.day)) continue
+    buckets.set(row.day, { incoming: Number(row.incoming), outgoing: Number(row.outgoing) })
   }
 
   return keys.map((day) => ({ day, ...(buckets.get(day) ?? { incoming: 0, outgoing: 0 }) }))
@@ -123,39 +135,29 @@ export async function loadConversationsSeries(
 
 // --- 3. Pipeline donut -------------------------------------------------
 
-export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
-  const [stagesRes, dealsRes] = await Promise.all([
-    db.from('pipeline_stages').select('id, name, color, pipeline_id, position').order('position'),
-    db.from('deals').select('stage_id, value, brokerage_amount, status').eq('status', 'open'),
-  ])
+export async function loadPipelineDonut(db: DB, accountId: string): Promise<PipelineDonutData> {
+  // Empty stages are dropped by the function — the ring only ever
+  // showed stages with deals on them.
+  const { data, error } = await db.rpc('dashboard_pipeline_donut', {
+    p_account_id: accountId,
+  })
+  if (error) throw error
 
-  const stages =
-    (stagesRes.data ?? []) as { id: string; name: string; color: string }[]
-  const deals = (dealsRes.data ?? []) as { stage_id: string; value: number | null; brokerage_amount: number | null }[]
-
-  const byStage = new Map<string, { count: number; total: number }>()
-  for (const d of deals) {
-    const row = byStage.get(d.stage_id) ?? { count: 0, total: 0 }
-    row.count += 1
-    const brokAmt = d.brokerage_amount !== null && d.brokerage_amount !== undefined
-      ? Number(d.brokerage_amount)
-      : (Number(d.value || 0) * 0.02);
-    row.total += brokAmt
-    byStage.set(d.stage_id, row)
-  }
-
-  const slices: PipelineStageSlice[] = stages
-    .map((s) => ({
-      id: s.id,
-      name: s.name,
-      color: s.color || '#64748b',
-      dealCount: byStage.get(s.id)?.count ?? 0,
-      totalValue: byStage.get(s.id)?.total ?? 0,
-    }))
-    // Hide empty stages from the ring (but we'd still show them in the
-    // legend if the user wanted a full breakdown — trimming keeps the
-    // visual clean for the common case).
-    .filter((s) => s.totalValue > 0 || s.dealCount > 0)
+  const slices: PipelineStageSlice[] = (
+    (data ?? []) as {
+      stage_id: string
+      stage_name: string
+      stage_color: string
+      deal_count: number
+      total_value: number
+    }[]
+  ).map((s) => ({
+    id: s.stage_id,
+    name: s.stage_name,
+    color: s.stage_color,
+    dealCount: Number(s.deal_count),
+    totalValue: Number(s.total_value),
+  }))
 
   return {
     stages: slices,
@@ -165,53 +167,31 @@ export async function loadPipelineDonut(db: DB): Promise<PipelineDonutData> {
 
 // --- 4. Response time by day of week ----------------------------------
 
-export async function loadResponseTime(db: DB): Promise<ResponseTimeSummary> {
-  // Pull the last 14 days of messages in one shot, then walk per
-  // conversation to find each "first inbound" → "first subsequent
-  // outbound" pair. 14 days gives us both "this week" + "last week"
-  // with enough overlap if the user opens the dashboard late on a
-  // Monday.
+export async function loadResponseTime(db: DB, accountId: string): Promise<ResponseTimeSummary> {
+  // The pairing — each "first inbound" with the first outbound that
+  // followed it, one sample per unreplied customer run — now happens in
+  // the database, so only the pairs come back rather than 14 days of
+  // messages. 14 days gives us both "this week" and "last week" with
+  // enough overlap if the user opens the dashboard late on a Monday.
+  //
+  // Bucketing stays here: it keys off the viewer's local day-of-week.
   const fourteenDaysAgo = daysAgoStart(13).toISOString()
-  const { data, error } = await db
-    .from('messages')
-    .select('conversation_id, sender_type, created_at, conversations!inner(is_archived)')
-    .eq('conversations.is_archived', false)
-    .gte('created_at', fourteenDaysAgo)
-    .order('conversation_id', { ascending: true })
-    .order('created_at', { ascending: true })
+  const { data, error } = await db.rpc('dashboard_response_samples', {
+    p_account_id: accountId,
+    p_start: fourteenDaysAgo,
+  })
   if (error) throw error
 
-  const rows = (data ?? []) as {
-    conversation_id: string
-    sender_type: string
-    created_at: string
-  }[]
-
-  // Group per conversation, pair unreplied customer messages with the
-  // next outbound message from the agent/bot. A single customer message
-  // can only count once (avoids inflating averages if the customer
-  // double-messages while the agent takes time to reply).
   interface Sample {
     customerAt: Date
     responseAt: Date
   }
-  const samples: Sample[] = []
-
-  let currentConv = ''
-  let pendingCustomer: Date | null = null
-  for (const row of rows) {
-    if (row.conversation_id !== currentConv) {
-      currentConv = row.conversation_id
-      pendingCustomer = null
-    }
-    const ts = new Date(row.created_at)
-    if (row.sender_type === 'customer') {
-      if (!pendingCustomer) pendingCustomer = ts
-    } else if (pendingCustomer) {
-      samples.push({ customerAt: pendingCustomer, responseAt: ts })
-      pendingCustomer = null
-    }
-  }
+  const samples: Sample[] = (
+    (data ?? []) as { customer_at: string; response_at: string }[]
+  ).map((r) => ({
+    customerAt: new Date(r.customer_at),
+    responseAt: new Date(r.response_at),
+  }))
 
   const now = new Date()
   const thisWeekStart = daysAgoStart(mondayIndex(now))
