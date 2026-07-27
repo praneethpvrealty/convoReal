@@ -461,9 +461,11 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY)(
         expect(Number(data!.open_deals_value)).toBe(135_000);
 
         // Agent messages only, and only in unarchived conversations —
-        // so conv3's agent message is not counted.
+        // so conv3's agent message is not counted. Today is conv1's
+        // pair at -80 and -70; yesterday is conv1's opener at -300 as
+        // well as conv2's reply at -270, both inside [-26h, -2h).
         expect(Number(data!.messages_today)).toBe(2);
-        expect(Number(data!.messages_yesterday)).toBe(1);
+        expect(Number(data!.messages_yesterday)).toBe(2);
       });
     });
 
