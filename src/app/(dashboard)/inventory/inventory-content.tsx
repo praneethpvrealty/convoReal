@@ -162,45 +162,31 @@ export default function InventoryPage() {
     fetchShowcaseSettings();
   }, [fetchShowcaseSettings]);
 
-  // Fetch unfiltered, unpaginated counts for the summary stats panel.
-  // Uses Supabase HEAD queries (count only, no rows transferred) so it
-  // is cheap regardless of the total number of rows.
+  // Unfiltered, unpaginated counts for the summary stats panel, from a
+  // single scan of the account's inventory (migration 168). This was
+  // five parallel `count: 'exact'` HEAD requests — those are real
+  // COUNT(*)s, not metadata reads, so they scanned the account's whole
+  // inventory once each on every visit.
   const fetchGlobalStats = useCallback(async () => {
     if (!accountId) return;
     try {
       const supabase = createClient();
-      const [totalRes, publishedRes, availableRes, soldRes, pendingReviewRes] = await Promise.all([
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('is_published', true),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'Available'),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .in('status', ['Sold', 'Under Contract']),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'Pending Review'),
-      ]);
+      const { data, error } = await supabase
+        .rpc('inventory_stats', { p_account_id: accountId })
+        .maybeSingle<{
+          total: number;
+          published: number;
+          available: number;
+          sold_or_contract: number;
+          pending_review: number;
+        }>();
+      if (error) throw error;
       setGlobalStats({
-        total: totalRes.count ?? 0,
-        published: publishedRes.count ?? 0,
-        available: availableRes.count ?? 0,
-        soldOrContract: soldRes.count ?? 0,
-        pendingReview: pendingReviewRes.count ?? 0,
+        total: data?.total ?? 0,
+        published: data?.published ?? 0,
+        available: data?.available ?? 0,
+        soldOrContract: data?.sold_or_contract ?? 0,
+        pendingReview: data?.pending_review ?? 0,
       });
     } catch (err) {
       console.error('Failed to load global stats:', err);

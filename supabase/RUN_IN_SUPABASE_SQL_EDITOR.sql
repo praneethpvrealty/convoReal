@@ -2438,3 +2438,40 @@ CREATE POLICY notification_preferences_write ON notification_preferences
 -- ============================================================
 
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS price_per_sqft NUMERIC;
+
+-- ============================================================
+-- 168_inventory_stats_rpc.sql
+-- One scan for the inventory summary panel instead of five
+-- count=exact round trips. See the migration for the rationale.
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_properties_account_stats
+  ON properties(account_id) INCLUDE (status, is_published);
+
+CREATE OR REPLACE FUNCTION public.inventory_stats(p_account_id UUID)
+RETURNS TABLE (
+  total BIGINT,
+  published BIGINT,
+  available BIGINT,
+  sold_or_contract BIGINT,
+  pending_review BIGINT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    count(*),
+    count(*) FILTER (WHERE p.is_published),
+    count(*) FILTER (WHERE p.status = 'Available'),
+    count(*) FILTER (WHERE p.status IN ('Sold', 'Under Contract')),
+    count(*) FILTER (WHERE p.status = 'Pending Review')
+  FROM properties p
+  WHERE p.account_id = p_account_id
+    AND is_account_member(p_account_id);
+$$;
+
+REVOKE ALL ON FUNCTION public.inventory_stats(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.inventory_stats(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.inventory_stats(UUID) TO authenticated;
