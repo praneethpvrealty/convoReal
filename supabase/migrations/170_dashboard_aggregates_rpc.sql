@@ -79,12 +79,16 @@ AS $$
     count(d.id),
     COALESCE(SUM(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02)), 0)
   FROM pipeline_stages s
+  -- pipeline_stages carries no account_id of its own; it is scoped
+  -- through its parent pipeline (migration 001 + 017).
+  JOIN pipelines pl
+    ON pl.id = s.pipeline_id
+   AND pl.account_id = p_account_id
   JOIN deals d
     ON d.stage_id = s.id
    AND d.status = 'open'
    AND d.account_id = p_account_id
-  WHERE s.account_id = p_account_id
-    AND is_account_member(p_account_id)
+  WHERE is_account_member(p_account_id)
   GROUP BY s.id, s.name, s.color, s.position
   HAVING count(d.id) > 0
   ORDER BY s.position;
