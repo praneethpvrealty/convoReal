@@ -348,6 +348,43 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
         expect(bonusBurn?.amount).toBe(-3);
       });
 
+      it('a retried burn with the same key inside the window is free', async () => {
+        // burn.ts passes p_retry_key on every call so a redelivered
+        // webhook does not charge twice. The mocked unit suite only
+        // asserts the key reaches the RPC; whether the RPC honours it
+        // is a question for Postgres.
+        await seedWallet({ bonus_credits: 20 });
+
+        const burn = (retryKey: string) =>
+          supabase.rpc('burn_credits_tx', {
+            p_account_id: accountId,
+            p_feature: 'integration_test_retry',
+            p_cost: 4,
+            p_hard_block: true,
+            p_retry_key: retryKey,
+          });
+
+        const first = await burn('retry-key-1');
+        expect(first.error).toBeNull();
+        expect((Array.isArray(first.data) ? first.data[0] : first.data).balance_after).toBe(16);
+
+        const replay = await burn('retry-key-1');
+        expect(replay.error).toBeNull();
+        const replayRow = Array.isArray(replay.data) ? replay.data[0] : replay.data;
+        expect(replayRow.success).toBe(true);
+        expect(replayRow.balance_after).toBe(16);
+
+        expect((await getWallet()).total_credits).toBe(16);
+        // The replay short-circuits before the deduction, so it writes
+        // no second ledger row either.
+        expect((await getLedger()).filter((t) => t.type === 'ai_burn')).toHaveLength(1);
+
+        // A different key is a different call, not a retry.
+        const second = await burn('retry-key-2');
+        expect(second.error).toBeNull();
+        expect((await getWallet()).total_credits).toBe(12);
+      });
+
       it('concurrency guard: two concurrent hard-block burns cannot both succeed past zero', async () => {
         await seedWallet({ bonus_credits: 10 });
 
@@ -375,6 +412,258 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY)(
         const after = await getWallet();
         expect(after.total_credits).toBe(2);
         expect(after.total_credits).toBeGreaterThanOrEqual(0); // never blew past zero
+      });
+    });
+
+    // ------------------------------------------------------------
+    // grant_subscription_credits_tx (migrations 089, 163)
+    //
+    // The function every plan activation/upgrade path calls. Until
+    // migration 163 it wrote the buckets and total_credits in two
+    // separate UPDATEs, so the non-deferrable
+    // `total_credits = sum(buckets)` CHECK fired between them and the
+    // grant aborted — and because every caller wraps it in
+    // .catch()/log, the plan change still landed while the account
+    // silently never received its credits. grant.test.ts mocks the
+    // RPC away entirely, so only a real Postgres round trip can tell
+    // that regression from a healthy grant.
+    // ------------------------------------------------------------
+    describe('grant_subscription_credits_tx', () => {
+      it('sets the monthly bucket and the commitment bonus in one consistent row', async () => {
+        const resetAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
+
+        const { data, error } = await supabase.rpc('grant_subscription_credits_tx', {
+          p_account_id: accountId,
+          p_monthly_amount: 1000,
+          p_bonus_delta: 250,
+          p_reset_at: resetAt,
+        });
+        // A two-statement grant surfaces here as
+        // "violates check constraint credit_wallets_check".
+        expect(error).toBeNull();
+
+        const row = Array.isArray(data) ? data[0] : data;
+        expect(row.balance_after).toBe(1250);
+
+        const after = await getWallet();
+        expect(after.monthly_credits).toBe(1000);
+        expect(after.bonus_credits).toBe(250);
+        expect(after.total_credits).toBe(1250);
+
+        const { data: walletRow } = await supabase
+          .from('credit_wallets')
+          .select('monthly_reset_at')
+          .eq('account_id', accountId)
+          .single();
+        expect(walletRow?.monthly_reset_at).not.toBeNull();
+
+        const ledger = await getLedger();
+        expect(ledger.filter((t) => t.type === 'subscription_grant')).toEqual([
+          { type: 'subscription_grant', bucket: 'monthly', amount: 1000, balance_after: 1250 },
+        ]);
+        expect(ledger.filter((t) => t.type === 'commitment_bonus')).toEqual([
+          { type: 'commitment_bonus', bucket: 'bonus', amount: 250, balance_after: 1250 },
+        ]);
+      });
+
+      it('resets a partially burned monthly bucket and books only the delta', async () => {
+        // 700 credits already spent this cycle; the reset is "use it or
+        // lose it", so the bucket goes back to the plan value but the
+        // ledger records the 700 actually added.
+        await seedWallet({ monthly_credits: 300 });
+
+        const { error } = await supabase.rpc('grant_subscription_credits_tx', {
+          p_account_id: accountId,
+          p_monthly_amount: 1000,
+          p_bonus_delta: 0,
+          p_reset_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+        });
+        expect(error).toBeNull();
+
+        const after = await getWallet();
+        expect(after.monthly_credits).toBe(1000);
+        expect(after.total_credits).toBe(1000);
+
+        const grants = (await getLedger()).filter((t) => t.type === 'subscription_grant');
+        expect(grants).toHaveLength(1);
+        expect(grants[0].amount).toBe(700);
+      });
+
+      it('writes no ledger rows for a renewal that changes nothing', async () => {
+        const renew = () =>
+          supabase.rpc('grant_subscription_credits_tx', {
+            p_account_id: accountId,
+            p_monthly_amount: 1000,
+            p_bonus_delta: 0,
+            p_reset_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+          });
+
+        expect((await renew()).error).toBeNull();
+        expect((await getLedger())).toHaveLength(1); // the initial grant
+
+        // Same plan, same amount: the monthly delta is 0 and there is
+        // no bonus, so a plain in-term renewal must stay silent rather
+        // than spamming the ledger every billing event.
+        expect((await renew()).error).toBeNull();
+        expect((await getLedger())).toHaveLength(1);
+        expect((await getWallet()).total_credits).toBe(1000);
+      });
+
+      it('rejects an account with no wallet rather than granting into nothing', async () => {
+        const { error } = await supabase.rpc('grant_subscription_credits_tx', {
+          p_account_id: crypto.randomUUID(),
+          p_monthly_amount: 1000,
+          p_bonus_delta: 0,
+          p_reset_at: new Date().toISOString(),
+        });
+        expect(error).not.toBeNull();
+      });
+    });
+
+    // ------------------------------------------------------------
+    // purchase_credits_tx (migrations 089, 097)
+    //
+    // Shared by the Razorpay and Stripe top-up webhooks. Gateways
+    // redeliver, so the idempotency below is the difference between a
+    // paid-for top-up and two of them.
+    // ------------------------------------------------------------
+    describe('purchase_credits_tx', () => {
+      // Unique per run: idx_credit_tx_gateway_order is unique across
+      // the whole table, not per account, so a leftover row from a
+      // crashed run must not collide with this one.
+      const orderId = `integration-order-${Date.now()}`;
+
+      it('credits the purchased bucket and stamps the gateway ids on the ledger row', async () => {
+        const { data, error } = await supabase.rpc('purchase_credits_tx', {
+          p_account_id: accountId,
+          p_amount: 500,
+          p_description: 'Integration test top-up',
+          p_gateway: 'razorpay',
+          p_gateway_payment_id: `${orderId}-pay`,
+          p_gateway_order_id: orderId,
+        });
+        expect(error).toBeNull();
+
+        const row = Array.isArray(data) ? data[0] : data;
+        expect(row.success).toBe(true);
+        expect(row.balance_after).toBe(500);
+
+        const after = await getWallet();
+        expect(after.purchased_credits).toBe(500);
+        expect(after.total_credits).toBe(500);
+
+        const { data: tx } = await supabase
+          .from('credit_transactions')
+          .select('type, bucket, amount, balance_after, payment_gateway, gateway_order_id')
+          .eq('account_id', accountId)
+          .eq('type', 'purchase')
+          .single();
+        // balance_after is back-filled after the wallet update — the
+        // insert seeds it with 0.
+        expect(tx).toMatchObject({
+          bucket: 'purchased',
+          amount: 500,
+          balance_after: 500,
+          payment_gateway: 'razorpay',
+          gateway_order_id: orderId,
+        });
+      });
+
+      it('credits nothing when the same gateway order is delivered twice', async () => {
+        const purchase = () =>
+          supabase.rpc('purchase_credits_tx', {
+            p_account_id: accountId,
+            p_amount: 500,
+            p_description: 'Integration test top-up',
+            p_gateway: 'razorpay',
+            p_gateway_payment_id: `${orderId}-replay-pay`,
+            p_gateway_order_id: `${orderId}-replay`,
+          });
+
+        expect((await purchase()).error).toBeNull();
+
+        const replay = await purchase();
+        // The unique_violation on gateway_order_id is caught inside the
+        // function, so a redelivery is a `success: false` result rather
+        // than an error the webhook has to interpret.
+        expect(replay.error).toBeNull();
+        const row = Array.isArray(replay.data) ? replay.data[0] : replay.data;
+        expect(row.success).toBe(false);
+        expect(row.balance_after).toBe(500);
+
+        expect((await getWallet()).purchased_credits).toBe(500);
+        expect((await getLedger()).filter((t) => t.type === 'purchase')).toHaveLength(1);
+      });
+    });
+
+    // ------------------------------------------------------------
+    // refund_credits_tx (migration 089)
+    //
+    // Called when an AI feature is charged up front and then fails.
+    // ------------------------------------------------------------
+    describe('refund_credits_tx', () => {
+      it('returns the credits to the buckets the burn took them from', async () => {
+        await seedWallet({ monthly_credits: 5, bonus_credits: 10 });
+
+        const burn = await supabase.rpc('burn_credits_tx', {
+          p_account_id: accountId,
+          p_feature: 'integration_test_refund',
+          p_cost: 8,
+          p_hard_block: true,
+        });
+        expect(burn.error).toBeNull();
+
+        const { data, error } = await supabase.rpc('refund_credits_tx', {
+          p_account_id: accountId,
+          p_feature: 'integration_test_refund',
+          p_cost: 8,
+          p_description: 'integration test refund',
+        });
+        expect(error).toBeNull();
+
+        const row = Array.isArray(data) ? data[0] : data;
+        const balanceAfter = typeof row === 'number' ? row : row.balance_after;
+        expect(balanceAfter).toBe(15);
+
+        // The whole point of walking the burn rows: 5 goes back to
+        // monthly and 3 to bonus. Dumping all 8 into `purchased` would
+        // balance the total while quietly converting expiring monthly
+        // credits into permanent ones.
+        const after = await getWallet();
+        expect(after.monthly_credits).toBe(5);
+        expect(after.bonus_credits).toBe(10);
+        expect(after.purchased_credits).toBe(0);
+        expect(after.total_credits).toBe(15);
+      });
+
+      it('will not refund the same burn twice', async () => {
+        await seedWallet({ monthly_credits: 5, bonus_credits: 10 });
+
+        const burn = await supabase.rpc('burn_credits_tx', {
+          p_account_id: accountId,
+          p_feature: 'integration_test_refund',
+          p_cost: 8,
+          p_hard_block: true,
+        });
+        expect(burn.error).toBeNull();
+
+        const refund = () =>
+          supabase.rpc('refund_credits_tx', {
+            p_account_id: accountId,
+            p_feature: 'integration_test_refund',
+            p_cost: 8,
+            p_description: 'integration test refund',
+          });
+        expect((await refund()).error).toBeNull();
+        expect((await refund()).error).toBeNull();
+
+        // Every burn row is already marked refunded, so the second call
+        // takes the purchased fallback instead of restoring monthly and
+        // bonus a second time.
+        const after = await getWallet();
+        expect(after.monthly_credits).toBe(5);
+        expect(after.bonus_credits).toBe(10);
+        expect(after.purchased_credits).toBe(8);
       });
     });
   },
