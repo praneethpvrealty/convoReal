@@ -45,94 +45,48 @@ async function archivedContactIds(db: DB): Promise<string[]> {
 
 // --- 1. Metric cards ---------------------------------------------------
 
-export async function loadMetrics(db: DB): Promise<MetricsBundle> {
+interface DashboardMetricsRow {
+  open_conversations: number
+  new_conversations_today: number
+  new_conversations_yesterday: number
+  new_contacts_today: number
+  new_contacts_yesterday: number
+  open_deals_count: number
+  open_deals_value: number
+  messages_today: number
+  messages_yesterday: number
+}
+
+export async function loadMetrics(db: DB, accountId: string): Promise<MetricsBundle> {
   const todayStart = startOfLocalDay().toISOString()
   const yesterdayStart = daysAgoStart(1).toISOString()
 
-  const excludedContacts = await archivedContactIds(db)
-  const ownContactFilter = excludedContacts.length > 0 ? `(${excludedContacts.join(',')})` : null
-
-  let newContactsTodayQ = db
-    .from('contacts')
-    .select('id', { count: 'exact', head: true })
-    .gte('created_at', todayStart)
-  let newContactsYesterdayQ = db
-    .from('contacts')
-    .select('id', { count: 'exact', head: true })
-    .gte('created_at', yesterdayStart)
-    .lt('created_at', todayStart)
-  if (ownContactFilter) {
-    newContactsTodayQ = newContactsTodayQ.not('id', 'in', ownContactFilter)
-    newContactsYesterdayQ = newContactsYesterdayQ.not('id', 'in', ownContactFilter)
-  }
-
-  const [
-    openConvCur,
-    newConvToday,
-    newConvYesterday,
-    newContactsToday,
-    newContactsYesterday,
-    openDeals,
-    messagesToday,
-    messagesYesterday,
-  ] = await Promise.all([
-    db.from('conversations').select('id', { count: 'exact', head: true }).eq('status', 'open').eq('is_archived', false),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .eq('is_archived', false)
-      .gte('created_at', todayStart),
-    db
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'open')
-      .eq('is_archived', false)
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-    newContactsTodayQ,
-    newContactsYesterdayQ,
-    db.from('deals').select('value, brokerage_amount, status').eq('status', 'open'),
-    db
-      .from('messages')
-      .select('id, conversations!inner(is_archived)', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .eq('conversations.is_archived', false)
-      .gte('created_at', todayStart),
-    db
-      .from('messages')
-      .select('id, conversations!inner(is_archived)', { count: 'exact', head: true })
-      .eq('sender_type', 'agent')
-      .eq('conversations.is_archived', false)
-      .gte('created_at', yesterdayStart)
-      .lt('created_at', todayStart),
-  ])
-
-  const openDealsRows = (openDeals.data ?? []) as { value: number | null; brokerage_amount: number | null }[]
-  const openDealsValue = openDealsRows.reduce((sum, d) => {
-    if (d.brokerage_amount !== null && d.brokerage_amount !== undefined) {
-      return sum + Number(d.brokerage_amount);
-    }
-    return sum + (Number(d.value || 0) * 0.02); // 2% fallback
-  }, 0)
+  const { data, error } = await db
+    .rpc('dashboard_metrics', {
+      p_account_id: accountId,
+      p_today_start: todayStart,
+      p_yesterday_start: yesterdayStart,
+    })
+    .maybeSingle<DashboardMetricsRow>()
+  if (error) throw error
 
   return {
     activeConversations: {
-      current: openConvCur.count ?? 0,
+      current: data?.open_conversations ?? 0,
       // "vs yesterday" on a current-state count has no clean answer
       // without snapshots — we show the delta in NEW open conversations
       // today vs yesterday. That's the business-meaningful daily signal.
-      previous: (newConvToday.count ?? 0) - (newConvYesterday.count ?? 0),
+      previous: (data?.new_conversations_today ?? 0) - (data?.new_conversations_yesterday ?? 0),
     },
     newContactsToday: {
-      current: newContactsToday.count ?? 0,
-      previous: newContactsYesterday.count ?? 0,
+      current: data?.new_contacts_today ?? 0,
+      previous: data?.new_contacts_yesterday ?? 0,
     },
-    openDealsValue,
-    openDealsCount: openDealsRows.length,
+    openDealsValue: Number(data?.open_deals_value ?? 0),
+    openDealsCount: data?.open_deals_count ?? 0,
     messagesSentToday: {
-      current: messagesToday.count ?? 0,
-      previous: messagesYesterday.count ?? 0,
+      current: data?.messages_today ?? 0,
+      previous: data?.messages_yesterday ?? 0,
     },
   }
 }

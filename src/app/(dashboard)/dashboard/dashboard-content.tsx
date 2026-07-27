@@ -42,7 +42,7 @@ import { useAuth } from '@/hooks/use-auth'
 type RangeDays = 7 | 30 | 90
 
 export default function DashboardContent() {
-  const { isOrgManager, isOrgLeader } = useAuth()
+  const { isOrgManager, isOrgLeader, accountId } = useAuth()
   const showWorkload = isOrgManager || isOrgLeader
 
   const [metrics, setMetrics] = useState<MetricsBundle | null>(null)
@@ -85,10 +85,12 @@ export default function DashboardContent() {
   const loadAll = useCallback(() => {
     const db = createClient()
 
-    void loadMetrics(db)
-      .then((m) => setMetrics(m))
-      .catch((err) => console.error('[dashboard] metrics failed:', err))
-      .finally(() => setMetricsLoading(false))
+    if (accountId) {
+      void loadMetrics(db, accountId)
+        .then((m) => setMetrics(m))
+        .catch((err) => console.error('[dashboard] metrics failed:', err))
+        .finally(() => setMetricsLoading(false))
+    }
 
     void loadConversationsSeries(db, 30)
       .then((s) => setSeries((prev) => ({ ...prev, 30: s })))
@@ -121,7 +123,7 @@ export default function DashboardContent() {
     } else {
       void Promise.resolve().then(() => setWorkloadLoading(false))
     }
-  }, [showWorkload])
+  }, [showWorkload, accountId])
 
   useEffect(() => {
     loadAll()

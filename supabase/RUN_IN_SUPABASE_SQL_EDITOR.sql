@@ -2475,3 +2475,90 @@ $$;
 REVOKE ALL ON FUNCTION public.inventory_stats(UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.inventory_stats(UUID) FROM anon;
 GRANT EXECUTE ON FUNCTION public.inventory_stats(UUID) TO authenticated;
+
+-- ============================================================
+-- 169_dashboard_metrics_rpc.sql
+-- Dashboard metric cards in one round trip instead of nine.
+-- See the migration for the rationale.
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_contacts_account_created
+  ON contacts(account_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conversations_account_status_created
+  ON conversations(account_id, status, is_archived, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_account_sender_created
+  ON messages(account_id, sender_type, created_at);
+
+CREATE OR REPLACE FUNCTION public.dashboard_metrics(
+  p_account_id UUID,
+  p_today_start TIMESTAMPTZ,
+  p_yesterday_start TIMESTAMPTZ
+)
+RETURNS TABLE (
+  open_conversations BIGINT,
+  new_conversations_today BIGINT,
+  new_conversations_yesterday BIGINT,
+  new_contacts_today BIGINT,
+  new_contacts_yesterday BIGINT,
+  open_deals_count BIGINT,
+  open_deals_value NUMERIC,
+  messages_today BIGINT,
+  messages_yesterday BIGINT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    (SELECT count(*) FROM conversations c
+      WHERE c.account_id = p_account_id
+        AND c.status = 'open' AND c.is_archived = false),
+    (SELECT count(*) FROM conversations c
+      WHERE c.account_id = p_account_id
+        AND c.status = 'open' AND c.is_archived = false
+        AND c.created_at >= p_today_start),
+    (SELECT count(*) FROM conversations c
+      WHERE c.account_id = p_account_id
+        AND c.status = 'open' AND c.is_archived = false
+        AND c.created_at >= p_yesterday_start
+        AND c.created_at < p_today_start),
+    (SELECT count(*) FROM contacts ct
+      WHERE ct.account_id = p_account_id
+        AND ct.created_at >= p_today_start
+        AND NOT EXISTS (
+          SELECT 1 FROM conversations c
+          WHERE c.contact_id = ct.id AND c.is_archived = true
+        )),
+    (SELECT count(*) FROM contacts ct
+      WHERE ct.account_id = p_account_id
+        AND ct.created_at >= p_yesterday_start
+        AND ct.created_at < p_today_start
+        AND NOT EXISTS (
+          SELECT 1 FROM conversations c
+          WHERE c.contact_id = ct.id AND c.is_archived = true
+        )),
+    (SELECT count(*) FROM deals d
+      WHERE d.account_id = p_account_id AND d.status = 'open'),
+    (SELECT COALESCE(SUM(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02)), 0)
+       FROM deals d
+      WHERE d.account_id = p_account_id AND d.status = 'open'),
+    (SELECT count(*) FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.account_id = p_account_id
+        AND m.sender_type = 'agent'
+        AND c.is_archived = false
+        AND m.created_at >= p_today_start),
+    (SELECT count(*) FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.account_id = p_account_id
+        AND m.sender_type = 'agent'
+        AND c.is_archived = false
+        AND m.created_at >= p_yesterday_start
+        AND m.created_at < p_today_start)
+  WHERE is_account_member(p_account_id);
+$$;
+
+REVOKE ALL ON FUNCTION public.dashboard_metrics(UUID, TIMESTAMPTZ, TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.dashboard_metrics(UUID, TIMESTAMPTZ, TIMESTAMPTZ) FROM anon;
+GRANT EXECUTE ON FUNCTION public.dashboard_metrics(UUID, TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated;
