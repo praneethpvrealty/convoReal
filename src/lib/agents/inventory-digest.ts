@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
@@ -14,6 +14,7 @@ import {
   type DigestPeriod,
 } from '@/lib/owners/owner-digest'
 import type { MessageTemplate } from '@/types'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
  * Agent inventory reach digests.
@@ -139,17 +140,6 @@ export function buildAgentInventoryDigestMessage(
 }
 
 // ── Engine ────────────────────────────────────────────────────────
-
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin(): SupabaseClient {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000
 const SEND_HOUR_START_IST = 8

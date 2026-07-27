@@ -59,6 +59,11 @@ import {
 } from '@/components/ui/tooltip';
 import { getCurrencyIcon } from '@/lib/currency-utils';
 import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message-builder';
+import {
+  CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+  isReengagementError,
+  isWithinCustomerWindow,
+} from '@/lib/whatsapp/customer-window';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { BRANDING } from '@/config/branding';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
@@ -1088,8 +1093,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       convId = newConv.id;
     }
 
-    // Check 24-hour customer window to prevent sending freeform text that will fail at Meta
-    let isWithin24Hours = false;
+    // Check the 24-hour customer window to prevent sending freeform text that will fail at Meta
+    let lastCustomerMessageAt: string | null = null;
     if (existingConv) {
       const { data: lastCustomerMsg } = await supabase
         .from('messages')
@@ -1100,14 +1105,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .limit(1)
         .maybeSingle();
 
-      if (lastCustomerMsg) {
-        const lastMsgTime = new Date(lastCustomerMsg.created_at).getTime();
-        isWithin24Hours = (Date.now() - lastMsgTime) < 24 * 60 * 60 * 1000;
-      }
+      lastCustomerMessageAt = lastCustomerMsg?.created_at ?? null;
     }
 
-    if (!isWithin24Hours) {
-      throw new Error('WhatsApp session has expired (over 24 hours). Re-engagement message must be sent via template.');
+    if (!isWithinCustomerWindow(lastCustomerMessageAt)) {
+      throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE);
     }
 
     const showcaseBase = getShowcaseBaseUrl();
@@ -1140,12 +1142,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.success('Property details sent successfully via WhatsApp!');
     } catch (err) {
       console.error(err);
-      const isReengagementError = err instanceof Error && (
-        err.message.includes('131047') ||
-        err.message.toLowerCase().includes('24 hours') ||
-        err.message.toLowerCase().includes('re-engagement')
-      );
-      if (isReengagementError) {
+      if (isReengagementError(err)) {
         toast.warning('WhatsApp session has expired (over 24 hours). Redirecting to template selection...');
         setShareOpen(true);
       } else {
@@ -1176,12 +1173,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           toast.success('Approved & property details sent via WhatsApp!');
         } catch (waErr) {
           console.error('Failed to auto-send WhatsApp details:', waErr);
-          const isReengagementError = waErr instanceof Error && (
-            waErr.message.includes('131047') ||
-            waErr.message.toLowerCase().includes('24 hours') ||
-            waErr.message.toLowerCase().includes('re-engagement')
-          );
-          if (isReengagementError) {
+          if (isReengagementError(waErr)) {
             toast.warning('Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...');
             setShareOpen(true);
           } else {

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 // ============================================================
 // Buyer WhatsApp alert consent — the buyer-side twin of the owner
 // digest STOP/START commands (src/lib/owners/owner-digest.ts).
@@ -6,7 +7,7 @@
 // screen edits the same column, so the two channels always agree.
 // ============================================================
 
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 export function parseBuyerAlertsCommand(
   text: string | null | undefined
@@ -19,17 +20,6 @@ export function parseBuyerAlertsCommand(
   if (/^(start|resume)\s+(property\s+|deal\s+)?alerts?$/.test(cleaned))
     return 'start';
   return null;
-}
-
-let _adminClient: SupabaseClient | null = null;
-function supabaseAdmin(): SupabaseClient {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
 }
 
 export async function applyBuyerAlertsCommand(args: {

@@ -1,15 +1,8 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getMarketStatsConfig } from '@/lib/market/stats-config';
 import { runMarketStats } from '@/lib/market/stats-engine';
-
-function supabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * Nightly anonymized market-stats aggregation (see

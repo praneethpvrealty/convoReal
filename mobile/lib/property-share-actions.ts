@@ -7,6 +7,10 @@
 
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import {
+  isReengagementError,
+  isWithinCustomerWindow,
+} from '@/lib/customer-window';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
 
@@ -81,7 +85,7 @@ export async function sendPropertyViaCrm(
 
   // Free text only inside the 24-hour customer window (same guard as the
   // approve flow) — a fresh conversation has never received a message.
-  let within24h = false;
+  let lastCustomerMessageAt: string | null = null;
   if (existingConv) {
     const { data: lastCustomerMsg } = await supabase
       .from('messages')
@@ -91,12 +95,9 @@ export async function sendPropertyViaCrm(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (lastCustomerMsg) {
-      within24h =
-        Date.now() - new Date(lastCustomerMsg.created_at).getTime() < 24 * 60 * 60 * 1000;
-    }
+    lastCustomerMessageAt = lastCustomerMsg?.created_at ?? null;
   }
-  if (!within24h) {
+  if (!isWithinCustomerWindow(lastCustomerMessageAt)) {
     return { sent: false, conversationId: convId, reengage: true };
   }
 
@@ -111,11 +112,7 @@ export async function sendPropertyViaCrm(
     });
   } catch (e) {
     const msg = e instanceof ApiError ? e.message : 'Failed to send WhatsApp message';
-    const isReengagement =
-      msg.includes('131047') ||
-      msg.toLowerCase().includes('24 hours') ||
-      msg.toLowerCase().includes('re-engagement');
-    if (isReengagement) return { sent: false, conversationId: convId, reengage: true };
+    if (isReengagementError(msg)) return { sent: false, conversationId: convId, reengage: true };
     return { sent: false, conversationId: convId, error: msg };
   }
 

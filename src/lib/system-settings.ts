@@ -1,15 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
-
-let _adminClient: ReturnType<typeof createClient> | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface SandboxSystemConfig {
   phone_number_id: string | null

@@ -1,21 +1,10 @@
 import { randomInt } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import { hashOtpCode, isValidPlan, OTP_TTL_MS, PLAN_VALUES } from '@/lib/billing/admin-plan-override'
 import { sendAdminOtpCode } from '@/lib/whatsapp/admin-otp-sender'
-
-let _adminClient: ReturnType<typeof createAdminClient> | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 async function checkSuperAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
   const {

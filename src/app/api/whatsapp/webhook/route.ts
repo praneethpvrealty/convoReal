@@ -1,21 +1,9 @@
 import { NextResponse } from 'next/server'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
 import { processWebhook } from '@/lib/whatsapp/webhook-handler'
 import Redis from 'ioredis'
-
-// Lazy-initialized admin client for verification
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 // Lazy-initialized Redis client
 let _redisClient: Redis | null = null

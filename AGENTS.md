@@ -499,7 +499,8 @@ Meta Cloud API
 ### Common patterns in routes
 
 - Use `await createClient()` from `src/lib/supabase/server.ts` for the authenticated SSR client.
-- Use an inline `createClient(url, serviceRoleKey)` for webhooks/background jobs that need RLS bypass.
+- Auth-gated routes resolve the caller with `getCurrentAccount()` / `requireRole(min)` from `src/lib/auth/account.ts`, and report failures with `toErrorResponse(err)`. Do not hand-roll `auth.getUser()` plus a `profiles` lookup — that path skips the archived-account block and the role check. If a route's `catch` maps failures onto a domain error, resolve auth outside that `try` so a 401/403 is not reported as a send failure.
+- Use `supabaseAdmin()` from `src/lib/supabase/admin.ts` for webhooks/background jobs that need RLS bypass. Do not declare a local service-role singleton.
 - Parse and validate request bodies; never trust user input.
 - Return early with `NextResponse.json({ error: ... }, { status: ... })` on errors.
 

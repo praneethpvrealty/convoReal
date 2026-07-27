@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import {
   verifyPhoneNumber,
   registerPhoneNumber,
@@ -10,17 +9,7 @@ import {
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
-
-let _adminClient: ReturnType<typeof createAdminClient> | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
   try {

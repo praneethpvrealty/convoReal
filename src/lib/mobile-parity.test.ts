@@ -27,6 +27,7 @@ import {
   NEARBY_HIGHLIGHTS_OPTIONS,
   PROPERTY_TYPE_GROUPS,
 } from "@/lib/inventory/property-options";
+import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from "@/lib/whatsapp/customer-window";
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), "mobile", relativePath), "utf8");
@@ -153,6 +154,27 @@ describe("mobile/lib/property-options.ts mirrors the web option catalog", () => 
     ]);
 
     expect(Object.fromEntries(categories)).toEqual(AMENITIES_BY_CATEGORY);
+  });
+});
+
+describe("mobile/lib/customer-window.ts mirrors customer-window", () => {
+  // Meta rejects the send when this is wrong, so the two copies have to
+  // agree on the window length, the error markers, and the pre-flight
+  // message that `isReengagementError` has to keep recognising.
+  const source = mobileSource("lib/customer-window.ts");
+
+  it("uses the same 24-hour window", () => {
+    expect(source).toContain(`CUSTOMER_WINDOW_MS = 24 * 60 * 60 * 1000`);
+  });
+
+  it("matches the same re-engagement markers", () => {
+    for (const marker of ["131047", "24 hours", "re-engagement"]) {
+      expect(source, `missing marker ${marker}`).toContain(marker);
+    }
+  });
+
+  it("throws the same pre-flight message", () => {
+    expect(source).toContain(CUSTOMER_WINDOW_EXPIRED_MESSAGE);
   });
 });
 

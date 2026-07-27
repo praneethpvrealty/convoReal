@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder'
 import {
@@ -10,6 +10,7 @@ import {
   buildOwnerDigestConsentParams,
 } from '@/lib/whatsapp/owner-digest-template'
 import type { MessageTemplate } from '@/types'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
  * Owner property status digests.
@@ -183,17 +184,6 @@ export function parseOwnerDigestCommand(
 }
 
 // ── Engine ────────────────────────────────────────────────────────
-
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin(): SupabaseClient {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000
 /** Only deliver during IST business-friendly morning hours. */
