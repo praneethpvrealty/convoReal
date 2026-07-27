@@ -11,6 +11,22 @@ and polish.
 
 ## [Unreleased]
 
+### Changed
+
+- **The WhatsApp assistant's help card now says what it can actually
+  do.** Texting your own CRM number used to answer with a four-line
+  "AI Ingestion Chatbot" card that only described draft-session
+  commands — and showed `*Cancel*` literally, because it used Markdown
+  bold instead of WhatsApp's. Send *help* (or hi / menu / start) and
+  you now get the real capability guide with worked examples: add a
+  listing from text, an ad screenshot or a brochure PDF; add a contact
+  or portal lead; the *today* agenda, event and to-do commands and
+  voice notes; answering a lead alert directly; and the photo /
+  plain-language-correction / Confirm / Cancel / 15-minute-expiry rules
+  for an open draft. A message that classifies as neither a listing nor
+  a contact now gets a short "couldn't tell what that was" with the
+  three likely intents instead of the whole menu.
+
 ### Added
 
 - **Reply to a lead straight from the WhatsApp ping.** The

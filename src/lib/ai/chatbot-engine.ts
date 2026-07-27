@@ -32,6 +32,11 @@ import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling } from '@/lib/calendar/whatsapp-scheduler';
 import {
+  isOwnerHelpCommand,
+  buildOwnerHelpMessage,
+  buildOwnerFallbackMessage,
+} from '@/lib/whatsapp/owner-help-template';
+import {
   validateDraft,
   validateContactDraftsContainer,
   formatDraftPreviewMessage,
@@ -2092,14 +2097,13 @@ export async function processOwnerChatbotMessage(
   // engine — or a template quick-reply tap (message.type 'button',
   // e.g. a reminder's "Fine"): answering a button tap with the
   // welcome text reads as a non-sequitur.
-  if (!buttonId && message.type !== 'button' && (lowerText === 'help' || cleanedText)) {
-    const reply = `👋 *AI Ingestion Chatbot*\n\n` +
-      `Send property listing details or a contact profile (as text or screenshot) to automatically start a draft.\n\n` +
-      `*Commands:* (only active during an active session)\n` +
-      `• Send property photos to add them to listing\n` +
-      `• Reply naturally to correct details (e.g., 'price is 1.8 Cr' or 'name is Suresh')\n` +
-      `• Click the **Cancel** button to discard\n` +
-      `• Click the **Confirm** button to save`;
+  if (!buttonId && message.type !== 'button' && (isOwnerHelpCommand(lowerText) || cleanedText)) {
+    // An explicit "help"/greeting wants the whole capability guide;
+    // anything else got here because it classified as neither a listing
+    // nor a contact, and is better served by a short nudge.
+    const reply = isOwnerHelpCommand(lowerText)
+      ? buildOwnerHelpMessage()
+      : buildOwnerFallbackMessage();
 
     const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
