@@ -4,7 +4,6 @@ import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -17,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
@@ -272,6 +272,7 @@ export default function ContactsScreen() {
   const [peekId, setPeekId] = useState<string | null>(null);
   const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
   const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
+  const { show, dialogProps } = useAppDialog();
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
@@ -292,7 +293,7 @@ export default function ContactsScreen() {
     const result = await approveAndSendDetails(contact);
     if (!result.ok) {
       haptic.warn();
-      Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
+      show({ title: 'Could not approve', message: friendlyError(result.error ?? 'Try again.') });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -443,12 +444,18 @@ export default function ContactsScreen() {
                 {
                   icon: 'chatbubbles-outline',
                   label: 'Internal message (Inbox)',
-                  onPress: () => openContactChat(waMenu.contact),
+                  onPress: async () => {
+                    const outcome = await openContactChat(waMenu.contact);
+                    if (!outcome.ok && outcome.error) {
+                      show({ title: 'Could not open thread', message: outcome.error });
+                    }
+                  },
                 },
               ]
             : []
         }
       />
+      <AppDialog {...dialogProps} />
     </View>
   );
 }

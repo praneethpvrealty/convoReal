@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ProfileEditSheet } from '@/components/profile-edit-sheet';
 import { SubscriptionCard } from '@/components/subscription-card';
 import { Avatar, SectionLabel } from '@/components/ui';
@@ -219,16 +220,18 @@ function BiometricLockRow() {
   const enabled = useAppLock((s) => s.enabled);
   const setEnabled = useAppLock((s) => s.setEnabled);
   const [busy, setBusy] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   async function toggle(next: boolean) {
     if (busy) return;
     setBusy(true);
     try {
       if (next && !(await biometricsAvailable())) {
-        Alert.alert(
-          'No fingerprint set up',
-          'Add a fingerprint or face unlock in your phone settings first — or this build may not support it yet (install the latest app version).'
-        );
+        show({
+          title: 'No fingerprint set up',
+          message:
+            'Add a fingerprint or face unlock in your phone settings first — or this build may not support it yet (install the latest app version).',
+        });
         return;
       }
       const ok = await authenticate();
@@ -254,6 +257,7 @@ function BiometricLockRow() {
         trackColor={{ true: colors.primary, false: colors.border }}
         thumbColor="#fff"
       />
+      <AppDialog {...dialogProps} />
     </View>
   );
 }

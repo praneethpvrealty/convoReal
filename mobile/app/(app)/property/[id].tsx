@@ -5,7 +5,6 @@ import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -21,6 +20,7 @@ import { BlurView } from 'expo-blur';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
@@ -630,18 +630,26 @@ function ActionRail({ property }: { property: Property }) {
   const [sharing, setSharing] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
   const archived = property.status === 'Archived';
+  const { show, close, dialogProps } = useAppDialog();
 
   function confirmArchive() {
-    Alert.alert(
-      archived ? 'Unarchive this property?' : 'Archive this property?',
-      archived
+    show({
+      title: archived ? 'Unarchive this property?' : 'Archive this property?',
+      message: archived
         ? 'It becomes Available and shows in searches again.'
         : 'Archived listings are hidden from searches and the showcase.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: archived ? 'Unarchive' : 'Archive', onPress: doArchive },
-      ]
-    );
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: archived ? 'Unarchive' : 'Archive',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            doArchive();
+          },
+        },
+      ],
+    });
   }
 
   async function doArchive() {
@@ -657,24 +665,32 @@ function ActionRail({ property }: { property: Property }) {
       queryClient.invalidateQueries({ queryKey: ['properties'] });
     } catch (e) {
       haptic.warn();
-      Alert.alert(
-        'Could not update',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-      );
+      show({
+        title: 'Could not update',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+      });
     } finally {
       setBusy(null);
     }
   }
 
   function confirmDelete() {
-    Alert.alert(
-      'Delete this property?',
-      'This permanently removes the listing, its photos and inquiry history. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: doDelete },
-      ]
-    );
+    show({
+      title: 'Delete this property?',
+      message:
+        'This permanently removes the listing, its photos and inquiry history. This cannot be undone.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Delete',
+          variant: 'destructive',
+          onPress: () => {
+            close();
+            doDelete();
+          },
+        },
+      ],
+    });
   }
 
   async function doDelete() {
@@ -686,10 +702,10 @@ function ActionRail({ property }: { property: Property }) {
       router.back();
     } catch (e) {
       haptic.warn();
-      Alert.alert(
-        'Could not delete',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-      );
+      show({
+        title: 'Could not delete',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+      });
       setBusy(null);
     }
   }
@@ -772,6 +788,7 @@ function ActionRail({ property }: { property: Property }) {
           </Pressable>
         );
       })}
+      <AppDialog {...dialogProps} />
     </View>
   );
 }

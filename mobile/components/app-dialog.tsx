@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -6,7 +7,38 @@ import { radius, spacing, useTheme } from '@/lib/theme';
 export interface DialogAction {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'default' | 'muted';
+  variant?: 'primary' | 'default' | 'muted' | 'destructive';
+}
+
+export interface DialogSpec {
+  title: string;
+  message?: string;
+  /** Omit for a single primary "OK" that dismisses. */
+  actions?: DialogAction[];
+}
+
+/**
+ * Local dialog state for one screen or sheet. The dialog renders where
+ * the hook is used, not at the root: a Modal presented from outside the
+ * currently-open sheet can end up behind it, so confirmations raised
+ * inside a BottomSheet have to live inside that sheet's tree.
+ */
+export function useAppDialog() {
+  const [spec, setSpec] = useState<DialogSpec | null>(null);
+  const close = useCallback(() => setSpec(null), []);
+  const show = useCallback((next: DialogSpec) => setSpec(next), []);
+
+  return {
+    show,
+    close,
+    dialogProps: {
+      visible: spec !== null,
+      onClose: close,
+      title: spec?.title ?? '',
+      message: spec?.message,
+      actions: spec?.actions,
+    },
+  };
 }
 
 /**
@@ -25,11 +57,14 @@ export function AppDialog({
   onClose: () => void;
   title: string;
   message?: string;
-  actions: DialogAction[];
+  actions?: DialogAction[];
 }) {
   const { colors, dark, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
   const cardFill = dark ? 'rgba(13,36,26,0.98)' : 'rgba(255,255,255,0.99)';
+  const resolvedActions: DialogAction[] = actions?.length
+    ? actions
+    : [{ label: 'OK', variant: 'primary', onPress: onClose }];
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -49,8 +84,9 @@ export function AppDialog({
             <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textMuted }}>{message}</Text>
           ) : null}
           <View style={styles.actions}>
-            {actions.map((a) => {
+            {resolvedActions.map((a) => {
               const isPrimary = a.variant === 'primary';
+              const isDestructive = a.variant === 'destructive';
               return (
                 <Pressable
                   key={a.label}
@@ -61,7 +97,9 @@ export function AppDialog({
                     styles.action,
                     isPrimary
                       ? { backgroundColor: colors.primary }
-                      : { backgroundColor: colors.glass, borderColor: colors.glassBorder, borderWidth: 1 },
+                      : isDestructive
+                        ? { backgroundColor: colors.dangerSoft, borderColor: colors.danger, borderWidth: 1 }
+                        : { backgroundColor: colors.glass, borderColor: colors.glassBorder, borderWidth: 1 },
                   ]}
                 >
                   <Text
@@ -70,9 +108,11 @@ export function AppDialog({
                       fontFamily: f.bold,
                       color: isPrimary
                         ? colors.onPrimary
-                        : a.variant === 'muted'
-                          ? colors.textMuted
-                          : colors.text,
+                        : isDestructive
+                          ? colors.danger
+                          : a.variant === 'muted'
+                            ? colors.textMuted
+                            : colors.text,
                     }}
                   >
                     {a.label}
