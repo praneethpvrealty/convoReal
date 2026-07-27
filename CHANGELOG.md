@@ -13,6 +13,20 @@ and polish.
 
 ### Added
 
+- **Reply to a lead straight from the WhatsApp ping.** The
+  "💬 New lead just messaged you" alert that lands in your own
+  WhatsApp is now answerable: reply to it (quote it) and the text is
+  delivered to the lead as a normal agent message, visible in the
+  shared Inbox like any other reply. ConvoReal answers with
+  "✅ Sent to <lead>" — quote that to keep talking — and mirrors the
+  lead's later messages to your WhatsApp so the whole exchange can
+  happen from your phone without opening the app. Text only; media and
+  templates still go through the Inbox. Outside Meta's 24-hour reply
+  window you get a "couldn't send" note with a link to re-engage by
+  template instead. Only the staff member the ping was addressed to
+  can reply through it, and read-only members can't.
+  **Migration required:** `171_whatsapp_reply_bridges.sql`.
+
 - **Mobile: property quick-edit + showcase sharing.** The property
   screen's action rail gains **Edit** — a mobile-scale form for the
   fields agents change in the field (title, price or rent +

@@ -2729,3 +2729,39 @@ REVOKE ALL ON FUNCTION public.dashboard_response_samples(UUID, TIMESTAMPTZ) FROM
 GRANT EXECUTE ON FUNCTION public.dashboard_conversations_series(UUID, TIMESTAMPTZ, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_pipeline_donut(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_response_samples(UUID, TIMESTAMPTZ) TO authenticated;
+
+-- ============================================================
+-- 171_whatsapp_reply_bridges.sql
+-- Maps an agent-facing WhatsApp ping back to the lead thread it is
+-- about, so a quote-reply to the ping reaches the lead. See the
+-- migration for the rationale.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS whatsapp_reply_bridges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  agent_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  agent_phone TEXT NOT NULL,
+  notification_message_id TEXT NOT NULL UNIQUE,
+  target_conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  target_contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  last_agent_reply_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reply_bridges_conversation
+  ON whatsapp_reply_bridges (target_conversation_id, last_agent_reply_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_reply_bridges_account_created
+  ON whatsapp_reply_bridges (account_id, created_at);
+
+ALTER TABLE whatsapp_reply_bridges ENABLE ROW LEVEL SECURITY;
+
+DROP TRIGGER IF EXISTS set_whatsapp_reply_bridges_updated_at ON whatsapp_reply_bridges;
+CREATE TRIGGER set_whatsapp_reply_bridges_updated_at BEFORE UPDATE ON whatsapp_reply_bridges
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP POLICY IF EXISTS whatsapp_reply_bridges_select ON whatsapp_reply_bridges;
+CREATE POLICY whatsapp_reply_bridges_select ON whatsapp_reply_bridges FOR SELECT USING (
+  is_account_member(account_id)
+);

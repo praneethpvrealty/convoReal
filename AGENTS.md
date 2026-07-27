@@ -377,7 +377,7 @@ Plus:
 | Tenancy | `accounts`, `profiles`, `account_invitations` |
 | Contacts | `contacts`, `tags`, `contact_tags`, `custom_fields`, `contact_custom_values`, `contact_notes` |
 | Properties | `properties`, `showcase_settings`, `rera_projects`, `property_document_requests` |
-| WhatsApp | `conversations`, `messages`, `message_reactions`, `message_templates`, `whatsapp_config`, `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions` |
+| WhatsApp | `conversations`, `messages`, `message_reactions`, `message_templates`, `whatsapp_config`, `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions`, `whatsapp_reply_bridges` |
 | Pipelines | `pipelines`, `pipeline_stages`, `deals` |
 | Calendar | `appointments`, `appointment_reminder_log`, `todos` |
 | Automations | `automations`, `automation_steps`, `automation_logs`, `automation_pending_executions` |
@@ -473,6 +473,7 @@ Meta Cloud API
 | `src/lib/whatsapp/meta-flow-service.ts` | Native Meta Flows lifecycle (create, publish, register keys) |
 | `src/lib/whatsapp/preference-flow.ts` | Buyer preference intake native-flow blueprint |
 | `src/lib/whatsapp/routing-engine.ts` | Message routing rules |
+| `src/lib/whatsapp/reply-bridge.ts` | Direct replies: agent pings are answerable from the agent's own WhatsApp |
 | `src/lib/whatsapp/owner-digest-template.ts` | Owner digest WhatsApp templates |
 | `src/app/api/whatsapp/webhook/route.ts` | Next.js fallback webhook endpoint (also can enqueue to Redis) |
 | `go-ingress/main.go` | Fast webhook ingress |

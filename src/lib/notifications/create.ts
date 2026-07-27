@@ -7,7 +7,10 @@
 //   1. in-app  — a `notifications` row the dashboard bell reads
 //                live over Supabase realtime.
 //   2. whatsapp — a free-form text to the user's own WhatsApp
-//                (profiles.phone), reusing the agent-ping pattern.
+//                (profiles.phone), reusing the agent-ping pattern. A
+//                ping about a conversation is registered as a reply
+//                bridge, so answering it in WhatsApp reaches the
+//                contact (whatsapp/reply-bridge.ts).
 //   3. push    — an Expo push to the user's mobile devices.
 //
 // Every channel is best-effort and independent: a failure in one
@@ -21,6 +24,7 @@ import { sendWhatsAppMessageAndPersist, type DispatcherResult } from '@/lib/what
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { sendExpoPush } from '@/lib/notifications/push';
 import { resolveChannels } from '@/lib/notifications/preferences';
+import { registerReplyBridge } from '@/lib/whatsapp/reply-bridge';
 
 export type NotificationType =
   | 'appointment_booked'
@@ -99,7 +103,14 @@ export async function createNotification(input: CreateNotificationInput): Promis
   const whatsappText = input.whatsappText ?? (input.body ? `${input.title}\n\n${input.body}` : input.title);
 
   const [wa, push] = await Promise.all([
-    channels.whatsapp ? pingUserWhatsApp(input.accountId, input.userId, whatsappText) : Promise.resolve(null),
+    channels.whatsapp
+      ? pingUserWhatsApp(
+          input.accountId,
+          input.userId,
+          whatsappText,
+          input.entityType === 'conversation' ? (input.entityId ?? null) : null
+        )
+      : Promise.resolve(null),
     channels.push
       ? sendExpoPush(input.userId, {
           title: input.title,
@@ -121,7 +132,9 @@ export async function createNotification(input: CreateNotificationInput): Promis
 async function pingUserWhatsApp(
   accountId: string,
   userId: string,
-  text: string
+  text: string,
+  /** Thread the ping is about, when it is one — makes the ping answerable. */
+  bridgeConversationId: string | null
 ): Promise<DispatcherResult | null> {
   try {
     const { data: profile } = await supabaseAdmin()
@@ -132,7 +145,7 @@ async function pingUserWhatsApp(
     if (!profile?.phone) return null;
     const phone = sanitizePhoneForMeta(profile.phone);
     if (!isValidE164(phone)) return null;
-    return await sendWhatsAppMessageAndPersist({
+    const result = await sendWhatsAppMessageAndPersist({
       accountId,
       userId,
       toPhone: phone,
@@ -140,6 +153,19 @@ async function pingUserWhatsApp(
       senderType: 'bot',
       text,
     });
+
+    // A ping about a conversation is answerable: register it so a
+    // WhatsApp quote-reply reaches the contact instead of the chatbot.
+    if (result.success && bridgeConversationId) {
+      await registerReplyBridge({
+        accountId,
+        agentUserId: userId,
+        agentPhone: phone,
+        wamid: result.whatsappMessageId,
+        conversationId: bridgeConversationId,
+      });
+    }
+    return result;
   } catch (err) {
     console.error('[notify] whatsapp ping failed:', err);
     return null;

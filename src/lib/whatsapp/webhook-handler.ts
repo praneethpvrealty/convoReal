@@ -41,6 +41,11 @@ import { tryHandleInboundScheduling } from '@/lib/calendar/whatsapp-scheduler'
 import { createNotification } from '@/lib/notifications/create'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
+import {
+  handleBridgedAgentReply,
+  relayLeadMessageToBridgedAgent,
+  BRIDGE_REPLY_HINT,
+} from '@/lib/whatsapp/reply-bridge'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import type { SandboxSenderMapping } from '@/types'
@@ -999,6 +1004,20 @@ async function processMessage(
     console.error('Error updating conversation:', convError)
   }
 
+  // A staff member quote-replying one of our agent pings is answering
+  // the lead that ping was about — send it on and stop, so the text
+  // never also lands in the owner chatbot or the digest commands.
+  // No-op for every message that isn't a reply to a bridge message.
+  const bridged = await handleBridgedAgentReply({
+    message,
+    contentText,
+    accountId,
+    senderPhone,
+    agentContactId: contactRecord.id,
+    agentConversationId: conversation.id,
+  })
+  if (bridged) return
+
   // The agent this lead is routed to (freshly resolved above, or a prior
   // assignment), falling back to the account owner. Used to target
   // booking + new-lead notifications at the right person.
@@ -1009,9 +1028,10 @@ async function processMessage(
 
   // First message on a brand-new lead thread — alert the assigned agent
   // once (in-app + push + WhatsApp).
+  let pingedOnWhatsApp = false
   if (!ownerCheck.isOwner && isFirstInboundMessage) {
     const preview = (contentText || `[${message.type}]`).slice(0, 140)
-    await createNotification({
+    const notified = await createNotification({
       accountId,
       userId: assignedAgentUserId,
       type: 'new_message',
@@ -1027,9 +1047,10 @@ async function processMessage(
         '',
         preview,
         '',
-        '_Open your Inbox to reply._',
+        BRIDGE_REPLY_HINT,
       ].join('\n'),
     })
+    pingedOnWhatsApp = notified.whatsapp?.success === true
   } else if (!ownerCheck.isOwner && (conversation.unread_count || 0) === 0) {
     // A reply on an existing thread the agent had already caught up on
     // (unread was 0 before this message). Alert them with an in-app +
@@ -1037,7 +1058,7 @@ async function processMessage(
     // the agent for every back-and-forth. Threads that already had
     // unseen messages don't re-notify, so a burst of replies is one ping.
     const preview = (contentText || `[${message.type}]`).slice(0, 140)
-    await createNotification({
+    const notified = await createNotification({
       accountId,
       userId: assignedAgentUserId,
       type: 'new_message',
@@ -1047,6 +1068,21 @@ async function processMessage(
       entityType: 'conversation',
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
+    })
+    pingedOnWhatsApp = notified.whatsapp?.success === true
+  }
+
+  // An agent who answered this lead from their own WhatsApp keeps the
+  // conversation there: mirror the lead's message to their phone, ready
+  // to be replied to again. Skipped when the notification above already
+  // pinged them (that ping is itself answerable), and a no-op for every
+  // thread nobody has answered from WhatsApp.
+  if (!ownerCheck.isOwner && !pingedOnWhatsApp) {
+    await relayLeadMessageToBridgedAgent({
+      accountId,
+      conversationId: conversation.id,
+      leadName: contactRecord.name || senderPhone,
+      body: contentText || `[${message.type}]`,
     })
   }
 
