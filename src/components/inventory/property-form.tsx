@@ -75,88 +75,19 @@ import {
   POPULAR_PROJECTS,
   POPULAR_SUBLOCALITIES,
 } from '@/lib/data/real-estate-data';
-
-// Exhaustive amenities list for checkbox selection
-export const AMENITIES_BY_CATEGORY = {
-  "Security & Utilities": [
-    "24/7 Security",
-    "CCTV Surveillance",
-    "Power Backup",
-    "Intercom",
-    "Fire Fighting System",
-    "Water Supply (Corporation)",
-    "Water Supply (Borewell)",
-    "Rain Water Harvesting",
-    "Waste Disposal",
-  ],
-  "Leisure & Community": [
-    "Lift/Elevator",
-    "Swimming Pool",
-    "Gymnasium",
-    "Club House",
-    "Children's Play Area",
-    "Reserved Parking",
-    "Visitor Parking",
-    "Gated Community",
-  ],
-  "Commercial & Agricultural Specs": [
-    "Centrally Air Conditioned",
-    "Service/Goods Lift",
-    "Conference Room",
-    "Cafeteria/Food Court",
-    "Wi-Fi Connectivity",
-    "ATM",
-    "Fenced Boundary",
-    "Electricity Connection",
-    "Access Road",
-  ]
-};
-
-// Exhaustive list of nearby landmarks
-export const NEARBY_HIGHLIGHTS_OPTIONS = [
-  "Metro Station",
-  "School",
-  "Hospital",
-  "Mall",
-  "Supermarket",
-  "Park",
-  "Highway",
-  "Airport",
-  "Railway Station",
-  "Bus Stop",
-  "Bank / ATM"
-];
-
-export const FACING_DIRECTIONS = [
-  "East",
-  "North",
-  "South",
-  "West",
-  "North-East",
-  "North-West",
-  "South-East",
-  "South-West"
-];
-
-export const AREA_UNITS = [
-  "Sq.Ft.",
-  "Sq.Mtr.",
-  "Acre",
-  "Gunta",
-  "Cent",
-  "Ground"
-];
-
-// Frontage/depth are always in feet, so land-area linking must convert
-// through the selected unit.
-const SQFT_PER_AREA_UNIT: Record<string, number> = {
-  "Sq.Ft.": 1,
-  "Sq.Mtr.": 10.7639,
-  "Acre": 43560,
-  "Gunta": 1089,
-  "Cent": 435.6,
-  "Ground": 2400,
-};
+import {
+  AMENITIES_BY_CATEGORY,
+  NEARBY_HIGHLIGHTS_OPTIONS,
+  FACING_DIRECTIONS,
+  AREA_UNITS,
+  SQFT_PER_AREA_UNIT,
+  PROPERTY_TYPE_GROUPS,
+  PROPERTY_STATUSES,
+  hasBedsBaths as typeHasBedsBaths,
+  hasCommercialFields as typeHasCommercialFields,
+  isLandType,
+  isApartmentType,
+} from '@/lib/inventory/property-options';
 
 interface PropertyFormProps {
   open: boolean;
@@ -438,41 +369,10 @@ export function PropertyForm({
   }, [isOwnerDropdownOpen]);
 
   // Helper classifications based on selected type
-  const hasBedsBaths = [
-    'Flat/ Apartment',
-    'Residential House',
-    'Villa',
-    'Builder Floor Apartment',
-    'Penthouse',
-    'Studio Apartment',
-    'Farm House'
-  ].includes(type);
-
-  const hasCommercialFields = [
-    'Commercial Office Space',
-    'Office in IT Park/ SEZ',
-    'Commercial Shop',
-    'Commercial Showroom',
-    'Commercial Building',
-    'Commercial Land',
-    'Warehouse/ Godown',
-    'Industrial Land',
-    'Industrial Building',
-    'Industrial Shed'
-  ].includes(type);
-
-  const isLand = [
-    'Residential Land/ Plot',
-    'Commercial Land',
-    'Industrial Land',
-    'Agricultural Land'
-  ].includes(type);
-
-  const isApartment = [
-    'Flat/ Apartment',
-    'Builder Floor Apartment',
-    'Studio Apartment'
-  ].includes(type);
+  const hasBedsBaths = typeHasBedsBaths(type);
+  const hasCommercialFields = typeHasCommercialFields(type);
+  const isLand = isLandType(type);
+  const isApartment = isApartmentType(type);
 
   async function ensureLocalitiesLoaded() {
     if (!localitiesDb) {
@@ -1723,27 +1623,8 @@ export function PropertyForm({
     }
     // Default Residential
     return {
-      "Security & Utilities": [
-        "24/7 Security",
-        "CCTV Surveillance",
-        "Power Backup",
-        "Intercom",
-        "Fire Fighting System",
-        "Water Supply (Corporation)",
-        "Water Supply (Borewell)",
-        "Rain Water Harvesting",
-        "Waste Disposal",
-      ],
-      "Leisure & Community": [
-        "Lift/Elevator",
-        "Swimming Pool",
-        "Gymnasium",
-        "Club House",
-        "Children's Play Area",
-        "Reserved Parking",
-        "Visitor Parking",
-        "Gated Community",
-      ]
+      "Security & Utilities": AMENITIES_BY_CATEGORY["Security & Utilities"],
+      "Leisure & Community": AMENITIES_BY_CATEGORY["Leisure & Community"],
     };
   }, [isLand, hasCommercialFields]);
 
@@ -3645,33 +3526,15 @@ export function PropertyForm({
                       onChange={(e) => setType(e.target.value)}
                       className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
                     >
-                      <optgroup label="ALL RESIDENTIAL">
-                        <option value="Flat/ Apartment">Flat/ Apartment</option>
-                        <option value="Residential House">Residential House</option>
-                        <option value="Villa">Villa</option>
-                        <option value="Builder Floor Apartment">Builder Floor Apartment</option>
-                        <option value="Residential Land/ Plot">Residential Land/ Plot</option>
-                        <option value="Penthouse">Penthouse</option>
-                        <option value="Studio Apartment">Studio Apartment</option>
-                        <option value="Residential PG building">Residential PG building</option>
-                        <option value="PG/ Hostel">PG/ Hostel</option>
-                      </optgroup>
-                      <optgroup label="ALL COMMERCIAL">
-                        <option value="Commercial Office Space">Commercial Office Space</option>
-                        <option value="Office in IT Park/ SEZ">Office in IT Park/ SEZ</option>
-                        <option value="Commercial Shop">Commercial Shop</option>
-                        <option value="Commercial Showroom">Commercial Showroom</option>
-                        <option value="Commercial Building">Commercial Building (Mixed-Use)</option>
-                        <option value="Commercial Land">Commercial Land</option>
-                        <option value="Warehouse/ Godown">Warehouse/ Godown</option>
-                        <option value="Industrial Land">Industrial Land</option>
-                        <option value="Industrial Building">Industrial Building</option>
-                        <option value="Industrial Shed">Industrial Shed</option>
-                      </optgroup>
-                      <optgroup label="ALL AGRICULTURAL">
-                        <option value="Agricultural Land">Agricultural Land</option>
-                        <option value="Farm House">Farm House</option>
-                      </optgroup>
+                      {PROPERTY_TYPE_GROUPS.map((g) => (
+                        <optgroup key={g.group} label={`ALL ${g.group.toUpperCase()}`}>
+                          {g.options.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label ?? o.value}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 
@@ -3686,13 +3549,11 @@ export function PropertyForm({
                         onChange={(e) => setStatus(e.target.value)}
                         className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
                       >
-                        <option value="Available">Available</option>
-                        <option value="Under Contract">Under Contract</option>
-                        <option value="Sold">Sold</option>
-                        <option value="Archived">Archived</option>
-                        <option value="Off Market">Off Market</option>
-                        <option value="Pending Review">Pending Review</option>
-                        <option value="Rejected">Rejected</option>
+                        {PROPERTY_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   )}

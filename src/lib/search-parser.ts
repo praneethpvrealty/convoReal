@@ -1,3 +1,5 @@
+import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
+
 export const CATEGORY_SUBTYPES: Record<string, string[]> = {
   Residential: [
     "Residential",
@@ -58,12 +60,15 @@ function parsePriceUnit(val: number, unit: string): number {
 
 function parseAreaUnit(val: number, unit: string): number {
   const u = unit.toLowerCase().replace(/\s+/g, '');
-  if (u.includes('acre'))   return val * 43_560; // to sqft
-  if (u.includes('gunta'))  return val * 1_089;
-  if (u.includes('ground')) return val * 2_400;
-  if (u.includes('cent'))   return val * 435.6;
-  // sqm → sqft
-  if (u.startsWith('sqm') || u.includes('meter') || u.includes('mtr')) return val * 10.764;
+  // Free-text units from a search box, resolved onto the same factors
+  // the property form and /api/properties convert with.
+  if (u.includes('acre'))   return val * SQFT_PER_AREA_UNIT['Acre'];
+  if (u.includes('gunta'))  return val * SQFT_PER_AREA_UNIT['Gunta'];
+  if (u.includes('ground')) return val * SQFT_PER_AREA_UNIT['Ground'];
+  if (u.includes('cent'))   return val * SQFT_PER_AREA_UNIT['Cent'];
+  if (u.startsWith('sqm') || u.includes('meter') || u.includes('mtr')) {
+    return val * SQFT_PER_AREA_UNIT['Sq.Mtr.'];
+  }
   return val; // sqft passthrough
 }
 
