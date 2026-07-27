@@ -10,8 +10,10 @@ import { cn } from '@/lib/utils'
 type RangeDays = 7 | 30 | 90
 
 interface ConversationsChartProps {
-  /** Per-range data, so switching tabs never re-fetches. */
-  series: Record<RangeDays, ConversationsSeriesPoint[] | null>
+  /** Points for the selected range. Each range is cached under its own
+   *  query key, so switching tabs re-reads the cache rather than the
+   *  network — the chart no longer needs to hold every range at once. */
+  data: ConversationsSeriesPoint[] | null
   loading: boolean
   range: RangeDays
   onRangeChange: (r: RangeDays) => void
@@ -27,8 +29,7 @@ const VB_W = 760
 const VB_H = 240
 const PADDING = { top: 16, right: 16, bottom: 28, left: 40 }
 
-export function ConversationsChart({ series, loading, range, onRangeChange }: ConversationsChartProps) {
-  const data = series[range]
+export function ConversationsChart({ data, loading, range, onRangeChange }: ConversationsChartProps) {
 
   // Memoise the max so per-day hover math doesn't recompute it.
   const { maxY, niceTicks } = useMemo(() => {
