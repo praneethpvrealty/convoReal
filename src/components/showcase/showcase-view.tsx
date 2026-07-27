@@ -170,7 +170,7 @@ export function ShowcaseView({
     const urlTheme = urlParams.get('theme');
     const resolvedTheme = urlTheme || initialTheme || settings?.theme || 'violet';
 
-    const validThemes = ['violet', 'emerald', 'cobalt', 'amber', 'rose'];
+    const validThemes = ['violet', 'emerald', 'cobalt', 'amber', 'rose', 'verdant'];
     if (validThemes.includes(resolvedTheme)) {
       document.documentElement.dataset.theme = resolvedTheme;
     }

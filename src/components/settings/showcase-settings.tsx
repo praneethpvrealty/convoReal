@@ -380,6 +380,7 @@ export function ShowcaseSettingsPanel() {
                 <option value="cobalt">Cobalt</option>
                 <option value="amber">Amber</option>
                 <option value="rose">Rose</option>
+                <option value="verdant">Verdant</option>
               </select>
             </div>
             <p className="text-[11px] text-slate-400">
