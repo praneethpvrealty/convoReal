@@ -15,10 +15,10 @@ export const PLAN_META: Record<
 > = {
   starter: {
     label: 'Starter',
-    tagline: 'Your free plan',
+    tagline: 'Try it free',
     icon: 'sparkles',
     gradient: ['#475569', '#1e293b'],
-    perks: '1 user · 50 contacts',
+    perks: '1 user · 150 contacts',
   },
   solo_pro: {
     label: 'Solo Pro',
@@ -29,7 +29,7 @@ export const PLAN_META: Record<
   },
   team: {
     label: 'Team',
-    tagline: 'For growing brokerages',
+    tagline: 'For small brokerages',
     icon: 'people',
     gradient: ['#8b5cf6', '#5b21b6'],
     perks: '3 members · 4,500 contacts · 2,000 broadcasts / mo',
@@ -39,7 +39,7 @@ export const PLAN_META: Record<
     tagline: 'For established agencies',
     icon: 'diamond',
     gradient: ['#f59e0b', '#92400e'],
-    perks: '10 members · 15,000 contacts · unlimited broadcasts',
+    perks: '10 members · 15,000 contacts · 5,000 broadcasts / mo',
   },
 };
 

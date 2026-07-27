@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import {
   sanitizePhoneForMeta,
@@ -17,43 +17,26 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { parseMetaErrorInfo } from '@/lib/whatsapp/meta-api'
 
 export async function POST(request: Request) {
+  // Resolved outside the main try: that catch maps failures onto Meta
+  // send errors, which would turn a 401/403 into "Failed to send".
+  // Sending is 'agent' work — the composer already hides itself from
+  // viewers via useCan("send-messages"); this enforces the same rule
+  // server-side, and blocks archived accounts from burning credits.
+  let supabase: Awaited<ReturnType<typeof requireRole>>['supabase']
+  let accountId: string
+  let userId: string
   try {
-    const supabase = await createClient()
+    ;({ supabase, accountId, userId } = await requireRole('agent'))
+  } catch (error) {
+    return toErrorResponse(error)
+  }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
+  try {
     // Per-user rate limit. Bucket key is scoped to this route so
     // `/broadcast` has an independent budget.
-    const limit = checkRateLimit(`send:${user.id}`, RATE_LIMITS.send)
+    const limit = checkRateLimit(`send:${userId}`, RATE_LIMITS.send)
     if (!limit.success) {
       return rateLimitResponse(limit)
-    }
-
-    // Resolve the caller's account_id. Every downstream lookup
-    // (conversation, whatsapp_config, message_templates) is account-
-    // scoped post-multi-user, so the previous `user_id` filters
-    // returned nothing for teammates who didn't author the row.
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
-      )
     }
 
     const body = await request.json()
@@ -320,7 +303,7 @@ export async function POST(request: Request) {
 
     const result = await sendWhatsAppMessageAndPersist({
       accountId,
-      userId: user.id,
+      userId,
       contactId: contact.id,
       conversationId: conversation.id,
       kind: finalMessageType === 'template' ? 'template' : finalMessageType === 'product' ? 'product' : 'text',

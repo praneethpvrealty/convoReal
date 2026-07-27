@@ -57,7 +57,8 @@ These rules are hard project conventions. Violating them will break the app or t
 | Icons | lucide-react | Do not import other icon libraries |
 | Database | Supabase (PostgreSQL) | Every operational table must have `account_id` and RLS |
 | Auth | Supabase Auth | `@supabase/ssr` for SSR; `useAuth()` for client |
-| State | React Context + hooks | No Redux, Zustand, or other external state managers |
+| Client state | React Context + hooks | No Redux, Zustand, or other external state managers |
+| Server cache | @tanstack/react-query | For anything fetched. Not a state manager — it owns loading/error/refetch and dedupes requests, which the rule above does not cover. Mobile already used it; web adopted it starting with the dashboard. Do not hand-roll a new `useEffect` + `fetch` + `useState` triple |
 | Charts | Recharts | Do not add another chart library |
 | Toasts | sonner | Used via `<Toaster>` in root layout |
 | Dates | date-fns | No moment.js or dayjs |
@@ -93,6 +94,8 @@ These rules are hard project conventions. Violating them will break the app or t
 - Enable RLS on every operational table.
 - Use `is_account_member()` (SECURITY DEFINER) in RLS policies for tenant membership.
 - Service-role clients must still enforce `account_id` scoping in code; do not rely on RLS alone when bypassing it.
+- Aggregate in SQL, not in the browser. `count: 'exact'` is a real `COUNT(*)`, not a metadata read — several of them on one screen means several scans of the account's rows. Selecting rows to `reduce()` them client-side ships a payload that grows with account activity. Add a `SECURITY DEFINER` function that names its account and guards with `is_account_member()` (see migrations 168–170).
+- Never interpolate a query result into a `.in()` / `.not('id','in', …)` filter without a bound — that list travels in the URL. Use a correlated `NOT EXISTS` inside a function instead.
 
 ### 2.7 WhatsApp rules
 
@@ -499,7 +502,8 @@ Meta Cloud API
 ### Common patterns in routes
 
 - Use `await createClient()` from `src/lib/supabase/server.ts` for the authenticated SSR client.
-- Use an inline `createClient(url, serviceRoleKey)` for webhooks/background jobs that need RLS bypass.
+- Auth-gated routes resolve the caller with `getCurrentAccount()` / `requireRole(min)` from `src/lib/auth/account.ts`, and report failures with `toErrorResponse(err)`. Do not hand-roll `auth.getUser()` plus a `profiles` lookup — that path skips the archived-account block and the role check. If a route's `catch` maps failures onto a domain error, resolve auth outside that `try` so a 401/403 is not reported as a send failure.
+- Use `supabaseAdmin()` from `src/lib/supabase/admin.ts` for webhooks/background jobs that need RLS bypass. Do not declare a local service-role singleton.
 - Parse and validate request bodies; never trust user input.
 - Return early with `NextResponse.json({ error: ... }, { status: ... })` on errors.
 

@@ -8,6 +8,7 @@ import { boundingBox, haversineKm } from "@/lib/geo";
 import { localityStemProbe, textContainsLocality } from "@/lib/locality-match";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -37,16 +38,10 @@ function sanitizeLocalityLabel(label: string): string {
   return label.split(",")[0].replace(/[(),.]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** land_area_unit values (property-form AREA_UNITS) → sqft factor,
- *  matching the conversions in search-parser.ts. */
-const LAND_UNIT_TO_SQFT: Record<string, number> = {
-  "Sq.Ft.": 1,
-  "Sq.Mtr.": 10.764,
-  "Acre": 43_560,
-  "Gunta": 1_089,
-  "Cent": 435.6,
-  "Ground": 2_400,
-};
+/** land_area_unit values → sqft factor. Shared with the property form
+ *  and search-parser.ts so a stored area converts identically wherever
+ *  it is read. */
+const LAND_UNIT_TO_SQFT = SQFT_PER_AREA_UNIT;
 
 /**
  * Area bound as a PostgREST .or() expression. Land/JV listings store

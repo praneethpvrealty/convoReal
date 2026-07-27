@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
   decryptFlowRequest,
@@ -16,6 +15,7 @@ import {
   PREFERENCE_SCREEN_ID,
   buildPreferencePrefillData,
 } from '@/lib/whatsapp/preference-flow'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
  * Meta WhatsApp Flows data-exchange endpoint (per-tenant).
@@ -34,17 +34,6 @@ import {
  *   427 — flow token invalid/expired: client shows an error and closes
  *   432 — request signature verification failed
  */
-
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin(): SupabaseClient {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
 
 export async function POST(
   request: NextRequest,

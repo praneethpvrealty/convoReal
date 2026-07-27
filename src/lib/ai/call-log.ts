@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
  * Fire-and-forget telemetry for Gemini calls (see migration 123).
@@ -8,17 +8,6 @@ import { createClient } from '@supabase/supabase-js';
  * adds zero DB reads to the AI hot path once warmed. Logging must never
  * throw or delay a user request — every failure path here swallows.
  */
-
-let _adminClient: ReturnType<typeof createClient> | null = null;
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
-}
 
 const FLAG_TTL_MS = 60_000;
 const PREVIEW_CHARS = 500;

@@ -1,19 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption';
 import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
-
-let _adminClient: ReturnType<typeof createAdminClient> | null = null;
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
-}
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 async function checkAdminAuth(supabase: Awaited<ReturnType<typeof createClient>>) {
   const {

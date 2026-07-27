@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import { phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { BRANDING } from '@/config/branding';
@@ -40,19 +39,7 @@ import {
   backfillLocationFromMapLink,
   mergeContactDraftsContainer,
 } from '@/lib/ai/intake-core';
-
-// Lazy initialize supabase admin client
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null;
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
-}
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // Debounces the low-balance WhatsApp ping per account so a Manager
 // isn't paged on every single inbound message once their balance

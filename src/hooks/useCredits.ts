@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { localCache } from '@/lib/cache-store';
 import { deriveCreditStatus, type CreditStatus } from '@/lib/credits/types';
 import { useAuth } from './use-auth';
 
@@ -32,7 +32,6 @@ const DEFAULT_STATE: CreditState = {
   isLoading: true,
 };
 
-const CACHE_KEY = 'credits-wallet';
 const CACHE_TTL_MS = 5000;
 
 interface CreditWalletRow {
@@ -66,24 +65,27 @@ function fromWalletRow(row: CreditWalletRow): CreditState {
  * Live credit balance for the current account — 60s poll plus a
  * Supabase Realtime subscription on credit_wallets so the meter
  * updates immediately after any AI call or top-up, without a page
- * refresh. Debounced via localCache so the header chip and sidebar
- * widget (both mounting this hook) share one network request.
+ * refresh.
+ *
+ * This hook is mounted more than once at a time (header CreditMeter +
+ * sidebar SidebarCreditWidget). It used to hold a 5-second localCache
+ * TTL so those mounts wouldn't each hit the network — but the poll
+ * timers were still per-mount, so the account was billed two requests a
+ * minute for one number. A shared query key gives real deduplication:
+ * one request, one 60s interval, every mount reading the same cache.
  */
 export function useCredits(): CreditState & { refresh: () => Promise<void> } {
   const { accountId } = useAuth();
-  const [state, setState] = useState<CreditState>(DEFAULT_STATE);
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => ['credits', accountId], [accountId]);
 
-  const refresh = useCallback(async () => {
-    const cached = localCache.get<CreditState>(CACHE_KEY, CACHE_TTL_MS);
-    if (cached) {
-      setState(cached);
-      return;
-    }
-    try {
+  const { data } = useQuery({
+    queryKey,
+    queryFn: async (): Promise<CreditState> => {
       const res = await fetch('/api/billing/credits');
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`credits request failed (${res.status})`);
       const json = await res.json();
-      const next: CreditState = {
+      return {
         total: json.total,
         monthly: json.monthly,
         bonus: json.bonus,
@@ -95,21 +97,16 @@ export function useCredits(): CreditState & { refresh: () => Promise<void> } {
         status: json.status,
         isLoading: false,
       };
-      localCache.set(CACHE_KEY, next);
-      setState(next);
-    } catch (err) {
-      console.error('[useCredits] refresh failed:', err);
-    }
-  }, []);
+    },
+    refetchInterval: 60_000,
+    staleTime: CACHE_TTL_MS,
+  });
 
-  useEffect(() => {
-    const timer = setTimeout(refresh, 0);
-    const interval = setInterval(refresh, 60_000);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-  }, [refresh]);
+  const state = data ?? DEFAULT_STATE;
+
+  const refresh = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   useEffect(() => {
     if (!accountId) return;
@@ -129,10 +126,9 @@ export function useCredits(): CreditState & { refresh: () => Promise<void> } {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'credit_wallets', filter: `account_id=eq.${accountId}` },
         (payload) => {
-          const row = payload.new as CreditWalletRow;
-          const next = fromWalletRow(row);
-          localCache.set(CACHE_KEY, next);
-          setState(next);
+          // Written straight into the cache, so every mount of this
+          // hook re-renders from one event without a refetch.
+          queryClient.setQueryData(queryKey, fromWalletRow(payload.new as CreditWalletRow));
         },
       )
       .subscribe();
@@ -140,7 +136,7 @@ export function useCredits(): CreditState & { refresh: () => Promise<void> } {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [accountId]);
+  }, [accountId, queryClient, queryKey]);
 
   return { ...state, refresh };
 }

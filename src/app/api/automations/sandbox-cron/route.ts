@@ -1,25 +1,11 @@
 import { timingSafeEqual } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import {
   sendTransactionalEmail,
   buildTrialExpiryEmail,
   buildTrialExpiredEmail,
 } from '@/lib/email'
-
-// Lazy-initialized to avoid build-time crash when env vars are missing.
-// Next.js evaluates modules at build time, so we can't create the client
-// until the handler is actually invoked at runtime.
-let _adminClient: ReturnType<typeof createClient> | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 /**
  * GET /api/automations/sandbox-cron

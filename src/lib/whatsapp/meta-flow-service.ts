@@ -1,5 +1,5 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'node:crypto'
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { generateFlowKeyPair } from '@/lib/whatsapp/flow-crypto'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
@@ -14,6 +14,7 @@ import {
   type ContactPreferenceUpdate,
   type PreferenceFormValues,
 } from '@/lib/whatsapp/preference-flow'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 const META_API_VERSION = 'v21.0'
 const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
@@ -21,17 +22,6 @@ const META_API_BASE = `https://graph.facebook.com/${META_API_VERSION}`
 /** Sessions older than this can no longer complete (kept generous —
  *  Meta itself expires undelivered flows well before this). */
 const FLOW_SESSION_TTL_HOURS = 24 * 7
-
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin(): SupabaseClient {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
 
 function appBaseUrl(): string {
   return (

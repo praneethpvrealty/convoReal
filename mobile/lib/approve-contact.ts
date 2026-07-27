@@ -7,6 +7,10 @@
 
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import {
+  isReengagementError,
+  isWithinCustomerWindow,
+} from '@/lib/customer-window';
 import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message';
 import { supabase } from '@/lib/supabase';
 import { getShowcaseUrl } from '@/lib/welcome-message';
@@ -105,7 +109,7 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     .eq('status', 'pending');
 
   // Same guard as the web: free text only within the 24-hour window.
-  let within24h = false;
+  let lastCustomerMessageAt: string | null = null;
   if (existingConv) {
     const { data: lastCustomerMsg } = await supabase
       .from('messages')
@@ -115,12 +119,9 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (lastCustomerMsg) {
-      within24h =
-        Date.now() - new Date(lastCustomerMsg.created_at).getTime() < 24 * 60 * 60 * 1000;
-    }
+    lastCustomerMessageAt = lastCustomerMsg?.created_at ?? null;
   }
-  if (!within24h) {
+  if (!isWithinCustomerWindow(lastCustomerMessageAt)) {
     return { ok: true, sent: false, property, detailsMessage, reengageConversationId: convId };
   }
 
@@ -135,11 +136,7 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     });
   } catch (e) {
     const msg = e instanceof ApiError ? e.message : 'Failed to send WhatsApp message';
-    const isReengagement =
-      msg.includes('131047') ||
-      msg.toLowerCase().includes('24 hours') ||
-      msg.toLowerCase().includes('re-engagement');
-    if (isReengagement) {
+    if (isReengagementError(msg)) {
       return { ok: true, sent: false, property, detailsMessage, reengageConversationId: convId };
     }
     return { ok: true, sent: false, property, detailsMessage, error: msg };
