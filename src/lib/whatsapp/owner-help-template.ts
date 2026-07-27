@@ -11,6 +11,15 @@
 // Formatting is WhatsApp's, not Markdown: *bold* takes single
 // asterisks and _italics_ underscores. The old card used `**Cancel**`,
 // which renders literally.
+//
+// STAFF ONLY, by construction: the sole caller is
+// processOwnerChatbotMessage, which webhook-handler invokes behind
+// `checkIsAccountOwner(senderPhone, accountId)`. Leads and property
+// owners never see either message and must not — they get the flows
+// engine / buyer chatbot instead. Keep any new caller inside that gate:
+// the greeting words below ("hi", "hello", "namaste") are exactly how a
+// lead opens a conversation, so an ungated caller would answer buyers
+// with a CRM manual.
 // ============================================================
 
 import { BRANDING } from '@/config/branding';
