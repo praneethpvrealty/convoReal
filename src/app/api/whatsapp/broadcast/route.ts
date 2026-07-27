@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import {
   truncateParametersToBudget,
   sanitizeParamText,
@@ -76,39 +76,33 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 }
 
 export async function POST(request: Request) {
+  // Outside the main try, whose catch reports everything as a broadcast
+  // failure. Running a campaign is 'agent' work and must not be
+  // possible from an archived account.
+  let supabase: Awaited<ReturnType<typeof requireRole>>['supabase']
+  let accountId: string
+  let userId: string
   try {
-    const supabase = await createClient()
+    ;({ supabase, accountId, userId } = await requireRole('agent'))
+  } catch (error) {
+    return toErrorResponse(error)
+  }
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
+  try {
     // Per-user broadcast budget. Note: this limits how often a user
     // can *start* a campaign, not how many messages go out inside
     // one — the fan-out loop below runs without additional gating.
-    const limit = checkRateLimit(`broadcast:${user.id}`, RATE_LIMITS.broadcast)
+    const limit = checkRateLimit(`broadcast:${userId}`, RATE_LIMITS.broadcast)
     if (!limit.success) {
       return rateLimitResponse(limit)
     }
 
-    // Resolve the caller's account_id.
+    // Only for the "sent by" name on owner-facing notifications.
     const { data: profile } = await supabase
       .from('profiles')
-      .select('account_id, full_name')
-      .eq('user_id', user.id)
+      .select('full_name')
+      .eq('user_id', userId)
       .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 },
-      )
-    }
 
     const body = await request.json()
     const {
@@ -299,7 +293,7 @@ export async function POST(request: Request) {
 
         result = await sendWhatsAppMessageAndPersist({
           accountId,
-          userId: user.id,
+          userId,
           toPhone: recipient.phone,
           kind: 'template',
           senderType: 'agent', // Broadcasts logged as agent replies
@@ -337,7 +331,7 @@ export async function POST(request: Request) {
 
           result = await sendWhatsAppMessageAndPersist({
             accountId,
-            userId: user.id,
+            userId,
             toPhone: recipient.phone,
             kind: 'template',
             senderType: 'agent',
@@ -352,7 +346,7 @@ export async function POST(request: Request) {
           const greetingText = `Welcome to ConvoReal! ${agentName} would like to share ${propertyRow.title} with you.`
           result = await sendWhatsAppMessageAndPersist({
             accountId,
-            userId: user.id,
+            userId,
             toPhone: recipient.phone,
             kind: 'interactive',
             senderType: 'agent',
@@ -370,7 +364,7 @@ export async function POST(request: Request) {
         const defaultText = content_text || `*New Listing Available*\n\n${product_retailer_id}`
         result = await sendWhatsAppMessageAndPersist({
           accountId,
-          userId: user.id,
+          userId,
           toPhone: recipient.phone,
           kind: 'product',
           senderType: 'agent',

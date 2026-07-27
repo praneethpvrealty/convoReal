@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { getFlowTemplate } from '@/lib/flows/templates'
 
@@ -7,49 +7,42 @@ import { getFlowTemplate } from '@/lib/flows/templates'
  * GET /api/flows — list the caller's flows.
  * POST /api/flows — create a new (draft) flow.
  *
- * Available to every authenticated user. The previous per-account
+ * Available to every member of a live account. The previous per-account
  * beta gate was removed when Flows went to soft-GA; the UI still
  * shows a "Beta" label so users know the surface is young, but the
- * routes themselves are open.
+ * routes themselves carry no role gate — `getCurrentAccount()` is here
+ * for the account linkage and the archived-account block, matching
+ * `/api/flows/[id]`.
  */
 
-async function requireUser(): Promise<
-  | { ok: true; userId: string; supabase: Awaited<ReturnType<typeof createClient>> }
-  | { ok: false; status: number; body: { error: string } }
-> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) {
-    return { ok: false, status: 401, body: { error: 'Unauthorized' } }
-  }
-  return { ok: true, userId: user.id, supabase }
-}
-
 export async function GET() {
-  const guard = await requireUser()
-  if (!guard.ok) {
-    return NextResponse.json(guard.body, { status: guard.status })
-  }
-  const { supabase } = guard
+  try {
+    const { supabase, accountId } = await getCurrentAccount()
 
-  const { data, error } = await supabase
-    .from('flows')
-    .select('*')
-    .order('created_at', { ascending: false })
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const { data, error } = await supabase
+      .from('flows')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('created_at', { ascending: false })
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ flows: data ?? [] })
+  } catch (error) {
+    return toErrorResponse(error)
   }
-  return NextResponse.json({ flows: data ?? [] })
 }
 
 export async function POST(request: Request) {
-  const guard = await requireUser()
-  if (!guard.ok) {
-    return NextResponse.json(guard.body, { status: guard.status })
+  let userId: string
+  let accountId: string
+  try {
+    const ctx = await getCurrentAccount()
+    userId = ctx.userId
+    accountId = ctx.accountId
+  } catch (error) {
+    return toErrorResponse(error)
   }
-  const { userId } = guard
 
   const body = (await request.json().catch(() => null)) as
     | {
@@ -72,20 +65,6 @@ export async function POST(request: Request) {
 
   const admin = supabaseAdmin()
 
-  // Fetch user's profile to resolve account_id
-  const { data: profile, error: profileErr } = await admin
-    .from('profiles')
-    .select('account_id')
-    .eq('user_id', userId)
-    .single()
-
-  if (profileErr || !profile) {
-    return NextResponse.json(
-      { error: `Failed to resolve account: ${profileErr?.message ?? 'profile not found'}` },
-      { status: 400 },
-    )
-  }
-
   // -------- Template clone path --------
   if (body.template_slug) {
     const template = getFlowTemplate(body.template_slug)
@@ -99,7 +78,7 @@ export async function POST(request: Request) {
       .from('flows')
       .insert({
         user_id: userId,
-        account_id: profile.account_id,
+        account_id: accountId,
         name: body.name?.trim() || template.name,
         description: template.description,
         status: 'draft',
@@ -148,7 +127,7 @@ export async function POST(request: Request) {
     .from('flows')
     .insert({
       user_id: userId,
-      account_id: profile.account_id,
+      account_id: accountId,
       name: body.name.trim(),
       description: body.description ?? null,
       status: 'draft',
