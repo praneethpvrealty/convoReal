@@ -13,7 +13,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet } from '@/components/sheet';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { MessageTemplate } from '@/lib/types';
 
 /** Highest {{n}} placeholder in a template body. */

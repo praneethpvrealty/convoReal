@@ -172,7 +172,7 @@ function MapFallback({ count, near }: { count: number; near: { label: string; la
           Map tiles need the installed app
         </Text>
         <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textMuted, textAlign: 'center' }}>
-          Expo Go on Android can't render Google Maps. Your {count} pinned
+          Expo Go on Android can&apos;t render Google Maps. Your {count} pinned
           result{count === 1 ? '' : 's'} will appear here in the full app build —
           for now, browse them in the List or open the area in Google Maps.
         </Text>

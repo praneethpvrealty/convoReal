@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { apiBase } from '@/lib/api';
 import { ENV } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 
 interface CheckRow {
   label: string;
@@ -121,9 +121,9 @@ export default function ConnectionCheckScreen() {
         ) : null}
       </View>
       <Text style={{ fontSize: 12, color: colors.textFaint, lineHeight: 17 }}>
-        Reading this: if "Token valid at app project" is green but the API probes are red, the
+        Reading this: if &quot;Token valid at app project&quot; is green but the API probes are red, the
         server and app point at different Supabase projects (or the server rejects the header).
-        If it's red with a dead refresh token, sign out and back in. Screenshot this screen when
+        If it&apos;s red with a dead refresh token, sign out and back in. Screenshot this screen when
         reporting connection problems.
       </Text>
     </ScrollView>

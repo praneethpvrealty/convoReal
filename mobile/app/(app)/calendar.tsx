@@ -542,7 +542,7 @@ function DetailRow({
   text: string;
   accent?: boolean;
 }) {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
       <Ionicons name={icon} size={16} color={accent ? colors.primary : colors.textMuted} />

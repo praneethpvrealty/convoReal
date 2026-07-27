@@ -581,7 +581,7 @@ function EditForm({ property }: { property: Property }) {
 
         <PrimaryButton label="Save changes" busy={saving} onPress={save} />
         <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-          Documents and deal terms are still edited in the web app's full form.
+          Documents and deal terms are still edited in the web app&apos;s full form.
         </Text>
       </ScrollView>
 

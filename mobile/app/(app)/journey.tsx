@@ -13,7 +13,7 @@ import {
 import { Avatar, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { JourneyItem, JourneyStage } from '@/lib/types';
 
 /**
@@ -97,7 +97,7 @@ export default function JourneyScreen() {
 
       <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
         Where every buyer stands, per property. Advancing, dropping and the full mind-map canvas
-        live on the web's Journey page.
+        live on the web&apos;s Journey page.
       </Text>
 
       {!isLoading && groups.length === 0 ? (

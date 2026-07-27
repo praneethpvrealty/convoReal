@@ -164,7 +164,7 @@ const APPEARANCE_OPTIONS: {
 
 /** The reference design is light-first; dark stays a choice. */
 function AppearancePicker() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const mode = useAppearance((s) => s.mode);
   const setMode = useAppearance((s) => s.setMode);
   return (

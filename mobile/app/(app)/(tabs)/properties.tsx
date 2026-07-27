@@ -3,7 +3,7 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Link, router } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -470,7 +470,7 @@ function LocalitySearchBox() {
  * then bordered spec pills (beds / area / type).
  */
 function PropertyCard({ property }: { property: Property }) {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const gradient = useBrandGradient();
   const cover = storagePublicUrl(property.images?.[0]);
   const price =

@@ -96,7 +96,7 @@ async function fetchOverview(): Promise<Overview> {
 }
 
 export default function DashboardScreen() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const { data, isFetching, refetch } = useQuery({
     queryKey: ['overview'],
     queryFn: fetchOverview,

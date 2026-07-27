@@ -111,7 +111,7 @@ export function IconButton({
   disabled?: boolean;
   style?: ViewStyle;
 }) {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -226,7 +226,7 @@ export function Tag({ label, color }: { label: string; color?: string }) {
 
 /** Shimmering placeholder block while a list loads. */
 export function Skeleton({ style }: { style?: ViewStyle }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, dark } = useTheme();
   const sweep = useRef(new Animated.Value(-1)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -277,7 +277,7 @@ export const listCard: ViewStyle = {
 };
 
 export function ConversationSkeleton() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   return (
     <View
       style={[
@@ -296,7 +296,7 @@ export function ConversationSkeleton() {
 
 /** Placeholder matching the tall photo-first PropertyCard geometry. */
 export function PropertyCardSkeleton() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   return (
     <View
       style={[
@@ -441,7 +441,7 @@ export const TextField = forwardRef<
     icon?: keyof typeof Ionicons.glyphMap;
   } & React.ComponentProps<typeof TextInput>
 >(function TextField({ label, icon, ...props }, ref) {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const input = (
     <View
       style={[

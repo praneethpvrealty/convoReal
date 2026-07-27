@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
@@ -17,7 +16,7 @@ import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
 
 export default function AutomationsScreen() {
@@ -124,7 +123,7 @@ export default function AutomationsScreen() {
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
       ) : (flowsQuery.data ?? []).length === 0 ? (
         <Text style={{ fontSize: 13, color: colors.textMuted }}>
-          No interactive flows. Build WhatsApp menu trees in the web app's Flow Builder.
+          No interactive flows. Build WhatsApp menu trees in the web app&apos;s Flow Builder.
         </Text>
       ) : (
         (flowsQuery.data ?? []).map((flow) => (

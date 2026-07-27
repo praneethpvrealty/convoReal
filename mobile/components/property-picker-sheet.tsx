@@ -178,7 +178,7 @@ export function PropertyPickerSheet({
           </>
         ) : (
           <Text style={{ fontSize: 12.5, color: colors.textMuted, textAlign: 'center' }}>
-            Select the listings you want to send — they'll be drafted into one message.
+            Select the listings you want to send — they&apos;ll be drafted into one message.
           </Text>
         )}
 

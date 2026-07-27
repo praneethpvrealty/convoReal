@@ -32,13 +32,12 @@ import { Avatar } from '@/components/ui';
 import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
 import { buildInquiryDraft } from '@/lib/approve-contact';
 import { haptic } from '@/lib/haptics';
-import type { MessageTemplate } from '@/lib/types';
+import type { Conversation, Message, MessageStatus, MessageTemplate } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import { useHeaderHeight } from '@/lib/use-header-height';
-import type { Conversation, Message, MessageStatus } from '@/lib/types';
 
 const PAGE_SIZE = 60;
 
@@ -68,7 +67,7 @@ async function fetchConversation(id: string): Promise<Conversation | null> {
 }
 
 export default function ConversationScreen() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   // `draftPropertyId` is set when the thread is opened from a contact
   // approval whose 24h window had closed — pre-draft the inquired
   // property's details so the agent can send them in one tap.
@@ -418,7 +417,7 @@ function Composer({
   contactName?: string;
   seedDraft?: string;
 }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, dark } = useTheme();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -456,7 +455,7 @@ function Composer({
     }
   }
 
-  function useSuggestion(text: string) {
+  function applySuggestion(text: string) {
     haptic.tap();
     setDraft(text);
     setSuggestions([]);
@@ -545,7 +544,7 @@ function Composer({
               <Pressable
                 key={`${i}-${s.slice(0, 12)}`}
                 style={[styles.suggestionChip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-                onPress={() => useSuggestion(s)}
+                onPress={() => applySuggestion(s)}
                 accessibilityRole="button"
                 accessibilityLabel={`Use suggested reply: ${s}`}
               >

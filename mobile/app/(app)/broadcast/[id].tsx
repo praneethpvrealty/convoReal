@@ -12,7 +12,7 @@ import {
 import { ConvoRealLoader } from '@/components/loader';
 import { Avatar, FilterChip } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
+import { spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import type { Broadcast, BroadcastRecipient } from '@/lib/types';
 
 const STATUS_FILTERS = ['All', 'Read', 'Delivered', 'Sent', 'Replied', 'Failed', 'Pending'] as const;

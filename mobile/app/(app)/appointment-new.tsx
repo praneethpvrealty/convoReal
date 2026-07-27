@@ -21,7 +21,7 @@ import { haptic } from '@/lib/haptics';
 import { useDebounced } from '@/lib/use-debounced';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AppointmentType, Contact } from '@/lib/types';
 
 const TYPES: { value: AppointmentType; label: string; icon: string }[] = [
