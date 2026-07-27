@@ -69,7 +69,7 @@
 /* ============================================================
  * COLOR THEMES
  *
- * 5 dark themes sharing structure, swapping only the primary
+ * 6 dark themes sharing structure, swapping only the primary
  * accent (and a tiny hue rotation on the slate base). Switched
  * at runtime by setting `document.documentElement.dataset.theme`
  * — see ThemeProvider + the inline boot script in layout.tsx.
@@ -274,6 +274,51 @@ html[data-theme="rose"] {
   --sidebar-ring: oklch(0.645 0.22 16);
 }
 
+/* Verdant — the mobile app's identity ported to desktop: deep
+ * green-tinted surfaces (mobile dark `#0A1F16` family) with the
+ * lime accent (`#C6F68D`). Unlike the other themes the neutrals
+ * carry a real green cast, so the `data-mode` polish/light blocks
+ * (which flatten neutrals per mode) are re-tinted for this theme
+ * in the two scoped blocks further below. Light mode swaps the
+ * lime for the mobile light primary `#075E54`. */
+html[data-theme="verdant"] {
+  --background: oklch(0.2 0.028 158);
+  --foreground: oklch(0.96 0.01 150);
+  --card: oklch(0.245 0.032 158);
+  --card-foreground: oklch(0.96 0.01 150);
+  --popover: oklch(0.245 0.032 158);
+  --popover-foreground: oklch(0.96 0.01 150);
+  --primary: oklch(0.9 0.19 128);
+  --primary-foreground: oklch(0.2 0.045 145);
+  --primary-hover: oklch(0.93 0.16 128);
+  --primary-soft: oklch(0.9 0.19 128 / 0.14);
+  --primary-soft-2: oklch(0.9 0.19 128 / 0.22);
+  --secondary: oklch(0.285 0.033 158);
+  --secondary-foreground: oklch(0.96 0.01 150);
+  --muted: oklch(0.285 0.033 158);
+  --muted-foreground: oklch(0.72 0.03 155);
+  --accent: oklch(0.285 0.033 158);
+  --accent-foreground: oklch(0.96 0.01 150);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.33 0.033 158);
+  --input: oklch(0.33 0.033 158);
+  --ring: oklch(0.9 0.19 128);
+  --chart-1: oklch(0.9 0.19 128);
+  --chart-2: oklch(0.7 0.14 175);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.225 0.03 158);
+  --sidebar-foreground: oklch(0.96 0.01 150);
+  --sidebar-primary: oklch(0.9 0.19 128);
+  --sidebar-primary-foreground: oklch(0.2 0.045 145);
+  --sidebar-accent: oklch(0.285 0.033 158);
+  --sidebar-accent-foreground: oklch(0.96 0.01 150);
+  --sidebar-border: oklch(0.33 0.033 158);
+  --sidebar-ring: oklch(0.9 0.19 128);
+}
+
 /* ============================================================
  * DARK MODE POLISH — `html[data-mode="dark"]`
  *
@@ -330,7 +375,7 @@ html[data-mode="dark"] {
 /* ============================================================
  * LIGHT MODE — `html[data-mode="light"]`
  *
- * An orthogonal axis on top of the 5 accent themes above: the
+ * An orthogonal axis on top of the 6 accent themes above: the
  * accent block keeps supplying --primary/--ring, this block flips
  * every NEUTRAL. Two layers make that possible app-wide without
  * touching components:
@@ -464,6 +509,65 @@ html[data-mode="light"] {
  * own prefix and never matches " blur-". */
 html[data-mode="light"] [class*="pointer-events-none"][class*=" blur-"] {
   opacity: 0.25;
+}
+
+/* Verdant mode overrides. The mode blocks above flatten every
+ * theme's neutrals (graphite dark / gray light) and leave only the
+ * accent — Verdant's identity IS the green cast, so it reclaims
+ * its neutrals here. Two attributes out-specificity the single-
+ * attribute mode blocks regardless of order. */
+
+html[data-mode="dark"][data-theme="verdant"] {
+  --background: #0a1f16;
+  --card: #122a20;
+  --popover: #122a20;
+  --secondary: #1a3529;
+  --muted: #1a3529;
+  --muted-foreground: #9db5a9;
+  --accent: #1a3529;
+  --border: #2a4237;
+  --input: #2a4237;
+  --sidebar: #0c241a;
+  --sidebar-accent: #1a3529;
+  --sidebar-border: #2a4237;
+
+  /* green-cast ramp replacing the graphite one */
+  --color-slate-950: #08170f;
+  --color-slate-900: #10231a;
+  --color-slate-800: #1c342a;
+  --color-slate-700: #2e4a3e;
+  --color-slate-600: #4a665a;
+  --color-slate-500: #6b857a;
+  --color-slate-400: #9db5a9;
+  --color-slate-300: #c2d4ca;
+  --color-slate-200: #dde7e1;
+  --color-slate-100: #ecf3ee;
+  --color-slate-50: #f4f9f5;
+  --color-slate-350: #afc2b6;
+  --color-slate-450: #829b8d;
+  --color-slate-550: #5a7266;
+  --color-slate-650: #3b5749;
+  --color-slate-750: #243e32;
+  --color-slate-850: #162a20;
+}
+
+html[data-mode="light"][data-theme="verdant"] {
+  /* lime is unreadable on white — swap to mobile light's deep green */
+  --primary: oklch(0.41 0.07 177);
+  --primary-foreground: oklch(0.985 0 0);
+  --primary-hover: oklch(0.48 0.075 177);
+  --primary-soft: oklch(0.41 0.07 177 / 0.12);
+  --primary-soft-2: oklch(0.41 0.07 177 / 0.2);
+  --ring: oklch(0.41 0.07 177);
+  --sidebar-primary: oklch(0.41 0.07 177);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-ring: oklch(0.41 0.07 177);
+  --chart-1: oklch(0.41 0.07 177);
+  --chart-2: oklch(0.6 0.12 165);
+
+  /* soft mint page, echoing the mobile light background #EAF4EE */
+  --background: #eaf4ee;
+  --sidebar: #f3faf5;
 }
 
 @layer base {

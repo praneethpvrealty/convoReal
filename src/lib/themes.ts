@@ -19,6 +19,7 @@ export const THEME_IDS = [
   "cobalt",
   "amber",
   "rose",
+  "verdant",
 ] as const;
 
 export type ThemeId = (typeof THEME_IDS)[number];
@@ -70,6 +71,12 @@ export const THEMES: ReadonlyArray<ThemeMeta> = [
     name: "Rose",
     tagline: "Bold and modern — D2C, creator-economy, lifestyle.",
     swatch: "oklch(0.645 0.22 16)",
+  },
+  {
+    id: "verdant",
+    name: "Verdant",
+    tagline: "The mobile app's identity — deep green glass with a lime accent.",
+    swatch: "oklch(0.9 0.19 128)",
   },
 ];
 

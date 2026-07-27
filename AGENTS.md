@@ -514,7 +514,7 @@ Meta Cloud API
 - Use Lucide icons from `lucide-react` only.
 - Props interfaces are defined inline at the top of component files.
 - Toasts use `sonner` (`Toaster` in `src/components/layout/themed-toaster.tsx`).
-- The app supports five accent themes (violet, emerald, cobalt, amber, rose) and light/dark mode. Theme logic is in `src/hooks/use-theme.tsx` and `src/lib/themes.ts`.
+- The app supports six accent themes (violet, emerald, cobalt, amber, rose, verdant — the last mirrors the mobile app's green identity) and light/dark mode. Theme logic is in `src/hooks/use-theme.tsx` and `src/lib/themes.ts`.
 
 ---
 
