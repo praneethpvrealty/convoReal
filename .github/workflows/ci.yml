@@ -53,7 +53,7 @@ jobs:
         run: npm run build
 
   mobile:
-    name: Mobile typecheck and test
+    name: Mobile lint, typecheck, test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -70,11 +70,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npm run typecheck
 
       # Pure logic only (lib/**/*.test.ts) — see mobile/vitest.config.ts.
-      # `npm run lint` is not wired up here: eslint is not a mobile
-      # dependency, and `expo lint` tries to install it interactively.
       - name: Test
         run: npm test

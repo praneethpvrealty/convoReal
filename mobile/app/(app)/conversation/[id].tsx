@@ -456,7 +456,7 @@ function Composer({
     }
   }
 
-  function useSuggestion(text: string) {
+  function applySuggestion(text: string) {
     haptic.tap();
     setDraft(text);
     setSuggestions([]);
@@ -545,7 +545,7 @@ function Composer({
               <Pressable
                 key={`${i}-${s.slice(0, 12)}`}
                 style={[styles.suggestionChip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-                onPress={() => useSuggestion(s)}
+                onPress={() => applySuggestion(s)}
                 accessibilityRole="button"
                 accessibilityLabel={`Use suggested reply: ${s}`}
               >

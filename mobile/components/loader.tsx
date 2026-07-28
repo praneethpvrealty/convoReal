@@ -33,9 +33,12 @@ export function ConvoRealLoader({
 }) {
   const { colors, fonts: f } = useTheme();
   const reduced = useReducedMotion();
-  const [w, setW] = useState(0);
+  const [measured, setMeasured] = useState<{ size: number; width: number } | null>(null);
   const x = useSharedValue(0);
   const h = Math.ceil(size * 1.25);
+  // A measurement taken at another font size is stale — fall back to 0
+  // so the next layout pass measures again.
+  const w = measured?.size === size ? measured.width : 0;
 
   useEffect(() => {
     if (!w || reduced) return;
@@ -47,7 +50,19 @@ export function ConvoRealLoader({
 
   const wordmark = (
     <Text
-      onLayout={(e) => setW(Math.ceil(e.nativeEvent.layout.width))}
+      numberOfLines={1}
+      ellipsizeMode="clip"
+      // Measured once, from the unconstrained first render. The masked
+      // render puts this same Text inside a box of exactly `w`, so
+      // re-measuring there would feed its own width back in; and the
+      // reported layout width can land a hair under the real glyph
+      // advance, which breaks the single word onto a second line that
+      // the one-line-tall mask then clips ("ConvoRe"). Hence the guard,
+      // the slack, and numberOfLines.
+      onLayout={(e) => {
+        if (w) return;
+        setMeasured({ size, width: Math.ceil(e.nativeEvent.layout.width) + 2 });
+      }}
       style={{
         fontSize: size,
         fontFamily: f.extrabold,
