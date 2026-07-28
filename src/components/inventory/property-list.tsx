@@ -666,7 +666,10 @@ export function PropertyList({
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1.5">
                       Interested Leads ({property.interested_contacts.length})
                     </span>
-                    <div className="grid grid-cols-1 gap-1.5">
+                    {/* Capped + scrollable: a hot listing can have dozens of
+                        leads, and an unbounded list stretches the card (and
+                        its whole grid row) past the viewport. */}
+                    <div className="grid grid-cols-1 gap-1.5 max-h-44 overflow-y-auto pr-1">
                       {property.interested_contacts.map((contact) => (
                         <div
                           key={contact.id}
