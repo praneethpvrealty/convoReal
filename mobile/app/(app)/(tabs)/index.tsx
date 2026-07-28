@@ -14,7 +14,7 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { AppDialog, useAppDialog, type DialogSpec } from '@/components/app-dialog';
 import { EnterRow, PressScale } from '@/components/motion';
 import { NotificationBell } from '@/components/notification-bell';
 import {
@@ -64,6 +64,7 @@ export default function InboxScreen() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
   const archived = filter === 'Archived';
+  const { show, dialogProps } = useAppDialog();
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['conversations', archived],
@@ -157,11 +158,13 @@ export default function InboxScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <ConversationRow conversation={item} archived={archived} />
+              <ConversationRow conversation={item} archived={archived} showDialog={show} />
             </EnterRow>
           )}
         />
       )}
+
+      <AppDialog {...dialogProps} />
     </View>
   );
 }
@@ -299,15 +302,17 @@ function MessageTicks({ status, colors }: { status: MessageStatus; colors: Theme
 function ConversationRow({
   conversation,
   archived,
+  showDialog,
 }: {
   conversation: Conversation;
   archived: boolean;
+  /** The list owns the dialog: one per screen, not one per row. */
+  showDialog: (spec: DialogSpec) => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const name = conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
   const swipeRef = useRef<Swipeable>(null);
-  const { show, dialogProps } = useAppDialog();
 
   // Delivery ticks for the last message, WhatsApp-style — only when we
   // sent it. Keyed on last_message_at so a new message refreshes it; the
@@ -338,12 +343,14 @@ function ConversationRow({
       await setConversationArchived(conversation.id, !archived);
     } catch (e) {
       haptic.warn();
-      show({ title: 'Could not update', message: e instanceof Error ? e.message : 'Please try again.' });
+      showDialog({
+        title: 'Could not update',
+        message: e instanceof Error ? e.message : 'Please try again.',
+      });
     }
   }
 
   return (
-    <>
     <Swipeable
       ref={swipeRef}
       overshootRight={false}
@@ -417,8 +424,6 @@ function ConversationRow({
         </View>
       </PressScale>
     </Swipeable>
-    <AppDialog {...dialogProps} />
-    </>
   );
 }
 
