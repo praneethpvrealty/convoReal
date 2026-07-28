@@ -71,8 +71,8 @@ const rules: Rule[] = [
       cta: { label: 'Open Match Radar', href: '/dashboard?tab=radar' },
     };
   },
-  // 4. Property views this week (RLS scopes showcase_events, same as
-  //    loadPulseStats — head-count keeps it cheap).
+  // 4. Property views this week (RLS scopes showcase_events; a
+  //    head-count keeps it cheap — no rows cross the wire).
   async (db) => {
     const since = new Date(Date.now() - WEEK_MS).toISOString();
     const { count, error } = await db

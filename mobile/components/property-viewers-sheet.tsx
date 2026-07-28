@@ -7,7 +7,8 @@ import { BottomSheet } from '@/components/sheet';
 import { Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { openContactChat } from '@/lib/open-chat';
-import { fetchPropertyViewers, formatTimeAgo } from '@/lib/pulse';
+import { fetchPropertyViewers } from '@/lib/pulse';
+import { formatTimeAgo } from '@/lib/pulse-feed';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 /**

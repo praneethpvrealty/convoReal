@@ -271,6 +271,7 @@ Run from `mobile/`:
 | `cd mobile && npm run ios` | Start Expo for iOS. |
 | `cd mobile && npm run lint` | Expo lint. |
 | `cd mobile && npm run typecheck` | TypeScript check for mobile. |
+| `cd mobile && npm test` | Vitest over the mobile app's pure logic (`mobile/lib/**/*.test.ts`). |
 
 ### Go ingress
 
@@ -528,6 +529,7 @@ Meta Cloud API
 - **Framework**: Vitest.
 - **Unit tests**: `src/**/*.test.ts` / `src/**/*.test.tsx`. Run with `npm test`. They use dummy secrets and do not touch the network.
 - **Integration tests**: `src/**/*.integration.test.ts`. Run with `npm run test:integration`. They hit the live Supabase project using `SUPABASE_SERVICE_ROLE_KEY` and skip if credentials are absent.
+- **Mobile tests**: `mobile/lib/**/*.test.ts`. Run with `cd mobile && npm test` (separate Vitest config and dependency tree). Pure logic only — modules that import Supabase, Expo or React Native have no runtime under a plain Node runner.
 - **Go tests**: `cd go-ingress && go test`.
 - **Husky pre-commit**: runs `npm test` (see `.husky/pre-commit`).
 - Tests are co-located with source files.

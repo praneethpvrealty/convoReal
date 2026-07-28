@@ -59,14 +59,14 @@ export default function PulsePage() {
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
   const [viewersFor, setViewersFor] = useState<{ id: string; title: string } | null>(null);
 
-  const fetchStatsAndFeed = useCallback(async (isRefresh = false) => {
+  const fetchStatsAndFeed = useCallback(async (accId: string, isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
     try {
       const db = createClient();
       const [statsData, feedData] = await Promise.all([
-        loadPulseStats(db),
+        loadPulseStats(db, accId),
         loadPulseFeed(db),
       ]);
       setStats(statsData);
@@ -82,7 +82,7 @@ export default function PulsePage() {
 
   useEffect(() => {
     if (accountId) {
-      fetchStatsAndFeed();
+      fetchStatsAndFeed(accountId);
     }
   }, [accountId, fetchStatsAndFeed]);
 
@@ -225,8 +225,8 @@ export default function PulsePage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => fetchStatsAndFeed(true)}
-          disabled={loading || refreshing}
+          onClick={() => accountId && fetchStatsAndFeed(accountId, true)}
+          disabled={!accountId || loading || refreshing}
           className="shrink-0 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-900/40 rounded-xl cursor-pointer"
         >
           <RefreshCw className={`size-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />

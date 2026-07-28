@@ -10,15 +10,17 @@ import { Avatar, EmptyState, FilterChip, SectionLabel, Tag } from '@/components/
 import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
 import {
-  dedupeConsecutiveEvents,
   fetchPulseFeed,
   fetchPulseStats,
   fetchPulseTopProperties,
+  type PulseTopProperty,
+} from '@/lib/pulse';
+import {
+  dedupeConsecutiveEvents,
   formatDwellTime,
   formatTimeAgo,
   type DedupedPulseEvent,
-  type PulseTopProperty,
-} from '@/lib/pulse';
+} from '@/lib/pulse-feed';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 /**

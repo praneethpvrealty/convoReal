@@ -51,3 +51,30 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  mobile:
+    name: Mobile typecheck and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # Pure logic only (lib/**/*.test.ts) — see mobile/vitest.config.ts.
+      # `npm run lint` is not wired up here: eslint is not a mobile
+      # dependency, and `expo lint` tries to install it interactively.
+      - name: Test
+        run: npm test
