@@ -33,23 +33,70 @@ const EVENT_TYPE_EMOJI: Record<string, string> = {
   other: '🗓',
 };
 
+/** Phrases that are a scheduling request on their own. */
+const SCHEDULING_VERB =
+  /\b(remind me|reminder|schedule|re-?schedule|book|fix (a |the )?(meeting|visit|call|appointment)|set up (a )?(meeting|visit|call)|follow ?up (with|on)|site visit)\b/i;
+
+/** An explicit to-do prefix. */
+const TASK_PREFIX = /\b(task|todo|to-do)\s*:/i;
+
+/** Something that happens at a time, which needs a WHEN to be a request. */
+const EVENT_VERB = /\b(call|meet|meeting|visit|appointment)\b/i;
+
+/**
+ * Relative days and clock times: "tomorrow", "next fri", "at 4pm", "18:30".
+ * The bare form requires a colon — "3.50" is an acreage or a price far more
+ * often than it is half past three.
+ */
+const TIME_CUE =
+  /\b(tomorrow|today|tonight|day after|(this|next|coming) (week|month|mon|tue|wed|thu|fri|sat|sun)[a-z]*|at \d{1,2}([:.]\d{2})?\s?(am|pm)?|\d{1,2}\s?(am|pm)|\d{1,2}:\d{2})\b/i;
+
+/**
+ * Calendar dates: "30th July 2026", "Jul 30", "30/07/2026", "on Friday".
+ * A named day or a written-out date is how anyone books more than a week
+ * out, and the relative-day cues above cannot express it.
+ *
+ * The numeric form takes a slash, or dashes with a year — a bare "2-3" is
+ * a budget range ("2-3 crore"), not the second of March.
+ */
+const DATE_CUE =
+  /\b(\d{1,2}(st|nd|rd|th)? (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(st|nd|rd|th)?|\d{1,2}\/\d{1,2}(\/\d{2,4})?|\d{1,2}-\d{1,2}-\d{2,4}|(mon|tues|wednes|thurs|fri|satur|sun)day)\b/i;
+
+/** Forwarded listings and portal leads — intake material, not events. */
+const LISTING_SIGNAL =
+  /\b(bhk|sqft|sq ?ft|crore|lakh|per sqft|facing|carpet|super built|listing|for sale|for rent)\b/gi;
+const LEAD_FORWARD = /\b(is interested in|referred by|magicbricks|99acres|housing\.com)\b/i;
+
 /** Cheap deterministic gate so we never burn AI credits on forwarded
- *  listings / lead texts. Requires a scheduling verb or an explicit
- *  time cue, and backs off when the text smells like a listing. */
+ *  listings / lead texts. Requires a scheduling verb or an event verb
+ *  with a WHEN, and backs off when the text smells like intake material.
+ *  Passing only buys an AI parse — `intent: 'none'` still falls through
+ *  to the intake flows, so this errs toward letting a request in. */
 export function looksLikeSchedulingText(text: string): boolean {
   const t = text.toLowerCase().trim();
   if (!t) return false;
 
-  const schedulingVerb =
-    /\b(remind me|reminder|schedule|re-?schedule|book|fix (a |the )?(meeting|visit|call|appointment)|set up (a )?(meeting|visit|call)|follow ?up (with|on)|site visit)\b/i.test(t) ||
-    /\b(task|todo|to-do)\s*:/i.test(t) ||
-    /\b(call|meet|visit)\b.*\b(tomorrow|today|tonight|day after|next (week|mon|tue|wed|thu|fri|sat|sun)|at \d{1,2}([:.]\d{2})?\s?(am|pm)?|\d{1,2}\s?(am|pm))\b/i.test(t);
+  // Verb and WHEN are tested independently rather than as one ordered
+  // pattern: "on Monday, meet the lawyer" is the same request as "meet
+  // the lawyer on Monday", and a WhatsApp message often wraps the two
+  // onto separate lines.
+  const explicit = SCHEDULING_VERB.test(t) || TASK_PREFIX.test(t);
+  const verbWithWhen = EVENT_VERB.test(t) && (TIME_CUE.test(t) || DATE_CUE.test(t));
+  if (!explicit && !verbWithWhen) return false;
 
-  if (!schedulingVerb) return false;
+  // "Remind me" / "schedule" / "task:" is the user saying it outright, so
+  // it survives the back-offs below.
+  const statedOutright = /\b(remind me|schedule)\b/i.test(t) || TASK_PREFIX.test(t);
+  if (statedOutright) return true;
 
   // A long listing-style forward wins even if it mentions "visit".
-  const listingSignals = (t.match(/\b(bhk|sqft|sq ?ft|crore|lakh|per sqft|facing|carpet|super built|listing|for sale|for rent)\b/gi) || []).length;
-  if (listingSignals >= 2 && !(/\b(remind me|schedule)\b/i.test(t) || /\b(task|todo|to-do)\s*:/i.test(t))) return false;
+  const listingSignals = (t.match(LISTING_SIGNAL) || []).length;
+  if (listingSignals >= 2) return false;
+
+  // So does a forwarded lead that happens to say "call him on Monday" —
+  // it has to reach contact ingestion, which is what these same phrases
+  // gate there (chatbot-engine's hasContactKeywords).
+  if (LEAD_FORWARD.test(t)) return false;
 
   return true;
 }

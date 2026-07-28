@@ -11,6 +11,23 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A booking with a real date now reaches the calendar.** "Meet lawyer
+  Kusuma regarding the Whitefield property on 30th July 2026" was filed
+  as a *contact draft* instead of an appointment: the scheduling gate
+  recognised only relative days ("tomorrow", "next Friday") and clock
+  times ("at 4pm"), so a stated calendar date counted as no time at all
+  and the message fell through to contact ingestion. Written-out dates
+  ("30th July", "Jul 30"), numeric dates ("30/07/2026") and named
+  weekdays ("on Friday") are now cues, the WHEN may come before the verb
+  or on its own line, and a date with no time of day books at 10:00 IST
+  rather than midnight. Forwarded portal leads that mention a day
+  ("...is interested in the HSR plot, call him on Monday") still go to
+  contact intake, and property figures — "2-3 crore", "3.50 acres" — are
+  not mistaken for a date or a time. Applies to both the agent's own
+  bookings and a lead asking for a visit.
+
 ### Changed
 
 - **The WhatsApp assistant's help card now says what it can actually

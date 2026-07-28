@@ -126,6 +126,8 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
       ? `Team member names for assignee matching: ${memberNames.join(', ')}.\n`
       : '') +
     'Rules: never invent a date/time that was not implied. "Remind me to X" with no time is intent "task". ' +
+    'A stated calendar date with no time of day ("meet the lawyer on 30th July") IS intent "schedule" — ' +
+    'use 10:00 as the hour, the same default as "morning", rather than midnight. ' +
     'A forwarded property listing or a lead\'s contact details is intent "none". ' +
     'Respond with ONLY the JSON object.'
   );
