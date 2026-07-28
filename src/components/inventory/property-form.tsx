@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { PropertyRadarLoader } from '@/components/ui/property-radar-loader';
 import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-loader';
+import { PriceHint } from '@/components/ui/price-hint';
 import {
   Loader2,
   Plus,
@@ -1628,21 +1629,6 @@ export function PropertyForm({
     };
   }, [isLand, hasCommercialFields]);
 
-  function getEquivalentPriceLabel(priceStr: string) {
-    const priceNum = Number(priceStr);
-    if (!priceStr || isNaN(priceNum) || priceNum <= 0) return '';
-    
-    if (priceNum >= 10000000) {
-      const cr = priceNum / 10000000;
-      return `Equivalent to: ₹${cr.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Crore`;
-    }
-    if (priceNum >= 100000) {
-      const lakhs = priceNum / 100000;
-      return `Equivalent to: ₹${lakhs.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Lakhs`;
-    }
-    return `Equivalent to: ₹${priceNum.toLocaleString('en-IN')}`;
-  }
-
   async function onUploadImages(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -2410,11 +2396,7 @@ export function PropertyForm({
                           <div className="text-2xl font-black text-white">
                             {rentPerMonth ? `${formatCurrency(Number(rentPerMonth), currency)}/mo` : '--'}
                           </div>
-                          {rentPerMonth && !isNaN(Number(rentPerMonth)) && Number(rentPerMonth) > 0 && (
-                            <p className="text-[10px] text-primary font-semibold mt-0.5">
-                              {getEquivalentPriceLabel(rentPerMonth)}
-                            </p>
-                          )}
+                          <PriceHint value={rentPerMonth} className="text-[10px]" />
                           {(maintenance || advance || gst) && (
                             <div className="text-[10px] text-slate-400 mt-1 space-y-0.5 font-medium">
                               {maintenance && Number(maintenance) > 0 && (
@@ -2462,11 +2444,7 @@ export function PropertyForm({
                           <div className="text-2xl font-black text-white">
                             {price ? formatCurrency(Number(price), currency) : '--'}
                           </div>
-                          {price && !isNaN(Number(price)) && Number(price) > 0 && (
-                            <p className="text-[10px] text-primary font-semibold mt-0.5">
-                              {getEquivalentPriceLabel(price)}
-                            </p>
-                          )}
+                          <PriceHint value={price} className="text-[10px]" />
                         </>
                       )}
                     </div>
@@ -3216,11 +3194,7 @@ export function PropertyForm({
                         className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         required
                       />
-                      {price && !isNaN(Number(price)) && Number(price) > 0 && (
-                        <p className="text-[11px] text-primary font-semibold mt-0.5">
-                          {getEquivalentPriceLabel(price)}
-                        </p>
-                      )}
+                      <PriceHint value={price} />
                     </div>
                   ) : listingType === 'Rent' ? (
                     <div className="grid grid-cols-2 gap-4 col-span-2 p-4 rounded-lg border border-slate-800 bg-slate-950/20 animate-fade-in">
@@ -3237,11 +3211,7 @@ export function PropertyForm({
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                           required
                         />
-                        {rentPerMonth && !isNaN(Number(rentPerMonth)) && Number(rentPerMonth) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(rentPerMonth)}
-                          </p>
-                        )}
+                        <PriceHint value={rentPerMonth} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3256,11 +3226,7 @@ export function PropertyForm({
                           placeholder="e.g. 5000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
-                        {maintenance && !isNaN(Number(maintenance)) && Number(maintenance) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(maintenance)}
-                          </p>
-                        )}
+                        <PriceHint value={maintenance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3275,11 +3241,7 @@ export function PropertyForm({
                           placeholder="e.g. 200000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
-                        {advance && !isNaN(Number(advance)) && Number(advance) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(advance)}
-                          </p>
-                        )}
+                        <PriceHint value={advance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3294,11 +3256,7 @@ export function PropertyForm({
                           placeholder="e.g. 1800"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
-                        {gst && !isNaN(Number(gst)) && Number(gst) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(gst)}
-                          </p>
-                        )}
+                        <PriceHint value={gst} />
                       </div>
                     </div>
                   ) : listingType === 'Built to Suit' ? (
@@ -3316,11 +3274,7 @@ export function PropertyForm({
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                           required
                         />
-                        {rentPerMonth && !isNaN(Number(rentPerMonth)) && Number(rentPerMonth) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(rentPerMonth)}
-                          </p>
-                        )}
+                        <PriceHint value={rentPerMonth} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3335,6 +3289,7 @@ export function PropertyForm({
                           placeholder="e.g. 15000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={maintenance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3349,6 +3304,7 @@ export function PropertyForm({
                           placeholder="e.g. 1500000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={advance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3363,6 +3319,7 @@ export function PropertyForm({
                           placeholder="e.g. 45000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={gst} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3438,6 +3395,7 @@ export function PropertyForm({
                           placeholder="e.g. 50000000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={price} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3496,6 +3454,7 @@ export function PropertyForm({
                           placeholder="e.g. 2000000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={goodwillAmount} />
                         <p className="text-[10px] text-slate-500">Non-refundable upfront payment to the landowner.</p>
                       </div>
 
@@ -3511,6 +3470,7 @@ export function PropertyForm({
                           placeholder="e.g. 1000000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={advance} />
                         <p className="text-[10px] text-slate-500">Refundable deposit, adjusted against the owner&apos;s share at handover.</p>
                       </div>
                     </div>
@@ -3572,6 +3532,7 @@ export function PropertyForm({
                         placeholder={price ? `e.g. ${price}` : 'e.g. 8500000'}
                         className="border-slate-700 bg-slate-800 text-white"
                       />
+                      <PriceHint value={soldPrice} />
                       <p className="text-[11px] text-slate-500">
                         Optional — improves your area&apos;s price accuracy. Never shown to buyers.
                       </p>
@@ -3839,6 +3800,7 @@ export function PropertyForm({
                             placeholder="e.g. 250000"
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                           />
+                          <PriceHint value={rentalIncome} />
                         </div>
 
                         <div className="space-y-1.5">
@@ -3936,6 +3898,7 @@ export function PropertyForm({
                               placeholder="1350000"
                               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
                             />
+                            <PriceHint value={ft.monthly_rent} compact className="text-[10px]" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-slate-400 text-[11px]">Lease Start</Label>

@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -80,22 +81,6 @@ const PROPERTY_INTEREST_OPTIONS = [
   'Old building selling at site rate',
 ];
 
-function formatPriceLabel(amountStr: string) {
-  const amount = Number(amountStr);
-  if (isNaN(amount) || amount <= 0) return '';
-  if (amount >= 10000000) {
-    const cr = amount / 10000000;
-    return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-  } else if (amount >= 100000) {
-    const lakhs = amount / 100000;
-    return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-  }
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -2028,9 +2013,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             placeholder="Min Budget"
                             className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
                           />
-                          {editMinBudget && (
-                            <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMinBudget)}</span>
-                          )}
+                          <PriceHint value={editMinBudget} compact className="text-[10px] block" />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[10px] text-slate-500">Max Budget</Label>
@@ -2042,9 +2025,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             placeholder="Max Budget"
                             className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
                           />
-                          {editMaxBudget && (
-                            <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMaxBudget)}</span>
-                          )}
+                          <PriceHint value={editMaxBudget} compact className="text-[10px] block" />
                         </div>
                       </div>
                     </div>

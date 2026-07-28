@@ -28,6 +28,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PriceHint } from '@/components/ui/price-hint'
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -830,6 +831,7 @@ function StepEditor({
               onChange={(e) => set({ value: Number(e.target.value) })}
               className="bg-slate-800 text-white"
             />
+            <PriceHint value={(cfg.value as number) ?? 0} />
           </FieldBlock>
         </>
       )

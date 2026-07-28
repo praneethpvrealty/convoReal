@@ -13,7 +13,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { avatarHue, initials } from '@/lib/format';
+import { avatarHue, initials, priceInWords } from '@/lib/format';
 import {
   radius,
   shadows,
@@ -471,6 +471,25 @@ export const TextField = forwardRef<
     </View>
   );
 });
+
+/**
+ * The "₹16 Crore" readout under a price field. Prices are typed as digits
+ * — 160000000 — and a missing zero is invisible at that length, so every
+ * amount input carries this. Renders nothing until the field holds a
+ * positive number, so it can sit under a field unconditionally.
+ *
+ * Web parity: `PriceHint` in `src/components/ui/price-hint.tsx`.
+ */
+export function PriceHint({ value }: { value: string | number | null | undefined }) {
+  const { colors, fonts: f } = useTheme();
+  const label = priceInWords(value);
+  if (!label) return null;
+  return (
+    <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.primary, marginTop: -spacing.xs }}>
+      {label}
+    </Text>
+  );
+}
 
 /**
  * The one primary CTA — brand-gradient fill (the brand rule; flat

@@ -35,6 +35,7 @@ import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
@@ -2441,6 +2442,7 @@ export function ShowcaseView({
                     placeholder="e.g. 5000000 (50 Lakhs)"
                     className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
+                  <PriceHint value={reqMinBudget} compact className="text-[10px]" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Max Budget (₹ / Rupees)</label>
@@ -2451,6 +2453,7 @@ export function ShowcaseView({
                     placeholder="e.g. 20000000 (2 Crores)"
                     className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
+                  <PriceHint value={reqMaxBudget} compact className="text-[10px]" />
                 </div>
               </div>
 

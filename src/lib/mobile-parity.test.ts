@@ -27,6 +27,7 @@ import {
   NEARBY_HIGHLIGHTS_OPTIONS,
   PROPERTY_TYPE_GROUPS,
 } from "@/lib/inventory/property-options";
+import { priceInWords } from "@/lib/currency-utils";
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from "@/lib/whatsapp/customer-window";
 
 function mobileSource(relativePath: string): string {
@@ -193,5 +194,43 @@ describe("mobile/lib/share-message.ts mirrors share-message-builder", () => {
     // Mobile may add surface-specific builders on top; it must never be
     // missing one the web share dialog relies on.
     expect(mobile).toEqual(expect.arrayContaining(web));
+  });
+});
+
+describe("mobile/lib/format.ts mirrors priceInWords", () => {
+  // Both platforms put this readout under every price input, so a drift
+  // here shows the same amount two different ways — "₹1.2 Crore" on the
+  // web and something else in the app, for the same field.
+  const source = mobileSource("lib/format.ts");
+  const block = source.slice(
+    source.indexOf("export function priceInWords"),
+    source.indexOf("/** Indian price notation")
+  );
+
+  it("exists", () => {
+    expect(block, "priceInWords not found in mobile format.ts").toContain("priceInWords");
+  });
+
+  it("uses the same crore and lakh thresholds and wording", () => {
+    expect(block).toContain("10000000");
+    expect(block).toContain("Crore");
+    expect(block).toContain("100000");
+    expect(block).toContain("Lakhs");
+    expect(block).toContain("en-IN");
+  });
+
+  it("trims trailing zeros the same way, so 12000000 is ₹1.2 Crore", () => {
+    expect(block).toContain(`toFixed(2).replace(/\\.00$/, '').replace(/\\.(\\d)0$/, '.$1')`);
+  });
+
+  it("agrees with the web output across the range", () => {
+    // The mobile copy is checked as text (the web tsconfig excludes
+    // mobile/), so pin the web side's answers here: these are the strings
+    // the assertions above are guarding.
+    expect(priceInWords(160000000)).toBe("₹16 Crore");
+    expect(priceInWords(12000000)).toBe("₹1.2 Crore");
+    expect(priceInWords(8500000)).toBe("₹85 Lakhs");
+    expect(priceInWords(45000)).toBe("₹45,000");
+    expect(priceInWords("")).toBe("");
   });
 });

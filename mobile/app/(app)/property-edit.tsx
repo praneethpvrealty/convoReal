@@ -18,7 +18,7 @@ import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
-import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
@@ -310,9 +310,7 @@ function EditForm({ property }: { property: Property }) {
                 onChangeText={setRent}
                 keyboardType="numeric"
               />
-              {num(rent) ? (
-                <Text style={[styles.amountHint, { color: colors.primary }]}>{formatInr(num(rent))}</Text>
-              ) : null}
+              <PriceHint value={rent} />
             </View>
             <View style={{ flex: 1, gap: 4 }}>
               <TextField
@@ -321,19 +319,13 @@ function EditForm({ property }: { property: Property }) {
                 onChangeText={setMaintenance}
                 keyboardType="numeric"
               />
-              {num(maintenance) ? (
-                <Text style={[styles.amountHint, { color: colors.primary }]}>
-                  {formatInr(num(maintenance))}
-                </Text>
-              ) : null}
+              <PriceHint value={maintenance} />
             </View>
           </View>
         ) : (
           <View style={{ gap: 4 }}>
             <TextField label="Price (₹)" value={price} onChangeText={setPrice} keyboardType="numeric" />
-            {num(price) ? (
-              <Text style={[styles.amountHint, { color: colors.primary }]}>{formatInr(num(price))}</Text>
-            ) : null}
+            <PriceHint value={price} />
           </View>
         )}
 
@@ -493,6 +485,7 @@ function EditForm({ property }: { property: Property }) {
                       keyboardType="numeric"
                       placeholder="1350000"
                     />
+                    <PriceHint value={t.monthly_rent} />
                   </View>
                 </View>
                 <View style={styles.row}>
@@ -733,7 +726,6 @@ function SelectField({
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   row: { flexDirection: 'row', gap: spacing.sm },
-  amountHint: { fontSize: 12.5, fontFamily: fonts.bold, paddingHorizontal: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   select: {
     flexDirection: 'row',
