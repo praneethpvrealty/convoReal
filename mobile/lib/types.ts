@@ -349,3 +349,19 @@ export interface MessageTemplate {
   footer_text?: string | null;
   status: string;
 }
+
+// ------------------------------------------------------------------
+// Showcase Pulse (showcase_events; read-only on mobile)
+// ------------------------------------------------------------------
+
+export type ShowcaseEventType = 'open' | 'view_property' | 'map_click' | 'gallery';
+
+export interface ShowcaseEvent {
+  id: string;
+  contact_id: string | null;
+  property_id: string | null;
+  session_key: string;
+  event_type: ShowcaseEventType;
+  metadata: { duration_ms?: number } & Record<string, unknown>;
+  created_at: string;
+}

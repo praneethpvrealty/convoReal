@@ -28,6 +28,7 @@ const WORKSPACE_LINKS = [
   { href: '/(app)/calendar', icon: 'calendar-outline', label: 'Calendar & Site Visits' },
   { href: '/(app)/credits', icon: 'flash-outline', label: 'Billing & AI Credits' },
   { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
+  { href: '/(app)/pulse', icon: 'analytics-outline', label: 'Showcase Pulse' },
   { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
   { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },
   { href: '/(app)/connection-check', icon: 'pulse-outline', label: 'Connection check' },

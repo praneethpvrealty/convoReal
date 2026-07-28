@@ -169,7 +169,7 @@ export default function DashboardScreen() {
       </View>
 
       <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-        Response-time analytics and the Pulse visitor feed live on the web dashboard.
+        Response-time analytics live on the web dashboard.
       </Text>
     </ScrollView>
   );
