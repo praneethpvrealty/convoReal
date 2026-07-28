@@ -218,11 +218,18 @@ export function PropertyShareSheet({
   }
 
   // ConvoReal WhatsApp: send from the account's business number so the
-  // message is delivered and logged in the shared inbox thread.
+  // message is delivered and logged in the shared inbox thread. The
+  // server sends free text inside the 24-hour window and falls back to
+  // the pre-approved property template outside it — the dialog below
+  // only appears when that template isn't approved yet.
   async function sendViaConvoReal(contact: Contact) {
     setCrmSending(true);
     haptic.send();
-    const outcome = await sendPropertyViaCrm(contact, addRecipientGreeting(message, contact.name));
+    const outcome = await sendPropertyViaCrm(
+      contact,
+      property,
+      addRecipientGreeting(message, contact.name)
+    );
     setCrmSending(false);
     setPicker(null);
     if (outcome.sent) {
@@ -231,23 +238,30 @@ export function PropertyShareSheet({
       if (outcome.conversationId) router.push(`/(app)/conversation/${outcome.conversationId}`);
       return;
     }
-    if (outcome.reengage && outcome.conversationId) {
+    if (outcome.templateStatus) {
       haptic.warn();
       const convId = outcome.conversationId;
+      const pending = outcome.templateStatus === 'PENDING';
       setDialog({
-        title: 'Outside the 24-hour window',
-        message: `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so WhatsApp only allows an approved template. Open the chat to send one.`,
+        title: pending ? 'Template awaiting Meta approval' : 'One-time template setup needed',
+        message: pending
+          ? `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so this share needs the approved property template — it’s still under review by Meta (usually minutes to a few hours). Try again once it’s approved, or open the chat to send another approved template.`
+          : `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so WhatsApp requires a pre-approved template. An Org Manager can set up the property template once from Radar on the ConvoReal web app — after Meta approves it, shares like this go out automatically. For now, open the chat to send an approved template.`,
         actions: [
           { label: 'Not now', variant: 'muted', onPress: () => setDialog(null) },
-          {
-            label: 'Open chat',
-            variant: 'primary',
-            onPress: () => {
-              setDialog(null);
-              onClose();
-              router.push(`/(app)/conversation/${convId}`);
-            },
-          },
+          ...(convId
+            ? [
+                {
+                  label: 'Open chat',
+                  variant: 'primary' as const,
+                  onPress: () => {
+                    setDialog(null);
+                    onClose();
+                    router.push(`/(app)/conversation/${convId}`);
+                  },
+                },
+              ]
+            : []),
         ],
       });
       return;
