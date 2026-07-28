@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet';
-import { Avatar, SearchBar } from '@/components/ui';
+import { Avatar, SearchBar, Tag } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -46,26 +46,52 @@ export function ContactPickerSheet({
     if (!visible) setSearch('');
   }, [visible]);
 
-  const { data: contacts, isFetching } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: ['contact-picker', debounced],
     enabled: visible && debounced.length >= 2,
     queryFn: async () => {
       const term = `%${debounced}%`;
       // Digits-only phone match so "+91 97006 06010" finds "+919700606010".
       const digits = debounced.replace(/\D/g, '');
+      // name_tag is searchable here for the same reason it is on the
+      // Contacts tab: "Bank DSA" is often the only thing the agent
+      // remembers about a Nataraj.
       const or =
         digits.length >= 4
-          ? `name.ilike.${term},phone.ilike.${term},phone.ilike.%${digits}%`
-          : `name.ilike.${term},phone.ilike.${term}`;
-      const { data } = await supabase
+          ? `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},phone.ilike.%${digits}%`
+          : `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`;
+      const { data: rows } = await supabase
         .from('contacts')
-        .select('id, name, phone')
+        .select('id, name, name_tag, phone')
         .or(or)
         .limit(8);
-      return (data ?? []) as Contact[];
+      const contacts = (rows ?? []) as Contact[];
+
+      // Tag chips for the handful of rows on screen — the same
+      // decoration the Contacts tab batches, so a picker row identifies
+      // the contact as well as the list does.
+      const ids = contacts.map((c) => c.id);
+      const tags: Record<string, string[]> = {};
+      if (ids.length > 0) {
+        const { data: tagRows } = await supabase
+          .from('contact_tags')
+          .select('contact_id, tag:tags(name)')
+          .in('contact_id', ids)
+          .limit(80);
+        for (const row of (tagRows ?? []) as {
+          contact_id: string;
+          tag: { name: string } | { name: string }[] | null;
+        }[]) {
+          const tag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
+          if (!tag?.name) continue;
+          (tags[row.contact_id] ??= []).push(tag.name);
+        }
+      }
+      return { contacts, tags };
     },
   });
-  const results = contacts ?? [];
+  const results = data?.contacts ?? [];
+  const tagsById = data?.tags ?? {};
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
@@ -132,18 +158,31 @@ export function ContactPickerSheet({
                         style={[styles.row, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
                       >
                         <Avatar name={c.name || c.phone} size={34} />
-                        <View style={{ flex: 1 }}>
-                          <Text
-                            style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}
-                            numberOfLines={1}
-                          >
-                            {c.name || c.phone}
-                          </Text>
-                          {c.name ? (
-                            <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
-                              {c.phone}
+                        <View style={{ flex: 1, gap: 2 }}>
+                          <View style={styles.nameRow}>
+                            <Text
+                              style={{
+                                flexShrink: 1,
+                                fontSize: 14.5,
+                                fontFamily: f.semibold,
+                                color: colors.text,
+                              }}
+                              numberOfLines={1}
+                            >
+                              {c.name || c.phone}
                             </Text>
-                          ) : null}
+                            {c.name_tag ? <Tag label={c.name_tag} /> : null}
+                          </View>
+                          <View style={styles.metaRow}>
+                            {c.name ? (
+                              <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+                                {c.phone}
+                              </Text>
+                            ) : null}
+                            {(tagsById[c.id] ?? []).slice(0, 2).map((t) => (
+                              <Tag key={t} label={t} />
+                            ))}
+                          </View>
                         </View>
                         <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
                       </Pressable>
@@ -177,6 +216,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 8,
   },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   hint: {
     fontSize: 12.5,
     textAlign: 'center',

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
-import { Avatar, Banner, PrimaryButton, TextField } from '@/components/ui';
+import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -70,8 +70,8 @@ export default function NewAppointmentScreen() {
       const term = `%${debouncedContactSearch.trim()}%`;
       const { data } = await supabase
         .from('contacts')
-        .select('id, name, phone')
-        .or(`name.ilike.${term},phone.ilike.${term}`)
+        .select('id, name, name_tag, phone')
+        .or(`name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term}`)
         .limit(6);
       return (data ?? []) as Contact[];
     },
@@ -236,9 +236,13 @@ export default function NewAppointmentScreen() {
                 }}
               >
                 <Avatar name={c.name || c.phone} size={30} />
-                <Text style={{ flex: 1, fontSize: 14.5, color: colors.text }}>
+                <Text
+                  style={{ flexShrink: 1, fontSize: 14.5, color: colors.text }}
+                  numberOfLines={1}
+                >
                   {c.name || c.phone}
                 </Text>
+                {c.name_tag ? <Tag label={c.name_tag} /> : null}
               </Pressable>
             ))}
           </View>

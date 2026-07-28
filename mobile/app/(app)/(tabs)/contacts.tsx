@@ -409,6 +409,7 @@ export default function ContactsScreen() {
                     ? data?.propertyTitles?.[item.last_inquired_property_id]
                     : undefined
                 }
+                tags={data?.tags[item.id] ?? []}
                 onApprove={() => handleApprove(item)}
                 onPeekStart={() => setPeekId(item.id)}
                 onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
@@ -588,6 +589,7 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
 function ContactRow({
   contact,
   dark,
+  tags,
   contactedProperty,
   onApprove,
   onPeekStart,
@@ -596,6 +598,7 @@ function ContactRow({
 }: {
   contact: Contact;
   dark: boolean;
+  tags: string[];
   contactedProperty?: string;
   onApprove: () => void;
   onPeekStart: () => void;
@@ -631,6 +634,7 @@ function ContactRow({
             <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]} numberOfLines={1}>
               {name}
             </Text>
+            {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
             <Pressable
               hitSlop={10}
               onPress={() => Linking.openURL(`tel:${contact.phone}`)}
@@ -650,6 +654,9 @@ function ContactRow({
             {contact.classification ? (
               <Tag label={contact.classification} color={clsColor} />
             ) : null}
+            {tags.slice(0, 2).map((t) => (
+              <Tag key={t} label={t} />
+            ))}
             {contact.name ? (
               <Text style={{ fontSize: 12.5, color: colors.textFaint }}>{contact.phone}</Text>
             ) : null}
