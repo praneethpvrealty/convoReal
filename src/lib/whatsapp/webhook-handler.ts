@@ -49,6 +49,7 @@ import {
   BRIDGE_REPLY_HINT,
 } from '@/lib/whatsapp/reply-bridge'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import { googleMapsUrlForCoordinates } from '@/lib/maps/resolve-location'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import type { SandboxSenderMapping } from '@/types'
 import { supabaseAdmin } from '@/lib/supabase/admin'
@@ -1741,7 +1742,14 @@ async function parseMessageContent(
     case 'location':
       if (message.location) {
         const loc = message.location
-        const locationText = [loc.name, loc.address, `${loc.latitude},${loc.longitude}`]
+        // Emit the canonical Maps URL rather than a bare coordinate pair:
+        // it renders as a tappable link in the inbox, and the listing
+        // intake resolves it into the pin's locality/city/coordinates.
+        const locationText = [
+          loc.name,
+          loc.address,
+          googleMapsUrlForCoordinates(loc.latitude, loc.longitude),
+        ]
           .filter(Boolean)
           .join(' - ')
         return { ...empty, contentText: locationText }

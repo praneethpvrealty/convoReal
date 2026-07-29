@@ -10,7 +10,12 @@
 // ============================================================
 
 import type { ParsedPropertyDraft, ParsedContactDraft, ParsedContactDraftsContainer } from '@/lib/ai/gemini';
-import { resolveLocationFromGoogleMapLink } from '@/lib/maps/resolve-location';
+import {
+  googleMapsUrlForCoordinates,
+  parseCoordinatePair,
+  resolveLocationFromCoordinates,
+  resolveLocationFromGoogleMapLink,
+} from '@/lib/maps/resolve-location';
 
 /**
  * Draft session lifecycle status. A draft with all mandatory fields
@@ -27,16 +32,44 @@ export function deriveDraftStatus(isValid: boolean): DraftStatus {
 }
 
 /**
- * If the draft is still missing a location but has a Google Maps link
- * (common when a lister shares a pin instead of typing an address),
- * best-effort resolve the link into a usable location string. Never
- * throws — a failed/timed-out resolution just leaves the draft as-is so
- * it doesn't block the WhatsApp reply.
+ * Derives the location details behind a shared map pin — the address
+ * line, sublocality, city, state and coordinates — from the draft's
+ * Google Maps link, or from a bare "12.8669,77.5565" pair the lister
+ * sent as the location itself.
+ *
+ * A pin is the most precise thing a lister gives us, so when the draft
+ * has no location of its own the pin's city/state win over the parser's
+ * defaults; when the lister did type an address, only the gaps are
+ * filled. Never throws — a failed or timed-out lookup just leaves the
+ * draft as-is so it doesn't block the WhatsApp reply.
  */
 export async function backfillLocationFromMapLink(draft: ParsedPropertyDraft): Promise<ParsedPropertyDraft> {
-  if (draft.location || !draft.google_map_link) return draft;
-  const derived = await resolveLocationFromGoogleMapLink(draft.google_map_link);
-  return derived ? { ...draft, location: derived } : draft;
+  const pinnedCoords = parseCoordinatePair(draft.location);
+  const source = pinnedCoords
+    ? googleMapsUrlForCoordinates(pinnedCoords.latitude, pinnedCoords.longitude)
+    : draft.google_map_link;
+  if (!source) return draft;
+  if (draft.geo_resolved_from === source) return draft;
+  if (!pinnedCoords && draft.location && draft.latitude != null) return draft;
+
+  const derived = pinnedCoords
+    ? await resolveLocationFromCoordinates(pinnedCoords.latitude, pinnedCoords.longitude)
+    : await resolveLocationFromGoogleMapLink(source);
+  if (!derived) return draft;
+
+  const fromPin = pinnedCoords !== null || !draft.location;
+
+  return {
+    ...draft,
+    location: fromPin ? derived.location : draft.location,
+    sublocality: draft.sublocality || derived.sublocality,
+    city: fromPin ? derived.city || draft.city : draft.city || derived.city,
+    state: fromPin ? derived.state || draft.state : draft.state || derived.state,
+    latitude: draft.latitude ?? derived.latitude,
+    longitude: draft.longitude ?? derived.longitude,
+    google_map_link: draft.google_map_link || source,
+    geo_resolved_from: source,
+  };
 }
 
 /**

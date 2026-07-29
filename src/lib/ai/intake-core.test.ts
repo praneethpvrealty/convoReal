@@ -10,17 +10,25 @@ import {
   mergeContactDraft,
   mergeContactDraftsContainer,
 } from '@/lib/ai/intake-core';
-import { resolveLocationFromGoogleMapLink } from '@/lib/maps/resolve-location';
+import {
+  resolveLocationFromCoordinates,
+  resolveLocationFromGoogleMapLink,
+} from '@/lib/maps/resolve-location';
 import type {
   ParsedPropertyDraft,
   ParsedContactDraft,
   ParsedContactDraftsContainer,
 } from '@/lib/ai/gemini';
 
-vi.mock('@/lib/maps/resolve-location', () => ({
+// The pure URL/coordinate parsing helpers stay real; only the two
+// network-backed resolvers are stubbed.
+vi.mock('@/lib/maps/resolve-location', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/maps/resolve-location')>()),
   resolveLocationFromGoogleMapLink: vi.fn(),
+  resolveLocationFromCoordinates: vi.fn(),
 }));
 const mockResolve = vi.mocked(resolveLocationFromGoogleMapLink);
+const mockResolveCoords = vi.mocked(resolveLocationFromCoordinates);
 
 // Fully-null draft; each test overrides only the fields it exercises.
 function makeDraft(overrides: Partial<ParsedPropertyDraft> = {}): ParsedPropertyDraft {
@@ -78,15 +86,18 @@ function makeContainer(contacts: ParsedContactDraft[]): ParsedContactDraftsConta
 }
 
 describe('backfillLocationFromMapLink', () => {
+  const resolved = {
+    location: 'Anjanapura, Bengaluru',
+    sublocality: 'Anjanapura',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    latitude: 12.8669,
+    longitude: 77.5565483,
+  };
+
   beforeEach(() => {
     mockResolve.mockReset();
-  });
-
-  it('leaves the draft untouched when location is already present', async () => {
-    const draft = makeDraft({ location: 'HSR Layout', google_map_link: 'https://maps.app.goo.gl/x' });
-    const result = await backfillLocationFromMapLink(draft);
-    expect(result).toBe(draft);
-    expect(mockResolve).not.toHaveBeenCalled();
+    mockResolveCoords.mockReset();
   });
 
   it('leaves the draft untouched when there is no map link', async () => {
@@ -97,11 +108,76 @@ describe('backfillLocationFromMapLink', () => {
   });
 
   it('fills location from the resolved map link when missing', async () => {
-    mockResolve.mockResolvedValue('Koramangala, Bengaluru');
+    mockResolve.mockResolvedValue({ ...resolved, location: 'Koramangala, Bengaluru' });
     const draft = makeDraft({ location: null, google_map_link: 'https://maps.app.goo.gl/y' });
     const result = await backfillLocationFromMapLink(draft);
     expect(result.location).toBe('Koramangala, Bengaluru');
     expect(mockResolve).toHaveBeenCalledWith('https://maps.app.goo.gl/y');
+  });
+
+  it('fills sublocality, city, state and coordinates from the pin', async () => {
+    mockResolve.mockResolvedValue(resolved);
+    const draft = makeDraft({
+      location: null,
+      city: 'Bangalore',
+      state: 'Karnataka',
+      google_map_link: 'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483',
+    });
+    const result = await backfillLocationFromMapLink(draft);
+    expect(result).toMatchObject({
+      location: 'Anjanapura, Bengaluru',
+      sublocality: 'Anjanapura',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      latitude: 12.8669,
+      longitude: 77.5565483,
+    });
+  });
+
+  it('keeps a typed location and only fills the gaps around it', async () => {
+    mockResolve.mockResolvedValue(resolved);
+    const draft = makeDraft({
+      location: '17th Main, Jayanagar',
+      city: 'Bangalore',
+      google_map_link: 'https://maps.app.goo.gl/y',
+    });
+    const result = await backfillLocationFromMapLink(draft);
+    expect(result.location).toBe('17th Main, Jayanagar');
+    expect(result.city).toBe('Bangalore');
+    expect(result.sublocality).toBe('Anjanapura');
+    expect(result.latitude).toBe(12.8669);
+  });
+
+  it('resolves a bare coordinate pair sent as the location', async () => {
+    mockResolveCoords.mockResolvedValue(resolved);
+    const draft = makeDraft({ location: '12.8669,77.5565483', google_map_link: null });
+    const result = await backfillLocationFromMapLink(draft);
+    expect(mockResolveCoords).toHaveBeenCalledWith(12.8669, 77.5565483);
+    expect(result.location).toBe('Anjanapura, Bengaluru');
+    expect(result.google_map_link).toBe(
+      'https://www.google.com/maps/search/?api=1&query=12.8669,77.5565483'
+    );
+  });
+
+  it('does not re-resolve a link it already resolved', async () => {
+    mockResolve.mockResolvedValue(resolved);
+    const draft = makeDraft({ location: null, google_map_link: 'https://maps.app.goo.gl/y' });
+    const once = await backfillLocationFromMapLink(draft);
+    const twice = await backfillLocationFromMapLink(once);
+    expect(twice).toBe(once);
+    expect(mockResolve).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the lookup when the draft already has a location and coordinates', async () => {
+    const draft = makeDraft({
+      location: 'HSR Layout',
+      latitude: 12.91,
+      longitude: 77.64,
+      google_map_link: 'https://maps.app.goo.gl/x',
+    });
+    const result = await backfillLocationFromMapLink(draft);
+    expect(result).toBe(draft);
+    expect(mockResolve).not.toHaveBeenCalled();
   });
 
   it('keeps the draft unchanged when resolution returns null', async () => {
