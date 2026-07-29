@@ -74,7 +74,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
   const { data, error } = await supabase
     .from('properties')
     .select(
-      'id, title, description, price, rent_per_month, maintenance, status, listing_type, ' +
+      'id, title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, ' +
         'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
         'dimensions, facing_direction, google_map_link, features, nearby_highlights, ' +
@@ -130,6 +130,7 @@ function EditForm({ property }: { property: Property }) {
     property.maintenance ? String(property.maintenance) : ''
   );
   const [status, setStatus] = useState(property.status ?? 'Available');
+  const [soldPrice, setSoldPrice] = useState(property.sold_price ? String(property.sold_price) : '');
   const [bedrooms, setBedrooms] = useState(property.bedrooms ? String(property.bedrooms) : '');
   const [bathrooms, setBathrooms] = useState(property.bathrooms ? String(property.bathrooms) : '');
   const [area, setArea] = useState(property.area_sqft ? String(property.area_sqft) : '');
@@ -222,6 +223,9 @@ function EditForm({ property }: { property: Property }) {
       nearby_highlights: nearby,
       images,
       owner_contact_id: ownerContactId,
+      // Web parity: only meaningful while Sold; null clears a stale
+      // value if the status moves away from Sold.
+      sold_price: status === 'Sold' ? num(soldPrice) : null,
     };
     if (isRent) {
       body.rent_per_month = num(rent);
@@ -335,6 +339,26 @@ function EditForm({ property }: { property: Property }) {
             <FilterChip key={s} label={s} active={status === s} onPress={() => setStatus(s)} />
           ))}
         </View>
+
+        {status === 'Sold' ? (
+          <View style={{ gap: 4 }}>
+            <TextField
+              label="Final sale price (₹)"
+              value={soldPrice}
+              onChangeText={setSoldPrice}
+              keyboardType="numeric"
+              placeholder={num(price) ? `e.g. ${num(price)}` : 'e.g. 8500000'}
+            />
+            {num(soldPrice) ? (
+              <Text style={[styles.amountHint, { color: colors.primary }]}>
+                {formatInr(num(soldPrice))}
+              </Text>
+            ) : null}
+            <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+              Optional — improves your area’s price accuracy. Never shown to buyers.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
