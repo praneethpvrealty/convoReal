@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { curateForBuyer, matchReasons, mergeCuratedFeeds, MIN_BUYER_MATCH_SCORE } from './matches-ranking';
+import {
+  curateForBuyer,
+  hasBuyerBrief,
+  matchReasons,
+  mergeCuratedFeeds,
+  MIN_BUYER_MATCH_SCORE,
+} from './matches-ranking';
 import type { Contact, Property } from '@/types';
 
 function property(overrides: Partial<Property>): Property {
@@ -117,5 +123,20 @@ describe('matchReasons', () => {
       roi: 'unknown',
     } as never);
     expect(reasons).toEqual(['Type you asked for', 'Same city', 'Within budget', 'BHK fits']);
+  });
+});
+
+describe('hasBuyerBrief', () => {
+  it('recognises any real preference signal', () => {
+    expect(hasBuyerBrief(buyer({ max_budget: 12_000_000 }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ areas_of_interest: ['Whitefield'] }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ property_interests: ['Villa'] }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ min_roi: 6 }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ requirements: 'corner plot' }))).toBe(true);
+  });
+
+  it('rejects a contact with nothing on file, so nothing buyer-facing runs on noise', () => {
+    expect(hasBuyerBrief(buyer({}))).toBe(false);
+    expect(hasBuyerBrief(buyer({ requirements: '   ', areas_of_interest: [] }))).toBe(false);
   });
 });

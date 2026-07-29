@@ -238,6 +238,9 @@ export function ShowcaseLeadBot({
           notes,
           accountId,
           referrerContactId,
+          // The number step says the agent will send matching listings
+          // to this WhatsApp number — answering it is the opt-in.
+          alertsConsent: true,
         }),
       });
       if (!res.ok) throw new Error('requirements submission failed');

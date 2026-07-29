@@ -31,7 +31,12 @@ export async function POST(request: Request) {
       maxBudget, // number | null
       minRoi, // number | null
       accountId,
-      referrerContactId
+      referrerContactId,
+      // The assistant's number step states plainly that matching
+      // listings will come to this WhatsApp number, so completing it is
+      // the opt-in. Absent (the plain form), consent stays 'pending'
+      // and the digest asks before sending anything.
+      alertsConsent
     } = body;
     const name = typeof body.name === "string" ? body.name.slice(0, MAX_NAME_LEN) : body.name;
     const notes = typeof body.notes === "string" ? body.notes.slice(0, MAX_NOTES_LEN) : body.notes;
@@ -111,7 +116,7 @@ export async function POST(request: Request) {
     // 2. Check if contact exists under this account
     const { data: existingContacts, error: findError } = await admin
       .from("contacts")
-      .select("id, name, email")
+      .select("id, name, email, buyer_alerts_consent")
       .eq("account_id", accountId)
       .eq("phone", normalizedPhone);
 
@@ -128,6 +133,8 @@ export async function POST(request: Request) {
 
     const resolvedMinBudget = resolveBudgetVal(minBudget);
     const resolvedMaxBudget = resolveBudgetVal(maxBudget);
+
+    const grantsAlerts = alertsConsent === true;
 
     const contactFields = {
       name: (name || "Website Lead").trim(),
@@ -152,6 +159,11 @@ export async function POST(request: Request) {
         name: existingContact.name || contactFields.name,
         email: existingContact.email || contactFields.email,
       };
+      // Never re-grant for someone who has opted out — a new form
+      // submission is not permission to resume messaging they stopped.
+      if (grantsAlerts && existingContact.buyer_alerts_consent !== "declined") {
+        updates.buyer_alerts_consent = "granted";
+      }
 
       await admin
         .from("contacts")
@@ -167,6 +179,7 @@ export async function POST(request: Request) {
             user_id: targetAgentUserId,
             phone: normalizedPhone,
             referrer: "Website Requirements Form",
+            ...(grantsAlerts ? { buyer_alerts_consent: "granted" } : {}),
             ...contactFields,
           },
         ])

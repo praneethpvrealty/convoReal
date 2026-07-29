@@ -30,6 +30,8 @@ import {
   parseBuyerAlertsCommand,
   applyBuyerAlertsCommand,
 } from '@/lib/buyer/alerts'
+import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
+import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
 import {
   isOwnerContact,
   findOwnedListings,
@@ -1160,6 +1162,29 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: confirmation,
+      })
+      return
+    }
+  }
+
+  // On-demand matches — "MATCHES" / "show my matches" in the buyer's
+  // chat. They just opened the 24-hour window by texting, so the reply
+  // is free-form: no template, nothing to get approved first. Falls
+  // through when the buyer has no brief or nothing fits.
+  if (parseBuyerMatchesCommand(contentText)) {
+    const matchReply = await buildBuyerMatchReply({
+      accountId,
+      contactId: contactRecord.id,
+    })
+    if (matchReply) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: matchReply,
       })
       return
     }

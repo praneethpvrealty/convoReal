@@ -23,6 +23,7 @@ import type { MaskedPropertySnapshot } from '@/lib/den/masking';
 import { buyerAdmin, type BuyerContactLink, type BuyerContext } from './auth';
 import {
   curateForBuyer,
+  hasBuyerBrief,
   mergeCuratedFeeds,
   type CuratedMatch,
 } from './matches-ranking';
@@ -74,17 +75,6 @@ export interface BuyerMatchFeed {
   pool_capped: boolean;
   /** False when no linked contact carries a usable brief yet. */
   has_preferences: boolean;
-}
-
-function hasBrief(contact: Contact): boolean {
-  return Boolean(
-    contact.min_budget ||
-      contact.max_budget ||
-      contact.areas_of_interest?.length ||
-      contact.property_interests?.length ||
-      contact.min_roi ||
-      contact.requirements?.trim()
-  );
 }
 
 async function loadLinkedContacts(
@@ -208,7 +198,7 @@ export async function getBuyerMatchFeed(ctx: BuyerContext): Promise<BuyerMatchFe
   const briefed = ctx.links
     .map((link) => ({ link, contact: contactsById.get(link.contactId) }))
     .filter((entry): entry is { link: BuyerContactLink; contact: Contact } =>
-      Boolean(entry.contact && hasBrief(entry.contact))
+      Boolean(entry.contact && hasBuyerBrief(entry.contact))
     );
 
   const [curatedResults, dealModeResults] = await Promise.all([
