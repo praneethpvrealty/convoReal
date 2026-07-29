@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
 import {
@@ -29,7 +30,11 @@ import {
 } from '@/lib/api';
 import { formatInr } from '@/lib/format';
 import { storagePublicUrl } from '@/lib/storage-url';
-import { getShowcaseUrl } from '@/lib/welcome-message';
+import {
+  anonymousShowcaseShareUrl,
+  contactShowcaseShareUrl,
+  logShowcaseShare,
+} from '@/lib/showcase-share';
 import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
 import {
@@ -39,7 +44,7 @@ import {
   type NearAnchor,
 } from '@/lib/property-search-store';
 import { mapPin, onGradient, radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
-import type { PropertiesResponse, Property } from '@/lib/types';
+import type { Contact, PropertiesResponse, Property } from '@/lib/types';
 
 const LISTING_FILTERS: ListingFilter[] = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'];
 const RADIUS_OPTIONS = [2, 5, 10, 25];
@@ -93,6 +98,7 @@ export default function PropertiesScreen() {
   const { search, listing, near, setSearch, setListing, setNear, setRadius } =
     usePropertySearch();
   const [locating, setLocating] = useState(false);
+  const [sharePicker, setSharePicker] = useState(false);
   const [geoError, setGeoError] = useState<string | null>(null);
   const debounced = useDebounced(search.trim());
 
@@ -124,6 +130,32 @@ export default function PropertiesScreen() {
   // While a new search resolves, `data` is the PREVIOUS result — don't
   // present its total as if it belonged to the current filters.
   const total = isPlaceholderData ? undefined : data?.pages[0]?.pagination.total;
+
+  function shareShowcase(url: string) {
+    Share.share({
+      message: `Browse our verified property listings — photos, prices and full details:\n${url}`,
+      url,
+    });
+  }
+
+  // Named share: the link carries v=<contact_id>, so this contact's
+  // opens and views land in Pulse under their name, and the share
+  // leaves a breadcrumb on their timeline.
+  async function shareToContact(contact: Contact) {
+    setSharePicker(false);
+    haptic.tap();
+    const url = await contactShowcaseShareUrl(contact);
+    logShowcaseShare(contact);
+    shareShowcase(url);
+  }
+
+  // Anonymous share for groups/status posts: a per-share token (?s=)
+  // lets Pulse attribute visits to this share without naming anyone.
+  async function shareAnonymous() {
+    setSharePicker(false);
+    haptic.tap();
+    shareShowcase(await anonymousShowcaseShareUrl());
+  }
 
   async function nearMe() {
     haptic.tap();
@@ -169,13 +201,9 @@ export default function PropertiesScreen() {
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel="Share showcase link"
-              onPress={async () => {
+              onPress={() => {
                 haptic.tap();
-                const url = await getShowcaseUrl();
-                Share.share({
-                  message: `Browse our verified property listings — photos, prices and full details:\n${url}`,
-                  url,
-                });
+                setSharePicker(true);
               }}
               style={StyleSheet.flatten([styles.mapButton, { backgroundColor: colors.primarySoft }])}
             >
@@ -317,6 +345,15 @@ export default function PropertiesScreen() {
           )}
         />
       )}
+      <ContactPickerSheet
+        visible={sharePicker}
+        onClose={() => setSharePicker(false)}
+        onSelect={shareToContact}
+        title="Share showcase"
+        hint="Pick who you're sending it to — their visits show up in Pulse by name."
+        skipLabel="Share anonymous link"
+        onSkip={shareAnonymous}
+      />
     </View>
   );
 }

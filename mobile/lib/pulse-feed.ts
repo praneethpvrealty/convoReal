@@ -9,6 +9,7 @@ import type { Contact, ShowcaseEvent } from '@/lib/types';
 export interface PulseEvent extends ShowcaseEvent {
   contact: Pick<Contact, 'id' | 'name' | 'phone' | 'name_tag'> | null;
   property: { id: string; title: string } | null;
+  share?: { id: string; created_at: string } | null;
 }
 
 /** A merged run of consecutive, near-identical events. */

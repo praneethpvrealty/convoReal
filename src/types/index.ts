@@ -243,6 +243,8 @@ export interface ShowcaseEvent {
   contact_id: string | null;
   property_id: string | null;
   session_key: string;
+  /** Share-instance token the visit arrived through (migration 173). */
+  share_id?: string | null;
   event_type: 'open' | 'view_property' | 'map_click' | 'gallery';
   metadata: Record<string, unknown>;
   created_at: string;
