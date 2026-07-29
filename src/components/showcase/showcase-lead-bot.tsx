@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, UserPlus } from 'lucide-react';
 import { LeadBot } from '@/components/chat/lead-bot';
 import { useLeadFunnel, type LeadFunnelApi } from '@/hooks/use-lead-funnel';
 import {
@@ -38,6 +38,8 @@ interface ShowcaseLeadBotProps {
   referrerContactId?: string;
   onSelectProperty: (property: Property) => void;
   onWhatsAppClick?: () => void;
+  /** Fired when the visitor takes up the free buyer account. */
+  onAccountClick?: () => void;
 }
 
 const SHOWCASE_CRM_FUNNEL = crmFunnel('showcase');
@@ -74,9 +76,13 @@ export function ShowcaseLeadBot({
   referrerContactId,
   onSelectProperty,
   onWhatsAppClick,
+  onAccountClick,
 }: ShowcaseLeadBotProps) {
   const sessionKey = useMemo(getShowcaseSessionKey, []);
-  const [submitted, setSubmitted] = useState(false);
+  // Which funnel finished, so the closing state offers the right next
+  // step: a buyer gets their free account, a professional gets the
+  // ConvoReal handoff. Never the other way round.
+  const [completed, setCompleted] = useState<'buyer' | 'crm' | null>(null);
   const budgetRef = useRef<BudgetRange>({ min: null, max: null });
 
   const chipsFor = useCallback(
@@ -142,6 +148,29 @@ export function ShowcaseLeadBot({
         </a>
       ) : null,
     [onWhatsAppClick, whatsappLink]
+  );
+
+  // The buyer's own free account: the existing buyer portal, signed
+  // into with the number they just gave us — so the contact this
+  // requirement created is what their account links to. No second
+  // sign-up form, no password.
+  const accountCard = useMemo(
+    () => (
+      <div className="flex flex-wrap items-center gap-1.5">
+        <a
+          href="/buyer/login?next=/buyer/matches"
+          target="_blank"
+          rel="noreferrer"
+          onClick={onAccountClick}
+          className="bg-primary hover:bg-primary-hover text-primary-foreground inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-bold transition-colors"
+        >
+          <UserPlus className="size-3.5" />
+          Create my free account
+        </a>
+        {whatsappCard}
+      </div>
+    ),
+    [onAccountClick, whatsappCard]
   );
 
   const showMatches = useCallback(
@@ -264,13 +293,20 @@ export function ShowcaseLeadBot({
           try {
             if (isCrm) await submitCrmProspect(answers);
             else await submitBuyer(answers);
-            setSubmitted(true);
+            setCompleted(isCrm ? 'crm' : 'buyer');
+            // The buyer's CTA lives in the persistent footer below, so
+            // the message itself carries no duplicate button.
             api.pushBot(
               isCrm
                 ? "Perfect — the ConvoReal team will reach out on WhatsApp shortly. Want to see it running on your own inventory? They'll set up a walkthrough."
                 : 'Done — the agent has your requirement and will send matching listings on WhatsApp, including the ones that never go public.',
-              whatsappCard ?? undefined
+              isCrm ? (whatsappCard ?? undefined) : undefined
             );
+            if (!isCrm) {
+              api.pushBot(
+                'One more thing: a free account keeps every match in one place, lets you shortlist what you like, and shows owner-direct listings too. It signs you in on the number you just gave me — no password.'
+              );
+            }
           } catch {
             api.pushBot(
               'I could not save that just now. Please reach the team on WhatsApp and they will pick it up.',
@@ -368,8 +404,10 @@ export function ShowcaseLeadBot({
       }
       loading={bot.loading}
       footer={
-        submitted && whatsappCard ? (
-          <div className="flex justify-center pt-1">{whatsappCard}</div>
+        completed ? (
+          <div className="flex justify-center pt-1">
+            {completed === 'buyer' ? accountCard : whatsappCard}
+          </div>
         ) : undefined
       }
     />

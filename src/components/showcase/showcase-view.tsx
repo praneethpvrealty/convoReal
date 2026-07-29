@@ -1603,6 +1603,7 @@ export function ShowcaseView({
                 referrerContactId={referrerContactId}
                 onSelectProperty={openPropertyModal}
                 onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
+                onAccountClick={() => trackPixelEvent('CompleteRegistration', { content_name: 'Buyer Den account' })}
               />
             )}
           </div>
@@ -2540,6 +2541,7 @@ export function ShowcaseView({
           referrerContactId={referrerContactId}
           onSelectProperty={openPropertyModal}
           onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
+          onAccountClick={() => trackPixelEvent('CompleteRegistration', { content_name: 'Buyer Den account' })}
         />
       )}
     </div>

@@ -105,7 +105,8 @@ export default function BuyerVerifyPhonePage() {
     }
     // Finish buyer identity + contact linking, then enter.
     await fetch("/api/buyer/auth/complete", { method: "POST" }).catch(() => null);
-    window.location.href = "/buyer";
+    const target = new URLSearchParams(window.location.search).get("next") || "";
+    window.location.href = /^\/buyer(\/|$)/.test(target) ? target : "/buyer";
   };
 
   return (

@@ -7,7 +7,9 @@
 // mandatory for every buyer account.
 // ============================================================
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+
+import { useSearchParams } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,23 @@ function cleanPhoneInput(raw: string): string | null {
 }
 
 export default function BuyerLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <BuyerLoginPageInner />
+    </Suspense>
+  );
+}
+
+function BuyerLoginPageInner() {
+  // Where to land after sign-in (?next=/buyer/matches). The showcase
+  // lead bot sends a brand-new buyer to their matches — an empty
+  // shortlist is a poor first screen for someone who has never
+  // shortlisted anything.
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get("next") || "";
+  // Same-origin buyer paths only — never a caller-supplied redirect.
+  const next = /^\/buyer(\/|$)/.test(nextParam) ? nextParam : "/buyer";
+
   const [phone, setPhone] = useState("");
   const [otpValues, setOtpValues] = useState<string[]>(Array(6).fill(""));
   const [otpSent, setOtpSent] = useState(false);
@@ -135,14 +154,18 @@ export default function BuyerLoginPage() {
     }
     // Hard navigation so fresh cookies ride the next request; the
     // buyer provider finishes linking via /api/buyer/auth/complete.
-    window.location.href = "/buyer";
+    window.location.href = next;
   };
 
   const handleGoogleLogin = async () => {
     setError(null);
     setLoading(true);
     const supabase = createClient();
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent("/buyer/verify-phone")}`;
+    const verifyNext =
+      next === "/buyer"
+        ? "/buyer/verify-phone"
+        : `/buyer/verify-phone?next=${encodeURIComponent(next)}`;
+    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(verifyNext)}`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
