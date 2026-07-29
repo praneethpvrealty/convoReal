@@ -121,6 +121,7 @@ export interface Property {
   property_code?: string | null;
   description?: string | null;
   price?: number | null;
+  sold_price?: number | null;
   rent_per_month?: number | null;
   location?: string | null;
   sublocality?: string | null;
