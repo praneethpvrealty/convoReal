@@ -26,6 +26,8 @@ export interface HydratedShowcaseEvent extends Omit<ShowcaseEvent, 'metadata'> {
   };
   contact?: Contact | null;
   property?: Property | null;
+  /** The share-instance link the visit came through, when it did. */
+  share?: { id: string; created_at: string } | null;
 }
 
 /** Aggregated in Postgres (migration 172) — counting opens, distinct
@@ -75,15 +77,17 @@ export async function loadPulseStats(db: DB, accountId: string): Promise<PulseSt
 export async function loadPulseFeed(db: DB): Promise<HydratedShowcaseEvent[]> {
   const { data, error } = await db
     .from('showcase_events')
-    .select('*, contact:contacts(*), property:properties(*)')
+    .select('*, contact:contacts(*), property:properties(*), share:showcase_share_links(id, created_at)')
     .order('created_at', { ascending: false })
     .limit(100);
 
   if (error) throw error;
 
+  type ShareRow = { id: string; created_at: string };
   type EventRow = Omit<ShowcaseEvent, 'contact' | 'property'> & {
     contact: Contact | Contact[] | null;
     property: Property | Property[] | null;
+    share: ShareRow | ShareRow[] | null;
   };
 
   return ((data ?? []) as unknown as EventRow[]).map((row) => ({
@@ -91,5 +95,6 @@ export async function loadPulseFeed(db: DB): Promise<HydratedShowcaseEvent[]> {
     metadata: row.metadata as HydratedShowcaseEvent['metadata'],
     contact: one(row.contact),
     property: one(row.property),
+    share: one(row.share),
   })) as HydratedShowcaseEvent[];
 }

@@ -265,7 +265,12 @@ function TopListingCard({
 
 function EventRow({ event }: { event: DedupedPulseEvent }) {
   const { colors, fonts: f } = useTheme();
-  const who = event.contact?.name || event.contact?.phone || 'Anonymous guest';
+  const who =
+    event.contact?.name ||
+    event.contact?.phone ||
+    (event.share
+      ? `Guest · via link shared ${formatTimeAgo(event.share.created_at)}`
+      : 'Anonymous guest');
   const what = event.property?.title ?? 'a property';
   const dwell = event.event_type === 'view_property' ? formatDwellTime(event.metadata.duration_ms) : '';
 

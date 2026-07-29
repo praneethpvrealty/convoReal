@@ -42,6 +42,9 @@ interface PageProps {
      *  links append v=<contact_id>). Unlike ref=, it never filters the
      *  catalog — it only attributes engagement events. */
     v?: string;
+    /** Share-instance token for generic (recipient-unknown) shares —
+     *  labels which share a visit came from in Pulse. Never filters. */
+    s?: string;
   }>;
 }
 
@@ -399,6 +402,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         initialCategory={resolvedParams.category}
         initialAgentMode={isAgentMode}
         visitorRef={resolvedParams.v}
+        shareId={resolvedParams.s}
       />
     </>
   );

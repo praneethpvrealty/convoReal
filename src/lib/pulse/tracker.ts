@@ -10,6 +10,10 @@
  * deliberately a different param from `ref=`, which the showcase server
  * uses to FILTER the catalog to a referrer's own listings — a buyer
  * identity must never narrow what the buyer sees.
+ *
+ * `shareId` is the share-instance token carried by `s=` on generic
+ * (recipient-unknown) shares — it labels which share a visit came from
+ * without identifying the visitor.
  */
 
 import { getShowcaseSessionKey } from './session-key';
@@ -30,7 +34,8 @@ export interface ShowcaseTracker {
 
 export function createShowcaseTracker(
   accountId: string,
-  visitorRef: string | null | undefined
+  visitorRef: string | null | undefined,
+  shareId?: string | null
 ): ShowcaseTracker {
   if (typeof window === 'undefined') {
     return { track: () => {}, flush: () => {} };
@@ -59,6 +64,7 @@ export function createShowcaseTracker(
           account_id: accountId,
           session_key: sessionKey,
           ref: visitorRef || undefined,
+          share_id: shareId || undefined,
           events,
         }),
       }).catch(() => {});
