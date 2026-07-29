@@ -79,6 +79,9 @@ interface ShowcaseViewProps {
   /** Contact id from per-contact share links (?v=…) — Showcase Pulse
    *  attribution only, never filters the catalog. */
   visitorRef?: string;
+  /** Share-instance token from generic shares (?s=…) — labels which
+   *  share a visit came from in Pulse. Never filters. */
+  shareId?: string;
   /** Destination landing pages override the hero copy. */
   hero?: { title: string; highlight: string; subtitle: string; badges?: string[] };
   /** Accent theme applied when the URL has no ?theme= override. */
@@ -111,6 +114,7 @@ export function ShowcaseView({
   initialCategory,
   initialAgentMode = false,
   visitorRef,
+  shareId,
   hero,
   initialTheme,
   disableSavedState = false
@@ -127,7 +131,7 @@ export function ShowcaseView({
   // Mirror of selectedProperty?.id for the mount-only listeners below.
   const selectedPropertyIdRef = useRef<string | null>(null);
   useEffect(() => {
-    trackerRef.current = createShowcaseTracker(accountId, visitorRef);
+    trackerRef.current = createShowcaseTracker(accountId, visitorRef, shareId);
     trackerRef.current.track('open');
     const tracker = trackerRef.current;
 
@@ -161,7 +165,7 @@ export function ShowcaseView({
       emitPendingView();
       tracker.flush();
     };
-    // Mount-only by design: accountId/visitorRef are fixed per page load.
+    // Mount-only by design: accountId/visitorRef/shareId are fixed per page load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

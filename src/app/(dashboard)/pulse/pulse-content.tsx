@@ -135,9 +135,18 @@ export default function PulsePage() {
   };
 
   const getEventDescription = (event: HydratedShowcaseEvent) => {
+    // A share-instance token names the link, not the person: the reader
+    // learns which of their shares brought this (still anonymous) visit.
     const contactName = event.contact
       ? event.contact.name || event.contact.phone
-      : "Anonymous Guest";
+      : event.share
+        ? `A guest (via the link shared ${new Date(event.share.created_at).toLocaleString("en-IN", {
+            day: "numeric",
+            month: "short",
+            hour: "numeric",
+            minute: "2-digit",
+          })})`
+        : "Anonymous Guest";
     const propertyTitle = event.property ? event.property.title : "a property";
 
     switch (event.event_type) {

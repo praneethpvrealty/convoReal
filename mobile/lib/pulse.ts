@@ -86,22 +86,25 @@ export async function fetchPulseFeed(): Promise<PulseEvent[]> {
   const { data, error } = await supabase
     .from('showcase_events')
     .select(
-      'id, contact_id, property_id, session_key, event_type, metadata, created_at, ' +
-        'contact:contacts(id, name, phone, name_tag), property:properties(id, title)'
+      'id, contact_id, property_id, session_key, share_id, event_type, metadata, created_at, ' +
+        'contact:contacts(id, name, phone, name_tag), property:properties(id, title), ' +
+        'share:showcase_share_links(id, created_at)'
     )
     .order('created_at', { ascending: false })
     .limit(FEED_LIMIT);
   if (error) throw error;
 
-  type Row = Omit<PulseEvent, 'contact' | 'property'> & {
+  type Row = Omit<PulseEvent, 'contact' | 'property' | 'share'> & {
     contact: PulseEvent['contact'] | PulseEvent['contact'][] | null;
     property: PulseEvent['property'] | PulseEvent['property'][] | null;
+    share: PulseEvent['share'] | PulseEvent['share'][] | null;
   };
 
   return ((data ?? []) as unknown as Row[]).map((row) => ({
     ...row,
     contact: one(row.contact),
     property: one(row.property),
+    share: one(row.share),
   }));
 }
 
