@@ -4,6 +4,7 @@ import {
   extractPlaceNameFromMapUrl,
   googleMapsUrlForCoordinates,
   parseCoordinatePair,
+  resolveCoordinatesFromMapLink,
   resolveLocationFromCoordinates,
   resolveLocationFromGoogleMapLink,
 } from '@/lib/maps/resolve-location';
@@ -260,5 +261,52 @@ describe('resolveLocationFromGoogleMapLink', () => {
     } as unknown as Response);
 
     expect(await resolveLocationFromGoogleMapLink('https://maps.app.goo.gl/dead')).toBeNull();
+  });
+});
+
+describe('resolveCoordinatesFromMapLink', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('reads inline coordinates without any network call', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch');
+    expect(
+      await resolveCoordinatesFromMapLink('https://www.google.com/maps?q=12.937435,77.617888')
+    ).toEqual({ latitude: 12.937435, longitude: 77.617888 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('follows a short link to the coordinates behind it', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      url: 'https://www.google.com/maps/place/Some+Site/@12.937435,77.617888,17z',
+      json: async () => ({}),
+    } as unknown as Response);
+
+    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/abc')).toEqual({
+      latitude: 12.937435,
+      longitude: 77.617888,
+    });
+  });
+
+  it('returns null for a link that names a place instead of a point', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      url: 'https://www.google.com/maps/search/?api=1&query=Koramangala+Bengaluru',
+      json: async () => ({}),
+    } as unknown as Response);
+
+    expect(
+      await resolveCoordinatesFromMapLink(
+        'https://www.google.com/maps/search/?api=1&query=Koramangala+Bengaluru'
+      )
+    ).toBeNull();
+  });
+
+  it('never throws when the redirect hop fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('network down'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(await resolveCoordinatesFromMapLink('https://maps.app.goo.gl/dead')).toBeNull();
   });
 });

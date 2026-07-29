@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
+import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
 
@@ -453,13 +454,28 @@ export async function PUT(
       );
     }
 
+    // The pin wins over address-derived coordinates (see POST) whenever
+    // this update sets a map link — including when it only re-saves the
+    // link the property already had.
+    if (typeof updateData.google_map_link === "string" && updateData.google_map_link) {
+      try {
+        const pinned = await resolveCoordinatesFromMapLink(updateData.google_map_link);
+        if (pinned) {
+          updateData.latitude = pinned.latitude;
+          updateData.longitude = pinned.longitude;
+        }
+      } catch (pinErr) {
+        console.warn("[PUT /api/properties/[id]] Map-pin coordinates failed:", pinErr);
+      }
+    }
+
     // Best-effort geocode when the location text changed but this update
     // carries no coordinates (typed edit, WhatsApp-intake correction, etc.)
     // so radius search keeps covering the property. Never blocks the save.
     if (
       typeof updateData.location === "string" &&
-      latitude == null &&
-      longitude == null &&
+      updateData.latitude == null &&
+      updateData.longitude == null &&
       hasGoogleMapsKey()
     ) {
       try {

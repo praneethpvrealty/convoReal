@@ -5,8 +5,13 @@ import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-hel
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
 import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 import { boundingBox, haversineKm } from "@/lib/geo";
-import { localityStemProbe, textContainsLocality } from "@/lib/locality-match";
+import {
+  LOCALITY_MATCH_FIELDS,
+  localityStemProbe,
+  rowMatchesLocality,
+} from "@/lib/locality-match";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
+import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
 
@@ -71,6 +76,22 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
   return Promise.all(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rows.map(async (row: any) => {
+      try {
+        // The row's own pin, when it has one, is exact and free.
+        const pinned = row.google_map_link
+          ? await resolveCoordinatesFromMapLink(row.google_map_link)
+          : null;
+        if (pinned) {
+          await supabase
+            .from("properties")
+            .update({ latitude: pinned.latitude, longitude: pinned.longitude })
+            .eq("id", row.id);
+          return { ...row, latitude: pinned.latitude, longitude: pinned.longitude };
+        }
+      } catch (pinErr) {
+        console.warn("[GET /api/properties] Map-pin coordinates failed:", pinErr);
+      }
+
       const address = [row.location, row.city, row.state]
         .filter((part: unknown) => typeof part === "string" && part.trim())
         .join(", ");
@@ -266,12 +287,7 @@ export async function GET(request: Request) {
         if (stem) probes.push(stem);
         for (const probe of probes) {
           const term = `%${probe}%`;
-          exactParts.push(
-            `locality_canonical.ilike.${term}`,
-            `sublocality.ilike.${term}`,
-            `location.ilike.${term}`,
-            `project.ilike.${term}`
-          );
+          exactParts.push(...LOCALITY_MATCH_FIELDS.map((field) => `${field}.ilike.${term}`));
         }
       }
 
@@ -354,10 +370,7 @@ export async function GET(request: Request) {
 
         const isExact =
           (nearPlaceId && row.locality_place_id === nearPlaceId) ||
-          (nearLabel &&
-            [row.locality_canonical, row.sublocality, row.location, row.project].some(
-              (f: string | null) => f && textContainsLocality(f, nearLabel)
-            ));
+          (!!nearLabel && rowMatchesLocality(row, nearLabel));
 
         if (!isExact && (distanceKm === null || distanceKm > radiusKm)) return [];
 
@@ -615,6 +628,22 @@ export async function POST(request: Request) {
       locality_canonical:
         typeof locality_canonical === "string" ? locality_canonical.trim() || null : null,
     };
+
+    // A map pin is an exact point; coordinates derived from address text
+    // are a guess that lands on the wrong same-named locality often
+    // enough to matter. The pin therefore wins outright, including over
+    // the locality centroid autocomplete supplies.
+    if (insertData.google_map_link) {
+      try {
+        const pinned = await resolveCoordinatesFromMapLink(insertData.google_map_link);
+        if (pinned) {
+          insertData.latitude = pinned.latitude;
+          insertData.longitude = pinned.longitude;
+        }
+      } catch (pinErr) {
+        console.warn("[POST /api/properties] Map-pin coordinates failed:", pinErr);
+      }
+    }
 
     // Best-effort geocode when the location was typed rather than picked
     // from autocomplete (e.g. WhatsApp-intake listings) so radius search

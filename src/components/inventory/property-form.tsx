@@ -63,7 +63,10 @@ import {
   CirclePlay,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
 } from 'lucide-react';
+import { haversineKm } from '@/lib/geo';
+import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
@@ -1101,6 +1104,18 @@ export function PropertyForm({
     place_id: string;
     canonical: string;
   } | null>(null);
+  // The pasted pin and the picked locality should describe the same
+  // place. When they don't, one of them is wrong — usually a same-named
+  // locality the address geocoder picked in the wrong part of town — and
+  // silently keeping both is what drops a listing out of radius search.
+  const mapPinDrift = useMemo(() => {
+    const link = googleMapLink.trim();
+    const pin = link ? extractCoordinatesFromMapUrl(link) : null;
+    if (!pin || !geoPick) return null;
+    const km = haversineKm(geoPick.latitude, geoPick.longitude, pin.latitude, pin.longitude);
+    return km > 1 ? km : null;
+  }, [googleMapLink, geoPick]);
+
   const googleSessionRef = useRef<string | null>(null);
   const googleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const googleSeqRef = useRef(0);
@@ -3732,6 +3747,16 @@ export function PropertyForm({
                         onChange={(e) => setGoogleMapLink(e.target.value)}
                         placeholder="e.g. https://maps.google.com/?q=..."
                       />
+                      {mapPinDrift !== null && (
+                        <p className="flex items-start gap-1.5 text-[11px] text-amber-400">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                          <span>
+                            This pin sits {mapPinDrift.toFixed(1)} km from the selected locality
+                            {geoPick?.canonical ? ` (${geoPick.canonical})` : ''}. The pin wins on
+                            save — fix the link or re-pick the locality if that&apos;s the wrong one.
+                          </span>
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5 col-span-2">
