@@ -9,6 +9,7 @@ import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ProfileEditSheet } from '@/components/profile-edit-sheet';
 import { SubscriptionCard } from '@/components/subscription-card';
+import { UpdateStatus } from '@/components/update-status';
 import { Avatar, SectionLabel } from '@/components/ui';
 import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
@@ -143,6 +144,9 @@ export default function MoreScreen() {
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
         <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}>Sign out</Text>
       </Pressable>
+
+      <SectionLabel text="App version" style={{ marginTop: spacing.sm }} />
+      <UpdateStatus />
 
       <Text style={[styles.footer, { color: colors.textFaint }]}>
         ConvoReal companion · v{Constants.expoConfig?.version ?? '0.1.0'}
