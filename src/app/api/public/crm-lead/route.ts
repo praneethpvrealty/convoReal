@@ -6,11 +6,15 @@ import { findOrCreateContact } from '@/lib/contacts/find-or-create';
 import { assignTagsToContact } from '@/app/api/leads/email-webhook/db-utils';
 
 // POST /api/public/crm-lead
-// ConvoReal's OWN prospect funnel (marketing site). A real-estate pro
-// interested in the CRM fills the qualification form; they're captured
-// as a tagged contact in ConvoReal's master account (dogfooding — we
-// run our sales pipeline on our own product) and handed off to sales
-// on WhatsApp.
+// ConvoReal's OWN prospect funnel. A real-estate pro interested in the
+// CRM qualifies themselves; they're captured as a tagged contact in
+// ConvoReal's master account (dogfooding — we run our sales pipeline on
+// our own product) and handed off to sales on WhatsApp.
+//
+// Two entry points feed it: the marketing site, and the lead bot on
+// every customer showcase — those portals are browsed by agents and
+// builders all day, and a co-broker poking around someone's inventory
+// is exactly our buyer. `source` keeps the two apart in the pipeline.
 //
 // Target account + sales number come from env, never hardcoded:
 //   CONVOREAL_MASTER_ACCOUNT_ID — account prospects land in.
@@ -40,6 +44,9 @@ export async function POST(request: NextRequest) {
       city?: string;
       team_size?: string;
       session_key?: string;
+      source?: string;
+      /** Showcase the prospect was browsing when the bot qualified them. */
+      source_account_id?: string;
     } | null;
 
     const name = (body?.name || '').trim().slice(0, 120);
@@ -48,6 +55,11 @@ export async function POST(request: NextRequest) {
     const city = (body?.city || '').trim().slice(0, 80);
     const teamSize = (body?.team_size || '').trim().slice(0, 40);
     const sessionKey = (body?.session_key || '').slice(0, 64);
+    const fromShowcase = body?.source === 'showcase';
+    const sourceAccountId =
+      fromShowcase && body?.source_account_id && UUID_RE.test(body.source_account_id)
+        ? body.source_account_id
+        : null;
 
     if (!rawPhone) {
       return NextResponse.json({ error: 'Please share your WhatsApp number.' }, { status: 400 });
@@ -94,7 +106,7 @@ export async function POST(request: NextRequest) {
         phone,
         name: name || 'CRM Prospect',
         classification: roleToClassification(role),
-        referrer: 'ConvoReal Website',
+        referrer: fromShowcase ? 'ConvoReal Showcase Bot' : 'ConvoReal Website',
         company: role || null,
       });
       contactId = result.contactId;
@@ -105,6 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Tag for easy pipeline filtering.
     const tags = ['ConvoReal Prospect'];
+    if (fromShowcase) tags.push('Showcase Referral');
     if (role) tags.push(role);
     if (city) tags.push(city);
     try {
@@ -113,9 +126,22 @@ export async function POST(request: NextRequest) {
       console.error('[POST /api/public/crm-lead] tagging failed (non-fatal):', err);
     }
 
-    // Qualification note.
+    // Qualification note. A showcase prospect is worth more with the
+    // portal they came from attached — that's a live reference account
+    // and often a co-broking relationship sales can open with.
+    let foundOn: string | null = null;
+    if (sourceAccountId) {
+      const { data: sourceAccount } = await db
+        .from('accounts')
+        .select('name')
+        .eq('id', sourceAccountId)
+        .maybeSingle();
+      foundOn = (sourceAccount?.name as string | undefined) || sourceAccountId;
+    }
+
     const noteLines = [
-      'New ConvoReal website prospect:',
+      fromShowcase ? 'New ConvoReal prospect (via a customer showcase):' : 'New ConvoReal website prospect:',
+      foundOn ? `• Found on: ${foundOn}'s showcase` : null,
       role ? `• Role: ${role}` : null,
       city ? `• City: ${city}` : null,
       teamSize ? `• Team size: ${teamSize}` : null,

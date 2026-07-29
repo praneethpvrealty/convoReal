@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { findOrCreateContact } from '@/lib/contacts/find-or-create';
+import { captureVisitorLead } from '@/lib/showcase/visitor-lead';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -158,8 +158,7 @@ export async function POST(request: NextRequest) {
 /**
  * Best-effort Buyer lead capture: attributes the contact to the
  * property's managing agent (falling back to the account owner) and
- * links the property they asked about. Swallows all errors — a lead
- * write must never break the buyer's answer.
+ * links the property they asked about.
  */
 async function captureLead(
   db: ReturnType<typeof supabaseAdmin>,
@@ -169,58 +168,14 @@ async function captureLead(
   question: string,
   sessionKey: string,
 ): Promise<void> {
-  try {
-    let userId = property.user_id;
-    if (!userId) {
-      const { data: account } = await db
-        .from('accounts')
-        .select('owner_user_id')
-        .eq('id', property.account_id)
-        .maybeSingle();
-      userId = account?.owner_user_id ?? null;
-    }
-    if (!userId) return;
-
-    // Note: `source` is deliberately not set — find-or-create overwrites
-    // it on every call, which would clobber an existing contact's
-    // original attribution (e.g. a prior "Website Showcase" inquiry) each
-    // time they ask another question. `referrer` is write-once on create.
-    const { contactId } = await findOrCreateContact(db, {
-      accountId: property.account_id,
-      userId,
-      phone,
-      name: name?.trim() || 'Showcase Visitor',
-      classification: 'Buyer',
-      referrer: 'Showcase Q&A',
-      lastInquiredPropertyId: property.id,
-    });
-
-    // Append the actual question as a note (insert, so repeat questions
-    // accumulate rather than overwrite) — the agent sees what the buyer
-    // wanted to know.
-    await db.from('contact_notes').insert({
-      account_id: property.account_id,
-      contact_id: contactId,
-      user_id: userId,
-      note_text: `Showcase Q&A — asked about "${property.title}": "${question.slice(0, 280)}"`,
-    });
-
-    // Retroactive stitching: the buyer just revealed who they are, so
-    // their earlier "Anonymous Guest" Pulse events from the same browser
-    // session can now show up under their name too. Same pattern as the
-    // ref/v= stitching in /api/public/showcase-events. Only null rows
-    // are touched — a session already attributed to another contact is
-    // never rewritten.
-    const { error: stitchError } = await db
-      .from('showcase_events')
-      .update({ contact_id: contactId })
-      .eq('account_id', property.account_id)
-      .eq('session_key', sessionKey)
-      .is('contact_id', null);
-    if (stitchError) {
-      console.error('[POST /api/public/ask] Pulse session stitch failed (non-fatal):', stitchError);
-    }
-  } catch (err) {
-    console.error('[POST /api/public/ask] lead capture failed (non-fatal):', err);
-  }
+  await captureVisitorLead(db, {
+    accountId: property.account_id,
+    userId: property.user_id,
+    phone,
+    name,
+    referrer: 'Showcase Q&A',
+    propertyId: property.id,
+    sessionKey,
+    note: `Showcase Q&A — asked about "${property.title}": "${question.slice(0, 280)}"`,
+  });
 }

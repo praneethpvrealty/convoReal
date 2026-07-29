@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/input';
 import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
+import { ShowcaseLeadBot } from '@/components/showcase/showcase-lead-bot';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
 import {
   PropertyRatingBar,
@@ -754,6 +755,15 @@ export function ShowcaseView({
     const cleanPhone = phone.replace(/\D/g, '') || '919876543210';
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
+
+  // Account-level handoff for the assistant, which talks about the
+  // catalog rather than any one listing.
+  const catalogWhatsAppLink = useMemo(() => {
+    const cleanPhone = (displayPhone || '').replace(/\D/g, '');
+    if (!cleanPhone) return undefined;
+    const message = `Hi! I was browsing your property showcase and would like some help.`;
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  }, [displayPhone]);
 
   // Check if selected property is land/plot type
   const isSelectedPropertyLand = useMemo(() => {
@@ -1569,21 +1579,32 @@ export function ShowcaseView({
           <div className="absolute -top-20 -right-20 w-60 h-60 bg-primary/10 rounded-full blur-[80px] pointer-events-none" />
           <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-[70px] pointer-events-none" />
           
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="max-w-2xl text-left">
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 items-center gap-6">
+            <div className="text-left">
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 Can&apos;t find your ideal property?
               </h2>
               <p className="mt-2 text-slate-400 text-sm leading-relaxed font-medium">
-                Tell us your specific requirements, and our team will match you with exclusive, off-market listings. Get notified directly on WhatsApp!
+                Tell the assistant what you&apos;re after — it will pull matches from this catalog straight away, and the team will follow up with the off-market ones on WhatsApp.
               </p>
+              <Button
+                onClick={openRequirementsModal}
+                className="mt-4 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-6 py-5 rounded-xl hover:scale-102 hover:shadow-primary/30 transition-all shadow-lg shadow-primary/25 cursor-pointer"
+              >
+                Submit Requirements
+              </Button>
             </div>
-            <Button
-              onClick={openRequirementsModal}
-              className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-6 py-5 rounded-xl hover:scale-102 hover:shadow-primary/30 transition-all shadow-lg shadow-primary/25 cursor-pointer shrink-0"
-            >
-              Submit Requirements
-            </Button>
+            {!isAgentMode && (
+              <ShowcaseLeadBot
+                variant="inline"
+                accountId={accountId}
+                properties={properties}
+                whatsappLink={catalogWhatsAppLink}
+                referrerContactId={referrerContactId}
+                onSelectProperty={openPropertyModal}
+                onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
+              />
+            )}
           </div>
         </div>
       </main>
@@ -2505,6 +2526,21 @@ export function ShowcaseView({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Floating assistant — buyers qualify themselves and see matches;
+          agents and builders branch into the ConvoReal prospect funnel.
+          Hidden on clean-view (co-broker) links, like every other form. */}
+      {!isAgentMode && (
+        <ShowcaseLeadBot
+          variant="floating"
+          accountId={accountId}
+          properties={properties}
+          whatsappLink={catalogWhatsAppLink}
+          referrerContactId={referrerContactId}
+          onSelectProperty={openPropertyModal}
+          onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
+        />
       )}
     </div>
   );
