@@ -122,6 +122,13 @@ export default function PropertyDetailScreen() {
     : property.land_area
       ? `${property.land_area} ${property.land_area_unit || ''}`.trim()
       : null;
+  // Web parity: land area is its own spec whenever it isn't already what
+  // the Area tile shows — a 2500 Sq.Ft. house on an 8000 Sq.Ft. plot
+  // must surface both, not bury the plot in the description.
+  const landArea =
+    property.area_sqft && property.land_area
+      ? `${property.land_area} ${property.land_area_unit || 'Sq.Ft.'}`
+      : null;
   const priceWords = equivalentInr(
     property.listing_type === 'Rent' ? property.rent_per_month : property.price
   );
@@ -143,6 +150,7 @@ export default function PropertyDetailScreen() {
       ? { icon: 'location-outline' as const, label: 'Locality', value: property.sublocality }
       : null,
     area ? { icon: 'resize-outline' as const, label: 'Area', value: area } : null,
+    landArea ? { icon: 'map-outline' as const, label: 'Land Area', value: landArea } : null,
     property.facing_direction
       ? { icon: 'compass-outline' as const, label: 'Facing', value: property.facing_direction }
       : null,
@@ -904,9 +912,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
   },
   title: { fontSize: 21, fontFamily: fonts.extrabold, lineHeight: 27 },
-  specGrid: { flexDirection: 'row', gap: spacing.sm },
+  // Wrapping, not one squeezed row: with Land Area a listing can carry
+  // five-plus specs, and flex: 1 tiles in a no-wrap row crush each other
+  // until the values truncate. minWidth caps phones at ~3 per row.
+  specGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   spec: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '22%',
+    minWidth: 96,
     alignItems: 'center',
     gap: 3,
     borderRadius: radius.md,
