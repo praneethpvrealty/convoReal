@@ -37,7 +37,7 @@ export function ConvoRealLoader({
   const x = useSharedValue(0);
   const h = Math.ceil(size * 1.25);
   // A measurement taken at another font size is stale — fall back to 0
-  // so the next layout pass measures again.
+  // so the measurer's next layout pass supplies the right one.
   const w = measured?.size === size ? measured.width : 0;
 
   useEffect(() => {
@@ -48,29 +48,45 @@ export function ConvoRealLoader({
 
   const anim = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
 
+  const textStyle = {
+    fontSize: size,
+    fontFamily: f.extrabold,
+    letterSpacing: -0.02 * size,
+    lineHeight: h,
+    color: colors.primary,
+  } as const;
+
+  // Invisible copy that owns measurement for the whole lifetime — NOT
+  // just the first layout. The boot screen mounts this loader while the
+  // custom fonts are still loading, so the first layout measures the
+  // narrower system-fallback glyphs; freezing that width left the real
+  // ExtraBold render wrapping inside a too-small mask box, and the
+  // one-line-tall mask clipped it to "ConvoRe". Re-measuring on every
+  // layout change means the font swap simply resizes the mask.
+  // The wide zero-height frame matters: Yoga clamps an absolute child
+  // to its parent's width, and the parent is the mask-sized box — a
+  // clamped measurer would just echo the stale width back forever.
+  // (+2 slack: Android's reported width can land a hair under the real
+  // glyph advance.)
+  const measurer = (
+    <View pointerEvents="none" style={{ position: 'absolute', width: 9999, height: 0, opacity: 0 }}>
+      <Text
+        numberOfLines={1}
+        style={[textStyle, { alignSelf: 'flex-start' }]}
+        onLayout={(e) => {
+          const width = Math.ceil(e.nativeEvent.layout.width) + 2;
+          setMeasured((prev) =>
+            prev?.size === size && prev.width === width ? prev : { size, width },
+          );
+        }}
+      >
+        ConvoReal
+      </Text>
+    </View>
+  );
+
   const wordmark = (
-    <Text
-      numberOfLines={1}
-      ellipsizeMode="clip"
-      // Measured once, from the unconstrained first render. The masked
-      // render puts this same Text inside a box of exactly `w`, so
-      // re-measuring there would feed its own width back in; and the
-      // reported layout width can land a hair under the real glyph
-      // advance, which breaks the single word onto a second line that
-      // the one-line-tall mask then clips ("ConvoRe"). Hence the guard,
-      // the slack, and numberOfLines.
-      onLayout={(e) => {
-        if (w) return;
-        setMeasured({ size, width: Math.ceil(e.nativeEvent.layout.width) + 2 });
-      }}
-      style={{
-        fontSize: size,
-        fontFamily: f.extrabold,
-        letterSpacing: -0.02 * size,
-        lineHeight: h,
-        color: colors.primary,
-      }}
-    >
+    <Text numberOfLines={1} ellipsizeMode="clip" style={textStyle}>
       ConvoReal
     </Text>
   );
@@ -80,6 +96,7 @@ export function ConvoRealLoader({
   if (reduced || !w) {
     return (
       <View accessibilityLabel={label} style={style}>
+        {measurer}
         {wordmark}
       </View>
     );
@@ -87,6 +104,7 @@ export function ConvoRealLoader({
 
   return (
     <View accessibilityLabel={label} style={style}>
+      {measurer}
       <MaskedView style={{ width: w, height: h }} maskElement={wordmark}>
         <View style={{ width: w, height: h, overflow: 'hidden' }}>
           <AnimatedGradient

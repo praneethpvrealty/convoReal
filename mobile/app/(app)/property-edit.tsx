@@ -349,11 +349,7 @@ function EditForm({ property }: { property: Property }) {
               keyboardType="numeric"
               placeholder={num(price) ? `e.g. ${num(price)}` : 'e.g. 8500000'}
             />
-            {num(soldPrice) ? (
-              <Text style={[styles.amountHint, { color: colors.primary }]}>
-                {formatInr(num(soldPrice))}
-              </Text>
-            ) : null}
+            <PriceHint value={soldPrice} />
             <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
               Optional — improves your area’s price accuracy. Never shown to buyers.
             </Text>
