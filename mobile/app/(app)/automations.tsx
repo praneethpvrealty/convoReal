@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useState } from 'react';
@@ -17,7 +16,7 @@ import { Banner, EmptyState } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
 
 export default function AutomationsScreen() {
