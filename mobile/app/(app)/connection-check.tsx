@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { apiBase } from '@/lib/api';
 import { ENV } from '@/lib/env';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 
 interface CheckRow {
   label: string;

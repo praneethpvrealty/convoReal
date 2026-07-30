@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Link, Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -39,7 +38,7 @@ function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
 }
 
 export default function BroadcastsScreen() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['broadcasts'],
     queryFn: async () => {

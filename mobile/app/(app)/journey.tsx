@@ -13,7 +13,7 @@ import {
 import { Avatar, EmptyState } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { JourneyItem, JourneyStage } from '@/lib/types';
 
 /**
