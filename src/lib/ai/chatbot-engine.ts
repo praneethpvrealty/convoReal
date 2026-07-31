@@ -2124,14 +2124,18 @@ export async function processOwnerChatbotMessage(
 const TALK_TO_AGENT_LIMIT_REPLY_ID = 'talk_to_agent_limit';
 
 async function loadAccountContactInfo(accountId: string): Promise<{ phone: string; businessName: string }> {
-  const { data } = await supabaseAdmin()
-    .from('showcase_settings')
-    .select('contact_phone, website_name')
-    .eq('account_id', accountId)
-    .maybeSingle();
+  const admin = supabaseAdmin();
+  const [settings, account] = await Promise.all([
+    admin
+      .from('showcase_settings')
+      .select('contact_phone')
+      .eq('account_id', accountId)
+      .maybeSingle(),
+    admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
+  ]);
   return {
-    phone: data?.contact_phone ?? '',
-    businessName: data?.website_name ?? '',
+    phone: settings.data?.contact_phone ?? '',
+    businessName: account.data?.name ?? '',
   };
 }
 

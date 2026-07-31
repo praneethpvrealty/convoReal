@@ -46,7 +46,30 @@ Since your domain is registered on GoDaddy, you will manage your DNS records in 
 
 ---
 
-## Step 3: Wait for DNS Propagation
+## Step 3: Add the Wildcard Record for Showcase Subdomains
+
+Steps 1 and 2 cover `convoreal.com` and `www.convoreal.com` only. They do **not** make per-account showcase links work.
+
+Settings → Showcase lets each account claim a subdomain, and the app then promises the tenant a link like `https://aryavartaventures.convoreal.com`. The application side of that is already built: `resolveSubdomainFromHost()` pulls the label out of the `Host` header and `cachedResolveAccountFromSubdomain()` maps it to an account (both in `src/lib/showcase/public-data.ts`). Nothing needs deploying. But the browser has to reach the app first, and a hostname nobody created does not resolve — the link fails before any of that code runs, with a DNS error rather than a page from the app.
+
+One wildcard record covers every account, present and future:
+
+1. In your DNS provider, add a record alongside the `www` one:
+   - Type: **CNAME**
+   - Name: `*`
+   - Value: the same target `www` uses (e.g. `cname.vercel-dns.com`).
+2. **If the domain sits behind Cloudflare**, set that record to **DNS only** (grey cloud). Cloudflare proxies wildcard records on Enterprise plans only; on any other plan a proxied `*` silently fails to route.
+3. Register the wildcard with the host as well — DNS alone is not enough, since the host has to recognise the hostname and hold a certificate for it:
+   - **Vercel**: Settings → Domains → add `*.convoreal.com`. Unless the domain uses Vercel's nameservers, Vercel will ask for a `_acme-challenge` TXT record before it can issue the wildcard certificate.
+   - **Hostinger**: add the wildcard domain to the site so the panel provisions a matching SSL certificate.
+
+Verify with `dig aryavartaventures.convoreal.com` (or any made-up label — a wildcard answers for all of them). No answer means the record is missing or still propagating; an answer plus a certificate warning means step 3 has not been completed.
+
+Some labels never reach a tenant showcase no matter what DNS says: `www`, `app`, `admin` and `api` are reserved in `resolveSubdomainFromHost()` and fall through to the normal site, and a label no account has claimed falls back to the default account.
+
+---
+
+## Step 4: Wait for DNS Propagation
 
 DNS changes are not instantaneous and can take anywhere from **5 minutes to 24 hours** to propagate across the internet. 
 

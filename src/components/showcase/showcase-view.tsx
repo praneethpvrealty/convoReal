@@ -70,6 +70,8 @@ interface ShowcaseViewProps {
   properties: Property[];
   settings: ShowcaseSettings | null;
   accountId: string;
+  /** The brokerage name (`accounts.name`), shown as the site title. */
+  siteName?: string | null;
   referrerContactId?: string;
   referrerPhone?: string;
   initialPropertyId?: string;
@@ -108,6 +110,7 @@ export function ShowcaseView({
   properties,
   settings,
   accountId,
+  siteName: siteNameProp,
   referrerContactId,
   referrerPhone,
   initialPropertyId,
@@ -750,7 +753,7 @@ export function ShowcaseView({
   };
 
   // Fallback defaults if settings don't exist yet
-  const siteName = settings?.website_name || BRANDING.name;
+  const siteName = siteNameProp || BRANDING.name;
   const displayPhone = referrerPhone || settings?.contact_phone || '';
 
   const getWhatsAppLink = (property: Property) => {

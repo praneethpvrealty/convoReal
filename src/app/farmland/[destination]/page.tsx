@@ -79,7 +79,7 @@ export default async function FarmlandDestinationPage({
   if (!accountId) accountId = await cachedFetchFallbackAccount();
   if (!accountId) notFound();
 
-  const { settings, properties, agents, profiles } =
+  const { settings, accountName, properties, agents, profiles } =
     await cachedFetchShowcaseData(accountId, false);
 
   const destinationProperties = toPublicProperties(
@@ -111,6 +111,7 @@ export default async function FarmlandDestinationPage({
         properties={destinationProperties}
         settings={settings}
         accountId={accountId}
+        siteName={accountName}
         hero={{
           title: destination.headline,
           highlight: destination.name,

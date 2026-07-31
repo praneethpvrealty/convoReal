@@ -100,7 +100,7 @@ export default async function PropertyPage({
 
   const isAgentMode =
     resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
-  const { settings, properties, agents, profiles } =
+  const { settings, accountName, properties, agents, profiles } =
     await cachedFetchShowcaseData(property.account_id, isAgentMode);
 
   const propertiesList = properties.some((p) => p.id === property.id)
@@ -115,7 +115,7 @@ export default async function PropertyPage({
 
   const origin = await resolveRequestOrigin();
   const canonicalUrl = `${origin}/property/${canonicalSlug}`;
-  const siteName = settings?.website_name || BRANDING.name;
+  const siteName = accountName || BRANDING.name;
 
   return (
     <>
@@ -146,6 +146,7 @@ export default async function PropertyPage({
         properties={publicProperties}
         settings={settings}
         accountId={property.account_id}
+        siteName={accountName}
         initialPropertyId={property.id}
         initialAgentMode={isAgentMode}
         visitorRef={resolvedParams.v}

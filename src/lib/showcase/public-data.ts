@@ -6,6 +6,11 @@ import type { Property, ShowcaseSettings } from '@/types';
 
 export interface ShowcaseData {
   settings: ShowcaseSettings | null;
+  /** The brokerage's name, from `accounts.name` — the one place it is
+   *  stored. Showcase settings used to carry a second copy of it in
+   *  `website_name`, which drifted from this one and split the brand
+   *  across client-facing surfaces. */
+  accountName: string | null;
   properties: Property[];
   agents: Array<{
     id: string;
@@ -127,7 +132,7 @@ export const cachedFetchFallbackAccount = unstable_cache(
 // aggregate read per render buys the whole catalogue staying fresh.
 const showcaseContentVersion = cache(async (accountId: string) => {
   const admin = supabaseAdmin();
-  const [propertiesResult, settingsResult] = await Promise.all([
+  const [propertiesResult, settingsResult, accountResult] = await Promise.all([
     admin
       .from('properties')
       .select('updated_at', { count: 'exact' })
@@ -141,12 +146,18 @@ const showcaseContentVersion = cache(async (accountId: string) => {
       .select('updated_at')
       .eq('account_id', accountId)
       .maybeSingle(),
+    admin
+      .from('accounts')
+      .select('updated_at')
+      .eq('id', accountId)
+      .maybeSingle(),
   ]);
 
   return [
     propertiesResult.count ?? -1,
     propertiesResult.data?.[0]?.updated_at ?? '',
     settingsResult.data?.updated_at ?? '',
+    accountResult.data?.updated_at ?? '',
   ].join('|');
 });
 
@@ -157,55 +168,66 @@ const fetchShowcaseData = async (
   const admin = supabaseAdmin();
 
   if (isAgentMode) {
-    const [settingsResult, propertiesResult] = await Promise.all([
-      admin
-        .from('showcase_settings')
-        .select('*')
-        .eq('account_id', accountId)
-        .maybeSingle(),
-      admin
-        .from('properties')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('is_published', true)
-        .eq('status', 'Available')
-        .order('created_at', { ascending: false }),
-    ]);
+    const [settingsResult, accountResult, propertiesResult] = await Promise.all(
+      [
+        admin
+          .from('showcase_settings')
+          .select('*')
+          .eq('account_id', accountId)
+          .maybeSingle(),
+        admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
+        admin
+          .from('properties')
+          .select('*')
+          .eq('account_id', accountId)
+          .eq('is_published', true)
+          .eq('status', 'Available')
+          .order('created_at', { ascending: false }),
+      ]
+    );
     return {
       settings: settingsResult.data || null,
+      accountName: accountResult.data?.name || null,
       properties: propertiesResult.data || [],
       agents: [],
       profiles: [],
     };
   }
 
-  const [settingsResult, propertiesResult, agentsResult, profilesResult] =
-    await Promise.all([
-      admin
-        .from('showcase_settings')
-        .select('*')
-        .eq('account_id', accountId)
-        .maybeSingle(),
-      admin
-        .from('properties')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('is_published', true)
-        .eq('status', 'Available')
-        .order('created_at', { ascending: false }),
-      admin
-        .from('contacts')
-        .select('id, name, phone, email')
-        .eq('account_id', accountId)
-        .eq('classification', 'Agent'),
-      admin
-        .from('profiles')
-        .select('user_id, full_name, email, avatar_url')
-        .eq('account_id', accountId),
-    ]);
+  const [
+    settingsResult,
+    accountResult,
+    propertiesResult,
+    agentsResult,
+    profilesResult,
+  ] = await Promise.all([
+    admin
+      .from('showcase_settings')
+      .select('*')
+      .eq('account_id', accountId)
+      .maybeSingle(),
+    admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
+    admin
+      .from('properties')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('is_published', true)
+      .eq('status', 'Available')
+      .order('created_at', { ascending: false }),
+    admin
+      .from('contacts')
+      .select('id, name, phone, email')
+      .eq('account_id', accountId)
+      .eq('classification', 'Agent'),
+    admin
+      .from('profiles')
+      .select('user_id, full_name, email, avatar_url')
+      .eq('account_id', accountId),
+  ]);
 
   return {
     settings: settingsResult.data || null,
+    accountName: accountResult.data?.name || null,
     properties: propertiesResult.data || [],
     agents: agentsResult.data || [],
     profiles: profilesResult.data || [],
