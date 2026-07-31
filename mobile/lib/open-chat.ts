@@ -17,8 +17,14 @@ export interface OpenChatOutcome {
  *  when the contact has never been messaged. Failures come back for the
  *  caller to surface: this runs outside any component, so it has no
  *  tree of its own to render a dialog into. */
-export async function openContactChat(contact: Contact): Promise<OpenChatOutcome> {
+export async function openContactChat(
+  contact: Contact,
+  opts?: { draftText?: string }
+): Promise<OpenChatOutcome> {
   haptic.tap();
+  const draftParam = opts?.draftText
+    ? `?draftText=${encodeURIComponent(opts.draftText)}`
+    : '';
   const { data } = await supabase
     .from('conversations')
     .select('id')
@@ -27,7 +33,7 @@ export async function openContactChat(contact: Contact): Promise<OpenChatOutcome
     .limit(1)
     .maybeSingle();
   if (data?.id) {
-    router.push(`/(app)/conversation/${data.id}`);
+    router.push(`/(app)/conversation/${data.id}${draftParam}`);
     return { ok: true };
   }
   const { profile, session } = useAuthStore.getState();
@@ -46,6 +52,6 @@ export async function openContactChat(contact: Contact): Promise<OpenChatOutcome
     return { ok: false, error: friendlyError(error.message) };
   }
   queryClient.invalidateQueries({ queryKey: ['conversations'] });
-  router.push(`/(app)/conversation/${conv.id}`);
+  router.push(`/(app)/conversation/${conv.id}${draftParam}`);
   return { ok: true };
 }
