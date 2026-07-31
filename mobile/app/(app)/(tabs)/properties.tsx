@@ -3,10 +3,11 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Link, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
+  Keyboard,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -41,6 +42,7 @@ import {
 import { openContactChat } from '@/lib/open-chat';
 import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
+import { isStructuredQuery } from '@/lib/search-intent';
 import {
   nearFromLocality,
   usePropertySearch,
@@ -372,6 +374,7 @@ export default function PropertiesScreen() {
           data={properties}
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          keyboardDismissMode="on-drag"
           onEndReached={() => hasNextPage && fetchNextPage()}
           onEndReachedThreshold={0.4}
           refreshControl={
@@ -499,6 +502,10 @@ function NearMeChip({
  * queries /api/maps/autocomplete; picking a suggestion resolves
  * place-details and anchors a radius search. Free-text search still
  * works exactly as before (submit / just stop typing).
+ *
+ * The panel floats over the results, so it closes whenever the keyboard
+ * does — submit, a drag on the list, the Android back button — and it
+ * never opens for a query the search parser owns rather than Places.
  */
 function LocalitySearchBox() {
   const { colors, fonts: f, dark } = useTheme();
@@ -506,7 +513,12 @@ function LocalitySearchBox() {
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
 
-  const enabled = focused && search.trim().length >= 2;
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => setFocused(false));
+    return () => sub.remove();
+  }, []);
+
+  const enabled = focused && search.trim().length >= 2 && !isStructuredQuery(search);
   const { data: suggestions } = useQuery({
     queryKey: ['locality-suggest', search.trim()],
     enabled,
@@ -550,6 +562,11 @@ function LocalitySearchBox() {
         placeholder='Area, project, or "2bhk under 80L"'
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
+        returnKeyType="search"
+        onSubmitEditing={() => {
+          setFocused(false);
+          Keyboard.dismiss();
+        }}
       />
 
       {enabled && suggestions && suggestions.length > 0 ? (
