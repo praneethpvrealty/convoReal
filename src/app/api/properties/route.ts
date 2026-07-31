@@ -492,6 +492,7 @@ export async function POST(request: Request) {
       nearby_highlights,
       owner_contact_id,
       google_map_link,
+      location_privacy,
       rental_income,
       roi,
       floor_tenancies,
@@ -604,6 +605,8 @@ export async function POST(request: Request) {
       images: Array.isArray(images) ? images.filter(img => typeof img === "string") : [],
       documents: Array.isArray(documents) ? documents.filter(d => typeof d === "string") : [],
       google_map_link: typeof google_map_link === "string" ? google_map_link.trim() : null,
+      location_privacy:
+        location_privacy === "exact" || location_privacy === "locality" ? location_privacy : null,
       rental_income: typeof rental_income === "number" ? rental_income : null,
       roi: typeof roi === "number" ? roi : null,
       floor_tenancies: sanitizeFloorTenancies(floor_tenancies),

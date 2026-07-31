@@ -92,6 +92,7 @@ import {
   isLandType,
   isApartmentType,
 } from '@/lib/inventory/property-options';
+import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
 
 interface PropertyFormProps {
   open: boolean;
@@ -213,6 +214,7 @@ export function PropertyForm({
   const [documents, setDocuments] = useState<Array<{ url: string; title: string }>>([{ url: '', title: '' }]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [googleMapLink, setGoogleMapLink] = useState('');
+  const [locationPrivacy, setLocationPrivacy] = useState<'' | 'exact' | 'locality'>('');
   const [notes, setNotes] = useState('');
 
   // Document Requests management
@@ -377,6 +379,8 @@ export function PropertyForm({
   const hasCommercialFields = typeHasCommercialFields(type);
   const isLand = isLandType(type);
   const isApartment = isApartmentType(type);
+  const guardedByType = isGuardedType(type);
+  const locationGuarded = isLocationGuarded({ type, location_privacy: locationPrivacy || null });
 
   async function ensureLocalitiesLoaded() {
     if (!localitiesDb) {
@@ -1048,7 +1052,12 @@ export function PropertyForm({
         body: JSON.stringify({
           title: title.trim(),
           type,
-          location: [address.trim(), sublocality.trim(), city.trim(), stateVal.trim()].filter(Boolean).join(', ') || null,
+          location: [
+            locationGuarded ? '' : address.trim(),
+            sublocality.trim(),
+            city.trim(),
+            stateVal.trim(),
+          ].filter(Boolean).join(', ') || null,
           bedrooms: bedrooms.trim() ? Number(bedrooms) : null,
           bathrooms: bathrooms.trim() ? Number(bathrooms) : null,
           area: isLand ? (landArea.trim() ? Number(landArea) : null) : (areaSqft.trim() ? Number(areaSqft) : null),
@@ -1331,6 +1340,11 @@ export function PropertyForm({
         // distinguishes it) rather than adding a third toggle state.
         setListingSource(property.listing_source === 'agent' ? 'agent' : 'owner');
         setGoogleMapLink(property.google_map_link ?? '');
+        setLocationPrivacy(
+          property.location_privacy === 'exact' || property.location_privacy === 'locality'
+            ? property.location_privacy
+            : ''
+        );
         setNotes(property.notes ?? '');
         // Preserve saved coordinates unless the agent re-touches the location
         setGeoPick(
@@ -1429,6 +1443,7 @@ export function PropertyForm({
         setDocuments([{ url: '', title: '' }]);
         setSearchQuery('');
         setGoogleMapLink('');
+        setLocationPrivacy('');
         setNotes('');
         setGeoPick(null);
         setGoogleSuggestions([]);
@@ -2093,6 +2108,7 @@ export function PropertyForm({
         owner_contact_id: ownerContactId,
         listing_source: listingSource,
         google_map_link: googleMapLink.trim() || null,
+        location_privacy: locationPrivacy || null,
         rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
         roi: hasCommercialFields && roiValue !== null ? roiValue : null,
         // Server-side sanitizeFloorTenancies() drops empty rows and
@@ -3757,6 +3773,29 @@ export function PropertyForm({
                           </span>
                         </p>
                       )}
+                    </div>
+
+                    <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="prop-location-guard" className="text-slate-300 text-sm cursor-pointer">
+                          Guard exact location
+                        </Label>
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          {guardedByType
+                            ? 'On by default for this property type — buyers and co-brokers see locality only until you approve a reveal.'
+                            : 'Off by default for this property type — turn on to hide the street address, map pin and coordinates until you approve a reveal.'}
+                        </p>
+                      </div>
+                      <Switch
+                        id="prop-location-guard"
+                        checked={locationGuarded}
+                        onCheckedChange={(checked) => {
+                          const next = checked ? 'locality' : 'exact';
+                          setLocationPrivacy(
+                            (guardedByType ? 'locality' : 'exact') === next ? '' : next
+                          );
+                        }}
+                      />
                     </div>
 
                     <div className="space-y-1.5 col-span-2">

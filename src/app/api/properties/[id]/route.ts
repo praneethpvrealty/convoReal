@@ -116,6 +116,7 @@ export async function PUT(
       nearby_highlights,
       owner_contact_id,
       google_map_link,
+      location_privacy,
       rental_income,
       roi,
       floor_tenancies,
@@ -360,6 +361,10 @@ export async function PUT(
 
     if (google_map_link !== undefined) {
       updateData.google_map_link = typeof google_map_link === "string" ? google_map_link.trim() : null;
+    }
+    if (location_privacy !== undefined) {
+      updateData.location_privacy =
+        location_privacy === "exact" || location_privacy === "locality" ? location_privacy : null;
     }
 
     if (rental_income !== undefined) {
