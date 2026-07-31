@@ -5,11 +5,11 @@ import { radius, useTheme } from '@/lib/theme';
 
 /**
  * Platform-correct inline date/time picker. Android shows a dialog
- * that fires onChange exactly once (confirm or dismiss), so we close
- * on the first event. iOS renders an inline spinner that fires
- * onChange on EVERY scroll tick — auto-closing there collapsed the
- * picker under the user's first flick, so on iOS the spinner stays
- * mounted and only its Done button closes it.
+ * that fires onValueChange (confirmed) or onDismiss (cancelled)
+ * exactly once, so we close on either. iOS renders an inline spinner
+ * that fires onValueChange on EVERY scroll tick — auto-closing there
+ * collapsed the picker under the user's first flick, so on iOS the
+ * spinner stays mounted and only its Done button closes it.
  */
 export function InlineDateTimePicker({
   value,
@@ -29,10 +29,11 @@ export function InlineDateTimePicker({
       <DateTimePicker
         value={value}
         mode={mode}
-        onChange={(_, date) => {
+        onValueChange={(_, date) => {
           onClose();
-          if (date) onChange(date);
+          onChange(date);
         }}
+        onDismiss={onClose}
       />
     );
   }
@@ -49,9 +50,7 @@ export function InlineDateTimePicker({
         mode={mode}
         display="spinner"
         themeVariant={dark ? 'dark' : 'light'}
-        onChange={(_, date) => {
-          if (date) onChange(date);
-        }}
+        onValueChange={(_, date) => onChange(date)}
       />
       <Pressable
         onPress={onClose}
