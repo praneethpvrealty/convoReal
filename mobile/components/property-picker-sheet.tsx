@@ -56,7 +56,9 @@ export function PropertyPickerSheet({
   const { data, isLoading, error } = useQuery({
     queryKey: ['property-share-search', debounced],
     enabled: visible,
-    queryFn: () => fetchPropertyPage(0, debounced, 'All', null),
+    // Unchanged from before the Properties tab defaulted to Available:
+    // this picker still lists everything but Archived.
+    queryFn: () => fetchPropertyPage(0, debounced, 'All', null, true),
   });
   const results = data?.data ?? [];
 
