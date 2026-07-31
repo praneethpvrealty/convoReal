@@ -25,3 +25,11 @@ export const asyncStoragePersister = createAsyncStoragePersister({
   storage: AsyncStorage,
   key: 'convoreal-query-cache',
 });
+
+/**
+ * Cached query data is JSON, so anything a queryFn returns must survive a
+ * round trip through JSON.stringify — no Set, Map or Date. Bump this when a
+ * cached shape changes so restored entries from older builds are discarded
+ * instead of reaching components that expect the new shape.
+ */
+export const queryCacheBuster = '1';
