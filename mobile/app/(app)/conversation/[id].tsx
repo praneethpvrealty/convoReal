@@ -71,9 +71,12 @@ export default function ConversationScreen() {
   // `draftPropertyId` is set when the thread is opened from a contact
   // approval whose 24h window had closed — pre-draft the inquired
   // property's details so the agent can send them in one tap.
-  const { id, draftPropertyId } = useLocalSearchParams<{
+  const { id, draftPropertyId, draftText } = useLocalSearchParams<{
     id: string;
     draftPropertyId?: string;
+    /** Plain-text composer seed (e.g. a showcase share drafted from the
+     *  contact picker) — draftPropertyId wins when both are present. */
+    draftText?: string;
   }>();
   const headerHeight = useHeaderHeight();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -89,7 +92,7 @@ export default function ConversationScreen() {
     enabled: Boolean(draftPropertyId),
     queryFn: () => buildInquiryDraft(draftPropertyId!),
   });
-  const seedDraft = draftInquiry?.message;
+  const seedDraft = draftInquiry?.message ?? (draftText?.trim() ? draftText : undefined);
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
     queryFn: () => fetchMessages(id),
