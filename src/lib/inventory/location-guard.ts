@@ -15,15 +15,20 @@
 // Mirrors the Owners Den pattern in src/lib/den/masking.ts.
 // ============================================================
 
-import type { Property } from "@/types";
-import { isLandType } from "@/lib/inventory/property-options";
-import { hasMinRole, type AccountRole } from "@/lib/auth/roles";
+import type { Property } from '@/types';
+import { isLandType } from '@/lib/inventory/property-options';
+import { hasMinRole, type AccountRole } from '@/lib/auth/roles';
 
-export type LocationPrivacy = "exact" | "locality";
+export type LocationPrivacy = 'exact' | 'locality';
 
 /** Stray legacy value "House" appears in imported data; over-guarding
  *  it is safer than letting it fall through. */
-const GUARDED_HOUSE_TYPES = ["Residential House", "Villa", "Farm House", "House"];
+const GUARDED_HOUSE_TYPES = [
+  'Residential House',
+  'Villa',
+  'Farm House',
+  'House',
+];
 
 type PrivacyFields = {
   type: string;
@@ -35,14 +40,14 @@ export function isGuardedType(type: string): boolean {
 }
 
 export function effectiveLocationPrivacy(p: PrivacyFields): LocationPrivacy {
-  if (p.location_privacy === "exact" || p.location_privacy === "locality") {
+  if (p.location_privacy === 'exact' || p.location_privacy === 'locality') {
     return p.location_privacy;
   }
-  return isGuardedType(p.type) ? "locality" : "exact";
+  return isGuardedType(p.type) ? 'locality' : 'exact';
 }
 
 export function isLocationGuarded(p: PrivacyFields): boolean {
-  return effectiveLocationPrivacy(p) === "locality";
+  return effectiveLocationPrivacy(p) === 'locality';
 }
 
 /** Locality-level substitute for the street address. */
@@ -52,8 +57,8 @@ export function localityLabel(p: {
   state?: string | null;
 }): string {
   const bits = [p.sublocality, p.city].filter(Boolean);
-  if (bits.length > 0) return bits.join(", ");
-  return p.state || "Location available on request";
+  if (bits.length > 0) return bits.join(', ');
+  return p.state || 'Location available on request';
 }
 
 /**
@@ -65,59 +70,59 @@ export function localityLabel(p: {
  * locality_place_id, locality_canonical.
  */
 export const PUBLIC_PROPERTY_FIELDS = [
-  "id",
-  "account_id",
-  "user_id",
-  "title",
-  "description",
-  "price",
-  "price_per_sqft",
-  "sublocality",
-  "city",
-  "state",
-  "type",
-  "status",
-  "listing_type",
-  "bedrooms",
-  "bathrooms",
-  "area_sqft",
-  "area_unit",
-  "land_area",
-  "land_area_unit",
-  "super_built_area",
-  "project",
-  "land_zone",
-  "ideal_for",
-  "dimensions",
-  "road_width",
-  "road_width_unit",
-  "facing_direction",
-  "nearby_highlights",
-  "is_published",
-  "features",
-  "images",
-  "video_url",
-  "youtube_video_id",
-  "property_code",
-  "rental_income",
-  "roi",
-  "listing_source",
-  "rent_per_month",
-  "maintenance",
-  "advance",
-  "gst",
-  "jv_structure",
-  "owner_share_percent",
-  "builder_share_percent",
-  "goodwill_amount",
-  "bts_lease_years",
-  "bts_lock_in_years",
-  "bts_escalation_percent",
-  "like_count",
-  "rating_count",
-  "rating_total",
-  "created_at",
-  "updated_at",
+  'id',
+  'account_id',
+  'user_id',
+  'title',
+  'description',
+  'price',
+  'price_per_sqft',
+  'sublocality',
+  'city',
+  'state',
+  'type',
+  'status',
+  'listing_type',
+  'bedrooms',
+  'bathrooms',
+  'area_sqft',
+  'area_unit',
+  'land_area',
+  'land_area_unit',
+  'super_built_area',
+  'project',
+  'land_zone',
+  'ideal_for',
+  'dimensions',
+  'road_width',
+  'road_width_unit',
+  'facing_direction',
+  'nearby_highlights',
+  'is_published',
+  'features',
+  'images',
+  'video_url',
+  'youtube_video_id',
+  'property_code',
+  'rental_income',
+  'roi',
+  'listing_source',
+  'rent_per_month',
+  'maintenance',
+  'advance',
+  'gst',
+  'jv_structure',
+  'owner_share_percent',
+  'builder_share_percent',
+  'goodwill_amount',
+  'bts_lease_years',
+  'bts_lock_in_years',
+  'bts_escalation_percent',
+  'like_count',
+  'rating_count',
+  'rating_total',
+  'created_at',
+  'updated_at',
 ] as const;
 
 /**
@@ -153,10 +158,10 @@ export interface LocationViewer {
 /** Admin+ or the property's own listing agent see through the guard. */
 export function canViewExactLocation(
   viewer: LocationViewer,
-  p: PrivacyFields & Pick<Property, "user_id">
+  p: PrivacyFields & Pick<Property, 'user_id'>
 ): boolean {
   if (!isLocationGuarded(p)) return true;
-  if (hasMinRole(viewer.role, "admin")) return true;
+  if (hasMinRole(viewer.role, 'admin')) return true;
   return Boolean(viewer.userId && p.user_id === viewer.userId);
 }
 
@@ -186,18 +191,20 @@ export function maskPropertyForViewer<T extends Property>(
 /** "Rahul Sharma" → "Ra••• Sh•••" — enough to recognise, not to dial. */
 export function maskName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "Someone";
+  if (parts.length === 0) return 'Someone';
   return parts
     .map((w) =>
-      w.length <= 2 ? `${w[0]}•` : `${w.slice(0, 2)}${"•".repeat(Math.min(w.length - 2, 3))}`
+      w.length <= 2
+        ? `${w[0]}•`
+        : `${w.slice(0, 2)}${'•'.repeat(Math.min(w.length - 2, 3))}`
     )
-    .join(" ");
+    .join(' ');
 }
 
 /** "+919876543210" → "98•••••210". */
 export function maskPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length < 6) return "•".repeat(Math.max(digits.length, 4));
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 6) return '•'.repeat(Math.max(digits.length, 4));
   const visible = digits.length > 10 ? digits.slice(-10) : digits;
-  return `${visible.slice(0, 2)}${"•".repeat(visible.length - 5)}${visible.slice(-3)}`;
+  return `${visible.slice(0, 2)}${'•'.repeat(visible.length - 5)}${visible.slice(-3)}`;
 }

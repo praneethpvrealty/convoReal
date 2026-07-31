@@ -23,16 +23,19 @@
 // who shared them the property.
 // ============================================================
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendWhatsAppMessageAndPersist } from "@/lib/whatsapp/meta-api-dispatcher";
-import { normalizePhoneWithCountryCode, phonesMatch } from "@/lib/whatsapp/phone-utils";
-import { maskName, maskPhone } from "@/lib/inventory/location-guard";
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import {
+  normalizePhoneWithCountryCode,
+  phonesMatch,
+} from '@/lib/whatsapp/phone-utils';
+import { maskName, maskPhone } from '@/lib/inventory/location-guard';
 
 export const CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REVEAL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 
-export const CONSENT_APPROVE_PREFIX = "locreq_approve:";
-export const CONSENT_DECLINE_PREFIX = "locreq_decline:";
+export const CONSENT_APPROVE_PREFIX = 'locreq_approve:';
+export const CONSENT_DECLINE_PREFIX = 'locreq_decline:';
 
 export interface LocationRequestRow {
   id: string;
@@ -50,7 +53,9 @@ export interface LocationRequestRow {
 }
 
 export function mintRevealToken(): { token: string; expiresAt: string } {
-  const raw = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+  const raw =
+    crypto.randomUUID().replace(/-/g, '') +
+    crypto.randomUUID().replace(/-/g, '');
   return {
     token: raw.substring(0, 48),
     expiresAt: new Date(Date.now() + REVEAL_TOKEN_TTL_MS).toISOString(),
@@ -61,8 +66,8 @@ export function revealBaseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXT_PUBLIC_SITE_URL ||
-    "https://app.convoreal.com"
-  ).replace(/\/+$/, "");
+    'https://app.convoreal.com'
+  ).replace(/\/+$/, '');
 }
 
 /** The diplomatic consent ask sent to an intermediary. Emphasises that
@@ -118,12 +123,18 @@ export function buildCoBrokerRevealNotice(propertyTitle: string): string {
 
 export function parseConsentReply(
   replyId: string
-): { requestId: string; decision: "approve" | "decline" } | null {
+): { requestId: string; decision: 'approve' | 'decline' } | null {
   if (replyId.startsWith(CONSENT_APPROVE_PREFIX)) {
-    return { requestId: replyId.slice(CONSENT_APPROVE_PREFIX.length), decision: "approve" };
+    return {
+      requestId: replyId.slice(CONSENT_APPROVE_PREFIX.length),
+      decision: 'approve',
+    };
   }
   if (replyId.startsWith(CONSENT_DECLINE_PREFIX)) {
-    return { requestId: replyId.slice(CONSENT_DECLINE_PREFIX.length), decision: "decline" };
+    return {
+      requestId: replyId.slice(CONSENT_DECLINE_PREFIX.length),
+      decision: 'decline',
+    };
   }
   return null;
 }
@@ -134,12 +145,12 @@ async function propertyTitle(
   propertyId: string
 ): Promise<string> {
   const { data } = await admin
-    .from("properties")
-    .select("title")
-    .eq("id", propertyId)
-    .eq("account_id", accountId)
+    .from('properties')
+    .select('title')
+    .eq('id', propertyId)
+    .eq('account_id', accountId)
     .maybeSingle();
-  return (data as { title?: string } | null)?.title || "the property";
+  return (data as { title?: string } | null)?.title || 'the property';
 }
 
 async function sendToSeeker(
@@ -153,12 +164,12 @@ async function sendToSeeker(
     await sendWhatsAppMessageAndPersist({
       accountId,
       toPhone: phone,
-      kind: "text",
-      senderType: "bot",
+      kind: 'text',
+      senderType: 'bot',
       text,
     });
   } catch (err) {
-    console.error("[location-requests] Seeker send failed:", err);
+    console.error('[location-requests] Seeker send failed:', err);
   }
 }
 
@@ -172,52 +183,58 @@ export async function requestConsentFromContact(
   admin: SupabaseClient,
   request: Pick<
     LocationRequestRow,
-    "id" | "account_id" | "property_id" | "requester_name" | "requester_phone"
+    'id' | 'account_id' | 'property_id' | 'requester_name' | 'requester_phone'
   >,
   contactId: string
 ): Promise<boolean> {
   const { data: contact } = await admin
-    .from("contacts")
-    .select("id, name, phone")
-    .eq("id", contactId)
-    .eq("account_id", request.account_id)
+    .from('contacts')
+    .select('id, name, phone')
+    .eq('id', contactId)
+    .eq('account_id', request.account_id)
     .maybeSingle();
 
-  const phone = contact?.phone ? normalizePhoneWithCountryCode(contact.phone) : null;
+  const phone = contact?.phone
+    ? normalizePhoneWithCountryCode(contact.phone)
+    : null;
   if (!contact || !phone) return false;
 
-  const title = await propertyTitle(admin, request.account_id, request.property_id);
+  const title = await propertyTitle(
+    admin,
+    request.account_id,
+    request.property_id
+  );
 
   try {
     await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
       contactId: contact.id,
-      kind: "interactive",
-      senderType: "bot",
-      interactiveType: "buttons",
+      kind: 'interactive',
+      senderType: 'bot',
+      interactiveType: 'buttons',
       interactiveBody: buildConsentMessage({
-        coBrokerName: contact.name || "there",
+        coBrokerName: contact.name || 'there',
         propertyTitle: title,
         requesterName: request.requester_name,
         requesterPhone: request.requester_phone,
       }),
       interactiveButtons: [
-        { id: `${CONSENT_APPROVE_PREFIX}${request.id}`, title: "✅ Approve" },
-        { id: `${CONSENT_DECLINE_PREFIX}${request.id}`, title: "❌ Decline" },
+        { id: `${CONSENT_APPROVE_PREFIX}${request.id}`, title: '✅ Approve' },
+        { id: `${CONSENT_DECLINE_PREFIX}${request.id}`, title: '❌ Decline' },
       ],
     });
   } catch (err) {
-    console.error("[location-requests] Consent send failed:", err);
+    console.error('[location-requests] Consent send failed:', err);
     return false;
   }
 
   await admin
-    .from("property_location_requests")
+    .from('property_location_requests')
     .update({
       pending_consent_contact_id: contactId,
       consent_requested_at: new Date().toISOString(),
     })
-    .eq("id", request.id);
+    .eq('id', request.id);
 
   return true;
 }
@@ -227,21 +244,26 @@ export async function notifyOwnerQueue(
   admin: SupabaseClient,
   request: Pick<
     LocationRequestRow,
-    "id" | "account_id" | "property_id" | "requester_name" | "requester_phone" | "via_contact_id"
+    | 'id'
+    | 'account_id'
+    | 'property_id'
+    | 'requester_name'
+    | 'requester_phone'
+    | 'via_contact_id'
   >
 ): Promise<void> {
   const { data: property } = await admin
-    .from("properties")
-    .select("id, title, property_code, user_id")
-    .eq("id", request.property_id)
-    .eq("account_id", request.account_id)
+    .from('properties')
+    .select('id, title, property_code, user_id')
+    .eq('id', request.property_id)
+    .eq('account_id', request.account_id)
     .maybeSingle();
   if (!property) return;
 
   const { data: account } = await admin
-    .from("accounts")
-    .select("owner_user_id")
-    .eq("id", request.account_id)
+    .from('accounts')
+    .select('owner_user_id')
+    .eq('id', request.account_id)
     .maybeSingle();
   const targetUserId = property.user_id || account?.owner_user_id || null;
   if (!targetUserId) return;
@@ -254,17 +276,17 @@ export async function notifyOwnerQueue(
 
   try {
     const { data: agentProfile } = await admin
-      .from("profiles")
-      .select("email")
-      .eq("user_id", targetUserId)
+      .from('profiles')
+      .select('email')
+      .eq('user_id', targetUserId)
       .maybeSingle();
     if (!agentProfile?.email) return;
 
     const { data: agentContact } = await admin
-      .from("contacts")
-      .select("id, phone")
-      .eq("account_id", request.account_id)
-      .eq("email", agentProfile.email)
+      .from('contacts')
+      .select('id, phone')
+      .eq('account_id', request.account_id)
+      .eq('email', agentProfile.email)
       .maybeSingle();
     if (!agentContact?.phone) return;
 
@@ -272,16 +294,16 @@ export async function notifyOwnerQueue(
       accountId: request.account_id,
       userId: targetUserId,
       contactId: agentContact.id,
-      kind: "text",
-      senderType: "bot",
+      kind: 'text',
+      senderType: 'bot',
       text:
         `📍 *New Location Reveal Request*\n` +
-        `Property: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
+        `Property: ${property.title}${property.property_code ? ` (${property.property_code})` : ''}\n` +
         `${fromLine}\n\n` +
         `Open the property in your CRM dashboard to Approve or Reject.`,
     });
   } catch (err) {
-    console.error("[location-requests] Owner notify failed:", err);
+    console.error('[location-requests] Owner notify failed:', err);
   }
 }
 
@@ -301,9 +323,9 @@ export async function approveRequestAndSendReveal(
   const shareLink = `${revealBaseUrl()}/reveal/${token}`;
 
   await admin
-    .from("property_location_requests")
+    .from('property_location_requests')
     .update({
-      status: "approved",
+      status: 'approved',
       share_token: token,
       share_token_expires_at: expiresAt,
       approved_by: approvedByUserId,
@@ -311,9 +333,13 @@ export async function approveRequestAndSendReveal(
       pending_consent_contact_id: null,
       consent_requested_at: null,
     })
-    .eq("id", request.id);
+    .eq('id', request.id);
 
-  const title = await propertyTitle(admin, request.account_id, request.property_id);
+  const title = await propertyTitle(
+    admin,
+    request.account_id,
+    request.property_id
+  );
   await sendToSeeker(
     request.account_id,
     request.requester_phone,
@@ -324,21 +350,21 @@ export async function approveRequestAndSendReveal(
     })
   );
   await admin
-    .from("property_location_requests")
+    .from('property_location_requests')
     .update({ share_sent_at: new Date().toISOString() })
-    .eq("id", request.id);
+    .eq('id', request.id);
 
   if (request.via_contact_id) {
     try {
       await sendWhatsAppMessageAndPersist({
         accountId: request.account_id,
         contactId: request.via_contact_id,
-        kind: "text",
-        senderType: "bot",
+        kind: 'text',
+        senderType: 'bot',
         text: buildCoBrokerRevealNotice(title),
       });
     } catch (err) {
-      console.error("[location-requests] Co-broker notice failed:", err);
+      console.error('[location-requests] Co-broker notice failed:', err);
     }
   }
 
@@ -350,20 +376,24 @@ export async function closeRequestWithRedirect(
   admin: SupabaseClient,
   request: Pick<
     LocationRequestRow,
-    "id" | "account_id" | "property_id" | "requester_phone"
+    'id' | 'account_id' | 'property_id' | 'requester_phone'
   >,
-  status: "rejected" | "expired"
+  status: 'rejected' | 'expired'
 ): Promise<void> {
   await admin
-    .from("property_location_requests")
+    .from('property_location_requests')
     .update({
       status,
       pending_consent_contact_id: null,
       consent_requested_at: null,
     })
-    .eq("id", request.id);
+    .eq('id', request.id);
 
-  const title = await propertyTitle(admin, request.account_id, request.property_id);
+  const title = await propertyTitle(
+    admin,
+    request.account_id,
+    request.property_id
+  );
   await sendToSeeker(
     request.account_id,
     request.requester_phone,
@@ -386,41 +416,47 @@ export async function handleLocationConsentReply(args: {
   if (!parsed) return false;
 
   const { data } = await args.admin
-    .from("property_location_requests")
-    .select("*")
-    .eq("id", parsed.requestId)
-    .eq("account_id", args.accountId)
+    .from('property_location_requests')
+    .select('*')
+    .eq('id', parsed.requestId)
+    .eq('account_id', args.accountId)
     .maybeSingle();
   const request = data as LocationRequestRow | null;
   if (!request) return true;
-  if (request.status !== "pending" || !request.pending_consent_contact_id) return true;
+  if (request.status !== 'pending' || !request.pending_consent_contact_id)
+    return true;
 
   // Only the intermediary the ask was sent to may answer it — a
   // forwarded consent message tapped by someone else is not consent.
   const { data: pendingContact } = await args.admin
-    .from("contacts")
-    .select("id, phone")
-    .eq("id", request.pending_consent_contact_id)
-    .eq("account_id", args.accountId)
+    .from('contacts')
+    .select('id, phone')
+    .eq('id', request.pending_consent_contact_id)
+    .eq('account_id', args.accountId)
     .maybeSingle();
-  if (!pendingContact?.phone || !phonesMatch(pendingContact.phone, args.senderPhone)) {
+  if (
+    !pendingContact?.phone ||
+    !phonesMatch(pendingContact.phone, args.senderPhone)
+  ) {
     return true;
   }
 
-  const chain = Array.isArray(request.consent_chain) ? request.consent_chain : [];
+  const chain = Array.isArray(request.consent_chain)
+    ? request.consent_chain
+    : [];
   const hop = {
     contact_id: request.pending_consent_contact_id,
-    decision: parsed.decision === "approve" ? "approved" : "declined",
+    decision: parsed.decision === 'approve' ? 'approved' : 'declined',
     at: new Date().toISOString(),
   };
 
-  if (parsed.decision === "decline") {
+  if (parsed.decision === 'decline') {
     await args.admin
-      .from("property_location_requests")
+      .from('property_location_requests')
       .update({ consent_chain: [...chain, hop] })
-      .eq("id", request.id);
-    await closeRequestWithRedirect(args.admin, request, "rejected");
-    await ackConsentContact(args.admin, request, "declined");
+      .eq('id', request.id);
+    await closeRequestWithRedirect(args.admin, request, 'rejected');
+    await ackConsentContact(args.admin, request, 'declined');
     return true;
   }
 
@@ -429,39 +465,43 @@ export async function handleLocationConsentReply(args: {
   // chain rule, the hop next to the owner needs no further intermediary
   // consent.
   await args.admin
-    .from("property_location_requests")
+    .from('property_location_requests')
     .update({
       consent_chain: [...chain, hop],
       pending_consent_contact_id: null,
       consent_requested_at: null,
     })
-    .eq("id", request.id);
+    .eq('id', request.id);
   await notifyOwnerQueue(args.admin, request);
-  await ackConsentContact(args.admin, request, "approved");
+  await ackConsentContact(args.admin, request, 'approved');
   return true;
 }
 
 async function ackConsentContact(
   admin: SupabaseClient,
   request: LocationRequestRow,
-  decision: "approved" | "declined"
+  decision: 'approved' | 'declined'
 ): Promise<void> {
   if (!request.pending_consent_contact_id) return;
-  const title = await propertyTitle(admin, request.account_id, request.property_id);
+  const title = await propertyTitle(
+    admin,
+    request.account_id,
+    request.property_id
+  );
   const text =
-    decision === "approved"
+    decision === 'approved'
       ? `👍 Noted — the request for *${title}* has been forwarded to the listing side for final approval. The requester's details remain private.`
       : `👍 Noted — the request for *${title}* has been declined. The requester has been advised to reach out to you for more details.`;
   try {
     await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
       contactId: request.pending_consent_contact_id,
-      kind: "text",
-      senderType: "bot",
+      kind: 'text',
+      senderType: 'bot',
       text,
     });
   } catch (err) {
-    console.error("[location-requests] Consent ack failed:", err);
+    console.error('[location-requests] Consent ack failed:', err);
   }
 }
 
@@ -469,39 +509,48 @@ async function ackConsentContact(
  * Expires consent asks older than 2 hours. Each expired request ends
  * with the seeker redirect. Returns the number of requests expired.
  */
-export async function sweepConsentTimeouts(admin: SupabaseClient): Promise<number> {
+export async function sweepConsentTimeouts(
+  admin: SupabaseClient
+): Promise<number> {
   const cutoff = new Date(Date.now() - CONSENT_TIMEOUT_MS).toISOString();
   const { data } = await admin
-    .from("property_location_requests")
-    .select("id, account_id, property_id, requester_phone, consent_chain, pending_consent_contact_id")
-    .eq("status", "pending")
-    .not("pending_consent_contact_id", "is", null)
-    .lt("consent_requested_at", cutoff)
+    .from('property_location_requests')
+    .select(
+      'id, account_id, property_id, requester_phone, consent_chain, pending_consent_contact_id'
+    )
+    .eq('status', 'pending')
+    .not('pending_consent_contact_id', 'is', null)
+    .lt('consent_requested_at', cutoff)
     .limit(50);
 
   const rows = (data || []) as Array<
     Pick<
       LocationRequestRow,
-      "id" | "account_id" | "property_id" | "requester_phone" | "consent_chain" | "pending_consent_contact_id"
+      | 'id'
+      | 'account_id'
+      | 'property_id'
+      | 'requester_phone'
+      | 'consent_chain'
+      | 'pending_consent_contact_id'
     >
   >;
 
   for (const row of rows) {
     const chain = Array.isArray(row.consent_chain) ? row.consent_chain : [];
     await admin
-      .from("property_location_requests")
+      .from('property_location_requests')
       .update({
         consent_chain: [
           ...chain,
           {
             contact_id: row.pending_consent_contact_id,
-            decision: "timed_out",
+            decision: 'timed_out',
             at: new Date().toISOString(),
           },
         ],
       })
-      .eq("id", row.id);
-    await closeRequestWithRedirect(admin, row, "expired");
+      .eq('id', row.id);
+    await closeRequestWithRedirect(admin, row, 'expired');
   }
 
   return rows.length;
