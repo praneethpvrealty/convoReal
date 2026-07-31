@@ -303,6 +303,13 @@ export function ShowcaseView({
   const [docReqSubmitting, setDocReqSubmitting] = useState(false);
   const [docReqSuccess, setDocReqSuccess] = useState<string | null>(null); // property id that was requested
 
+  // Location reveal request states
+  const [locReqOpen, setLocReqOpen] = useState(false);
+  const [locReqName, setLocReqName] = useState('');
+  const [locReqPhone, setLocReqPhone] = useState('');
+  const [locReqSubmitting, setLocReqSubmitting] = useState(false);
+  const [locReqSuccess, setLocReqSuccess] = useState<string | null>(null); // property id that was requested
+
   const isStateLoadedRef = useRef(false);
 
   // 1. Client-side mount hook to load state from URL and localStorage (retained for 7 days)
@@ -950,6 +957,38 @@ export function ShowcaseView({
       toast.error(msg);
     } finally {
       setDocReqSubmitting(false);
+    }
+  };
+
+  // Location reveal request submission handler
+  const handleLocReqSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locReqName.trim() || !locReqPhone.trim() || !selectedProperty) return;
+    setLocReqSubmitting(true);
+    try {
+      const res = await fetch(`/api/public/properties/${selectedProperty.id}/location-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requester_name: locReqName.trim(),
+          requester_phone: locReqPhone.trim(),
+          account_id: accountId,
+          via_contact_id: visitorRef || undefined,
+          via_share_id: shareId || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Request failed');
+      }
+      saveVisitorInfo(locReqName.trim(), locReqPhone.trim());
+      setLocReqSuccess(selectedProperty.id);
+      toast.success('Location request submitted! You will receive the exact location on WhatsApp once approved.');
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to submit request');
+    } finally {
+      setLocReqSubmitting(false);
     }
   };
 
@@ -1728,13 +1767,19 @@ export function ShowcaseView({
                     {detailMediaCount > 1 && (
                       <>
                         <button
-                          onClick={() => setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : detailMediaCount - 1))}
+                          onClick={() => {
+                            trackerRef.current?.track('gallery', selectedProperty.id);
+                            setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : detailMediaCount - 1));
+                          }}
                           className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-350 hover:text-white border border-slate-800/40 cursor-pointer"
                         >
                           <ChevronLeft className="size-4" />
                         </button>
                         <button
-                          onClick={() => setActiveImageIdx((prev) => (prev < detailMediaCount - 1 ? prev + 1 : 0))}
+                          onClick={() => {
+                            trackerRef.current?.track('gallery', selectedProperty.id);
+                            setActiveImageIdx((prev) => (prev < detailMediaCount - 1 ? prev + 1 : 0));
+                          }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-350 hover:text-white border border-slate-800/40 cursor-pointer"
                         >
                           <ChevronRight className="size-4" />
@@ -1908,6 +1953,7 @@ export function ShowcaseView({
                           href={selectedProperty.google_map_link}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => trackerRef.current?.track('map_click', selectedProperty.id)}
                           className="inline-flex items-center gap-1.5 mt-1.5 text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all"
                         >
                           <MapPin className="size-3.5 shrink-0" />
@@ -1938,7 +1984,7 @@ export function ShowcaseView({
                     co-broker (agent-mode) viewers when the listing's
                     location is guarded */}
                 {(!isAgentMode || selectedProperty.location_guarded) && (
-                <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-1.5 backdrop-blur-sm relative overflow-hidden group">
+                <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2 backdrop-blur-sm relative overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent pointer-events-none" />
                   <div className="flex items-start gap-2.5">
                     <div className="h-7 w-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
@@ -1947,12 +1993,68 @@ export function ShowcaseView({
                     <div>
                       <h5 className="text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">Exact Address Masked</h5>
                       <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
-                        Street address & Google Maps pin link are hidden for privacy. They will be sent directly to your WhatsApp number upon inquiry approval.
+                        Street address & Google Maps pin link are hidden for privacy.
+                        {(selectedProperty.private_images_count ?? 0) > 0
+                          ? ` ${selectedProperty.private_images_count} more photo${(selectedProperty.private_images_count ?? 0) > 1 ? 's' : ''} and the exact location are shared on request.`
+                          : ' They are shared directly to your WhatsApp number on request approval.'}
                       </p>
                     </div>
                   </div>
                   <div className="filter blur-[2px] opacity-25 select-none text-[10px] pl-9 text-slate-400 font-mono">
                     Exact coordinates: 12.9348° N, 77.6189° E. Map pin: https://maps.google.com/?q=...
+                  </div>
+                  <div className="relative pl-9">
+                    {locReqSuccess === selectedProperty.id ? (
+                      <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-semibold">
+                        <CheckCircle className="size-3.5 shrink-0" />
+                        Request submitted — you&apos;ll receive the exact location on WhatsApp once approved.
+                      </div>
+                    ) : locReqOpen ? (
+                      <form onSubmit={handleLocReqSubmit} className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            required
+                            value={locReqName}
+                            onChange={(e) => setLocReqName(e.target.value)}
+                            placeholder="Your Name"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                          <Input
+                            required
+                            type="tel"
+                            value={locReqPhone}
+                            onChange={(e) => setLocReqPhone(e.target.value)}
+                            placeholder="WhatsApp Number"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          disabled={locReqSubmitting}
+                          className="w-full h-8 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-bold flex items-center justify-center gap-2"
+                        >
+                          {locReqSubmitting ? (
+                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                          ) : (
+                            <Send className="size-3" />
+                          )}
+                          Request Exact Location
+                        </Button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLocReqName(visitorName);
+                          setLocReqPhone(visitorPhone);
+                          setLocReqOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:text-primary/85 cursor-pointer"
+                      >
+                        <MapPin className="size-3.5" />
+                        Request Exact Location
+                      </button>
+                    )}
                   </div>
                 </div>
                 )}

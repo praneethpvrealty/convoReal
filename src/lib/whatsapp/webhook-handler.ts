@@ -31,6 +31,11 @@ import {
   applyBuyerAlertsCommand,
 } from '@/lib/buyer/alerts'
 import { isLocationGuarded } from '@/lib/inventory/location-guard'
+import {
+  CONSENT_APPROVE_PREFIX,
+  CONSENT_DECLINE_PREFIX,
+  handleLocationConsentReply,
+} from '@/lib/inventory/location-requests'
 import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
 import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
 import {
@@ -1524,6 +1529,18 @@ async function processMessage(
   }
 
   if (interactiveReplyId) {
+    if (
+      interactiveReplyId.startsWith(CONSENT_APPROVE_PREFIX) ||
+      interactiveReplyId.startsWith(CONSENT_DECLINE_PREFIX)
+    ) {
+      const handledConsent = await handleLocationConsentReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handledConsent) return
+    }
     if (interactiveReplyId.startsWith('share_property_yes:')) {
       const propertyId = interactiveReplyId.split(':')[1]
       await handlePropertyShareYesReply(
