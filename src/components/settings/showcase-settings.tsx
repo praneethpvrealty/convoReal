@@ -406,9 +406,9 @@ export function ShowcaseSettingsPanel() {
           <p className="text-[11px] text-slate-400">
             Serves your showcase at{' '}
             <code className="text-primary">{`https://${form.subdomain || 'your-subdomain'}.${BRANDING.baseDomain}`}</code>
-            . This only resolves once a wildcard{' '}
+            . This only resolves once the wildcard{' '}
             <code className="text-primary">{`*.${BRANDING.baseDomain}`}</code>{' '}
-            DNS record exists and the host holds a matching certificate — see
+            DNS record and its Worker are set up — see the wildcard section of
             docs/domain-rehosting-guide.md. Until then, keep using the share
             links above.
           </p>

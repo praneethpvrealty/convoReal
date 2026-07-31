@@ -45,6 +45,14 @@ interface PageProps {
     /** Share-instance token for generic (recipient-unknown) shares —
      *  labels which share a visit came from in Pulse. Never filters. */
     s?: string;
+    /** Tenant subdomain label, pinned into the URL by the Cloudflare
+     *  Worker that fronts *.convoreal.com (see the wildcard section of
+     *  docs/domain-rehosting-guide.md). The Worker re-issues the request
+     *  against www, so the Host header no longer carries the label — and
+     *  it must ride in the URL rather than a header so the edge cache
+     *  keys tenants apart. Spoofing it buys nothing: it resolves the
+     *  same public catalogue the subdomain itself would. */
+    __tenant?: string;
   }>;
 }
 
@@ -242,7 +250,17 @@ export default async function RootPage({ searchParams }: PageProps) {
 
   const reqHeaders = await headers();
   const host = reqHeaders.get('host') || '';
-  const subdomain = resolveSubdomainFromHost(host);
+  // Direct visits carry the tenant label in the Host header; visits
+  // proxied by the wildcard Worker carry it in ?__tenant= instead.
+  // Routing the param through resolveSubdomainFromHost keeps the
+  // reserved-label list authoritative for both paths.
+  const subdomain =
+    resolveSubdomainFromHost(host) ||
+    (resolvedParams.__tenant
+      ? resolveSubdomainFromHost(
+          `${resolvedParams.__tenant.toLowerCase()}.${BRANDING.baseDomain}`
+        )
+      : null);
 
   let accountId: string | null =
     process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID || null;

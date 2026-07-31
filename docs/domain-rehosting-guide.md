@@ -52,20 +52,55 @@ Steps 1 and 2 cover `convoreal.com` and `www.convoreal.com` only. They do **not*
 
 Settings → Showcase lets each account claim a subdomain, and the app then promises the tenant a link like `https://aryavartaventures.convoreal.com`. The application side of that is already built: `resolveSubdomainFromHost()` pulls the label out of the `Host` header and `cachedResolveAccountFromSubdomain()` maps it to an account (both in `src/lib/showcase/public-data.ts`). Nothing needs deploying. But the browser has to reach the app first, and a hostname nobody created does not resolve — the link fails before any of that code runs, with a DNS error rather than a page from the app.
 
-One wildcard record covers every account, present and future:
+### Why the obvious routes don't work here
 
-1. In your DNS provider, add a record alongside the `www` one:
-   - Type: **CNAME**
-   - Name: `*`
-   - Value: the same target `www` uses (e.g. `cname.vercel-dns.com`).
-2. **If the domain sits behind Cloudflare**, set that record to **DNS only** (grey cloud). Cloudflare proxies wildcard records on Enterprise plans only; on any other plan a proxied `*` silently fails to route.
-3. Register the wildcard with the host as well — DNS alone is not enough, since the host has to recognise the hostname and hold a certificate for it:
-   - **Vercel**: Settings → Domains → add `*.convoreal.com`. Unless the domain uses Vercel's nameservers, Vercel will ask for a `_acme-challenge` TXT record before it can issue the wildcard certificate.
-   - **Hostinger**: add the wildcard domain to the site so the panel provisions a matching SSL certificate.
+- **A wildcard domain on Vercel requires Vercel's nameservers.** For `*.convoreal.com` Vercel must issue a wildcard certificate, which needs DNS-01 validation — it has to write `_acme-challenge` records itself, so it offers no CNAME target, only `ns1/ns2.vercel-dns.com`. Handing it the zone would kill Cloudflare Email Routing on `leads.convoreal.com` (the `route*.mx.cloudflare.net` MX records only work while Cloudflare hosts the DNS) and drop the Cloudflare proxy/WAF.
+- **A plain proxied CNAME to the apex doesn't work either.** Cloudflare would accept the browser's TLS (Universal SSL covers `*.convoreal.com`), but then forward to Vercel with the tenant hostname — which Vercel has no domain entry or certificate for, so it 404s.
+- **Never point the wildcard at a name the wildcard itself covers** (e.g. `*` → `aryavartaventures.convoreal.com`): the lookup matches the wildcard, is told to resolve the same name, and chases its own tail into SERVFAIL.
 
-Verify with `dig aryavartaventures.convoreal.com` (or any made-up label — a wildcard answers for all of them). No answer means the record is missing or still propagating; an answer plus a certificate warning means step 3 has not been completed.
+### The setup: terminate the wildcard at Cloudflare, bridge with a Worker
 
-Some labels never reach a tenant showcase no matter what DNS says: `www`, `app`, `admin` and `api` are reserved in `resolveSubdomainFromHost()` and fall through to the normal site, and a label no account has claimed falls back to the default account.
+Cloudflare proxies wildcard records on every plan (since September 2022), and its Universal SSL certificate already covers one label under the apex. So the wildcard never reaches Vercel as a hostname at all — a Worker re-issues the request against `www` and pins the tenant label into the URL, where `src/app/page.tsx` picks it up as `?__tenant=`. In the URL, not a header, deliberately: the edge cache keys by URL, so tenants get separate cache entries instead of bleeding into each other under the `s-maxage` set by `next.config.ts`.
+
+1. **DNS record** — `*.convoreal.com`:
+   - Type: **CNAME**, Name: `*`, Content: `convoreal.com` (a placeholder — the Worker decides the real destination), Proxy status: **Proxied** (orange cloud). The proxy is required; a grey-cloud record would send browsers to Vercel directly, which cannot serve these hostnames.
+2. **Worker** — Cloudflare dashboard → Workers & Pages → Create → paste → Deploy:
+
+   ```js
+   const BASE = 'convoreal.com';
+   const CANONICAL = `https://www.${BASE}`;
+   // Superset of the app's reserved labels (resolveSubdomainFromHost in
+   // src/lib/showcase/public-data.ts) plus the mail-bearing subdomains.
+   const RESERVED = ['www', 'app', 'admin', 'api', 'leads', 'send', 'email'];
+
+   export default {
+     async fetch(request) {
+       const url = new URL(request.url);
+       const host = url.hostname;
+       const label = host.endsWith(`.${BASE}`)
+         ? host.slice(0, host.length - BASE.length - 1)
+         : '';
+       if (!label || label.includes('.') || RESERVED.includes(label)) {
+         return fetch(request);
+       }
+       const target = new URL(url.pathname + url.search, CANONICAL);
+       if (url.pathname === '/') target.searchParams.set('__tenant', label);
+       return fetch(new Request(target, request));
+     },
+   };
+   ```
+
+   Only `/` gets the `__tenant` param — it is the only route that resolves a tenant from it, and keeping it off `/_next/*` and `/api/*` keeps their cache keys clean. Everything else is proxied as-is, so assets and API calls made from a tenant page work unchanged.
+3. **Routes** — on the `convoreal.com` zone, Workers Routes:
+   - `*.convoreal.com/*` → the Worker above.
+   - `www.convoreal.com/*` → **None** (an exclusion route, so main-site traffic never spends Worker quota — the free tier is 100k requests/day).
+4. **Vercel** — nothing to add; delete any `*.convoreal.com` entry sitting at "Invalid Configuration" there, it can never validate without the nameserver move.
+
+Verify: `curl -sI https://<any-label>.convoreal.com/` should return the app (a wildcard answers for made-up labels too — unclaimed ones fall back to the default account). If DNS resolves but the response is a Cloudflare 1000-series error page, the Worker route is missing or the record is grey-clouded.
+
+Some labels never reach a tenant showcase no matter what DNS says: `www`, `app`, `admin` and `api` are reserved in `resolveSubdomainFromHost()` and fall through to the normal site.
+
+**Alternative for a handful of tenants:** skip the Worker and add each subdomain individually in Vercel (Settings → Domains → `tenant.convoreal.com`), plus a grey-cloud CNAME in Cloudflare to the target Vercel shows. Single subdomains validate over HTTP — no nameserver move — at the cost of one manual step per brokerage.
 
 ---
 
