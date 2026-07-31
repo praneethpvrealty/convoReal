@@ -4,6 +4,8 @@ import {
   buildSeekerRedirectMessage,
   buildRevealMessage,
   buildCoBrokerRevealNotice,
+  buildReshareUrl,
+  buildReshareLinkMessage,
   parseConsentReply,
   mintRevealToken,
   CONSENT_APPROVE_PREFIX,
@@ -85,6 +87,33 @@ describe('parseConsentReply', () => {
     expect(parseConsentReply('share_property_yes:p1')).toBeNull();
     expect(parseConsentReply('browse_all_properties')).toBeNull();
     expect(parseConsentReply('')).toBeNull();
+  });
+});
+
+describe('buildReshareUrl', () => {
+  it('builds a clean-view link attributed to the re-sharer', () => {
+    const url = buildReshareUrl({
+      propertyIdOrCode: 'PROP-1006',
+      contactId: 'c-123',
+    });
+    expect(url).toContain('property_id=PROP-1006');
+    expect(url).toContain('mode=view');
+    expect(url).toContain('v=c-123');
+  });
+});
+
+describe('buildReshareLinkMessage', () => {
+  it('delivers the link with the consent-first promise', () => {
+    const msg = buildReshareLinkMessage({
+      name: 'Suresh',
+      propertyTitle: 'Villa in Whitefield',
+      link: 'https://app.convoreal.com/?property_id=X&mode=view&v=c-1',
+    });
+    expect(msg).toContain('Hi Suresh');
+    expect(msg).toContain('*Villa in Whitefield*');
+    expect(msg).toContain('https://app.convoreal.com/?property_id=X&mode=view&v=c-1');
+    expect(msg).toContain('will reach you first');
+    expect(msg).toContain('stay private to you');
   });
 });
 

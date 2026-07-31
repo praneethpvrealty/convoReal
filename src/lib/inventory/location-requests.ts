@@ -14,9 +14,11 @@
 // final approve/reject. The seeker's name and phone never reach
 // the listing side in the clear, and no CRM contact is created
 // for them: a co-broker's client must not be poachable through
-// their own location request. Today one intermediary hop is
-// observable (the contact the link was shared to); the chain
-// fields support deeper hops as attribution grows.
+// their own location request. Chains deeper than one hop are
+// recorded in property_reshare_links (migration 176): a co-broker
+// holding a forwarded link mints their OWN attributed link, and a
+// request walks contact → parent → … until the hop whose parent
+// is the listing side, then lands in the owner's queue.
 //
 // Rejection, owner rejection, or a 2-hour consent timeout all end
 // the same way: the seeker is politely redirected to the person
@@ -460,27 +462,89 @@ export async function handleLocationConsentReply(args: {
     return true;
   }
 
-  // Approved: this was the last observable intermediary, so the request
-  // moves to the listing owner's queue for the final decision — per the
-  // chain rule, the hop next to the owner needs no further intermediary
-  // consent.
+  // Approved: walk one level up the recorded sharing chain. When there
+  // is no further intermediary — the hop next to the listing side — the
+  // request lands in the owner's queue for the final decision.
+  const nextChain = [...chain, hop];
+  const nextIntermediary = await resolveNextIntermediary(
+    args.admin,
+    request,
+    request.pending_consent_contact_id,
+    nextChain
+  );
+
   await args.admin
     .from('property_location_requests')
     .update({
-      consent_chain: [...chain, hop],
+      consent_chain: nextChain,
       pending_consent_contact_id: null,
       consent_requested_at: null,
     })
     .eq('id', request.id);
+
+  if (nextIntermediary) {
+    const asked = await requestConsentFromContact(
+      args.admin,
+      request,
+      nextIntermediary
+    );
+    if (asked) {
+      await ackConsentContact(args.admin, request, 'approved', 'intermediary');
+      return true;
+    }
+    // Unreachable next hop: fail open to the owner queue rather than
+    // stranding the request.
+  }
+
   await notifyOwnerQueue(args.admin, request);
-  await ackConsentContact(args.admin, request, 'approved');
+  await ackConsentContact(args.admin, request, 'approved', 'owner');
   return true;
+}
+
+/** Depth cap for chain walking — a backstop against pathological or
+ *  cyclic reshare data, far above any real co-broking chain. */
+const MAX_CONSENT_HOPS = 5;
+
+/**
+ * The next intermediary above `contactId` in the property's recorded
+ * sharing chain (property_reshare_links), or null when the contact was
+ * shared to directly by the listing side, the chain is exhausted, or
+ * the parent already appears in the consent chain (cycle guard).
+ */
+export async function resolveNextIntermediary(
+  admin: SupabaseClient,
+  request: Pick<LocationRequestRow, 'account_id' | 'property_id'>,
+  contactId: string,
+  consentChain: Array<{ contact_id: string }>
+): Promise<string | null> {
+  if (consentChain.length >= MAX_CONSENT_HOPS) return null;
+
+  const { data: reshare } = await admin
+    .from('property_reshare_links')
+    .select('parent_contact_id')
+    .eq('account_id', request.account_id)
+    .eq('property_id', request.property_id)
+    .eq('contact_id', contactId)
+    .maybeSingle();
+
+  const parentId = reshare?.parent_contact_id ?? null;
+  if (!parentId) return null;
+  if (consentChain.some((h) => h.contact_id === parentId)) return null;
+
+  const { data: parent } = await admin
+    .from('contacts')
+    .select('id')
+    .eq('id', parentId)
+    .eq('account_id', request.account_id)
+    .maybeSingle();
+  return parent?.id ?? null;
 }
 
 async function ackConsentContact(
   admin: SupabaseClient,
   request: LocationRequestRow,
-  decision: 'approved' | 'declined'
+  decision: 'approved' | 'declined',
+  forwardedTo: 'owner' | 'intermediary' = 'owner'
 ): Promise<void> {
   if (!request.pending_consent_contact_id) return;
   const title = await propertyTitle(
@@ -490,7 +554,9 @@ async function ackConsentContact(
   );
   const text =
     decision === 'approved'
-      ? `👍 Noted — the request for *${title}* has been forwarded to the listing side for final approval. The requester's details remain private.`
+      ? forwardedTo === 'intermediary'
+        ? `👍 Noted — the request for *${title}* has been forwarded to the agent who shared the property with you for their consent. The requester's details remain private.`
+        : `👍 Noted — the request for *${title}* has been forwarded to the listing side for final approval. The requester's details remain private.`
       : `👍 Noted — the request for *${title}* has been declined. The requester has been advised to reach out to you for more details.`;
   try {
     await sendWhatsAppMessageAndPersist({
@@ -554,4 +620,86 @@ export async function sweepConsentTimeouts(
   }
 
   return rows.length;
+}
+
+// ── Re-share links ──────────────────────────────────────────────
+// A co-broker holding a forwarded link mints their own attributed
+// link so onward forwarding stays visible to the consent chain.
+
+/** True when the contact is a recorded re-sharer of this property —
+ *  which makes them a consent-chain intermediary regardless of their
+ *  CRM classification. */
+export async function hasReshareLink(
+  admin: SupabaseClient,
+  accountId: string,
+  propertyId: string,
+  contactId: string
+): Promise<boolean> {
+  const { data } = await admin
+    .from('property_reshare_links')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId)
+    .eq('contact_id', contactId)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/** The personalized forwardable showcase link for a re-sharer. */
+export function buildReshareUrl(args: {
+  propertyIdOrCode: string;
+  contactId: string;
+}): string {
+  return `${revealBaseUrl()}/?property_id=${encodeURIComponent(args.propertyIdOrCode)}&mode=view&v=${encodeURIComponent(args.contactId)}`;
+}
+
+/** WhatsApp message delivering a re-sharer their personal link — they
+ *  forward it onward from their own chat. */
+export function buildReshareLinkMessage(args: {
+  name: string;
+  propertyTitle: string;
+  link: string;
+}): string {
+  return (
+    `🔗 Hi ${args.name}, here is your personal share link for *${args.propertyTitle}*:\n\n` +
+    `${args.link}\n\n` +
+    `Forward this link when you share the property onward. Location requests coming ` +
+    `through it will reach you first for your consent — and the requester's details ` +
+    `stay private to you.`
+  );
+}
+
+/**
+ * Records `contactId` as a re-sharer of the property under
+ * `parentContactId` (NULL = shared to them by the listing side).
+ * First recorded parent wins — a later mint must not rewire an
+ * existing chain out from under earlier requests.
+ */
+export async function recordReshareLink(
+  admin: SupabaseClient,
+  args: {
+    accountId: string;
+    propertyId: string;
+    contactId: string;
+    parentContactId: string | null;
+  }
+): Promise<void> {
+  const { data: existing } = await admin
+    .from('property_reshare_links')
+    .select('id')
+    .eq('account_id', args.accountId)
+    .eq('property_id', args.propertyId)
+    .eq('contact_id', args.contactId)
+    .maybeSingle();
+  if (existing) return;
+
+  const { error } = await admin.from('property_reshare_links').insert({
+    account_id: args.accountId,
+    property_id: args.propertyId,
+    contact_id: args.contactId,
+    parent_contact_id: args.parentContactId,
+  });
+  if (error && error.code !== '23505') {
+    console.error('[location-requests] Reshare insert failed:', error);
+  }
 }

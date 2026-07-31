@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import {
+  hasReshareLink,
   notifyOwnerQueue,
   requestConsentFromContact,
 } from '@/lib/inventory/location-requests';
@@ -112,9 +113,9 @@ export async function POST(
     // Attribution must resolve within the same account or it is dropped —
     // a forged id from another tenant must not route consent anywhere.
     // The consent chain applies only when the link's recipient is a
-    // CO-BROKER (classification 'Agent'): buyer-attributed links (v= is
-    // used for both) and a co-broker requesting for themselves are
-    // direct requests.
+    // CO-BROKER — classification 'Agent' or a recorded re-sharer of this
+    // property: buyer-attributed links (v= is used for both) and a
+    // co-broker requesting for themselves are direct requests.
     let viaContactId: string | null = null;
     if (typeof via_contact_id === 'string' && UUID_RE.test(via_contact_id)) {
       const { data: viaContact } = await admin
@@ -125,9 +126,10 @@ export async function POST(
         .maybeSingle();
       if (
         viaContact &&
-        viaContact.classification === 'Agent' &&
         normalizePhoneWithCountryCode(viaContact.phone || '') !==
-          normalizedPhone
+          normalizedPhone &&
+        (viaContact.classification === 'Agent' ||
+          (await hasReshareLink(admin, account_id, propertyId, viaContact.id)))
       ) {
         viaContactId = viaContact.id;
       }

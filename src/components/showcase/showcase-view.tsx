@@ -310,6 +310,14 @@ export function ShowcaseView({
   const [locReqSubmitting, setLocReqSubmitting] = useState(false);
   const [locReqSuccess, setLocReqSuccess] = useState<string | null>(null); // property id that was requested
 
+  // Co-broker re-share link states (agent mode)
+  const [reshareOpen, setReshareOpen] = useState(false);
+  const [reshareName, setReshareName] = useState('');
+  const [resharePhone, setResharePhone] = useState('');
+  const [reshareSubmitting, setReshareSubmitting] = useState(false);
+  const [reshareLink, setReshareLink] = useState<string | null>(null);
+  const [reshareCopied, setReshareCopied] = useState(false);
+
   const isStateLoadedRef = useRef(false);
 
   // 1. Client-side mount hook to load state from URL and localStorage (retained for 7 days)
@@ -989,6 +997,36 @@ export function ShowcaseView({
       toast.error(err instanceof Error ? err.message : 'Failed to submit request');
     } finally {
       setLocReqSubmitting(false);
+    }
+  };
+
+  // Co-broker re-share link mint handler
+  const handleReshareSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reshareName.trim() || !resharePhone.trim() || !selectedProperty) return;
+    setReshareSubmitting(true);
+    try {
+      const res = await fetch(`/api/public/properties/${selectedProperty.id}/reshare-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: reshareName.trim(),
+          phone: resharePhone.trim(),
+          account_id: accountId,
+          via_contact_id: visitorRef || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Request failed');
+      }
+      setReshareLink(data.link || null);
+      toast.success('Your personal share link is ready — also sent to your WhatsApp.');
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to create your link');
+    } finally {
+      setReshareSubmitting(false);
     }
   };
 
@@ -2053,6 +2091,96 @@ export function ShowcaseView({
                       >
                         <MapPin className="size-3.5" />
                         Request Exact Location
+                      </button>
+                    )}
+                  </div>
+                </div>
+                )}
+
+                {/* Co-broker re-share link — clean view only. Whoever
+                    holds a forwarded link mints their own attributed
+                    link here, keeping onward shares visible to the
+                    location-consent chain. */}
+                {isAgentMode && (
+                <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Share2 className="size-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-[11px] font-extrabold text-primary uppercase tracking-wider">Forwarding this property?</h5>
+                      <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
+                        Get your own share link. Location requests from people you share it with come to you first — their details stay private to you.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pl-9">
+                    {reshareLink ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 truncate text-[11px] font-mono text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5">
+                            {reshareLink}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(reshareLink).then(() => {
+                                setReshareCopied(true);
+                                setTimeout(() => setReshareCopied(false), 3000);
+                              });
+                            }}
+                            className="h-8 px-3 bg-primary hover:bg-primary-hover text-primary-foreground text-[11px] font-bold shrink-0"
+                          >
+                            {reshareCopied ? 'Copied!' : 'Copy'}
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-slate-500">Also sent to your WhatsApp — forward it from there.</p>
+                      </div>
+                    ) : reshareOpen ? (
+                      <form onSubmit={handleReshareSubmit} className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            required
+                            value={reshareName}
+                            onChange={(e) => setReshareName(e.target.value)}
+                            placeholder="Your Name"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                          <Input
+                            required
+                            type="tel"
+                            value={resharePhone}
+                            onChange={(e) => setResharePhone(e.target.value)}
+                            placeholder="Your WhatsApp Number"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          disabled={reshareSubmitting}
+                          className="w-full h-8 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-bold flex items-center justify-center gap-2"
+                        >
+                          {reshareSubmitting ? (
+                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                          ) : (
+                            <Share2 className="size-3" />
+                          )}
+                          Get My Share Link
+                        </Button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReshareName(visitorName);
+                          setResharePhone(visitorPhone);
+                          setReshareOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:text-primary/85 cursor-pointer"
+                      >
+                        <Share2 className="size-3.5" />
+                        Get My Share Link
                       </button>
                     )}
                   </div>
