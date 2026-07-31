@@ -23,7 +23,7 @@ import { AppErrorBoundary } from '@/components/error-boundary';
 import { ConvoRealLoader } from '@/components/loader';
 import { useAuthListener, useAuthStore } from '@/lib/auth-store';
 import { usePushRegistration } from '@/lib/push';
-import { asyncStoragePersister, queryClient } from '@/lib/query';
+import { asyncStoragePersister, queryCacheBuster, queryClient } from '@/lib/query';
 import { useTheme } from '@/lib/theme';
 
 // Expo Router renders this instead of blanking the whole navigator when
@@ -71,7 +71,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <PersistQueryClientProvider
         client={queryClient}
-        persistOptions={{ persister: asyncStoragePersister }}
+        persistOptions={{ persister: asyncStoragePersister, buster: queryCacheBuster }}
       >
         <View style={{ flex: 1 }}>
           <AuroraBackground />

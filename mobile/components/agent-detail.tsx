@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
@@ -439,10 +439,12 @@ export function ContactTags({ contactId }: { contactId: string }) {
       if (linkedRes.error) throw linkedRes.error;
       return {
         all: (allRes.data ?? []) as TagRow[],
-        linked: new Set((linkedRes.data ?? []).map((r: { tag_id: string }) => r.tag_id)),
+        linked: (linkedRes.data ?? []).map((r: { tag_id: string }) => r.tag_id),
       };
     },
   });
+
+  const linked = useMemo(() => new Set(data?.linked ?? []), [data?.linked]);
 
   async function toggle(tagId: string, selected: boolean) {
     if (selected) {
@@ -496,7 +498,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
               onLayout={(e) => setContentH(e.nativeEvent.layout.height)}
             >
               {data.all.map((t, i) => {
-                const selected = data.linked.has(t.id);
+                const selected = linked.has(t.id);
                 return (
                   <Pressable
                     key={t.id}
