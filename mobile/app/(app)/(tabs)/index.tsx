@@ -31,12 +31,11 @@ import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
 import { setConversationArchived } from '@/lib/conversation-actions';
 import { haptic } from '@/lib/haptics';
-import type { Contact } from '@/lib/types';
+import type { Contact , Conversation, MessageStatus, SenderType } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts, type ThemeColors } from '@/lib/theme';
-import type { Conversation, MessageStatus, SenderType } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
 
 const FILTERS = ['All', 'Unread', 'Open', 'Pending', 'Closed', 'Archived'] as const;
@@ -58,7 +57,7 @@ async function fetchConversations(archived: boolean): Promise<Conversation[]> {
 }
 
 export default function InboxScreen() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const userId = useAuthStore((s) => s.session?.user.id);
   const [search, setSearch] = useState('');

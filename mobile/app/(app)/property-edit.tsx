@@ -34,7 +34,7 @@ import {
 } from '@/lib/property-options';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { fonts, radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;

@@ -1,7 +1,7 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { radius, useTheme, fonts } from '@/lib/theme';
+import { radius, useTheme } from '@/lib/theme';
 
 /**
  * Platform-correct inline date/time picker. Android shows a dialog
