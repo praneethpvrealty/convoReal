@@ -14,7 +14,8 @@ export type CanAction =
   | "send-messages"
   | "view-only"
   | "delete-account"
-  | "transfer-ownership";
+  | "transfer-ownership"
+  | "view-guarded-locations";
 
 /**
  * Inline alternative to `<RequireRole>` for places that need a
@@ -43,6 +44,7 @@ export function useCan(action: CanAction): boolean {
     canManageMembers,
     canEditSettings,
     canSendMessages,
+    canViewGuardedLocations,
   } = useAuth();
   if (profileLoading || !orgRole) return false;
 
@@ -57,6 +59,10 @@ export function useCan(action: CanAction): boolean {
       // Old 'viewer' role folds into org_agent + is_read_only (082) —
       // check the flag directly rather than a role string.
       return isReadOnly;
+    case "view-guarded-locations":
+      // Account-wide privilege only; the listing agent's own-property
+      // exception is enforced server-side per row (location_guarded flag).
+      return canViewGuardedLocations;
     case "delete-account":
     case "transfer-ownership":
       // Both owner-only actions — org_manager is the org-hierarchy

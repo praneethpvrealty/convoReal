@@ -13,7 +13,9 @@ import {
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
+import type { Property } from "@/types";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -393,7 +395,9 @@ export async function GET(request: Request) {
 
       const total = tiered.length;
       return NextResponse.json({
-        data: tiered.slice(from, from + limit),
+        data: tiered
+          .slice(from, from + limit)
+          .map((row) => maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })),
         pagination: {
           page,
           limit,
@@ -424,7 +428,9 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      data: data ?? [],
+      data: ((data ?? []) as unknown as Property[]).map((row) =>
+        maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })
+      ),
       pagination: {
         page,
         limit,

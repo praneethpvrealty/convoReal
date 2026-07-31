@@ -6,6 +6,11 @@ import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import {
+  canViewExactLocation,
+  maskPropertyForViewer,
+} from "@/lib/inventory/location-guard";
+import type { Property } from "@/types";
 
 // GET /api/properties/[id]
 // Returns a single property with full relations (owner + interested_contacts)
@@ -46,7 +51,12 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(
+      maskPropertyForViewer(data as unknown as Property, {
+        role: ctx.role,
+        userId: ctx.userId,
+      })
+    );
   } catch (err) {
     return toErrorResponse(err);
   }
@@ -439,7 +449,7 @@ export async function PUT(
     // Verify it exists in this account before updating (defensive check)
     const { data: existing, error: findError } = await ctx.supabase
       .from("properties")
-      .select("id")
+      .select("id, type, user_id, location_privacy")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -457,6 +467,24 @@ export async function PUT(
         { error: "Property not found or access denied" },
         { status: 404 }
       );
+    }
+
+    // A caller who cannot see the exact location received a masked row
+    // in their edit form — writing its location fields back would corrupt
+    // the address with the locality label (or let them flip the guard).
+    if (
+      !canViewExactLocation(
+        { role: ctx.role, userId: ctx.userId },
+        existing as { type: string; user_id: string | null; location_privacy?: string | null }
+      )
+    ) {
+      delete updateData.location;
+      delete updateData.google_map_link;
+      delete updateData.latitude;
+      delete updateData.longitude;
+      delete updateData.locality_place_id;
+      delete updateData.locality_canonical;
+      delete updateData.location_privacy;
     }
 
     // The pin wins over address-derived coordinates (see POST) whenever

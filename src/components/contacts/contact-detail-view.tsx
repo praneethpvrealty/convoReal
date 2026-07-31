@@ -73,6 +73,7 @@ import { PropertyShareDialog } from '@/components/inventory/property-share-dialo
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
+import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
 const PROPERTY_INTEREST_OPTIONS = [
   'Vacant plot',
@@ -96,7 +97,7 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const supabase = createClient();
-  const { user, profile, accountId } = useAuth();
+  const { user, profile, accountId, canViewGuardedLocations } = useAuth();
   const router = useRouter();
 
   const [currency, setCurrency] = useState('INR');
@@ -1937,22 +1938,30 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           </Button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-1.5 text-[10px] text-slate-400 border-t border-slate-800/40 pt-1.5">
-                        <div>
-                          <span className="text-slate-500">Exact Location: </span>
-                          <span className="text-slate-300">{inquiredProperty.location}</span>
+                      {!isLocationGuarded(inquiredProperty) ||
+                      canViewGuardedLocations ||
+                      inquiredProperty.user_id === user?.id ? (
+                        <div className="grid grid-cols-1 gap-1.5 text-[10px] text-slate-400 border-t border-slate-800/40 pt-1.5">
+                          <div>
+                            <span className="text-slate-500">Exact Location: </span>
+                            <span className="text-slate-300">{inquiredProperty.location}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Google Map Link: </span>
+                            {inquiredProperty.google_map_link ? (
+                              <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline block truncate max-w-xs">
+                                {inquiredProperty.google_map_link}
+                              </a>
+                            ) : (
+                              <span className="text-slate-500 italic">No link configured</span>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-slate-500">Google Map Link: </span>
-                          {inquiredProperty.google_map_link ? (
-                            <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline block truncate max-w-xs">
-                              {inquiredProperty.google_map_link}
-                            </a>
-                          ) : (
-                            <span className="text-slate-500 italic">No link configured</span>
-                          )}
+                      ) : (
+                        <div className="text-[10px] text-amber-400/90 border-t border-slate-800/40 pt-1.5">
+                          Exact location restricted — visible to admins and the listing agent only.
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
 
