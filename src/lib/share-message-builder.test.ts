@@ -60,7 +60,7 @@ describe('buildPropertyShareMessage', () => {
     expect(msg).not.toContain('East facing');
   });
 
-  it('complete level includes every filled field', () => {
+  it('complete level includes every filled field but withholds the map for a guarded type', () => {
     const msg = buildPropertyShareMessage({
       property: baseProperty,
       url: URL,
@@ -78,10 +78,40 @@ describe('buildPropertyShareMessage', () => {
     expect(msg).toContain('40 ft road');
     expect(msg).toContain('Corner plot | Clear title | BBMP A-khata');
     expect(msg).toContain('🚩 Nearby: Forum Mall 1km | Metro 2km');
-    expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
+    expect(msg).not.toContain('🗺 Map:');
     expect(msg).toContain(URL);
     expect(msg).toContain('Regards, Praneeth');
     expect(msg).toContain('+919812345678');
+  });
+
+  it('complete level keeps the map link for un-guarded listings', () => {
+    const apartment = {
+      ...baseProperty,
+      type: 'Flat/ Apartment',
+    } as unknown as Property;
+    const msg = buildPropertyShareMessage({
+      property: apartment,
+      url: URL,
+      audience: 'agent',
+      detail: 'complete',
+      tone: 'professional',
+    });
+    expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
+  });
+
+  it('complete level keeps the map link when the guard is explicitly overridden off', () => {
+    const unguardedPlot = {
+      ...baseProperty,
+      location_privacy: 'exact',
+    } as unknown as Property;
+    const msg = buildPropertyShareMessage({
+      property: unguardedPlot,
+      url: URL,
+      audience: 'agent',
+      detail: 'complete',
+      tone: 'professional',
+    });
+    expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
   });
 
   it('rent listings show monthly rent with maintenance', () => {
@@ -166,8 +196,12 @@ describe('buildInquiryDetailsMessage', () => {
     expect(msg).toContain('💰 *₹45 Cr*');
     expect(msg).toContain('📍 Koramangala, Bangalore, Karnataka');
     expect(msg).toContain('✨ Corner plot | Clear title | BBMP A-khata');
-    expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
     expect(msg).toContain(`📸 Photos & full details:\n${URL}`);
+  });
+
+  it('still reveals the map link for a guarded listing — this is the post-approval send', () => {
+    const msg = buildInquiryDetailsMessage({ property: baseProperty, url: URL });
+    expect(msg).toContain('🗺 Map: https://maps.app.goo.gl/xyz');
   });
 
   it('adds the exact address when it differs from the locality line', () => {

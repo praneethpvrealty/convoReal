@@ -1934,8 +1934,10 @@ export function ShowcaseView({
                   </div>
                 )}
 
-                {/* Masked Exact Location Block — shown to buyers */}
-                {!isAgentMode && (
+                {/* Masked Exact Location Block — shown to buyers, and to
+                    co-broker (agent-mode) viewers when the listing's
+                    location is guarded */}
+                {(!isAgentMode || selectedProperty.location_guarded) && (
                 <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-1.5 backdrop-blur-sm relative overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent pointer-events-none" />
                   <div className="flex items-start gap-2.5">

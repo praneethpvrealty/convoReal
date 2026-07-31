@@ -30,6 +30,7 @@ import {
   parseBuyerAlertsCommand,
   applyBuyerAlertsCommand,
 } from '@/lib/buyer/alerts'
+import { isLocationGuarded } from '@/lib/inventory/location-guard'
 import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
 import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
 import {
@@ -1835,7 +1836,9 @@ interface PropertyRow {
   land_area_unit?: string | null
   sublocality?: string | null
   city?: string | null
+  state?: string | null
   location?: string | null
+  location_privacy?: string | null
   description?: string | null
   google_map_link?: string | null
   images?: string[] | null
@@ -2038,10 +2041,16 @@ export async function handlePropertyShareYesReply(
     const unitVal = isLand ? typedProperty.land_area_unit : typedProperty.area_unit
     const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
 
-    const locationParts = [
-      typedProperty.sublocality?.trim(),
-      typedProperty.city?.trim()
-    ].filter(Boolean).join(', ') || typedProperty.location
+    const propertyGuarded = isLocationGuarded({
+      type: typedProperty.type || '',
+      location_privacy: typedProperty.location_privacy,
+    })
+    const locationParts =
+      [
+        typedProperty.sublocality?.trim(),
+        typedProperty.city?.trim()
+      ].filter(Boolean).join(', ') ||
+      (propertyGuarded ? '' : typedProperty.location)
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     // v= attributes Showcase Pulse engagement to this contact (never filters)
@@ -2054,8 +2063,8 @@ export async function handlePropertyShareYesReply(
     if (typedProperty.bedrooms) detailsText += `🛏️ *BHK:* ${typedProperty.bedrooms} BHK\n`
     if (typedProperty.bathrooms) detailsText += `🛁 *Bathrooms:* ${typedProperty.bathrooms}\n`
     if (typedProperty.description) detailsText += `\n📝 *Description:*\n${typedProperty.description}\n`
-    
-    if (typedProperty.google_map_link) {
+
+    if (typedProperty.google_map_link && !propertyGuarded) {
       detailsText += `\n🗺️ *Google Maps:* ${typedProperty.google_map_link}\n`
     }
     detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`
@@ -2924,10 +2933,17 @@ export async function handleShowMoreProperties(
       const unitVal = isLand ? typedProp.land_area_unit : typedProp.area_unit
       const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
 
-      const locationParts = [
-        typedProp.sublocality?.trim(),
-        typedProp.city?.trim()
-      ].filter(Boolean).join(', ') || typedProp.location
+      const locationParts =
+        [
+          typedProp.sublocality?.trim(),
+          typedProp.city?.trim()
+        ].filter(Boolean).join(', ') ||
+        (isLocationGuarded({
+          type: typedProp.type || '',
+          location_privacy: typedProp.location_privacy,
+        })
+          ? ''
+          : typedProp.location)
 
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
       // v= attributes Showcase Pulse engagement to this contact (never filters)

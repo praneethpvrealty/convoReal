@@ -594,6 +594,7 @@ export async function sendMediaMessage(
 
 import type { MessageTemplate } from '@/types'
 import { storagePublicUrl } from '@/lib/storage/url'
+import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard'
 import {
   buildSendComponents,
   sanitizeParamText,
@@ -1512,7 +1513,10 @@ export async function syncProductToCatalog(
 
   const descriptionParts: string[] = []
   if (property.property_code) descriptionParts.push(`Code: ${property.property_code}`)
-  if (property.location) descriptionParts.push(`Location: ${property.location}`)
+  const catalogLocation = isLocationGuarded(property)
+    ? localityLabel(property)
+    : property.location
+  if (catalogLocation) descriptionParts.push(`Location: ${catalogLocation}`)
   if (property.description) descriptionParts.push(property.description)
   const description = descriptionParts.join('\n').substring(0, 900) || 'Property details'
 

@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { parseFlyerOptions } from "@/lib/inventory/flyer-options";
 import { renderFlyer } from "@/lib/inventory/flyer-render";
+import { isLocationGuarded, localityLabel } from "@/lib/inventory/location-guard";
 import { storagePublicUrl } from "@/lib/storage/url";
 
 // POST /api/properties/[id]/flyer
@@ -39,9 +40,11 @@ export async function POST(
     }
     const { options } = parsed;
 
-    const { data: property, error } = await ctx.supabase
+    const { data: raw, error } = await ctx.supabase
       .from("properties")
-      .select("id, title, property_code, type, price, location, images")
+      .select(
+        "id, title, property_code, type, price, location, location_privacy, sublocality, city, state, images"
+      )
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -53,12 +56,18 @@ export async function POST(
         { status: 500 }
       );
     }
-    if (!property) {
+    if (!raw) {
       return NextResponse.json(
         { error: "Property not found" },
         { status: 404 }
       );
     }
+
+    // Flyers are made to be shared (and saved ones join the public photo
+    // gallery), so guarded listings render locality, never the address.
+    const property = isLocationGuarded(raw)
+      ? { ...raw, location: localityLabel(raw) }
+      : raw;
 
     const { data: settings } = await ctx.supabase
       .from("showcase_settings")

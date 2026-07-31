@@ -920,6 +920,19 @@ export interface Property {
   longitude?: number | null;
   locality_place_id?: string | null;
   locality_canonical?: string | null;
+  /** Location guard (migration 175). NULL = derived from type: houses,
+   *  villas, farm houses and land default to 'locality' (exact address,
+   *  map pin and coordinates hidden), everything else to 'exact'. */
+  location_privacy?: 'exact' | 'locality' | null;
+  /** Photos moved to the non-public bucket (migration 175) — served only
+   *  through the authenticated proxy or an approved reveal token. */
+  private_images?: string[];
+  /** Set by the masking helpers, never stored: this row was
+   *  locality-substituted for the current viewer. */
+  location_guarded?: boolean;
+  /** Attached by the masking helpers so a viewer can see how many
+   *  photos exist behind the guard without receiving their paths. */
+  private_images_count?: number;
   /** Transient fields attached by the tiered location search
    *  (GET /api/properties?near_lat=...), not stored columns. */
   distance_km?: number | null;
