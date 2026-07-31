@@ -15,6 +15,7 @@ import {
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
+import { VoiceScheduler } from '@/components/voice-scheduler';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
@@ -23,6 +24,7 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AppointmentType, Contact } from '@/lib/types';
+import { voiceHints, type VoicePrefill } from '@/lib/voice-event';
 
 const TYPES: { value: AppointmentType; label: string; icon: string }[] = [
   { value: 'site_visit', label: 'Site visit', icon: 'location-outline' },
@@ -61,7 +63,28 @@ export default function NewAppointmentScreen() {
   );
   const locationRef = useRef<TextInput>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [voice, setVoice] = useState<{ transcript: string | null; description: string | null } | null>(
+    null
+  );
   const [saving, setSaving] = useState(false);
+
+  function applyVoicePrefill(prefill: VoicePrefill) {
+    setError(null);
+    setTitle(prefill.title);
+    setEventType(prefill.eventType);
+    if (prefill.start) setStart(prefill.start);
+    if (prefill.location) setLocation(prefill.location);
+    if (prefill.contact) {
+      setContact(prefill.contact);
+      setContactSearch('');
+    }
+    setVoice({ transcript: prefill.transcript, description: prefill.description });
+    const hints = voiceHints(prefill);
+    setNotice(
+      hints.length > 0 ? hints.join(' ') : 'Filled from voice — review below, then tap Schedule.'
+    );
+  }
 
   const { data: contactOptions } = useQuery({
     queryKey: ['contact-picker', debouncedContactSearch],
@@ -101,6 +124,7 @@ export default function NewAppointmentScreen() {
       event_type: eventType,
       contact_id: contact?.id ?? null,
       contact_ids: contact ? [contact.id] : [],
+      ...(voice ? { source: 'voice', transcript: voice.transcript, description: voice.description } : {}),
     });
     setSaving(false);
     if (insertError) {
@@ -130,6 +154,19 @@ export default function NewAppointmentScreen() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag">
         {error ? <Banner kind="error" text={error} /> : null}
+
+        <VoiceScheduler
+          onParsed={applyVoicePrefill}
+          onInfo={(message) => {
+            setError(null);
+            setNotice(message);
+          }}
+          onError={(message) => {
+            setNotice(null);
+            setError(message);
+          }}
+        />
+        {notice ? <Banner kind="info" text={notice} /> : null}
 
         <TextField
           placeholder="Title · e.g. Site visit — Prestige Lakeview"

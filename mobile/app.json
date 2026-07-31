@@ -45,7 +45,8 @@
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.READ_CONTACTS"
+        "android.permission.READ_CONTACTS",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -96,6 +97,12 @@
         "expo-notifications",
         {
           "color": "#0A1F16"
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "ConvoReal uses the microphone so you can schedule appointments by voice."
         }
       ]
     ],
