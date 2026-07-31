@@ -47,6 +47,7 @@ import {
   Maximize2,
   ExternalLink,
   Lock,
+  Unlock,
   Compass,
   CheckCircle2,
   Edit,
@@ -211,6 +212,8 @@ export function PropertyForm({
   const [features, setFeatures] = useState<string[]>([]);
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>(['']);
+  const [privateImages, setPrivateImages] = useState<string[]>([]);
+  const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
   const [defaultImageIndex, setDefaultImageIndex] = useState(0);
   const [documents, setDocuments] = useState<Array<{ url: string; title: string }>>([{ url: '', title: '' }]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
@@ -1309,6 +1312,7 @@ export function PropertyForm({
         setFeatures(property.features || []);
         setNearbyHighlights(property.nearby_highlights || []);
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
+        setPrivateImages(property.private_images || []);
         setDefaultImageIndex(0); // Default image is always at index 0
         const dbDocs = property.documents && property.documents.length > 0 ? property.documents : [];
         const parsed = dbDocs.map((doc: unknown) => {
@@ -1441,6 +1445,7 @@ export function PropertyForm({
         setFeatures([]);
         setNearbyHighlights([]);
         setImages(['']);
+        setPrivateImages([]);
         setDocuments([{ url: '', title: '' }]);
         setSearchQuery('');
         setGoogleMapLink('');
@@ -1901,6 +1906,33 @@ export function PropertyForm({
     toast.success('Selected image set as default listing photo');
   }
 
+  async function handleToggleImageLock(path: string, action: 'lock' | 'unlock') {
+    if (!property?.id || lockingImagePath) return;
+    setLockingImagePath(path);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/private-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update photo privacy');
+      }
+      setImages(data.data.images.length > 0 ? data.data.images : ['']);
+      setPrivateImages(data.data.private_images || []);
+      toast.success(
+        action === 'lock'
+          ? 'Photo moved to private — revealed only on approved requests'
+          : 'Photo is public again'
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update photo privacy');
+    } finally {
+      setLockingImagePath(null);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -2249,9 +2281,20 @@ export function PropertyForm({
                       and touch swipe both navigate. */}
                   <div className="space-y-2">
                     {(() => {
-                      const validImages = (images || []).filter(img => img && img.trim().length > 0).map(storagePublicUrl);
+                      const publicImages = (images || []).filter(img => img && img.trim().length > 0).map(storagePublicUrl);
+                      // Private photos stream through the authenticated
+                      // proxy — the masked API empties the list for
+                      // viewers who may not see them.
+                      const privateProxyImages = property?.id
+                        ? (privateImages || []).map(
+                            (_, i) => `/api/properties/${property.id}/private-images/${i}`
+                          )
+                        : [];
+                      const validImages = [...publicImages, ...privateProxyImages];
                       const hasVideo = Boolean(property?.video_url && property.video_status === 'ready');
                       const mediaCount = validImages.length + (hasVideo ? 1 : 0);
+                      const isPrivateSlide = (i: number) =>
+                        i >= publicImages.length && i < validImages.length;
                       if (mediaCount === 0) {
                         return (
                           <div className="relative aspect-[16/9] w-full rounded-xl bg-slate-950/60 border border-dashed border-slate-800 overflow-hidden flex flex-col items-center justify-center text-slate-500 gap-2.5 py-12">
@@ -2319,6 +2362,11 @@ export function PropertyForm({
                                   <ChevronRight className="size-4" />
                                 </button>
                               </>
+                            )}
+                            {!isVideoSlide && isPrivateSlide(Math.min(activeImageIndex, mediaCount - 1)) && (
+                              <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-amber-500/90 text-slate-950 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide">
+                                <Lock className="size-3" /> Private
+                              </div>
                             )}
                             <div className="absolute bottom-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono font-bold text-slate-300 border border-slate-800">
                               {Math.min(activeImageIndex, mediaCount - 1) + 1} / {mediaCount}
@@ -4467,6 +4515,23 @@ export function PropertyForm({
                                 <Star className={`size-3.5 ${idx === defaultImageIndex ? 'fill-amber-400' : ''}`} />
                               </Button>
                             )}
+                            {imgUrl.trim().length > 0 && property?.id && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleImageLock(imgUrl, 'lock')}
+                                disabled={lockingImagePath !== null}
+                                className="h-8 w-8 p-0 text-slate-500 hover:text-amber-400 shrink-0"
+                                title="Make private — hidden from the showcase, revealed only on approved requests (e.g. facade / street view)"
+                              >
+                                {lockingImagePath === imgUrl ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Lock className="size-3.5" />
+                                )}
+                              </Button>
+                            )}
                             {images.length > 1 && (
                               <Button
                                 type="button"
@@ -4490,6 +4555,48 @@ export function PropertyForm({
                           <Plus className="size-3" /> Add Image URL
                         </Button>
                       </div>
+
+                      {property?.id && privateImages.length > 0 && (
+                        <div className="space-y-2 border-t border-slate-800 pt-3">
+                          <Label className="text-amber-400 text-xs flex items-center gap-1.5">
+                            <Lock className="size-3" /> Private Photos
+                            <span className="text-[10px] font-medium text-slate-500">
+                              Hidden from the showcase — sent only with approved location reveals
+                            </span>
+                          </Label>
+                          {privateImages.map((path, idx) => (
+                            <div key={path} className="flex gap-2 items-center">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={`/api/properties/${property.id}/private-images/${idx}`}
+                                alt={`Private ${idx + 1}`}
+                                className="size-8 object-cover rounded border border-amber-900/50 shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                              <span className="flex-1 text-xs text-slate-500 truncate">{path}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleImageLock(path, 'unlock')}
+                                disabled={lockingImagePath !== null}
+                                className="h-8 px-2 text-xs text-slate-400 hover:text-white shrink-0 flex items-center gap-1"
+                                title="Make public again"
+                              >
+                                {lockingImagePath === path ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Unlock className="size-3.5" /> Unlock
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Property Documents */}
