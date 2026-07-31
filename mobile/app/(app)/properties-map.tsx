@@ -32,14 +32,14 @@ const BENGALURU = {
 export default function PropertiesMapScreen() {
   const { colors, dark, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const { search, listing, near } = usePropertySearch();
+  const { search, listing, near, includeUnavailable } = usePropertySearch();
   const mapRef = useRef<MapView>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['properties-map', search.trim(), listing, near],
+    queryKey: ['properties-map', search.trim(), listing, near, includeUnavailable],
     queryFn: async () => {
       // Page 0 — the properties API is 0-indexed.
-      const params = buildPropertyParams(0, search.trim(), listing, near);
+      const params = buildPropertyParams(0, search.trim(), listing, near, includeUnavailable);
       params.set('limit', '100');
       return apiFetch<PropertiesResponse>(`/api/properties?${params.toString()}`);
     },

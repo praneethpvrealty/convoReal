@@ -22,10 +22,13 @@ interface PropertySearchState {
   search: string;
   listing: ListingFilter;
   near: NearAnchor | null;
+  /** Off by default: results are Available-only until the chip widens them. */
+  includeUnavailable: boolean;
   setSearch: (v: string) => void;
   setListing: (v: ListingFilter) => void;
   setNear: (v: NearAnchor | null) => void;
   setRadius: (km: number) => void;
+  setIncludeUnavailable: (v: boolean) => void;
 }
 
 /**
@@ -36,11 +39,13 @@ export const usePropertySearch = create<PropertySearchState>((set) => ({
   search: '',
   listing: 'All',
   near: null,
+  includeUnavailable: false,
   setSearch: (search) => set({ search }),
   setListing: (listing) => set({ listing }),
   setNear: (near) => set({ near }),
   setRadius: (radiusKm) =>
     set((s) => (s.near ? { near: { ...s.near, radiusKm } } : {})),
+  setIncludeUnavailable: (includeUnavailable) => set({ includeUnavailable }),
 }));
 
 export function nearFromLocality(pick: PickedLocality, radiusKm = 5): NearAnchor {
