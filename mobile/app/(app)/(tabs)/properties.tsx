@@ -64,13 +64,17 @@ export function buildPropertyParams(
   page: number,
   search: string,
   listing: ListingFilter,
-  near: NearAnchor | null
+  near: NearAnchor | null,
+  includeUnavailable: boolean
 ): URLSearchParams {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(PAGE_SIZE),
-    exclude_archived: 'true',
   });
+  // The route rejects status + exclude_archived together, so widening
+  // means dropping the status filter — Archived stays out either way.
+  if (includeUnavailable) params.set('exclude_archived', 'true');
+  else params.set('status', 'Available');
   if (search) params.set('search', search);
   if (listing !== 'All') params.set('listing_type', listing);
   if (near) {
@@ -89,18 +93,28 @@ export async function fetchPropertyPage(
   page: number,
   search: string,
   listing: ListingFilter,
-  near: NearAnchor | null
+  near: NearAnchor | null,
+  includeUnavailable: boolean
 ): Promise<PropertiesResponse> {
   return apiFetch<PropertiesResponse>(
-    `/api/properties?${buildPropertyParams(page, search, listing, near).toString()}`
+    `/api/properties?${buildPropertyParams(page, search, listing, near, includeUnavailable).toString()}`
   );
 }
 
 export default function PropertiesScreen() {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const { search, listing, near, setSearch, setListing, setNear, setRadius } =
-    usePropertySearch();
+  const {
+    search,
+    listing,
+    near,
+    includeUnavailable,
+    setSearch,
+    setListing,
+    setNear,
+    setRadius,
+    setIncludeUnavailable,
+  } = usePropertySearch();
   const [locating, setLocating] = useState(false);
   const [sharePicker, setSharePicker] = useState(false);
   const { show, close, dialogProps } = useAppDialog();
@@ -117,8 +131,9 @@ export default function PropertiesScreen() {
     fetchNextPage,
     hasNextPage,
   } = useInfiniteQuery({
-      queryKey: ['properties', debounced, listing, near],
-      queryFn: ({ pageParam }) => fetchPropertyPage(pageParam, debounced, listing, near),
+      queryKey: ['properties', debounced, listing, near, includeUnavailable],
+      queryFn: ({ pageParam }) =>
+        fetchPropertyPage(pageParam, debounced, listing, near, includeUnavailable),
       // The properties API is 0-INDEXED (`from = page * limit` in
       // route.ts) — page 1 means "skip the first 20 rows".
       initialPageParam: 0,
@@ -282,6 +297,14 @@ export default function PropertiesScreen() {
           {LISTING_FILTERS.map((f) => (
             <FilterChip key={f} label={f} active={listing === f} onPress={() => setListing(f)} />
           ))}
+          <FilterChip
+            label="Include unavailable"
+            active={includeUnavailable}
+            onPress={() => {
+              haptic.tap();
+              setIncludeUnavailable(!includeUnavailable);
+            }}
+          />
         </ScrollView>
       </View>
 
@@ -379,6 +402,24 @@ export default function PropertiesScreen() {
                   >
                     <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: f.bold }}>
                       Search within 25 km
+                    </Text>
+                  </Pressable>
+                ) : !includeUnavailable ? (
+                  <Pressable
+                    onPress={() => {
+                      haptic.tap();
+                      setIncludeUnavailable(true);
+                    }}
+                    accessibilityRole="button"
+                    style={{
+                      backgroundColor: colors.primary,
+                      borderRadius: radius.full,
+                      paddingHorizontal: 18,
+                      paddingVertical: 11,
+                    }}
+                  >
+                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: f.bold }}>
+                      Include unavailable
                     </Text>
                   </Pressable>
                 ) : null
