@@ -37,6 +37,13 @@ All tenant data lives in one Supabase PostgreSQL database and is isolated by `ac
 
 These rules are hard project conventions. Violating them will break the app or the security model.
 
+The canonical constitution lives in the [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS) at `03_ENGINEERING/30_AI_ENGINEERING_CONSTITUTION.md` — a cross-project knowledge repo covering product, business, architecture, engineering, AI and operations. It is restated here rather than only linked: this file is loaded into agent context automatically, a remote repo is not. §2.1–2.7 are the ConvoReal-specific expansion of it. If the two disagree, the Engineering OS wins on intent and this file wins on ConvoReal specifics — update both.
+
+Two canonical rules the subsections below do not otherwise restate:
+
+- **Preserve existing functionality.** Do not rewrite a large module without approval; extend an existing pattern rather than replacing it.
+- **Follow the golden workflow** — Analyze → Plan → Implement small change → Validate → Document → Commit — and summarize what changed and what the risks are.
+
 ### 2.1 Read before you write
 
 - Read the full file (or the relevant section plus surrounding context) before editing it.
@@ -683,6 +690,7 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 
 | File | What it covers |
 |------|---------------|
+| [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS) | Cross-project knowledge repo: foundation, business, architecture, engineering, AI, governance (ADRs), operations, templates. `INDEX.md` lists every document. Source of the constitution restated in §2 |
 | `README.md` | Project overview, quick start, feature list |
 | `DATABASE_SCHEMA.md` | Table-by-table schema reference |
 | `PROJECT_HANDOVER.md` | Recent milestones, key features, coding standards |
