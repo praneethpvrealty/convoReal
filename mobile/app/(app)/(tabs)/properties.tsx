@@ -17,7 +17,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as Linking from 'expo-linking';
+
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
@@ -35,6 +38,7 @@ import {
   contactShowcaseShareUrl,
   logShowcaseShare,
 } from '@/lib/showcase-share';
+import { openContactChat } from '@/lib/open-chat';
 import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
 import {
@@ -99,6 +103,7 @@ export default function PropertiesScreen() {
     usePropertySearch();
   const [locating, setLocating] = useState(false);
   const [sharePicker, setSharePicker] = useState(false);
+  const { show, close, dialogProps } = useAppDialog();
   const [geoError, setGeoError] = useState<string | null>(null);
   const debounced = useDebounced(search.trim());
 
@@ -131,22 +136,64 @@ export default function PropertiesScreen() {
   // present its total as if it belonged to the current filters.
   const total = isPlaceholderData ? undefined : data?.pages[0]?.pagination.total;
 
+  function showcaseMessage(url: string) {
+    return `Browse our verified property listings — photos, prices and full details:\n${url}`;
+  }
+
   function shareShowcase(url: string) {
-    Share.share({
-      message: `Browse our verified property listings — photos, prices and full details:\n${url}`,
-      url,
-    });
+    Share.share({ message: showcaseMessage(url), url });
   }
 
   // Named share: the link carries v=<contact_id>, so this contact's
-  // opens and views land in Pulse under their name, and the share
-  // leaves a breadcrumb on their timeline.
-  async function shareToContact(contact: Contact) {
+  // opens and views land in Pulse under their name. Picking a contact
+  // then asks WHICH channel — WhatsApp deep-links straight into their
+  // chat (the generic OS sheet made the agent find them a second time),
+  // and the ConvoReal option drafts the message into the inbox thread
+  // so it goes out from the business number, logged.
+  function shareToContact(contact: Contact) {
     setSharePicker(false);
     haptic.tap();
-    const url = await contactShowcaseShareUrl(contact);
-    logShowcaseShare(contact);
-    shareShowcase(url);
+    const name = contact.name || contact.phone;
+    show({
+      title: `Share with ${name}`,
+      message:
+        'WhatsApp opens their chat from your personal number. ConvoReal drafts it into the inbox thread, sent from the business number and logged.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Other apps',
+          onPress: async () => {
+            close();
+            const url = await contactShowcaseShareUrl(contact);
+            logShowcaseShare(contact);
+            shareShowcase(url);
+          },
+        },
+        {
+          label: 'ConvoReal',
+          onPress: async () => {
+            close();
+            const url = await contactShowcaseShareUrl(contact);
+            const outcome = await openContactChat(contact, { draftText: showcaseMessage(url) });
+            if (!outcome.ok && outcome.error) {
+              show({ title: 'Could not open thread', message: outcome.error });
+            }
+          },
+        },
+        {
+          label: 'WhatsApp',
+          variant: 'primary',
+          onPress: async () => {
+            close();
+            const url = await contactShowcaseShareUrl(contact);
+            logShowcaseShare(contact);
+            Linking.openURL(
+              `https://wa.me/${contact.phone.replace(/\D/g, '')}?text=${encodeURIComponent(showcaseMessage(url))}`
+            );
+          },
+        },
+      ],
+    });
   }
 
   // Anonymous share for groups/status posts: a per-share token (?s=)
@@ -345,6 +392,7 @@ export default function PropertiesScreen() {
           )}
         />
       )}
+      <AppDialog {...dialogProps} />
       <ContactPickerSheet
         visible={sharePicker}
         onClose={() => setSharePicker(false)}
