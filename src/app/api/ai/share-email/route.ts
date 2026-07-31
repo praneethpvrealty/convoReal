@@ -10,6 +10,10 @@ import {
   SHARE_EMAIL_SYSTEM_PROMPT,
   type ShareEmailProperty,
 } from '@/lib/email/property-share-email';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 
 // POST /api/ai/share-email
 // Rewrites the deterministic "Share via Email" draft for a property into
@@ -20,7 +24,7 @@ const AI_FEATURE = 'share_email' as const;
 
 const PROPERTY_COLUMNS =
   'id, is_published, title, type, listing_type, price, rent_per_month, maintenance, ' +
-  'location, sublocality, city, google_map_link, nearby_highlights, ' +
+  'location, location_privacy, sublocality, city, state, google_map_link, nearby_highlights, ' +
   'land_area, land_area_unit, land_zone, land_use_zoning, ownership_status, ' +
   'deal_remarks, jv_structure, owner_share_percent, builder_share_percent, ' +
   'goodwill_amount, documents, property_code, images';
@@ -76,7 +80,19 @@ export async function POST(request: NextRequest) {
 
     // Untyped supabase client can't infer the row shape from the column
     // string — same convention as the public similar-properties route.
-    const prompt = buildShareEmailAiPrompt(property as unknown as ShareEmailProperty, {
+    // The drafted email leaves the CRM, so guarded listings contribute
+    // locality only — no street address, no map pin.
+    const row = property as unknown as ShareEmailProperty & {
+      type: string;
+      location_privacy?: string | null;
+      sublocality?: string | null;
+      city?: string | null;
+      state?: string | null;
+    };
+    const emailProperty = isLocationGuarded(row)
+      ? { ...row, location: localityLabel(row), google_map_link: null }
+      : row;
+    const prompt = buildShareEmailAiPrompt(emailProperty, {
       recipientNames,
       agentName: typeof body?.agent_name === 'string' ? body.agent_name : null,
       agentPhone: typeof body?.agent_phone === 'string' ? body.agent_phone : null,

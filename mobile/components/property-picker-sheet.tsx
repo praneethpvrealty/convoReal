@@ -27,9 +27,11 @@ import { getShowcaseUrl } from '@/lib/welcome-message';
 
 /**
  * Shortlist a handful of listings and drop them into the current
- * WhatsApp thread. Search the same inventory the Properties tab does,
- * multi-select, then send a numbered "here are your options" message
- * through the CRM number via the parent's send path.
+ * WhatsApp thread. Search the same inventory the Properties tab does —
+ * Available only, with no widening chip: a sold or off-market listing
+ * has no business going out to a buyer. Multi-select, then send a
+ * numbered "here are your options" message through the CRM number via
+ * the parent's send path.
  */
 export function PropertyPickerSheet({
   visible,
@@ -56,7 +58,7 @@ export function PropertyPickerSheet({
   const { data, isLoading, error } = useQuery({
     queryKey: ['property-share-search', debounced],
     enabled: visible,
-    queryFn: () => fetchPropertyPage(0, debounced, 'All', null),
+    queryFn: () => fetchPropertyPage(0, debounced, 'All', null, false),
   });
   const results = data?.data ?? [];
 

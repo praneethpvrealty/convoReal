@@ -1,6 +1,7 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
+import { toPublicPropertyView } from '@/lib/inventory/location-guard';
 import type { Property, ShowcaseSettings } from '@/types';
 
 export interface ShowcaseData {
@@ -224,10 +225,12 @@ export async function cachedFetchShowcaseData(
   })(accountId, isAgentMode);
 }
 
-// Attach agent details, strip documents. In buyer mode the UI promises
-// "street address & map pin hidden until inquiry" — so the pin must be
-// kept out of the serialized payload too (it's readable via view-source),
-// not just left unrendered. Agent mode (mode=view) keeps it for the map.
+// Attach agent details and reduce each row to the public whitelist.
+// The full payload is serialized into the RSC stream of every showcase
+// page (readable via view-source), so exact location, coordinates and
+// CRM internals must never survive this step. Agent mode (mode=view)
+// reveals the map only for properties whose location is not guarded —
+// see src/lib/inventory/location-guard.ts.
 export function toPublicProperties(
   properties: Property[],
   agents: ShowcaseData['agents'],
@@ -262,11 +265,8 @@ export function toPublicProperties(
 
   return properties.map((prop) => {
     const agent = prop.user_id ? userIdToAgentMap[prop.user_id] : null;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { documents: _documents, google_map_link, ...publicProp } = prop;
     return {
-      ...publicProp,
-      google_map_link: isAgentMode ? google_map_link : null,
+      ...toPublicPropertyView(prop, { revealExact: isAgentMode }),
       agent_details: agent || null,
     };
   });

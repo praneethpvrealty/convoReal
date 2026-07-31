@@ -13,7 +13,9 @@ import {
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
+import type { Property } from "@/types";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -393,7 +395,9 @@ export async function GET(request: Request) {
 
       const total = tiered.length;
       return NextResponse.json({
-        data: tiered.slice(from, from + limit),
+        data: tiered
+          .slice(from, from + limit)
+          .map((row) => maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })),
         pagination: {
           page,
           limit,
@@ -424,7 +428,9 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      data: data ?? [],
+      data: ((data ?? []) as unknown as Property[]).map((row) =>
+        maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })
+      ),
       pagination: {
         page,
         limit,
@@ -492,6 +498,7 @@ export async function POST(request: Request) {
       nearby_highlights,
       owner_contact_id,
       google_map_link,
+      location_privacy,
       rental_income,
       roi,
       floor_tenancies,
@@ -604,6 +611,8 @@ export async function POST(request: Request) {
       images: Array.isArray(images) ? images.filter(img => typeof img === "string") : [],
       documents: Array.isArray(documents) ? documents.filter(d => typeof d === "string") : [],
       google_map_link: typeof google_map_link === "string" ? google_map_link.trim() : null,
+      location_privacy:
+        location_privacy === "exact" || location_privacy === "locality" ? location_privacy : null,
       rental_income: typeof rental_income === "number" ? rental_income : null,
       roi: typeof roi === "number" ? roi : null,
       floor_tenancies: sanitizeFloorTenancies(floor_tenancies),

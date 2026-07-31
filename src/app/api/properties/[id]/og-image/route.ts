@@ -4,6 +4,7 @@ import { renderFlyer } from "@/lib/inventory/flyer-render";
 import { parseFlyerOptions } from "@/lib/inventory/flyer-options";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
+import { isLocationGuarded, localityLabel } from "@/lib/inventory/location-guard";
 import { BRANDING } from "@/config/branding";
 
 // GET /api/properties/[id]/og-image
@@ -33,10 +34,18 @@ export async function GET(
     const isUuid = UUID_RE.test(id);
     let query = admin
       .from("properties")
-      .select("id, title, property_code, type, price, location, images, account_id");
+      .select(
+        "id, title, property_code, type, price, location, location_privacy, sublocality, city, state, images, account_id"
+      );
     query = isUuid ? query.eq("id", id) : query.eq("property_code", id.toUpperCase());
-    const { data: property } = await query.maybeSingle();
-    if (!property) return new NextResponse("Not found", { status: 404 });
+    const { data: raw } = await query.maybeSingle();
+    if (!raw) return new NextResponse("Not found", { status: 404 });
+
+    // The rendered PNG is fetched and cached by messenger crawlers, so a
+    // guarded listing's street address must never be burned into it.
+    const property = isLocationGuarded(raw)
+      ? { ...raw, location: localityLabel(raw) }
+      : raw;
 
     const { data: settings } = await admin
       .from("showcase_settings")

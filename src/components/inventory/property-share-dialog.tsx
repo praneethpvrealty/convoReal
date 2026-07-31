@@ -39,6 +39,7 @@ import {
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { captureJourneyItems } from '@/lib/journey/capture';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
+import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import {
@@ -844,8 +845,9 @@ export function PropertyShareDialog({
 
     try {
       const selectedContacts = contacts.filter((c) => selectedContactIds.includes(c.id));
+      const guarded = isLocationGuarded(property);
       const fullLoc = [
-        property.location.trim(),
+        guarded ? '' : property.location.trim(),
         (property.sublocality || '').trim(),
         (property.city || '').trim(),
         (property.state || '').trim(),
@@ -871,9 +873,10 @@ export function PropertyShareDialog({
               else if (mapping.value === 'price') val = formattedPrice || '';
               else if (mapping.value === 'location') {
                 const locVal = property.sublocality || fullLoc || '';
-                val = property.google_map_link
-                  ? `${locVal}\n🗺️ Google Maps Link: ${property.google_map_link}`
-                  : locVal;
+                val =
+                  property.google_map_link && !guarded
+                    ? `${locVal}\n🗺️ Google Maps Link: ${property.google_map_link}`
+                    : locVal;
               }
               else if (mapping.value === 'area') {
                 const isLand = property.type.includes('Land') || property.type.includes('Plot');
@@ -1019,7 +1022,7 @@ export function PropertyShareDialog({
         phone: contact.phone,
       }));
 
-      const bodyText = `🏠 *${property.title}*\n💰 Price: ${formattedPrice}\n📍 Location: ${property.sublocality || property.location}`;
+      const bodyText = `🏠 *${property.title}*\n💰 Price: ${formattedPrice}\n📍 Location: ${property.sublocality || (isLocationGuarded(property) ? localityLabel(property) : property.location)}`;
 
       const response = await fetch('/api/whatsapp/broadcast', {
         method: 'POST',
@@ -2279,10 +2282,15 @@ export function PropertyShareDialog({
                               if (mapping.value === 'title') val = property.title || `[Title]`;
                               else if (mapping.value === 'price') val = formattedPrice || `[Price]`;
                               else if (mapping.value === 'location') {
-                                const locVal = property.sublocality || property.location || `[Location]`;
-                                val = property.google_map_link
-                                  ? `${locVal}\n🗺️ Google Maps Link: ${property.google_map_link}`
-                                  : locVal;
+                                const guarded = isLocationGuarded(property);
+                                const locVal =
+                                  property.sublocality ||
+                                  (guarded ? localityLabel(property) : property.location) ||
+                                  `[Location]`;
+                                val =
+                                  property.google_map_link && !guarded
+                                    ? `${locVal}\n🗺️ Google Maps Link: ${property.google_map_link}`
+                                    : locVal;
                               }
                               else if (mapping.value === 'area') {
                                 const isLand = property.type.includes('Land') || property.type.includes('Plot');

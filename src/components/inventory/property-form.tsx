@@ -46,6 +46,8 @@ import {
   Bath,
   Maximize2,
   ExternalLink,
+  Lock,
+  Unlock,
   Compass,
   CheckCircle2,
   Edit,
@@ -92,6 +94,7 @@ import {
   isLandType,
   isApartmentType,
 } from '@/lib/inventory/property-options';
+import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
 
 interface PropertyFormProps {
   open: boolean;
@@ -209,10 +212,13 @@ export function PropertyForm({
   const [features, setFeatures] = useState<string[]>([]);
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>(['']);
+  const [privateImages, setPrivateImages] = useState<string[]>([]);
+  const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
   const [defaultImageIndex, setDefaultImageIndex] = useState(0);
   const [documents, setDocuments] = useState<Array<{ url: string; title: string }>>([{ url: '', title: '' }]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [googleMapLink, setGoogleMapLink] = useState('');
+  const [locationPrivacy, setLocationPrivacy] = useState<'' | 'exact' | 'locality'>('');
   const [notes, setNotes] = useState('');
 
   // Document Requests management
@@ -291,6 +297,68 @@ export function PropertyForm({
       setTimeout(() => setCopiedLinkReqId(null), 3000);
       toast.success('Share link copied!');
     });
+  };
+
+  interface LocRequest {
+    id: string;
+    requester_name: string;
+    requester_phone: string;
+    status: string;
+    identity_protected?: boolean;
+    via_contact_id: string | null;
+    pending_consent_contact_id: string | null;
+    share_token: string | null;
+    share_token_expires_at: string | null;
+    share_sent_at: string | null;
+    view_count: number;
+    last_viewed_at: string | null;
+    created_at: string;
+  }
+  const [locRequests, setLocRequests] = useState<LocRequest[]>([]);
+  const [locRequestsLoading, setLocRequestsLoading] = useState(false);
+  const [processingLocReqId, setProcessingLocReqId] = useState<string | null>(null);
+
+  const fetchLocRequests = useCallback(async () => {
+    if (!property?.id || !accountId) return;
+    setLocRequestsLoading(true);
+    try {
+      const res = await fetch(`/api/properties/${property.id}/location-requests`);
+      if (res.ok) {
+        const json = await res.json();
+        setLocRequests(json.data || []);
+      }
+    } catch (e) {
+      console.error('[fetchLocRequests]', e);
+    } finally {
+      setLocRequestsLoading(false);
+    }
+  }, [property?.id, accountId]);
+
+  const handleLocRequestAction = async (reqId: string, action: 'approve' | 'reject') => {
+    if (!property?.id) return;
+    setProcessingLocReqId(reqId);
+    try {
+      const res = await fetch(`/api/properties/${property.id}/location-requests`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: reqId, action }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed');
+      if (action === 'approve') {
+        toast.success('Request approved! Location link sent to the requester via WhatsApp.');
+        if (json.share_link) {
+          navigator.clipboard.writeText(json.share_link).catch(() => {});
+        }
+      } else {
+        toast.info('Request rejected — the requester has been redirected to their sharer.');
+      }
+      await fetchLocRequests();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setProcessingLocReqId(null);
+    }
   };
 
   const [localitiesDb, setLocalitiesDb] = useState<{ detailed: string[] } | null>(null);
@@ -377,6 +445,8 @@ export function PropertyForm({
   const hasCommercialFields = typeHasCommercialFields(type);
   const isLand = isLandType(type);
   const isApartment = isApartmentType(type);
+  const guardedByType = isGuardedType(type);
+  const locationGuarded = isLocationGuarded({ type, location_privacy: locationPrivacy || null });
 
   async function ensureLocalitiesLoaded() {
     if (!localitiesDb) {
@@ -1048,7 +1118,12 @@ export function PropertyForm({
         body: JSON.stringify({
           title: title.trim(),
           type,
-          location: [address.trim(), sublocality.trim(), city.trim(), stateVal.trim()].filter(Boolean).join(', ') || null,
+          location: [
+            locationGuarded ? '' : address.trim(),
+            sublocality.trim(),
+            city.trim(),
+            stateVal.trim(),
+          ].filter(Boolean).join(', ') || null,
           bedrooms: bedrooms.trim() ? Number(bedrooms) : null,
           bathrooms: bathrooms.trim() ? Number(bathrooms) : null,
           area: isLand ? (landArea.trim() ? Number(landArea) : null) : (areaSqft.trim() ? Number(areaSqft) : null),
@@ -1299,6 +1374,7 @@ export function PropertyForm({
         setFeatures(property.features || []);
         setNearbyHighlights(property.nearby_highlights || []);
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
+        setPrivateImages(property.private_images || []);
         setDefaultImageIndex(0); // Default image is always at index 0
         const dbDocs = property.documents && property.documents.length > 0 ? property.documents : [];
         const parsed = dbDocs.map((doc: unknown) => {
@@ -1331,6 +1407,11 @@ export function PropertyForm({
         // distinguishes it) rather than adding a third toggle state.
         setListingSource(property.listing_source === 'agent' ? 'agent' : 'owner');
         setGoogleMapLink(property.google_map_link ?? '');
+        setLocationPrivacy(
+          property.location_privacy === 'exact' || property.location_privacy === 'locality'
+            ? property.location_privacy
+            : ''
+        );
         setNotes(property.notes ?? '');
         // Preserve saved coordinates unless the agent re-touches the location
         setGeoPick(
@@ -1426,9 +1507,11 @@ export function PropertyForm({
         setFeatures([]);
         setNearbyHighlights([]);
         setImages(['']);
+        setPrivateImages([]);
         setDocuments([{ url: '', title: '' }]);
         setSearchQuery('');
         setGoogleMapLink('');
+        setLocationPrivacy('');
         setNotes('');
         setGeoPick(null);
         setGoogleSuggestions([]);
@@ -1446,6 +1529,14 @@ export function PropertyForm({
       setDocRequests([]);
     }
   }, [open, property?.id, fetchDocRequests]);
+
+  useEffect(() => {
+    if (open && property?.id) {
+      fetchLocRequests();
+    } else {
+      setLocRequests([]);
+    }
+  }, [open, property?.id, fetchLocRequests]);
 
   useEffect(() => {
     if (!open) return;
@@ -1885,6 +1976,33 @@ export function PropertyForm({
     toast.success('Selected image set as default listing photo');
   }
 
+  async function handleToggleImageLock(path: string, action: 'lock' | 'unlock') {
+    if (!property?.id || lockingImagePath) return;
+    setLockingImagePath(path);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/private-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update photo privacy');
+      }
+      setImages(data.data.images.length > 0 ? data.data.images : ['']);
+      setPrivateImages(data.data.private_images || []);
+      toast.success(
+        action === 'lock'
+          ? 'Photo moved to private — revealed only on approved requests'
+          : 'Photo is public again'
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update photo privacy');
+    } finally {
+      setLockingImagePath(null);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -2093,6 +2211,7 @@ export function PropertyForm({
         owner_contact_id: ownerContactId,
         listing_source: listingSource,
         google_map_link: googleMapLink.trim() || null,
+        location_privacy: locationPrivacy || null,
         rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
         roi: hasCommercialFields && roiValue !== null ? roiValue : null,
         // Server-side sanitizeFloorTenancies() drops empty rows and
@@ -2232,9 +2351,20 @@ export function PropertyForm({
                       and touch swipe both navigate. */}
                   <div className="space-y-2">
                     {(() => {
-                      const validImages = (images || []).filter(img => img && img.trim().length > 0).map(storagePublicUrl);
+                      const publicImages = (images || []).filter(img => img && img.trim().length > 0).map(storagePublicUrl);
+                      // Private photos stream through the authenticated
+                      // proxy — the masked API empties the list for
+                      // viewers who may not see them.
+                      const privateProxyImages = property?.id
+                        ? (privateImages || []).map(
+                            (_, i) => `/api/properties/${property.id}/private-images/${i}`
+                          )
+                        : [];
+                      const validImages = [...publicImages, ...privateProxyImages];
                       const hasVideo = Boolean(property?.video_url && property.video_status === 'ready');
                       const mediaCount = validImages.length + (hasVideo ? 1 : 0);
+                      const isPrivateSlide = (i: number) =>
+                        i >= publicImages.length && i < validImages.length;
                       if (mediaCount === 0) {
                         return (
                           <div className="relative aspect-[16/9] w-full rounded-xl bg-slate-950/60 border border-dashed border-slate-800 overflow-hidden flex flex-col items-center justify-center text-slate-500 gap-2.5 py-12">
@@ -2302,6 +2432,11 @@ export function PropertyForm({
                                   <ChevronRight className="size-4" />
                                 </button>
                               </>
+                            )}
+                            {!isVideoSlide && isPrivateSlide(Math.min(activeImageIndex, mediaCount - 1)) && (
+                              <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-amber-500/90 text-slate-950 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide">
+                                <Lock className="size-3" /> Private
+                              </div>
                             )}
                             <div className="absolute bottom-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono font-bold text-slate-300 border border-slate-800">
                               {Math.min(activeImageIndex, mediaCount - 1) + 1} / {mediaCount}
@@ -2661,6 +2796,11 @@ export function PropertyForm({
                         <span>Open in Google Maps</span>
                         <ExternalLink className="size-3.5" />
                       </a>
+                    ) : property?.location_guarded ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-amber-400 font-medium select-none bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
+                        <Lock className="size-3.5" />
+                        Exact location restricted
+                      </span>
                     ) : (
                       <span className="text-xs text-slate-500 font-medium select-none bg-slate-900 border border-slate-850 px-3 py-1.5 rounded-lg">
                         No Map Link Available
@@ -3112,6 +3252,164 @@ export function PropertyForm({
                                           : null,
                                       ].filter(Boolean).join(' · ')}
                                     >
+                                      <Eye className="size-3" />
+                                      {req.view_count > 1 ? `Viewed ${req.view_count}×` : 'Viewed'}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Location Reveal Requests Panel */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin className="size-3.5 text-primary" />
+                        Location Requests
+                        {locRequests.filter(r => r.status === 'pending').length > 0 && (
+                          <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-amber-500 text-black text-[10px] font-black">
+                            {locRequests.filter(r => r.status === 'pending').length}
+                          </span>
+                        )}
+                      </h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={fetchLocRequests}
+                        disabled={locRequestsLoading}
+                        className="h-6 text-[10px] text-slate-500 hover:text-white px-2"
+                      >
+                        {locRequestsLoading ? <Loader2 className="size-3 animate-spin" /> : 'Refresh'}
+                      </Button>
+                    </div>
+
+                    {locRequestsLoading && locRequests.length === 0 ? (
+                      <div className="flex items-center justify-center py-6 text-slate-500 text-xs gap-2">
+                        <Loader2 className="size-3.5 animate-spin" /> Loading requests...
+                      </div>
+                    ) : locRequests.length === 0 ? (
+                      <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-4 text-center text-xs text-slate-500">
+                        No location requests yet. Requests from the showcase&apos;s &quot;Request Exact Location&quot; button will appear here.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {locRequests.map((req) => {
+                          const awaitingConsent =
+                            req.status === 'pending' && Boolean(req.pending_consent_contact_id);
+                          return (
+                            <div
+                              key={req.id}
+                              className={`rounded-xl border p-3.5 space-y-2 text-xs transition-colors ${
+                                req.status === 'pending'
+                                  ? 'bg-amber-500/5 border-amber-500/20'
+                                  : req.status === 'approved'
+                                  ? 'bg-emerald-500/5 border-emerald-500/20'
+                                  : 'bg-slate-900/20 border-slate-800 opacity-60'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-0.5">
+                                  <p className="font-bold text-white">{req.requester_name}</p>
+                                  <p className="text-slate-400">{req.requester_phone}</p>
+                                  {req.identity_protected && (
+                                    <p className="text-[10px] text-amber-400/90 flex items-center gap-1">
+                                      <Lock className="size-2.5" /> Via a co-broker share — identity protected
+                                    </p>
+                                  )}
+                                  <p className="text-slate-600 text-[10px]">
+                                    {new Date(req.created_at).toLocaleDateString('en-IN', {
+                                      day: 'numeric', month: 'short', year: 'numeric',
+                                      hour: '2-digit', minute: '2-digit',
+                                    })}
+                                  </p>
+                                </div>
+                                <div className="shrink-0">
+                                  {awaitingConsent && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-bold">
+                                      <Clock className="size-2.5" /> Awaiting co-broker
+                                    </span>
+                                  )}
+                                  {req.status === 'pending' && !awaitingConsent && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
+                                      <Clock className="size-2.5" /> Pending
+                                    </span>
+                                  )}
+                                  {req.status === 'approved' && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                                      <CheckCircle className="size-2.5" /> Approved
+                                    </span>
+                                  )}
+                                  {req.status === 'rejected' && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold">
+                                      <XCircle className="size-2.5" /> Rejected
+                                    </span>
+                                  )}
+                                  {req.status === 'expired' && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold">
+                                      <Clock className="size-2.5" /> Timed out
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {req.status === 'pending' && (
+                                <div className="flex gap-2 pt-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={processingLocReqId === req.id || awaitingConsent}
+                                    onClick={() => handleLocRequestAction(req.id, 'approve')}
+                                    title={awaitingConsent ? 'The co-broker who shared the link must consent first' : undefined}
+                                    className="flex-1 h-7 text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+                                  >
+                                    {processingLocReqId === req.id ? (
+                                      <Loader2 className="size-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="size-3" />
+                                    )}
+                                    Approve & Send
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={processingLocReqId === req.id}
+                                    onClick={() => handleLocRequestAction(req.id, 'reject')}
+                                    className="h-7 text-[11px] border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 font-semibold flex items-center gap-1"
+                                  >
+                                    <XCircle className="size-3" /> Reject
+                                  </Button>
+                                </div>
+                              )}
+
+                              {req.status === 'approved' && req.share_token && (
+                                <div className="flex items-center gap-2 pt-1">
+                                  {req.share_token_expires_at && new Date() > new Date(req.share_token_expires_at) ? (
+                                    <span className="text-[10px] text-amber-500 flex items-center gap-1">
+                                      <Clock className="size-3" /> Link expired
+                                    </span>
+                                  ) : (
+                                    req.share_token_expires_at && (
+                                      <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                        <Clock className="size-3" />
+                                        Expires: {new Date(req.share_token_expires_at).toLocaleDateString('en-IN')}
+                                      </span>
+                                    )
+                                  )}
+                                  {req.share_sent_at && (
+                                    <span className="text-[10px] text-emerald-500 flex items-center gap-1 ml-1">
+                                      <CheckCircle className="size-3" />
+                                      Sent via WA
+                                    </span>
+                                  )}
+                                  {req.view_count > 0 && (
+                                    <span className="text-[10px] text-primary flex items-center gap-1 ml-1">
                                       <Eye className="size-3" />
                                       {req.view_count > 1 ? `Viewed ${req.view_count}×` : 'Viewed'}
                                     </span>
@@ -3757,6 +4055,29 @@ export function PropertyForm({
                           </span>
                         </p>
                       )}
+                    </div>
+
+                    <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="prop-location-guard" className="text-slate-300 text-sm cursor-pointer">
+                          Guard exact location
+                        </Label>
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          {guardedByType
+                            ? 'On by default for this property type — buyers and co-brokers see locality only until you approve a reveal.'
+                            : 'Off by default for this property type — turn on to hide the street address, map pin and coordinates until you approve a reveal.'}
+                        </p>
+                      </div>
+                      <Switch
+                        id="prop-location-guard"
+                        checked={locationGuarded}
+                        onCheckedChange={(checked) => {
+                          const next = checked ? 'locality' : 'exact';
+                          setLocationPrivacy(
+                            (guardedByType ? 'locality' : 'exact') === next ? '' : next
+                          );
+                        }}
+                      />
                     </div>
 
                     <div className="space-y-1.5 col-span-2">
@@ -4422,6 +4743,23 @@ export function PropertyForm({
                                 <Star className={`size-3.5 ${idx === defaultImageIndex ? 'fill-amber-400' : ''}`} />
                               </Button>
                             )}
+                            {imgUrl.trim().length > 0 && property?.id && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleImageLock(imgUrl, 'lock')}
+                                disabled={lockingImagePath !== null}
+                                className="h-8 w-8 p-0 text-slate-500 hover:text-amber-400 shrink-0"
+                                title="Make private — hidden from the showcase, revealed only on approved requests (e.g. facade / street view)"
+                              >
+                                {lockingImagePath === imgUrl ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Lock className="size-3.5" />
+                                )}
+                              </Button>
+                            )}
                             {images.length > 1 && (
                               <Button
                                 type="button"
@@ -4445,6 +4783,48 @@ export function PropertyForm({
                           <Plus className="size-3" /> Add Image URL
                         </Button>
                       </div>
+
+                      {property?.id && privateImages.length > 0 && (
+                        <div className="space-y-2 border-t border-slate-800 pt-3">
+                          <Label className="text-amber-400 text-xs flex items-center gap-1.5">
+                            <Lock className="size-3" /> Private Photos
+                            <span className="text-[10px] font-medium text-slate-500">
+                              Hidden from the showcase — sent only with approved location reveals
+                            </span>
+                          </Label>
+                          {privateImages.map((path, idx) => (
+                            <div key={path} className="flex gap-2 items-center">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={`/api/properties/${property.id}/private-images/${idx}`}
+                                alt={`Private ${idx + 1}`}
+                                className="size-8 object-cover rounded border border-amber-900/50 shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                              <span className="flex-1 text-xs text-slate-500 truncate">{path}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleImageLock(path, 'unlock')}
+                                disabled={lockingImagePath !== null}
+                                className="h-8 px-2 text-xs text-slate-400 hover:text-white shrink-0 flex items-center gap-1"
+                                title="Make public again"
+                              >
+                                {lockingImagePath === path ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Unlock className="size-3.5" /> Unlock
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Property Documents */}

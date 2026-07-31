@@ -16,6 +16,10 @@ import {
   breadcrumbJsonLd,
   propertyJsonLd,
 } from '@/lib/seo/jsonld';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 import { BRANDING } from '@/config/branding';
 import type { Property } from '@/types';
 
@@ -41,7 +45,12 @@ export async function generateMetadata({
 
   const description =
     (property.description || '').slice(0, 160) ||
-    [property.type, property.location].filter(Boolean).join(' · ');
+    [
+      property.type,
+      isLocationGuarded(property) ? localityLabel(property) : property.location,
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
   const origin = await resolveRequestOrigin();
   const canonicalUrl = `${origin}/property/${propertySlug(property)}`;

@@ -3,10 +3,11 @@ import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-qu
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Link, router } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
+  Keyboard,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -17,7 +18,10 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import * as Linking from 'expo-linking';
+
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
 import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
@@ -35,8 +39,10 @@ import {
   contactShowcaseShareUrl,
   logShowcaseShare,
 } from '@/lib/showcase-share';
+import { openContactChat } from '@/lib/open-chat';
 import { useDebounced } from '@/lib/use-debounced';
 import { haptic } from '@/lib/haptics';
+import { isStructuredQuery } from '@/lib/search-intent';
 import {
   nearFromLocality,
   usePropertySearch,
@@ -60,13 +66,17 @@ export function buildPropertyParams(
   page: number,
   search: string,
   listing: ListingFilter,
-  near: NearAnchor | null
+  near: NearAnchor | null,
+  includeUnavailable: boolean
 ): URLSearchParams {
   const params = new URLSearchParams({
     page: String(page),
     limit: String(PAGE_SIZE),
-    exclude_archived: 'true',
   });
+  // The route rejects status + exclude_archived together, so widening
+  // means dropping the status filter — Archived stays out either way.
+  if (includeUnavailable) params.set('exclude_archived', 'true');
+  else params.set('status', 'Available');
   if (search) params.set('search', search);
   if (listing !== 'All') params.set('listing_type', listing);
   if (near) {
@@ -85,20 +95,31 @@ export async function fetchPropertyPage(
   page: number,
   search: string,
   listing: ListingFilter,
-  near: NearAnchor | null
+  near: NearAnchor | null,
+  includeUnavailable: boolean
 ): Promise<PropertiesResponse> {
   return apiFetch<PropertiesResponse>(
-    `/api/properties?${buildPropertyParams(page, search, listing, near).toString()}`
+    `/api/properties?${buildPropertyParams(page, search, listing, near, includeUnavailable).toString()}`
   );
 }
 
 export default function PropertiesScreen() {
   const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const { search, listing, near, setSearch, setListing, setNear, setRadius } =
-    usePropertySearch();
+  const {
+    search,
+    listing,
+    near,
+    includeUnavailable,
+    setSearch,
+    setListing,
+    setNear,
+    setRadius,
+    setIncludeUnavailable,
+  } = usePropertySearch();
   const [locating, setLocating] = useState(false);
   const [sharePicker, setSharePicker] = useState(false);
+  const { show, close, dialogProps } = useAppDialog();
   const [geoError, setGeoError] = useState<string | null>(null);
   const debounced = useDebounced(search.trim());
 
@@ -112,8 +133,9 @@ export default function PropertiesScreen() {
     fetchNextPage,
     hasNextPage,
   } = useInfiniteQuery({
-      queryKey: ['properties', debounced, listing, near],
-      queryFn: ({ pageParam }) => fetchPropertyPage(pageParam, debounced, listing, near),
+      queryKey: ['properties', debounced, listing, near, includeUnavailable],
+      queryFn: ({ pageParam }) =>
+        fetchPropertyPage(pageParam, debounced, listing, near, includeUnavailable),
       // The properties API is 0-INDEXED (`from = page * limit` in
       // route.ts) — page 1 means "skip the first 20 rows".
       initialPageParam: 0,
@@ -131,22 +153,64 @@ export default function PropertiesScreen() {
   // present its total as if it belonged to the current filters.
   const total = isPlaceholderData ? undefined : data?.pages[0]?.pagination.total;
 
+  function showcaseMessage(url: string) {
+    return `Browse our verified property listings — photos, prices and full details:\n${url}`;
+  }
+
   function shareShowcase(url: string) {
-    Share.share({
-      message: `Browse our verified property listings — photos, prices and full details:\n${url}`,
-      url,
-    });
+    Share.share({ message: showcaseMessage(url), url });
   }
 
   // Named share: the link carries v=<contact_id>, so this contact's
-  // opens and views land in Pulse under their name, and the share
-  // leaves a breadcrumb on their timeline.
-  async function shareToContact(contact: Contact) {
+  // opens and views land in Pulse under their name. Picking a contact
+  // then asks WHICH channel — WhatsApp deep-links straight into their
+  // chat (the generic OS sheet made the agent find them a second time),
+  // and the ConvoReal option drafts the message into the inbox thread
+  // so it goes out from the business number, logged.
+  function shareToContact(contact: Contact) {
     setSharePicker(false);
     haptic.tap();
-    const url = await contactShowcaseShareUrl(contact);
-    logShowcaseShare(contact);
-    shareShowcase(url);
+    const name = contact.name || contact.phone;
+    show({
+      title: `Share with ${name}`,
+      message:
+        'WhatsApp opens their chat from your personal number. ConvoReal drafts it into the inbox thread, sent from the business number and logged.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Other apps',
+          onPress: async () => {
+            close();
+            const url = await contactShowcaseShareUrl(contact);
+            logShowcaseShare(contact);
+            shareShowcase(url);
+          },
+        },
+        {
+          label: 'ConvoReal',
+          onPress: async () => {
+            close();
+            const url = await contactShowcaseShareUrl(contact);
+            const outcome = await openContactChat(contact, { draftText: showcaseMessage(url) });
+            if (!outcome.ok && outcome.error) {
+              show({ title: 'Could not open thread', message: outcome.error });
+            }
+          },
+        },
+        {
+          label: 'WhatsApp',
+          variant: 'primary',
+          onPress: async () => {
+            close();
+            const url = await contactShowcaseShareUrl(contact);
+            logShowcaseShare(contact);
+            Linking.openURL(
+              `https://wa.me/${contact.phone.replace(/\D/g, '')}?text=${encodeURIComponent(showcaseMessage(url))}`
+            );
+          },
+        },
+      ],
+    });
   }
 
   // Anonymous share for groups/status posts: a per-share token (?s=)
@@ -235,6 +299,14 @@ export default function PropertiesScreen() {
           {LISTING_FILTERS.map((f) => (
             <FilterChip key={f} label={f} active={listing === f} onPress={() => setListing(f)} />
           ))}
+          <FilterChip
+            label="Include unavailable"
+            active={includeUnavailable}
+            onPress={() => {
+              haptic.tap();
+              setIncludeUnavailable(!includeUnavailable);
+            }}
+          />
         </ScrollView>
       </View>
 
@@ -302,6 +374,7 @@ export default function PropertiesScreen() {
           data={properties}
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          keyboardDismissMode="on-drag"
           onEndReached={() => hasNextPage && fetchNextPage()}
           onEndReachedThreshold={0.4}
           refreshControl={
@@ -334,6 +407,24 @@ export default function PropertiesScreen() {
                       Search within 25 km
                     </Text>
                   </Pressable>
+                ) : !includeUnavailable ? (
+                  <Pressable
+                    onPress={() => {
+                      haptic.tap();
+                      setIncludeUnavailable(true);
+                    }}
+                    accessibilityRole="button"
+                    style={{
+                      backgroundColor: colors.primary,
+                      borderRadius: radius.full,
+                      paddingHorizontal: 18,
+                      paddingVertical: 11,
+                    }}
+                  >
+                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: f.bold }}>
+                      Include unavailable
+                    </Text>
+                  </Pressable>
                 ) : null
               }
             />
@@ -345,6 +436,7 @@ export default function PropertiesScreen() {
           )}
         />
       )}
+      <AppDialog {...dialogProps} />
       <ContactPickerSheet
         visible={sharePicker}
         onClose={() => setSharePicker(false)}
@@ -410,6 +502,10 @@ function NearMeChip({
  * queries /api/maps/autocomplete; picking a suggestion resolves
  * place-details and anchors a radius search. Free-text search still
  * works exactly as before (submit / just stop typing).
+ *
+ * The panel floats over the results, so it closes whenever the keyboard
+ * does — submit, a drag on the list, the Android back button — and it
+ * never opens for a query the search parser owns rather than Places.
  */
 function LocalitySearchBox() {
   const { colors, fonts: f, dark } = useTheme();
@@ -417,7 +513,12 @@ function LocalitySearchBox() {
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
 
-  const enabled = focused && search.trim().length >= 2;
+  useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidHide', () => setFocused(false));
+    return () => sub.remove();
+  }, []);
+
+  const enabled = focused && search.trim().length >= 2 && !isStructuredQuery(search);
   const { data: suggestions } = useQuery({
     queryKey: ['locality-suggest', search.trim()],
     enabled,
@@ -461,6 +562,11 @@ function LocalitySearchBox() {
         placeholder='Area, project, or "2bhk under 80L"'
         onFocus={() => setFocused(true)}
         onBlur={() => setTimeout(() => setFocused(false), 150)}
+        returnKeyType="search"
+        onSubmitEditing={() => {
+          setFocused(false);
+          Keyboard.dismiss();
+        }}
       />
 
       {enabled && suggestions && suggestions.length > 0 ? (
