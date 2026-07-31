@@ -90,7 +90,7 @@ export async function generateMetadata({
   if (!resolved) return { title: `Projects | ${BRANDING.name}` };
 
   const origin = await resolveRequestOrigin();
-  const siteName = resolved.data.settings?.website_name || BRANDING.name;
+  const siteName = resolved.data.accountName || BRANDING.name;
   const title = `${resolved.projectName} — Available Properties & Prices | ${siteName}`;
   const description = describeProject(resolved);
   const { project: slug } = await params;
@@ -147,6 +147,7 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
         properties={publicProperties}
         settings={data.settings}
         accountId={accountId}
+        siteName={data.accountName}
         hero={{
           title: 'Properties in',
           highlight: projectName,

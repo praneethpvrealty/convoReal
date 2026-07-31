@@ -6,7 +6,6 @@ import { Coins, Loader2, Save, Database, RefreshCw, Mail, Copy, Check, BarChart3
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { BRANDING } from '@/config/branding';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -359,8 +358,6 @@ export function OtherSettingsPanel() {
           .from('showcase_settings')
           .insert([{
             account_id: accountId,
-            website_name: BRANDING.name,
-            website_url: BRANDING.websiteUrl,
             contact_phone: '',
             whatsapp_message_template: 'Hi! I am interested in your property "{title}" in {location}. Please share details.',
             currency,

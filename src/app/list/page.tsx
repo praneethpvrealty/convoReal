@@ -24,15 +24,14 @@ export default async function ListPropertyPage({ searchParams }: PageProps) {
 
   if (ref && UUID_RE.test(ref)) {
     const admin = supabaseAdmin();
-    const { data: account } = await admin.from('accounts').select('id').eq('id', ref).maybeSingle();
+    const { data: account } = await admin
+      .from('accounts')
+      .select('id, name')
+      .eq('id', ref)
+      .maybeSingle();
     if (account) {
       accountId = account.id as string;
-      const { data: settings } = await admin
-        .from('showcase_settings')
-        .select('website_name')
-        .eq('account_id', accountId)
-        .maybeSingle();
-      if (settings?.website_name) siteName = settings.website_name as string;
+      if (account.name) siteName = account.name as string;
     }
   }
 

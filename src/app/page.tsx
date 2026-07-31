@@ -317,6 +317,7 @@ export default async function RootPage({ searchParams }: PageProps) {
   // ── Phase 2: Fetch showcase data (cached) ────────────────────
   const {
     settings,
+    accountName,
     properties: publishedProperties,
     agents: agentContacts,
     profiles,
@@ -396,6 +397,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         properties={propertiesWithAgent}
         settings={settings}
         accountId={accountId}
+        siteName={accountName}
         referrerContactId={filterContactId || undefined}
         referrerPhone={referrerPhone || undefined}
         initialPropertyId={initialPropertyId}

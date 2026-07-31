@@ -1009,11 +1009,14 @@ export interface Property {
 // Showcase Website Settings (033_add_showcase_settings.sql)
 // ============================================================
 
+// The brokerage's name is NOT here — it lives once, on `accounts.name`,
+// and reaches public pages via ShowcaseData.accountName. This table used
+// to carry its own `website_name` copy (plus a `website_url` nothing ever
+// read), so the showcase and the WhatsApp templates could greet the same
+// client under two different brands.
 export interface ShowcaseSettings {
   id: string;
   account_id: string;
-  website_name: string;
-  website_url: string;
   contact_phone: string;
   whatsapp_message_template: string;
   flyer_ai_provider?: 'google' | 'huggingface';

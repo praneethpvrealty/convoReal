@@ -5,6 +5,8 @@ const state = {
   propertyCount: 1,
   propertyUpdatedAt: '2026-07-28T10:00:00Z',
   settingsUpdatedAt: '2026-07-01T10:00:00Z',
+  accountUpdatedAt: '2026-07-02T10:00:00Z',
+  accountName: 'Aryavarta Ventures',
   images: ['old.jpg'],
   catalogueFetches: 0,
 };
@@ -28,7 +30,10 @@ vi.mock('@/lib/automations/admin-client', () => {
         }),
       maybeSingle: () =>
         Promise.resolve({
-          data: { updated_at: state.settingsUpdatedAt },
+          data:
+            table === 'accounts'
+              ? { name: state.accountName, updated_at: state.accountUpdatedAt }
+              : { updated_at: state.settingsUpdatedAt },
           error: null,
         }),
       then: (resolve: (value: unknown) => unknown) => {
@@ -103,5 +108,17 @@ describe('cachedFetchShowcaseData', () => {
     await cachedFetchShowcaseData('acc-settings', false);
 
     expect(state.catalogueFetches).toBe(2);
+  });
+
+  it('serves the brand name from the account, and refetches on rename', async () => {
+    const first = await cachedFetchShowcaseData('acc-renamed', false);
+    expect(first.accountName).toBe('Aryavarta Ventures');
+
+    state.accountName = 'Aryavarta Realty';
+    state.accountUpdatedAt = '2026-07-31T09:00:00Z';
+    const second = await cachedFetchShowcaseData('acc-renamed', false);
+
+    expect(state.catalogueFetches).toBe(2);
+    expect(second.accountName).toBe('Aryavarta Realty');
   });
 });
