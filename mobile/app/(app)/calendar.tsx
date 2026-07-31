@@ -358,8 +358,26 @@ function AppointmentDetail({
     if (!appointment) return;
     haptic.tap();
     setBusy(true);
-    await supabase.from('appointments').update({ status }).eq('id', appointment.id);
+    setError(null);
+    // Ask for the row back rather than firing and forgetting: a write
+    // that errored — or matched nothing — used to close this sheet as if
+    // it had worked, leaving the event still 'scheduled' in the CRM with
+    // its reminders (src/lib/calendar/agent-reminders.ts) queued to fire
+    // an hour before an event the agent believed was closed.
+    const { data, error: updateError } = await supabase
+      .from('appointments')
+      .update({ status })
+      .eq('id', appointment.id)
+      .select('id');
     setBusy(false);
+
+    if (updateError || !data?.length) {
+      haptic.warn();
+      setError('Could not update this event. Check your connection and try again.');
+      return;
+    }
+
+    haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
     reset();
     onClose();
