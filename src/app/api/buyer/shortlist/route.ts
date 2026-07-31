@@ -12,10 +12,11 @@ import { NextResponse } from 'next/server';
 
 import { UserFacingError } from '@/lib/auth/account';
 import { withBuyerAuth, buyerAdmin } from '@/lib/buyer/auth';
+import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import { storagePublicUrl } from '@/lib/storage/url';
 
 const PROPERTY_CARD_COLUMNS =
-  'id, account_id, title, price, location, sublocality, city, type, status, listing_type, rent_per_month, bedrooms, bathrooms, area_sqft, area_unit, images, property_code, is_published';
+  'id, account_id, title, price, location, location_privacy, sublocality, city, state, type, status, listing_type, rent_per_month, bedrooms, bathrooms, area_sqft, area_unit, images, property_code, is_published';
 
 interface ShortlistPropertyRow {
   id: string;
@@ -23,8 +24,10 @@ interface ShortlistPropertyRow {
   title: string;
   price: number | null;
   location: string | null;
+  location_privacy: string | null;
   sublocality: string | null;
   city: string | null;
+  state: string | null;
   type: string | null;
   status: string | null;
   listing_type: string | null;
@@ -78,6 +81,13 @@ export const GET = withBuyerAuth(async (ctx) => {
         showcase_path: `/?${params.toString()}`,
         property: {
           ...property,
+          location: isLocationGuarded({
+            type: property.type || '',
+            location_privacy: property.location_privacy,
+          })
+            ? localityLabel(property)
+            : property.location,
+          location_privacy: undefined,
           images: Array.isArray(property.images)
             ? property.images.map(storagePublicUrl)
             : property.images,

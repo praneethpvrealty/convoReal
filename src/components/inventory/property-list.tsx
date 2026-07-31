@@ -29,6 +29,7 @@ import {
   Globe,
   Waypoints,
   ThumbsUp,
+  Lock,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -395,6 +396,14 @@ export function PropertyList({
                 <div className="flex items-center text-xs text-slate-400 gap-1 mb-3">
                   <MapPin className="size-3.5 shrink-0 text-slate-500" />
                   <span className="truncate" title={property.location}>{property.location}</span>
+                  {property.location_guarded && (
+                    <span
+                      className="shrink-0 inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full"
+                      title="Exact location restricted — visible to admins and the listing agent only"
+                    >
+                      <Lock className="size-2.5" /> Guarded
+                    </span>
+                  )}
                   {property.location_tier === 'exact' && (
                     <span className="shrink-0 text-[9px] font-bold uppercase tracking-wide text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full">
                       In area

@@ -19,6 +19,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
 import { storagePublicUrl } from '@/lib/storage/url';
+import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
 import type { MaskedPropertySnapshot } from '@/lib/den/masking';
 import { buyerAdmin, type BuyerContactLink, type BuyerContext } from './auth';
 import {
@@ -41,7 +42,8 @@ const DEAL_MODE_LIMIT = 12;
  *  discipline of /api/buyer/shortlist. */
 const MATCH_PROPERTY_COLUMNS = [
   'id', 'account_id', 'title', 'type', 'listing_type', 'status',
-  'price', 'rent_per_month', 'maintenance', 'location', 'sublocality',
+  'price', 'rent_per_month', 'maintenance', 'location', 'location_privacy',
+  'sublocality',
   'city', 'state', 'project', 'bedrooms', 'bathrooms', 'area_sqft',
   'area_unit', 'land_area', 'land_area_unit', 'super_built_area',
   'facing_direction', 'features', 'nearby_highlights', 'rental_income',
@@ -219,6 +221,10 @@ export async function getBuyerMatchFeed(ctx: BuyerContext): Promise<BuyerMatchFe
       showcase_path: showcasePath(match.property, link),
       property: {
         ...match.property,
+        location: isLocationGuarded(match.property)
+          ? localityLabel(match.property)
+          : match.property.location,
+        location_privacy: undefined,
         images: Array.isArray(match.property.images)
           ? match.property.images.map(storagePublicUrl)
           : match.property.images,

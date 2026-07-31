@@ -109,6 +109,16 @@ export function canViewOnly(role: AccountRole): boolean {
   return role === "viewer";
 }
 
+/**
+ * Owner / admin: see the exact location (street address, map pin,
+ * coordinates) and private photos of location-guarded properties.
+ * The per-property exception — the listing's own agent — composes in
+ * `canViewExactLocation` (src/lib/inventory/location-guard.ts).
+ */
+export function canViewGuardedLocation(role: AccountRole): boolean {
+  return hasMinRole(role, "admin");
+}
+
 /** Owner only: irreversible destructive operations. */
 export function canDeleteAccount(role: AccountRole): boolean {
   return role === "owner";

@@ -12,6 +12,10 @@ import {
   CATALOG_QA_SYSTEM_PROMPT,
   type CatalogListing,
 } from '@/lib/showcase/catalog-qa';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 
 // POST /api/public/catalog-ask
 // Catalog-wide sibling of /api/public/ask, for the showcase lead bot:
@@ -45,6 +49,7 @@ const QA_COLUMNS = [
   'title',
   'type',
   'listing_type',
+  'location_privacy',
   'price',
   'rent_per_month',
   'location',
@@ -162,7 +167,17 @@ export async function POST(request: NextRequest) {
       .order('created_at', { ascending: false })
       .limit(CATALOG_FETCH_LIMIT);
 
-    const catalog = (listings || []) as unknown as CatalogListing[];
+    // Location-guarded rows never expose their street address to the
+    // catalog answers or the AI context — locality only.
+    const catalog = (
+      (listings || []) as unknown as Array<
+        CatalogListing & { location_privacy?: string | null }
+      >
+    ).map((l) =>
+      isLocationGuarded({ type: l.type || '', location_privacy: l.location_privacy })
+        ? { ...l, location: localityLabel(l) }
+        : l
+    );
     if (!catalog.length) {
       return NextResponse.json({
         answer: null,
