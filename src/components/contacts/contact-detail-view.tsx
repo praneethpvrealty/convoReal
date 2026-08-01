@@ -123,7 +123,10 @@ export function ContactDetailView({
   // Controlled so the active tab survives re-renders and refetches
   const [activeTab, setActiveTab] = useState('details');
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  // Which listing the share dialog is composing for. Any Interested
+  // Properties row can drive it, not just the last-inquired one, so it
+  // holds the property rather than a bare open flag.
+  const [shareProperty, setShareProperty] = useState<Property | null>(null);
   const [logShareOpen, setLogShareOpen] = useState(false);
   const [greetingsOpen, setGreetingsOpen] = useState(false);
 
@@ -1130,7 +1133,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       console.error(err);
       if (isReengagementError(err)) {
         toast.warning('WhatsApp session has expired (over 24 hours). Redirecting to template selection...');
-        setShareOpen(true);
+        setShareProperty(inquiredProperty);
       } else {
         toast.error(err instanceof Error ? err.message : 'Failed to send property details');
       }
@@ -1161,7 +1164,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           console.error('Failed to auto-send WhatsApp details:', waErr);
           if (isReengagementError(waErr)) {
             toast.warning('Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...');
-            setShareOpen(true);
+            setShareProperty(inquiredProperty);
           } else {
             toast.warning('Contact approved, but failed to send WhatsApp details (check WhatsApp configuration).');
           }
@@ -1929,7 +1932,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           <Button
                             size="xs"
                             variant="outline"
-                            onClick={() => setShareOpen(true)}
+                            onClick={() => setShareProperty(inquiredProperty)}
                             disabled={approving}
                             className="bg-slate-900 border-slate-800 text-slate-350 text-[10px] h-6 py-0 px-2 flex items-center gap-1 cursor-pointer"
                           >
@@ -2215,6 +2218,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setShareProperty(prop)}
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-primary hover:bg-slate-800"
+                                      title={`Send these details to ${contact?.name || contact?.phone || 'this contact'}`}
+                                    >
+                                      <Share2 className="size-3" />
+                                    </Button>
                                     <Button
                                       size="sm"
                                       variant="ghost"
@@ -2854,11 +2866,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             />
 
             {/* Property Share Dialog */}
-            {inquiredProperty && (
+            {shareProperty && (
               <PropertyShareDialog
-                open={shareOpen}
-                onOpenChange={setShareOpen}
-                property={inquiredProperty}
+                open={shareProperty !== null}
+                onOpenChange={(next) => {
+                  if (!next) setShareProperty(null);
+                }}
+                property={shareProperty}
                 preSelectedContactId={contactId || undefined}
               />
             )}
