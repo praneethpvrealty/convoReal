@@ -165,24 +165,31 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       text: lines.join('\n'),
     });
 
-    if (result.success) {
-      await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
-      // Fire in-app + push only alongside a successful WhatsApp send, so a
-      // retrying window-closed appointment doesn't re-notify every tick.
-      await createNotification({
-        accountId: appt.account_id,
-        userId: assigneeId as string,
-        type: 'appointment_reminder',
-        eventKey: 'appointment_reminder',
-        title: `Coming up at ${istTime(appt.start_time)}`,
-        body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
-        entityType: 'appointment',
-        entityId: appt.id,
-        link: '/calendar',
-      });
-    } else {
-      console.warn(`[Agent Reminder] send failed for appt ${appt.id}:`, result.error);
+    if (!result.success) {
+      // Expected whenever the assignee hasn't messaged the bot in 24h: this
+      // is free-form text, so Meta rejects it outside the service window.
+      // An event booked days ahead reaches its reminder with the window
+      // long closed, which is the common case rather than the edge one.
+      console.warn(`[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`, result.error);
     }
+
+    // In-app and push have no service window, so they are NOT gated on the
+    // WhatsApp send — gating them meant a closed window silently cost the
+    // assignee every channel at once, and the retry it bought could only
+    // fail again for the same reason. One attempt, then marked, exactly as
+    // sendOverdueNudges does.
+    await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
+    await createNotification({
+      accountId: appt.account_id,
+      userId: assigneeId as string,
+      type: 'appointment_reminder',
+      eventKey: 'appointment_reminder',
+      title: `Coming up at ${istTime(appt.start_time)}`,
+      body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
+      entityType: 'appointment',
+      entityId: appt.id,
+      link: '/calendar',
+    });
   }
 }
 

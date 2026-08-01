@@ -608,6 +608,15 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     (m) => m.full_name || ''
   );
 
+  // Both parties to the conversation are attendees. The person being met is
+  // often an outside professional with no CRM record, while the person who
+  // arranged it usually IS a contact — linking only the former left the event
+  // attached to nobody, so nobody got a client reminder.
+  const counterparty = resolveByName(draft.counterparty_name, contacts || [], (c) => c.name || '');
+  const attendees = [contact, counterparty].filter(
+    (c, i, all): c is NonNullable<typeof c> => !!c && all.findIndex((o) => o?.id === c.id) === i
+  );
+
   const startIso = istLocalToUtcIso(draft.start_time);
   let endIso = istLocalToUtcIso(draft.end_time);
   if (startIso && !endIso) {
@@ -632,8 +641,8 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       end_time: endIso || startIso,
       location: draft.location,
       status: 'scheduled',
-      contact_id: contact?.id || null,
-      contact_ids: contact ? [contact.id] : [],
+      contact_id: attendees[0]?.id || null,
+      contact_ids: attendees.map((c) => c.id),
       property_id: property?.id || null,
       source,
       transcript,
@@ -665,7 +674,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       '✅ *Added to your calendar*',
       `${emoji} ${draft.title}`,
       `🕐 ${when}`,
-      contact ? `👤 ${contact.name}` : null,
+      attendees.length > 0 ? `👤 ${attendees.map((c) => c.name).join(', ')}` : null,
       property ? `🏠 ${property.title}` : null,
       draft.location ? `📌 ${draft.location}` : null,
       assignee && assignee.id !== userId ? `➡️ Assigned to ${assignee.full_name}` : null,
@@ -684,7 +693,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       due_date: startIso,
       priority: draft.priority,
       completed: false,
-      contact_id: contact?.id || null,
+      contact_id: attendees[0]?.id || null,
       property_id: property?.id || null,
       source,
     }).select('id').single();
@@ -706,7 +715,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       startIso
         ? `🕐 Due ${new Date(startIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', hour12: true })}`
         : null,
-      contact ? `👤 ${contact.name}` : null,
+      attendees[0] ? `👤 ${attendees[0].name}` : null,
       draft.priority === 'high' ? '🔴 High priority' : null,
       '',
       '_Reply *today* anytime to see your day\'s schedule._',

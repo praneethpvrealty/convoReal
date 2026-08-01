@@ -23,6 +23,10 @@ export interface ParsedEventDraft {
   end_time: string | null;
   duration_minutes: number | null;
   contact_name: string | null;
+  /** The other party in the conversation the event came out of — the person
+   *  arranging it rather than the person being met. Often the one who is
+   *  already a CRM contact, so both get linked and both get reminded. */
+  counterparty_name: string | null;
   property_hint: string | null;
   assignee_name: string | null;
   location: string | null;
@@ -95,6 +99,7 @@ export function coerceEventDraft(raw: unknown): ParsedEventDraft {
     end_time: str(obj.end_time),
     duration_minutes: num(obj.duration_minutes),
     contact_name: str(obj.contact_name),
+    counterparty_name: str(obj.counterparty_name),
     property_hint: str(obj.property_hint),
     assignee_name: str(obj.assignee_name),
     location: str(obj.location),
@@ -192,6 +197,7 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
     '  "end_time": "YYYY-MM-DDTHH:mm" IST or null,\n' +
     '  "duration_minutes": number or null,\n' +
     '  "contact_name": the client/lead person the event is with, or null,\n' +
+    '  "counterparty_name": when the request came out of a conversation with someone, the OTHER person in it — the one arranging the meeting rather than the one being met ("Yes Sharan, its confirmed" -> "Sharan"). Null when there is no such person or they are the same as contact_name,\n' +
     '  "property_hint": any property/project/locality identifying words, e.g. "18k sqft JP Nagar commercial", or null,\n' +
     '  "assignee_name": a TEAM member the speaker assigns this to ("ask Surya to...", "Surya should call..."), or null when the speaker will do it themselves,\n' +
     '  "location": meeting place or address if stated, or null,\n' +
@@ -220,7 +226,7 @@ const SCREENSHOT_INSTRUCTION =
   'This image is a screenshot, usually of a chat conversation. Read every message bubble in order and extract the ONE appointment the people in it agree on.\n' +
   'Right-aligned / green bubbles are the person who forwarded you this screenshot; left-aligned / grey bubbles are the other party. The event is between them.\n' +
   'The small clock times printed on each bubble (e.g. "11:49") are when the MESSAGE was sent — never treat them as the appointment time. Use only a day/time stated inside the message wording.\n' +
-  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met.\n' +
+  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met, and put the person chatting in counterparty_name — both are attendees worth linking, and the one chatting is usually the one already in the CRM.\n' +
   'Put the conversation you read, as plain text, into "transcript".\n' +
   'If the thread never settles on a specific day or time, or is not about arranging a meeting at all, return intent "none" rather than guessing a slot.';
 
