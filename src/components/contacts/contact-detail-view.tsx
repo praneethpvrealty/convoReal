@@ -63,7 +63,6 @@ import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-mes
 import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isReengagementError,
-  isWithinCustomerWindow,
 } from '@/lib/whatsapp/customer-window';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { BRANDING } from '@/config/branding';
@@ -1050,56 +1049,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     toast.success('Phone numbers swapped! Remember to save changes.');
   };
 
+  // Template-first, server-side: an open window sends the composed
+  // details as free text, a closed one sends the approved property-alert
+  // template instead of dead-ending. Only when the window is closed AND
+  // no approved template exists does this throw, so the caller falls back
+  // to manual template selection.
   async function sendPropertyDetailsHelper() {
     if (!contactId || !inquiredProperty) return;
-
-    // Find or create conversation
-    let convId: string | null = null;
-    const { data: existingConv } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', contactId)
-      .maybeSingle();
-
-    if (existingConv) {
-      convId = existingConv.id;
-    } else {
-      const { data: newConv, error: createConvErr } = await supabase
-        .from('conversations')
-        .insert({
-          account_id: accountId,
-          user_id: user?.id,
-          contact_id: contactId,
-          status: 'open'
-        })
-        .select('id')
-        .single();
-
-      if (createConvErr) {
-        console.error('Failed to create conversation:', createConvErr);
-        throw createConvErr;
-      }
-      convId = newConv.id;
-    }
-
-    // Check the 24-hour customer window to prevent sending freeform text that will fail at Meta
-    let lastCustomerMessageAt: string | null = null;
-    if (existingConv) {
-      const { data: lastCustomerMsg } = await supabase
-        .from('messages')
-        .select('created_at')
-        .eq('conversation_id', convId)
-        .eq('sender_type', 'customer')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      lastCustomerMessageAt = lastCustomerMsg?.created_at ?? null;
-    }
-
-    if (!isWithinCustomerWindow(lastCustomerMessageAt)) {
-      throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE);
-    }
 
     const showcaseBase = getShowcaseBaseUrl();
     const messageText = buildInquiryDetailsMessage({
@@ -1108,27 +1064,35 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       currency: showcaseSettings?.currency,
     });
 
-    const res = await fetch('/api/whatsapp/send', {
+    const res = await fetch('/api/whatsapp/share-property', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        conversation_id: convId,
-        message_type: 'text',
-        content_text: messageText,
+        contact_id: contactId,
+        property_id: inquiredProperty.id,
+        message: messageText,
       }),
     });
 
+    const payload = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to send WhatsApp message');
+      throw new Error(payload?.error || 'Failed to send WhatsApp message');
     }
+    if (!payload?.data?.sent) {
+      throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE);
+    }
+    return payload.data.channel as 'freeform' | 'template' | undefined;
   }
 
   async function handleSendPropertyDetails() {
     setApproving(true);
     try {
-      await sendPropertyDetailsHelper();
-      toast.success('Property details sent successfully via WhatsApp!');
+      const channel = await sendPropertyDetailsHelper();
+      toast.success(
+        channel === 'template'
+          ? 'Chat is past the 24-hour window — details sent as the approved property template.'
+          : 'Property details sent successfully via WhatsApp!'
+      );
     } catch (err) {
       console.error(err);
       if (isReengagementError(err)) {
