@@ -357,20 +357,23 @@ async function transcribeImageText(buffer: Buffer, mimeType: string): Promise<st
 }
 
 /**
- * Classifies if a message (text or image) is a real estate listing, contact details, or neither.
+ * Classifies if a message (text or image) is a real estate listing, contact
+ * details, a scheduling request, or none of those.
  */
 export async function classifyImageOrText(
   text?: string,
   buffer?: Buffer,
   mimeType?: string
-): Promise<'property' | 'contact' | 'none'> {
+): Promise<'property' | 'contact' | 'schedule' | 'none'> {
   const systemInstruction =
     "You are an expert real estate CRM classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
     "1. 'property': A property listing to be added to inventory, layout plan, listing advertisement, or property details description.\n" +
     "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, screenshot of contact/profile details, or lead forwarding/inquiry messages containing contact name/phone and their property interest (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters' or Magicbricks/99acres/Housing forwards).\n" +
-    "3. 'none': Neither of the above.\n\n" +
+    "3. 'schedule': A meeting, site visit, call or appointment being arranged or confirmed for a stated day/time — typically a screenshot of a chat thread where two people settle on when to meet (e.g. 'Monday 5 pm the meeting with the lawyer is confirmed right' / 'Yes, its confirmed'), or a calendar invite screenshot.\n" +
+    "4. 'none': None of the above.\n\n" +
     "Precedence: when BOTH property listing details (area/sq ft, dimensions like 50x75, facing, price in cr/lakh, plot/site number, BHK) AND a person's name/phone are present, classify as 'property' — the listing is the primary intent. Reserve 'contact' for messages whose main purpose is saving a person or forwarding a buyer's interest/requirement.\n" +
-    "Only respond with exactly 'property', 'contact', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
+    "'schedule' is the narrowest class and never wins over the other two: a listing or a lead forward that merely mentions a day ('call him on Monday', 'site visit possible this weekend') is still 'property' or 'contact'. Choose 'schedule' only when arranging or confirming the WHEN is the entire point of the message and a specific day or time is actually stated.\n" +
+    "Only respond with exactly 'property', 'contact', 'schedule', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
 
   const parts: GeminiPart[] = [];
   if (buffer && mimeType) {
@@ -389,6 +392,16 @@ export async function classifyImageOrText(
     const response = await generateContentRaw(contents, systemInstruction, false, { tier: 'lite', feature: 'chatbot_classify' });
     const classification = response.toLowerCase().trim();
     if (classification.includes("property")) return "property";
+    if (classification.includes("schedule")) {
+      // A listing poster that also names a viewing day must not be
+      // pulled onto the calendar instead of into inventory.
+      if (looksLikePropertyListing(text)) return "property";
+      if (!text?.trim() && buffer && mimeType) {
+        const imageText = await transcribeImageText(buffer, mimeType);
+        if (looksLikePropertyListing(imageText)) return "property";
+      }
+      return "schedule";
+    }
     if (classification.includes("contact")) {
       if (looksLikePropertyListing(text)) return "property";
       // Image-only forwards have no caption to test deterministically;

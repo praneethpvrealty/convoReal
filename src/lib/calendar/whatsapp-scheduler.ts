@@ -269,6 +269,11 @@ export interface OwnerSchedulingParams {
     type: string;
     audio?: { id: string; mime_type: string };
   };
+  /** Set only by the classifier route in chatbot-engine, which has
+   *  already decided this image is a scheduling request and downloaded
+   *  the bytes. Its presence is what lets an image past the text
+   *  pre-filter below. */
+  image?: { buffer: Buffer; mimeType: string };
   contentText: string | null;
   contactRecord: { id: string; phone: string };
   conversation: { id: string };
@@ -284,10 +289,11 @@ export interface OwnerSchedulingParams {
  * error reply sent). Returns false to let the intake flows proceed.
  */
 export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): Promise<boolean> {
-  const { message, contentText, contactRecord, conversation, accountId, userId, accessToken, phoneNumberId } = params;
+  const { message, image, contentText, contactRecord, conversation, accountId, userId, accessToken, phoneNumberId } = params;
   const admin = supabaseAdmin();
   const text = contentText?.trim() || '';
   const isAudio = message.type === 'audio' && !!message.audio?.id;
+  const isImage = !!image;
 
   // Free deterministic agenda command — no AI, no credits.
   if (!isAudio && text && isAgendaCommand(text)) {
@@ -318,11 +324,23 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return true;
   }
 
-  if (!isAudio && (!text || !looksLikeSchedulingText(text))) {
+  // An image arrives here twice: first on this pre-classification pass
+  // with no buffer, then again from the classifier route with one. Bail
+  // on the first pass — the caption alone ("schedule this") would burn a
+  // parse on text that isn't where the request actually is.
+  if (!isImage && message.type === 'image') {
     return false;
   }
 
-  const feature: AiFeatureKey = isAudio ? 'voice_event_parse' : 'event_parse';
+  if (!isAudio && !isImage && (!text || !looksLikeSchedulingText(text))) {
+    return false;
+  }
+
+  const feature: AiFeatureKey = isAudio
+    ? 'voice_event_parse'
+    : isImage
+      ? 'image_event_parse'
+      : 'event_parse';
   if (!(await hardBurn(accountId, feature))) {
     await replyAndLog({
       phoneNumberId,
@@ -346,6 +364,12 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       const { buffer } = await downloadMedia({ downloadUrl: url, accessToken });
       draft = await parseEventFromInput({
         audio: { base64: buffer.toString('base64'), mimeType: mimeType || message.audio!.mime_type || 'audio/ogg' },
+        memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
+      });
+    } else if (isImage) {
+      draft = await parseEventFromInput({
+        image: { base64: image!.buffer.toString('base64'), mimeType: image!.mimeType },
+        text: text || undefined,
         memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
       });
     } else {

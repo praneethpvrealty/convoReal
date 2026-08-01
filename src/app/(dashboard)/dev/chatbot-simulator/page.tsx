@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 // account member can use it (read-only against their own account).
 
 interface SimulateResult {
-  classification: 'property' | 'contact' | 'none';
+  classification: 'property' | 'contact' | 'schedule' | 'none';
   draft: unknown;
   isValid: boolean | null;
   missingFields: string[];
