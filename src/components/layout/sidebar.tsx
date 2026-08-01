@@ -228,7 +228,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         </div>
 
         {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 relative z-10">
+        <div className="flex-1 min-h-0 overflow-y-auto relative z-10">
+        <nav className="px-3 py-4">
           <ul className="flex flex-col gap-1">
             {navItems.map((item) => {
               const isActive =
@@ -330,6 +331,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
         <FavoritesCard />
         <SidebarCreditWidget />
+        </div>
 
         {/* User section */}
         <div className="shrink-0 border-t border-slate-900/60 p-3 bg-slate-950/10 backdrop-blur-sm relative z-10">
