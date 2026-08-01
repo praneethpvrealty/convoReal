@@ -53,7 +53,7 @@
     }
 
     if (data.type === 'CONVOREAL_PORTAL_EXT_PING') {
-      reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.5.9' });
+      reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.6.0' });
       return;
     }
 
@@ -95,5 +95,5 @@
   });
 
   // Announce on load so an already-open dialog can flip to "detected".
-  if (extensionAlive()) reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.5.9' });
+  if (extensionAlive()) reply({ type: 'CONVOREAL_PORTAL_EXT_PONG', version: '1.6.0' });
 })();
