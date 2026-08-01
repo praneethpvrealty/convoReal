@@ -3,15 +3,17 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import DashboardContent from "./dashboard-content";
 import TodayPage from "../today/today-content";
 import MatchRadarPage from "../radar/radar-content";
 import PulsePage from "../pulse/pulse-content";
+import TeamAnalyticsContent from "./team-analytics-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "overview" | "today" | "radar" | "pulse";
+type TabId = "overview" | "today" | "radar" | "pulse" | "team";
 
-const TABS: { id: TabId; label: string }[] = [
+const BASE_TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "today", label: "Today" },
   { id: "radar", label: "Match Radar" },
@@ -21,11 +23,20 @@ const TABS: { id: TabId; label: string }[] = [
 export default function DashboardPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { isOrgManager, isOrgLeader } = useAuth();
+
+  const tabs = useMemo(
+    () =>
+      isOrgManager || isOrgLeader
+        ? [...BASE_TABS, { id: "team" as TabId, label: "Team" }]
+        : BASE_TABS,
+    [isOrgManager, isOrgLeader],
+  );
 
   const activeTab = useMemo(() => {
     const tab = searchParams.get("tab") as TabId;
-    return TABS.some((t) => t.id === tab) ? tab : "overview";
-  }, [searchParams]);
+    return tabs.some((t) => t.id === tab) ? tab : "overview";
+  }, [searchParams, tabs]);
 
   const tabMeta = useMemo(() => {
     switch (activeTab) {
@@ -35,6 +46,8 @@ export default function DashboardPage() {
         return { label: "Match Radar", href: "/dashboard?tab=radar", icon: "Radar" };
       case "pulse":
         return { label: "Pulse", href: "/dashboard?tab=pulse", icon: "Activity" };
+      case "team":
+        return { label: "Team", href: "/dashboard?tab=team", icon: "Users" };
       case "overview":
       default:
         return { label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" };
@@ -62,7 +75,7 @@ export default function DashboardPage() {
 
       {/* Sleek Tab Bar */}
       <div className="flex border-b border-slate-800/80 gap-2 relative z-10">
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
@@ -84,6 +97,7 @@ export default function DashboardPage() {
         {activeTab === "today" && <TodayPage />}
         {activeTab === "radar" && <MatchRadarPage />}
         {activeTab === "pulse" && <PulsePage />}
+        {activeTab === "team" && <TeamAnalyticsContent />}
       </div>
     </div>
   );
