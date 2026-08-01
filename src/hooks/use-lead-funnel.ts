@@ -120,8 +120,10 @@ export function useLeadFunnel({
   );
 
   const commit = useCallback(
-    (current: FunnelStep, value: string) => {
-      const updated = recordAnswer(current, value, answersRef.current);
+    (current: FunnelStep, value: string, record = true) => {
+      const updated = record
+        ? recordAnswer(current, value, answersRef.current)
+        : answersRef.current;
       answersRef.current = updated;
       setAnswers(updated);
 
@@ -158,13 +160,17 @@ export function useLeadFunnel({
     [commit, loading, pushUser, step]
   );
 
-  /** Multi-select steps advance on the visitor's confirmation. */
+  /** Multi-select steps advance on the visitor's confirmation. The chip
+   *  taps already recorded the selection, and recordAnswer toggles, so
+   *  confirming must advance WITHOUT recording — otherwise the first
+   *  selected chip is toggled straight back off and the step commits as
+   *  if the visitor had skipped it. */
   const confirmMulti = useCallback(() => {
     if (!step || loading) return;
     const selected = answerList(answersRef.current, step.key);
     if (!selected.length && !step.optional) return;
     pushUser(selected.length ? selected.join(', ') : 'Anywhere works');
-    commit(step, selected[0] || '');
+    commit(step, selected.join(', '), false);
   }, [commit, loading, pushUser, step]);
 
   const handleSend = useCallback(

@@ -45,6 +45,7 @@ import {
   Loader2,
   Users,
   Star,
+  StarOff,
   ChevronLeft,
   ChevronRight,
   MessageSquare,
@@ -545,6 +546,36 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const qs = params.toString();
     window.history.replaceState(null, '', `/contacts${qs ? `?${qs}` : ''}`);
   }, []);
+  // Unstar straight from the chip, so removing a quick filter no longer
+  // means a round trip to Inventory. Optimistic: the chip goes first and
+  // comes back if the write fails. Dropping the active filter is left to
+  // the unstar-guard effect below, which already handles the property
+  // being unstarred elsewhere.
+  const [unstarringId, setUnstarringId] = useState<string | null>(null);
+
+  const handleUnstarProperty = async (property: { id: string; property_code: string | null; title: string }) => {
+    const previous = starredProps;
+    setUnstarringId(property.id);
+    setStarredProps((prev) => prev.filter((p) => p.id !== property.id));
+    try {
+      const response = await fetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_starred: false }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to remove quick filter');
+      }
+      toast.success(`Removed ${property.property_code || property.title} from quick filters`);
+    } catch (err: unknown) {
+      setStarredProps(previous);
+      toast.error(err instanceof Error ? err.message : 'Failed to remove quick filter');
+    } finally {
+      setUnstarringId(null);
+    }
+  };
+
   // Touch equivalent of the chip's hover-expand: long-press (~450ms)
   // reveals the full property title for 3s. A completed long-press
   // must NOT also toggle the filter, so the click that follows it is
@@ -1552,7 +1583,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
               <Star className="size-3 text-amber-400 fill-amber-400 mr-1" />
               Interested in:
-              <InfoHint text="These quick filters are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6). Tap a chip to see contacts whose first-choice interest is that property — linked as interested on the property form, top match of a portal/email inquiry, or manually logged on the contact. The active chip survives a page refresh. Unstar the property in Inventory and its chip disappears." />
+              <InfoHint text="These quick filters are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6). Tap a chip to see contacts whose first-choice interest is that property — linked as interested on the property form, top match of a portal/email inquiry, or manually logged on the contact. The active chip survives a page refresh. Hover a chip (or long-press on touch) and tap the star-off icon to remove it from here — that unstars the property in Inventory too." />
             </span>
             {starredProps.map((p) => {
               const active = filterInterestProperty === p.id;
@@ -1580,7 +1611,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     // so the expand isn't covered by the browser menu.
                     if (expanded || chipPressFired.current) e.preventDefault();
                   }}
-                  title={`${p.title}\n\nHere because you starred it in Inventory — click to filter contacts whose first-choice interest is this property; unstar to remove.`}
+                  title={`${p.title}\n\nHere because you starred it in Inventory — click to filter contacts whose first-choice interest is this property.${canEdit ? ' Use the star-off icon to remove it from the quick filters.' : ''}`}
                   style={{ WebkitTouchCallout: 'none' }}
                   className={cn(
                     'group flex items-center overflow-hidden rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold transition-all cursor-pointer select-none',
@@ -1599,6 +1630,33 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     {p.title}
                   </span>
                   {active && <X className="ml-1 size-3 shrink-0" />}
+                  {canEdit && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Remove ${label} from quick filters`}
+                      title={`Remove ${p.property_code || p.title} from the quick filters (unstars it in Inventory)`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (unstarringId) return;
+                        handleUnstarProperty(p);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (unstarringId) return;
+                          handleUnstarProperty(p);
+                        }
+                      }}
+                      className={cn(
+                        'max-w-0 overflow-hidden opacity-0 transition-all duration-200 hover:text-rose-300 group-hover:ml-1.5 group-hover:max-w-4 group-hover:opacity-100 focus:ml-1.5 focus:max-w-4 focus:opacity-100 focus:outline-none',
+                        expanded && 'ml-1.5 max-w-4 opacity-100'
+                      )}
+                    >
+                      <StarOff className="size-3 shrink-0" />
+                    </span>
+                  )}
                 </button>
               );
             })}

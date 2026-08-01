@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { Search, ChevronDown, X, Check } from 'lucide-react';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
+import { useAnchoredDropdown } from '@/hooks/use-anchored-dropdown';
 
 interface Contact {
   id: string;
@@ -32,10 +33,10 @@ export function SearchableContactSelect({
 }: SearchableContactSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropdownPosition = useAnchoredDropdown(isOpen, containerRef);
 
   // Find the selected contact
   const selectedContact = useMemo(() => {
@@ -85,28 +86,15 @@ export function SearchableContactSelect({
     }
   }, [isOpen]);
 
-  // Update dropdown position when opened
-  useEffect(() => {
-    if (isOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + window.scrollY + 6,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-      });
-    } else {
-      setDropdownPosition(null);
-    }
-  }, [isOpen]);
-
   const dropdownContent = isOpen && dropdownPosition ? (
     <div
       ref={dropdownRef}
-      className="fixed z-[100] rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl animate-in fade-in slide-in-from-top-1 duration-150 max-h-[360px] flex flex-col"
+      className="fixed z-[100] rounded-xl border border-slate-700 bg-slate-900 p-2 shadow-2xl animate-in fade-in duration-150 flex flex-col"
       style={{
         top: dropdownPosition.top,
         left: dropdownPosition.left,
         width: dropdownPosition.width,
+        maxHeight: dropdownPosition.maxHeight,
       }}
     >
       {/* Search Box */}
@@ -132,7 +120,7 @@ export function SearchableContactSelect({
       </div>
 
       {/* Options List */}
-      <div className="flex-1 overflow-y-auto pr-0.5 space-y-0.5 scrollbar-thin scrollbar-thumb-slate-800 max-h-[250px]">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-0.5 scrollbar-thin scrollbar-thumb-slate-800">
         {/* Clear Selection Option */}
         <div
           onClick={() => {

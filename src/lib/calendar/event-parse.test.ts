@@ -5,6 +5,9 @@ import {
   coerceEventDraft,
   resolveByName,
   parseEventFromInput,
+  normalizeWeekday,
+  alignDraftToNamedWeekday,
+  type ParsedEventDraft,
 } from './event-parse';
 
 describe('normalizeEventType', () => {
@@ -173,5 +176,201 @@ describe('parseEventFromInput image branch', () => {
 
   it('still rejects an input with no text, audio or image', async () => {
     await expect(parseEventFromInput({})).rejects.toThrow(/requires text, audio or an image/);
+  });
+
+  it('corrects the model’s weekday arithmetic before returning', async () => {
+    // Exactly what shipped: model answers Tue 4 Aug for a "Monday" thread.
+    stubGemini({
+      intent: 'schedule',
+      title: 'Meeting with Kusuma lawyer',
+      event_type: 'meeting',
+      start_time: '2026-08-04T17:00',
+      day_of_week: 'monday',
+    });
+    const draft = await parseEventFromInput({
+      image: { base64: 'AAAA', mimeType: 'image/jpeg' },
+      now: new Date('2026-08-01T08:19:00Z'),
+    });
+
+    expect(draft.start_time).toBe('2026-08-03T17:00');
+  });
+
+  it('applies the same correction to the typed-text path', async () => {
+    stubGemini({
+      intent: 'schedule',
+      title: 'Meet the builder',
+      event_type: 'meeting',
+      start_time: '2026-08-04T11:00',
+      day_of_week: 'monday',
+    });
+    const draft = await parseEventFromInput({
+      text: 'meet the builder monday 11am',
+      now: new Date('2026-08-01T08:19:00Z'),
+    });
+
+    expect(draft.start_time).toBe('2026-08-03T11:00');
+  });
+
+  it('asks the model to copy the weekday word rather than derive one', async () => {
+    stubGemini({ intent: 'none' });
+    await parseEventFromInput({ text: 'hello' });
+
+    expect(captured[0].system).toContain('"day_of_week"');
+    expect(captured[0].system).toContain('never a weekday you worked out');
+  });
+});
+
+describe('normalizeWeekday', () => {
+  it('accepts full names and the usual abbreviations', () => {
+    expect(normalizeWeekday('Monday')).toBe(1);
+    expect(normalizeWeekday('mon')).toBe(1);
+    expect(normalizeWeekday('tues')).toBe(2);
+    expect(normalizeWeekday('thurs')).toBe(4);
+    expect(normalizeWeekday(' SATURDAY ')).toBe(6);
+    expect(normalizeWeekday('sunday')).toBe(0);
+  });
+
+  it('rejects anything that is not a weekday', () => {
+    expect(normalizeWeekday(null)).toBeNull();
+    expect(normalizeWeekday('')).toBeNull();
+    expect(normalizeWeekday('tomorrow')).toBeNull();
+    expect(normalizeWeekday('m')).toBeNull();
+  });
+});
+
+describe('alignDraftToNamedWeekday', () => {
+  const SATURDAY_1_AUG = new Date('2026-08-01T08:19:00Z');
+
+  const draft = (over: Partial<ParsedEventDraft>): ParsedEventDraft =>
+    coerceEventDraft({ intent: 'schedule', title: 'Meeting', ...over });
+
+  it('fixes the shipped bug: Monday must not become Tuesday', () => {
+    // The model returned Tue 4 Aug for a thread that said "Monday 5 pm",
+    // with Sat 1 Aug as today. Monday was the 3rd.
+    const fixed = alignDraftToNamedWeekday(
+      draft({ start_time: '2026-08-04T17:00', day_of_week: 'monday' }),
+      SATURDAY_1_AUG
+    );
+    expect(fixed.start_time).toBe('2026-08-03T17:00');
+    expect(istLocalToUtcIso(fixed.start_time)).toBe('2026-08-03T11:30:00.000Z');
+  });
+
+  it('leaves a date the model already got right untouched', () => {
+    const d = draft({ start_time: '2026-08-03T17:00', day_of_week: 'monday' });
+    expect(alignDraftToNamedWeekday(d, SATURDAY_1_AUG)).toBe(d);
+  });
+
+  it('keeps the week the model chose rather than pulling to the next weekday', () => {
+    // "Monday after next" — model landed on Tue 11 Aug, so the intended
+    // Monday is the 10th, not the 3rd.
+    const fixed = alignDraftToNamedWeekday(
+      draft({ start_time: '2026-08-11T17:00', day_of_week: 'monday' }),
+      SATURDAY_1_AUG
+    );
+    expect(fixed.start_time).toBe('2026-08-10T17:00');
+  });
+
+  it('moves a snap that lands in the past forward a week', () => {
+    // Model said Sat 1 Aug, source said Friday; Fri 31 Jul is behind us.
+    const fixed = alignDraftToNamedWeekday(
+      draft({ start_time: '2026-08-01T17:00', day_of_week: 'friday' }),
+      SATURDAY_1_AUG
+    );
+    expect(fixed.start_time).toBe('2026-08-07T17:00');
+  });
+
+  it('carries end_time along by the same shift', () => {
+    const fixed = alignDraftToNamedWeekday(
+      draft({
+        start_time: '2026-08-04T17:00',
+        end_time: '2026-08-04T18:00',
+        day_of_week: 'monday',
+      }),
+      SATURDAY_1_AUG
+    );
+    expect(fixed.start_time).toBe('2026-08-03T17:00');
+    expect(fixed.end_time).toBe('2026-08-03T18:00');
+  });
+
+  it('does nothing when no weekday was named', () => {
+    // "30th July" and "tomorrow" must not be second-guessed.
+    const d = draft({ start_time: '2026-07-30T10:00', day_of_week: null });
+    expect(alignDraftToNamedWeekday(d, SATURDAY_1_AUG)).toBe(d);
+  });
+
+  it('does nothing without a start time, or with an unparseable one', () => {
+    const noStart = draft({ start_time: null, day_of_week: 'monday' });
+    expect(alignDraftToNamedWeekday(noStart, SATURDAY_1_AUG)).toBe(noStart);
+    const junk = draft({ start_time: 'next monday', day_of_week: 'monday' });
+    expect(alignDraftToNamedWeekday(junk, SATURDAY_1_AUG)).toBe(junk);
+  });
+
+  it('lands on the named weekday from every possible model error', () => {
+    for (let off = 0; off < 7; off++) {
+      const day = String(2 + off).padStart(2, '0');
+      const fixed = alignDraftToNamedWeekday(
+        draft({ start_time: `2026-08-${day}T17:00`, day_of_week: 'wednesday' }),
+        SATURDAY_1_AUG
+      );
+      const iso = istLocalToUtcIso(fixed.start_time)!;
+      expect(new Date(iso).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long' }))
+        .toBe('Wednesday');
+      expect(new Date(iso).getTime()).toBeGreaterThan(SATURDAY_1_AUG.getTime());
+    }
+  });
+});
+
+describe('counterparty capture', () => {
+  it('carries both names through coercion', () => {
+    const draft = coerceEventDraft({
+      intent: 'schedule',
+      title: 'Meeting with Kusuma lawyer',
+      contact_name: 'Kusuma',
+      counterparty_name: 'Sharan',
+    });
+    expect(draft.contact_name).toBe('Kusuma');
+    expect(draft.counterparty_name).toBe('Sharan');
+  });
+
+  it('defaults counterparty to null when the source has only one person', () => {
+    expect(coerceEventDraft({ contact_name: 'Varun' }).counterparty_name).toBeNull();
+  });
+
+  it('resolves the counterparty independently of the person being met', () => {
+    // Kusuma the lawyer is not a CRM contact; Sharan is. Before this, the
+    // event linked nobody and so reminded nobody.
+    const contacts = [
+      { id: 'sharan-id', name: 'Sharan' },
+      { id: 'other-id', name: 'Varun' },
+    ];
+    expect(resolveByName('Kusuma', contacts, (c) => c.name)).toBeNull();
+    expect(resolveByName('Sharan', contacts, (c) => c.name)?.id).toBe('sharan-id');
+  });
+});
+
+describe('service provider capture', () => {
+  it('carries the professional role through coercion', () => {
+    const draft = coerceEventDraft({
+      intent: 'schedule',
+      title: 'Meeting with Kusuma lawyer',
+      contact_name: 'Kusuma',
+      service_provider_role: 'lawyer',
+    });
+    expect(draft.service_provider_role).toBe('lawyer');
+  });
+
+  it('leaves the role null for an ordinary client meeting', () => {
+    expect(coerceEventDraft({ contact_name: 'Varun' }).service_provider_role).toBeNull();
+  });
+
+  it('resolves a service provider against the liaisons directory', () => {
+    // The same name that finds nothing in contacts finds the liaison.
+    const contacts = [{ id: 'sharan-id', name: 'Sharan' }];
+    const liaisons = [
+      { id: 'kusuma-id', name: 'KusumamuniRaju' },
+      { id: 'other-id', name: 'Prabhakar' },
+    ];
+    expect(resolveByName('KusumamuniRaju', contacts, (c) => c.name)).toBeNull();
+    expect(resolveByName('KusumamuniRaju', liaisons, (l) => l.name)?.id).toBe('kusuma-id');
   });
 });

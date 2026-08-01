@@ -23,12 +23,23 @@ export interface ParsedEventDraft {
   end_time: string | null;
   duration_minutes: number | null;
   contact_name: string | null;
+  /** The other party in the conversation the event came out of — the person
+   *  arranging it rather than the person being met. Often the one who is
+   *  already a CRM contact, so both get linked and both get reminded. */
+  counterparty_name: string | null;
+  /** The professional role attached to contact_name when there is one
+   *  ("lawyer", "surveyor", "khata agent"). Marks them as someone who
+   *  belongs in the liaisons directory rather than in contacts. */
+  service_provider_role: string | null;
   property_hint: string | null;
   assignee_name: string | null;
   location: string | null;
   priority: 'low' | 'medium' | 'high';
   notes: string | null;
   transcript: string | null;
+  /** The weekday word the source literally used, when it used one. Read
+   *  off the message by the model; turned into a date by alignDraftToNamedWeekday. */
+  day_of_week: string | null;
 }
 
 const EVENT_TYPE_VALUES: EventTypeKey[] = ['site_visit', 'call', 'follow_up', 'document', 'meeting', 'other'];
@@ -92,12 +103,87 @@ export function coerceEventDraft(raw: unknown): ParsedEventDraft {
     end_time: str(obj.end_time),
     duration_minutes: num(obj.duration_minutes),
     contact_name: str(obj.contact_name),
+    counterparty_name: str(obj.counterparty_name),
+    service_provider_role: str(obj.service_provider_role),
     property_hint: str(obj.property_hint),
     assignee_name: str(obj.assignee_name),
     location: str(obj.location),
     priority,
     notes: str(obj.notes),
     transcript: str(obj.transcript),
+    day_of_week: str(obj.day_of_week),
+  };
+}
+
+const WEEKDAYS = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+];
+
+/** Weekday word to its index, accepting the usual abbreviations
+ *  ("mon", "tues", "thurs"). Null when it isn't a weekday at all. */
+export function normalizeWeekday(val?: string | null): number | null {
+  if (!val) return null;
+  const cleaned = val.toLowerCase().replace(/[^a-z]/g, '');
+  if (cleaned.length < 3) return null;
+  const exact = WEEKDAYS.indexOf(cleaned);
+  if (exact >= 0) return exact;
+  const prefixed = WEEKDAYS.findIndex((d) => d.startsWith(cleaned));
+  return prefixed >= 0 ? prefixed : null;
+}
+
+function localDateParts(local: string): { base: number; rest: string } | null {
+  const m = local.match(/^(\d{4})-(\d{2})-(\d{2})([T ].*)?$/);
+  if (!m) return null;
+  return { base: Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])), rest: m[4] || '' };
+}
+
+function shiftLocalDays(local: string, days: number): string {
+  const parts = localDateParts(local);
+  if (!parts) return local;
+  const d = new Date(parts.base + days * 86400000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}${parts.rest}`;
+}
+
+/**
+ * The model reads "Monday" off a message reliably and works out which
+ * date that is unreliably — it booked Tue 4 Aug for a thread that said
+ * Monday, with Sat 1 Aug given as today. So the weekday it read is
+ * authoritative and its arithmetic is not.
+ *
+ * Snaps the date onto the nearest day carrying that weekday. The window
+ * is +/-3 days, which reaches every weekday exactly once, so a deliberate
+ * "Monday after next" keeps the week the model chose instead of being
+ * dragged back to the coming one. A snap that lands in the past moves on
+ * a week — an appointment behind us is never what was meant.
+ */
+export function alignDraftToNamedWeekday(
+  draft: ParsedEventDraft,
+  now: Date = new Date()
+): ParsedEventDraft {
+  const target = normalizeWeekday(draft.day_of_week);
+  if (target === null || !draft.start_time) return draft;
+
+  const parts = localDateParts(draft.start_time);
+  if (!parts) return draft;
+
+  let delta = (target - new Date(parts.base).getUTCDay() + 7) % 7;
+  if (delta > 3) delta -= 7;
+
+  const utc = istLocalToUtcIso(shiftLocalDays(draft.start_time, delta));
+  if (utc && new Date(utc).getTime() < now.getTime()) delta += 7;
+  if (delta === 0) return draft;
+
+  return {
+    ...draft,
+    start_time: shiftLocalDays(draft.start_time, delta),
+    end_time: draft.end_time ? shiftLocalDays(draft.end_time, delta) : draft.end_time,
   };
 }
 
@@ -112,9 +198,12 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
     '  "title": short imperative summary WITHOUT the date/time words, e.g. "Site visit with Varun - JP Nagar plot",\n' +
     '  "event_type": one of "site_visit" | "call" | "follow_up" | "document" | "meeting" | "other",\n' +
     '  "start_time": "YYYY-MM-DDTHH:mm" in IST local time, resolving relative phrases like "tomorrow evening" (evening=17:00, morning=10:00, afternoon=14:00, night=20:00), or null,\n' +
+    '  "day_of_week": the weekday word the message itself uses ("monday", "fri", "this Saturday" -> "saturday"), or null. Copy the word you actually read — never a weekday you worked out from a calendar date, and null when the message gives a date like "30th July" or a relative day like "tomorrow" instead of naming a weekday,\n' +
     '  "end_time": "YYYY-MM-DDTHH:mm" IST or null,\n' +
     '  "duration_minutes": number or null,\n' +
     '  "contact_name": the client/lead person the event is with, or null,\n' +
+    '  "counterparty_name": when the request came out of a conversation with someone, the OTHER person in it — the one arranging the meeting rather than the one being met ("Yes Sharan, its confirmed" -> "Sharan"). Null when there is no such person or they are the same as contact_name,\n' +
+    '  "service_provider_role": the professional role named alongside contact_name when there is one — "lawyer", "advocate", "surveyor", "architect", "CA", "khata agent", "registrar", "engineer", "contractor", "valuer" ("meeting with Kusuma lawyer" -> "lawyer"). Null when contact_name is a buyer, seller, owner or plain client,\n' +
     '  "property_hint": any property/project/locality identifying words, e.g. "18k sqft JP Nagar commercial", or null,\n' +
     '  "assignee_name": a TEAM member the speaker assigns this to ("ask Surya to...", "Surya should call..."), or null when the speaker will do it themselves,\n' +
     '  "location": meeting place or address if stated, or null,\n' +
@@ -143,7 +232,7 @@ const SCREENSHOT_INSTRUCTION =
   'This image is a screenshot, usually of a chat conversation. Read every message bubble in order and extract the ONE appointment the people in it agree on.\n' +
   'Right-aligned / green bubbles are the person who forwarded you this screenshot; left-aligned / grey bubbles are the other party. The event is between them.\n' +
   'The small clock times printed on each bubble (e.g. "11:49") are when the MESSAGE was sent — never treat them as the appointment time. Use only a day/time stated inside the message wording.\n' +
-  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met.\n' +
+  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met, and put the person chatting in counterparty_name — both are attendees worth linking, and the one chatting is usually the one already in the CRM.\n' +
   'Put the conversation you read, as plain text, into "transcript".\n' +
   'If the thread never settles on a specific day or time, or is not about arranging a meeting at all, return intent "none" rather than guessing a slot.';
 
@@ -194,7 +283,64 @@ export async function parseEventFromInput(input: EventParseInput): Promise<Parse
     const match = raw.match(/\{[\s\S]*\}/);
     parsed = match ? JSON.parse(match[0]) : {};
   }
-  return coerceEventDraft(parsed);
+  // Weekday arithmetic is the one part of the extraction the model gets
+  // wrong often enough to matter, so it is redone here deterministically
+  // for every input path — typed, spoken and screenshotted alike.
+  return alignDraftToNamedWeekday(coerceEventDraft(parsed), input.now || new Date());
+}
+
+export interface EventUpdateInput {
+  current: {
+    title: string;
+    event_type: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    location: string | null;
+    agenda: string | null;
+  };
+  instruction: string;
+  memberNames?: string[];
+  now?: Date;
+}
+
+/**
+ * Applies a correction typed against a confirmation card ("change this
+ * to Monday 5pm, retitle it X") to the event that card announced.
+ *
+ * Mirrors updateListingDraft/updateContactDraft in gemini.ts: the model
+ * returns the WHOLE event as it should now read, so untouched fields
+ * come back unchanged rather than nulled. The same deterministic
+ * weekday alignment runs afterwards, since a correction naming a day is
+ * exactly where the model's date arithmetic slipped in the first place.
+ */
+export async function parseEventUpdate(input: EventUpdateInput): Promise<ParsedEventDraft> {
+  const now = input.now || new Date();
+  const system =
+    'You are the scheduling assistant inside a CRM used by Indian real-estate agents. ' +
+    `Current date/time in India (IST): ${nowInIst(now)}.\n\n` +
+    'The user is correcting an event that already exists. Apply their instruction to it and return the FULL event as it should now read, ' +
+    'in the same JSON shape used for new events (intent, title, event_type, start_time, day_of_week, end_time, duration_minutes, contact_name, property_hint, assignee_name, location, priority, notes, transcript).\n' +
+    'Carry every field the instruction does not mention through UNCHANGED — never blank a field just because it went unmentioned. ' +
+    'Set intent to "schedule" whenever the event still has a date/time, "task" when it has become a plain to-do, and "none" only when the instruction is not a correction at all.\n' +
+    'The day_of_week rule is unchanged: copy a weekday word the instruction actually uses, else null.\n\n' +
+    `Existing event:\n${JSON.stringify(input.current, null, 2)}\n\n` +
+    (input.memberNames?.length ? `Team member names: ${input.memberNames.join(', ')}.\n` : '') +
+    'Respond with ONLY the JSON object.';
+
+  const raw = await generateJsonFromParts(
+    [{ text: input.instruction }],
+    system,
+    { tier: 'lite', feature: 'event_parse' }
+  );
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    const match = raw.match(/\{[\s\S]*\}/);
+    parsed = match ? JSON.parse(match[0]) : {};
+  }
+  return alignDraftToNamedWeekday(coerceEventDraft(parsed), now);
 }
 
 // ── Deterministic reference resolution ──────────────────────────
