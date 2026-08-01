@@ -199,7 +199,7 @@ export function ShowcaseLeadBot({
       return {
         text: relaxed
           ? `Nothing matched exactly, but these are the closest ${matches.length === 1 ? 'one' : `${matches.length}`} I have:`
-          : `Here ${matches.length === 1 ? 'is' : 'are'} ${matches.length} that fit:`,
+          : `Here ${matches.length === 1 ? 'is 1 that fits' : `are ${matches.length} that fit`}:`,
         attachment: matchCard(matches),
       };
     },

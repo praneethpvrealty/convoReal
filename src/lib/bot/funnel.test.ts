@@ -53,6 +53,16 @@ describe('recordAnswer', () => {
     ]);
   });
 
+  it('drops the lone selection if a confirmation re-records it', () => {
+    // Why use-lead-funnel's confirmMulti advances without recording: the
+    // chip tap already captured the locality, and recording it again on
+    // confirmation toggles it straight back off — the funnel then matches
+    // as if the visitor had named no locality at all.
+    const selected = recordAnswer(multiStep, 'HSR Layout', {});
+    expect(answerList(selected, 'locality')).toEqual(['HSR Layout']);
+    expect(answerList(recordAnswer(multiStep, 'HSR Layout', selected), 'locality')).toEqual([]);
+  });
+
   it('ignores blank answers', () => {
     expect(recordAnswer(singleStep, '   ', { category: 'Villa' })).toEqual({
       category: 'Villa',
