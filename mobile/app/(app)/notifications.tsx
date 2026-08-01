@@ -30,7 +30,7 @@ function openTarget(n: NotificationRow) {
     return;
   }
   if (n.link?.startsWith('/calendar')) {
-    router.push('/(app)/calendar');
+    router.push('/(app)/(tabs)/calendar');
     return;
   }
   const conv = n.link?.match(/conversation=([0-9a-f-]+)/i)?.[1];

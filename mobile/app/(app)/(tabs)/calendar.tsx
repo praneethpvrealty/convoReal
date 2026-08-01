@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack } from 'expo-router';
+import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -11,7 +11,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet } from '@/components/sheet';
@@ -66,6 +68,7 @@ async function fetchMonth(month: Date): Promise<Appointment[]> {
 
 export default function CalendarScreen() {
   const { colors, fonts: f } = useTheme();
+  const insets = useSafeAreaInsets();
   const today = new Date();
   const [month, setMonth] = useState(() => monthStart(today));
   const [selected, setSelected] = useState<Date>(today);
@@ -108,27 +111,28 @@ export default function CalendarScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Calendar',
-          headerRight: () => (
-            <Link href="/(app)/appointment-new" asChild>
-              <Pressable
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="New appointment"
-              >
-                <Ionicons name="add-circle" size={26} color={colors.primary} />
-              </Pressable>
-            </Link>
-          ),
-        }}
-      />
+      <View style={[styles.screenHeader, { paddingTop: insets.top + spacing.sm }]}>
+        <Text style={[styles.screenTitle, { color: colors.text, fontFamily: f.extrabold }]}>
+          Calendar
+        </Text>
+        <Link href="/(app)/appointment-new" asChild>
+          <Pressable
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="New appointment"
+          >
+            <Ionicons name="add-circle" size={30} color={colors.primary} />
+          </Pressable>
+        </Link>
+      </View>
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+        contentContainerStyle={{
+          padding: spacing.lg,
+          gap: spacing.md,
+          paddingBottom: TAB_BAR_CLEARANCE,
+        }}
         refreshControl={
           <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
         }
@@ -618,6 +622,13 @@ function SheetButton({
 }
 
 const styles = StyleSheet.create({
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+  },
+  screenTitle: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   monthHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   grid: {
     borderRadius: radius.lg,

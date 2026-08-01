@@ -145,11 +145,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="deals"
+        name="calendar"
         options={{
-          title: 'Deals',
+          title: 'Calendar',
           tabBarIcon: ({ focused }) => (
-            <TabIcon focused={focused} name="trending-up" outline="trending-up-outline" />
+            <TabIcon focused={focused} name="calendar" outline="calendar-outline" />
           ),
         }}
       />
