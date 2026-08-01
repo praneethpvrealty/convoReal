@@ -111,6 +111,7 @@ import {
   classifyPortalLead,
   isInquiryAboutOwnListing,
   isValidContactName,
+  isUsableLocation,
   checkLocationMatch,
   POST
 } from './route';
@@ -156,6 +157,23 @@ describe('Email Webhook Lead Parsing', () => {
       expect(res.email).toBe('pushpa9876@gmail.com');
       expect(res.propertyType).toBe('Industrial Land');
       expect(res.propertyLocation).toBe('Bommasandra');
+    });
+
+    it('does not read Housing subject-line boilerplate as the locality', () => {
+      const subject = 'Housing - Lead interested in your property';
+      const body = `
+        Housing User would like to talk to you
+        We have received a contact request from our user:
+        Name: Housing User
+        who would like to talk to you regarding your independent house:
+        3 BHK Independent House
+        Koramangala
+        4200 sq. ft.
+      `;
+      const res = parsePortalLead(subject, body, '');
+      expect(res.source).toBe('Housing');
+      expect(res.propertyLocation).not.toBe('your property');
+      expect(res.propertyLocation).toBeNull();
     });
 
     it('should parse 99acres emails correctly', () => {
@@ -570,6 +588,24 @@ Content-Transfer-Encoding: quoted-printable
     });
   });
 
+  describe('isUsableLocation', () => {
+    it('rejects subject-line boilerplate read as a locality', () => {
+      expect(isUsableLocation('your property')).toBe(false);
+      expect(isUsableLocation('His property search')).toBe(false);
+      expect(isUsableLocation('the listing')).toBe(false);
+      expect(isUsableLocation('property')).toBe(false);
+      expect(isUsableLocation('')).toBe(false);
+    });
+
+    it('accepts real localities', () => {
+      expect(isUsableLocation('Koramangala')).toBe(true);
+      expect(isUsableLocation('HSR')).toBe(true);
+      expect(isUsableLocation('Bommasandra')).toBe(true);
+      expect(isUsableLocation('Sector 6 HSR Layout')).toBe(true);
+      expect(isUsableLocation('Landmark Colony')).toBe(true);
+    });
+  });
+
   describe('checkLocationMatch', () => {
     it('should match exact locations', () => {
       expect(checkLocationMatch('HSR Layout', 'HSR Layout, Bangalore')).toBe(true);
@@ -709,6 +745,51 @@ Content-Transfer-Encoding: quoted-printable
 
       // Verify tags were assigned correctly
       expect(mockDb.contact_tags.length).toBeGreaterThan(0);
+    });
+
+    it('captures a Housing lead whose name the portal masked, instead of dropping it', async () => {
+      const payload = {
+        subject: 'Housing - Lead interested in your property',
+        from: '"Housing.com" <noreply@housing-mailer.com>',
+        text: [
+          'Housing User would like to talk to you',
+          'We have received a contact request from our user:',
+          'Name: Housing User',
+          'Email:',
+          'Contact:',
+          'Call Now',
+          'Chat On WhatsApp',
+          'who would like to talk to you regarding your independent house:',
+          '3 BHK Independent House',
+          'Koramangala',
+          '4200 sq. ft.',
+        ].join('\n'),
+        html: '<a href="https://wa.me/919876543210">Chat On WhatsApp</a>',
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+
+      // The number is the part that matters and it survived.
+      expect(mockDb.contacts.length).toBe(1);
+      const contact = mockDb.contacts[0];
+      expect(contact.phone).toBe('+919876543210');
+      expect(contact.name).toBe('Housing Lead');
+      expect(contact.status).toBe('pending_review');
+
+      // The masked name is preserved in the audit trail, not the contact.
+      const log = mockDb.email_sync_logs.at(-1) as Record<string, string>;
+      expect(log.status).toBe('success');
+      expect(log.error_message).toContain('Housing User');
+
+      // Subject boilerplate must not become an area of interest.
+      expect((contact.areas_of_interest as string[]) ?? []).not.toContain('Your property');
     });
   });
 });

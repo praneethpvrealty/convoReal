@@ -29,6 +29,7 @@ export {
   classifyPortalLead,
   isInquiryAboutOwnListing,
   isValidContactName,
+  isUsableLocation,
   parsePortalLead,
 } from './email-parser';
 
@@ -414,27 +415,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email lead synchronization is disabled for this account' }, { status: 403 });
     }
 
-    // Validate contact name quality - reject junk names
-    if (!isValidContactName(parsed.name)) {
-      console.log(`[lead-webhook] Rejected lead with invalid name: "${parsed.name}"`);
-      await writeSyncLog({
-        accountId,
-        sender,
-        subject,
-        extractedName: parsed.name,
-        extractedPhone: normalizedPhoneNum,
-        extractedEmail: parsed.email,
-        status: 'ignored',
-        errorMessage: `Invalid contact name: "${parsed.name}"`,
-        bodyPreview: bodyText.slice(0, 200),
-      });
-      return NextResponse.json({ 
-        error: 'Invalid contact name detected',
-        name: parsed.name,
-        reason: 'Name appears to be junk, marketing content, or system notification'
-      }, { status: 422 });
-    }
-
     // Read the role suffix (e.g. "Jaffar (Broker)") before stripping it —
     // it's the only signal we have for classifying the contact correctly
     // instead of defaulting every email lead to 'Buyer'. Deal-aware: on
@@ -449,6 +429,24 @@ export async function POST(request: Request) {
     if (cleanName !== parsed.name) {
       console.log(`[lead-webhook] Stripped owner suffix: "${parsed.name}" -> "${cleanName}"`);
       parsed.name = cleanName;
+    }
+
+    // The phone is resolved and normalized by this point, so an unusable
+    // name is never a reason to drop the lead — the number is the part
+    // that matters and it cannot be recovered by hand once discarded
+    // (portals hide it behind expiring click-through links). Housing
+    // masks the inquirer outright as "Housing User", and the parser
+    // sometimes grabs the listing's builder instead of the sender; both
+    // are bad names attached to a real buyer. Substitute a placeholder
+    // and leave the contact in pending_review for an agent to correct.
+    let unusableName: string | null = null;
+    if (!isValidContactName(parsed.name)) {
+      unusableName = parsed.name;
+      parsed.name =
+        parsed.source && parsed.source !== 'Others'
+          ? `${parsed.source} Lead`
+          : 'Portal Lead';
+      console.log(`[lead-webhook] Unusable lead name "${unusableName}" — captured as "${parsed.name}"`);
     }
 
     // 3. Parse property preferences from requirement text
@@ -985,7 +983,9 @@ export async function POST(request: Request) {
       extractedPhone: normalizedPhoneNum,
       extractedEmail: parsed.email,
       status: 'success',
-      errorMessage: 'New contact created',
+      errorMessage: unusableName
+        ? `New contact created — portal name "${unusableName}" was unusable, placeholder applied`
+        : 'New contact created',
       bodyPreview: bodyText.slice(0, 200),
     });
 
