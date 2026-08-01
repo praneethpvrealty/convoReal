@@ -121,6 +121,11 @@ function OsWidgetCard({ id }: { id: WidgetId }) {
 
   const previewWidth = Math.min(width - spacing.lg * 2 - spacing.md * 2, 340);
   const palette = osWidgetPalette(dark);
+  // WidgetPreview calls the native renderer the moment it mounts and
+  // logs a red "not linked" error where the module is missing (Expo Go,
+  // pre-plugin dev clients) — only mount it once the getWidgetInfo
+  // probe above has proven the module works.
+  const nativePreviewReady = isAndroid && !isError && instances !== undefined;
 
   return (
     <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
@@ -144,7 +149,7 @@ function OsWidgetCard({ id }: { id: WidgetId }) {
         ) : null}
       </View>
       <View style={styles.preview}>
-        {isAndroid ? (
+        {nativePreviewReady ? (
           <WidgetPreview
             width={previewWidth}
             height={120}
