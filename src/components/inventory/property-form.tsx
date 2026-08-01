@@ -220,6 +220,8 @@ export function PropertyForm({
   const [privateImages, setPrivateImages] = useState<string[]>([]);
   const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
   const [defaultImageIndex, setDefaultImageIndex] = useState(0);
+  const [videoRemoved, setVideoRemoved] = useState(false);
+  const [removingVideo, setRemovingVideo] = useState(false);
   const [documents, setDocuments] = useState<Array<{ url: string; title: string }>>([{ url: '', title: '' }]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [googleMapLink, setGoogleMapLink] = useState('');
@@ -1304,8 +1306,17 @@ export function PropertyForm({
     setIsContactDropdownOpen(false);
   };
 
+  // Parent refetches recreate `property` (the updated_at sync in
+  // inventory-content) and `contacts` (query identity) while the dialog
+  // is open; re-running the reset then clobbers unsaved edits — deleted
+  // photo rows "reappear". Reset only when the dialog opens, switches to
+  // a different property, or contacts first arrive.
+  const formResetKey = useRef<string | null>(null);
   useEffect(() => {
     if (open) {
+      const resetKey = `${property?.id ?? 'new'}:${contacts && contacts.length > 0 ? 'c1' : 'c0'}`;
+      if (formResetKey.current === resetKey) return;
+      formResetKey.current = resetKey;
       userTypedDims.current = { landArea: false, frontage: false, depth: false };
       derivedDims.current = { landArea: false, frontage: false, depth: false };
       if (property) {
@@ -1384,6 +1395,7 @@ export function PropertyForm({
         setNearbyHighlights(property.nearby_highlights || []);
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
         setPrivateImages(property.private_images || []);
+        setVideoRemoved(false);
         setDefaultImageIndex(0); // Default image is always at index 0
         const dbDocs = property.documents && property.documents.length > 0 ? property.documents : [];
         const parsed = dbDocs.map((doc: unknown) => {
@@ -1521,6 +1533,7 @@ export function PropertyForm({
         setNearbyHighlights([]);
         setImages(['']);
         setPrivateImages([]);
+        setVideoRemoved(false);
         setDocuments([{ url: '', title: '' }]);
         setSearchQuery('');
         setGoogleMapLink('');
@@ -1531,6 +1544,8 @@ export function PropertyForm({
         setOwnerContactId(defaultOwnerId ?? null);
         setListingSource('owner');
       }
+    } else {
+      formResetKey.current = null;
     }
   }, [open, property, defaultOwnerId, contacts]);
 
@@ -2013,6 +2028,26 @@ export function PropertyForm({
       toast.error(err instanceof Error ? err.message : 'Failed to update photo privacy');
     } finally {
       setLockingImagePath(null);
+    }
+  }
+
+  async function handleRemoveVideo() {
+    if (!property?.id || removingVideo) return;
+    setRemovingVideo(true);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/generate-video`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to remove the video');
+      }
+      setVideoRemoved(true);
+      toast.success('Listing video removed — it no longer plays in the Showcase');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove the video');
+    } finally {
+      setRemovingVideo(false);
     }
   }
 
@@ -4737,7 +4772,10 @@ export function PropertyForm({
                         property with photos, so edit mode only. */}
                     {property?.id && (
                       <div className="col-span-2">
-                        <ListingVideoCard propertyId={property.id} />
+                        <ListingVideoCard
+                          key={videoRemoved ? 'video-removed' : 'video'}
+                          propertyId={property.id}
+                        />
                       </div>
                     )}
 
@@ -4774,7 +4812,7 @@ export function PropertyForm({
                       </div>
 
                       <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        {property?.video_url && property.video_status === 'ready' && (
+                        {property?.video_url && property.video_status === 'ready' && !videoRemoved && (
                           <div className="flex gap-2 items-center">
                             <video
                               src={storagePublicUrl(property.video_url)}
@@ -4795,6 +4833,21 @@ export function PropertyForm({
                             >
                               <CirclePlay className="size-3.5" />
                             </a>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleRemoveVideo}
+                              disabled={removingVideo}
+                              title="Remove video"
+                              className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
+                            >
+                              {removingVideo ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-3.5" />
+                              )}
+                            </Button>
                           </div>
                         )}
                         {images.map((imgUrl, idx) => (
