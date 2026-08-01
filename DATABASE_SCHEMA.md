@@ -133,6 +133,8 @@ Real estate inventory catalog.
 - `price_per_sqft` (NUMERIC, migration 167): Rate quoted per Sq.Ft. at intake — `price` is derived from it once an area is known (`src/lib/ai/listing-derivations.ts`).
 - `dimensions` (TEXT): e.g., `30x40`.
 - `facing_direction` (TEXT): e.g. `'North'`.
+- `furnishing` (TEXT, migration 179): `'Furnished'` / `'Semi-Furnished'` / `'Unfurnished'`.
+- `floor_number` / `total_floors` / `balconies` (INTEGER, migration 179): Unit details for portal posting.
 - `nearby_highlights` (TEXT[]): List of nearby landmarks.
 - `features` (TEXT[]): Amenities (e.g. Pool, Security).
 - `images` (TEXT[]): Array of asset URLs.

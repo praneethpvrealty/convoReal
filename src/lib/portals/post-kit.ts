@@ -70,20 +70,29 @@ export function clampText(text: string, max: number): string {
 }
 
 function isLand(property: Property): boolean {
-  return (property.type || '').includes('Land') || (property.type || '').includes('Plot');
+  return (
+    (property.type || '').includes('Land') ||
+    (property.type || '').includes('Plot')
+  );
 }
 
 function areaValue(property: Property): string {
   const land = isLand(property);
   const val = land ? property.land_area : property.area_sqft;
-  const unit = land ? property.land_area_unit || 'sqft' : property.area_unit || 'sqft';
+  const unit = land
+    ? property.land_area_unit || 'sqft'
+    : property.area_unit || 'sqft';
   return val ? `${val} ${unit}` : '';
 }
 
 /** "100x150", "100 x 150 ft", "40X60" → plot length/width. */
-export function parseDimensions(dimensions?: string | null): { length: string; width: string } | null {
+export function parseDimensions(
+  dimensions?: string | null
+): { length: string; width: string } | null {
   if (!dimensions) return null;
-  const m = dimensions.match(/(\d+(?:\.\d+)?)\s*(?:ft|feet)?\s*[x×*]\s*(\d+(?:\.\d+)?)/i);
+  const m = dimensions.match(
+    /(\d+(?:\.\d+)?)\s*(?:ft|feet)?\s*[x×*]\s*(\d+(?:\.\d+)?)/i
+  );
   if (!m) return null;
   return { length: m[1], width: m[2] };
 }
@@ -92,51 +101,123 @@ function roadWidthFeet(property: Property): string {
   if (!property.road_width) return '';
   const unit = (property.road_width_unit || 'ft').toLowerCase();
   const metres = unit === 'm' || unit.startsWith('met');
-  return String(metres ? Math.round(property.road_width * 3.281) : property.road_width);
+  return String(
+    metres ? Math.round(property.road_width * 3.281) : property.road_width
+  );
 }
 
-/** Housing.com marks these mandatory on its post form but the CRM
- *  doesn't model them all — send review-and-fix defaults so autofill
- *  completes the step (1-yr age, resale, immediate possession), plus
- *  plot extras derived from dimensions/road width where the CRM has
- *  real data. The agent reviews everything on the portal before
- *  submitting. */
-function housingExtras(property: Property, currency: string): PortalField[] {
-  const land = isLand(property);
-  const unit = (land ? property.land_area_unit : property.area_unit) || 'sqft';
-  const dims = parseDimensions(property.dimensions);
-  // Default brokerage: 1% of price on sale, one month's rent on rent.
-  const rental = property.listing_type === 'Rent' || property.listing_type === 'Built to Suit';
-  const brokerage = rental ? property.rent_per_month || 0 : Math.round((property.price || 0) * 0.01);
+function areaUnitField(property: Property): PortalField {
+  const unit =
+    (isLand(property) ? property.land_area_unit : property.area_unit) || 'sqft';
+  return { label: 'Area Unit', value: unit };
+}
+
+/** Default brokerage: 1% of price on sale, one month's rent on rent. */
+function brokerageFields(property: Property, currency: string): PortalField[] {
+  const rental =
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit';
+  const brokerage = rental
+    ? property.rent_per_month || 0
+    : Math.round((property.price || 0) * 0.01);
+  if (brokerage <= 0) return [];
   return [
-    { label: 'Transaction Type', value: 'Resale' },
-    { label: 'Possession Status', value: 'Immediate' },
-    { label: 'Age of Property', value: '1' },
-    { label: 'Area Unit', value: unit },
-    ...(brokerage > 0
-      ? [
-          { label: 'Charge Brokerage', value: 'Yes' },
-          { label: 'Brokerage', value: formatShareAmount(brokerage, currency) },
-        ]
-      : []),
-    ...(land && dims
+    { label: 'Charge Brokerage', value: 'Yes' },
+    { label: 'Brokerage', value: formatShareAmount(brokerage, currency) },
+  ];
+}
+
+/** Plot extras every portal's land form asks: dimensions/road width
+ *  where the CRM has real data, review-and-fix defaults for the rest. */
+function landExtras(property: Property): PortalField[] {
+  if (!isLand(property)) return [];
+  const dims = parseDimensions(property.dimensions);
+  return [
+    ...(dims
       ? [
           { label: 'Length', value: dims.length },
           { label: 'Width', value: dims.width },
         ]
       : []),
-    ...(land && property.road_width ? [{ label: 'Width of Facing Road', value: roadWidthFeet(property) }] : []),
-    ...(land
-      ? [
-          { label: 'Boundary Wall', value: 'Yes' },
-          { label: 'Open Sides', value: '1' },
-        ]
+    ...(property.road_width
+      ? [{ label: 'Width of Facing Road', value: roadWidthFeet(property) }]
       : []),
+    { label: 'Boundary Wall', value: 'Yes' },
+    { label: 'Open Sides', value: '1' },
   ];
 }
 
+/** Each portal marks fields mandatory on its post form that the CRM
+ *  doesn't fully model — send stored unit details (furnishing, floors,
+ *  balconies — migration 179) where they exist and review-and-fix
+ *  defaults for the rest, in that portal's own vocabulary (99acres:
+ *  Availability Status/Ownership; MagicBricks: Transaction Type;
+ *  Housing: Possession Status) so autofill completes the step. The
+ *  agent reviews everything on the portal before submitting. */
+function portalExtras(
+  property: Property,
+  portal: PortalKey,
+  currency: string
+): PortalField[] {
+  const land = isLand(property);
+  const residential = !land && !COMMERCIAL_TYPE_RE.test(property.type || '');
+  const unitExtras: PortalField[] = [
+    ...(residential
+      ? [
+          { label: 'Furnishing', value: property.furnishing || 'Unfurnished' },
+          {
+            label: 'Balconies',
+            value:
+              property.balconies != null ? String(property.balconies) : '1',
+          },
+        ]
+      : []),
+    ...(!land && property.floor_number != null
+      ? [{ label: 'Floor No.', value: String(property.floor_number) }]
+      : []),
+    ...(!land && property.total_floors != null
+      ? [{ label: 'Total Floors', value: String(property.total_floors) }]
+      : []),
+  ];
+  switch (portal) {
+    case '99acres':
+      return [
+        { label: 'Availability Status', value: 'Ready to Move' },
+        ...(land ? [] : [{ label: 'Age of Property', value: '1' }]),
+        ...unitExtras,
+        { label: 'Ownership', value: 'Freehold' },
+        areaUnitField(property),
+        ...brokerageFields(property, currency),
+        ...landExtras(property),
+      ];
+    case 'magicbricks':
+      return [
+        { label: 'Transaction Type', value: 'Resale' },
+        { label: 'Availability Status', value: 'Ready to Move' },
+        ...(land ? [] : [{ label: 'Age of Property', value: '1' }]),
+        ...unitExtras,
+        areaUnitField(property),
+        ...brokerageFields(property, currency),
+        ...landExtras(property),
+      ];
+    case 'housing':
+      return [
+        { label: 'Transaction Type', value: 'Resale' },
+        { label: 'Possession Status', value: 'Immediate' },
+        { label: 'Age of Property', value: '1' },
+        ...unitExtras,
+        areaUnitField(property),
+        ...brokerageFields(property, currency),
+        ...landExtras(property),
+      ];
+  }
+}
+
 function priceValue(property: Property, currency: string): string {
-  if (property.listing_type === 'Rent' || property.listing_type === 'Built to Suit') {
+  if (
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit'
+  ) {
     return formatShareAmount(property.rent_per_month, currency);
   }
   return formatShareAmount(property.price, currency);
@@ -144,7 +225,10 @@ function priceValue(property: Property, currency: string): string {
 
 /** Plain-text description for portal forms: no WhatsApp asterisks,
  *  no emojis, and no external URLs (portals reject/strip links). */
-export function buildPortalDescription(property: Property, portal: PortalKey): string {
+export function buildPortalDescription(
+  property: Property,
+  portal: PortalKey
+): string {
   const paragraphs: string[] = [];
 
   if (property.description?.trim()) {
@@ -155,18 +239,24 @@ export function buildPortalDescription(property: Property, portal: PortalKey): s
     property.bedrooms ? `${property.bedrooms} BHK` : '',
     property.bathrooms ? `${property.bathrooms} bathrooms` : '',
     areaValue(property),
-    property.super_built_area ? `${property.super_built_area} super built-up` : '',
+    property.super_built_area
+      ? `${property.super_built_area} super built-up`
+      : '',
     property.dimensions ? `Dimensions ${property.dimensions}` : '',
     property.facing_direction ? `${property.facing_direction} facing` : '',
-    property.road_width ? `${property.road_width} ${property.road_width_unit || 'ft'} road` : '',
+    property.road_width
+      ? `${property.road_width} ${property.road_width_unit || 'ft'} road`
+      : '',
   ].filter(Boolean);
   if (specs.length > 0) paragraphs.push(specs.join('. ') + '.');
 
   const features = (property.features || []).filter(Boolean);
-  if (features.length > 0) paragraphs.push(`Highlights: ${features.join(', ')}.`);
+  if (features.length > 0)
+    paragraphs.push(`Highlights: ${features.join(', ')}.`);
 
   const highlights = (property.nearby_highlights || []).filter(Boolean);
-  if (highlights.length > 0) paragraphs.push(`Nearby: ${highlights.join(', ')}.`);
+  if (highlights.length > 0)
+    paragraphs.push(`Nearby: ${highlights.join(', ')}.`);
 
   if (property.rental_income) {
     paragraphs.push(
@@ -174,53 +264,95 @@ export function buildPortalDescription(property: Property, portal: PortalKey): s
     );
   }
 
-  const text = paragraphs.join('\n\n').replace(/https?:\/\/\S+/g, '').replace(/[ \t]+\n/g, '\n').trim();
+  const text = paragraphs
+    .join('\n\n')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
   return clampText(text, PORTALS[portal].maxDescription);
 }
 
 /** Fields in roughly the order each portal's post form asks for them,
  *  so the agent copies top-to-bottom without hunting. */
-export function buildPortalFields(property: Property, portal: PortalKey, currency: string = 'INR'): PortalField[] {
+export function buildPortalFields(
+  property: Property,
+  portal: PortalKey,
+  currency: string = 'INR'
+): PortalField[] {
   const meta = PORTALS[portal];
   const listingFor =
-    property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? 'Rent / Lease' : 'Sale';
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit'
+      ? 'Rent / Lease'
+      : 'Sale';
 
   const fields: PortalField[] = [
     { label: 'Listing For', value: listingFor },
     { label: 'Property Type', value: property.type || '' },
     { label: 'City', value: property.city || '' },
-    { label: 'Locality', value: property.sublocality || property.location || '' },
-    { label: 'Title', value: clampText(property.title || '', meta.maxTitle) },
-    ...(property.project ? [{ label: 'Project / Society', value: property.project }] : []),
-    ...(property.bedrooms ? [{ label: 'Bedrooms', value: String(property.bedrooms) }] : []),
-    ...(property.bathrooms ? [{ label: 'Bathrooms', value: String(property.bathrooms) }] : []),
-    { label: isLand(property) ? 'Plot Area' : 'Built-up Area', value: areaValue(property) },
-    ...(property.facing_direction ? [{ label: 'Facing', value: property.facing_direction }] : []),
     {
-      label: property.listing_type === 'Rent' || property.listing_type === 'Built to Suit' ? 'Monthly Rent' : 'Expected Price',
+      label: 'Locality',
+      value: property.sublocality || property.location || '',
+    },
+    { label: 'Title', value: clampText(property.title || '', meta.maxTitle) },
+    ...(property.project
+      ? [{ label: 'Project / Society', value: property.project }]
+      : []),
+    ...(property.bedrooms
+      ? [{ label: 'Bedrooms', value: String(property.bedrooms) }]
+      : []),
+    ...(property.bathrooms
+      ? [{ label: 'Bathrooms', value: String(property.bathrooms) }]
+      : []),
+    {
+      label: isLand(property) ? 'Plot Area' : 'Built-up Area',
+      value: areaValue(property),
+    },
+    ...(property.facing_direction
+      ? [{ label: 'Facing', value: property.facing_direction }]
+      : []),
+    {
+      label:
+        property.listing_type === 'Rent' ||
+        property.listing_type === 'Built to Suit'
+          ? 'Monthly Rent'
+          : 'Expected Price',
       value: priceValue(property, currency),
     },
     ...(property.listing_type === 'Rent' && property.maintenance
-      ? [{ label: 'Maintenance', value: formatShareAmount(property.maintenance, currency) }]
+      ? [
+          {
+            label: 'Maintenance',
+            value: formatShareAmount(property.maintenance, currency),
+          },
+        ]
       : []),
     ...(property.listing_type === 'Rent' && property.advance
-      ? [{ label: 'Security Deposit / Advance', value: formatShareAmount(property.advance, currency) }]
+      ? [
+          {
+            label: 'Security Deposit / Advance',
+            value: formatShareAmount(property.advance, currency),
+          },
+        ]
       : []),
-    ...(portal === 'housing' ? housingExtras(property, currency) : []),
+    ...portalExtras(property, portal, currency),
     { label: 'Description', value: buildPortalDescription(property, portal) },
   ];
 
   return fields.filter((f) => f.value.trim().length > 0);
 }
 
-const COMMERCIAL_TYPE_RE = /commercial|office|shop|showroom|industrial|warehouse|godown/i;
+const COMMERCIAL_TYPE_RE =
+  /commercial|office|shop|showroom|industrial|warehouse|godown/i;
 
 /** Fields every portal marks mandatory on its post form. A listing
  *  missing any of these can't be posted, so the dialog blocks the
  *  handoff and points the agent back to ConvoReal to fill them first —
  *  making the portals' required fields effectively required here too. */
 export function missingRequiredFields(property: Property): string[] {
-  const rental = property.listing_type === 'Rent' || property.listing_type === 'Built to Suit';
+  const rental =
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit';
   const land = isLand(property);
   const commercial = COMMERCIAL_TYPE_RE.test(property.type || '');
   const missing: string[] = [];
@@ -232,8 +364,14 @@ export function missingRequiredFields(property: Property): string[] {
   need(property.city?.trim(), 'City');
   need((property.sublocality || property.location || '').trim(), 'Locality');
   need(property.title?.trim(), 'Title');
-  need(land ? property.land_area : property.area_sqft, land ? 'Plot Area' : 'Built-up Area');
-  need(rental ? property.rent_per_month : property.price, rental ? 'Monthly Rent' : 'Expected Price');
+  need(
+    land ? property.land_area : property.area_sqft,
+    land ? 'Plot Area' : 'Built-up Area'
+  );
+  need(
+    rental ? property.rent_per_month : property.price,
+    rental ? 'Monthly Rent' : 'Expected Price'
+  );
   need(property.description?.trim(), 'Description');
   if (!land && !commercial) need(property.bedrooms, 'Bedrooms');
 

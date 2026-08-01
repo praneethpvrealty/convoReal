@@ -34,6 +34,12 @@
     City: ['city'],
     Bedrooms: ['bedroom', 'bhk'],
     Bathrooms: ['bathroom', 'bath'],
+    Balconies: ['balconies', 'balcony'],
+    // Total Floors before Floor No. in the payload: 'floor no' also
+    // sits inside "total no. of floors" wording on some portals, so
+    // the antihint below keeps Floor No. off the total-floors input.
+    'Total Floors': ['total floor', 'no of floors', 'floors in building'],
+    'Floor No.': ['floor no', 'property on floor', 'your floor', 'which floor'],
     'Project / Society': ['society', 'project name', 'building name'],
     'Age of Property': ['age of property', 'property age'],
     Brokerage: ['brokerage'],
@@ -51,12 +57,14 @@
   // suggestions; 'Project / Society' still targets it via its own hints).
   const FIELD_ANTIHINTS = {
     Locality: ['building', 'apartment', 'flat no', 'house no'],
+    'Floor No.': ['total'],
   };
 
   const NUMERIC_FIELDS = new Set([
     'Expected Price', 'Monthly Rent', 'Maintenance', 'Security Deposit / Advance',
     'Built-up Area', 'Plot Area', 'Bedrooms', 'Bathrooms',
     'Age of Property', 'Length', 'Width', 'Width of Facing Road', 'Brokerage',
+    'Balconies', 'Floor No.', 'Total Floors',
   ]);
 
   /** "₹45 Cr" → "45000000 0" is wrong — portals want raw numbers.
@@ -451,6 +459,32 @@
       : ['sell', 'sale', 'resale'];
   }
 
+  /** furnishing must already be normalizedText()ed. Exact chip/option
+   *  texts only — "furnished" is a substring of the other two, so the
+   *  plain value alone would grab the wrong control. */
+  function furnishingSynonyms(furnishing) {
+    if (furnishing.startsWith('semi')) return ['semi-furnished', 'semi furnished', 'semifurnished'];
+    if (furnishing.startsWith('un')) return ['unfurnished', 'un-furnished', 'un furnished'];
+    return ['furnished', 'fully furnished', 'fully-furnished'];
+  }
+
+  function availabilitySynonyms(availability) {
+    return availability.includes('ready')
+      ? ['ready to move', 'ready-to-move', 'ready']
+      : ['under construction', 'in future'];
+  }
+
+  /** Floor dropdowns list "Ground, 1st, 2nd, …" as often as plain
+   *  numbers — offer the ordinal alongside the digit. */
+  function floorSynonyms(floor) {
+    if (floor === '0') return ['ground', '0'];
+    const n = parseInt(floor, 10);
+    const tens = n % 100;
+    const suffix = tens >= 11 && tens <= 13 ? 'th'
+      : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+    return [floor, `${floor}${suffix}`];
+  }
+
   /** type must already be normalizedText()ed. */
   function typeSynonyms(type) {
     const sub = [];
@@ -493,6 +527,17 @@
     if (baths) targets.push({ label: 'Bathrooms', synonyms: [baths], scope: /bathroom|bath/ });
     const facing = normalizedText(get('Facing'));
     if (facing) targets.push({ label: 'Facing', synonyms: [facing], scope: /facing/ });
+
+    // Per-portal mandatory chips from portalExtras() — 99acres/MB
+    // availability, furnishing, balconies, ownership.
+    const availability = normalizedText(get('Availability Status'));
+    if (availability) targets.push({ label: 'Availability Status', synonyms: availabilitySynonyms(availability) });
+    const furnishing = normalizedText(get('Furnishing'));
+    if (furnishing) targets.push({ label: 'Furnishing', synonyms: furnishingSynonyms(furnishing), scope: /furnish/ });
+    const balconies = get('Balconies');
+    if (balconies) targets.push({ label: 'Balconies', synonyms: [balconies], scope: /balcon/ });
+    const ownership = normalizedText(get('Ownership'));
+    if (ownership) targets.push({ label: 'Ownership', synonyms: [ownership], scope: /ownership/ });
 
     // Housing mandatory chips (also match 99acres/MB wording where the
     // same question exists).
@@ -641,6 +686,28 @@
     };
     const areaUnit = normalizedText(get('Area Unit')).replace(/[^a-z]/g, '');
     if (areaUnit) jobs.push({ label: 'Area Unit', hints: ['area unit', 'unit'], synonyms: AREA_UNIT_SYNONYMS[areaUnit] || [areaUnit] });
+
+    const availability = normalizedText(get('Availability Status'));
+    if (availability) jobs.push({ label: 'Availability Status', hints: ['availability', 'possession'], synonyms: availabilitySynonyms(availability) });
+    const furnishing = normalizedText(get('Furnishing'));
+    if (furnishing) {
+      jobs.push({
+        label: 'Furnishing',
+        hints: ['furnish'],
+        synonyms: furnishingSynonyms(furnishing),
+        avoid: furnishing.startsWith('semi') ? undefined : furnishing.startsWith('un') ? /semi/ : /unfurn|semi/,
+      });
+    }
+    const balconies = get('Balconies');
+    if (balconies) jobs.push({ label: 'Balconies', hints: ['balcon'], synonyms: [balconies] });
+    const ownership = normalizedText(get('Ownership'));
+    if (ownership) jobs.push({ label: 'Ownership', hints: ['ownership'], synonyms: [ownership] });
+    // Total Floors first: its select claims the 'total' one, so the
+    // floor-no job can't land on it via a bare "floor" mention.
+    const totalFloors = get('Total Floors');
+    if (totalFloors) jobs.push({ label: 'Total Floors', hints: ['total floor', 'no of floors'], synonyms: [totalFloors] });
+    const floorNo = get('Floor No.');
+    if (floorNo) jobs.push({ label: 'Floor No.', hints: ['floor no', 'property on floor', 'your floor', 'which floor'], synonyms: floorSynonyms(floorNo) });
 
     const selects = [...document.querySelectorAll('select')].filter((el) => {
       if (el.disabled || el.closest(`#${PANEL_ID}`)) return false;
@@ -924,7 +991,7 @@
       body.appendChild(list);
 
       body.appendChild(el('div', 'padding:8px 12px;color:#64748b;border-top:1px solid #1e293b',
-        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK), and commits city/locality suggestions. When a step fills cleanly it also clicks Continue to advance; if any field turns red it stops there — use that field’s Copy button, fix it, then run Autofill again. Review before you submit. (A red field not filling? Hit its DOM button and paste to support.)'));
+        'Autofill fills text fields, picks matching chips and dropdowns (Sell, property type, BHK, availability, furnishing), and commits city/locality suggestions. When a step fills cleanly it also clicks Continue to advance; if any field turns red it stops there — use that field’s Copy button, fix it, then run Autofill again. Review before you submit. (A red field not filling? Hit its DOM button and paste to support.)'));
     }
 
     // The − minimizes the whole panel back to the floating launcher.

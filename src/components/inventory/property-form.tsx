@@ -85,6 +85,7 @@ import {
   AMENITIES_BY_CATEGORY,
   NEARBY_HIGHLIGHTS_OPTIONS,
   FACING_DIRECTIONS,
+  FURNISHING_OPTIONS,
   AREA_UNITS,
   SQFT_PER_AREA_UNIT,
   PROPERTY_TYPE_GROUPS,
@@ -208,6 +209,10 @@ export function PropertyForm({
   const [roadWidth, setRoadWidth] = useState('');
   const [roadWidthUnit, setRoadWidthUnit] = useState('Feet');
   const [facingDirection, setFacingDirection] = useState('');
+  const [furnishing, setFurnishing] = useState('');
+  const [floorNumber, setFloorNumber] = useState('');
+  const [totalFloors, setTotalFloors] = useState('');
+  const [balconies, setBalconies] = useState('');
   const [isPublished, setIsPublished] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
@@ -1370,6 +1375,10 @@ export function PropertyForm({
         setRoadWidth(property.road_width !== null && property.road_width !== undefined ? String(property.road_width) : '');
         setRoadWidthUnit(property.road_width_unit ?? 'Feet');
         setFacingDirection(property.facing_direction ?? '');
+        setFurnishing(property.furnishing ?? '');
+        setFloorNumber(property.floor_number !== null && property.floor_number !== undefined ? String(property.floor_number) : '');
+        setTotalFloors(property.total_floors !== null && property.total_floors !== undefined ? String(property.total_floors) : '');
+        setBalconies(property.balconies !== null && property.balconies !== undefined ? String(property.balconies) : '');
         setIsPublished(property.is_published);
         setFeatures(property.features || []);
         setNearbyHighlights(property.nearby_highlights || []);
@@ -1503,6 +1512,10 @@ export function PropertyForm({
         setRoadWidth('');
         setRoadWidthUnit('Feet');
         setFacingDirection('');
+        setFurnishing('');
+        setFloorNumber('');
+        setTotalFloors('');
+        setBalconies('');
         setIsPublished(false);
         setFeatures([]);
         setNearbyHighlights([]);
@@ -2121,6 +2134,9 @@ export function PropertyForm({
       const parsedBtsEscalationPercent = isBTS && btsEscalationPercent.trim() !== '' ? Number(btsEscalationPercent) : null;
       const parsedBedrooms = hasBedsBaths && bedrooms.trim() !== '' ? Number(bedrooms) : null;
       const parsedBathrooms = hasBedsBaths && bathrooms.trim() !== '' ? Number(bathrooms) : null;
+      const parsedFloorNumber = !isLand && floorNumber.trim() !== '' ? Number(floorNumber) : null;
+      const parsedTotalFloors = !isLand && totalFloors.trim() !== '' ? Number(totalFloors) : null;
+      const parsedBalconies = hasBedsBaths && balconies.trim() !== '' ? Number(balconies) : null;
       const parsedAreaSqft = areaSqft.trim() !== '' ? Number(areaSqft) : null;
       const parsedLandArea = (isLand || !isApartment) && landArea.trim() !== '' ? Number(landArea) : null;
       const parsedSuperBuiltArea = superBuiltArea.trim() !== '' ? Number(superBuiltArea) : null;
@@ -2185,6 +2201,10 @@ export function PropertyForm({
             : null,
         bedrooms: parsedBedrooms,
         bathrooms: parsedBathrooms,
+        furnishing: !isLand && furnishing ? furnishing : null,
+        floor_number: parsedFloorNumber,
+        total_floors: parsedTotalFloors,
+        balconies: parsedBalconies,
         area_sqft: parsedAreaSqft,
         area_unit: areaUnit,
         land_area: parsedLandArea,
@@ -4528,6 +4548,72 @@ export function PropertyForm({
                         ))}
                       </select>
                     </div>
+
+                    {!isLand && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-furnishing" className="text-slate-300">
+                          Furnishing
+                        </Label>
+                        <select
+                          id="prop-furnishing"
+                          value={furnishing}
+                          onChange={(e) => setFurnishing(e.target.value)}
+                          className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                        >
+                          <option value="">Select Furnishing</option>
+                          {FURNISHING_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {hasBedsBaths && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-balconies" className="text-slate-300">
+                          Balconies
+                        </Label>
+                        <Input
+                          id="prop-balconies"
+                          type="number"
+                          value={balconies}
+                          onChange={(e) => setBalconies(e.target.value)}
+                          placeholder="e.g. 2"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                        />
+                      </div>
+                    )}
+
+                    {!isLand && (
+                      <>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-floor-number" className="text-slate-300">
+                            Floor No.
+                          </Label>
+                          <Input
+                            id="prop-floor-number"
+                            type="number"
+                            value={floorNumber}
+                            onChange={(e) => setFloorNumber(e.target.value)}
+                            placeholder="e.g. 4 (0 = Ground)"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-total-floors" className="text-slate-300">
+                            Total Floors
+                          </Label>
+                          <Input
+                            id="prop-total-floors"
+                            type="number"
+                            value={totalFloors}
+                            onChange={(e) => setTotalFloors(e.target.value)}
+                            placeholder="e.g. 12"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                          />
+                        </div>
+                      </>
+                    )}
 
                     {/* Land/JV Deal Notes — prefills the "Share via Email" draft */}
                     {(isLand || listingType === 'JV/JD') && (

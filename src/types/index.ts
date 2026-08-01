@@ -905,6 +905,11 @@ export interface Property {
   deal_remarks?: string | null;
   bedrooms?: number;
   bathrooms?: number;
+  /** Unit details for portal posting (migration 179). */
+  furnishing?: 'Furnished' | 'Semi-Furnished' | 'Unfurnished' | null;
+  floor_number?: number | null;
+  total_floors?: number | null;
+  balconies?: number | null;
   area_sqft?: number;
   area_unit?: string;
   land_area?: number;
