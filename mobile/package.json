@@ -1,6 +1,6 @@
 {
   "name": "convoreal-mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "0.1.0",
   "scripts": {
     "start": "expo start",
@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@bacons/apple-targets": "^5.0.0",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
@@ -50,6 +51,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-native": "0.86.0",
+    "react-native-android-widget": "^0.21.0",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-get-random-values": "~1.11.0",
     "react-native-maps": "1.27.2",

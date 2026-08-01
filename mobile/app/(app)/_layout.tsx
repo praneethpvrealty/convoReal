@@ -1,8 +1,10 @@
 import { Redirect, Stack, usePathname } from 'expo-router';
+import { useEffect } from 'react';
 import { View } from 'react-native';
 
 import { AppLockGate } from '@/components/app-lock-gate';
 import { isPhoneVerified, useAuthStore } from '@/lib/auth-store';
+import { updateAllOsWidgets } from '@/lib/os-widget-updates';
 import { useSurface } from '@/lib/surface';
 import { useTheme } from '@/lib/theme';
 
@@ -11,6 +13,12 @@ export default function AppLayout() {
   const surface = useSurface((s) => s.surface);
   const pathname = usePathname();
   const { colors, fonts: f } = useTheme();
+
+  // Home-screen widgets otherwise wait up to 30 minutes for the next
+  // periodic update — push fresh data every time the CRM opens.
+  useEffect(() => {
+    if (session) void updateAllOsWidgets();
+  }, [session]);
 
   if (!session) {
     return <Redirect href="/(auth)/login" />;
