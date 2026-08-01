@@ -278,6 +278,22 @@ export function classifyPortalLead(
   return fromSuffix;
 }
 
+/**
+ * Portal subject lines are boilerplate — "Lead interested in your
+ * property", "…contacted you about his property search" — and the
+ * "<connector> <place>" rule below happily reads that boilerplate as a
+ * locality, which then lands in the contact's areas_of_interest. A
+ * candidate led by a possessive/determiner, or that is just a generic
+ * property noun, is boilerplate rather than a place.
+ */
+export function isUsableLocation(candidate: string): boolean {
+  const trimmed = (candidate ?? '').trim();
+  if (trimmed.length < 3) return false;
+  if (/^(?:your|my|our|his|her|their|its|the|this|that|these|those|an?)\b/i.test(trimmed)) return false;
+  if (/^(?:propert(?:y|ies)|listing|search|home|house|flat|apartment|plot|land|villa|site|project|advertisement|response|requirement|detail|budget|area|price)s?\b/i.test(trimmed)) return false;
+  return true;
+}
+
 // Extractor rules for different portals
 export function parsePortalLead(subject: string, bodyText: string, html: string) {
   // If the body text contains HTML tags, convert it to clean plain text first
@@ -552,24 +568,33 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
     if (typeOnlyMatch) propertyType = typeOnlyMatch[1];
   }
 
-  // 2. Location
+  // 2. Location — every rule is filtered through isUsableLocation, and a
+  // rejected candidate falls through to the next rule rather than
+  // ending the search, so subject-line boilerplate no longer shadows a
+  // real locality further down the email.
   if (!propertyLocation) {
-    const locationMatch = combinedText.match(/(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/i);
-    if (locationMatch) {
-      propertyLocation = locationMatch[1].trim();
-    } else {
+    for (const m of combinedText.matchAll(/(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/gi)) {
+      if (isUsableLocation(m[1])) {
+        propertyLocation = m[1].trim();
+        break;
+      }
+    }
+
+    if (!propertyLocation) {
       const locationAfterType = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial)\s+in\s+([A-Za-z\s,]+)/i);
-      if (locationAfterType) {
+      if (locationAfterType && isUsableLocation(locationAfterType[1])) {
         propertyLocation = locationAfterType[1].trim();
-      } else {
-        // Comma-separated listing-card format some portal emails use,
-        // e.g. "5 BHK Villa, Devanahalli, 8400 sq. ft., ₹16.0 Cr" — the
-        // location directly follows the property type, before the next
-        // comma, with no "in/at/near" connector at all.
-        const locationAfterTypeComma = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial|Commercial|Studio|Penthouse)s?\s*,\s*([A-Za-z][A-Za-z\s]*?)\s*,/i);
-        if (locationAfterTypeComma) {
-          propertyLocation = locationAfterTypeComma[1].trim();
-        }
+      }
+    }
+
+    if (!propertyLocation) {
+      // Comma-separated listing-card format some portal emails use,
+      // e.g. "5 BHK Villa, Devanahalli, 8400 sq. ft., ₹16.0 Cr" — the
+      // location directly follows the property type, before the next
+      // comma, with no "in/at/near" connector at all.
+      const locationAfterTypeComma = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial|Commercial|Studio|Penthouse)s?\s*,\s*([A-Za-z][A-Za-z\s]*?)\s*,/i);
+      if (locationAfterTypeComma && isUsableLocation(locationAfterTypeComma[1])) {
+        propertyLocation = locationAfterTypeComma[1].trim();
       }
     }
   }
