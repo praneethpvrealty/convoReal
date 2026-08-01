@@ -133,9 +133,24 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
   );
 }
 
+/**
+ * Screenshots are almost always a forwarded chat thread, which brings
+ * failure modes plain text does not: bubble clock times that look like
+ * event times, two names where only one is the person being met, and a
+ * day-of-week with no date anywhere on screen.
+ */
+const SCREENSHOT_INSTRUCTION =
+  'This image is a screenshot, usually of a chat conversation. Read every message bubble in order and extract the ONE appointment the people in it agree on.\n' +
+  'Right-aligned / green bubbles are the person who forwarded you this screenshot; left-aligned / grey bubbles are the other party. The event is between them.\n' +
+  'The small clock times printed on each bubble (e.g. "11:49") are when the MESSAGE was sent — never treat them as the appointment time. Use only a day/time stated inside the message wording.\n' +
+  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met.\n' +
+  'Put the conversation you read, as plain text, into "transcript".\n' +
+  'If the thread never settles on a specific day or time, or is not about arranging a meeting at all, return intent "none" rather than guessing a slot.';
+
 export interface EventParseInput {
   text?: string;
   audio?: { base64: string; mimeType: string };
+  image?: { base64: string; mimeType: string };
   memberNames?: string[];
   now?: Date;
 }
@@ -147,21 +162,29 @@ export async function parseEventFromInput(input: EventParseInput): Promise<Parse
     parts.push({ inlineData: { mimeType, data: input.audio.base64 } });
     parts.push({ text: 'Extract the scheduling request from this voice note.' });
   }
+  if (input.image) {
+    const mimeType = input.image.mimeType.split(';')[0].trim() || 'image/jpeg';
+    parts.push({ inlineData: { mimeType, data: input.image.base64 } });
+    parts.push({ text: SCREENSHOT_INSTRUCTION });
+  }
   if (input.text) {
     parts.push({ text: input.text });
   }
   if (parts.length === 0) {
-    throw new Error('parseEventFromInput requires text or audio');
+    throw new Error('parseEventFromInput requires text, audio or an image');
   }
 
   // Typed text is a simple extraction — lite tier. Voice notes need
-  // transcription quality, so they stay on the standard tier.
+  // transcription quality and screenshots need to be read and reasoned
+  // over, so both stay on the standard tier.
   const raw = await generateJsonFromParts(
     parts,
     buildSystemPrompt(input.now || new Date(), input.memberNames || []),
     input.audio
       ? { feature: 'voice_event_parse' }
-      : { tier: 'lite', feature: 'event_parse' }
+      : input.image
+        ? { feature: 'image_event_parse' }
+        : { tier: 'lite', feature: 'event_parse' }
   );
 
   let parsed: unknown;
