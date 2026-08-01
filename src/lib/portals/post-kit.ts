@@ -148,11 +148,12 @@ function landExtras(property: Property): PortalField[] {
 }
 
 /** Each portal marks fields mandatory on its post form that the CRM
- *  doesn't model — send review-and-fix defaults in that portal's own
- *  vocabulary (99acres: Availability Status/Ownership; MagicBricks:
- *  Transaction Type/Furnishing; Housing: Possession Status) so
- *  autofill completes the step. The agent reviews everything on the
- *  portal before submitting. */
+ *  doesn't fully model — send stored unit details (furnishing, floors,
+ *  balconies — migration 179) where they exist and review-and-fix
+ *  defaults for the rest, in that portal's own vocabulary (99acres:
+ *  Availability Status/Ownership; MagicBricks: Transaction Type;
+ *  Housing: Possession Status) so autofill completes the step. The
+ *  agent reviews everything on the portal before submitting. */
 function portalExtras(
   property: Property,
   portal: PortalKey,
@@ -160,18 +161,30 @@ function portalExtras(
 ): PortalField[] {
   const land = isLand(property);
   const residential = !land && !COMMERCIAL_TYPE_RE.test(property.type || '');
-  const residentialExtras: PortalField[] = residential
-    ? [
-        { label: 'Furnishing', value: 'Unfurnished' },
-        { label: 'Balconies', value: '1' },
-      ]
-    : [];
+  const unitExtras: PortalField[] = [
+    ...(residential
+      ? [
+          { label: 'Furnishing', value: property.furnishing || 'Unfurnished' },
+          {
+            label: 'Balconies',
+            value:
+              property.balconies != null ? String(property.balconies) : '1',
+          },
+        ]
+      : []),
+    ...(!land && property.floor_number != null
+      ? [{ label: 'Floor No.', value: String(property.floor_number) }]
+      : []),
+    ...(!land && property.total_floors != null
+      ? [{ label: 'Total Floors', value: String(property.total_floors) }]
+      : []),
+  ];
   switch (portal) {
     case '99acres':
       return [
         { label: 'Availability Status', value: 'Ready to Move' },
         ...(land ? [] : [{ label: 'Age of Property', value: '1' }]),
-        ...residentialExtras,
+        ...unitExtras,
         { label: 'Ownership', value: 'Freehold' },
         areaUnitField(property),
         ...brokerageFields(property, currency),
@@ -182,7 +195,7 @@ function portalExtras(
         { label: 'Transaction Type', value: 'Resale' },
         { label: 'Availability Status', value: 'Ready to Move' },
         ...(land ? [] : [{ label: 'Age of Property', value: '1' }]),
-        ...residentialExtras,
+        ...unitExtras,
         areaUnitField(property),
         ...brokerageFields(property, currency),
         ...landExtras(property),
@@ -192,6 +205,7 @@ function portalExtras(
         { label: 'Transaction Type', value: 'Resale' },
         { label: 'Possession Status', value: 'Immediate' },
         { label: 'Age of Property', value: '1' },
+        ...unitExtras,
         areaUnitField(property),
         ...brokerageFields(property, currency),
         ...landExtras(property),

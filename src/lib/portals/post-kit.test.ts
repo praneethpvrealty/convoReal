@@ -170,6 +170,42 @@ describe('buildPortalFields', () => {
     ).toBe(false);
   });
 
+  it('sends stored unit details instead of the review-and-fix defaults', () => {
+    const flat = {
+      ...saleProperty,
+      type: '3 BHK Apartment',
+      bedrooms: 3,
+      area_sqft: 1850,
+      area_unit: 'Sq.Ft.',
+      land_area: null,
+      furnishing: 'Semi-Furnished',
+      balconies: 2,
+      floor_number: 4,
+      total_floors: 12,
+    } as unknown as Property;
+
+    for (const portal of ['99acres', 'magicbricks', 'housing'] as const) {
+      const fields = buildPortalFields(flat, portal);
+      const get = (label: string) =>
+        fields.find((f) => f.label === label)?.value;
+      expect(get('Furnishing')).toBe('Semi-Furnished');
+      expect(get('Balconies')).toBe('2');
+      expect(get('Floor No.')).toBe('4');
+      expect(get('Total Floors')).toBe('12');
+    }
+
+    const land = buildPortalFields(
+      {
+        ...saleProperty,
+        floor_number: 0,
+        total_floors: 1,
+      } as unknown as Property,
+      '99acres'
+    );
+    expect(land.some((f) => f.label === 'Floor No.')).toBe(false);
+    expect(land.some((f) => f.label === 'Total Floors')).toBe(false);
+  });
+
   it('skips age/furnishing extras for land and furnishing/balconies for commercial', () => {
     const acresLand = buildPortalFields(saleProperty, '99acres');
     const getLand = (label: string) =>

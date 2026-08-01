@@ -104,6 +104,10 @@ export async function PUT(
       status,
       bedrooms,
       bathrooms,
+      furnishing,
+      floor_number,
+      total_floors,
+      balconies,
       area_sqft,
       area_unit,
       land_area,
@@ -359,6 +363,22 @@ export async function PUT(
 
     if (facing_direction !== undefined) {
       updateData.facing_direction = typeof facing_direction === "string" ? facing_direction.trim() : null;
+    }
+
+    if (furnishing !== undefined) {
+      updateData.furnishing = typeof furnishing === "string" ? furnishing.trim() || null : null;
+    }
+
+    if (floor_number !== undefined) {
+      updateData.floor_number = typeof floor_number === "number" ? floor_number : null;
+    }
+
+    if (total_floors !== undefined) {
+      updateData.total_floors = typeof total_floors === "number" ? total_floors : null;
+    }
+
+    if (balconies !== undefined) {
+      updateData.balconies = typeof balconies === "number" ? balconies : null;
     }
 
     if (nearby_highlights !== undefined) {

@@ -34,6 +34,12 @@
     City: ['city'],
     Bedrooms: ['bedroom', 'bhk'],
     Bathrooms: ['bathroom', 'bath'],
+    Balconies: ['balconies', 'balcony'],
+    // Total Floors before Floor No. in the payload: 'floor no' also
+    // sits inside "total no. of floors" wording on some portals, so
+    // the antihint below keeps Floor No. off the total-floors input.
+    'Total Floors': ['total floor', 'no of floors', 'floors in building'],
+    'Floor No.': ['floor no', 'property on floor', 'your floor', 'which floor'],
     'Project / Society': ['society', 'project name', 'building name'],
     'Age of Property': ['age of property', 'property age'],
     Brokerage: ['brokerage'],
@@ -51,12 +57,14 @@
   // suggestions; 'Project / Society' still targets it via its own hints).
   const FIELD_ANTIHINTS = {
     Locality: ['building', 'apartment', 'flat no', 'house no'],
+    'Floor No.': ['total'],
   };
 
   const NUMERIC_FIELDS = new Set([
     'Expected Price', 'Monthly Rent', 'Maintenance', 'Security Deposit / Advance',
     'Built-up Area', 'Plot Area', 'Bedrooms', 'Bathrooms',
     'Age of Property', 'Length', 'Width', 'Width of Facing Road', 'Brokerage',
+    'Balconies', 'Floor No.', 'Total Floors',
   ]);
 
   /** "₹45 Cr" → "45000000 0" is wrong — portals want raw numbers.
@@ -466,6 +474,17 @@
       : ['under construction', 'in future'];
   }
 
+  /** Floor dropdowns list "Ground, 1st, 2nd, …" as often as plain
+   *  numbers — offer the ordinal alongside the digit. */
+  function floorSynonyms(floor) {
+    if (floor === '0') return ['ground', '0'];
+    const n = parseInt(floor, 10);
+    const tens = n % 100;
+    const suffix = tens >= 11 && tens <= 13 ? 'th'
+      : n % 10 === 1 ? 'st' : n % 10 === 2 ? 'nd' : n % 10 === 3 ? 'rd' : 'th';
+    return [floor, `${floor}${suffix}`];
+  }
+
   /** type must already be normalizedText()ed. */
   function typeSynonyms(type) {
     const sub = [];
@@ -683,6 +702,12 @@
     if (balconies) jobs.push({ label: 'Balconies', hints: ['balcon'], synonyms: [balconies] });
     const ownership = normalizedText(get('Ownership'));
     if (ownership) jobs.push({ label: 'Ownership', hints: ['ownership'], synonyms: [ownership] });
+    // Total Floors first: its select claims the 'total' one, so the
+    // floor-no job can't land on it via a bare "floor" mention.
+    const totalFloors = get('Total Floors');
+    if (totalFloors) jobs.push({ label: 'Total Floors', hints: ['total floor', 'no of floors'], synonyms: [totalFloors] });
+    const floorNo = get('Floor No.');
+    if (floorNo) jobs.push({ label: 'Floor No.', hints: ['floor no', 'property on floor', 'your floor', 'which floor'], synonyms: floorSynonyms(floorNo) });
 
     const selects = [...document.querySelectorAll('select')].filter((el) => {
       if (el.disabled || el.closest(`#${PANEL_ID}`)) return false;
