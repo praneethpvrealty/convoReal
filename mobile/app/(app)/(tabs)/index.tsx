@@ -30,6 +30,7 @@ import {
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
 import { setConversationArchived } from '@/lib/conversation-actions';
+import { resolveGreetingName } from '@/lib/display-name';
 import { haptic } from '@/lib/haptics';
 import type { Contact , Conversation, MessageStatus, SenderType } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
@@ -224,8 +225,8 @@ function InboxHeader({
   const insets = useSafeAreaInsets();
   const credits = useCredits();
   const session = useAuthStore((s) => s.session);
-  const firstName = (session?.user.email?.split('@')[0] ?? 'there').split(/[._-]/)[0];
-  const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+  const profile = useAuthStore((s) => s.profile);
+  const displayName = resolveGreetingName(profile?.full_name, session?.user.email);
 
   return (
     <View
@@ -237,9 +238,20 @@ function InboxHeader({
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
           <Avatar name={displayName} size={42} />
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text, fontFamily: f.extrabold }]}>Hi, {displayName}</Text>
-            <Text style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}>
+          {/* Without flex the greeting kept its natural width and ran
+              under the bell; flex lets it shrink and ellipsize instead. */}
+          <View style={{ flex: 1 }}>
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={[styles.headerTitle, { color: colors.text, fontFamily: f.extrabold }]}
+            >
+              Hi, {displayName}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}
+            >
               Your WhatsApp inbox
             </Text>
           </View>
