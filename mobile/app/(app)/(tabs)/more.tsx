@@ -13,6 +13,7 @@ import { UpdateStatus } from '@/components/update-status';
 import { Avatar, SectionLabel } from '@/components/ui';
 import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
+import { resolveDisplayName } from '@/lib/display-name';
 import {
   fonts,
   radius,
@@ -50,8 +51,7 @@ export default function MoreScreen() {
   const credits = useCredits();
   const [editOpen, setEditOpen] = useState(false);
 
-  const displayName =
-    profile?.full_name?.trim() || session?.user.email?.split('@')[0] || 'Account';
+  const displayName = resolveDisplayName(profile?.full_name, session?.user.email);
 
   return (
     <ScrollView
