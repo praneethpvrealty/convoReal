@@ -9,15 +9,17 @@ import TodayPage from "../today/today-content";
 import MatchRadarPage from "../radar/radar-content";
 import PulsePage from "../pulse/pulse-content";
 import TeamAnalyticsContent from "./team-analytics-content";
+import MarketContent from "./market-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "overview" | "today" | "radar" | "pulse" | "team";
+type TabId = "overview" | "today" | "radar" | "pulse" | "market" | "team";
 
 const BASE_TABS: { id: TabId; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "today", label: "Today" },
   { id: "radar", label: "Match Radar" },
   { id: "pulse", label: "Pulse" },
+  { id: "market", label: "Market" },
 ];
 
 export default function DashboardPage() {
@@ -46,6 +48,8 @@ export default function DashboardPage() {
         return { label: "Match Radar", href: "/dashboard?tab=radar", icon: "Radar" };
       case "pulse":
         return { label: "Pulse", href: "/dashboard?tab=pulse", icon: "Activity" };
+      case "market":
+        return { label: "Market", href: "/dashboard?tab=market", icon: "MapPin" };
       case "team":
         return { label: "Team", href: "/dashboard?tab=team", icon: "Users" };
       case "overview":
@@ -97,6 +101,7 @@ export default function DashboardPage() {
         {activeTab === "today" && <TodayPage />}
         {activeTab === "radar" && <MatchRadarPage />}
         {activeTab === "pulse" && <PulsePage />}
+        {activeTab === "market" && <MarketContent />}
         {activeTab === "team" && <TeamAnalyticsContent />}
       </div>
     </div>
