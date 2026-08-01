@@ -6,6 +6,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { PropertyShareSheet } from '@/components/property-share-sheet';
 import { BottomSheet } from '@/components/sheet';
 import { Avatar, EmptyState, PrimaryButton, SearchBar, SectionLabel, Tag, TextField } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
@@ -148,6 +149,7 @@ export function AgentProperties({
 export function InterestedProperties({ contact }: { contact: Contact }) {
   const { colors, fonts: f } = useTheme();
   const [picking, setPicking] = useState(false);
+  const [sharing, setSharing] = useState<Property | null>(null);
   const { show, close, dialogProps } = useAppDialog();
 
   const { data: props } = useQuery({
@@ -167,9 +169,12 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
         )
       );
       if (ids.length === 0) return [] as Property[];
+      // Every column: the row itself needs only a handful, but the share
+      // sheet composes from the full listing (specs, area, amenities), and
+      // a "complete" message silently loses fields that were not selected.
       const { data, error } = await supabase
         .from('properties')
-        .select('id, title, location, price, status, images, property_code')
+        .select('*')
         .in('id', ids);
       if (error) throw error;
       return (data ?? []) as Property[];
@@ -288,6 +293,17 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
               </View>
               <Pressable
                 hitSlop={10}
+                onPress={() => {
+                  haptic.tap();
+                  setSharing(p);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Send ${p.title} details to ${contact.name || contact.phone}`}
+              >
+                <Ionicons name="share-social-outline" size={18} color={colors.primary} />
+              </Pressable>
+              <Pressable
+                hitSlop={10}
                 onPress={() => confirmRemove(p)}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${p.title}`}
@@ -304,6 +320,14 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
         onClose={() => setPicking(false)}
         onSelect={assign}
       />
+      {sharing ? (
+        <PropertyShareSheet
+          property={sharing}
+          contact={contact}
+          visible={sharing !== null}
+          onClose={() => setSharing(null)}
+        />
+      ) : null}
     </View>
   );
 }

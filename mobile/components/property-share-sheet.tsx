@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   Share,
@@ -57,15 +58,22 @@ const DETAILS: { value: ShareDetailLevel; label: string }[] = [
  * pickers over the same message builder (lib/share-message mirrors
  * the web module 1:1), an editable draft, and channel buttons.
  * "Send from CRM" stays in the conversation thread's template picker.
+ *
+ * Opened from a contact's linked listing the recipient is already
+ * known, so `contact` preselects it: both send paths address that
+ * contact directly instead of asking again through the picker.
  */
 export function PropertyShareSheet({
   property,
   visible,
   onClose,
+  contact = null,
 }: {
   property: Property;
   visible: boolean;
   onClose: () => void;
+  /** Preselected recipient; when set, neither send path opens the picker. */
+  contact?: Contact | null;
 }) {
   const { colors, fonts: f } = useTheme();
   // A definite pixel cap keeps the scroll area bounded so it renders and
@@ -274,8 +282,16 @@ export function PropertyShareSheet({
     });
   }
 
+  const recipientName = contact ? contact.name || contact.phone : null;
+
   const channels = [
-    { key: 'whatsapp', icon: 'logo-whatsapp' as const, label: 'WhatsApp', color: colors.success, onPress: () => setPicker('external') },
+    {
+      key: 'whatsapp',
+      icon: 'logo-whatsapp' as const,
+      label: 'WhatsApp',
+      color: colors.success,
+      onPress: () => (contact ? void shareExternalWithContact(contact) : setPicker('external')),
+    },
     { key: 'telegram', icon: 'paper-plane' as const, label: 'Telegram', color: colors.readTick, onPress: () => Linking.openURL(targets.telegram) },
     { key: 'email', icon: 'mail-outline' as const, label: 'Email', color: colors.primary, onPress: () => Linking.openURL(targets.email) },
     { key: 'sms', icon: 'chatbox-outline' as const, label: 'SMS', color: colors.primary, onPress: () => Linking.openURL(targets.sms) },
@@ -366,21 +382,39 @@ export function PropertyShareSheet({
 
         <SectionLabel text="Send from ConvoReal" />
         <Pressable
-          onPress={() => setPicker('crm')}
+          disabled={crmSending}
+          onPress={() => (contact ? void sendViaConvoReal(contact) : setPicker('crm'))}
           accessibilityRole="button"
-          accessibilityLabel="Send via ConvoReal WhatsApp"
-          style={[styles.crmButton, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+          accessibilityState={{ disabled: crmSending, busy: crmSending }}
+          accessibilityLabel={
+            recipientName
+              ? `Send via ConvoReal WhatsApp to ${recipientName}`
+              : 'Send via ConvoReal WhatsApp'
+          }
+          style={[
+            styles.crmButton,
+            { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+            crmSending && { opacity: 0.6 },
+          ]}
         >
           <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.primary }}>
-              Send via ConvoReal WhatsApp
+              {crmSending
+                ? 'Sending from ConvoReal…'
+                : recipientName
+                  ? `Send to ${recipientName}`
+                  : 'Send via ConvoReal WhatsApp'}
             </Text>
             <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
               Delivers from your business number and logs to the chat thread
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          {crmSending ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          )}
         </Pressable>
 
         <SectionLabel text="Send via" />
@@ -402,9 +436,9 @@ export function PropertyShareSheet({
         </View>
 
         <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
-          Sending via ConvoReal WhatsApp delivers from your business number and is
-          tracked in the conversation thread. Pick a contact on WhatsApp to log the
-          share on their timeline too.
+          {recipientName
+            ? `Both send to ${recipientName}. ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread; WhatsApp opens your own app and logs the share on their timeline.`
+            : 'Sending via ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread. Pick a contact on WhatsApp to log the share on their timeline too.'}
         </Text>
       </ScrollView>
 
