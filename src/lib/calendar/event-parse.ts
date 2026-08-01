@@ -277,6 +277,60 @@ export async function parseEventFromInput(input: EventParseInput): Promise<Parse
   return alignDraftToNamedWeekday(coerceEventDraft(parsed), input.now || new Date());
 }
 
+export interface EventUpdateInput {
+  current: {
+    title: string;
+    event_type: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    location: string | null;
+    agenda: string | null;
+  };
+  instruction: string;
+  memberNames?: string[];
+  now?: Date;
+}
+
+/**
+ * Applies a correction typed against a confirmation card ("change this
+ * to Monday 5pm, retitle it X") to the event that card announced.
+ *
+ * Mirrors updateListingDraft/updateContactDraft in gemini.ts: the model
+ * returns the WHOLE event as it should now read, so untouched fields
+ * come back unchanged rather than nulled. The same deterministic
+ * weekday alignment runs afterwards, since a correction naming a day is
+ * exactly where the model's date arithmetic slipped in the first place.
+ */
+export async function parseEventUpdate(input: EventUpdateInput): Promise<ParsedEventDraft> {
+  const now = input.now || new Date();
+  const system =
+    'You are the scheduling assistant inside a CRM used by Indian real-estate agents. ' +
+    `Current date/time in India (IST): ${nowInIst(now)}.\n\n` +
+    'The user is correcting an event that already exists. Apply their instruction to it and return the FULL event as it should now read, ' +
+    'in the same JSON shape used for new events (intent, title, event_type, start_time, day_of_week, end_time, duration_minutes, contact_name, property_hint, assignee_name, location, priority, notes, transcript).\n' +
+    'Carry every field the instruction does not mention through UNCHANGED — never blank a field just because it went unmentioned. ' +
+    'Set intent to "schedule" whenever the event still has a date/time, "task" when it has become a plain to-do, and "none" only when the instruction is not a correction at all.\n' +
+    'The day_of_week rule is unchanged: copy a weekday word the instruction actually uses, else null.\n\n' +
+    `Existing event:\n${JSON.stringify(input.current, null, 2)}\n\n` +
+    (input.memberNames?.length ? `Team member names: ${input.memberNames.join(', ')}.\n` : '') +
+    'Respond with ONLY the JSON object.';
+
+  const raw = await generateJsonFromParts(
+    [{ text: input.instruction }],
+    system,
+    { tier: 'lite', feature: 'event_parse' }
+  );
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    const match = raw.match(/\{[\s\S]*\}/);
+    parsed = match ? JSON.parse(match[0]) : {};
+  }
+  return alignDraftToNamedWeekday(coerceEventDraft(parsed), now);
+}
+
 // ── Deterministic reference resolution ──────────────────────────
 
 export interface NamedRef {

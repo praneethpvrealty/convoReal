@@ -30,7 +30,9 @@ import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
-import { tryHandleOwnerScheduling } from '@/lib/calendar/whatsapp-scheduler';
+import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
+import { recordBotTarget, resolveBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { applyRecordUpdate } from '@/lib/ai/record-edit';
 import {
   isOwnerHelpCommand,
   buildOwnerHelpMessage,
@@ -462,6 +464,8 @@ export async function processOwnerChatbotMessage(
       list_reply?: { id: string; title: string; description?: string };
       nfm_reply?: { name?: string; body?: string; response_json: string };
     };
+    /** Set by WhatsApp on a quote-reply: the wamid being replied to. */
+    context?: { id: string };
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
@@ -602,6 +606,65 @@ export async function processOwnerChatbotMessage(
       inboundMediaMime = mimeType;
     }
     return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
+  }
+
+  // 1.65. Quote-reply on a confirmation card = a correction to the row
+  // that card announced (migration 185). Without this the correction
+  // reads as a brand-new request and creates a duplicate. A target that
+  // is gone or no longer editable falls through to the create paths, so
+  // the correction still lands — the reply just says "added" not
+  // "updated".
+  const editTarget = cleanedText
+    ? await resolveBotTarget({ accountId, contextId: message.context?.id })
+    : null;
+  if (editTarget) {
+    try {
+      if (editTarget.entityType === 'appointment' || editTarget.entityType === 'todo') {
+        const outcome = await applySchedulingEdit({
+          target: { entityType: editTarget.entityType, entityId: editTarget.entityId },
+          instruction: cleanedText,
+          contactRecord,
+          conversation,
+          accountId,
+          userId,
+          accessToken,
+          phoneNumberId,
+        });
+        if (outcome === 'edited') return true;
+      } else {
+        if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        }
+        const result = await applyRecordUpdate({
+          entityType: editTarget.entityType,
+          entityId: editTarget.entityId,
+          accountId,
+          instruction: cleanedText,
+        });
+        if (result && result !== 'stale') {
+          const label = editTarget.entityType === 'contact' ? 'Contact updated' : 'Listing updated';
+          const lines = Object.entries(result).map(([k, v]) => `• ${k.replace(/_/g, ' ')}: ${v}`);
+          const reply = [`✏️ *${label}*`, ...lines, '', '_Reply to this message again to make another change._'].join('\n');
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          await recordBotTarget({
+            accountId,
+            waMessageId: sendRes.messageId,
+            entityType: editTarget.entityType,
+            entityId: editTarget.entityId,
+          });
+          return true;
+        }
+        if (result === null) {
+          const reply = "🤔 I couldn't find a change to make from that. Tell me what to set, e.g. _\"change the price to 1.2 crore\"_.";
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('[chatbot-engine] quote-reply edit failed:', err);
+    }
   }
 
   // 1.7. Calendar scheduling intercept — voice notes and scheduling
@@ -938,6 +1001,13 @@ export async function processOwnerChatbotMessage(
         
       const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      // Lets a quote-reply on this card edit the listing (migration 185).
+      await recordBotTarget({
+        accountId,
+        waMessageId: sendRes.messageId,
+        entityType: 'property',
+        entityId: prop.id,
+      });
       return true;
     }
 
@@ -1666,6 +1736,16 @@ export async function processOwnerChatbotMessage(
         
       const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      // Only a single-contact card names one unambiguous row, so only
+      // that one is quote-editable (migration 185).
+      if (inserted.length === 1) {
+        await recordBotTarget({
+          accountId,
+          waMessageId: sendRes.messageId,
+          entityType: 'contact',
+          entityId: inserted[0].id,
+        });
+      }
       return true;
     }
 

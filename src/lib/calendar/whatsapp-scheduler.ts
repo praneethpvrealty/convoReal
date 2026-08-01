@@ -17,10 +17,12 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import {
   parseEventFromInput,
+  parseEventUpdate,
   resolveByName,
   istLocalToUtcIso,
   type ParsedEventDraft,
 } from '@/lib/calendar/event-parse';
+import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 import { createNotification } from '@/lib/notifications/create';
 
@@ -234,7 +236,7 @@ async function replyAndLog(params: {
   toPhone: string;
   conversationId: string;
   text: string;
-}): Promise<void> {
+}): Promise<string | null> {
   const sendRes = await sendTextMessage({
     phoneNumberId: params.phoneNumberId,
     accessToken: params.accessToken,
@@ -261,6 +263,183 @@ async function replyAndLog(params: {
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.conversationId);
+  return sendRes.messageId || null;
+}
+
+export interface SchedulingEditParams {
+  target: { entityType: 'appointment' | 'todo'; entityId: string };
+  instruction: string;
+  contactRecord: { id: string; phone: string };
+  conversation: { id: string };
+  accountId: string;
+  userId: string;
+  accessToken: string;
+  phoneNumberId: string;
+  now?: Date;
+}
+
+/** An appointment can still be corrected until it is over and while it
+ *  is still on the books — a finished or cancelled event is history, so
+ *  a correction becomes a new booking rather than a silent rewrite. */
+function isEditableAppointment(row: { status: string; end_time: string | null; start_time: string }, now: Date): boolean {
+  if (row.status !== 'scheduled') return false;
+  const ends = new Date(row.end_time || row.start_time).getTime();
+  return Number.isFinite(ends) && ends > now.getTime();
+}
+
+/**
+ * A quote-reply on a confirmation card ("change this to Monday 5pm").
+ * Edits the row that card announced. Returns 'edited' when the row was
+ * updated, 'stale' when it is gone or no longer editable — the caller
+ * then falls through to the normal create path, so the correction still
+ * lands as a fresh event and the user is told which happened.
+ */
+export async function applySchedulingEdit(
+  params: SchedulingEditParams
+): Promise<'edited' | 'stale' | 'skipped'> {
+  const { target, instruction, contactRecord, conversation, accountId, accessToken, phoneNumberId } = params;
+  const now = params.now || new Date();
+  const admin = supabaseAdmin();
+  const table = target.entityType === 'appointment' ? 'appointments' : 'todos';
+
+  const { data: row, error } = await admin
+    .from(table)
+    .select('*')
+    .eq('id', target.entityId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error) {
+    console.error('[wa-scheduler] edit target fetch failed:', error);
+    return 'skipped';
+  }
+  if (!row) return 'stale';
+
+  if (target.entityType === 'appointment') {
+    if (!isEditableAppointment(row as { status: string; end_time: string | null; start_time: string }, now)) {
+      return 'stale';
+    }
+  } else if (row.completed) {
+    return 'stale';
+  }
+
+  if (!(await hardBurn(accountId, 'event_parse'))) {
+    await replyAndLog({
+      phoneNumberId,
+      accessToken,
+      toPhone: contactRecord.phone,
+      conversationId: conversation.id,
+      text: "🔒 *Out of AI credits — that correction wasn't applied.* Buy more credits or upgrade your plan from the dashboard.",
+    });
+    return 'skipped';
+  }
+
+  const { data: members } = await admin
+    .from('profiles')
+    .select('user_id, full_name')
+    .eq('account_id', accountId);
+
+  let draft: ParsedEventDraft;
+  try {
+    draft = await parseEventUpdate({
+      current: {
+        title: row.title as string,
+        event_type: (row.event_type as string) ?? null,
+        start_time: (row.start_time as string) ?? (row.due_date as string) ?? null,
+        end_time: (row.end_time as string) ?? null,
+        location: (row.location as string) ?? null,
+        agenda: (row.agenda as string) ?? (row.description as string) ?? null,
+      },
+      instruction,
+      memberNames: (members || []).map((m) => m.full_name).filter(Boolean) as string[],
+      now,
+    });
+  } catch (err) {
+    console.error('[wa-scheduler] edit parse failed:', err);
+    return 'skipped';
+  }
+
+  if (draft.intent === 'none') return 'skipped';
+
+  const startIso = istLocalToUtcIso(draft.start_time);
+  let endIso = istLocalToUtcIso(draft.end_time);
+  if (startIso && !endIso) {
+    endIso = new Date(new Date(startIso).getTime() + (draft.duration_minutes || 60) * 60 * 1000).toISOString();
+  }
+
+  const patch: Record<string, unknown> =
+    target.entityType === 'appointment'
+      ? {
+          title: draft.title,
+          event_type: draft.event_type,
+          location: draft.location,
+          ...(startIso
+            ? {
+                start_time: startIso,
+                end_time: endIso || startIso,
+                // A moved event has to re-arm its reminders, exactly as
+                // the dashboard PUT route does when the time changes.
+                reminder_morning_sent: false,
+                reminder_1h_sent: false,
+                agent_reminder_sent: false,
+                reschedule_requested_at: null,
+                client_confirmed_at: null,
+              }
+            : {}),
+        }
+      : {
+          title: draft.title,
+          priority: draft.priority,
+          ...(startIso ? { due_date: startIso } : {}),
+        };
+
+  const { error: updErr } = await admin
+    .from(table)
+    .update(patch)
+    .eq('id', target.entityId)
+    .eq('account_id', accountId);
+  if (updErr) {
+    console.error('[wa-scheduler] edit update failed:', updErr);
+    return 'skipped';
+  }
+
+  const emoji = EVENT_TYPE_EMOJI[draft.event_type] || '🗓';
+  const when = startIso
+    ? new Date(startIso).toLocaleString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+    : null;
+
+  const confirmationWamid = await replyAndLog({
+    phoneNumberId,
+    accessToken,
+    toPhone: contactRecord.phone,
+    conversationId: conversation.id,
+    text: [
+      target.entityType === 'appointment' ? '✏️ *Updated on your calendar*' : '✏️ *Task updated*',
+      `${target.entityType === 'appointment' ? emoji : '📝'} ${draft.title}`,
+      when ? `🕐 ${when}` : null,
+      draft.location ? `📌 ${draft.location}` : null,
+      '',
+      '_Reply to this message again to make another change._',
+    ]
+      .filter((l): l is string => l !== null)
+      .join('\n'),
+  });
+  // The new card becomes the editable one, so corrections can chain.
+  await recordBotTarget({
+    accountId,
+    waMessageId: confirmationWamid,
+    entityType: target.entityType,
+    entityId: target.entityId,
+    client: admin,
+  });
+  return 'edited';
 }
 
 export interface OwnerSchedulingParams {
@@ -440,8 +619,9 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   const source = isAudio ? 'voice' : 'whatsapp';
 
   let confirmation: string;
+  let created: { type: 'appointment' | 'todo'; id: string } | null = null;
   if (draft.intent === 'schedule' && startIso) {
-    const { error } = await admin.from('appointments').insert({
+    const { data: createdAppt, error } = await admin.from('appointments').insert({
       account_id: accountId,
       user_id: userId,
       assigned_to: assignedTo,
@@ -457,7 +637,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       property_id: property?.id || null,
       source,
       transcript,
-    });
+    }).select('id').single();
     if (error) {
       console.error('[wa-scheduler] appointment insert failed:', error);
       await replyAndLog({
@@ -469,6 +649,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       });
       return true;
     }
+    if (createdAppt?.id) created = { type: 'appointment', id: createdAppt.id as string };
 
     const when = new Date(startIso).toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -494,7 +675,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       .filter((l): l is string => l !== null)
       .join('\n');
   } else {
-    const { error } = await admin.from('todos').insert({
+    const { data: createdTodo, error } = await admin.from('todos').insert({
       account_id: accountId,
       user_id: userId,
       assigned_to: assignedTo,
@@ -506,7 +687,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       contact_id: contact?.id || null,
       property_id: property?.id || null,
       source,
-    });
+    }).select('id').single();
     if (error) {
       console.error('[wa-scheduler] todo insert failed:', error);
       await replyAndLog({
@@ -518,6 +699,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       });
       return true;
     }
+    if (createdTodo?.id) created = { type: 'todo', id: createdTodo.id as string };
     confirmation = [
       '✅ *Task added to your list*',
       `📝 ${draft.title}`,
@@ -533,13 +715,24 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       .join('\n');
   }
 
-  await replyAndLog({
+  const confirmationWamid = await replyAndLog({
     phoneNumberId,
     accessToken,
     toPhone: contactRecord.phone,
     conversationId: conversation.id,
     text: confirmation,
   });
+  // Lets a quote-reply on this card edit the row instead of creating
+  // a second one (migration 185).
+  if (created) {
+    await recordBotTarget({
+      accountId,
+      waMessageId: confirmationWamid,
+      entityType: created.type,
+      entityId: created.id,
+      client: admin,
+    });
+  }
   return true;
 }
 
