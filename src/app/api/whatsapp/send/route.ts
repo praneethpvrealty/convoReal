@@ -15,6 +15,10 @@ import type { MessageTemplate } from '@/types'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
 import { parseMetaErrorInfo } from '@/lib/whatsapp/meta-api'
+import {
+  CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+  isWithinCustomerWindow,
+} from '@/lib/whatsapp/customer-window'
 
 export async function POST(request: Request) {
   // Resolved outside the main try: that catch maps failures onto Meta
@@ -231,14 +235,21 @@ export async function POST(request: Request) {
       templateRow = (templateData as MessageTemplate) ?? null
     }
 
-    // ── Sandbox 24h Window Check ────────────────────────────────
+    // ── 24-hour customer service window ─────────────────────────
+    // Free-form text is deliverable only within 24 hours of the
+    // contact's last inbound message. Meta accepts the send, returns a
+    // wamid, and then fails it asynchronously (131047 on the status
+    // webhook) — so an unchecked send lands in the thread as a delivery
+    // failure minutes later. Refusing it here is the only way to stop
+    // that; the caller's isReengagementError() branch matches this
+    // message and offers a template instead. Sandbox has no real window
+    // and swaps in its own system template rather than refusing.
     let finalMessageType = message_type
     let finalTemplateName = template_name
     let finalTemplateRow = templateRow
     let finalText = content_text
 
-    if (config.integration_type === 'sandbox' && message_type === 'text') {
-      // Check if last customer message was within 24 hours
+    if (message_type === 'text') {
       const { data: lastCustomerMsg } = await supabase
         .from('messages')
         .select('created_at')
@@ -248,11 +259,17 @@ export async function POST(request: Request) {
         .limit(1)
         .maybeSingle()
 
-      const windowHours = 24
-      const isWithinWindow = lastCustomerMsg &&
-        (new Date().getTime() - new Date(lastCustomerMsg.created_at).getTime()) < windowHours * 60 * 60 * 1000
+      if (!isWithinCustomerWindow(lastCustomerMsg?.created_at ?? null)) {
+        if (config.integration_type !== 'sandbox') {
+          return NextResponse.json(
+            {
+              error: CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+              code: 'CUSTOMER_WINDOW_EXPIRED',
+            },
+            { status: 409 }
+          )
+        }
 
-      if (!isWithinWindow) {
         // Outside 24h window — must use template
         const { data: systemTemplate } = await supabase
           .from('sandbox_system_templates')

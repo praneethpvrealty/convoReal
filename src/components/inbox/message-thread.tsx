@@ -43,6 +43,7 @@ import { buildReplyPreview } from "./reply-quote";
 import { MessageBubbleLoader } from "@/components/ui/message-bubble-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
+import { isReengagementError } from "@/lib/whatsapp/customer-window";
 import { toast } from "sonner";
 
 interface ReplyDraft {
@@ -510,7 +511,21 @@ export function MessageThread({
           const reason = payload?.error || `HTTP ${res.status}`;
           const errorInfo = payload?.errorInfo;
           console.error("Failed to send message:", reason);
-          
+
+          // The 24-hour window has closed: free text can't reach this
+          // contact, so open the template picker rather than leaving the
+          // agent to work out why a plain retry keeps failing.
+          if (isReengagementError(reason)) {
+            toast.warning("This chat is past the 24-hour window", {
+              description:
+                "WhatsApp only allows an approved template now — pick one to re-engage.",
+              duration: 8000,
+            });
+            onUpdateMessage(tempId, { status: "failed", error_info: reason });
+            setTemplateModalOpen(true);
+            return;
+          }
+
           // Build user-friendly error message
           let userFriendlyError = reason;
           if (errorInfo?.userMessage) {

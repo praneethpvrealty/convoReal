@@ -5,12 +5,9 @@
 // customer window — outside it the caller gets the drafted message
 // (wa.me deep link) and the conversation for a template.
 
-import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
-import {
-  isReengagementError,
-  isWithinCustomerWindow,
-} from '@/lib/customer-window';
+import { isReengagementError } from '@/lib/customer-window';
+import { sendPropertyViaCrm } from '@/lib/property-share-actions';
 import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message';
 import { supabase } from '@/lib/supabase';
 import { getShowcaseUrl } from '@/lib/welcome-message';
@@ -18,8 +15,11 @@ import type { Contact, Property } from '@/lib/types';
 
 export interface ApproveOutcome {
   ok: boolean;
-  /** Property details went out via WhatsApp free text. */
+  /** Property details went out over WhatsApp. */
   sent: boolean;
+  /** How they went out: the composed free text (window open) or the
+   *  approved property template (window closed). */
+  channel?: 'freeform' | 'template';
   /** The property the contact inquired about, when there is one — so
    *  the celebration/thread can show and re-send it. */
   property?: Property;
@@ -108,39 +108,17 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     .eq('id', convId)
     .eq('status', 'pending');
 
-  // Same guard as the web: free text only within the 24-hour window.
-  let lastCustomerMessageAt: string | null = null;
-  if (existingConv) {
-    const { data: lastCustomerMsg } = await supabase
-      .from('messages')
-      .select('created_at')
-      .eq('conversation_id', convId)
-      .eq('sender_type', 'customer')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    lastCustomerMessageAt = lastCustomerMsg?.created_at ?? null;
+  // Template-first, server-side: an open window sends the composed
+  // details as free text, a closed one sends the approved property-alert
+  // template. Only when neither is possible does the caller fall back to
+  // manual template selection on the thread.
+  const outcome = await sendPropertyViaCrm(contact, property, detailsMessage);
+  if (outcome.error && !isReengagementError(outcome.error)) {
+    return { ok: true, sent: false, property, detailsMessage, error: outcome.error };
   }
-  if (!isWithinCustomerWindow(lastCustomerMessageAt)) {
+  if (!outcome.sent) {
     return { ok: true, sent: false, property, detailsMessage, reengageConversationId: convId };
   }
 
-  try {
-    await apiFetch('/api/whatsapp/send', {
-      method: 'POST',
-      body: JSON.stringify({
-        conversation_id: convId,
-        message_type: 'text',
-        content_text: detailsMessage,
-      }),
-    });
-  } catch (e) {
-    const msg = e instanceof ApiError ? e.message : 'Failed to send WhatsApp message';
-    if (isReengagementError(msg)) {
-      return { ok: true, sent: false, property, detailsMessage, reengageConversationId: convId };
-    }
-    return { ok: true, sent: false, property, detailsMessage, error: msg };
-  }
-
-  return { ok: true, sent: true, property, detailsMessage };
+  return { ok: true, sent: true, property, detailsMessage, channel: outcome.channel };
 }
