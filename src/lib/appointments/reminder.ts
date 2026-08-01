@@ -7,7 +7,11 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // ============================================================
 // Client-facing appointment reminders. Every appointment can now
 // carry several contacts (buyer, partner agent, owner…) via
-// contact_ids, and each reminder goes to ALL of them:
+// contact_ids, and each reminder goes to ALL of them — except
+// event_type = 'call', where the contact is the one being called
+// and a "reminder to expect our call" reads as noise. Those events
+// stay agent-only: the assignee still gets the pre-event brief and
+// morning digest from lib/calendar/agent-reminders.ts.
 //
 //   1. Morning-of brief once ~7 AM IST opens (reminder_morning_sent)
 //   2. One hour before the meeting          (reminder_1h_sent)
@@ -237,6 +241,7 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
       'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, property:properties(id, title), account:accounts(name)'
     )
     .eq('status', 'scheduled')
+    .neq('event_type', 'call')
     .gt('start_time', now.toISOString())
     .lte('start_time', horizonIso)
     .or('reminder_morning_sent.eq.false,reminder_1h_sent.eq.false')
