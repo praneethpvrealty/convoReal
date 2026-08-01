@@ -26,8 +26,8 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
 
     // Path-style web pages -> nearest app screen.
     const p = url.pathname.replace(/\/+$/, '');
-    if (p === '/inventory') return '/properties';
-    if (p === '/pipelines') return '/deals';
+    if (p === '/inventory' || p === '/properties') return '/properties';
+    if (p === '/pipelines' || p === '/deals') return '/deals';
     if (p === '/contacts') return '/contacts';
     if (p === '/calendar') return '/calendar';
     if (p === '/journey') return '/journey';

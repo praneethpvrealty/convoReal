@@ -25,6 +25,7 @@ import { useCredits } from '@/lib/use-credits';
 
 const WORKSPACE_LINKS = [
   { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
+  { href: '/(app)/os-widgets', icon: 'grid-outline', label: 'Home-screen widgets' },
   { href: '/(app)/notification-settings', icon: 'notifications-outline', label: 'Notifications' },
   { href: '/(app)/deals', icon: 'trending-up-outline', label: 'Deals & Pipelines' },
   { href: '/(app)/credits', icon: 'flash-outline', label: 'Billing & AI Credits' },

@@ -7,12 +7,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PressScale } from '@/components/motion';
 import { BottomSheet } from '@/components/sheet';
 import { SectionLabel } from '@/components/ui';
-import { bubbleTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { useHomeWidgets } from '@/lib/home-widget-store';
 import { availableWidgets, WIDGET_DEFS, type WidgetId } from '@/lib/home-widgets';
-import { supabase } from '@/lib/supabase';
 import { fonts, radius, spacing, useTheme } from '@/lib/theme';
+import { fetchWidgetSummary } from '@/lib/widget-summaries';
 
 const WIDGET_ICONS: Record<WidgetId, keyof typeof Ionicons.glyphMap> = {
   inbox: 'chatbubbles-outline',
@@ -90,20 +89,12 @@ export function HomeWidgets() {
 }
 
 function WidgetCard({ id }: { id: WidgetId }) {
-  switch (id) {
-    case 'inbox':
-      return <InboxWidget />;
-    case 'calendar':
-      return <CalendarWidget />;
-    case 'contacts':
-      return <ContactsWidget />;
-    case 'properties':
-      return <PropertiesWidget />;
-    case 'deals':
-      return <DealsWidget />;
-    case 'broadcasts':
-      return <BroadcastsWidget />;
-  }
+  const { data } = useQuery({
+    queryKey: [HOME_WIDGET_QUERY_KEY, id],
+    staleTime: 30_000,
+    queryFn: () => fetchWidgetSummary(id),
+  });
+  return <WidgetShell id={id} value={data?.value} sub={data?.sub} />;
 }
 
 function WidgetShell({
@@ -145,181 +136,6 @@ function WidgetShell({
         {sub ?? ' '}
       </Text>
     </PressScale>
-  );
-}
-
-function InboxWidget() {
-  const { data } = useQuery({
-    queryKey: [HOME_WIDGET_QUERY_KEY, 'inbox'],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const [unread, open] = await Promise.all([
-        supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .gt('unread_count', 0)
-          .eq('is_archived', false),
-        supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'open')
-          .eq('is_archived', false),
-      ]);
-      return { unread: unread.count ?? 0, open: open.count ?? 0 };
-    },
-  });
-  return (
-    <WidgetShell
-      id="inbox"
-      value={data ? String(data.unread) : undefined}
-      sub={data ? `unread · ${data.open} open chats` : undefined}
-    />
-  );
-}
-
-function CalendarWidget() {
-  const { data } = useQuery({
-    queryKey: [HOME_WIDGET_QUERY_KEY, 'calendar'],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 1);
-      const { data: rows, error } = await supabase
-        .from('appointments')
-        .select('id, title, start_time')
-        .eq('status', 'scheduled')
-        .gte('start_time', start.toISOString())
-        .lt('start_time', end.toISOString())
-        .order('start_time', { ascending: true })
-        .limit(50);
-      if (error) throw error;
-      const appts = (rows ?? []) as { id: string; title: string; start_time: string }[];
-      const now = Date.now();
-      const next = appts.find((a) => new Date(a.start_time).getTime() >= now) ?? null;
-      return { count: appts.length, next };
-    },
-  });
-  return (
-    <WidgetShell
-      id="calendar"
-      value={data ? String(data.count) : undefined}
-      sub={
-        data
-          ? data.next
-            ? `${bubbleTime(data.next.start_time)} · ${data.next.title}`
-            : data.count > 0
-              ? 'all done for today'
-              : 'nothing scheduled today'
-          : undefined
-      }
-    />
-  );
-}
-
-function ContactsWidget() {
-  const { data } = useQuery({
-    queryKey: [HOME_WIDGET_QUERY_KEY, 'contacts'],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const [total, hot] = await Promise.all([
-        supabase.from('contacts').select('id', { count: 'exact', head: true }),
-        supabase
-          .from('contacts')
-          .select('id', { count: 'exact', head: true })
-          .eq('lead_temp', 'HOT'),
-      ]);
-      return { total: total.count ?? 0, hot: hot.count ?? 0 };
-    },
-  });
-  return (
-    <WidgetShell
-      id="contacts"
-      value={data ? String(data.total) : undefined}
-      sub={data ? `contacts · ${data.hot} hot leads` : undefined}
-    />
-  );
-}
-
-function PropertiesWidget() {
-  const { data } = useQuery({
-    queryKey: [HOME_WIDGET_QUERY_KEY, 'properties'],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const [available, total] = await Promise.all([
-        supabase
-          .from('properties')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'Available'),
-        supabase.from('properties').select('id', { count: 'exact', head: true }),
-      ]);
-      return { available: available.count ?? 0, total: total.count ?? 0 };
-    },
-  });
-  return (
-    <WidgetShell
-      id="properties"
-      value={data ? String(data.available) : undefined}
-      sub={data ? `available · ${data.total} listings` : undefined}
-    />
-  );
-}
-
-function DealsWidget() {
-  const { data } = useQuery({
-    queryKey: [HOME_WIDGET_QUERY_KEY, 'deals'],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const { data: rows, error } = await supabase
-        .from('deals')
-        .select('value')
-        .eq('status', 'open');
-      if (error) throw error;
-      const open = (rows ?? []) as { value: number | null }[];
-      return {
-        count: open.length,
-        value: open.reduce((sum, d) => sum + (d.value ?? 0), 0),
-      };
-    },
-  });
-  return (
-    <WidgetShell
-      id="deals"
-      value={data ? formatInr(data.value) : undefined}
-      sub={data ? `${data.count} open deals` : undefined}
-    />
-  );
-}
-
-function BroadcastsWidget() {
-  const { data } = useQuery({
-    queryKey: [HOME_WIDGET_QUERY_KEY, 'broadcasts'],
-    staleTime: 30_000,
-    queryFn: async () => {
-      const { data: row, error } = await supabase
-        .from('broadcasts')
-        .select('id, name, status, total_recipients, sent_count')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return (row ?? null) as {
-        name: string;
-        status: string;
-        total_recipients: number;
-        sent_count: number;
-      } | null;
-    },
-  });
-  // null is valid data here (no campaigns yet) — only undefined means loading.
-  const loaded = data !== undefined;
-  return (
-    <WidgetShell
-      id="broadcasts"
-      value={loaded ? (data ? `${data.sent_count}/${data.total_recipients}` : '0') : undefined}
-      sub={loaded ? (data ? `sent · ${data.name}` : 'no campaigns yet') : undefined}
-    />
   );
 }
 

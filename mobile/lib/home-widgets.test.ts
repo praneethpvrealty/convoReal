@@ -7,9 +7,12 @@ import {
   isWidgetId,
   moveWidget,
   normalizeWidgetIds,
+  OS_WIDGET_NAMES,
   removeWidget,
+  WIDGET_DEEP_LINKS,
   WIDGET_DEFS,
   WIDGET_IDS,
+  widgetIdForOsName,
   type WidgetId,
 } from './home-widgets';
 
@@ -86,6 +89,26 @@ describe('moveWidget', () => {
   it('does not mutate the input', () => {
     moveWidget(list, 'calendar', 'up');
     expect(list).toEqual(['inbox', 'calendar', 'deals']);
+  });
+});
+
+describe('OS widget mappings', () => {
+  it('maps every widget id to a unique provider name and back', () => {
+    const names = WIDGET_IDS.map((id) => OS_WIDGET_NAMES[id]);
+    expect(new Set(names).size).toBe(WIDGET_IDS.length);
+    for (const id of WIDGET_IDS) {
+      expect(widgetIdForOsName(OS_WIDGET_NAMES[id])).toBe(id);
+    }
+  });
+
+  it('returns null for an unknown provider name', () => {
+    expect(widgetIdForOsName('NotAWidget')).toBeNull();
+  });
+
+  it('has a rooted deep-link path for every widget id', () => {
+    for (const id of WIDGET_IDS) {
+      expect(WIDGET_DEEP_LINKS[id].startsWith('/')).toBe(true);
+    }
   });
 });
 

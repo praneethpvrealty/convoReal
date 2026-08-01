@@ -99,3 +99,29 @@ export function moveWidget(
 export function availableWidgets(list: WidgetId[]): WidgetId[] {
   return WIDGET_IDS.filter((id) => !list.includes(id));
 }
+
+/** Android AppWidget provider names — must match `widgets[].name` in the
+ *  react-native-android-widget plugin config in app.json. */
+export const OS_WIDGET_NAMES: Record<WidgetId, string> = {
+  inbox: 'Inbox',
+  calendar: 'Calendar',
+  contacts: 'Contacts',
+  properties: 'Properties',
+  deals: 'Deals',
+  broadcasts: 'Broadcasts',
+};
+
+export function widgetIdForOsName(name: string): WidgetId | null {
+  return WIDGET_IDS.find((id) => OS_WIDGET_NAMES[id] === name) ?? null;
+}
+
+/** App path a home-screen widget tap deep-links to. Every path here must
+ *  survive the rewriter in app/+native-intent.ts. */
+export const WIDGET_DEEP_LINKS: Record<WidgetId, string> = {
+  inbox: '/',
+  calendar: '/calendar',
+  contacts: '/contacts',
+  properties: '/properties',
+  deals: '/deals',
+  broadcasts: '/broadcasts',
+};
