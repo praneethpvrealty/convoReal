@@ -35,6 +35,15 @@ const MarketplaceTab = dynamic(() => import('./marketplace-tab'), {
     </div>
   ),
 });
+
+const BillingTab = dynamic(() => import('./billing-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <ConvoRealLoader size={26} label="Loading Billing" />
+    </div>
+  ),
+});
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface WhatsappConfig {
@@ -61,7 +70,7 @@ interface Organization {
 
 export default function AdminDashboardPage() {
   const { user, profileLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing'>('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -577,6 +586,16 @@ export default function AdminDashboardPage() {
           }`}
         >
           Marketplace
+        </button>
+        <button
+          onClick={() => setActiveTab('billing')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'billing'
+              ? 'border-primary text-white bg-primary/5'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Billing
         </button>
       </div>
 
@@ -1426,6 +1445,8 @@ export default function AdminDashboardPage() {
       )}
 
       {activeTab === 'marketplace' && <MarketplaceTab />}
+
+      {activeTab === 'billing' && <BillingTab />}
     </div>
   );
 }

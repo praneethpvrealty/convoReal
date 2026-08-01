@@ -5,13 +5,15 @@ import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import PipelinesPage from "../pipelines/pipelines-content";
 import FlowsPage from "../flows/flows-content";
+import AutomationAnalyticsContent from "./analytics-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "pipelines" | "flows";
+type TabId = "pipelines" | "flows" | "analytics";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "pipelines", label: "Pipelines" },
   { id: "flows", label: "Flows" },
+  { id: "analytics", label: "Analytics" },
 ];
 
 export default function AutomationsPage() {
@@ -27,6 +29,8 @@ export default function AutomationsPage() {
     switch (activeTab) {
       case "flows":
         return { label: "Flows", href: "/automations?tab=flows", icon: "Workflow" };
+      case "analytics":
+        return { label: "Automation Analytics", href: "/automations?tab=analytics", icon: "ChartColumn" };
       case "pipelines":
       default:
         return { label: "Pipelines", href: "/automations?tab=pipelines", icon: "GitBranch" };
@@ -73,6 +77,7 @@ export default function AutomationsPage() {
       <div className="relative z-10">
         {activeTab === "pipelines" && <PipelinesPage />}
         {activeTab === "flows" && <FlowsPage />}
+        {activeTab === "analytics" && <AutomationAnalyticsContent />}
       </div>
     </div>
   );
