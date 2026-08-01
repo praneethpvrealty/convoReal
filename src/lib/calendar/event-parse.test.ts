@@ -319,3 +319,31 @@ describe('alignDraftToNamedWeekday', () => {
     }
   });
 });
+
+describe('counterparty capture', () => {
+  it('carries both names through coercion', () => {
+    const draft = coerceEventDraft({
+      intent: 'schedule',
+      title: 'Meeting with Kusuma lawyer',
+      contact_name: 'Kusuma',
+      counterparty_name: 'Sharan',
+    });
+    expect(draft.contact_name).toBe('Kusuma');
+    expect(draft.counterparty_name).toBe('Sharan');
+  });
+
+  it('defaults counterparty to null when the source has only one person', () => {
+    expect(coerceEventDraft({ contact_name: 'Varun' }).counterparty_name).toBeNull();
+  });
+
+  it('resolves the counterparty independently of the person being met', () => {
+    // Kusuma the lawyer is not a CRM contact; Sharan is. Before this, the
+    // event linked nobody and so reminded nobody.
+    const contacts = [
+      { id: 'sharan-id', name: 'Sharan' },
+      { id: 'other-id', name: 'Varun' },
+    ];
+    expect(resolveByName('Kusuma', contacts, (c) => c.name)).toBeNull();
+    expect(resolveByName('Sharan', contacts, (c) => c.name)?.id).toBe('sharan-id');
+  });
+});
