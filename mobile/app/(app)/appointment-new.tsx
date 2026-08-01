@@ -295,7 +295,9 @@ export default function NewAppointmentScreen() {
         </View>
 
         <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-          Attached contacts get automatic WhatsApp reminders (morning-of and 1 hour before).
+          {eventType === 'call'
+            ? 'Calls stay internal — only you get the reminder, attached contacts are not messaged.'
+            : 'Attached contacts get automatic WhatsApp reminders (morning-of and 1 hour before).'}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

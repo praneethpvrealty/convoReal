@@ -419,3 +419,46 @@ describe('classifyImageOrText image-only override', () => {
     expect(result).toBe('contact');
   });
 });
+
+describe('classifyImageOrText schedule class', () => {
+  const stubClassifyThenOcr = (classification: string, ocrText: string) => {
+    vi.stubGlobal('fetch', async (_url: string, init?: RequestInit) => {
+      const body = init?.body ? JSON.parse(init.body as string) : {};
+      const sys = body.systemInstruction?.parts?.[0]?.text || '';
+      let text = 'none';
+      if (sys.includes('real estate CRM classifier')) text = classification;
+      else if (sys.includes('OCR engine')) text = ocrText;
+      return {
+        ok: true,
+        json: async () => ({ candidates: [{ content: { parts: [{ text }] } }] }),
+      };
+    });
+  };
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('routes a chat screenshot that fixes a meeting to schedule', async () => {
+    stubClassifyThenOcr(
+      'schedule',
+      'Monday 5 pm the meeting with Kusuma lawyer is confirmed right.\nYes Sharan, its confirmed\nThanks'
+    );
+    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    expect(result).toBe('schedule');
+  });
+
+  it('keeps a listing poster on property even when the model says schedule', async () => {
+    stubClassifyThenOcr('schedule', '3750 sqft\n50*75\nEast facing\n17cr.\nVisit on Monday 5pm');
+    const result = await classifyImageOrText(undefined, Buffer.from('img'), 'image/jpeg');
+    expect(result).toBe('property');
+  });
+
+  it('keeps a captioned listing on property without an OCR round trip', async () => {
+    stubClassifyThenOcr('schedule', 'unused');
+    const result = await classifyImageOrText(
+      '3 BHK 1450 sqft in HSR for 1.2 crore, visit Monday',
+      Buffer.from('img'),
+      'image/jpeg'
+    );
+    expect(result).toBe('property');
+  });
+});

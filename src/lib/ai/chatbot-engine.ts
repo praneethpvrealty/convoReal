@@ -1768,7 +1768,7 @@ export async function processOwnerChatbotMessage(
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
       return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
     }
-    let classification: 'property' | 'contact' | 'none';
+    let classification: 'property' | 'contact' | 'schedule' | 'none';
     if (isDocMsg) {
       classification = 'property';
     } else if (isVideoMsg) {
@@ -1777,6 +1777,33 @@ export async function processOwnerChatbotMessage(
       classification = await classifyImageOrText(cleanedText, undefined, undefined);
     } else {
       classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
+    }
+
+    // --- SCHEDULING FLOW (screenshot of a chat that fixes a meeting) ---
+    // The step 1.7 intercept deliberately passed on this image because it
+    // had no buffer to read; now that the classifier has committed, hand
+    // the bytes over. A false classification or an unparseable thread
+    // returns false and falls through to the 'none' handling below.
+    if (classification === 'schedule') {
+      if (isImageMsg && mediaBuffer && mediaMimeType) {
+        try {
+          const scheduled = await tryHandleOwnerScheduling({
+            message,
+            image: { buffer: mediaBuffer, mimeType: mediaMimeType },
+            contentText: cleanedText || null,
+            contactRecord,
+            conversation,
+            accountId,
+            userId,
+            accessToken,
+            phoneNumberId,
+          });
+          if (scheduled) return true;
+        } catch (err) {
+          console.error('[chatbot-engine] image scheduling failed:', err);
+        }
+      }
+      classification = 'none';
     }
 
     // --- PROPERTY INGESTION FLOW ---
