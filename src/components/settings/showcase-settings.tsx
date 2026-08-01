@@ -173,7 +173,7 @@ export function ShowcaseSettingsPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copiedUrlType, setCopiedUrlType] = useState<
-    'company' | 'personal' | null
+    'company' | 'personal' | 'business' | null
   >(null);
   const [hasRow, setHasRow] = useState(false);
   const [form, setForm] = useState<ShowcaseForm>(BLANK);
@@ -326,6 +326,22 @@ export function ShowcaseSettingsPanel() {
     setTimeout(() => setCopiedUrlType(null), 2000);
   };
 
+  // Built from the SAVED subdomain, never the field being typed in — a
+  // link to a subdomain that was never persisted is a dead link, and it
+  // would be pasted into a chat before anyone noticed.
+  const businessUrl = saved.subdomain
+    ? `https://${saved.subdomain}.${BRANDING.baseDomain}`
+    : '';
+  const businessShareMessage = `You can find my inventories here - ${businessUrl}`;
+
+  const handleCopyBusinessMessage = () => {
+    if (!businessUrl) return;
+    navigator.clipboard.writeText(businessShareMessage);
+    setCopiedUrlType('business');
+    toast.success('Message copied — paste it into WhatsApp.');
+    setTimeout(() => setCopiedUrlType(null), 2000);
+  };
+
   return (
     <form onSubmit={handleSave} className="space-y-6">
       {accountId && (
@@ -412,6 +428,47 @@ export function ShowcaseSettingsPanel() {
             docs/domain-rehosting-guide.md. Until then, keep using the share
             links above.
           </p>
+
+          {businessUrl && (
+            <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/20 p-3">
+              <span className="text-primary block text-[10px] font-extrabold tracking-wider uppercase">
+                Share Your Business Link
+              </span>
+              <code className="text-slate-350 block rounded border border-slate-900 bg-slate-950 px-2.5 py-1.5 font-mono text-[11px] break-all select-all">
+                {businessShareMessage}
+              </code>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCopyBusinessMessage}
+                  className="flex h-8 cursor-pointer items-center gap-1.5 border-slate-800 bg-slate-950 text-[11px] text-slate-200 hover:bg-slate-900"
+                >
+                  {copiedUrlType === 'business' ? (
+                    <CheckCircle2 className="size-3.5 text-green-400" />
+                  ) : (
+                    <Copy className="size-3.5" />
+                  )}
+                  {copiedUrlType === 'business' ? 'Copied!' : 'Copy with message'}
+                </Button>
+                <a
+                  href={businessUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-slate-250 inline-flex h-8 items-center justify-center gap-1 rounded-md border border-slate-800 bg-slate-950 px-3 text-[11px] hover:bg-slate-900 hover:text-white"
+                >
+                  <Globe className="size-3.5" />
+                  Visit
+                </a>
+              </div>
+              {form.subdomain.trim().toLowerCase() !==
+                saved.subdomain.trim().toLowerCase() && (
+                <p className="text-[11px] text-amber-400">
+                  Showing your saved subdomain. Save to share the new one.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">
