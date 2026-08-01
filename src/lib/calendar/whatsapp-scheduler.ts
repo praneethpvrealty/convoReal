@@ -586,10 +586,15 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
     return false;
   }
 
-  // Resolve references against tenant data.
-  const [{ data: contacts }, { data: properties }] = await Promise.all([
+  // Resolve references against tenant data. Liaisons are fetched only
+  // when the model flagged a professional role — a meeting with a buyer
+  // never needs the directory.
+  const [{ data: contacts }, { data: properties }, { data: liaisons }] = await Promise.all([
     admin.from('contacts').select('id, name, phone, last_inquired_property_id').eq('account_id', accountId),
     admin.from('properties').select('id, title, property_code, location, sublocality').eq('account_id', accountId),
+    draft.service_provider_role
+      ? admin.from('liaisons').select('id, name, phone').eq('account_id', accountId).eq('is_active', true)
+      : Promise.resolve({ data: [] as { id: string; name: string; phone: string | null }[] }),
   ]);
 
   const { contact, property } = autoLinkContactProperty(
@@ -616,6 +621,21 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   const attendees = [contact, counterparty].filter(
     (c, i, all): c is NonNullable<typeof c> => !!c && all.findIndex((o) => o?.id === c.id) === i
   );
+
+  // A lawyer, surveyor or khata agent belongs in the liaisons directory,
+  // not in contacts, so a name that fails the contact lookup gets a
+  // second chance there before the event is left attached to nobody.
+  // Only when contacts came up empty — a person who is genuinely a
+  // contact stays one.
+  const liaison =
+    draft.service_provider_role && !contact
+      ? resolveByName(draft.contact_name, liaisons || [], (l) => l.name || '')
+      : null;
+  // Named a professional we have never recorded: the event still saves,
+  // but say so, because silently dropping them is what left the meeting
+  // with no record of who it was with.
+  const unknownProvider =
+    draft.service_provider_role && !contact && !liaison ? draft.contact_name : null;
 
   const startIso = istLocalToUtcIso(draft.start_time);
   let endIso = istLocalToUtcIso(draft.end_time);
@@ -644,6 +664,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       contact_id: attendees[0]?.id || null,
       contact_ids: attendees.map((c) => c.id),
       property_id: property?.id || null,
+      liaison_id: liaison?.id || null,
       source,
       transcript,
     }).select('id').single();
@@ -675,9 +696,13 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
       `${emoji} ${draft.title}`,
       `🕐 ${when}`,
       attendees.length > 0 ? `👤 ${attendees.map((c) => c.name).join(', ')}` : null,
+      liaison ? `⚖️ ${liaison.name} (${draft.service_provider_role})` : null,
       property ? `🏠 ${property.title}` : null,
       draft.location ? `📌 ${draft.location}` : null,
       assignee && assignee.id !== userId ? `➡️ Assigned to ${assignee.full_name}` : null,
+      unknownProvider
+        ? `\n💡 ${unknownProvider} (${draft.service_provider_role}) isn't in your contacts or your liaisons directory. Add them under *Liaisons* to keep their number and fees to hand.`
+        : null,
       '',
       '_Reply *today* anytime to see your day\'s schedule._',
     ]

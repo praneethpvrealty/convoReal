@@ -27,6 +27,10 @@ export interface ParsedEventDraft {
    *  arranging it rather than the person being met. Often the one who is
    *  already a CRM contact, so both get linked and both get reminded. */
   counterparty_name: string | null;
+  /** The professional role attached to contact_name when there is one
+   *  ("lawyer", "surveyor", "khata agent"). Marks them as someone who
+   *  belongs in the liaisons directory rather than in contacts. */
+  service_provider_role: string | null;
   property_hint: string | null;
   assignee_name: string | null;
   location: string | null;
@@ -100,6 +104,7 @@ export function coerceEventDraft(raw: unknown): ParsedEventDraft {
     duration_minutes: num(obj.duration_minutes),
     contact_name: str(obj.contact_name),
     counterparty_name: str(obj.counterparty_name),
+    service_provider_role: str(obj.service_provider_role),
     property_hint: str(obj.property_hint),
     assignee_name: str(obj.assignee_name),
     location: str(obj.location),
@@ -198,6 +203,7 @@ function buildSystemPrompt(now: Date, memberNames: string[]): string {
     '  "duration_minutes": number or null,\n' +
     '  "contact_name": the client/lead person the event is with, or null,\n' +
     '  "counterparty_name": when the request came out of a conversation with someone, the OTHER person in it — the one arranging the meeting rather than the one being met ("Yes Sharan, its confirmed" -> "Sharan"). Null when there is no such person or they are the same as contact_name,\n' +
+    '  "service_provider_role": the professional role named alongside contact_name when there is one — "lawyer", "advocate", "surveyor", "architect", "CA", "khata agent", "registrar", "engineer", "contractor", "valuer" ("meeting with Kusuma lawyer" -> "lawyer"). Null when contact_name is a buyer, seller, owner or plain client,\n' +
     '  "property_hint": any property/project/locality identifying words, e.g. "18k sqft JP Nagar commercial", or null,\n' +
     '  "assignee_name": a TEAM member the speaker assigns this to ("ask Surya to...", "Surya should call..."), or null when the speaker will do it themselves,\n' +
     '  "location": meeting place or address if stated, or null,\n' +

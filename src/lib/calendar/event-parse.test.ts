@@ -347,3 +347,30 @@ describe('counterparty capture', () => {
     expect(resolveByName('Sharan', contacts, (c) => c.name)?.id).toBe('sharan-id');
   });
 });
+
+describe('service provider capture', () => {
+  it('carries the professional role through coercion', () => {
+    const draft = coerceEventDraft({
+      intent: 'schedule',
+      title: 'Meeting with Kusuma lawyer',
+      contact_name: 'Kusuma',
+      service_provider_role: 'lawyer',
+    });
+    expect(draft.service_provider_role).toBe('lawyer');
+  });
+
+  it('leaves the role null for an ordinary client meeting', () => {
+    expect(coerceEventDraft({ contact_name: 'Varun' }).service_provider_role).toBeNull();
+  });
+
+  it('resolves a service provider against the liaisons directory', () => {
+    // The same name that finds nothing in contacts finds the liaison.
+    const contacts = [{ id: 'sharan-id', name: 'Sharan' }];
+    const liaisons = [
+      { id: 'kusuma-id', name: 'KusumamuniRaju' },
+      { id: 'other-id', name: 'Prabhakar' },
+    ];
+    expect(resolveByName('KusumamuniRaju', contacts, (c) => c.name)).toBeNull();
+    expect(resolveByName('KusumamuniRaju', liaisons, (l) => l.name)?.id).toBe('kusuma-id');
+  });
+});
