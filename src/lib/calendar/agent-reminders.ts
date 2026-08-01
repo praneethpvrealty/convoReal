@@ -60,6 +60,7 @@ interface ReminderAppointment {
   contact_ids?: string[] | null;
   contact: { id: string; name: string | null; phone: string | null } | null;
   property: { id: string; title: string | null; location: string | null } | null;
+  liaison?: { id: string; name: string | null; phone: string | null } | null;
 }
 
 /** Every attendee on the event — the contact_ids parties, with the
@@ -102,7 +103,7 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
 
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location)')
+    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location), liaison:liaisons(id, name, phone)')
     .eq('status', 'scheduled')
     .eq('agent_reminder_sent', false)
     .gt('start_time', now.toISOString())
@@ -149,6 +150,9 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       ...attendeesOf(appt, contactById).map(
         (c) => `👤 ${c.name || 'Contact'}${c.phone ? ` — ${c.phone}` : ''}`
       ),
+      appt.liaison
+        ? `⚖️ ${appt.liaison.name || 'Liaison'}${appt.liaison.phone ? ` — ${appt.liaison.phone}` : ''}`
+        : null,
       appt.property?.title ? `🏠 ${appt.property.title}` : null,
       appt.location ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}` : null,
       appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
