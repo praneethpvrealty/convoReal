@@ -31,6 +31,7 @@ export function ContactPickerSheet({
   confirmLabel = 'Send',
   title = 'Choose a contact',
   hint,
+  nudge,
   skipLabel,
   onSkip,
   busy,
@@ -45,6 +46,9 @@ export function ContactPickerSheet({
   confirmLabel?: string;
   title?: string;
   hint?: string;
+  /** Secondary suggestion under the hint — e.g. pointing a one-at-a-time
+   *  channel at Broadcasts. Tappable when `onPress` is given. */
+  nudge?: { icon?: React.ComponentProps<typeof Ionicons>['name']; text: string; onPress?: () => void };
   skipLabel?: string;
   onSkip?: () => void;
   busy?: boolean;
@@ -130,6 +134,28 @@ export function ContactPickerSheet({
           <>
             {hint ? (
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{hint}</Text>
+            ) : null}
+
+            {nudge ? (
+              <Pressable
+                disabled={!nudge.onPress}
+                onPress={nudge.onPress}
+                accessibilityRole={nudge.onPress ? 'button' : 'text'}
+                accessibilityLabel={nudge.text}
+                style={[styles.nudge, { backgroundColor: colors.primarySoft }]}
+              >
+                <Ionicons
+                  name={nudge.icon ?? 'megaphone-outline'}
+                  size={15}
+                  color={colors.primary}
+                />
+                <Text style={{ flex: 1, fontSize: 12, lineHeight: 17, color: colors.primary }}>
+                  {nudge.text}
+                </Text>
+                {nudge.onPress ? (
+                  <Ionicons name="chevron-forward" size={14} color={colors.primary} />
+                ) : null}
+              </Pressable>
             ) : null}
 
             {onSkip ? (
@@ -298,6 +324,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     padding: 8,
+  },
+  nudge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
   },
   confirm: {
     alignItems: 'center',
