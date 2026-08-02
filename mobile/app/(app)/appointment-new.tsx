@@ -100,9 +100,15 @@ export default function NewAppointmentScreen() {
     },
   });
 
-  const startLabel = useMemo(
+  // Each control says what it changes. Carrying the time on the date
+  // button made the only thing showing a time open the date picker.
+  const dateLabel = useMemo(
     () =>
-      `${start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} · ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+      start.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }),
+    [start]
+  );
+  const timeLabel = useMemo(
+    () => start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     [start]
   );
 
@@ -213,15 +219,20 @@ export default function NewAppointmentScreen() {
           <Pressable
             style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setPicker('date')}
+            accessibilityRole="button"
+            accessibilityLabel={`Date — ${dateLabel}`}
           >
             <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>{startLabel}</Text>
+            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>{dateLabel}</Text>
           </Pressable>
           <Pressable
-            style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border, flexGrow: 0 }]}
+            style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
             onPress={() => setPicker('time')}
+            accessibilityRole="button"
+            accessibilityLabel={`Time — ${timeLabel}`}
           >
             <Ionicons name="time-outline" size={16} color={colors.primary} />
+            <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>{timeLabel}</Text>
           </Pressable>
         </View>
         {picker ? (
