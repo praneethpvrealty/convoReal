@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ConvoReal — Private Beta Invitation</title>
+
+<style>
+  :root {
+    --ground:   #ECF0EA;
+    --raised:   #FFFFFF;
+    --sunken:   #E1E7DE;
+    --line:     #CBD5C8;
+    --line-soft:#DDE4DA;
+    --fg:       #0D1712;
+    --fg-dim:   #3D4B41;
+    --muted:    #59685C;
+    --accent:   #46700D;
+    --accent-ink:#FFFFFF;
+    --accent-wash:#E4EFCF;
+    --clay:     #8A5216;
+    --clay-wash:#F3E6D6;
+    --shadow:   0 1px 2px rgba(13,23,18,.06), 0 12px 32px -18px rgba(13,23,18,.35);
+
+    --display: Palatino, "Palatino Linotype", "Book Antiqua", "URW Palladio L", Georgia, serif;
+    --ui: Optima, Candara, "Gill Sans", "Gill Sans MT", "Trebuchet MS", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:   #0A130F;
+      --raised:   #101D17;
+      --sunken:   #16271E;
+      --line:     #24382C;
+      --line-soft:#1B2C22;
+      --fg:       #E9F0E7;
+      --fg-dim:   #C2D0C2;
+      --muted:    #8FA596;
+      --accent:   #B4E019;
+      --accent-ink:#0A130F;
+      --accent-wash:#1C2E12;
+      --clay:     #DCA057;
+      --clay-wash:#2A2015;
+      --shadow:   0 1px 2px rgba(0,0,0,.4), 0 18px 40px -22px rgba(0,0,0,.9);
+    }
+  }
+
+  :root[data-theme="light"] {
+    --ground:#ECF0EA; --raised:#FFFFFF; --sunken:#E1E7DE; --line:#CBD5C8;
+    --line-soft:#DDE4DA; --fg:#0D1712; --fg-dim:#3D4B41; --muted:#59685C;
+    --accent:#46700D; --accent-ink:#FFFFFF; --accent-wash:#E4EFCF;
+    --clay:#8A5216; --clay-wash:#F3E6D6;
+    --shadow:0 1px 2px rgba(13,23,18,.06), 0 12px 32px -18px rgba(13,23,18,.35);
+  }
+  :root[data-theme="dark"] {
+    --ground:#0A130F; --raised:#101D17; --sunken:#16271E; --line:#24382C;
+    --line-soft:#1B2C22; --fg:#E9F0E7; --fg-dim:#C2D0C2; --muted:#8FA596;
+    --accent:#B4E019; --accent-ink:#0A130F; --accent-wash:#1C2E12;
+    --clay:#DCA057; --clay-wash:#2A2015;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 18px 40px -22px rgba(0,0,0,.9);
+  }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--fg);
+    font-family: var(--ui);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 1.75rem 1.125rem 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .wordmark {
+    font-family: var(--display);
+    font-size: 1.0625rem;
+    letter-spacing: .01em;
+    margin: 0;
+  }
+  .wordmark b { font-weight: 700; }
+  .wordmark span { color: var(--muted); font-weight: 400; }
+
+  .masthead__meta {
+    font-family: var(--mono);
+    font-size: .625rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---------- state switcher (design-review tool) ---------- */
+
+  .switcher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .375rem;
+    align-items: center;
+  }
+  .switcher__label {
+    font-family: var(--mono);
+    font-size: .5625rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: .25rem;
+  }
+  .pill {
+    font-family: var(--mono);
+    font-size: .625rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: .3125rem .625rem;
+    cursor: pointer;
+    transition: color .15s, border-color .15s, background-color .15s;
+  }
+  .pill:hover { color: var(--fg); border-color: var(--fg-dim); }
+  .pill[aria-selected="true"] {
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .pill:focus-visible,
+  .btn:focus-visible,
+  .ghost:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* ---------- the pass ---------- */
+
+  .stage > [hidden] { display: none; }
+
+  .pass {
+    position: relative;
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .pass__body { padding: 2rem 1.5rem 1.75rem; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .625rem;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1.5rem;
+  }
+
+  .allotted {
+    font-family: var(--mono);
+    font-size: .625rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 .25rem;
+  }
+
+  .pass__name {
+    font-family: var(--display);
+    font-size: clamp(1.5rem, 6.5vw, 1.875rem);
+    font-weight: 400;
+    line-height: 1.15;
+    text-wrap: balance;
+    margin: 0 0 1.75rem;
+  }
+
+  .seat {
+    display: flex;
+    align-items: baseline;
+    gap: .625rem;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 1.25rem;
+  }
+  .seat__no {
+    font-family: var(--display);
+    font-size: clamp(3.75rem, 21vw, 5.5rem);
+    line-height: .82;
+    letter-spacing: -.02em;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+  .seat__of {
+    font-family: var(--ui);
+    font-size: .9375rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .seat__cap {
+    margin: .75rem 0 0;
+    font-size: .875rem;
+    color: var(--muted);
+    max-width: 22rem;
+  }
+
+  /* ---------- seal ---------- */
+
+  .seal {
+    position: absolute;
+    top: 1.375rem;
+    right: 1.125rem;
+    width: 5.25rem;
+    height: 5.25rem;
+    border: 1.5px solid var(--accent);
+    border-radius: 50%;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    transform: rotate(-11deg);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: .5rem;
+    letter-spacing: .11em;
+    text-transform: uppercase;
+    line-height: 1.7;
+    opacity: .92;
+  }
+  .seal::before {
+    content: "";
+    position: absolute;
+    inset: .25rem;
+    border: 1px solid var(--accent);
+    border-radius: 50%;
+    opacity: .45;
+  }
+  .seal b {
+    display: block;
+    font-family: var(--display);
+    font-size: 1.0625rem;
+    letter-spacing: 0;
+    font-weight: 700;
+    line-height: 1.1;
+  }
+
+  /* ---------- tear line + stub ---------- */
+
+  .tear {
+    position: relative;
+    height: 0;
+    border-top: 1px dashed var(--line);
+  }
+  .tear::before,
+  .tear::after {
+    content: "";
+    position: absolute;
+    top: -.5625rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 50%;
+    background: var(--ground);
+    border: 1px solid var(--line);
+  }
+  .tear::before { left: -.625rem; }
+  .tear::after  { right: -.625rem; }
+
+  .stub {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem .75rem;
+    margin: 0;
+    padding: 1.125rem 1.5rem 1.25rem;
+    background: var(--sunken);
+  }
+  .stub dt {
+    font-family: var(--mono);
+    font-size: .5625rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: .25rem;
+  }
+  .stub dd {
+    margin: 0;
+    font-family: var(--mono);
+    font-size: .8125rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-dim);
+  }
+  .stub dd.is-warm { color: var(--clay); }
+
+  /* ---------- inviter's note ---------- */
+
+  .note { display: flex; flex-direction: column; gap: .625rem; }
+
+  .note__head {
+    font-family: var(--mono);
+    font-size: .5625rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .bubble {
+    position: relative;
+    background: var(--accent-wash);
+    border-radius: .75rem .75rem .75rem .125rem;
+    padding: .9375rem 1.0625rem 1.0625rem;
+    font-size: .9375rem;
+    line-height: 1.65;
+    color: var(--fg-dim);
+    max-width: 30rem;
+  }
+  .bubble p { margin: 0 0 .625rem; }
+  .bubble p:last-of-type { margin-bottom: 0; }
+  .bubble__sig {
+    display: block;
+    margin-top: .875rem;
+    font-family: var(--display);
+    font-size: .9375rem;
+    color: var(--fg);
+  }
+  .bubble__sig small {
+    display: block;
+    font-family: var(--ui);
+    font-size: .75rem;
+    color: var(--muted);
+  }
+  .bubble__time {
+    position: absolute;
+    right: .8125rem;
+    bottom: .375rem;
+    font-family: var(--mono);
+    font-size: .5625rem;
+    color: var(--muted);
+    opacity: .8;
+  }
+
+  /* ---------- terms ---------- */
+
+  .terms {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+    border-top: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+    padding: 1.5rem 0;
+  }
+  @media (min-width: 30rem) {
+    .terms { grid-template-columns: 1fr 1fr; gap: 2rem; }
+  }
+
+  .terms h2 {
+    font-family: var(--mono);
+    font-size: .5625rem;
+    font-weight: 400;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 .875rem;
+  }
+  .terms ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+  .terms li {
+    font-size: .875rem;
+    line-height: 1.55;
+    color: var(--fg-dim);
+    padding-left: 1rem;
+    position: relative;
+  }
+  .terms li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: .5625rem;
+    width: .3125rem;
+    height: .3125rem;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .terms--ask li::before { background: var(--clay); }
+  .terms b { color: var(--fg); font-weight: 600; }
+
+  /* ---------- cta ---------- */
+
+  .cta { display: flex; flex-direction: column; gap: .75rem; }
+
+  .btn {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 1px solid var(--accent);
+    border-radius: .375rem;
+    padding: .9375rem 1rem;
+    font-family: var(--ui);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+    text-decoration: none;
+    cursor: pointer;
+    transition: filter .15s, transform .08s;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn:active { transform: translateY(1px); }
+
+  .ghost {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    background: transparent;
+    color: var(--fg-dim);
+    border: 1px solid var(--line);
+    border-radius: .375rem;
+    padding: .8125rem 1rem;
+    font-family: var(--ui);
+    font-size: .875rem;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .ghost:hover { border-color: var(--fg-dim); color: var(--fg); }
+
+  .fineprint {
+    margin: 0;
+    font-size: .75rem;
+    line-height: 1.6;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* ---------- alternate states ---------- */
+
+  .notice {
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: .5rem;
+    box-shadow: var(--shadow);
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+  }
+  .notice__tag {
+    font-family: var(--mono);
+    font-size: .625rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--clay);
+  }
+  .notice h2 {
+    font-family: var(--display);
+    font-weight: 400;
+    font-size: 1.5rem;
+    line-height: 1.2;
+    text-wrap: balance;
+    margin: 0;
+  }
+  .notice p { margin: 0; font-size: .9375rem; color: var(--fg-dim); }
+  .notice__meter {
+    font-family: var(--mono);
+    font-size: .8125rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    border-top: 1px solid var(--line-soft);
+    padding-top: .875rem;
+    margin-top: .25rem;
+  }
+  .waitlist {
+    display: flex;
+    gap: .5rem;
+    margin-top: .5rem;
+    flex-wrap: wrap;
+  }
+  .waitlist input {
+    flex: 1 1 11rem;
+    min-width: 0;
+    background: var(--ground);
+    border: 1px solid var(--line);
+    border-radius: .375rem;
+    padding: .8125rem .875rem;
+    font-family: var(--ui);
+    font-size: .9375rem;
+    color: var(--fg);
+  }
+  .waitlist input::placeholder { color: var(--muted); }
+  .waitlist input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .waitlist .btn { width: auto; flex: 0 0 auto; padding: .8125rem 1.25rem; }
+
+  /* ---------- share kit ---------- */
+
+  .kit {
+    border-top: 1px solid var(--line-soft);
+    padding-top: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: .875rem;
+  }
+  .kit h2 {
+    font-family: var(--mono);
+    font-size: .5625rem;
+    font-weight: 400;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+  .kit > p {
+    margin: 0;
+    font-size: .8125rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .kit pre {
+    margin: 0;
+    background: var(--sunken);
+    border: 1px solid var(--line-soft);
+    border-left: 2px solid var(--accent);
+    border-radius: .375rem;
+    padding: 1rem 1.125rem;
+    font-family: var(--mono);
+    font-size: .75rem;
+    line-height: 1.75;
+    color: var(--fg-dim);
+    white-space: pre-wrap;
+    overflow-x: auto;
+  }
+
+  /* ---------- load sequence ---------- */
+
+  @media (prefers-reduced-motion: no-preference) {
+    .rise {
+      animation: rise .6s cubic-bezier(.2,.7,.3,1) both;
+    }
+    .rise:nth-of-type(1) { animation-delay: .04s; }
+    .rise:nth-of-type(2) { animation-delay: .12s; }
+    .rise:nth-of-type(3) { animation-delay: .2s; }
+    .rise:nth-of-type(4) { animation-delay: .28s; }
+    .seal { animation: stamp .5s cubic-bezier(.2,.9,.3,1) .5s both; }
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(.75rem); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes stamp {
+    from { opacity: 0; transform: rotate(-24deg) scale(1.5); }
+    to   { opacity: .92; transform: rotate(-11deg) scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="wordmark"><b>Convo</b><span>Real</span></p>
+    <p class="masthead__meta">Private beta · Wave one</p>
+  </header>
+
+  <div class="switcher" role="tablist" aria-label="Invitation states">
+    <span class="switcher__label">Preview state</span>
+    <button class="pill" role="tab" aria-selected="true" data-target="s-valid">Valid</button>
+    <button class="pill" role="tab" aria-selected="false" data-target="s-expired">Expired</button>
+    <button class="pill" role="tab" aria-selected="false" data-target="s-claimed">Claimed</button>
+    <button class="pill" role="tab" aria-selected="false" data-target="s-full">Beta full</button>
+  </div>
+
+  <div class="stage">
+
+    <!-- ============ VALID ============ -->
+    <div id="s-valid">
+      <main style="display:flex; flex-direction:column; gap:1.75rem;">
+
+        <article class="pass rise">
+          <div class="pass__body">
+            <p class="eyebrow">Invitation</p>
+            <p class="allotted">Allotted to</p>
+            <h1 class="pass__name">Ravi Shankar</h1>
+
+            <div class="seat">
+              <span class="seat__no">034</span>
+              <span class="seat__of">of 100</span>
+            </div>
+            <p class="seat__cap">
+              ConvoReal opens to one hundred brokerages this month. This is one of them.
+            </p>
+
+            <div class="seal" aria-hidden="true">
+              Held for
+              <b>14</b>
+              days
+            </div>
+          </div>
+
+          <div class="tear"></div>
+
+          <dl class="stub">
+            <div>
+              <dt>Code</dt>
+              <dd>CONVO-7XKQ</dd>
+            </div>
+            <div>
+              <dt>Expires</dt>
+              <dd class="is-warm">16 Aug 2026</dd>
+            </div>
+            <div>
+              <dt>Invited by</dt>
+              <dd>Praneeth</dd>
+            </div>
+          </dl>
+        </article>
+
+        <section class="note rise">
+          <p class="note__head">Praneeth wrote</p>
+          <div class="bubble">
+            <p>Ravi — you spend half your day forwarding listings on WhatsApp and the other half losing them in Excel. That's the whole problem we built for.</p>
+            <p>Enquiries land as chats. Inventory, matching and follow-ups sit in the same place. Take a seat and tell me where it falls short.</p>
+            <span class="bubble__sig">Praneeth Varma<small>PV Realty · Bengaluru</small></span>
+            <span class="bubble__time">11:04</span>
+          </div>
+        </section>
+
+        <section class="terms rise">
+          <div>
+            <h2>What you get</h2>
+            <ul>
+              <li><b>Every feature, free</b> through the beta — inbox, inventory, matching, campaigns.</li>
+              <li><b>A direct line</b> to the people building it, not a ticket queue.</li>
+              <li><b>Five seats of your own</b> to hand to brokers you rate.</li>
+            </ul>
+          </div>
+          <div>
+            <h2>What we ask</h2>
+            <ul class="terms--ask">
+              <li><b>Use it for real work.</b> Real listings, real buyers — a demo account teaches us nothing.</li>
+              <li><b>Tell us what breaks.</b> There's a <b>Report a bug</b> button on every screen; it takes fifteen seconds.</li>
+              <li><b>Stay a month.</b> Long enough for the rough edges to show.</li>
+            </ul>
+          </div>
+        </section>
+
+        <div class="cta rise">
+          <a class="btn" href="#claim">Claim seat 034</a>
+          <p class="fineprint">
+            Takes about two minutes. You'll verify your WhatsApp number —
+            that's how enquiries and alerts reach you.
+          </p>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- ============ EXPIRED ============ -->
+    <div id="s-expired" hidden>
+      <div class="notice">
+        <p class="notice__tag">Seat released</p>
+        <h2>This seat went back into the pool.</h2>
+        <p>Invitations are held for fourteen days so seats don't sit idle. Ask Praneeth for a fresh link — it takes him a few seconds — or leave your number and we'll come to you if one frees up.</p>
+        <div class="waitlist">
+          <input type="tel" placeholder="WhatsApp number" aria-label="WhatsApp number" />
+          <button class="btn" type="button">Notify me</button>
+        </div>
+        <p class="notice__meter">34 of 100 seats claimed · 12 days left in wave one</p>
+      </div>
+    </div>
+
+    <!-- ============ CLAIMED ============ -->
+    <div id="s-claimed" hidden>
+      <div class="notice">
+        <p class="notice__tag">Already claimed</p>
+        <h2>Someone got here first.</h2>
+        <p>This link was claimed on 4 August. If that was you, sign in instead. If the link was forwarded to you, leave your number — forwarded invitations are how we find most of the people we actually want.</p>
+        <div class="waitlist">
+          <input type="tel" placeholder="WhatsApp number" aria-label="WhatsApp number" />
+          <button class="btn" type="button">Add me</button>
+        </div>
+        <p class="notice__meter">34 of 100 seats claimed</p>
+      </div>
+    </div>
+
+    <!-- ============ FULL ============ -->
+    <div id="s-full" hidden>
+      <div class="notice">
+        <p class="notice__tag">Wave one closed</p>
+        <h2>All hundred seats are taken.</h2>
+        <p>Wave one is full and we're not stretching it — a hundred brokerages is as many as we can support properly this month. Wave two opens when this one settles. Leave your number and you'll be near the front of it.</p>
+        <div class="waitlist">
+          <input type="tel" placeholder="WhatsApp number" aria-label="WhatsApp number" />
+          <button class="btn" type="button">Join wave two</button>
+        </div>
+        <p class="notice__meter">100 of 100 seats claimed</p>
+      </div>
+    </div>
+
+  </div>
+
+  <section class="kit">
+    <h2>The WhatsApp share</h2>
+    <p>Pre-filled behind the inviter's “Share on WhatsApp” button. Sent personally by the inviter, not blasted by the platform — a broker forwarding a note to another broker is the entire social proof of this program.</p>
+    <pre>Hey — I'm on the ConvoReal beta and I've got a seat for you.
+
+It's a WhatsApp-first CRM built for how we actually work:
+enquiries land as chats, inventory and matching in one
+place, no more Excel + 6 portals.
+
+Only 100 brokerages get in this month. Your link
+(expires in 14 days):
+https://convoreal.com/i/7XKQ2m9f
+
+— Praneeth</pre>
+  </section>
+
+</div>
+
+<script>
+  (function () {
+    var pills = document.querySelectorAll('.pill');
+    pills.forEach(function (pill) {
+      pill.addEventListener('click', function () {
+        pills.forEach(function (p) {
+          p.setAttribute('aria-selected', String(p === pill));
+          document.getElementById(p.dataset.target).hidden = p !== pill;
+        });
+      });
+    });
+  })();
+</script>
+</body>
+</html>
