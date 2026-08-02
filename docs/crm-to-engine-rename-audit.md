@@ -118,9 +118,25 @@ Not vocabulary — these were already stale and the sweep surfaced them:
 
 ---
 
-## 7. One thing I'd push back on
+## 7. The one deliberate exception: search
 
-Dropping "CRM" from `src/app/page.tsx` metadata and `src/config/marketing.ts` badges is right for positioning and a **loss for search**. "WhatsApp CRM" is the phrase a broker types; "deal engine" is a phrase you are teaching them. The rename is done as you asked — but consider adding "CRM" back into the meta *description* only (not the title, not the UI), where it does search work without appearing anywhere a customer reads as your product category. Say the word and I'll do it in a one-line follow-up.
+Dropping "CRM" everywhere is right for positioning and a **loss for search** — "WhatsApp CRM" is the phrase a broker types; "deal engine" is a phrase you are teaching them.
+
+So exactly one occurrence was put back, by decision, in `src/app/page.tsx`:
+
+```
+'ConvoReal is a WhatsApp-first, AI-powered real estate CRM and deal engine
+ connecting buyers, property owners, and agents. …'
+```
+
+Scope of that exception, precisely:
+
+- **Meta description only.** Not the title (`…— AI-Powered WhatsApp Deal Engine & Property Portals` stands), not the `marketing.ts` badges, not a single string in the UI.
+- **`src/app/page.tsx` only** — the sole indexed surface (`robots: { index: true }`). `src/app/layout.tsx` is `robots: { index: false, follow: false }`, so adding the word there would do no search work at all while putting it back in the codebase; it was left as "Self-hostable WhatsApp deal engine for real estate."
+
+Net: "CRM" earns the search term where crawlers read it, and appears nowhere a customer reads as your product category. The description also got **shorter** (201 → 194 chars), so it truncates no worse in a SERP than before.
+
+**If you re-run a repo-wide `CRM` grep, this is the one legitimate hit in `src/`.**
 
 ## 8. Not swept
 
