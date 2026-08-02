@@ -10,7 +10,7 @@ Next.js 16 has breaking changes compared with older versions — APIs, file conv
 
 ## 1. What this project is
 
-ConvoReal is a self-hostable **WhatsApp deal engine for real-estate brokerages** (originally forked from the `wacrm` template). It provides:
+ConvoReal is a self-hostable **WhatsApp deal engine for real-estate brokerages**. It provides:
 
 - Property inventory (50+ fields, images, documents, floor tenancies, RERA, AI-generated descriptions).
 - Contact/lead management with classification, tags, custom fields, and matching preferences.

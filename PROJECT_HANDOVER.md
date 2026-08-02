@@ -54,7 +54,7 @@ The master database schema is consolidated inside [RUN_IN_SUPABASE_SQL_EDITOR.sq
 ## 4. Folder Structure
 
 ```
-wacrm/
+convoreal/
 ├── src/
 │   ├── app/                         # Next.js App Router pages & API routes
 │   │   ├── (auth)/                  # Login, registration, invitations

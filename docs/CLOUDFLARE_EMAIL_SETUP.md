@@ -67,7 +67,7 @@ export default {
     const rawEmail = await new Response(message.raw).text();
     
     // Load config from environment variables
-    const engineBaseUrl = env.ENGINE_BASE_URL || 'https://wacrm.convoreal.com';
+    const engineBaseUrl = env.ENGINE_BASE_URL || 'https://app.convoreal.com';
     const webhookToken = env.LEADS_WEBHOOK_TOKEN || '';
     
     // Call the Engine webhook endpoint
@@ -112,7 +112,7 @@ export default {
 2. Go to the **Settings** tab &gt; **Variables**.
 3. Under **Environment Variables**, click **Add variable**:
    * Name: `ENGINE_BASE_URL`
-     * Value: `https://wacrm.convoreal.com` (Replace with your actual Engine dashboard URL if different, e.g. Vercel deployment URL).
+     * Value: your actual Engine dashboard URL — the Vercel deployment or your own domain. The Worker only falls back to its hardcoded default if this is unset, so set it explicitly.
    * Name: `LEADS_WEBHOOK_TOKEN`
      * Value: Your secure webhook token matching `LEADS_WEBHOOK_TOKEN` in your Engine server's `.env.local` file.
 4. Click **Save and Deploy**.
