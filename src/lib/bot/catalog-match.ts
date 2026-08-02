@@ -122,6 +122,31 @@ function bedroomsFromText(text: string): number | null {
   return Number.isFinite(beds) && beds > 0 ? beds : null;
 }
 
+/**
+ * Qualifiers that sit in front of half the catalog, so on their own they
+ * say nothing about what the visitor asked for. A buyer who says
+ * "Residential House" is asking about the house, not the "residential" —
+ * matching on that word alone offered a PG building as a fit.
+ */
+const GENERIC_CATEGORY_WORDS = new Set([
+  'residential',
+  'commercial',
+  'property',
+  'properties',
+  'unit',
+  'units',
+  'space',
+  'spaces',
+  'new',
+]);
+
+/** A word hits either by appearing in the listing's text, or by carrying
+ *  the listing's type inside it — which is how "Villas" still matches a
+ *  "Villa". Guarded on a non-empty type: every word contains ''. */
+function categoryWordHits(word: string, haystack: string, type: string): boolean {
+  return haystack.includes(word) || (type.length > 0 && word.includes(type));
+}
+
 function matchesCategory(property: Property, category: string): boolean {
   const wanted = normalize(category);
   if (!wanted) return true;
@@ -129,6 +154,9 @@ function matchesCategory(property: Property, category: string): boolean {
   const beds = bedroomsFromText(category);
   if (beds !== null && property.bedrooms && property.bedrooms !== beds)
     return false;
+
+  const type = normalize(property.type || '');
+  if (type && type === wanted) return true;
 
   const words = wanted
     .split(' ')
@@ -146,9 +174,11 @@ function matchesCategory(property: Property, category: string): boolean {
       .filter(Boolean)
       .join(' ')
   );
-  return words.some(
-    (w) => haystack.includes(w) || w.includes(normalize(property.type || ''))
-  );
+  // Decide on the words that carry the request. Only when every word is
+  // a generic qualifier ("Commercial") do those get to match on their own.
+  const distinctive = words.filter((w) => !GENERIC_CATEGORY_WORDS.has(w));
+  const decisive = distinctive.length ? distinctive : words;
+  return decisive.some((w) => categoryWordHits(w, haystack, type));
 }
 
 function matchesLocality(property: Property, localities: string[]): boolean {
