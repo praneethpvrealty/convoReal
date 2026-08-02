@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Search, Plus, Trash2, ArrowUp } from 'lucide-react';
 import {
@@ -37,22 +38,6 @@ const PROPERTY_INTEREST_OPTIONS = [
   'Old building selling at site rate',
 ];
 
-function formatPriceLabel(amountStr: string) {
-  const amount = Number(amountStr);
-  if (isNaN(amount) || amount <= 0) return '';
-  if (amount >= 10000000) {
-    const cr = amount / 10000000;
-    return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-  } else if (amount >= 100000) {
-    const lakhs = amount / 100000;
-    return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-  }
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 interface ContactFormProps {
   open: boolean;
@@ -728,9 +713,7 @@ export function ContactForm({
                       placeholder="Min Budget"
                       className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
                     />
-                    {minBudget && (
-                      <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(minBudget)}</span>
-                    )}
+                    <PriceHint value={minBudget} compact className="text-[10px] block" />
                   </div>
                   <div className="space-y-1">
                     <Input
@@ -741,9 +724,7 @@ export function ContactForm({
                       placeholder="Max Budget"
                       className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs disabled:opacity-40"
                     />
-                    {maxBudget && (
-                      <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(maxBudget)}</span>
-                    )}
+                    <PriceHint value={maxBudget} compact className="text-[10px] block" />
                   </div>
                 </div>
               </div>

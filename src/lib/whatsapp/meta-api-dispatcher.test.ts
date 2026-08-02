@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { encrypt } from "./encryption";
+import { isReengagementError } from "./customer-window";
 
 /**
  * Regression test for a real production incident: system-initiated
@@ -20,14 +21,30 @@ const CONTACT_ID = "contact-1";
 type Row = Record<string, unknown>;
 
 function makeDb(
-  overrides: { existingConversation?: Row | null; duplicateMessage?: Row | null } = {},
+  overrides: {
+    existingConversation?: Row | null;
+    duplicateMessage?: Row | null;
+    /** When the contact last messaged in. Defaults to "just now" so the
+     *  24-hour window is open — the ordinary case for a bot reply. Pass
+     *  null to model a contact who has never messaged. */
+    lastInboundAt?: string | null;
+    integrationType?: string;
+  } = {},
 ) {
   const inserts: Record<string, Row[]> = { conversations: [], messages: [] };
+  const lastInboundAt =
+    overrides.lastInboundAt === undefined
+      ? new Date().toISOString()
+      : overrides.lastInboundAt;
 
   function builder(table: string) {
+    const filters: Record<string, unknown> = {};
     const b: Record<string, unknown> = {
       select: () => b,
-      eq: () => b,
+      eq: (column: string, value: unknown) => {
+        filters[column] = value;
+        return b;
+      },
       like: () => b,
       gte: () => b,
       order: () => b,
@@ -58,6 +75,14 @@ function makeDb(
           });
         }
         if (table === "messages") {
+          // The window lookup is the only messages query filtered on an
+          // inbound sender; everything else is the duplicate guard.
+          if (filters.sender_type === "customer") {
+            return Promise.resolve({
+              data: lastInboundAt ? { created_at: lastInboundAt } : null,
+              error: null,
+            });
+          }
           return Promise.resolve({ data: overrides.duplicateMessage ?? null, error: null });
         }
         return Promise.resolve({ data: null, error: null });
@@ -67,7 +92,7 @@ function makeDb(
           return Promise.resolve({
             data: {
               account_id: ACCOUNT_ID,
-              integration_type: "official_api",
+              integration_type: overrides.integrationType ?? "official_api",
               phone_number_id: "phone-1",
               access_token: encrypt("test-access-token"),
             },
@@ -223,5 +248,123 @@ describe("sendWhatsAppMessageAndPersist", () => {
 
     expect(result.success).toBe(true);
     expect(db._inserts.messages).toHaveLength(1);
+  });
+
+  /**
+   * Meta's 24-hour customer service window, enforced at the one point
+   * every sender funnels through. Meta accepts a re-engagement send and
+   * fails it asynchronously with 131047, so an unguarded free-form
+   * message becomes a delivery-failure bubble in the thread minutes
+   * later — automations, flows, reminders and notifications all reach
+   * Meta through this function, and none of them checked.
+   */
+  describe("24-hour customer window", () => {
+    const HOURS = 60 * 60 * 1000;
+
+    it("refuses free-form text when the contact last messaged over 24 hours ago", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        existingConversation: { id: "conv-existing" },
+        lastInboundAt: new Date(Date.now() - 30 * HOURS).toISOString(),
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "agent",
+        text: "here are the property details",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(isReengagementError(result.error)).toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+      expect(db._inserts.messages).toHaveLength(0);
+    });
+
+    it("refuses free-form text when the contact has never messaged in", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        existingConversation: { id: "conv-existing" },
+        lastInboundAt: null,
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "bot",
+        text: "hello",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(isReengagementError(result.error)).toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("sends free-form text while the window is open", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        existingConversation: { id: "conv-existing" },
+        lastInboundAt: new Date(Date.now() - 2 * HOURS).toISOString(),
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "agent",
+        text: "still chatting",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(true);
+      expect(fetch).toHaveBeenCalled();
+    });
+
+    it("lets a template through a closed window — that is what reopens it", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        existingConversation: { id: "conv-existing" },
+        lastInboundAt: null,
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "template",
+        senderType: "agent",
+        templateName: "new_property_alert",
+        text: "rendered body",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(true);
+      expect(fetch).toHaveBeenCalled();
+    });
+
+    it("leaves sandbox alone — /api/whatsapp/send swaps in its system template upstream", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        existingConversation: { id: "conv-existing" },
+        lastInboundAt: null,
+        integrationType: "sandbox",
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "agent",
+        text: "sandbox reply",
+        customDbClient: db,
+      });
+
+      // Sandbox credentials aren't configured in this harness, so the
+      // send fails — but on the sandbox config, not the window.
+      expect(isReengagementError(result.error)).toBe(false);
+    });
   });
 });

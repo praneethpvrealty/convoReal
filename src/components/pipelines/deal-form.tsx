@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { PriceHint } from "@/components/ui/price-hint";
 import {
   Check,
   X,
@@ -324,31 +325,6 @@ export function DealForm({
     onSaved();
   }
 
-  function getEquivalentPriceLabel(priceStr: string, activeCurrency: string = "INR") {
-    const priceNum = Number(priceStr);
-    if (!priceStr || isNaN(priceNum) || priceNum <= 0) return '';
-    
-    if (activeCurrency === 'INR') {
-      if (priceNum >= 10000000) {
-        const cr = priceNum / 10000000;
-        return `Equivalent to: ₹${cr.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Crore`;
-      }
-      if (priceNum >= 100000) {
-        const lakhs = priceNum / 100000;
-        return `Equivalent to: ₹${lakhs.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Lakhs`;
-      }
-      return `Equivalent to: ₹${priceNum.toLocaleString('en-IN')}`;
-    }
-
-    const symbols: Record<string, string> = {
-      USD: '$',
-      EUR: '€',
-      GBP: '£',
-      AED: 'د.إ',
-    };
-    const sym = symbols[activeCurrency] || '';
-    return `Equivalent to: ${sym}${priceNum.toLocaleString()}`;
-  }
 
   function formatCalculatedBrokerage() {
     const val = parseFloat(value) || 0;
@@ -464,11 +440,7 @@ export function DealForm({
                     className="border-slate-700 bg-slate-800 pl-7 text-white"
                   />
                 </div>
-                {value && !isNaN(Number(value)) && Number(value) > 0 && (
-                  <p className="text-[11px] text-primary font-semibold mt-1">
-                    {getEquivalentPriceLabel(value, currency)}
-                  </p>
-                )}
+                <PriceHint value={value} currency={currency} className="mt-1" />
               </div>
               <div className="grid gap-2">
                 <Label className="text-slate-300">Currency</Label>

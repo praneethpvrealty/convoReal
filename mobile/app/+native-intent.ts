@@ -37,8 +37,8 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     );
     if (propertyPath) return `/property/${propertyPath[1].toLowerCase()}`;
 
-    if (p === '/inventory') return '/properties';
-    if (p === '/pipelines') return '/deals';
+    if (p === '/inventory' || p === '/properties') return '/properties';
+    if (p === '/pipelines' || p === '/deals') return '/deals';
     if (p === '/contacts') return '/contacts';
     if (p === '/calendar') return '/calendar';
     if (p === '/journey') return '/journey';

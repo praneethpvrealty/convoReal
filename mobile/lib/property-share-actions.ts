@@ -1,9 +1,11 @@
 // Tracking-aware actions behind the property share sheet: log an
 // external (personal-WhatsApp) share on a contact's timeline, and send a
 // listing through the account's own WhatsApp Business number (Meta Cloud
-// API) so it lands in the shared inbox thread. The CRM send mirrors
-// approveAndSendDetails — free text is only allowed inside the 24-hour
-// window; outside it the caller opens the thread to send a template.
+// API) so it lands in the shared inbox thread. The CRM send is
+// template-first server-side (/api/whatsapp/share-property): free text
+// inside the 24-hour window, the pre-approved `new_property_alert`
+// template outside it — mirroring Match Radar. Only a missing or
+// unapproved template comes back unsent.
 
 import { apiFetch, ApiError } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
@@ -38,86 +40,53 @@ export async function logExternalShare(contact: Contact, property: Property): Pr
 export interface CrmSendOutcome {
   sent: boolean;
   conversationId?: string;
-  /** Outside the 24-hour window — open this thread to send a template. */
-  reengage?: boolean;
+  /** How it was delivered: the composed free text (window open) or the
+   *  pre-approved property template (window closed). */
+  channel?: 'freeform' | 'template';
+  /** Set when the window is closed and no APPROVED property template
+   *  exists — 'NONE' (never submitted) or Meta's status (e.g.
+   *  'PENDING', 'REJECTED'). The thread's template picker remains the
+   *  manual fallback. */
+  templateStatus?: string;
   error?: string;
 }
 
 /** Send a property share through the account's WhatsApp Business number
- *  so it's logged in the shared inbox thread. Resolves or creates the
- *  conversation first, then sends free text inside the 24-hour window;
- *  outside it, returns `reengage` with the conversation to template. */
+ *  so it's logged in the shared inbox thread. Window detection and the
+ *  template fallback happen server-side; the composed message is used
+ *  as-is when free text is allowed. */
 export async function sendPropertyViaCrm(
   contact: Contact,
+  property: Property,
   message: string
 ): Promise<CrmSendOutcome> {
-  const { profile, session } = useAuthStore.getState();
-  if (!profile?.account_id) return { sent: false, error: 'No account in session' };
-
-  const { data: existingConv } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('contact_id', contact.id)
-    .order('last_message_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let convId = existingConv?.id as string | undefined;
-  if (!convId) {
-    const { data: newConv, error } = await supabase
-      .from('conversations')
-      .insert({
-        account_id: profile.account_id,
-        user_id: session?.user.id,
-        contact_id: contact.id,
-      })
-      .select('id')
-      .single();
-    if (error || !newConv) {
-      return { sent: false, error: error?.message ?? 'Could not open a conversation' };
-    }
-    convId = newConv.id;
-  }
-
-  // Free text only inside the 24-hour customer window (same guard as the
-  // approve flow) — a fresh conversation has never received a message.
-  let within24h = false;
-  if (existingConv) {
-    const { data: lastCustomerMsg } = await supabase
-      .from('messages')
-      .select('created_at')
-      .eq('conversation_id', convId)
-      .eq('sender_type', 'customer')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (lastCustomerMsg) {
-      within24h =
-        Date.now() - new Date(lastCustomerMsg.created_at).getTime() < 24 * 60 * 60 * 1000;
-    }
-  }
-  if (!within24h) {
-    return { sent: false, conversationId: convId, reengage: true };
-  }
-
   try {
-    await apiFetch('/api/whatsapp/send', {
+    const res = await apiFetch<{
+      data: {
+        sent: boolean;
+        channel?: 'freeform' | 'template';
+        conversation_id?: string | null;
+        template_status?: string;
+      };
+    }>('/api/whatsapp/share-property', {
       method: 'POST',
       body: JSON.stringify({
-        conversation_id: convId,
-        message_type: 'text',
-        content_text: message,
+        contact_id: contact.id,
+        property_id: property.id,
+        message,
       }),
     });
+    const d = res.data;
+    return {
+      sent: d.sent,
+      channel: d.channel,
+      conversationId: d.conversation_id ?? undefined,
+      ...(d.sent ? {} : { templateStatus: d.template_status ?? 'NONE' }),
+    };
   } catch (e) {
-    const msg = e instanceof ApiError ? e.message : 'Failed to send WhatsApp message';
-    const isReengagement =
-      msg.includes('131047') ||
-      msg.toLowerCase().includes('24 hours') ||
-      msg.toLowerCase().includes('re-engagement');
-    if (isReengagement) return { sent: false, conversationId: convId, reengage: true };
-    return { sent: false, conversationId: convId, error: msg };
+    return {
+      sent: false,
+      error: e instanceof ApiError ? e.message : 'Failed to send WhatsApp message',
+    };
   }
-
-  return { sent: true, conversationId: convId };
 }

@@ -7,6 +7,7 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { Eye, Loader2, MessageCircle, UserCheck } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,17 +24,6 @@ interface Viewer {
   views: number;
   sessions: number;
   lastAt: string;
-}
-
-interface EventRow {
-  contact_id: string;
-  session_key: string | null;
-  event_type: string;
-  created_at: string;
-  contacts:
-    | { id: string; name: string | null; phone: string | null }[]
-    | { id: string; name: string | null; phone: string | null }
-    | null;
 }
 
 interface PropertyViewersDialogProps {
@@ -54,52 +44,46 @@ export function PropertyViewersDialog({
   onOpenChange,
 }: PropertyViewersDialogProps) {
   const router = useRouter();
+  const { accountId } = useAuth();
   const [viewers, setViewers] = useState<Viewer[] | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!open || !propertyId) return;
+    if (!open || !propertyId || !accountId) return;
     let cancelled = false;
     setLoading(true);
     setViewers(null);
 
-    async function load(pid: string) {
+    async function load(accId: string, pid: string) {
       try {
         const db = createClient();
-        const { data, error } = await db
-          .from("showcase_events")
-          .select("contact_id, session_key, event_type, created_at, contacts(id, name, phone)")
-          .eq("property_id", pid)
-          .not("contact_id", "is", null)
-          .order("created_at", { ascending: false });
+        // Rolled up in Postgres (migration 172) — the per-contact tally
+        // used to mean pulling every identified event for the listing.
+        const { data, error } = await db.rpc("pulse_property_viewers", {
+          p_account_id: accId,
+          p_property_id: pid,
+        });
         if (error) throw error;
         if (cancelled) return;
 
-        const byContact = new Map<string, Viewer & { sessionKeys: Set<string> }>();
-        for (const row of (data ?? []) as EventRow[]) {
-          const contact = Array.isArray(row.contacts) ? row.contacts[0] : row.contacts;
-          let v = byContact.get(row.contact_id);
-          if (!v) {
-            v = {
-              contactId: row.contact_id,
-              name: contact?.name ?? null,
-              phone: contact?.phone ?? null,
-              views: 0,
-              sessions: 0,
-              lastAt: row.created_at,
-              sessionKeys: new Set<string>(),
-            };
-            byContact.set(row.contact_id, v);
-          }
-          if (row.event_type === "view_property") v.views += 1;
-          if (row.session_key) v.sessionKeys.add(row.session_key);
-          if (row.created_at > v.lastAt) v.lastAt = row.created_at;
-        }
-
-        const list = Array.from(byContact.values())
-          .map(({ sessionKeys, ...v }) => ({ ...v, sessions: sessionKeys.size }))
-          .sort((a, b) => (a.lastAt > b.lastAt ? -1 : a.lastAt < b.lastAt ? 1 : 0));
-        setViewers(list);
+        const rows = (data ?? []) as {
+          contact_id: string;
+          name: string | null;
+          phone: string | null;
+          views_count: number;
+          sessions_count: number;
+          last_at: string;
+        }[];
+        setViewers(
+          rows.map((r) => ({
+            contactId: r.contact_id,
+            name: r.name,
+            phone: r.phone,
+            views: r.views_count,
+            sessions: r.sessions_count,
+            lastAt: r.last_at,
+          }))
+        );
       } catch (err) {
         console.error("[viewers] load failed:", err);
         toast.error("Failed to load viewers");
@@ -109,11 +93,11 @@ export function PropertyViewersDialog({
       }
     }
 
-    load(propertyId);
+    load(accountId, propertyId);
     return () => {
       cancelled = true;
     };
-  }, [open, propertyId]);
+  }, [open, propertyId, accountId]);
 
   const openChat = useCallback(
     async (contactId: string) => {

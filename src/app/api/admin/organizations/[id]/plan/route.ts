@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit'
 import {
   evaluateChallenge,
@@ -10,17 +9,7 @@ import {
 } from '@/lib/billing/admin-plan-override'
 import { grantSubscriptionCredits } from '@/lib/credits/grant'
 import type { SubscriptionPlanForCredits } from '@/lib/credits/types'
-
-let _adminClient: ReturnType<typeof createAdminClient> | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 async function checkSuperAdmin(supabase: Awaited<ReturnType<typeof createClient>>) {
   const {

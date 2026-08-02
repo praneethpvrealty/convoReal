@@ -2,15 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ProfileEditSheet } from '@/components/profile-edit-sheet';
 import { SubscriptionCard } from '@/components/subscription-card';
+import { UpdateStatus } from '@/components/update-status';
 import { Avatar, SectionLabel } from '@/components/ui';
 import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
+import { resolveDisplayName } from '@/lib/display-name';
 import {
   fonts,
   radius,
@@ -23,10 +26,12 @@ import { useCredits } from '@/lib/use-credits';
 
 const WORKSPACE_LINKS = [
   { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
+  { href: '/(app)/os-widgets', icon: 'grid-outline', label: 'Home-screen widgets' },
   { href: '/(app)/notification-settings', icon: 'notifications-outline', label: 'Notifications' },
-  { href: '/(app)/calendar', icon: 'calendar-outline', label: 'Calendar & Site Visits' },
+  { href: '/(app)/deals', icon: 'trending-up-outline', label: 'Deals & Pipelines' },
   { href: '/(app)/credits', icon: 'flash-outline', label: 'Billing & AI Credits' },
   { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
+  { href: '/(app)/pulse', icon: 'analytics-outline', label: 'Showcase Pulse' },
   { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
   { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },
   { href: '/(app)/connection-check', icon: 'pulse-outline', label: 'Connection check' },
@@ -46,8 +51,7 @@ export default function MoreScreen() {
   const credits = useCredits();
   const [editOpen, setEditOpen] = useState(false);
 
-  const displayName =
-    profile?.full_name?.trim() || session?.user.email?.split('@')[0] || 'Account';
+  const displayName = resolveDisplayName(profile?.full_name, session?.user.email);
 
   return (
     <ScrollView
@@ -142,6 +146,9 @@ export default function MoreScreen() {
         <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}>Sign out</Text>
       </Pressable>
 
+      <SectionLabel text="App version" style={{ marginTop: spacing.sm }} />
+      <UpdateStatus />
+
       <Text style={[styles.footer, { color: colors.textFaint }]}>
         ConvoReal companion · v{Constants.expoConfig?.version ?? '0.1.0'}
       </Text>
@@ -163,7 +170,7 @@ const APPEARANCE_OPTIONS: {
 
 /** The reference design is light-first; dark stays a choice. */
 function AppearancePicker() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const mode = useAppearance((s) => s.mode);
   const setMode = useAppearance((s) => s.setMode);
   return (
@@ -219,16 +226,18 @@ function BiometricLockRow() {
   const enabled = useAppLock((s) => s.enabled);
   const setEnabled = useAppLock((s) => s.setEnabled);
   const [busy, setBusy] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   async function toggle(next: boolean) {
     if (busy) return;
     setBusy(true);
     try {
       if (next && !(await biometricsAvailable())) {
-        Alert.alert(
-          'No fingerprint set up',
-          'Add a fingerprint or face unlock in your phone settings first — or this build may not support it yet (install the latest app version).'
-        );
+        show({
+          title: 'No fingerprint set up',
+          message:
+            'Add a fingerprint or face unlock in your phone settings first — or this build may not support it yet (install the latest app version).',
+        });
         return;
       }
       const ok = await authenticate();
@@ -254,6 +263,7 @@ function BiometricLockRow() {
         trackColor={{ true: colors.primary, false: colors.border }}
         thumbColor="#fff"
       />
+      <AppDialog {...dialogProps} />
     </View>
   );
 }

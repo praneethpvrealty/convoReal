@@ -2,9 +2,8 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -17,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
@@ -35,7 +35,7 @@ import {
   TextField,
   listCard,
 } from '@/components/ui';
-import { apiFetch, ApiError } from '@/lib/api';
+import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { approveAndSendDetails } from '@/lib/approve-contact';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
@@ -272,6 +272,7 @@ export default function ContactsScreen() {
   const [peekId, setPeekId] = useState<string | null>(null);
   const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
   const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
+  const { show, dialogProps } = useAppDialog();
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
@@ -292,7 +293,7 @@ export default function ContactsScreen() {
     const result = await approveAndSendDetails(contact);
     if (!result.ok) {
       haptic.warn();
-      Alert.alert('Could not approve', friendlyError(result.error ?? 'Try again.'));
+      show({ title: 'Could not approve', message: friendlyError(result.error ?? 'Try again.') });
       return;
     }
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -408,6 +409,7 @@ export default function ContactsScreen() {
                     ? data?.propertyTitles?.[item.last_inquired_property_id]
                     : undefined
                 }
+                tags={data?.tags[item.id] ?? []}
                 onApprove={() => handleApprove(item)}
                 onPeekStart={() => setPeekId(item.id)}
                 onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
@@ -443,12 +445,18 @@ export default function ContactsScreen() {
                 {
                   icon: 'chatbubbles-outline',
                   label: 'Internal message (Inbox)',
-                  onPress: () => openContactChat(waMenu.contact),
+                  onPress: async () => {
+                    const outcome = await openContactChat(waMenu.contact);
+                    if (!outcome.ok && outcome.error) {
+                      show({ title: 'Could not open thread', message: outcome.error });
+                    }
+                  },
                 },
               ]
             : []
         }
       />
+      <AppDialog {...dialogProps} />
     </View>
   );
 }
@@ -581,6 +589,7 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
 function ContactRow({
   contact,
   dark,
+  tags,
   contactedProperty,
   onApprove,
   onPeekStart,
@@ -589,6 +598,7 @@ function ContactRow({
 }: {
   contact: Contact;
   dark: boolean;
+  tags: string[];
   contactedProperty?: string;
   onApprove: () => void;
   onPeekStart: () => void;
@@ -624,6 +634,7 @@ function ContactRow({
             <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]} numberOfLines={1}>
               {name}
             </Text>
+            {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
             <Pressable
               hitSlop={10}
               onPress={() => Linking.openURL(`tel:${contact.phone}`)}
@@ -643,6 +654,9 @@ function ContactRow({
             {contact.classification ? (
               <Tag label={contact.classification} color={clsColor} />
             ) : null}
+            {tags.slice(0, 2).map((t) => (
+              <Tag key={t} label={t} />
+            ))}
             {contact.name ? (
               <Text style={{ fontSize: 12.5, color: colors.textFaint }}>{contact.phone}</Text>
             ) : null}
@@ -775,6 +789,10 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  // Imports run one contact at a time, so the sheet reports where it has
+  // got to rather than showing one opaque spinner for the whole batch.
+  const [done, setDone] = useState(0);
+  const importAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -821,6 +839,17 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
       r.phone.includes(filter.trim())
   );
 
+  // Leaving the sheet mid-import abandons the calls rather than letting
+  // them run on against a screen nobody is watching.
+  useEffect(() => {
+    if (!visible) importAbort.current?.abort();
+  }, [visible]);
+
+  function cancelImport() {
+    haptic.tap();
+    importAbort.current?.abort();
+  }
+
   function toggle(key: string) {
     haptic.tap();
     setSelected((prev) => {
@@ -834,13 +863,23 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
   async function importSelected() {
     const picked = (rows ?? []).filter((r) => selected.has(r.key));
     if (picked.length === 0) return;
+    const abort = new AbortController();
+    importAbort.current = abort;
+    setResult(null);
+    setDone(0);
     setBusy(true);
     let ok = 0;
     let failed = 0;
+    let timedOut = false;
+    // Only meaningful for a single-contact import, where we hand the user
+    // straight to the editor. A bulk import has no one contact to open.
+    let onlyCreatedId: string | null = null;
     for (const r of picked) {
+      if (abort.signal.aborted) break;
       try {
-        await apiFetch('/api/contacts', {
+        const created = await apiFetch<{ id: string }>('/api/contacts', {
           method: 'POST',
+          signal: abort.signal,
           body: JSON.stringify({
             phone: cleanPhoneInput(r.phone) ?? r.phone,
             name: r.name || null,
@@ -849,17 +888,39 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
           }),
         });
         ok++;
-      } catch {
+        onlyCreatedId = created?.id ?? null;
+      } catch (err) {
+        if (isCancelled(err)) break;
+        if (isTimeout(err)) timedOut = true;
         failed++;
       }
+      setDone((n) => n + 1);
     }
+    const cancelled = abort.signal.aborted;
+    importAbort.current = null;
     setBusy(false);
+    setDone(0);
     haptic.success();
     setSelected(new Set());
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+
+    // A device contact arrives with only a name and number, so a single
+    // import goes straight to the editor to be filled in. Skip the banner
+    // and the delay — the destination screen is the confirmation.
+    if (picked.length === 1 && ok === 1 && onlyCreatedId) {
+      onClose();
+      router.push(`/(app)/contact/${onlyCreatedId}?edit=1`);
+      return;
+    }
+
+    const failureReason = timedOut
+      ? 'the server did not respond'
+      : 'duplicates or limits';
     setResult(
-      `Imported ${ok} contact${ok === 1 ? '' : 's'}${failed ? ` · ${failed} failed (duplicates or limits)` : ''}`
+      cancelled
+        ? `Stopped — imported ${ok} contact${ok === 1 ? '' : 's'} before you cancelled.`
+        : `Imported ${ok} contact${ok === 1 ? '' : 's'}${failed ? ` · ${failed} failed (${failureReason})` : ''}`
     );
     // Success: give the banner a beat to register, then collapse the
     // sheet — the imported contacts are already in the list behind it.
@@ -921,13 +982,30 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
           })
         )}
       </ScrollView>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
+        {busy ? (
+          <Text style={{ textAlign: 'center', fontSize: 12, color: colors.textMuted }}>
+            Importing {Math.min(done + 1, selected.size)} of {selected.size}…
+          </Text>
+        ) : null}
         <PrimaryButton
           label={selected.size > 0 ? `Import ${selected.size} selected` : 'Select contacts to import'}
           busy={busy}
           disabled={selected.size === 0}
           onPress={importSelected}
         />
+        {busy ? (
+          <Pressable
+            onPress={cancelImport}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel import"
+            style={{ alignItems: 'center', paddingVertical: spacing.sm }}
+          >
+            <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.textMuted }}>
+              Cancel
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </BottomSheet>
   );

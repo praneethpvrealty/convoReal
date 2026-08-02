@@ -35,8 +35,10 @@ import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { AskPropertyChat } from '@/components/showcase/ask-property-chat';
+import { ShowcaseLeadBot } from '@/components/showcase/showcase-lead-bot';
 import { SimilarProperties } from '@/components/showcase/similar-properties';
 import {
   PropertyRatingBar,
@@ -68,6 +70,8 @@ interface ShowcaseViewProps {
   properties: Property[];
   settings: ShowcaseSettings | null;
   accountId: string;
+  /** The brokerage name (`accounts.name`), shown as the site title. */
+  siteName?: string | null;
   referrerContactId?: string;
   referrerPhone?: string;
   initialPropertyId?: string;
@@ -77,6 +81,9 @@ interface ShowcaseViewProps {
   /** Contact id from per-contact share links (?v=…) — Showcase Pulse
    *  attribution only, never filters the catalog. */
   visitorRef?: string;
+  /** Share-instance token from generic shares (?s=…) — labels which
+   *  share a visit came from in Pulse. Never filters. */
+  shareId?: string;
   /** Destination landing pages override the hero copy. */
   hero?: { title: string; highlight: string; subtitle: string; badges?: string[] };
   /** Accent theme applied when the URL has no ?theme= override. */
@@ -103,12 +110,14 @@ export function ShowcaseView({
   properties,
   settings,
   accountId,
+  siteName: siteNameProp,
   referrerContactId,
   referrerPhone,
   initialPropertyId,
   initialCategory,
   initialAgentMode = false,
   visitorRef,
+  shareId,
   hero,
   initialTheme,
   disableSavedState = false
@@ -125,7 +134,7 @@ export function ShowcaseView({
   // Mirror of selectedProperty?.id for the mount-only listeners below.
   const selectedPropertyIdRef = useRef<string | null>(null);
   useEffect(() => {
-    trackerRef.current = createShowcaseTracker(accountId, visitorRef);
+    trackerRef.current = createShowcaseTracker(accountId, visitorRef, shareId);
     trackerRef.current.track('open');
     const tracker = trackerRef.current;
 
@@ -159,7 +168,7 @@ export function ShowcaseView({
       emitPendingView();
       tracker.flush();
     };
-    // Mount-only by design: accountId/visitorRef are fixed per page load.
+    // Mount-only by design: accountId/visitorRef/shareId are fixed per page load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -170,7 +179,7 @@ export function ShowcaseView({
     const urlTheme = urlParams.get('theme');
     const resolvedTheme = urlTheme || initialTheme || settings?.theme || 'violet';
 
-    const validThemes = ['violet', 'emerald', 'cobalt', 'amber', 'rose'];
+    const validThemes = ['violet', 'emerald', 'cobalt', 'amber', 'rose', 'verdant'];
     if (validThemes.includes(resolvedTheme)) {
       document.documentElement.dataset.theme = resolvedTheme;
     }
@@ -296,6 +305,21 @@ export function ShowcaseView({
   const [docReqEmail, setDocReqEmail] = useState('');
   const [docReqSubmitting, setDocReqSubmitting] = useState(false);
   const [docReqSuccess, setDocReqSuccess] = useState<string | null>(null); // property id that was requested
+
+  // Location reveal request states
+  const [locReqOpen, setLocReqOpen] = useState(false);
+  const [locReqName, setLocReqName] = useState('');
+  const [locReqPhone, setLocReqPhone] = useState('');
+  const [locReqSubmitting, setLocReqSubmitting] = useState(false);
+  const [locReqSuccess, setLocReqSuccess] = useState<string | null>(null); // property id that was requested
+
+  // Co-broker re-share link states (agent mode)
+  const [reshareOpen, setReshareOpen] = useState(false);
+  const [reshareName, setReshareName] = useState('');
+  const [resharePhone, setResharePhone] = useState('');
+  const [reshareSubmitting, setReshareSubmitting] = useState(false);
+  const [reshareLink, setReshareLink] = useState<string | null>(null);
+  const [reshareCopied, setReshareCopied] = useState(false);
 
   const isStateLoadedRef = useRef(false);
 
@@ -729,7 +753,7 @@ export function ShowcaseView({
   };
 
   // Fallback defaults if settings don't exist yet
-  const siteName = settings?.website_name || BRANDING.name;
+  const siteName = siteNameProp || BRANDING.name;
   const displayPhone = referrerPhone || settings?.contact_phone || '';
 
   const getWhatsAppLink = (property: Property) => {
@@ -753,6 +777,15 @@ export function ShowcaseView({
     const cleanPhone = phone.replace(/\D/g, '') || '919876543210';
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
+
+  // Account-level handoff for the assistant, which talks about the
+  // catalog rather than any one listing.
+  const catalogWhatsAppLink = useMemo(() => {
+    const cleanPhone = (displayPhone || '').replace(/\D/g, '');
+    if (!cleanPhone) return undefined;
+    const message = `Hi! I was browsing your property showcase and would like some help.`;
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  }, [displayPhone]);
 
   // Check if selected property is land/plot type
   const isSelectedPropertyLand = useMemo(() => {
@@ -935,6 +968,68 @@ export function ShowcaseView({
       toast.error(msg);
     } finally {
       setDocReqSubmitting(false);
+    }
+  };
+
+  // Location reveal request submission handler
+  const handleLocReqSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locReqName.trim() || !locReqPhone.trim() || !selectedProperty) return;
+    setLocReqSubmitting(true);
+    try {
+      const res = await fetch(`/api/public/properties/${selectedProperty.id}/location-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requester_name: locReqName.trim(),
+          requester_phone: locReqPhone.trim(),
+          account_id: accountId,
+          via_contact_id: visitorRef || undefined,
+          via_share_id: shareId || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Request failed');
+      }
+      saveVisitorInfo(locReqName.trim(), locReqPhone.trim());
+      setLocReqSuccess(selectedProperty.id);
+      toast.success('Location request submitted! You will receive the exact location on WhatsApp once approved.');
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to submit request');
+    } finally {
+      setLocReqSubmitting(false);
+    }
+  };
+
+  // Co-broker re-share link mint handler
+  const handleReshareSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reshareName.trim() || !resharePhone.trim() || !selectedProperty) return;
+    setReshareSubmitting(true);
+    try {
+      const res = await fetch(`/api/public/properties/${selectedProperty.id}/reshare-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: reshareName.trim(),
+          phone: resharePhone.trim(),
+          account_id: accountId,
+          via_contact_id: visitorRef || undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Request failed');
+      }
+      setReshareLink(data.link || null);
+      toast.success('Your personal share link is ready — also sent to your WhatsApp.');
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : 'Failed to create your link');
+    } finally {
+      setReshareSubmitting(false);
     }
   };
 
@@ -1568,21 +1663,33 @@ export function ShowcaseView({
           <div className="absolute -top-20 -right-20 w-60 h-60 bg-primary/10 rounded-full blur-[80px] pointer-events-none" />
           <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-indigo-500/10 rounded-full blur-[70px] pointer-events-none" />
           
-          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="max-w-2xl text-left">
+          <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 items-center gap-6">
+            <div className="text-left">
               <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                 Can&apos;t find your ideal property?
               </h2>
               <p className="mt-2 text-slate-400 text-sm leading-relaxed font-medium">
-                Tell us your specific requirements, and our team will match you with exclusive, off-market listings. Get notified directly on WhatsApp!
+                Tell the assistant what you&apos;re after — it will pull matches from this catalog straight away, and the team will follow up with the off-market ones on WhatsApp.
               </p>
+              <Button
+                onClick={openRequirementsModal}
+                className="mt-4 bg-primary hover:bg-primary-hover text-white text-xs font-bold px-6 py-5 rounded-xl hover:scale-102 hover:shadow-primary/30 transition-all shadow-lg shadow-primary/25 cursor-pointer"
+              >
+                Submit Requirements
+              </Button>
             </div>
-            <Button
-              onClick={openRequirementsModal}
-              className="bg-primary hover:bg-primary-hover text-white text-xs font-bold px-6 py-5 rounded-xl hover:scale-102 hover:shadow-primary/30 transition-all shadow-lg shadow-primary/25 cursor-pointer shrink-0"
-            >
-              Submit Requirements
-            </Button>
+            {!isAgentMode && (
+              <ShowcaseLeadBot
+                variant="inline"
+                accountId={accountId}
+                properties={properties}
+                whatsappLink={catalogWhatsAppLink}
+                referrerContactId={referrerContactId}
+                onSelectProperty={openPropertyModal}
+                onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
+                onAccountClick={() => trackPixelEvent('CompleteRegistration', { content_name: 'Buyer Den account' })}
+              />
+            )}
           </div>
         </div>
       </main>
@@ -1701,13 +1808,19 @@ export function ShowcaseView({
                     {detailMediaCount > 1 && (
                       <>
                         <button
-                          onClick={() => setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : detailMediaCount - 1))}
+                          onClick={() => {
+                            trackerRef.current?.track('gallery', selectedProperty.id);
+                            setActiveImageIdx((prev) => (prev > 0 ? prev - 1 : detailMediaCount - 1));
+                          }}
                           className="absolute left-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-350 hover:text-white border border-slate-800/40 cursor-pointer"
                         >
                           <ChevronLeft className="size-4" />
                         </button>
                         <button
-                          onClick={() => setActiveImageIdx((prev) => (prev < detailMediaCount - 1 ? prev + 1 : 0))}
+                          onClick={() => {
+                            trackerRef.current?.track('gallery', selectedProperty.id);
+                            setActiveImageIdx((prev) => (prev < detailMediaCount - 1 ? prev + 1 : 0));
+                          }}
                           className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full bg-slate-950/60 text-slate-350 hover:text-white border border-slate-800/40 cursor-pointer"
                         >
                           <ChevronRight className="size-4" />
@@ -1881,6 +1994,7 @@ export function ShowcaseView({
                           href={selectedProperty.google_map_link}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => trackerRef.current?.track('map_click', selectedProperty.id)}
                           className="inline-flex items-center gap-1.5 mt-1.5 text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2 break-all"
                         >
                           <MapPin className="size-3.5 shrink-0" />
@@ -1907,9 +2021,11 @@ export function ShowcaseView({
                   </div>
                 )}
 
-                {/* Masked Exact Location Block — shown to buyers */}
-                {!isAgentMode && (
-                <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-1.5 backdrop-blur-sm relative overflow-hidden group">
+                {/* Masked Exact Location Block — shown to buyers, and to
+                    co-broker (agent-mode) viewers when the listing's
+                    location is guarded */}
+                {(!isAgentMode || selectedProperty.location_guarded) && (
+                <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2 backdrop-blur-sm relative overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent pointer-events-none" />
                   <div className="flex items-start gap-2.5">
                     <div className="h-7 w-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
@@ -1918,12 +2034,158 @@ export function ShowcaseView({
                     <div>
                       <h5 className="text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">Exact Address Masked</h5>
                       <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
-                        Street address & Google Maps pin link are hidden for privacy. They will be sent directly to your WhatsApp number upon inquiry approval.
+                        Street address & Google Maps pin link are hidden for privacy.
+                        {(selectedProperty.private_images_count ?? 0) > 0
+                          ? ` ${selectedProperty.private_images_count} more photo${(selectedProperty.private_images_count ?? 0) > 1 ? 's' : ''} and the exact location are shared on request.`
+                          : ' They are shared directly to your WhatsApp number on request approval.'}
                       </p>
                     </div>
                   </div>
                   <div className="filter blur-[2px] opacity-25 select-none text-[10px] pl-9 text-slate-400 font-mono">
                     Exact coordinates: 12.9348° N, 77.6189° E. Map pin: https://maps.google.com/?q=...
+                  </div>
+                  <div className="relative pl-9">
+                    {locReqSuccess === selectedProperty.id ? (
+                      <div className="flex items-center gap-2 text-[11px] text-emerald-400 font-semibold">
+                        <CheckCircle className="size-3.5 shrink-0" />
+                        Request submitted — you&apos;ll receive the exact location on WhatsApp once approved.
+                      </div>
+                    ) : locReqOpen ? (
+                      <form onSubmit={handleLocReqSubmit} className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            required
+                            value={locReqName}
+                            onChange={(e) => setLocReqName(e.target.value)}
+                            placeholder="Your Name"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                          <Input
+                            required
+                            type="tel"
+                            value={locReqPhone}
+                            onChange={(e) => setLocReqPhone(e.target.value)}
+                            placeholder="WhatsApp Number"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          disabled={locReqSubmitting}
+                          className="w-full h-8 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-bold flex items-center justify-center gap-2"
+                        >
+                          {locReqSubmitting ? (
+                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                          ) : (
+                            <Send className="size-3" />
+                          )}
+                          Request Exact Location
+                        </Button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLocReqName(visitorName);
+                          setLocReqPhone(visitorPhone);
+                          setLocReqOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:text-primary/85 cursor-pointer"
+                      >
+                        <MapPin className="size-3.5" />
+                        Request Exact Location
+                      </button>
+                    )}
+                  </div>
+                </div>
+                )}
+
+                {/* Co-broker re-share link — clean view only. Whoever
+                    holds a forwarded link mints their own attributed
+                    link here, keeping onward shares visible to the
+                    location-consent chain. */}
+                {isAgentMode && (
+                <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                      <Share2 className="size-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h5 className="text-[11px] font-extrabold text-primary uppercase tracking-wider">Forwarding this property?</h5>
+                      <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
+                        Get your own share link. Location requests from people you share it with come to you first — their details stay private to you.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pl-9">
+                    {reshareLink ? (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="flex-1 truncate text-[11px] font-mono text-slate-300 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5">
+                            {reshareLink}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(reshareLink).then(() => {
+                                setReshareCopied(true);
+                                setTimeout(() => setReshareCopied(false), 3000);
+                              });
+                            }}
+                            className="h-8 px-3 bg-primary hover:bg-primary-hover text-primary-foreground text-[11px] font-bold shrink-0"
+                          >
+                            {reshareCopied ? 'Copied!' : 'Copy'}
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-slate-500">Also sent to your WhatsApp — forward it from there.</p>
+                      </div>
+                    ) : reshareOpen ? (
+                      <form onSubmit={handleReshareSubmit} className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            required
+                            value={reshareName}
+                            onChange={(e) => setReshareName(e.target.value)}
+                            placeholder="Your Name"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                          <Input
+                            required
+                            type="tel"
+                            value={resharePhone}
+                            onChange={(e) => setResharePhone(e.target.value)}
+                            placeholder="Your WhatsApp Number"
+                            className="bg-slate-900 border-slate-800 text-white placeholder:text-slate-600 text-xs h-8"
+                          />
+                        </div>
+                        <Button
+                          type="submit"
+                          disabled={reshareSubmitting}
+                          className="w-full h-8 bg-primary hover:bg-primary-hover text-primary-foreground text-xs font-bold flex items-center justify-center gap-2"
+                        >
+                          {reshareSubmitting ? (
+                            <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                          ) : (
+                            <Share2 className="size-3" />
+                          )}
+                          Get My Share Link
+                        </Button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReshareName(visitorName);
+                          setResharePhone(visitorPhone);
+                          setReshareOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-primary hover:text-primary/85 cursor-pointer"
+                      >
+                        <Share2 className="size-3.5" />
+                        Get My Share Link
+                      </button>
+                    )}
                   </div>
                 </div>
                 )}
@@ -2441,6 +2703,7 @@ export function ShowcaseView({
                     placeholder="e.g. 5000000 (50 Lakhs)"
                     className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
+                  <PriceHint value={reqMinBudget} compact className="text-[10px]" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Max Budget (₹ / Rupees)</label>
@@ -2451,6 +2714,7 @@ export function ShowcaseView({
                     placeholder="e.g. 20000000 (2 Crores)"
                     className="bg-slate-950 border-slate-850 text-white placeholder:text-slate-750 focus:border-primary text-xs"
                   />
+                  <PriceHint value={reqMaxBudget} compact className="text-[10px]" />
                 </div>
               </div>
 
@@ -2502,6 +2766,22 @@ export function ShowcaseView({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Floating assistant — buyers qualify themselves and see matches;
+          agents and builders branch into the ConvoReal prospect funnel.
+          Hidden on clean-view (co-broker) links, like every other form. */}
+      {!isAgentMode && (
+        <ShowcaseLeadBot
+          variant="floating"
+          accountId={accountId}
+          properties={properties}
+          whatsappLink={catalogWhatsAppLink}
+          referrerContactId={referrerContactId}
+          onSelectProperty={openPropertyModal}
+          onWhatsAppClick={() => trackPixelEvent('Contact', { contact_method: 'whatsapp_assistant' })}
+          onAccountClick={() => trackPixelEvent('CompleteRegistration', { content_name: 'Buyer Den account' })}
+        />
       )}
     </div>
   );

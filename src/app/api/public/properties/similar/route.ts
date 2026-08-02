@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { storagePublicUrl } from "@/lib/storage/url";
+import { toPublicPropertyView } from "@/lib/inventory/location-guard";
 import type { Property } from "@/types";
 
 /**
@@ -41,14 +42,17 @@ function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const PUBLIC_PROPERTY_COLUMNS = [
+// Scoring needs location/coords/privacy fields server-side; the response
+// is reduced through toPublicPropertyView so none of them leave the box.
+const CANDIDATE_COLUMNS = [
   "id", "account_id", "user_id", "title", "description", "price",
   "location", "sublocality", "city", "state", "type", "status",
-  "listing_type", "bedrooms", "bathrooms", "area_sqft", "area_unit",
+  "listing_type", "location_privacy", "bedrooms", "bathrooms",
+  "area_sqft", "area_unit",
   "land_area", "land_area_unit", "super_built_area", "project",
   "land_zone", "ideal_for", "dimensions", "road_width", "road_width_unit",
   "facing_direction", "nearby_highlights", "is_published", "features",
-  "images", "google_map_link", "property_code", "owner_contact_id",
+  "images", "property_code",
   "rental_income", "roi", "listing_source", "rent_per_month",
   "maintenance", "advance", "gst", "jv_structure", "owner_share_percent",
   "builder_share_percent", "goodwill_amount", "bts_lease_years",
@@ -91,7 +95,7 @@ export async function GET(request: Request) {
     // Fetch a broad candidate pool — same account, published, available, excluding current property
     const { data: rawCandidates, error } = await client
       .from("properties")
-      .select(PUBLIC_PROPERTY_COLUMNS)
+      .select(CANDIDATE_COLUMNS)
       .eq("account_id", accountId)
       .eq("is_published", true)
       .eq("status", "Available")
@@ -220,14 +224,17 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      data: relevant.map((s) => ({
-        ...s.property,
-        images: Array.isArray(s.property.images)
-          ? s.property.images.map(storagePublicUrl)
-          : s.property.images,
-        _similarity_score: s.score,
-        _match_reasons: s.matchReasons,
-      })),
+      data: relevant.map((s) => {
+        const view = toPublicPropertyView(s.property, { revealExact: false });
+        return {
+          ...view,
+          images: Array.isArray(view.images)
+            ? view.images.map(storagePublicUrl)
+            : view.images,
+          _similarity_score: s.score,
+          _match_reasons: s.matchReasons,
+        };
+      }),
     }, {
       headers: {
         "Cache-Control": "public, max-age=120, stale-while-revalidate=300",

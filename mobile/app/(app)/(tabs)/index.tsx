@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, Stack, router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -15,6 +14,7 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppDialog, useAppDialog, type DialogSpec } from '@/components/app-dialog';
 import { EnterRow, PressScale } from '@/components/motion';
 import { NotificationBell } from '@/components/notification-bell';
 import {
@@ -30,13 +30,13 @@ import {
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
 import { setConversationArchived } from '@/lib/conversation-actions';
+import { resolveGreetingName } from '@/lib/display-name';
 import { haptic } from '@/lib/haptics';
-import type { Contact } from '@/lib/types';
+import type { Contact , Conversation, MessageStatus, SenderType } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts, type ThemeColors } from '@/lib/theme';
-import type { Conversation, MessageStatus, SenderType } from '@/lib/types';
 import { useCredits } from '@/lib/use-credits';
 
 const FILTERS = ['All', 'Unread', 'Open', 'Pending', 'Closed', 'Archived'] as const;
@@ -58,12 +58,13 @@ async function fetchConversations(archived: boolean): Promise<Conversation[]> {
 }
 
 export default function InboxScreen() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const userId = useAuthStore((s) => s.session?.user.id);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Filter>('All');
   const archived = filter === 'Archived';
+  const { show, dialogProps } = useAppDialog();
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['conversations', archived],
@@ -157,11 +158,13 @@ export default function InboxScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <ConversationRow conversation={item} archived={archived} />
+              <ConversationRow conversation={item} archived={archived} showDialog={show} />
             </EnterRow>
           )}
         />
       )}
+
+      <AppDialog {...dialogProps} />
     </View>
   );
 }
@@ -222,8 +225,8 @@ function InboxHeader({
   const insets = useSafeAreaInsets();
   const credits = useCredits();
   const session = useAuthStore((s) => s.session);
-  const firstName = (session?.user.email?.split('@')[0] ?? 'there').split(/[._-]/)[0];
-  const displayName = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+  const profile = useAuthStore((s) => s.profile);
+  const displayName = resolveGreetingName(profile?.full_name, session?.user.email);
 
   return (
     <View
@@ -235,9 +238,20 @@ function InboxHeader({
       <View style={styles.headerRow}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
           <Avatar name={displayName} size={42} />
-          <View>
-            <Text style={[styles.headerTitle, { color: colors.text, fontFamily: f.extrabold }]}>Hi, {displayName}</Text>
-            <Text style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}>
+          {/* Without flex the greeting kept its natural width and ran
+              under the bell; flex lets it shrink and ellipsize instead. */}
+          <View style={{ flex: 1 }}>
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={[styles.headerTitle, { color: colors.text, fontFamily: f.extrabold }]}
+            >
+              Hi, {displayName}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}
+            >
               Your WhatsApp inbox
             </Text>
           </View>
@@ -299,9 +313,12 @@ function MessageTicks({ status, colors }: { status: MessageStatus; colors: Theme
 function ConversationRow({
   conversation,
   archived,
+  showDialog,
 }: {
   conversation: Conversation;
   archived: boolean;
+  /** The list owns the dialog: one per screen, not one per row. */
+  showDialog: (spec: DialogSpec) => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const name = conversation.contact?.name || conversation.contact?.phone || 'Unknown';
@@ -337,7 +354,10 @@ function ConversationRow({
       await setConversationArchived(conversation.id, !archived);
     } catch (e) {
       haptic.warn();
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+      showDialog({
+        title: 'Could not update',
+        message: e instanceof Error ? e.message : 'Please try again.',
+      });
     }
   }
 

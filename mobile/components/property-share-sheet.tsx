@@ -6,6 +6,7 @@ import { router } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   Share,
@@ -57,15 +58,22 @@ const DETAILS: { value: ShareDetailLevel; label: string }[] = [
  * pickers over the same message builder (lib/share-message mirrors
  * the web module 1:1), an editable draft, and channel buttons.
  * "Send from CRM" stays in the conversation thread's template picker.
+ *
+ * Opened from a contact's linked listing the recipient is already
+ * known, so `contact` preselects it: both send paths address that
+ * contact directly instead of asking again through the picker.
  */
 export function PropertyShareSheet({
   property,
   visible,
   onClose,
+  contact = null,
 }: {
   property: Property;
   visible: boolean;
   onClose: () => void;
+  /** Preselected recipient; when set, neither send path opens the picker. */
+  contact?: Contact | null;
 }) {
   const { colors, fonts: f } = useTheme();
   // A definite pixel cap keeps the scroll area bounded so it renders and
@@ -218,11 +226,18 @@ export function PropertyShareSheet({
   }
 
   // ConvoReal WhatsApp: send from the account's business number so the
-  // message is delivered and logged in the shared inbox thread.
+  // message is delivered and logged in the shared inbox thread. The
+  // server sends free text inside the 24-hour window and falls back to
+  // the pre-approved property template outside it — the dialog below
+  // only appears when that template isn't approved yet.
   async function sendViaConvoReal(contact: Contact) {
     setCrmSending(true);
     haptic.send();
-    const outcome = await sendPropertyViaCrm(contact, addRecipientGreeting(message, contact.name));
+    const outcome = await sendPropertyViaCrm(
+      contact,
+      property,
+      addRecipientGreeting(message, contact.name)
+    );
     setCrmSending(false);
     setPicker(null);
     if (outcome.sent) {
@@ -231,23 +246,30 @@ export function PropertyShareSheet({
       if (outcome.conversationId) router.push(`/(app)/conversation/${outcome.conversationId}`);
       return;
     }
-    if (outcome.reengage && outcome.conversationId) {
+    if (outcome.templateStatus) {
       haptic.warn();
       const convId = outcome.conversationId;
+      const pending = outcome.templateStatus === 'PENDING';
       setDialog({
-        title: 'Outside the 24-hour window',
-        message: `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so WhatsApp only allows an approved template. Open the chat to send one.`,
+        title: pending ? 'Template awaiting Meta approval' : 'One-time template setup needed',
+        message: pending
+          ? `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so this share needs the approved property template — it’s still under review by Meta (usually minutes to a few hours). Try again once it’s approved, or open the chat to send another approved template.`
+          : `${contact.name || contact.phone} hasn’t messaged in the last 24 hours, so WhatsApp requires a pre-approved template. An Org Manager can set up the property template once from Radar on the ConvoReal web app — after Meta approves it, shares like this go out automatically. For now, open the chat to send an approved template.`,
         actions: [
           { label: 'Not now', variant: 'muted', onPress: () => setDialog(null) },
-          {
-            label: 'Open chat',
-            variant: 'primary',
-            onPress: () => {
-              setDialog(null);
-              onClose();
-              router.push(`/(app)/conversation/${convId}`);
-            },
-          },
+          ...(convId
+            ? [
+                {
+                  label: 'Open chat',
+                  variant: 'primary' as const,
+                  onPress: () => {
+                    setDialog(null);
+                    onClose();
+                    router.push(`/(app)/conversation/${convId}`);
+                  },
+                },
+              ]
+            : []),
         ],
       });
       return;
@@ -260,8 +282,70 @@ export function PropertyShareSheet({
     });
   }
 
+  // Fan-out for the CRM channel. Each contact gets their own greeting and
+  // their own 24-hour-window verdict, so sends are reported per person
+  // rather than as one pass/fail — a closed window for one recipient must
+  // not read as a failure for the rest.
+  async function sendViaConvoRealMany(contacts: Contact[]) {
+    if (contacts.length === 0) return;
+    // One recipient keeps the richer single-send path, which lands the
+    // agent in the conversation thread afterwards.
+    if (contacts.length === 1) {
+      await sendViaConvoReal(contacts[0]);
+      return;
+    }
+    setCrmSending(true);
+    haptic.send();
+    const blocked: string[] = [];
+    const failed: string[] = [];
+    let sent = 0;
+    for (const c of contacts) {
+      const outcome = await sendPropertyViaCrm(
+        c,
+        property,
+        addRecipientGreeting(message, c.name)
+      );
+      if (outcome.sent) {
+        sent++;
+      } else if (outcome.templateStatus) {
+        blocked.push(c.name || c.phone);
+      } else {
+        failed.push(c.name || c.phone);
+      }
+    }
+    setCrmSending(false);
+    setPicker(null);
+
+    if (sent === contacts.length) {
+      haptic.success();
+      onClose();
+      return;
+    }
+    haptic.warn();
+    setDialog({
+      title: `Sent to ${sent} of ${contacts.length}`,
+      message: [
+        blocked.length
+          ? `No message in the last 24 hours, so WhatsApp needs an approved template for: ${blocked.join(', ')}.`
+          : null,
+        failed.length ? `Could not send to: ${failed.join(', ')}.` : null,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+    });
+  }
+
+  const recipientName = contact ? contact.name || contact.phone : null;
+
   const channels = [
-    { key: 'whatsapp', icon: 'logo-whatsapp' as const, label: 'WhatsApp', color: colors.success, onPress: () => setPicker('external') },
+    {
+      key: 'whatsapp',
+      icon: 'logo-whatsapp' as const,
+      label: 'WhatsApp',
+      color: colors.success,
+      onPress: () => (contact ? void shareExternalWithContact(contact) : setPicker('external')),
+    },
     { key: 'telegram', icon: 'paper-plane' as const, label: 'Telegram', color: colors.readTick, onPress: () => Linking.openURL(targets.telegram) },
     { key: 'email', icon: 'mail-outline' as const, label: 'Email', color: colors.primary, onPress: () => Linking.openURL(targets.email) },
     { key: 'sms', icon: 'chatbox-outline' as const, label: 'SMS', color: colors.primary, onPress: () => Linking.openURL(targets.sms) },
@@ -352,21 +436,39 @@ export function PropertyShareSheet({
 
         <SectionLabel text="Send from ConvoReal" />
         <Pressable
-          onPress={() => setPicker('crm')}
+          disabled={crmSending}
+          onPress={() => (contact ? void sendViaConvoReal(contact) : setPicker('crm'))}
           accessibilityRole="button"
-          accessibilityLabel="Send via ConvoReal WhatsApp"
-          style={[styles.crmButton, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+          accessibilityState={{ disabled: crmSending, busy: crmSending }}
+          accessibilityLabel={
+            recipientName
+              ? `Send via ConvoReal WhatsApp to ${recipientName}`
+              : 'Send via ConvoReal WhatsApp'
+          }
+          style={[
+            styles.crmButton,
+            { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+            crmSending && { opacity: 0.6 },
+          ]}
         >
           <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.primary }}>
-              Send via ConvoReal WhatsApp
+              {crmSending
+                ? 'Sending from ConvoReal…'
+                : recipientName
+                  ? `Send to ${recipientName}`
+                  : 'Send via ConvoReal WhatsApp'}
             </Text>
             <Text style={{ fontSize: 11.5, color: colors.textMuted }}>
               Delivers from your business number and logs to the chat thread
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          {crmSending ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+          )}
         </Pressable>
 
         <SectionLabel text="Send via" />
@@ -388,9 +490,9 @@ export function PropertyShareSheet({
         </View>
 
         <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
-          Sending via ConvoReal WhatsApp delivers from your business number and is
-          tracked in the conversation thread. Pick a contact on WhatsApp to log the
-          share on their timeline too.
+          {recipientName
+            ? `Both send to ${recipientName}. ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread; WhatsApp opens your own app and logs the share on their timeline.`
+            : 'Sending via ConvoReal WhatsApp delivers from your business number and is tracked in the conversation thread. Pick a contact on WhatsApp to log the share on their timeline too.'}
         </Text>
       </ScrollView>
 
@@ -399,16 +501,28 @@ export function PropertyShareSheet({
         onClose={() => setPicker(null)}
         onSelect={shareExternalWithContact}
         title="Share on WhatsApp"
-        hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline."
+        hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline. WhatsApp opens one chat at a time — to reach several people at once, use Send via ConvoReal WhatsApp above."
+        // Tapping leaves the share flow, so it closes the sheet rather
+        // than stacking the composer behind it.
+        nudge={{
+          text: 'Sending to a whole list? A Broadcast reaches everyone in one campaign, with delivery tracking.',
+          onPress: () => {
+            setPicker(null);
+            onClose();
+            router.push('/(app)/broadcast-new');
+          },
+        }}
         skipLabel="Open WhatsApp without a contact"
         onSkip={shareExternalWithoutContact}
       />
       <ContactPickerSheet
         visible={picker === 'crm'}
         onClose={() => setPicker(null)}
-        onSelect={sendViaConvoReal}
+        multiSelect
+        confirmLabel="Send"
+        onSelectMany={sendViaConvoRealMany}
         title="Send via ConvoReal WhatsApp"
-        hint="Choose who receives this listing from your business number."
+        hint="Pick everyone who should receive this listing from your business number. Search again to add more — your picks are kept."
         busy={crmSending}
         busyLabel="Sending from ConvoReal…"
       />

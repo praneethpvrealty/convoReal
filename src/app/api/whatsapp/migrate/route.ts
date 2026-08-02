@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import {
   verifyPhoneNumber,
   registerPhoneNumber,
@@ -10,45 +9,11 @@ import {
 import { encrypt, decrypt } from '@/lib/whatsapp/encryption'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
-
-let _adminClient: ReturnType<typeof createAdminClient> | null = null
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Resolve account
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 }
-      )
-    }
+    const { supabase, accountId } = await getCurrentAccount()
 
     // Load current config
     const { data: currentConfig } = await supabase
@@ -263,6 +228,6 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('Error in migration POST:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return toErrorResponse(error)
   }
 }

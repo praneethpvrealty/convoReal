@@ -5,9 +5,17 @@ import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-hel
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
 import { checkPlanLimit, gateResponse } from "@/lib/billing/gates";
 import { boundingBox, haversineKm } from "@/lib/geo";
-import { localityStemProbe, textContainsLocality } from "@/lib/locality-match";
+import {
+  LOCALITY_MATCH_FIELDS,
+  localityStemProbe,
+  rowMatchesLocality,
+} from "@/lib/locality-match";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
+import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
+import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
+import type { Property } from "@/types";
 
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 25;
@@ -37,16 +45,10 @@ function sanitizeLocalityLabel(label: string): string {
   return label.split(",")[0].replace(/[(),.]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** land_area_unit values (property-form AREA_UNITS) → sqft factor,
- *  matching the conversions in search-parser.ts. */
-const LAND_UNIT_TO_SQFT: Record<string, number> = {
-  "Sq.Ft.": 1,
-  "Sq.Mtr.": 10.764,
-  "Acre": 43_560,
-  "Gunta": 1_089,
-  "Cent": 435.6,
-  "Ground": 2_400,
-};
+/** land_area_unit values → sqft factor. Shared with the property form
+ *  and search-parser.ts so a stored area converts identically wherever
+ *  it is read. */
+const LAND_UNIT_TO_SQFT = SQFT_PER_AREA_UNIT;
 
 /**
  * Area bound as a PostgREST .or() expression. Land/JV listings store
@@ -76,6 +78,22 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
   return Promise.all(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rows.map(async (row: any) => {
+      try {
+        // The row's own pin, when it has one, is exact and free.
+        const pinned = row.google_map_link
+          ? await resolveCoordinatesFromMapLink(row.google_map_link)
+          : null;
+        if (pinned) {
+          await supabase
+            .from("properties")
+            .update({ latitude: pinned.latitude, longitude: pinned.longitude })
+            .eq("id", row.id);
+          return { ...row, latitude: pinned.latitude, longitude: pinned.longitude };
+        }
+      } catch (pinErr) {
+        console.warn("[GET /api/properties] Map-pin coordinates failed:", pinErr);
+      }
+
       const address = [row.location, row.city, row.state]
         .filter((part: unknown) => typeof part === "string" && part.trim())
         .join(", ");
@@ -271,12 +289,7 @@ export async function GET(request: Request) {
         if (stem) probes.push(stem);
         for (const probe of probes) {
           const term = `%${probe}%`;
-          exactParts.push(
-            `locality_canonical.ilike.${term}`,
-            `sublocality.ilike.${term}`,
-            `location.ilike.${term}`,
-            `project.ilike.${term}`
-          );
+          exactParts.push(...LOCALITY_MATCH_FIELDS.map((field) => `${field}.ilike.${term}`));
         }
       }
 
@@ -359,10 +372,7 @@ export async function GET(request: Request) {
 
         const isExact =
           (nearPlaceId && row.locality_place_id === nearPlaceId) ||
-          (nearLabel &&
-            [row.locality_canonical, row.sublocality, row.location, row.project].some(
-              (f: string | null) => f && textContainsLocality(f, nearLabel)
-            ));
+          (!!nearLabel && rowMatchesLocality(row, nearLabel));
 
         if (!isExact && (distanceKm === null || distanceKm > radiusKm)) return [];
 
@@ -385,7 +395,9 @@ export async function GET(request: Request) {
 
       const total = tiered.length;
       return NextResponse.json({
-        data: tiered.slice(from, from + limit),
+        data: tiered
+          .slice(from, from + limit)
+          .map((row) => maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })),
         pagination: {
           page,
           limit,
@@ -416,7 +428,9 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      data: data ?? [],
+      data: ((data ?? []) as unknown as Property[]).map((row) =>
+        maskPropertyForViewer(row, { role: ctx.role, userId: ctx.userId })
+      ),
       pagination: {
         page,
         limit,
@@ -463,6 +477,10 @@ export async function POST(request: Request) {
       status,
       bedrooms,
       bathrooms,
+      furnishing,
+      floor_number,
+      total_floors,
+      balconies,
       area_sqft,
       area_unit,
       land_area,
@@ -484,6 +502,7 @@ export async function POST(request: Request) {
       nearby_highlights,
       owner_contact_id,
       google_map_link,
+      location_privacy,
       rental_income,
       roi,
       floor_tenancies,
@@ -571,6 +590,10 @@ export async function POST(request: Request) {
       status: validStatus,
       bedrooms: typeof bedrooms === "number" ? bedrooms : null,
       bathrooms: typeof bathrooms === "number" ? bathrooms : null,
+      furnishing: typeof furnishing === "string" ? furnishing.trim() || null : null,
+      floor_number: typeof floor_number === "number" ? floor_number : null,
+      total_floors: typeof total_floors === "number" ? total_floors : null,
+      balconies: typeof balconies === "number" ? balconies : null,
       area_sqft: typeof area_sqft === "number" ? area_sqft : null,
       area_unit: typeof area_unit === "string" ? area_unit.trim() : "Sq.Ft.",
       land_area: typeof land_area === "number" ? land_area : null,
@@ -596,6 +619,8 @@ export async function POST(request: Request) {
       images: Array.isArray(images) ? images.filter(img => typeof img === "string") : [],
       documents: Array.isArray(documents) ? documents.filter(d => typeof d === "string") : [],
       google_map_link: typeof google_map_link === "string" ? google_map_link.trim() : null,
+      location_privacy:
+        location_privacy === "exact" || location_privacy === "locality" ? location_privacy : null,
       rental_income: typeof rental_income === "number" ? rental_income : null,
       roi: typeof roi === "number" ? roi : null,
       floor_tenancies: sanitizeFloorTenancies(floor_tenancies),
@@ -620,6 +645,22 @@ export async function POST(request: Request) {
       locality_canonical:
         typeof locality_canonical === "string" ? locality_canonical.trim() || null : null,
     };
+
+    // A map pin is an exact point; coordinates derived from address text
+    // are a guess that lands on the wrong same-named locality often
+    // enough to matter. The pin therefore wins outright, including over
+    // the locality centroid autocomplete supplies.
+    if (insertData.google_map_link) {
+      try {
+        const pinned = await resolveCoordinatesFromMapLink(insertData.google_map_link);
+        if (pinned) {
+          insertData.latitude = pinned.latitude;
+          insertData.longitude = pinned.longitude;
+        }
+      } catch (pinErr) {
+        console.warn("[POST /api/properties] Map-pin coordinates failed:", pinErr);
+      }
+    }
 
     // Best-effort geocode when the location was typed rather than picked
     // from autocomplete (e.g. WhatsApp-intake listings) so radius search

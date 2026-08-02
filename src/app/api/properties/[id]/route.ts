@@ -3,8 +3,14 @@ import { requireRole, toErrorResponse } from "@/lib/auth/account";
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from "@/lib/rate-limit";
 import { autoSyncPropertyCatalogIfNeeded } from "@/lib/whatsapp/catalog-sync-helper";
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
+import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import {
+  canViewExactLocation,
+  maskPropertyForViewer,
+} from "@/lib/inventory/location-guard";
+import type { Property } from "@/types";
 
 // GET /api/properties/[id]
 // Returns a single property with full relations (owner + interested_contacts)
@@ -45,7 +51,12 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(
+      maskPropertyForViewer(data as unknown as Property, {
+        role: ctx.role,
+        userId: ctx.userId,
+      })
+    );
   } catch (err) {
     return toErrorResponse(err);
   }
@@ -93,6 +104,10 @@ export async function PUT(
       status,
       bedrooms,
       bathrooms,
+      furnishing,
+      floor_number,
+      total_floors,
+      balconies,
       area_sqft,
       area_unit,
       land_area,
@@ -115,6 +130,7 @@ export async function PUT(
       nearby_highlights,
       owner_contact_id,
       google_map_link,
+      location_privacy,
       rental_income,
       roi,
       floor_tenancies,
@@ -349,6 +365,22 @@ export async function PUT(
       updateData.facing_direction = typeof facing_direction === "string" ? facing_direction.trim() : null;
     }
 
+    if (furnishing !== undefined) {
+      updateData.furnishing = typeof furnishing === "string" ? furnishing.trim() || null : null;
+    }
+
+    if (floor_number !== undefined) {
+      updateData.floor_number = typeof floor_number === "number" ? floor_number : null;
+    }
+
+    if (total_floors !== undefined) {
+      updateData.total_floors = typeof total_floors === "number" ? total_floors : null;
+    }
+
+    if (balconies !== undefined) {
+      updateData.balconies = typeof balconies === "number" ? balconies : null;
+    }
+
     if (nearby_highlights !== undefined) {
       updateData.nearby_highlights = Array.isArray(nearby_highlights) ? nearby_highlights.filter(h => typeof h === "string") : [];
     }
@@ -359,6 +391,10 @@ export async function PUT(
 
     if (google_map_link !== undefined) {
       updateData.google_map_link = typeof google_map_link === "string" ? google_map_link.trim() : null;
+    }
+    if (location_privacy !== undefined) {
+      updateData.location_privacy =
+        location_privacy === "exact" || location_privacy === "locality" ? location_privacy : null;
     }
 
     if (rental_income !== undefined) {
@@ -433,7 +469,7 @@ export async function PUT(
     // Verify it exists in this account before updating (defensive check)
     const { data: existing, error: findError } = await ctx.supabase
       .from("properties")
-      .select("id")
+      .select("id, type, user_id, location_privacy")
       .eq("id", id)
       .eq("account_id", ctx.accountId)
       .maybeSingle();
@@ -453,13 +489,46 @@ export async function PUT(
       );
     }
 
+    // A caller who cannot see the exact location received a masked row
+    // in their edit form — writing its location fields back would corrupt
+    // the address with the locality label (or let them flip the guard).
+    if (
+      !canViewExactLocation(
+        { role: ctx.role, userId: ctx.userId },
+        existing as { type: string; user_id: string | null; location_privacy?: string | null }
+      )
+    ) {
+      delete updateData.location;
+      delete updateData.google_map_link;
+      delete updateData.latitude;
+      delete updateData.longitude;
+      delete updateData.locality_place_id;
+      delete updateData.locality_canonical;
+      delete updateData.location_privacy;
+    }
+
+    // The pin wins over address-derived coordinates (see POST) whenever
+    // this update sets a map link — including when it only re-saves the
+    // link the property already had.
+    if (typeof updateData.google_map_link === "string" && updateData.google_map_link) {
+      try {
+        const pinned = await resolveCoordinatesFromMapLink(updateData.google_map_link);
+        if (pinned) {
+          updateData.latitude = pinned.latitude;
+          updateData.longitude = pinned.longitude;
+        }
+      } catch (pinErr) {
+        console.warn("[PUT /api/properties/[id]] Map-pin coordinates failed:", pinErr);
+      }
+    }
+
     // Best-effort geocode when the location text changed but this update
     // carries no coordinates (typed edit, WhatsApp-intake correction, etc.)
     // so radius search keeps covering the property. Never blocks the save.
     if (
       typeof updateData.location === "string" &&
-      latitude == null &&
-      longitude == null &&
+      updateData.latitude == null &&
+      updateData.longitude == null &&
       hasGoogleMapsKey()
     ) {
       try {

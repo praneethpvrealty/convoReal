@@ -12,6 +12,7 @@
 // ============================================================
 
 import type { Property } from '@/types';
+import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
 export type ShareAudience = 'client' | 'agent';
 export type ShareDetailLevel = 'quick' | 'standard' | 'complete';
@@ -78,11 +79,11 @@ function priceLine(property: Property, currency: string): string {
 }
 
 function locationLine(property: Property): string {
-  return (
-    [property.sublocality, property.city, property.state].filter(Boolean).join(', ') ||
-    property.location ||
-    ''
-  );
+  const locality = [property.sublocality, property.city, property.state]
+    .filter(Boolean)
+    .join(', ');
+  if (locality) return locality;
+  return isLocationGuarded(property) ? '' : property.location || '';
 }
 
 function areaLine(property: Property): string {
@@ -178,7 +179,9 @@ function completeBody(property: Property, currency: string): string {
     lines.push(`📈 Rental income: ${formatShareAmount(property.rental_income, currency)}/mo${property.roi ? ` (~${property.roi}% ROI)` : ''}`);
   }
 
-  if (property.google_map_link) lines.push(`🗺 Map: ${property.google_map_link}`);
+  if (property.google_map_link && !isLocationGuarded(property)) {
+    lines.push(`🗺 Map: ${property.google_map_link}`);
+  }
 
   return lines.join('\n');
 }
@@ -244,6 +247,9 @@ export function buildInquiryDetailsMessage(input: {
   const body = [completeBody(property, currency)];
   if (property.location && locationLine(property) !== property.location) {
     body.push(`📍 *Exact Address:* ${property.location}`);
+  }
+  if (property.google_map_link && isLocationGuarded(property)) {
+    body.push(`🗺 Map: ${property.google_map_link}`);
   }
   return [
     `Here are the complete details for the property "${property.title}" you inquired about:`,

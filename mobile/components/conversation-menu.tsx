@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { BottomSheet } from '@/components/sheet';
 import { SectionLabel } from '@/components/ui';
 import { setConversationArchived, setConversationStatus } from '@/lib/conversation-actions';
@@ -35,6 +36,7 @@ export function ConversationMenu({
 }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   async function run(fn: () => Promise<void>) {
     if (busy) return;
@@ -45,7 +47,7 @@ export function ConversationMenu({
       onClose();
     } catch (e) {
       haptic.warn();
-      Alert.alert('Could not update', e instanceof Error ? e.message : 'Please try again.');
+      show({ title: 'Could not update', message: e instanceof Error ? e.message : 'Please try again.' });
     } finally {
       setBusy(false);
     }
@@ -111,6 +113,7 @@ export function ConversationMenu({
           Archiving hides the chat from the inbox but keeps its history. Chats can’t be deleted.
         </Text>
       </View>
+      <AppDialog {...dialogProps} />
     </BottomSheet>
   );
 }

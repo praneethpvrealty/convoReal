@@ -7,13 +7,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Heart, SlidersHorizontal, Settings, LogOut, Home } from 'lucide-react';
+import {
+  Heart,
+  Sparkles,
+  SlidersHorizontal,
+  Settings,
+  LogOut,
+  Home,
+} from 'lucide-react';
 
 import { useBuyer } from './buyer-provider';
 import { Button } from '@/components/ui/button';
 
 const NAV = [
   { href: '/buyer', label: 'Shortlist', icon: Heart, exact: true },
+  { href: '/buyer/matches', label: 'Matches', icon: Sparkles, exact: false },
   {
     href: '/buyer/preferences',
     label: 'Preferences',

@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { PropertyRadarLoader } from '@/components/ui/property-radar-loader';
 import { PropertyBlueprintLoader } from '@/components/ui/property-blueprint-loader';
+import { PriceHint } from '@/components/ui/price-hint';
 import {
   Loader2,
   Plus,
@@ -45,6 +46,8 @@ import {
   Bath,
   Maximize2,
   ExternalLink,
+  Lock,
+  Unlock,
   Compass,
   CheckCircle2,
   Edit,
@@ -62,7 +65,10 @@ import {
   CirclePlay,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
 } from 'lucide-react';
+import { haversineKm } from '@/lib/geo';
+import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
 import { getMatchingContacts } from '@/lib/matching';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
@@ -75,88 +81,21 @@ import {
   POPULAR_PROJECTS,
   POPULAR_SUBLOCALITIES,
 } from '@/lib/data/real-estate-data';
-
-// Exhaustive amenities list for checkbox selection
-export const AMENITIES_BY_CATEGORY = {
-  "Security & Utilities": [
-    "24/7 Security",
-    "CCTV Surveillance",
-    "Power Backup",
-    "Intercom",
-    "Fire Fighting System",
-    "Water Supply (Corporation)",
-    "Water Supply (Borewell)",
-    "Rain Water Harvesting",
-    "Waste Disposal",
-  ],
-  "Leisure & Community": [
-    "Lift/Elevator",
-    "Swimming Pool",
-    "Gymnasium",
-    "Club House",
-    "Children's Play Area",
-    "Reserved Parking",
-    "Visitor Parking",
-    "Gated Community",
-  ],
-  "Commercial & Agricultural Specs": [
-    "Centrally Air Conditioned",
-    "Service/Goods Lift",
-    "Conference Room",
-    "Cafeteria/Food Court",
-    "Wi-Fi Connectivity",
-    "ATM",
-    "Fenced Boundary",
-    "Electricity Connection",
-    "Access Road",
-  ]
-};
-
-// Exhaustive list of nearby landmarks
-export const NEARBY_HIGHLIGHTS_OPTIONS = [
-  "Metro Station",
-  "School",
-  "Hospital",
-  "Mall",
-  "Supermarket",
-  "Park",
-  "Highway",
-  "Airport",
-  "Railway Station",
-  "Bus Stop",
-  "Bank / ATM"
-];
-
-export const FACING_DIRECTIONS = [
-  "East",
-  "North",
-  "South",
-  "West",
-  "North-East",
-  "North-West",
-  "South-East",
-  "South-West"
-];
-
-export const AREA_UNITS = [
-  "Sq.Ft.",
-  "Sq.Mtr.",
-  "Acre",
-  "Gunta",
-  "Cent",
-  "Ground"
-];
-
-// Frontage/depth are always in feet, so land-area linking must convert
-// through the selected unit.
-const SQFT_PER_AREA_UNIT: Record<string, number> = {
-  "Sq.Ft.": 1,
-  "Sq.Mtr.": 10.7639,
-  "Acre": 43560,
-  "Gunta": 1089,
-  "Cent": 435.6,
-  "Ground": 2400,
-};
+import {
+  AMENITIES_BY_CATEGORY,
+  NEARBY_HIGHLIGHTS_OPTIONS,
+  FACING_DIRECTIONS,
+  FURNISHING_OPTIONS,
+  AREA_UNITS,
+  SQFT_PER_AREA_UNIT,
+  PROPERTY_TYPE_GROUPS,
+  PROPERTY_STATUSES,
+  hasBedsBaths as typeHasBedsBaths,
+  hasCommercialFields as typeHasCommercialFields,
+  isLandType,
+  isApartmentType,
+} from '@/lib/inventory/property-options';
+import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
 
 interface PropertyFormProps {
   open: boolean;
@@ -270,14 +209,23 @@ export function PropertyForm({
   const [roadWidth, setRoadWidth] = useState('');
   const [roadWidthUnit, setRoadWidthUnit] = useState('Feet');
   const [facingDirection, setFacingDirection] = useState('');
+  const [furnishing, setFurnishing] = useState('');
+  const [floorNumber, setFloorNumber] = useState('');
+  const [totalFloors, setTotalFloors] = useState('');
+  const [balconies, setBalconies] = useState('');
   const [isPublished, setIsPublished] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>(['']);
+  const [privateImages, setPrivateImages] = useState<string[]>([]);
+  const [lockingImagePath, setLockingImagePath] = useState<string | null>(null);
   const [defaultImageIndex, setDefaultImageIndex] = useState(0);
+  const [videoRemoved, setVideoRemoved] = useState(false);
+  const [removingVideo, setRemovingVideo] = useState(false);
   const [documents, setDocuments] = useState<Array<{ url: string; title: string }>>([{ url: '', title: '' }]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [googleMapLink, setGoogleMapLink] = useState('');
+  const [locationPrivacy, setLocationPrivacy] = useState<'' | 'exact' | 'locality'>('');
   const [notes, setNotes] = useState('');
 
   // Document Requests management
@@ -356,6 +304,68 @@ export function PropertyForm({
       setTimeout(() => setCopiedLinkReqId(null), 3000);
       toast.success('Share link copied!');
     });
+  };
+
+  interface LocRequest {
+    id: string;
+    requester_name: string;
+    requester_phone: string;
+    status: string;
+    identity_protected?: boolean;
+    via_contact_id: string | null;
+    pending_consent_contact_id: string | null;
+    share_token: string | null;
+    share_token_expires_at: string | null;
+    share_sent_at: string | null;
+    view_count: number;
+    last_viewed_at: string | null;
+    created_at: string;
+  }
+  const [locRequests, setLocRequests] = useState<LocRequest[]>([]);
+  const [locRequestsLoading, setLocRequestsLoading] = useState(false);
+  const [processingLocReqId, setProcessingLocReqId] = useState<string | null>(null);
+
+  const fetchLocRequests = useCallback(async () => {
+    if (!property?.id || !accountId) return;
+    setLocRequestsLoading(true);
+    try {
+      const res = await fetch(`/api/properties/${property.id}/location-requests`);
+      if (res.ok) {
+        const json = await res.json();
+        setLocRequests(json.data || []);
+      }
+    } catch (e) {
+      console.error('[fetchLocRequests]', e);
+    } finally {
+      setLocRequestsLoading(false);
+    }
+  }, [property?.id, accountId]);
+
+  const handleLocRequestAction = async (reqId: string, action: 'approve' | 'reject') => {
+    if (!property?.id) return;
+    setProcessingLocReqId(reqId);
+    try {
+      const res = await fetch(`/api/properties/${property.id}/location-requests`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: reqId, action }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed');
+      if (action === 'approve') {
+        toast.success('Request approved! Location link sent to the requester via WhatsApp.');
+        if (json.share_link) {
+          navigator.clipboard.writeText(json.share_link).catch(() => {});
+        }
+      } else {
+        toast.info('Request rejected — the requester has been redirected to their sharer.');
+      }
+      await fetchLocRequests();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setProcessingLocReqId(null);
+    }
   };
 
   const [localitiesDb, setLocalitiesDb] = useState<{ detailed: string[] } | null>(null);
@@ -438,41 +448,12 @@ export function PropertyForm({
   }, [isOwnerDropdownOpen]);
 
   // Helper classifications based on selected type
-  const hasBedsBaths = [
-    'Flat/ Apartment',
-    'Residential House',
-    'Villa',
-    'Builder Floor Apartment',
-    'Penthouse',
-    'Studio Apartment',
-    'Farm House'
-  ].includes(type);
-
-  const hasCommercialFields = [
-    'Commercial Office Space',
-    'Office in IT Park/ SEZ',
-    'Commercial Shop',
-    'Commercial Showroom',
-    'Commercial Building',
-    'Commercial Land',
-    'Warehouse/ Godown',
-    'Industrial Land',
-    'Industrial Building',
-    'Industrial Shed'
-  ].includes(type);
-
-  const isLand = [
-    'Residential Land/ Plot',
-    'Commercial Land',
-    'Industrial Land',
-    'Agricultural Land'
-  ].includes(type);
-
-  const isApartment = [
-    'Flat/ Apartment',
-    'Builder Floor Apartment',
-    'Studio Apartment'
-  ].includes(type);
+  const hasBedsBaths = typeHasBedsBaths(type);
+  const hasCommercialFields = typeHasCommercialFields(type);
+  const isLand = isLandType(type);
+  const isApartment = isApartmentType(type);
+  const guardedByType = isGuardedType(type);
+  const locationGuarded = isLocationGuarded({ type, location_privacy: locationPrivacy || null });
 
   async function ensureLocalitiesLoaded() {
     if (!localitiesDb) {
@@ -1144,7 +1125,12 @@ export function PropertyForm({
         body: JSON.stringify({
           title: title.trim(),
           type,
-          location: [address.trim(), sublocality.trim(), city.trim(), stateVal.trim()].filter(Boolean).join(', ') || null,
+          location: [
+            locationGuarded ? '' : address.trim(),
+            sublocality.trim(),
+            city.trim(),
+            stateVal.trim(),
+          ].filter(Boolean).join(', ') || null,
           bedrooms: bedrooms.trim() ? Number(bedrooms) : null,
           bathrooms: bathrooms.trim() ? Number(bathrooms) : null,
           area: isLand ? (landArea.trim() ? Number(landArea) : null) : (areaSqft.trim() ? Number(areaSqft) : null),
@@ -1200,6 +1186,18 @@ export function PropertyForm({
     place_id: string;
     canonical: string;
   } | null>(null);
+  // The pasted pin and the picked locality should describe the same
+  // place. When they don't, one of them is wrong — usually a same-named
+  // locality the address geocoder picked in the wrong part of town — and
+  // silently keeping both is what drops a listing out of radius search.
+  const mapPinDrift = useMemo(() => {
+    const link = googleMapLink.trim();
+    const pin = link ? extractCoordinatesFromMapUrl(link) : null;
+    if (!pin || !geoPick) return null;
+    const km = haversineKm(geoPick.latitude, geoPick.longitude, pin.latitude, pin.longitude);
+    return km > 1 ? km : null;
+  }, [googleMapLink, geoPick]);
+
   const googleSessionRef = useRef<string | null>(null);
   const googleDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const googleSeqRef = useRef(0);
@@ -1308,8 +1306,17 @@ export function PropertyForm({
     setIsContactDropdownOpen(false);
   };
 
+  // Parent refetches recreate `property` (the updated_at sync in
+  // inventory-content) and `contacts` (query identity) while the dialog
+  // is open; re-running the reset then clobbers unsaved edits — deleted
+  // photo rows "reappear". Reset only when the dialog opens, switches to
+  // a different property, or contacts first arrive.
+  const formResetKey = useRef<string | null>(null);
   useEffect(() => {
     if (open) {
+      const resetKey = `${property?.id ?? 'new'}:${contacts && contacts.length > 0 ? 'c1' : 'c0'}`;
+      if (formResetKey.current === resetKey) return;
+      formResetKey.current = resetKey;
       userTypedDims.current = { landArea: false, frontage: false, depth: false };
       derivedDims.current = { landArea: false, frontage: false, depth: false };
       if (property) {
@@ -1379,10 +1386,16 @@ export function PropertyForm({
         setRoadWidth(property.road_width !== null && property.road_width !== undefined ? String(property.road_width) : '');
         setRoadWidthUnit(property.road_width_unit ?? 'Feet');
         setFacingDirection(property.facing_direction ?? '');
+        setFurnishing(property.furnishing ?? '');
+        setFloorNumber(property.floor_number !== null && property.floor_number !== undefined ? String(property.floor_number) : '');
+        setTotalFloors(property.total_floors !== null && property.total_floors !== undefined ? String(property.total_floors) : '');
+        setBalconies(property.balconies !== null && property.balconies !== undefined ? String(property.balconies) : '');
         setIsPublished(property.is_published);
         setFeatures(property.features || []);
         setNearbyHighlights(property.nearby_highlights || []);
         setImages(property.images && property.images.length > 0 ? property.images : ['']);
+        setPrivateImages(property.private_images || []);
+        setVideoRemoved(false);
         setDefaultImageIndex(0); // Default image is always at index 0
         const dbDocs = property.documents && property.documents.length > 0 ? property.documents : [];
         const parsed = dbDocs.map((doc: unknown) => {
@@ -1415,6 +1428,11 @@ export function PropertyForm({
         // distinguishes it) rather than adding a third toggle state.
         setListingSource(property.listing_source === 'agent' ? 'agent' : 'owner');
         setGoogleMapLink(property.google_map_link ?? '');
+        setLocationPrivacy(
+          property.location_privacy === 'exact' || property.location_privacy === 'locality'
+            ? property.location_privacy
+            : ''
+        );
         setNotes(property.notes ?? '');
         // Preserve saved coordinates unless the agent re-touches the location
         setGeoPick(
@@ -1506,19 +1524,28 @@ export function PropertyForm({
         setRoadWidth('');
         setRoadWidthUnit('Feet');
         setFacingDirection('');
+        setFurnishing('');
+        setFloorNumber('');
+        setTotalFloors('');
+        setBalconies('');
         setIsPublished(false);
         setFeatures([]);
         setNearbyHighlights([]);
         setImages(['']);
+        setPrivateImages([]);
+        setVideoRemoved(false);
         setDocuments([{ url: '', title: '' }]);
         setSearchQuery('');
         setGoogleMapLink('');
+        setLocationPrivacy('');
         setNotes('');
         setGeoPick(null);
         setGoogleSuggestions([]);
         setOwnerContactId(defaultOwnerId ?? null);
         setListingSource('owner');
       }
+    } else {
+      formResetKey.current = null;
     }
   }, [open, property, defaultOwnerId, contacts]);
 
@@ -1530,6 +1557,14 @@ export function PropertyForm({
       setDocRequests([]);
     }
   }, [open, property?.id, fetchDocRequests]);
+
+  useEffect(() => {
+    if (open && property?.id) {
+      fetchLocRequests();
+    } else {
+      setLocRequests([]);
+    }
+  }, [open, property?.id, fetchLocRequests]);
 
   useEffect(() => {
     if (!open) return;
@@ -1723,44 +1758,10 @@ export function PropertyForm({
     }
     // Default Residential
     return {
-      "Security & Utilities": [
-        "24/7 Security",
-        "CCTV Surveillance",
-        "Power Backup",
-        "Intercom",
-        "Fire Fighting System",
-        "Water Supply (Corporation)",
-        "Water Supply (Borewell)",
-        "Rain Water Harvesting",
-        "Waste Disposal",
-      ],
-      "Leisure & Community": [
-        "Lift/Elevator",
-        "Swimming Pool",
-        "Gymnasium",
-        "Club House",
-        "Children's Play Area",
-        "Reserved Parking",
-        "Visitor Parking",
-        "Gated Community",
-      ]
+      "Security & Utilities": AMENITIES_BY_CATEGORY["Security & Utilities"],
+      "Leisure & Community": AMENITIES_BY_CATEGORY["Leisure & Community"],
     };
   }, [isLand, hasCommercialFields]);
-
-  function getEquivalentPriceLabel(priceStr: string) {
-    const priceNum = Number(priceStr);
-    if (!priceStr || isNaN(priceNum) || priceNum <= 0) return '';
-    
-    if (priceNum >= 10000000) {
-      const cr = priceNum / 10000000;
-      return `Equivalent to: ₹${cr.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Crore`;
-    }
-    if (priceNum >= 100000) {
-      const lakhs = priceNum / 100000;
-      return `Equivalent to: ₹${lakhs.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1')} Lakhs`;
-    }
-    return `Equivalent to: ₹${priceNum.toLocaleString('en-IN')}`;
-  }
 
   async function onUploadImages(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -2003,6 +2004,53 @@ export function PropertyForm({
     toast.success('Selected image set as default listing photo');
   }
 
+  async function handleToggleImageLock(path: string, action: 'lock' | 'unlock') {
+    if (!property?.id || lockingImagePath) return;
+    setLockingImagePath(path);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/private-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path, action }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update photo privacy');
+      }
+      setImages(data.data.images.length > 0 ? data.data.images : ['']);
+      setPrivateImages(data.data.private_images || []);
+      toast.success(
+        action === 'lock'
+          ? 'Photo moved to private — revealed only on approved requests'
+          : 'Photo is public again'
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update photo privacy');
+    } finally {
+      setLockingImagePath(null);
+    }
+  }
+
+  async function handleRemoveVideo() {
+    if (!property?.id || removingVideo) return;
+    setRemovingVideo(true);
+    try {
+      const response = await fetch(`/api/properties/${property.id}/generate-video`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to remove the video');
+      }
+      setVideoRemoved(true);
+      toast.success('Listing video removed — it no longer plays in the Showcase');
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove the video');
+    } finally {
+      setRemovingVideo(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -2121,6 +2169,9 @@ export function PropertyForm({
       const parsedBtsEscalationPercent = isBTS && btsEscalationPercent.trim() !== '' ? Number(btsEscalationPercent) : null;
       const parsedBedrooms = hasBedsBaths && bedrooms.trim() !== '' ? Number(bedrooms) : null;
       const parsedBathrooms = hasBedsBaths && bathrooms.trim() !== '' ? Number(bathrooms) : null;
+      const parsedFloorNumber = !isLand && floorNumber.trim() !== '' ? Number(floorNumber) : null;
+      const parsedTotalFloors = !isLand && totalFloors.trim() !== '' ? Number(totalFloors) : null;
+      const parsedBalconies = hasBedsBaths && balconies.trim() !== '' ? Number(balconies) : null;
       const parsedAreaSqft = areaSqft.trim() !== '' ? Number(areaSqft) : null;
       const parsedLandArea = (isLand || !isApartment) && landArea.trim() !== '' ? Number(landArea) : null;
       const parsedSuperBuiltArea = superBuiltArea.trim() !== '' ? Number(superBuiltArea) : null;
@@ -2185,6 +2236,10 @@ export function PropertyForm({
             : null,
         bedrooms: parsedBedrooms,
         bathrooms: parsedBathrooms,
+        furnishing: !isLand && furnishing ? furnishing : null,
+        floor_number: parsedFloorNumber,
+        total_floors: parsedTotalFloors,
+        balconies: parsedBalconies,
         area_sqft: parsedAreaSqft,
         area_unit: areaUnit,
         land_area: parsedLandArea,
@@ -2211,6 +2266,7 @@ export function PropertyForm({
         owner_contact_id: ownerContactId,
         listing_source: listingSource,
         google_map_link: googleMapLink.trim() || null,
+        location_privacy: locationPrivacy || null,
         rental_income: hasCommercialFields && rentalIncome.trim() !== '' ? Number(rentalIncome) : null,
         roi: hasCommercialFields && roiValue !== null ? roiValue : null,
         // Server-side sanitizeFloorTenancies() drops empty rows and
@@ -2350,9 +2406,20 @@ export function PropertyForm({
                       and touch swipe both navigate. */}
                   <div className="space-y-2">
                     {(() => {
-                      const validImages = (images || []).filter(img => img && img.trim().length > 0).map(storagePublicUrl);
+                      const publicImages = (images || []).filter(img => img && img.trim().length > 0).map(storagePublicUrl);
+                      // Private photos stream through the authenticated
+                      // proxy — the masked API empties the list for
+                      // viewers who may not see them.
+                      const privateProxyImages = property?.id
+                        ? (privateImages || []).map(
+                            (_, i) => `/api/properties/${property.id}/private-images/${i}`
+                          )
+                        : [];
+                      const validImages = [...publicImages, ...privateProxyImages];
                       const hasVideo = Boolean(property?.video_url && property.video_status === 'ready');
                       const mediaCount = validImages.length + (hasVideo ? 1 : 0);
+                      const isPrivateSlide = (i: number) =>
+                        i >= publicImages.length && i < validImages.length;
                       if (mediaCount === 0) {
                         return (
                           <div className="relative aspect-[16/9] w-full rounded-xl bg-slate-950/60 border border-dashed border-slate-800 overflow-hidden flex flex-col items-center justify-center text-slate-500 gap-2.5 py-12">
@@ -2420,6 +2487,11 @@ export function PropertyForm({
                                   <ChevronRight className="size-4" />
                                 </button>
                               </>
+                            )}
+                            {!isVideoSlide && isPrivateSlide(Math.min(activeImageIndex, mediaCount - 1)) && (
+                              <div className="absolute top-3 left-3 inline-flex items-center gap-1 bg-amber-500/90 text-slate-950 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide">
+                                <Lock className="size-3" /> Private
+                              </div>
                             )}
                             <div className="absolute bottom-3 right-3 bg-slate-950/80 backdrop-blur-md px-2.5 py-1 rounded-md text-[10px] font-mono font-bold text-slate-300 border border-slate-800">
                               {Math.min(activeImageIndex, mediaCount - 1) + 1} / {mediaCount}
@@ -2529,11 +2601,7 @@ export function PropertyForm({
                           <div className="text-2xl font-black text-white">
                             {rentPerMonth ? `${formatCurrency(Number(rentPerMonth), currency)}/mo` : '--'}
                           </div>
-                          {rentPerMonth && !isNaN(Number(rentPerMonth)) && Number(rentPerMonth) > 0 && (
-                            <p className="text-[10px] text-primary font-semibold mt-0.5">
-                              {getEquivalentPriceLabel(rentPerMonth)}
-                            </p>
-                          )}
+                          <PriceHint value={rentPerMonth} className="text-[10px]" />
                           {(maintenance || advance || gst) && (
                             <div className="text-[10px] text-slate-400 mt-1 space-y-0.5 font-medium">
                               {maintenance && Number(maintenance) > 0 && (
@@ -2581,11 +2649,7 @@ export function PropertyForm({
                           <div className="text-2xl font-black text-white">
                             {price ? formatCurrency(Number(price), currency) : '--'}
                           </div>
-                          {price && !isNaN(Number(price)) && Number(price) > 0 && (
-                            <p className="text-[10px] text-primary font-semibold mt-0.5">
-                              {getEquivalentPriceLabel(price)}
-                            </p>
-                          )}
+                          <PriceHint value={price} className="text-[10px]" />
                         </>
                       )}
                     </div>
@@ -2787,6 +2851,11 @@ export function PropertyForm({
                         <span>Open in Google Maps</span>
                         <ExternalLink className="size-3.5" />
                       </a>
+                    ) : property?.location_guarded ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs text-amber-400 font-medium select-none bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg">
+                        <Lock className="size-3.5" />
+                        Exact location restricted
+                      </span>
                     ) : (
                       <span className="text-xs text-slate-500 font-medium select-none bg-slate-900 border border-slate-850 px-3 py-1.5 rounded-lg">
                         No Map Link Available
@@ -3251,6 +3320,164 @@ export function PropertyForm({
                     )}
                   </div>
 
+                  {/* Location Reveal Requests Panel */}
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <MapPin className="size-3.5 text-primary" />
+                        Location Requests
+                        {locRequests.filter(r => r.status === 'pending').length > 0 && (
+                          <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[1rem] px-1 rounded-full bg-amber-500 text-black text-[10px] font-black">
+                            {locRequests.filter(r => r.status === 'pending').length}
+                          </span>
+                        )}
+                      </h4>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={fetchLocRequests}
+                        disabled={locRequestsLoading}
+                        className="h-6 text-[10px] text-slate-500 hover:text-white px-2"
+                      >
+                        {locRequestsLoading ? <Loader2 className="size-3 animate-spin" /> : 'Refresh'}
+                      </Button>
+                    </div>
+
+                    {locRequestsLoading && locRequests.length === 0 ? (
+                      <div className="flex items-center justify-center py-6 text-slate-500 text-xs gap-2">
+                        <Loader2 className="size-3.5 animate-spin" /> Loading requests...
+                      </div>
+                    ) : locRequests.length === 0 ? (
+                      <div className="bg-slate-950/20 border border-slate-850 rounded-xl p-4 text-center text-xs text-slate-500">
+                        No location requests yet. Requests from the showcase&apos;s &quot;Request Exact Location&quot; button will appear here.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                        {locRequests.map((req) => {
+                          const awaitingConsent =
+                            req.status === 'pending' && Boolean(req.pending_consent_contact_id);
+                          return (
+                            <div
+                              key={req.id}
+                              className={`rounded-xl border p-3.5 space-y-2 text-xs transition-colors ${
+                                req.status === 'pending'
+                                  ? 'bg-amber-500/5 border-amber-500/20'
+                                  : req.status === 'approved'
+                                  ? 'bg-emerald-500/5 border-emerald-500/20'
+                                  : 'bg-slate-900/20 border-slate-800 opacity-60'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="space-y-0.5">
+                                  <p className="font-bold text-white">{req.requester_name}</p>
+                                  <p className="text-slate-400">{req.requester_phone}</p>
+                                  {req.identity_protected && (
+                                    <p className="text-[10px] text-amber-400/90 flex items-center gap-1">
+                                      <Lock className="size-2.5" /> Via a co-broker share — identity protected
+                                    </p>
+                                  )}
+                                  <p className="text-slate-600 text-[10px]">
+                                    {new Date(req.created_at).toLocaleDateString('en-IN', {
+                                      day: 'numeric', month: 'short', year: 'numeric',
+                                      hour: '2-digit', minute: '2-digit',
+                                    })}
+                                  </p>
+                                </div>
+                                <div className="shrink-0">
+                                  {awaitingConsent && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 text-[10px] font-bold">
+                                      <Clock className="size-2.5" /> Awaiting co-broker
+                                    </span>
+                                  )}
+                                  {req.status === 'pending' && !awaitingConsent && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-[10px] font-bold">
+                                      <Clock className="size-2.5" /> Pending
+                                    </span>
+                                  )}
+                                  {req.status === 'approved' && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">
+                                      <CheckCircle className="size-2.5" /> Approved
+                                    </span>
+                                  )}
+                                  {req.status === 'rejected' && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold">
+                                      <XCircle className="size-2.5" /> Rejected
+                                    </span>
+                                  )}
+                                  {req.status === 'expired' && (
+                                    <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px] font-bold">
+                                      <Clock className="size-2.5" /> Timed out
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              {req.status === 'pending' && (
+                                <div className="flex gap-2 pt-1">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    disabled={processingLocReqId === req.id || awaitingConsent}
+                                    onClick={() => handleLocRequestAction(req.id, 'approve')}
+                                    title={awaitingConsent ? 'The co-broker who shared the link must consent first' : undefined}
+                                    className="flex-1 h-7 text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+                                  >
+                                    {processingLocReqId === req.id ? (
+                                      <Loader2 className="size-3 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="size-3" />
+                                    )}
+                                    Approve & Send
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={processingLocReqId === req.id}
+                                    onClick={() => handleLocRequestAction(req.id, 'reject')}
+                                    className="h-7 text-[11px] border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 font-semibold flex items-center gap-1"
+                                  >
+                                    <XCircle className="size-3" /> Reject
+                                  </Button>
+                                </div>
+                              )}
+
+                              {req.status === 'approved' && req.share_token && (
+                                <div className="flex items-center gap-2 pt-1">
+                                  {req.share_token_expires_at && new Date() > new Date(req.share_token_expires_at) ? (
+                                    <span className="text-[10px] text-amber-500 flex items-center gap-1">
+                                      <Clock className="size-3" /> Link expired
+                                    </span>
+                                  ) : (
+                                    req.share_token_expires_at && (
+                                      <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                                        <Clock className="size-3" />
+                                        Expires: {new Date(req.share_token_expires_at).toLocaleDateString('en-IN')}
+                                      </span>
+                                    )
+                                  )}
+                                  {req.share_sent_at && (
+                                    <span className="text-[10px] text-emerald-500 flex items-center gap-1 ml-1">
+                                      <CheckCircle className="size-3" />
+                                      Sent via WA
+                                    </span>
+                                  )}
+                                  {req.view_count > 0 && (
+                                    <span className="text-[10px] text-primary flex items-center gap-1 ml-1">
+                                      <Eye className="size-3" />
+                                      {req.view_count > 1 ? `Viewed ${req.view_count}×` : 'Viewed'}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
                   {/* 10. ACTION FOOTER */}
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-4 mt-6">
                     <div className="flex gap-2 shrink-0 ml-auto">
@@ -3335,11 +3562,7 @@ export function PropertyForm({
                         className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         required
                       />
-                      {price && !isNaN(Number(price)) && Number(price) > 0 && (
-                        <p className="text-[11px] text-primary font-semibold mt-0.5">
-                          {getEquivalentPriceLabel(price)}
-                        </p>
-                      )}
+                      <PriceHint value={price} />
                     </div>
                   ) : listingType === 'Rent' ? (
                     <div className="grid grid-cols-2 gap-4 col-span-2 p-4 rounded-lg border border-slate-800 bg-slate-950/20 animate-fade-in">
@@ -3356,11 +3579,7 @@ export function PropertyForm({
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                           required
                         />
-                        {rentPerMonth && !isNaN(Number(rentPerMonth)) && Number(rentPerMonth) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(rentPerMonth)}
-                          </p>
-                        )}
+                        <PriceHint value={rentPerMonth} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3375,11 +3594,7 @@ export function PropertyForm({
                           placeholder="e.g. 5000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
-                        {maintenance && !isNaN(Number(maintenance)) && Number(maintenance) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(maintenance)}
-                          </p>
-                        )}
+                        <PriceHint value={maintenance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3394,11 +3609,7 @@ export function PropertyForm({
                           placeholder="e.g. 200000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
-                        {advance && !isNaN(Number(advance)) && Number(advance) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(advance)}
-                          </p>
-                        )}
+                        <PriceHint value={advance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3413,11 +3624,7 @@ export function PropertyForm({
                           placeholder="e.g. 1800"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
-                        {gst && !isNaN(Number(gst)) && Number(gst) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(gst)}
-                          </p>
-                        )}
+                        <PriceHint value={gst} />
                       </div>
                     </div>
                   ) : listingType === 'Built to Suit' ? (
@@ -3435,11 +3642,7 @@ export function PropertyForm({
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                           required
                         />
-                        {rentPerMonth && !isNaN(Number(rentPerMonth)) && Number(rentPerMonth) > 0 && (
-                          <p className="text-[11px] text-primary font-semibold mt-0.5">
-                            {getEquivalentPriceLabel(rentPerMonth)}
-                          </p>
-                        )}
+                        <PriceHint value={rentPerMonth} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3454,6 +3657,7 @@ export function PropertyForm({
                           placeholder="e.g. 15000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={maintenance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3468,6 +3672,7 @@ export function PropertyForm({
                           placeholder="e.g. 1500000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={advance} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3482,6 +3687,7 @@ export function PropertyForm({
                           placeholder="e.g. 45000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={gst} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3557,6 +3763,7 @@ export function PropertyForm({
                           placeholder="e.g. 50000000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={price} />
                       </div>
 
                       <div className="space-y-1.5">
@@ -3615,6 +3822,7 @@ export function PropertyForm({
                           placeholder="e.g. 2000000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={goodwillAmount} />
                         <p className="text-[10px] text-slate-500">Non-refundable upfront payment to the landowner.</p>
                       </div>
 
@@ -3630,6 +3838,7 @@ export function PropertyForm({
                           placeholder="e.g. 1000000"
                           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500"
                         />
+                        <PriceHint value={advance} />
                         <p className="text-[10px] text-slate-500">Refundable deposit, adjusted against the owner&apos;s share at handover.</p>
                       </div>
                     </div>
@@ -3645,33 +3854,15 @@ export function PropertyForm({
                       onChange={(e) => setType(e.target.value)}
                       className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
                     >
-                      <optgroup label="ALL RESIDENTIAL">
-                        <option value="Flat/ Apartment">Flat/ Apartment</option>
-                        <option value="Residential House">Residential House</option>
-                        <option value="Villa">Villa</option>
-                        <option value="Builder Floor Apartment">Builder Floor Apartment</option>
-                        <option value="Residential Land/ Plot">Residential Land/ Plot</option>
-                        <option value="Penthouse">Penthouse</option>
-                        <option value="Studio Apartment">Studio Apartment</option>
-                        <option value="Residential PG building">Residential PG building</option>
-                        <option value="PG/ Hostel">PG/ Hostel</option>
-                      </optgroup>
-                      <optgroup label="ALL COMMERCIAL">
-                        <option value="Commercial Office Space">Commercial Office Space</option>
-                        <option value="Office in IT Park/ SEZ">Office in IT Park/ SEZ</option>
-                        <option value="Commercial Shop">Commercial Shop</option>
-                        <option value="Commercial Showroom">Commercial Showroom</option>
-                        <option value="Commercial Building">Commercial Building (Mixed-Use)</option>
-                        <option value="Commercial Land">Commercial Land</option>
-                        <option value="Warehouse/ Godown">Warehouse/ Godown</option>
-                        <option value="Industrial Land">Industrial Land</option>
-                        <option value="Industrial Building">Industrial Building</option>
-                        <option value="Industrial Shed">Industrial Shed</option>
-                      </optgroup>
-                      <optgroup label="ALL AGRICULTURAL">
-                        <option value="Agricultural Land">Agricultural Land</option>
-                        <option value="Farm House">Farm House</option>
-                      </optgroup>
+                      {PROPERTY_TYPE_GROUPS.map((g) => (
+                        <optgroup key={g.group} label={`ALL ${g.group.toUpperCase()}`}>
+                          {g.options.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label ?? o.value}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 
@@ -3686,13 +3877,11 @@ export function PropertyForm({
                         onChange={(e) => setStatus(e.target.value)}
                         className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
                       >
-                        <option value="Available">Available</option>
-                        <option value="Under Contract">Under Contract</option>
-                        <option value="Sold">Sold</option>
-                        <option value="Archived">Archived</option>
-                        <option value="Off Market">Off Market</option>
-                        <option value="Pending Review">Pending Review</option>
-                        <option value="Rejected">Rejected</option>
+                        {PROPERTY_STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
                       </select>
                     </div>
                   )}
@@ -3711,6 +3900,7 @@ export function PropertyForm({
                         placeholder={price ? `e.g. ${price}` : 'e.g. 8500000'}
                         className="border-slate-700 bg-slate-800 text-white"
                       />
+                      <PriceHint value={soldPrice} />
                       <p className="text-[11px] text-slate-500">
                         Optional — improves your area&apos;s price accuracy. Never shown to buyers.
                       </p>
@@ -3910,6 +4100,39 @@ export function PropertyForm({
                         onChange={(e) => setGoogleMapLink(e.target.value)}
                         placeholder="e.g. https://maps.google.com/?q=..."
                       />
+                      {mapPinDrift !== null && (
+                        <p className="flex items-start gap-1.5 text-[11px] text-amber-400">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+                          <span>
+                            This pin sits {mapPinDrift.toFixed(1)} km from the selected locality
+                            {geoPick?.canonical ? ` (${geoPick.canonical})` : ''}. The pin wins on
+                            save — fix the link or re-pick the locality if that&apos;s the wrong one.
+                          </span>
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="col-span-2 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2.5">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="prop-location-guard" className="text-slate-300 text-sm cursor-pointer">
+                          Guard exact location
+                        </Label>
+                        <p className="text-[10px] text-slate-500 leading-normal">
+                          {guardedByType
+                            ? 'On by default for this property type — buyers and co-brokers see locality only until you approve a reveal.'
+                            : 'Off by default for this property type — turn on to hide the street address, map pin and coordinates until you approve a reveal.'}
+                        </p>
+                      </div>
+                      <Switch
+                        id="prop-location-guard"
+                        checked={locationGuarded}
+                        onCheckedChange={(checked) => {
+                          const next = checked ? 'locality' : 'exact';
+                          setLocationPrivacy(
+                            (guardedByType ? 'locality' : 'exact') === next ? '' : next
+                          );
+                        }}
+                      />
                     </div>
 
                     <div className="space-y-1.5 col-span-2">
@@ -3978,6 +4201,7 @@ export function PropertyForm({
                             placeholder="e.g. 250000"
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                           />
+                          <PriceHint value={rentalIncome} />
                         </div>
 
                         <div className="space-y-1.5">
@@ -4075,6 +4299,7 @@ export function PropertyForm({
                               placeholder="1350000"
                               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
                             />
+                            <PriceHint value={ft.monthly_rent} compact className="text-[10px]" />
                           </div>
                           <div className="space-y-1">
                             <Label className="text-slate-400 text-[11px]">Lease Start</Label>
@@ -4359,6 +4584,72 @@ export function PropertyForm({
                       </select>
                     </div>
 
+                    {!isLand && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-furnishing" className="text-slate-300">
+                          Furnishing
+                        </Label>
+                        <select
+                          id="prop-furnishing"
+                          value={furnishing}
+                          onChange={(e) => setFurnishing(e.target.value)}
+                          className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                        >
+                          <option value="">Select Furnishing</option>
+                          {FURNISHING_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {hasBedsBaths && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="prop-balconies" className="text-slate-300">
+                          Balconies
+                        </Label>
+                        <Input
+                          id="prop-balconies"
+                          type="number"
+                          value={balconies}
+                          onChange={(e) => setBalconies(e.target.value)}
+                          placeholder="e.g. 2"
+                          className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                        />
+                      </div>
+                    )}
+
+                    {!isLand && (
+                      <>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-floor-number" className="text-slate-300">
+                            Floor No.
+                          </Label>
+                          <Input
+                            id="prop-floor-number"
+                            type="number"
+                            value={floorNumber}
+                            onChange={(e) => setFloorNumber(e.target.value)}
+                            placeholder="e.g. 4 (0 = Ground)"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-total-floors" className="text-slate-300">
+                            Total Floors
+                          </Label>
+                          <Input
+                            id="prop-total-floors"
+                            type="number"
+                            value={totalFloors}
+                            onChange={(e) => setTotalFloors(e.target.value)}
+                            placeholder="e.g. 12"
+                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
+                          />
+                        </div>
+                      </>
+                    )}
+
                     {/* Land/JV Deal Notes — prefills the "Share via Email" draft */}
                     {(isLand || listingType === 'JV/JD') && (
                       <div className="col-span-2 grid grid-cols-2 gap-4 p-4 rounded-lg border border-slate-800 bg-slate-950/20">
@@ -4481,7 +4772,10 @@ export function PropertyForm({
                         property with photos, so edit mode only. */}
                     {property?.id && (
                       <div className="col-span-2">
-                        <ListingVideoCard propertyId={property.id} />
+                        <ListingVideoCard
+                          key={videoRemoved ? 'video-removed' : 'video'}
+                          propertyId={property.id}
+                        />
                       </div>
                     )}
 
@@ -4518,7 +4812,7 @@ export function PropertyForm({
                       </div>
 
                       <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                        {property?.video_url && property.video_status === 'ready' && (
+                        {property?.video_url && property.video_status === 'ready' && !videoRemoved && (
                           <div className="flex gap-2 items-center">
                             <video
                               src={storagePublicUrl(property.video_url)}
@@ -4539,6 +4833,21 @@ export function PropertyForm({
                             >
                               <CirclePlay className="size-3.5" />
                             </a>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleRemoveVideo}
+                              disabled={removingVideo}
+                              title="Remove video"
+                              className="h-8 w-8 p-0 text-red-400 hover:bg-red-500/10 hover:text-red-300 shrink-0"
+                            >
+                              {removingVideo ? (
+                                <Loader2 className="size-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="size-3.5" />
+                              )}
+                            </Button>
                           </div>
                         )}
                         {images.map((imgUrl, idx) => (
@@ -4573,6 +4882,23 @@ export function PropertyForm({
                                 <Star className={`size-3.5 ${idx === defaultImageIndex ? 'fill-amber-400' : ''}`} />
                               </Button>
                             )}
+                            {imgUrl.trim().length > 0 && property?.id && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleImageLock(imgUrl, 'lock')}
+                                disabled={lockingImagePath !== null}
+                                className="h-8 w-8 p-0 text-slate-500 hover:text-amber-400 shrink-0"
+                                title="Make private — hidden from the showcase, revealed only on approved requests (e.g. facade / street view)"
+                              >
+                                {lockingImagePath === imgUrl ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <Lock className="size-3.5" />
+                                )}
+                              </Button>
+                            )}
                             {images.length > 1 && (
                               <Button
                                 type="button"
@@ -4596,6 +4922,48 @@ export function PropertyForm({
                           <Plus className="size-3" /> Add Image URL
                         </Button>
                       </div>
+
+                      {property?.id && privateImages.length > 0 && (
+                        <div className="space-y-2 border-t border-slate-800 pt-3">
+                          <Label className="text-amber-400 text-xs flex items-center gap-1.5">
+                            <Lock className="size-3" /> Private Photos
+                            <span className="text-[10px] font-medium text-slate-500">
+                              Hidden from the showcase — sent only with approved location reveals
+                            </span>
+                          </Label>
+                          {privateImages.map((path, idx) => (
+                            <div key={path} className="flex gap-2 items-center">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={`/api/properties/${property.id}/private-images/${idx}`}
+                                alt={`Private ${idx + 1}`}
+                                className="size-8 object-cover rounded border border-amber-900/50 shrink-0"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                              <span className="flex-1 text-xs text-slate-500 truncate">{path}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleToggleImageLock(path, 'unlock')}
+                                disabled={lockingImagePath !== null}
+                                className="h-8 px-2 text-xs text-slate-400 hover:text-white shrink-0 flex items-center gap-1"
+                                title="Make public again"
+                              >
+                                {lockingImagePath === path ? (
+                                  <Loader2 className="size-3.5 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Unlock className="size-3.5" /> Unlock
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Property Documents */}

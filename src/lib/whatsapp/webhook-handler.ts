@@ -1,4 +1,3 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -31,6 +30,14 @@ import {
   parseBuyerAlertsCommand,
   applyBuyerAlertsCommand,
 } from '@/lib/buyer/alerts'
+import { isLocationGuarded } from '@/lib/inventory/location-guard'
+import {
+  CONSENT_APPROVE_PREFIX,
+  CONSENT_DECLINE_PREFIX,
+  handleLocationConsentReply,
+} from '@/lib/inventory/location-requests'
+import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
+import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
 import {
   isOwnerContact,
   findOwnedListings,
@@ -42,21 +49,16 @@ import { tryHandleInboundScheduling } from '@/lib/calendar/whatsapp-scheduler'
 import { createNotification } from '@/lib/notifications/create'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
 import { resolveRouting } from '@/lib/whatsapp/routing-engine'
+import {
+  handleBridgedAgentReply,
+  relayLeadMessageToBridgedAgent,
+  BRIDGE_REPLY_HINT,
+} from '@/lib/whatsapp/reply-bridge'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import { googleMapsUrlForCoordinates } from '@/lib/maps/resolve-location'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
 import type { SandboxSenderMapping } from '@/types'
-
-// Lazy-initialized to avoid build-time crash when env vars are missing
-let _adminClient: SupabaseClient | null = null
-function supabaseAdmin(): SupabaseClient {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
-  }
-  return _adminClient
-}
+import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface WhatsAppMessage {
   id: string
@@ -1011,6 +1013,20 @@ async function processMessage(
     console.error('Error updating conversation:', convError)
   }
 
+  // A staff member quote-replying one of our agent pings is answering
+  // the lead that ping was about — send it on and stop, so the text
+  // never also lands in the owner chatbot or the digest commands.
+  // No-op for every message that isn't a reply to a bridge message.
+  const bridged = await handleBridgedAgentReply({
+    message,
+    contentText,
+    accountId,
+    senderPhone,
+    agentContactId: contactRecord.id,
+    agentConversationId: conversation.id,
+  })
+  if (bridged) return
+
   // The agent this lead is routed to (freshly resolved above, or a prior
   // assignment), falling back to the account owner. Used to target
   // booking + new-lead notifications at the right person.
@@ -1021,9 +1037,10 @@ async function processMessage(
 
   // First message on a brand-new lead thread — alert the assigned agent
   // once (in-app + push + WhatsApp).
+  let pingedOnWhatsApp = false
   if (!ownerCheck.isOwner && isFirstInboundMessage) {
     const preview = (contentText || `[${message.type}]`).slice(0, 140)
-    await createNotification({
+    const notified = await createNotification({
       accountId,
       userId: assignedAgentUserId,
       type: 'new_message',
@@ -1039,9 +1056,10 @@ async function processMessage(
         '',
         preview,
         '',
-        '_Open your Inbox to reply._',
+        BRIDGE_REPLY_HINT,
       ].join('\n'),
     })
+    pingedOnWhatsApp = notified.whatsapp?.success === true
   } else if (!ownerCheck.isOwner && (conversation.unread_count || 0) === 0) {
     // A reply on an existing thread the agent had already caught up on
     // (unread was 0 before this message). Alert them with an in-app +
@@ -1049,7 +1067,7 @@ async function processMessage(
     // the agent for every back-and-forth. Threads that already had
     // unseen messages don't re-notify, so a burst of replies is one ping.
     const preview = (contentText || `[${message.type}]`).slice(0, 140)
-    await createNotification({
+    const notified = await createNotification({
       accountId,
       userId: assignedAgentUserId,
       type: 'new_message',
@@ -1059,6 +1077,21 @@ async function processMessage(
       entityType: 'conversation',
       entityId: conversation.id,
       link: `/inbox?conversation=${conversation.id}`,
+    })
+    pingedOnWhatsApp = notified.whatsapp?.success === true
+  }
+
+  // An agent who answered this lead from their own WhatsApp keeps the
+  // conversation there: mirror the lead's message to their phone, ready
+  // to be replied to again. Skipped when the notification above already
+  // pinged them (that ping is itself answerable), and a no-op for every
+  // thread nobody has answered from WhatsApp.
+  if (!ownerCheck.isOwner && !pingedOnWhatsApp) {
+    await relayLeadMessageToBridgedAgent({
+      accountId,
+      conversationId: conversation.id,
+      leadName: contactRecord.name || senderPhone,
+      body: contentText || `[${message.type}]`,
     })
   }
 
@@ -1136,6 +1169,29 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: confirmation,
+      })
+      return
+    }
+  }
+
+  // On-demand matches — "MATCHES" / "show my matches" in the buyer's
+  // chat. They just opened the 24-hour window by texting, so the reply
+  // is free-form: no template, nothing to get approved first. Falls
+  // through when the buyer has no brief or nothing fits.
+  if (parseBuyerMatchesCommand(contentText)) {
+    const matchReply = await buildBuyerMatchReply({
+      accountId,
+      contactId: contactRecord.id,
+    })
+    if (matchReply) {
+      await sendWhatsAppMessageAndPersist({
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        kind: 'text',
+        senderType: 'bot',
+        text: matchReply,
       })
       return
     }
@@ -1473,6 +1529,18 @@ async function processMessage(
   }
 
   if (interactiveReplyId) {
+    if (
+      interactiveReplyId.startsWith(CONSENT_APPROVE_PREFIX) ||
+      interactiveReplyId.startsWith(CONSENT_DECLINE_PREFIX)
+    ) {
+      const handledConsent = await handleLocationConsentReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handledConsent) return
+    }
     if (interactiveReplyId.startsWith('share_property_yes:')) {
       const propertyId = interactiveReplyId.split(':')[1]
       await handlePropertyShareYesReply(
@@ -1692,7 +1760,14 @@ async function parseMessageContent(
     case 'location':
       if (message.location) {
         const loc = message.location
-        const locationText = [loc.name, loc.address, `${loc.latitude},${loc.longitude}`]
+        // Emit the canonical Maps URL rather than a bare coordinate pair:
+        // it renders as a tappable link in the inbox, and the listing
+        // intake resolves it into the pin's locality/city/coordinates.
+        const locationText = [
+          loc.name,
+          loc.address,
+          googleMapsUrlForCoordinates(loc.latitude, loc.longitude),
+        ]
           .filter(Boolean)
           .join(' - ')
         return { ...empty, contentText: locationText }
@@ -1778,7 +1853,9 @@ interface PropertyRow {
   land_area_unit?: string | null
   sublocality?: string | null
   city?: string | null
+  state?: string | null
   location?: string | null
+  location_privacy?: string | null
   description?: string | null
   google_map_link?: string | null
   images?: string[] | null
@@ -1981,10 +2058,16 @@ export async function handlePropertyShareYesReply(
     const unitVal = isLand ? typedProperty.land_area_unit : typedProperty.area_unit
     const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
 
-    const locationParts = [
-      typedProperty.sublocality?.trim(),
-      typedProperty.city?.trim()
-    ].filter(Boolean).join(', ') || typedProperty.location
+    const propertyGuarded = isLocationGuarded({
+      type: typedProperty.type || '',
+      location_privacy: typedProperty.location_privacy,
+    })
+    const locationParts =
+      [
+        typedProperty.sublocality?.trim(),
+        typedProperty.city?.trim()
+      ].filter(Boolean).join(', ') ||
+      (propertyGuarded ? '' : typedProperty.location)
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     // v= attributes Showcase Pulse engagement to this contact (never filters)
@@ -1997,8 +2080,8 @@ export async function handlePropertyShareYesReply(
     if (typedProperty.bedrooms) detailsText += `🛏️ *BHK:* ${typedProperty.bedrooms} BHK\n`
     if (typedProperty.bathrooms) detailsText += `🛁 *Bathrooms:* ${typedProperty.bathrooms}\n`
     if (typedProperty.description) detailsText += `\n📝 *Description:*\n${typedProperty.description}\n`
-    
-    if (typedProperty.google_map_link) {
+
+    if (typedProperty.google_map_link && !propertyGuarded) {
       detailsText += `\n🗺️ *Google Maps:* ${typedProperty.google_map_link}\n`
     }
     detailsText += `\n👇 *Click the link below to view photos, location map, and full details:*\n${showcaseUrl}`
@@ -2867,10 +2950,17 @@ export async function handleShowMoreProperties(
       const unitVal = isLand ? typedProp.land_area_unit : typedProp.area_unit
       const areaStr = areaVal ? `${areaVal} ${unitVal || 'Sq.Ft.'}` : ''
 
-      const locationParts = [
-        typedProp.sublocality?.trim(),
-        typedProp.city?.trim()
-      ].filter(Boolean).join(', ') || typedProp.location
+      const locationParts =
+        [
+          typedProp.sublocality?.trim(),
+          typedProp.city?.trim()
+        ].filter(Boolean).join(', ') ||
+        (isLocationGuarded({
+          type: typedProp.type || '',
+          location_privacy: typedProp.location_privacy,
+        })
+          ? ''
+          : typedProp.location)
 
       const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
       // v= attributes Showcase Pulse engagement to this contact (never filters)

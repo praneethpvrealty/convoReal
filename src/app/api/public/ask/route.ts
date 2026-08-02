@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { findOrCreateContact } from '@/lib/contacts/find-or-create';
+import { captureVisitorLead } from '@/lib/showcase/visitor-lead';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -12,6 +12,10 @@ import {
   PROPERTY_QA_SYSTEM_PROMPT,
   type QaProperty,
 } from '@/lib/showcase/property-qa';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 
 // POST /api/public/ask
 // Public "Ask about this property" endpoint for the buyer showcase.
@@ -45,7 +49,8 @@ const QA_COLUMNS = [
   'price', 'rent_per_month', 'maintenance', 'advance', 'gst',
   'jv_structure', 'owner_share_percent', 'builder_share_percent', 'goodwill_amount',
   'bts_lease_years', 'bts_lock_in_years', 'bts_escalation_percent',
-  'location', 'sublocality', 'city', 'state', 'bedrooms', 'bathrooms',
+  'location', 'location_privacy', 'sublocality', 'city', 'state',
+  'bedrooms', 'bathrooms',
   'area_sqft', 'area_unit', 'super_built_area', 'land_area',
   'land_area_unit', 'facing_direction', 'features', 'nearby_highlights',
   'property_code', 'project', 'rental_income', 'roi', 'dimensions',
@@ -99,11 +104,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Property not found' }, { status: 404 });
     }
 
+    // Guarded listings must never answer "where is it?" with the street
+    // address — the Q&A only ever sees the locality-substituted row.
+    const guarded = isLocationGuarded(property);
+    const qaProperty = guarded
+      ? { ...property, location: localityLabel(property) }
+      : property;
+
     // 3. Free structured answer first — covers the common questions with
     //    zero AI cost and zero abuse surface.
-    const structured = answerFromPropertyData(question, property);
+    const structured = answerFromPropertyData(question, qaProperty);
     if (structured.answer) {
-      return NextResponse.json({ answer: structured.answer, source: 'listing', intent: structured.intent });
+      const answer =
+        guarded && structured.intent === 'location'
+          ? `${structured.answer} The exact address is shared on request.`
+          : structured.answer;
+      return NextResponse.json({ answer, source: 'listing', intent: structured.intent });
     }
 
     // 4. Open-ended question → AI path, but only once we have a phone.
@@ -138,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     // 6. AI answer grounded in the listing.
     try {
-      const prompt = `Property details:\n${buildPropertyContext(property)}\n\nBuyer's question: ${question}\n\nAnswer:`;
+      const prompt = `Property details:\n${buildPropertyContext(qaProperty)}\n\nBuyer's question: ${question}\n\nAnswer:`;
       const raw = await generateText(prompt, PROPERTY_QA_SYSTEM_PROMPT, { feature: 'public_ask' });
       const answer = (raw || '').trim();
       if (!answer) {
@@ -158,8 +174,7 @@ export async function POST(request: NextRequest) {
 /**
  * Best-effort Buyer lead capture: attributes the contact to the
  * property's managing agent (falling back to the account owner) and
- * links the property they asked about. Swallows all errors — a lead
- * write must never break the buyer's answer.
+ * links the property they asked about.
  */
 async function captureLead(
   db: ReturnType<typeof supabaseAdmin>,
@@ -169,58 +184,14 @@ async function captureLead(
   question: string,
   sessionKey: string,
 ): Promise<void> {
-  try {
-    let userId = property.user_id;
-    if (!userId) {
-      const { data: account } = await db
-        .from('accounts')
-        .select('owner_user_id')
-        .eq('id', property.account_id)
-        .maybeSingle();
-      userId = account?.owner_user_id ?? null;
-    }
-    if (!userId) return;
-
-    // Note: `source` is deliberately not set — find-or-create overwrites
-    // it on every call, which would clobber an existing contact's
-    // original attribution (e.g. a prior "Website Showcase" inquiry) each
-    // time they ask another question. `referrer` is write-once on create.
-    const { contactId } = await findOrCreateContact(db, {
-      accountId: property.account_id,
-      userId,
-      phone,
-      name: name?.trim() || 'Showcase Visitor',
-      classification: 'Buyer',
-      referrer: 'Showcase Q&A',
-      lastInquiredPropertyId: property.id,
-    });
-
-    // Append the actual question as a note (insert, so repeat questions
-    // accumulate rather than overwrite) — the agent sees what the buyer
-    // wanted to know.
-    await db.from('contact_notes').insert({
-      account_id: property.account_id,
-      contact_id: contactId,
-      user_id: userId,
-      note_text: `Showcase Q&A — asked about "${property.title}": "${question.slice(0, 280)}"`,
-    });
-
-    // Retroactive stitching: the buyer just revealed who they are, so
-    // their earlier "Anonymous Guest" Pulse events from the same browser
-    // session can now show up under their name too. Same pattern as the
-    // ref/v= stitching in /api/public/showcase-events. Only null rows
-    // are touched — a session already attributed to another contact is
-    // never rewritten.
-    const { error: stitchError } = await db
-      .from('showcase_events')
-      .update({ contact_id: contactId })
-      .eq('account_id', property.account_id)
-      .eq('session_key', sessionKey)
-      .is('contact_id', null);
-    if (stitchError) {
-      console.error('[POST /api/public/ask] Pulse session stitch failed (non-fatal):', stitchError);
-    }
-  } catch (err) {
-    console.error('[POST /api/public/ask] lead capture failed (non-fatal):', err);
-  }
+  await captureVisitorLead(db, {
+    accountId: property.account_id,
+    userId: property.user_id,
+    phone,
+    name,
+    referrer: 'Showcase Q&A',
+    propertyId: property.id,
+    sessionKey,
+    note: `Showcase Q&A — asked about "${property.title}": "${question.slice(0, 280)}"`,
+  });
 }

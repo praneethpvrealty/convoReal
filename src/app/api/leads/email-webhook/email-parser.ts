@@ -174,8 +174,11 @@ export function isValidContactName(name: string): boolean {
   if (/(?:^OWNER\s*:|^DEVELOPER\s*:|^BUILDER\s*:|^BROKER\s*:)/i.test(trimmed)) return false;
   if (/(?:SATTVA|PRESTIGE|BRIGADE|SOBHA|DLF|GODREJ|TATA|ADBHI|MERLIN|CONFIDENT|EMERALD|PURI|SUNTECH|MAHESTRA|OBEROI|MESCAPE|VASCON|VIKRAM|RAVINDRA|SATTVAVIHAR)/i.test(trimmed)) return false;
   
-  // All-caps company/developer names (likely not a person's name)
-  if (/^[A-Z\s]{3,}$/.test(trimmed) && !/^(?:KARTHIK|GANESH|SHARON|JOSEPH|FRANCIS|RAGHU|VIJAY|RAJESH|SURESH|KUMAR|REDDY|NAIR|IYER|AIYER)/i.test(trimmed)) return false;
+  // Company/agency names carrying an entity or realty-business marker
+  // (e.g. "SBS PROPERTIES", "VK Groups Pvt Ltd"). Casing alone says
+  // nothing here — portal leads routinely arrive fully upper-cased, so
+  // "ADH" and "KARTHIK" are people, not builders.
+  if (/\b(?:propert(?:y|ies)|realty|realtors?|estates?|builders?|developers?|constructions?|infra(?:structure)?|ventures?|enterprises?|projects?|associates|homes|housing|groups?|pvt|private|ltd|limited|llp|inc|corp(?:oration)?|company)\b/i.test(trimmed)) return false;
   
   // Addresses (contain state codes, zip codes)
   if (/\b[A-Z]{2}\s+\d{5,6}\b/.test(trimmed)) return false; // CA 94104, TN 600018
@@ -273,6 +276,22 @@ export function classifyPortalLead(
     return 'Buyer';
   }
   return fromSuffix;
+}
+
+/**
+ * Portal subject lines are boilerplate — "Lead interested in your
+ * property", "…contacted you about his property search" — and the
+ * "<connector> <place>" rule below happily reads that boilerplate as a
+ * locality, which then lands in the contact's areas_of_interest. A
+ * candidate led by a possessive/determiner, or that is just a generic
+ * property noun, is boilerplate rather than a place.
+ */
+export function isUsableLocation(candidate: string): boolean {
+  const trimmed = (candidate ?? '').trim();
+  if (trimmed.length < 3) return false;
+  if (/^(?:your|my|our|his|her|their|its|the|this|that|these|those|an?)\b/i.test(trimmed)) return false;
+  if (/^(?:propert(?:y|ies)|listing|search|home|house|flat|apartment|plot|land|villa|site|project|advertisement|response|requirement|detail|budget|area|price)s?\b/i.test(trimmed)) return false;
+  return true;
 }
 
 // Extractor rules for different portals
@@ -549,24 +568,33 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
     if (typeOnlyMatch) propertyType = typeOnlyMatch[1];
   }
 
-  // 2. Location
+  // 2. Location — every rule is filtered through isUsableLocation, and a
+  // rejected candidate falls through to the next rule rather than
+  // ending the search, so subject-line boilerplate no longer shadows a
+  // real locality further down the email.
   if (!propertyLocation) {
-    const locationMatch = combinedText.match(/(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/i);
-    if (locationMatch) {
-      propertyLocation = locationMatch[1].trim();
-    } else {
+    for (const m of combinedText.matchAll(/(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/gi)) {
+      if (isUsableLocation(m[1])) {
+        propertyLocation = m[1].trim();
+        break;
+      }
+    }
+
+    if (!propertyLocation) {
       const locationAfterType = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial)\s+in\s+([A-Za-z\s,]+)/i);
-      if (locationAfterType) {
+      if (locationAfterType && isUsableLocation(locationAfterType[1])) {
         propertyLocation = locationAfterType[1].trim();
-      } else {
-        // Comma-separated listing-card format some portal emails use,
-        // e.g. "5 BHK Villa, Devanahalli, 8400 sq. ft., ₹16.0 Cr" — the
-        // location directly follows the property type, before the next
-        // comma, with no "in/at/near" connector at all.
-        const locationAfterTypeComma = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial|Commercial|Studio|Penthouse)s?\s*,\s*([A-Za-z][A-Za-z\s]*?)\s*,/i);
-        if (locationAfterTypeComma) {
-          propertyLocation = locationAfterTypeComma[1].trim();
-        }
+      }
+    }
+
+    if (!propertyLocation) {
+      // Comma-separated listing-card format some portal emails use,
+      // e.g. "5 BHK Villa, Devanahalli, 8400 sq. ft., ₹16.0 Cr" — the
+      // location directly follows the property type, before the next
+      // comma, with no "in/at/near" connector at all.
+      const locationAfterTypeComma = combinedText.match(/(?:Apartment|Flat|House|Villa|Plot|Land|Industrial|Commercial|Studio|Penthouse)s?\s*,\s*([A-Za-z][A-Za-z\s]*?)\s*,/i);
+      if (locationAfterTypeComma && isUsableLocation(locationAfterTypeComma[1])) {
+        propertyLocation = locationAfterTypeComma[1].trim();
       }
     }
   }

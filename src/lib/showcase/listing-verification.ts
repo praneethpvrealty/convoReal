@@ -183,6 +183,8 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
         rental_income: draft.rental_income,
         roi: draft.roi,
         google_map_link: draft.google_map_link,
+        latitude: draft.latitude ?? null,
+        longitude: draft.longitude ?? null,
         land_area: draft.land_area,
         land_area_unit: draft.land_area_unit || 'Sq.Ft.',
         owner_contact_id: contactRecord.id,

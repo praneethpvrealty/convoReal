@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import {
   setupPreferenceFlow,
   getPublishedPreferenceFlow,
@@ -16,38 +16,22 @@ import { PREFERENCE_FLOW_KEY } from '@/lib/whatsapp/preference-flow'
  * GET  — current registry row for this account (or null).
  */
 
-async function resolveAccountId() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-  if (authError || !user) return { error: 'Unauthorized', status: 401 as const }
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('account_id')
-    .eq('user_id', user.id)
-    .maybeSingle()
-  const accountId = profile?.account_id as string | undefined
-  if (!accountId) {
-    return { error: 'Your profile is not linked to an account.', status: 403 as const }
-  }
-  return { accountId, supabase }
-}
-
 export async function POST() {
+  // Outside the main try, whose catch surfaces the Meta error message
+  // as a 400.
+  let accountId: string
   try {
-    const resolved = await resolveAccountId()
-    if ('error' in resolved) {
-      return NextResponse.json({ error: resolved.error }, { status: resolved.status })
-    }
+    ;({ accountId } = await getCurrentAccount())
+  } catch (error) {
+    return toErrorResponse(error)
+  }
 
-    const flow = await setupPreferenceFlow({ accountId: resolved.accountId })
+  try {
+    const flow = await setupPreferenceFlow({ accountId })
     return NextResponse.json({
       success: true,
       flow,
-      endpoint_uri: flowsEndpointUri(resolved.accountId),
+      endpoint_uri: flowsEndpointUri(accountId),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Flow setup failed'
@@ -57,25 +41,28 @@ export async function POST() {
 }
 
 export async function GET() {
+  let supabase: Awaited<ReturnType<typeof getCurrentAccount>>['supabase']
+  let accountId: string
   try {
-    const resolved = await resolveAccountId()
-    if ('error' in resolved) {
-      return NextResponse.json({ error: resolved.error }, { status: resolved.status })
-    }
+    ;({ supabase, accountId } = await getCurrentAccount())
+  } catch (error) {
+    return toErrorResponse(error)
+  }
 
+  try {
     // RLS-scoped read — the user can only see their own account's row.
-    const { data: flow } = await resolved.supabase
+    const { data: flow } = await supabase
       .from('whatsapp_meta_flows')
       .select('*')
-      .eq('account_id', resolved.accountId)
+      .eq('account_id', accountId)
       .eq('flow_key', PREFERENCE_FLOW_KEY)
       .maybeSingle()
 
-    const published = await getPublishedPreferenceFlow(resolved.accountId)
+    const published = await getPublishedPreferenceFlow(accountId)
     return NextResponse.json({
       flow: flow || null,
       is_published: Boolean(published),
-      endpoint_uri: flowsEndpointUri(resolved.accountId),
+      endpoint_uri: flowsEndpointUri(accountId),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load flow status'

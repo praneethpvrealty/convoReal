@@ -133,6 +133,8 @@ Real estate inventory catalog.
 - `price_per_sqft` (NUMERIC, migration 167): Rate quoted per Sq.Ft. at intake — `price` is derived from it once an area is known (`src/lib/ai/listing-derivations.ts`).
 - `dimensions` (TEXT): e.g., `30x40`.
 - `facing_direction` (TEXT): e.g. `'North'`.
+- `furnishing` (TEXT, migration 179): `'Furnished'` / `'Semi-Furnished'` / `'Unfurnished'`.
+- `floor_number` / `total_floors` / `balconies` (INTEGER, migration 179): Unit details for portal posting.
 - `nearby_highlights` (TEXT[]): List of nearby landmarks.
 - `features` (TEXT[]): Amenities (e.g. Pool, Security).
 - `images` (TEXT[]): Array of asset URLs.
@@ -216,6 +218,15 @@ Dedup ledger — one row per digest attempted per owner per IST day (insert-as-c
 - `channel` (TEXT): `'freeform' | 'template' | 'consent_requested' | 'failed' | 'skipped_no_template'`.
 - *Unique Constraint*: `UNIQUE(account_id, owner_contact_id, digest_date)`.
 - Related (migration 126): `contacts.owner_digest_consent` (TEXT `'pending' | 'granted' | 'declined'`, set only by the owner's own WhatsApp reply — always overrides the account setting) and `contacts.owner_digest_consent_requested_at` (TIMESTAMPTZ, one-time consent ask).
+
+#### 15f. `whatsapp_reply_bridges` (migration 171)
+Maps an agent-facing WhatsApp ping back to the lead thread it is about, so a quote-reply to the ping (`context.id` = the stored wamid) is delivered to the lead instead of being read as owner-chatbot input. One row per bridge message: the ping, the "✅ Sent" ack, and each relayed lead reply.
+- `id` (UUID, PK), `account_id` (UUID, FK -> `accounts`).
+- `agent_user_id` (UUID, FK -> `auth.users`) / `agent_phone` (TEXT): the staff member pinged; replies are accepted only from this phone.
+- `notification_message_id` (TEXT, UNIQUE): wamid of the outbound bridge message.
+- `target_conversation_id` / `target_contact_id` (FKs): the lead thread the reply goes to.
+- `last_agent_reply_at` (TIMESTAMPTZ): stamped when the agent answers from WhatsApp; within 24h of it the lead's messages are mirrored to their phone.
+- Pruned on registration once older than 48h (a bridge outlives its usefulness with the 24-hour customer service window).
 
 ---
 

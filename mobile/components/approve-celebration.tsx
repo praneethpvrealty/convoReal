@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import * as Linking from 'expo-linking';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { SuccessSheet, type SuccessAction } from '@/components/success-sheet';
 import { type ApproveOutcome } from '@/lib/approve-contact';
 import { openContactChat } from '@/lib/open-chat';
@@ -26,6 +27,7 @@ export function ApproveCelebration({
 }) {
   const contact = celebration?.contact;
   const outcome = celebration?.outcome;
+  const { show, dialogProps } = useAppDialog();
   const name = contact ? contact.name || contact.phone : '';
   const reengageId = outcome?.reengageConversationId;
   const property = outcome?.property;
@@ -86,9 +88,12 @@ export function ApproveCelebration({
           {
             icon: 'chatbubbles',
             label: 'Follow up in inbox',
-            onPress: () => {
+            onPress: async () => {
               onClose();
-              openContactChat(contact);
+              const outcome = await openContactChat(contact);
+              if (!outcome.ok && outcome.error) {
+                show({ title: 'Could not open thread', message: outcome.error });
+              }
             },
           },
           {
@@ -103,13 +108,19 @@ export function ApproveCelebration({
       : [];
 
   return (
-    <SuccessSheet
-      visible={celebration !== null}
-      onClose={onClose}
-      title={`${name} is now active`}
-      message={message}
-      confetti={!outcome?.error}
-      actions={actions}
-    />
+    <>
+      <SuccessSheet
+        visible={celebration !== null}
+        onClose={onClose}
+        title={`${name} is now active`}
+        message={message}
+        confetti={!outcome?.error}
+        actions={actions}
+      />
+      {/* Sibling, not a child: the failure surfaces after onClose() has
+          already dismissed the sheet, so a dialog inside it would be
+          unmounted before it could render. */}
+      <AppDialog {...dialogProps} />
+    </>
   );
 }

@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 import { phonesMatch, normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { BRANDING } from '@/config/branding';
@@ -31,7 +30,14 @@ import { checkAccountPropertyLimit } from '@/lib/billing/gates';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
-import { tryHandleOwnerScheduling } from '@/lib/calendar/whatsapp-scheduler';
+import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
+import { recordBotTarget, resolveBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { applyRecordUpdate } from '@/lib/ai/record-edit';
+import {
+  isOwnerHelpCommand,
+  buildOwnerHelpMessage,
+  buildOwnerFallbackMessage,
+} from '@/lib/whatsapp/owner-help-template';
 import {
   validateDraft,
   validateContactDraftsContainer,
@@ -40,19 +46,7 @@ import {
   backfillLocationFromMapLink,
   mergeContactDraftsContainer,
 } from '@/lib/ai/intake-core';
-
-// Lazy initialize supabase admin client
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminClient: any = null;
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
-}
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 // Debounces the low-balance WhatsApp ping per account so a Manager
 // isn't paged on every single inbound message once their balance
@@ -470,6 +464,8 @@ export async function processOwnerChatbotMessage(
       list_reply?: { id: string; title: string; description?: string };
       nfm_reply?: { name?: string; body?: string; response_json: string };
     };
+    /** Set by WhatsApp on a quote-reply: the wamid being replied to. */
+    context?: { id: string };
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
@@ -610,6 +606,65 @@ export async function processOwnerChatbotMessage(
       inboundMediaMime = mimeType;
     }
     return { buffer: inboundMediaBuffer, mimeType: inboundMediaMime };
+  }
+
+  // 1.65. Quote-reply on a confirmation card = a correction to the row
+  // that card announced (migration 185). Without this the correction
+  // reads as a brand-new request and creates a duplicate. A target that
+  // is gone or no longer editable falls through to the create paths, so
+  // the correction still lands — the reply just says "added" not
+  // "updated".
+  const editTarget = cleanedText
+    ? await resolveBotTarget({ accountId, contextId: message.context?.id })
+    : null;
+  if (editTarget) {
+    try {
+      if (editTarget.entityType === 'appointment' || editTarget.entityType === 'todo') {
+        const outcome = await applySchedulingEdit({
+          target: { entityType: editTarget.entityType, entityId: editTarget.entityId },
+          instruction: cleanedText,
+          contactRecord,
+          conversation,
+          accountId,
+          userId,
+          accessToken,
+          phoneNumberId,
+        });
+        if (outcome === 'edited') return true;
+      } else {
+        if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
+          return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
+        }
+        const result = await applyRecordUpdate({
+          entityType: editTarget.entityType,
+          entityId: editTarget.entityId,
+          accountId,
+          instruction: cleanedText,
+        });
+        if (result && result !== 'stale') {
+          const label = editTarget.entityType === 'contact' ? 'Contact updated' : 'Listing updated';
+          const lines = Object.entries(result).map(([k, v]) => `• ${k.replace(/_/g, ' ')}: ${v}`);
+          const reply = [`✏️ *${label}*`, ...lines, '', '_Reply to this message again to make another change._'].join('\n');
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          await recordBotTarget({
+            accountId,
+            waMessageId: sendRes.messageId,
+            entityType: editTarget.entityType,
+            entityId: editTarget.entityId,
+          });
+          return true;
+        }
+        if (result === null) {
+          const reply = "🤔 I couldn't find a change to make from that. Tell me what to set, e.g. _\"change the price to 1.2 crore\"_.";
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.error('[chatbot-engine] quote-reply edit failed:', err);
+    }
   }
 
   // 1.7. Calendar scheduling intercept — voice notes and scheduling
@@ -829,6 +884,8 @@ export async function processOwnerChatbotMessage(
           roi: parseNumeric(draft.roi),
           floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
           google_map_link: draft.google_map_link,
+          latitude: draft.latitude ?? null,
+          longitude: draft.longitude ?? null,
           land_area: parseNumeric(draft.land_area),
           land_area_unit: draft.land_area_unit || 'Sq.Ft.',
           land_zone: (() => {
@@ -944,6 +1001,13 @@ export async function processOwnerChatbotMessage(
         
       const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      // Lets a quote-reply on this card edit the listing (migration 185).
+      await recordBotTarget({
+        accountId,
+        waMessageId: sendRes.messageId,
+        entityType: 'property',
+        entityId: prop.id,
+      });
       return true;
     }
 
@@ -1672,6 +1736,16 @@ export async function processOwnerChatbotMessage(
         
       const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
       await saveBotMessage(conversation.id, reply, sendRes.messageId);
+      // Only a single-contact card names one unambiguous row, so only
+      // that one is quote-editable (migration 185).
+      if (inserted.length === 1) {
+        await recordBotTarget({
+          accountId,
+          waMessageId: sendRes.messageId,
+          entityType: 'contact',
+          entityId: inserted[0].id,
+        });
+      }
       return true;
     }
 
@@ -1774,7 +1848,7 @@ export async function processOwnerChatbotMessage(
     if (!(await gatedBurn(accountId, 'chatbot_classify'))) {
       return await sendCreditsLockedReply(phoneNumberId, accessToken, contactRecord.phone, conversation.id);
     }
-    let classification: 'property' | 'contact' | 'none';
+    let classification: 'property' | 'contact' | 'schedule' | 'none';
     if (isDocMsg) {
       classification = 'property';
     } else if (isVideoMsg) {
@@ -1783,6 +1857,33 @@ export async function processOwnerChatbotMessage(
       classification = await classifyImageOrText(cleanedText, undefined, undefined);
     } else {
       classification = await classifyImageOrText(cleanedText, mediaBuffer, mediaMimeType);
+    }
+
+    // --- SCHEDULING FLOW (screenshot of a chat that fixes a meeting) ---
+    // The step 1.7 intercept deliberately passed on this image because it
+    // had no buffer to read; now that the classifier has committed, hand
+    // the bytes over. A false classification or an unparseable thread
+    // returns false and falls through to the 'none' handling below.
+    if (classification === 'schedule') {
+      if (isImageMsg && mediaBuffer && mediaMimeType) {
+        try {
+          const scheduled = await tryHandleOwnerScheduling({
+            message,
+            image: { buffer: mediaBuffer, mimeType: mediaMimeType },
+            contentText: cleanedText || null,
+            contactRecord,
+            conversation,
+            accountId,
+            userId,
+            accessToken,
+            phoneNumberId,
+          });
+          if (scheduled) return true;
+        } catch (err) {
+          console.error('[chatbot-engine] image scheduling failed:', err);
+        }
+      }
+      classification = 'none';
     }
 
     // --- PROPERTY INGESTION FLOW ---
@@ -1953,6 +2054,9 @@ export async function processOwnerChatbotMessage(
                     dimensions: latestDraft.dimensions || parsedDraft.dimensions,
                     facing_direction: latestDraft.facing_direction || parsedDraft.facing_direction,
                     google_map_link: latestDraft.google_map_link || parsedDraft.google_map_link,
+                    latitude: latestDraft.latitude ?? parsedDraft.latitude,
+                    longitude: latestDraft.longitude ?? parsedDraft.longitude,
+                    geo_resolved_from: latestDraft.geo_resolved_from || parsedDraft.geo_resolved_from,
                     land_area: latestDraft.land_area || parsedDraft.land_area,
                     land_area_unit: latestDraft.land_area_unit || parsedDraft.land_area_unit,
                     rental_income: latestDraft.rental_income || parsedDraft.rental_income,
@@ -2105,14 +2209,13 @@ export async function processOwnerChatbotMessage(
   // engine — or a template quick-reply tap (message.type 'button',
   // e.g. a reminder's "Fine"): answering a button tap with the
   // welcome text reads as a non-sequitur.
-  if (!buttonId && message.type !== 'button' && (lowerText === 'help' || cleanedText)) {
-    const reply = `👋 *AI Ingestion Chatbot*\n\n` +
-      `Send property listing details or a contact profile (as text or screenshot) to automatically start a draft.\n\n` +
-      `*Commands:* (only active during an active session)\n` +
-      `• Send property photos to add them to listing\n` +
-      `• Reply naturally to correct details (e.g., 'price is 1.8 Cr' or 'name is Suresh')\n` +
-      `• Click the **Cancel** button to discard\n` +
-      `• Click the **Confirm** button to save`;
+  if (!buttonId && message.type !== 'button' && (isOwnerHelpCommand(lowerText) || cleanedText)) {
+    // An explicit "help"/greeting wants the whole capability guide;
+    // anything else got here because it classified as neither a listing
+    // nor a contact, and is better served by a short nudge.
+    const reply = isOwnerHelpCommand(lowerText)
+      ? buildOwnerHelpMessage()
+      : buildOwnerFallbackMessage();
 
     const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
     await saveBotMessage(conversation.id, reply, sendRes.messageId);
@@ -2128,14 +2231,18 @@ export async function processOwnerChatbotMessage(
 const TALK_TO_AGENT_LIMIT_REPLY_ID = 'talk_to_agent_limit';
 
 async function loadAccountContactInfo(accountId: string): Promise<{ phone: string; businessName: string }> {
-  const { data } = await supabaseAdmin()
-    .from('showcase_settings')
-    .select('contact_phone, website_name')
-    .eq('account_id', accountId)
-    .maybeSingle();
+  const admin = supabaseAdmin();
+  const [settings, account] = await Promise.all([
+    admin
+      .from('showcase_settings')
+      .select('contact_phone')
+      .eq('account_id', accountId)
+      .maybeSingle(),
+    admin.from('accounts').select('name').eq('id', accountId).maybeSingle(),
+  ]);
   return {
-    phone: data?.contact_phone ?? '',
-    businessName: data?.website_name ?? '',
+    phone: settings.data?.contact_phone ?? '',
+    businessName: account.data?.name ?? '',
   };
 }
 
@@ -2313,6 +2420,8 @@ export async function processExternalListingMessage(
         roi: draft.roi,
         floor_tenancies: sanitizeFloorTenancies(draft.floor_tenancies),
         google_map_link: draft.google_map_link,
+        latitude: draft.latitude ?? null,
+        longitude: draft.longitude ?? null,
         land_area: draft.land_area,
         land_area_unit: draft.land_area_unit || 'Sq.Ft.',
         owner_contact_id: contactRecord.id,

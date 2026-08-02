@@ -11,7 +11,54 @@ and polish.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A booking with a real date now reaches the calendar.** "Meet lawyer
+  Kusuma regarding the Whitefield property on 30th July 2026" was filed
+  as a *contact draft* instead of an appointment: the scheduling gate
+  recognised only relative days ("tomorrow", "next Friday") and clock
+  times ("at 4pm"), so a stated calendar date counted as no time at all
+  and the message fell through to contact ingestion. Written-out dates
+  ("30th July", "Jul 30"), numeric dates ("30/07/2026") and named
+  weekdays ("on Friday") are now cues, the WHEN may come before the verb
+  or on its own line, and a date with no time of day books at 10:00 IST
+  rather than midnight. Forwarded portal leads that mention a day
+  ("...is interested in the HSR plot, call him on Monday") still go to
+  contact intake, and property figures — "2-3 crore", "3.50 acres" — are
+  not mistaken for a date or a time. Applies to both the agent's own
+  bookings and a lead asking for a visit.
+
+### Changed
+
+- **The WhatsApp assistant's help card now says what it can actually
+  do.** Texting your own CRM number used to answer with a four-line
+  "AI Ingestion Chatbot" card that only described draft-session
+  commands — and showed `*Cancel*` literally, because it used Markdown
+  bold instead of WhatsApp's. Send *help* (or hi / menu / start) and
+  you now get the real capability guide with worked examples: add a
+  listing from text, an ad screenshot or a brochure PDF; add a contact
+  or portal lead; the *today* agenda, event and to-do commands and
+  voice notes; answering a lead alert directly; and the photo /
+  plain-language-correction / Confirm / Cancel / 15-minute-expiry rules
+  for an open draft. A message that classifies as neither a listing nor
+  a contact now gets a short "couldn't tell what that was" with the
+  three likely intents instead of the whole menu.
+
 ### Added
+
+- **Reply to a lead straight from the WhatsApp ping.** The
+  "💬 New lead just messaged you" alert that lands in your own
+  WhatsApp is now answerable: reply to it (quote it) and the text is
+  delivered to the lead as a normal agent message, visible in the
+  shared Inbox like any other reply. ConvoReal answers with
+  "✅ Sent to <lead>" — quote that to keep talking — and mirrors the
+  lead's later messages to your WhatsApp so the whole exchange can
+  happen from your phone without opening the app. Text only; media and
+  templates still go through the Inbox. Outside Meta's 24-hour reply
+  window you get a "couldn't send" note with a link to re-engage by
+  template instead. Only the staff member the ping was addressed to
+  can reply through it, and read-only members can't.
+  **Migration required:** `171_whatsapp_reply_bridges.sql`.
 
 - **Mobile: property quick-edit + showcase sharing.** The property
   screen's action rail gains **Edit** — a mobile-scale form for the

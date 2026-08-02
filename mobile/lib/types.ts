@@ -32,6 +32,10 @@ export interface Contact {
   phone: string;
   secondary_phones?: string[];
   name?: string;
+  /** Surname/family name. Paired with `name` it forms the full name the
+   *  server's duplicate check is keyed on, so two "Rahul"s are told apart
+   *  by this rather than being rejected as a duplicate. */
+  second_name?: string | null;
   name_tag?: string | null;
   email?: string;
   company?: string;
@@ -121,6 +125,7 @@ export interface Property {
   property_code?: string | null;
   description?: string | null;
   price?: number | null;
+  sold_price?: number | null;
   rent_per_month?: number | null;
   location?: string | null;
   sublocality?: string | null;
@@ -254,7 +259,13 @@ export interface Appointment {
   contact_id?: string | null;
   contact_ids?: string[] | null;
   property_id?: string | null;
+  /** Type-specific notes (migration 128). `agenda` is filled while
+   *  planning and rides along on the pre-event brief; `minutes` and
+   *  `outcome` are logged after the event. Which of the three apply
+   *  depends on event_type — see lib/event-fields. */
   agenda?: string | null;
+  minutes?: string | null;
+  outcome?: string | null;
   contact?: Contact | null;
   property?: { id: string; title: string; location?: string | null } | null;
 }
@@ -348,4 +359,21 @@ export interface MessageTemplate {
   body_text: string;
   footer_text?: string | null;
   status: string;
+}
+
+// ------------------------------------------------------------------
+// Showcase Pulse (showcase_events; read-only on mobile)
+// ------------------------------------------------------------------
+
+export type ShowcaseEventType = 'open' | 'view_property' | 'map_click' | 'gallery';
+
+export interface ShowcaseEvent {
+  id: string;
+  contact_id: string | null;
+  property_id: string | null;
+  session_key: string;
+  share_id?: string | null;
+  event_type: ShowcaseEventType;
+  metadata: { duration_ms?: number } & Record<string, unknown>;
+  created_at: string;
 }

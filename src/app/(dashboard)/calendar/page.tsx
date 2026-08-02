@@ -1596,7 +1596,9 @@ export default function CalendarPage() {
                       placeholder="Search contacts..."
                     />
                     <p className="mt-1 text-[10px] text-slate-500 font-medium">
-                      Reminders go to every linked contact — 7 AM on the day &amp; 1 hour before.
+                      {apptEventType === "call"
+                        ? "Calls stay internal — only you get the reminder, linked contacts are not messaged."
+                        : "Reminders go to every linked contact — 7 AM on the day & 1 hour before."}
                     </p>
                   </div>
 

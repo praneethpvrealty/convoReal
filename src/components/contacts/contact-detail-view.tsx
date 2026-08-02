@@ -23,6 +23,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -59,6 +60,10 @@ import {
 } from '@/components/ui/tooltip';
 import { getCurrencyIcon } from '@/lib/currency-utils';
 import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message-builder';
+import {
+  CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+  isReengagementError,
+} from '@/lib/whatsapp/customer-window';
 import { scanMessagesForProperties } from '@/lib/journey/chat-scan';
 import { BRANDING } from '@/config/branding';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
@@ -67,6 +72,7 @@ import { PropertyShareDialog } from '@/components/inventory/property-share-dialo
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
+import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
 const PROPERTY_INTEREST_OPTIONS = [
   'Vacant plot',
@@ -75,22 +81,6 @@ const PROPERTY_INTEREST_OPTIONS = [
   'Old building selling at site rate',
 ];
 
-function formatPriceLabel(amountStr: string) {
-  const amount = Number(amountStr);
-  if (isNaN(amount) || amount <= 0) return '';
-  if (amount >= 10000000) {
-    const cr = amount / 10000000;
-    return `₹${cr.toFixed(2).replace(/\.00$/, '')} Cr`;
-  } else if (amount >= 100000) {
-    const lakhs = amount / 100000;
-    return `₹${lakhs.toFixed(2).replace(/\.00$/, '')} Lakhs`;
-  }
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
 
 interface ContactDetailViewProps {
   open: boolean;
@@ -106,7 +96,7 @@ export function ContactDetailView({
   onUpdated,
 }: ContactDetailViewProps) {
   const supabase = createClient();
-  const { user, profile, accountId } = useAuth();
+  const { user, profile, accountId, canViewGuardedLocations } = useAuth();
   const router = useRouter();
 
   const [currency, setCurrency] = useState('INR');
@@ -132,7 +122,10 @@ export function ContactDetailView({
   // Controlled so the active tab survives re-renders and refetches
   const [activeTab, setActiveTab] = useState('details');
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
+  // Which listing the share dialog is composing for. Any Interested
+  // Properties row can drive it, not just the last-inquired one, so it
+  // holds the property rather than a bare open flag.
+  const [shareProperty, setShareProperty] = useState<Property | null>(null);
   const [logShareOpen, setLogShareOpen] = useState(false);
   const [greetingsOpen, setGreetingsOpen] = useState(false);
 
@@ -1056,59 +1049,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     toast.success('Phone numbers swapped! Remember to save changes.');
   };
 
+  // Template-first, server-side: an open window sends the composed
+  // details as free text, a closed one sends the approved property-alert
+  // template instead of dead-ending. Only when the window is closed AND
+  // no approved template exists does this throw, so the caller falls back
+  // to manual template selection.
   async function sendPropertyDetailsHelper() {
     if (!contactId || !inquiredProperty) return;
-
-    // Find or create conversation
-    let convId: string | null = null;
-    const { data: existingConv } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', contactId)
-      .maybeSingle();
-
-    if (existingConv) {
-      convId = existingConv.id;
-    } else {
-      const { data: newConv, error: createConvErr } = await supabase
-        .from('conversations')
-        .insert({
-          account_id: accountId,
-          user_id: user?.id,
-          contact_id: contactId,
-          status: 'open'
-        })
-        .select('id')
-        .single();
-
-      if (createConvErr) {
-        console.error('Failed to create conversation:', createConvErr);
-        throw createConvErr;
-      }
-      convId = newConv.id;
-    }
-
-    // Check 24-hour customer window to prevent sending freeform text that will fail at Meta
-    let isWithin24Hours = false;
-    if (existingConv) {
-      const { data: lastCustomerMsg } = await supabase
-        .from('messages')
-        .select('created_at')
-        .eq('conversation_id', convId)
-        .eq('sender_type', 'customer')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (lastCustomerMsg) {
-        const lastMsgTime = new Date(lastCustomerMsg.created_at).getTime();
-        isWithin24Hours = (Date.now() - lastMsgTime) < 24 * 60 * 60 * 1000;
-      }
-    }
-
-    if (!isWithin24Hours) {
-      throw new Error('WhatsApp session has expired (over 24 hours). Re-engagement message must be sent via template.');
-    }
 
     const showcaseBase = getShowcaseBaseUrl();
     const messageText = buildInquiryDetailsMessage({
@@ -1117,37 +1064,40 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       currency: showcaseSettings?.currency,
     });
 
-    const res = await fetch('/api/whatsapp/send', {
+    const res = await fetch('/api/whatsapp/share-property', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        conversation_id: convId,
-        message_type: 'text',
-        content_text: messageText,
+        contact_id: contactId,
+        property_id: inquiredProperty.id,
+        message: messageText,
       }),
     });
 
+    const payload = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || 'Failed to send WhatsApp message');
+      throw new Error(payload?.error || 'Failed to send WhatsApp message');
     }
+    if (!payload?.data?.sent) {
+      throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE);
+    }
+    return payload.data.channel as 'freeform' | 'template' | undefined;
   }
 
   async function handleSendPropertyDetails() {
     setApproving(true);
     try {
-      await sendPropertyDetailsHelper();
-      toast.success('Property details sent successfully via WhatsApp!');
+      const channel = await sendPropertyDetailsHelper();
+      toast.success(
+        channel === 'template'
+          ? 'Chat is past the 24-hour window — details sent as the approved property template.'
+          : 'Property details sent successfully via WhatsApp!'
+      );
     } catch (err) {
       console.error(err);
-      const isReengagementError = err instanceof Error && (
-        err.message.includes('131047') ||
-        err.message.toLowerCase().includes('24 hours') ||
-        err.message.toLowerCase().includes('re-engagement')
-      );
-      if (isReengagementError) {
+      if (isReengagementError(err)) {
         toast.warning('WhatsApp session has expired (over 24 hours). Redirecting to template selection...');
-        setShareOpen(true);
+        setShareProperty(inquiredProperty);
       } else {
         toast.error(err instanceof Error ? err.message : 'Failed to send property details');
       }
@@ -1176,14 +1126,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           toast.success('Approved & property details sent via WhatsApp!');
         } catch (waErr) {
           console.error('Failed to auto-send WhatsApp details:', waErr);
-          const isReengagementError = waErr instanceof Error && (
-            waErr.message.includes('131047') ||
-            waErr.message.toLowerCase().includes('24 hours') ||
-            waErr.message.toLowerCase().includes('re-engagement')
-          );
-          if (isReengagementError) {
+          if (isReengagementError(waErr)) {
             toast.warning('Contact approved, but WhatsApp free-text failed (session >24 hrs). Redirecting to templates...');
-            setShareOpen(true);
+            setShareProperty(inquiredProperty);
           } else {
             toast.warning('Contact approved, but failed to send WhatsApp details (check WhatsApp configuration).');
           }
@@ -1951,7 +1896,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           <Button
                             size="xs"
                             variant="outline"
-                            onClick={() => setShareOpen(true)}
+                            onClick={() => setShareProperty(inquiredProperty)}
                             disabled={approving}
                             className="bg-slate-900 border-slate-800 text-slate-350 text-[10px] h-6 py-0 px-2 flex items-center gap-1 cursor-pointer"
                           >
@@ -1960,22 +1905,30 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           </Button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-1.5 text-[10px] text-slate-400 border-t border-slate-800/40 pt-1.5">
-                        <div>
-                          <span className="text-slate-500">Exact Location: </span>
-                          <span className="text-slate-300">{inquiredProperty.location}</span>
+                      {!isLocationGuarded(inquiredProperty) ||
+                      canViewGuardedLocations ||
+                      inquiredProperty.user_id === user?.id ? (
+                        <div className="grid grid-cols-1 gap-1.5 text-[10px] text-slate-400 border-t border-slate-800/40 pt-1.5">
+                          <div>
+                            <span className="text-slate-500">Exact Location: </span>
+                            <span className="text-slate-300">{inquiredProperty.location}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500">Google Map Link: </span>
+                            {inquiredProperty.google_map_link ? (
+                              <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline block truncate max-w-xs">
+                                {inquiredProperty.google_map_link}
+                              </a>
+                            ) : (
+                              <span className="text-slate-500 italic">No link configured</span>
+                            )}
+                          </div>
                         </div>
-                        <div>
-                          <span className="text-slate-500">Google Map Link: </span>
-                          {inquiredProperty.google_map_link ? (
-                            <a href={inquiredProperty.google_map_link} target="_blank" rel="noreferrer" className="text-primary hover:underline block truncate max-w-xs">
-                              {inquiredProperty.google_map_link}
-                            </a>
-                          ) : (
-                            <span className="text-slate-500 italic">No link configured</span>
-                          )}
+                      ) : (
+                        <div className="text-[10px] text-amber-400/90 border-t border-slate-800/40 pt-1.5">
+                          Exact location restricted — visible to admins and the listing agent only.
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
 
@@ -2036,9 +1989,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             placeholder="Min Budget"
                             className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
                           />
-                          {editMinBudget && (
-                            <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMinBudget)}</span>
-                          )}
+                          <PriceHint value={editMinBudget} compact className="text-[10px] block" />
                         </div>
                         <div className="space-y-1">
                           <Label className="text-[10px] text-slate-500">Max Budget</Label>
@@ -2050,9 +2001,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             placeholder="Max Budget"
                             className="bg-slate-800 border-slate-700 text-white h-8 text-xs disabled:opacity-40"
                           />
-                          {editMaxBudget && (
-                            <span className="text-[10px] text-primary font-semibold block">{formatPriceLabel(editMaxBudget)}</span>
-                          )}
+                          <PriceHint value={editMaxBudget} compact className="text-[10px] block" />
                         </div>
                       </div>
                     </div>
@@ -2233,6 +2182,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setShareProperty(prop)}
+                                      className="h-7 w-7 p-0 text-slate-400 hover:text-primary hover:bg-slate-800"
+                                      title={`Send these details to ${contact?.name || contact?.phone || 'this contact'}`}
+                                    >
+                                      <Share2 className="size-3" />
+                                    </Button>
                                     <Button
                                       size="sm"
                                       variant="ghost"
@@ -2872,11 +2830,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             />
 
             {/* Property Share Dialog */}
-            {inquiredProperty && (
+            {shareProperty && (
               <PropertyShareDialog
-                open={shareOpen}
-                onOpenChange={setShareOpen}
-                property={inquiredProperty}
+                open={shareProperty !== null}
+                onOpenChange={(next) => {
+                  if (!next) setShareProperty(null);
+                }}
+                property={shareProperty}
                 preSelectedContactId={contactId || undefined}
               />
             )}

@@ -13,6 +13,7 @@ import {
   backfillLocationFromMapLink,
   deriveDraftStatus,
 } from '@/lib/ai/intake-core';
+import { parseEventFromInput, istLocalToUtcIso } from '@/lib/calendar/event-parse';
 
 // POST /api/dev/simulate-chatbot
 // Internal dev tool: runs the exact classify -> parse -> validate ->
@@ -63,6 +64,33 @@ export async function POST(request: Request) {
       const previewText = formatContactDraftsPreview('📝 *Contact Drafts (simulated)*', container, status, missingFields);
 
       return NextResponse.json({ classification, draft: container, isValid, missingFields, status, previewText });
+    }
+
+    if (classification === 'schedule') {
+      const draft = await parseEventFromInput({
+        image: imageBase64 && mimeType ? { base64: imageBase64, mimeType } : undefined,
+        text: text || undefined,
+      });
+      const startIso = istLocalToUtcIso(draft.start_time);
+      const previewText = [
+        '🗓 *Event Draft (simulated)*',
+        `Intent: ${draft.intent}`,
+        `${draft.title} — ${draft.event_type}`,
+        startIso ? `When: ${new Date(startIso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}` : 'When: unresolved',
+        draft.contact_name ? `With: ${draft.contact_name}` : null,
+        draft.location ? `Where: ${draft.location}` : null,
+      ]
+        .filter((l): l is string => l !== null)
+        .join('\n');
+
+      return NextResponse.json({
+        classification,
+        draft,
+        isValid: draft.intent !== 'none',
+        missingFields: startIso ? [] : ['start_time'],
+        status: null,
+        previewText,
+      });
     }
 
     if (classification === 'property') {

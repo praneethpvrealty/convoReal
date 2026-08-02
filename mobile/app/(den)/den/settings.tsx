@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { signOut } from '@/lib/auth-store';
@@ -24,6 +25,7 @@ export default function DenSettingsScreen() {
   const [notifyMatches, setNotifyMatches] = useState(true);
   const [notifyBids, setNotifyBids] = useState(true);
   const [digest, setDigest] = useState<(typeof DIGESTS)[number]>('weekly');
+  const { show, dialogProps } = useAppDialog();
 
   useEffect(() => {
     if (!me.data) return;
@@ -48,10 +50,10 @@ export default function DenSettingsScreen() {
     },
     onError: (e) => {
       haptic.warn();
-      Alert.alert(
-        'Could not save',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-      );
+      show({
+        title: 'Could not save',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+      });
     },
   });
 
@@ -126,6 +128,7 @@ export default function DenSettingsScreen() {
       <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
         Linked agencies: {me.data?.links.map((l) => l.agency_name).filter(Boolean).join(', ') || '—'}
       </Text>
+      <AppDialog {...dialogProps} />
     </ScrollView>
   );
 }

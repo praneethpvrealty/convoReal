@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { getCurrentAccount, toErrorResponse } from '@/lib/auth/account'
 import { validatePreferenceFlowJson } from '@/lib/whatsapp/meta-flow-service'
 
 /**
@@ -11,29 +11,17 @@ import { validatePreferenceFlowJson } from '@/lib/whatsapp/meta-flow-service'
  * running the (live-affecting) /api/whatsapp/flows/setup publish.
  */
 export async function POST() {
+  // Outside the main try, whose catch reports every failure as a Meta
+  // validation error. This route never publishes, so it carries no
+  // role gate beyond a live account.
+  let accountId: string
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    ;({ accountId } = await getCurrentAccount())
+  } catch (error) {
+    return toErrorResponse(error)
+  }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 }
-      )
-    }
-
+  try {
     const result = await validatePreferenceFlowJson({ accountId })
     return NextResponse.json(result)
   } catch (error) {

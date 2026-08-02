@@ -52,3 +52,10 @@ AI_ENGINEERING_CONSTITUTION.md
 ARCHITECTURE.md
 PROJECT_CONTEXT.md
 ROADMAP.md
+.eas/
+
+# Playwright MCP session artifacts (screenshots, traces)
+/.playwright-mcp/
+
+# local design references
+/mockups/

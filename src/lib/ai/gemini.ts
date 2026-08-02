@@ -357,20 +357,23 @@ async function transcribeImageText(buffer: Buffer, mimeType: string): Promise<st
 }
 
 /**
- * Classifies if a message (text or image) is a real estate listing, contact details, or neither.
+ * Classifies if a message (text or image) is a real estate listing, contact
+ * details, a scheduling request, or none of those.
  */
 export async function classifyImageOrText(
   text?: string,
   buffer?: Buffer,
   mimeType?: string
-): Promise<'property' | 'contact' | 'none'> {
+): Promise<'property' | 'contact' | 'schedule' | 'none'> {
   const systemInstruction =
     "You are an expert real estate CRM classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
     "1. 'property': A property listing to be added to inventory, layout plan, listing advertisement, or property details description.\n" +
     "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, screenshot of contact/profile details, or lead forwarding/inquiry messages containing contact name/phone and their property interest (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters' or Magicbricks/99acres/Housing forwards).\n" +
-    "3. 'none': Neither of the above.\n\n" +
+    "3. 'schedule': A meeting, site visit, call or appointment being arranged or confirmed for a stated day/time — typically a screenshot of a chat thread where two people settle on when to meet (e.g. 'Monday 5 pm the meeting with the lawyer is confirmed right' / 'Yes, its confirmed'), or a calendar invite screenshot.\n" +
+    "4. 'none': None of the above.\n\n" +
     "Precedence: when BOTH property listing details (area/sq ft, dimensions like 50x75, facing, price in cr/lakh, plot/site number, BHK) AND a person's name/phone are present, classify as 'property' — the listing is the primary intent. Reserve 'contact' for messages whose main purpose is saving a person or forwarding a buyer's interest/requirement.\n" +
-    "Only respond with exactly 'property', 'contact', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
+    "'schedule' is the narrowest class and never wins over the other two: a listing or a lead forward that merely mentions a day ('call him on Monday', 'site visit possible this weekend') is still 'property' or 'contact'. Choose 'schedule' only when arranging or confirming the WHEN is the entire point of the message and a specific day or time is actually stated.\n" +
+    "Only respond with exactly 'property', 'contact', 'schedule', or 'none'. Absolutely no markdown, no punctuation, and no other text.";
 
   const parts: GeminiPart[] = [];
   if (buffer && mimeType) {
@@ -389,6 +392,16 @@ export async function classifyImageOrText(
     const response = await generateContentRaw(contents, systemInstruction, false, { tier: 'lite', feature: 'chatbot_classify' });
     const classification = response.toLowerCase().trim();
     if (classification.includes("property")) return "property";
+    if (classification.includes("schedule")) {
+      // A listing poster that also names a viewing day must not be
+      // pulled onto the calendar instead of into inventory.
+      if (looksLikePropertyListing(text)) return "property";
+      if (!text?.trim() && buffer && mimeType) {
+        const imageText = await transcribeImageText(buffer, mimeType);
+        if (looksLikePropertyListing(imageText)) return "property";
+      }
+      return "schedule";
+    }
     if (classification.includes("contact")) {
       if (looksLikePropertyListing(text)) return "property";
       // Image-only forwards have no caption to test deterministically;
@@ -503,6 +516,15 @@ export interface ParsedPropertyDraft {
   rental_income: number | null;
   roi: number | null;
   google_map_link: string | null;
+  /** Coordinates of a shared map pin, resolved from `google_map_link`.
+   *  Carried to properties.latitude/longitude so WhatsApp-intake
+   *  listings are covered by radius matching and ad targeting. */
+  latitude?: number | null;
+  longitude?: number | null;
+  /** The map link (or coordinate pair) the geo fields above were
+   *  resolved from, so re-parsing a draft doesn't re-hit the geocoder
+   *  on every follow-up message. */
+  geo_resolved_from?: string | null;
   images: string[];
   documents?: string[];
   /** Walkthrough video forwarded during WhatsApp intake — uploaded to
@@ -714,6 +736,7 @@ export async function parseListingFromImageOrText(
     "Important parsing rules:\n" +
     "0. CRITICAL: The 'title' field is a human-readable summary and will often restate details — like BHK count, area, or location — that ALSO belong in their own structured fields below. NEVER treat a detail as 'already handled' just because it appears in the title. You MUST still populate every matching structured field (bedrooms, area_sqft, land_area, location, type, etc.) independently and completely whenever that information is present anywhere in the input, even if it's redundant with the title.\n" +
     "1. For Price, Rent, Advance/Deposit: Convert terms like 'Crore', 'Cr', 'Lakhs', 'L', 'k' to standard numeric integer values (e.g., '80 Lakhs' -> 8000000, '1.5 Cr' -> 15000000, '2.5 L' -> 250000, '25k' -> 25000).\n" +
+    "1b. A shared map pin arrives as a Google Maps URL or a bare coordinate pair (e.g. '12.8669,77.5565483'). That is NOT an address: put the URL in 'google_map_link' and leave 'location'/'sublocality'/'city' null unless the input also names the area in words — the system reverse-geocodes the pin into the address itself.\n" +
     "2. For Location: ALWAYS populate the top-level 'location' field with the primary area/neighborhood/address text mentioned anywhere in the input (e.g. if the text says '...for sale in Jayanagar 17th Main' or 'Location - Jayanagar 17th Main', set location to 'Jayanagar 17th Main'). Never leave 'location' null just because the same text is already part of the 'title' — 'location' is a separate required field. Additionally, if a distinct sublocality/layout name (e.g. HSR Layout, Koramangala) is identifiable, also set 'sublocality' — but 'location' must be filled whenever ANY area/address is mentioned, even if it's identical to 'sublocality'.\n" +
     "3. For Bedrooms: 'X BHK' or 'X bhk' means bedrooms = X (numeric). Always set 'bedrooms' whenever a BHK count is mentioned anywhere in the input, even if that same count already appears in the title (e.g. title '5 BHK old house...' still requires bedrooms: 5).\n" +
     "4. For Area vs Land Area: 'area_sqft' is the BUILT-UP / carpet / super built-up area of a structure (a flat's interior, a house's floor area, etc). 'land_area' (with 'land_area_unit') is the SITE/PLOT size the property sits on, or vacant land itself. If the input mentions a 'plot', 'site', or land size figure (e.g. '3870 sqft plot', '30x40 site'), put it in 'land_area', NOT 'area_sqft' — even when the listing is a house/villa built on that plot. Only put a figure in 'area_sqft' when it's explicitly described as built-up/carpet/floor area.\n" +
@@ -822,6 +845,7 @@ export async function updateListingDraft(
     "Convert terms like 'Crore', 'Cr', 'Lakhs', 'L', 'k' to standard numeric integer values for the price, rent_per_month, advance, and rental_income fields. Extracted Google Map links should be placed in 'google_map_link' field.\n" +
     "Handle updates to amenities (features) and nearby highlights (nearby_highlights) intelligently (e.g. if the user says 'add Gym to amenities', add 'Gym' to the features array; if they say 'add HSR Metro to landmarks', add 'HSR Metro' to the nearby_highlights array).\n" +
     "Handle updates to listing/owner contact details intelligently (e.g. if the user says 'contact name is Ramesh' or 'owner phone is 9876543210', update owner_contact_name or owner_contact_phone respectively).\n" +
+    "A shared map pin arrives as a Google Maps URL or a bare coordinate pair (e.g. '12.8669,77.5565483'): set 'google_map_link' to the URL and never write coordinates into 'location' — the system reverse-geocodes the pin into an address.\n" +
     "Handle updates to location intelligently: if the user says 'location is X', 'Location - X', 'located in X', or similar, set the top-level 'location' field to X. 'location' is a required primary address field, separate from 'sublocality' — never leave it unset when the user has given any area/address text, even if you also record a more specific 'sublocality'.\n" +
     "Handle updates to property type intelligently: if the user says 'type is X', 'Type - X', or describes the property category in any way, map it to the closest matching value from this exact list: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others'. For example, 'Type - Residential old house' or 'its an old independent house' both map to 'Residential House'; 'PG for girls' or 'paying guest accommodation' maps to 'PG/ Hostel'. Never leave 'type' null when the user has specified any property category — always pick the closest match from the list above rather than leaving it unset.\n" +
     "Handle updates to bedrooms intelligently: 'X BHK' or 'X bhk' means bedrooms = X. Always update 'bedrooms' when a BHK count is given.\n" +

@@ -153,6 +153,69 @@ export interface GeocodedLocation {
   formatted_address: string | null;
 }
 
+export interface ReverseGeocodedPlace {
+  formatted_address: string | null;
+  sublocality: string | null;
+  city: string | null;
+  state: string | null;
+  place_id: string | null;
+}
+
+/**
+ * Coordinates → address parts via the Geocoding API. Used when a lister
+ * shares a map pin instead of typing an address: the pin is exact, so
+ * its locality/city are more trustworthy than anything parsed out of
+ * the message text.
+ */
+export async function reverseGeocode(
+  latitude: number,
+  longitude: number
+): Promise<ReverseGeocodedPlace | null> {
+  const url = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+  url.searchParams.set('latlng', `${latitude},${longitude}`);
+  url.searchParams.set('language', 'en');
+  url.searchParams.set('region', 'in');
+  url.searchParams.set('key', apiKey());
+
+  const res = await fetchWithTimeout(url.toString());
+  if (!res.ok) return null;
+
+  const data = (await res.json()) as {
+    status?: string;
+    results?: Array<{
+      place_id?: string;
+      formatted_address?: string;
+      types?: string[];
+      address_components?: Array<{ long_name?: string; types?: string[] }>;
+    }>;
+  };
+
+  const results = data.results || [];
+  if (data.status !== 'OK' || results.length === 0) return null;
+
+  // Results run most-specific first, but the most specific one is often a
+  // plus code with a thin component list — scan them all for each part.
+  const component = (...types: string[]): string | null => {
+    for (const type of types) {
+      for (const result of results) {
+        const match = result.address_components?.find((c) => c.types?.includes(type));
+        if (match?.long_name) return match.long_name;
+      }
+    }
+    return null;
+  };
+
+  const named = results.find((r) => !r.types?.includes('plus_code')) || results[0];
+
+  return {
+    formatted_address: named.formatted_address || null,
+    sublocality: component('sublocality_level_1', 'sublocality', 'neighborhood'),
+    city: component('locality', 'postal_town', 'administrative_area_level_2'),
+    state: component('administrative_area_level_1'),
+    place_id: named.place_id || null,
+  };
+}
+
 /**
  * Free-text address → coordinates via the Geocoding API. Used by the
  * server-side save fallback and the backfill script for properties

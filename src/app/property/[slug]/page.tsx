@@ -16,6 +16,10 @@ import {
   breadcrumbJsonLd,
   propertyJsonLd,
 } from '@/lib/seo/jsonld';
+import {
+  isLocationGuarded,
+  localityLabel,
+} from '@/lib/inventory/location-guard';
 import { BRANDING } from '@/config/branding';
 import type { Property } from '@/types';
 
@@ -41,7 +45,12 @@ export async function generateMetadata({
 
   const description =
     (property.description || '').slice(0, 160) ||
-    [property.type, property.location].filter(Boolean).join(' · ');
+    [
+      property.type,
+      isLocationGuarded(property) ? localityLabel(property) : property.location,
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
   const origin = await resolveRequestOrigin();
   const canonicalUrl = `${origin}/property/${propertySlug(property)}`;
@@ -91,7 +100,7 @@ export default async function PropertyPage({
 
   const isAgentMode =
     resolvedParams.mode === 'view' || resolvedParams.mode === 'agent';
-  const { settings, properties, agents, profiles } =
+  const { settings, accountName, properties, agents, profiles } =
     await cachedFetchShowcaseData(property.account_id, isAgentMode);
 
   const propertiesList = properties.some((p) => p.id === property.id)
@@ -106,7 +115,7 @@ export default async function PropertyPage({
 
   const origin = await resolveRequestOrigin();
   const canonicalUrl = `${origin}/property/${canonicalSlug}`;
-  const siteName = settings?.website_name || BRANDING.name;
+  const siteName = accountName || BRANDING.name;
 
   return (
     <>
@@ -137,6 +146,7 @@ export default async function PropertyPage({
         properties={publicProperties}
         settings={settings}
         accountId={property.account_id}
+        siteName={accountName}
         initialPropertyId={property.id}
         initialAgentMode={isAgentMode}
         visitorRef={resolvedParams.v}

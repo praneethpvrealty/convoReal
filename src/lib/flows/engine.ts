@@ -859,17 +859,23 @@ async function loadAccountMeta(
   db: AdminClient,
   accountId: string,
 ): Promise<Record<string, string>> {
-  const { data, error } = await db
-    .from("showcase_settings")
-    .select("contact_phone, website_name")
-    .eq("account_id", accountId)
-    .maybeSingle();
-  if (error) {
-    console.error("[flows] loadAccountMeta error:", error.message);
+  const [settings, account] = await Promise.all([
+    db
+      .from("showcase_settings")
+      .select("contact_phone")
+      .eq("account_id", accountId)
+      .maybeSingle(),
+    db.from("accounts").select("name").eq("id", accountId).maybeSingle(),
+  ]);
+  if (settings.error || account.error) {
+    console.error(
+      "[flows] loadAccountMeta error:",
+      (settings.error || account.error)?.message,
+    );
   }
   return {
-    contact_phone: data?.contact_phone ?? "",
-    business_name: data?.website_name ?? "",
+    contact_phone: settings.data?.contact_phone ?? "",
+    business_name: account.data?.name ?? "",
   };
 }
 

@@ -19,6 +19,27 @@ describe('looksLikeSchedulingText', () => {
   it('accepts verb + time-cue combinations', () => {
     expect(looksLikeSchedulingText('call varun tomorrow')).toBe(true);
     expect(looksLikeSchedulingText('meet the builder at 11am')).toBe(true);
+    expect(looksLikeSchedulingText('call the bank at 16:30')).toBe(true);
+    expect(looksLikeSchedulingText('site visit this saturday')).toBe(true);
+  });
+
+  it('accepts an explicit calendar date, which is how anyone books past next week', () => {
+    // The reported failure: this became a contact draft, because only
+    // relative days and clock times counted as a WHEN.
+    expect(
+      looksLikeSchedulingText(
+        'Meet lawyer Kusuma Muniraju regarding Whitefield sharans property on 30th July 2026.'
+      )
+    ).toBe(true);
+    expect(looksLikeSchedulingText('meeting with the lawyer on 30 July')).toBe(true);
+    expect(looksLikeSchedulingText('call Deepak Aug 3')).toBe(true);
+    expect(looksLikeSchedulingText('registration appointment 12/08/2026')).toBe(true);
+    expect(looksLikeSchedulingText('meet Suresh on Friday')).toBe(true);
+  });
+
+  it('does not care whether the WHEN comes before the verb, or on its own line', () => {
+    expect(looksLikeSchedulingText('On 30th July, meet the lawyer')).toBe(true);
+    expect(looksLikeSchedulingText('Meet lawyer Kusuma\non 30th July 2026')).toBe(true);
   });
 
   it('rejects forwarded property listings', () => {
@@ -34,6 +55,35 @@ describe('looksLikeSchedulingText', () => {
     expect(looksLikeSchedulingText('Rakesh is interested in the HSR flat, 9880011223')).toBe(false);
     expect(looksLikeSchedulingText('ok thanks')).toBe(false);
     expect(looksLikeSchedulingText('')).toBe(false);
+  });
+
+  it('leaves a forwarded lead to contact intake even when it names a day', () => {
+    // The date cue must not pull portal leads out of ingestion: this is a
+    // contact to create, not a meeting to book.
+    expect(
+      looksLikeSchedulingText('Gaurav 9880011223 is interested in the HSR plot, call him on Monday')
+    ).toBe(false);
+    expect(
+      looksLikeSchedulingText('New lead from MagicBricks — Suresh, wants a site visit 30/07')
+    ).toBe(false);
+  });
+
+  it('still lets an outright request through a lead forward', () => {
+    expect(
+      looksLikeSchedulingText('Remind me to call Gaurav who is interested in the HSR plot on Monday')
+    ).toBe(true);
+  });
+
+  it('does not treat a bare date or a bare verb as a request', () => {
+    expect(looksLikeSchedulingText('30th July 2026')).toBe(false);
+    expect(looksLikeSchedulingText('did you meet him?')).toBe(false);
+    expect(looksLikeSchedulingText('what was the call about')).toBe(false);
+  });
+
+  it('does not read property figures as a date or a time', () => {
+    // "2-3 crore" is a budget, "3.50 acres" is a size — neither is a WHEN.
+    expect(looksLikeSchedulingText('met the owner, he wants 2-3 crore')).toBe(false);
+    expect(looksLikeSchedulingText('visit was for the 3.50 acre land')).toBe(false);
   });
 
   it('still accepts an explicit "remind me" even with listing words', () => {

@@ -3,6 +3,7 @@ import Redis from 'ioredis';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isNarrationLanguage } from '@/lib/video/listing-video';
 
 /**
@@ -102,6 +103,71 @@ export async function POST(
       cost,
       balanceAfter: burn.balanceAfter,
     });
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
+
+/**
+ * Remove a property's listing video: best-effort delete of the rendered
+ * blob from the property-videos bucket, then clear the video_* columns
+ * so the Showcase gallery stops playing it. YouTube copies are left
+ * untouched — the unlisted link keeps working until re-uploaded.
+ */
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const ctx = await requireRole('agent');
+    const { id } = await context.params;
+
+    const { data: property } = await ctx.supabase
+      .from('properties')
+      .select('id, video_url, video_status')
+      .eq('id', id)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle();
+    if (!property) {
+      return NextResponse.json({ error: 'Property not found.' }, { status: 404 });
+    }
+    if (property.video_status === 'queued' || property.video_status === 'processing') {
+      return NextResponse.json(
+        { error: 'A video is being generated right now — wait for it to finish first.' },
+        { status: 409 },
+      );
+    }
+    if (!property.video_url && !property.video_status) {
+      return NextResponse.json({ error: 'This property has no video.' }, { status: 404 });
+    }
+
+    // Storage deletes need the service role; the path's account prefix
+    // (set by the render worker) must match the caller's tenant.
+    const marker = '/object/public/property-videos/';
+    const markerIdx = (property.video_url ?? '').indexOf(marker);
+    if (markerIdx !== -1) {
+      const storagePath = decodeURIComponent(
+        property.video_url.slice(markerIdx + marker.length).split('?')[0],
+      );
+      if (storagePath.startsWith(`${ctx.accountId}/`)) {
+        await supabaseAdmin().storage.from('property-videos').remove([storagePath]);
+      }
+    }
+
+    const { error: updateErr } = await ctx.supabase
+      .from('properties')
+      .update({
+        video_url: null,
+        video_status: null,
+        video_language: null,
+        video_error: null,
+        video_generated_at: null,
+      })
+      .eq('id', id)
+      .eq('account_id', ctx.accountId);
+    if (updateErr) throw updateErr;
+
+    return NextResponse.json({ success: true });
   } catch (err) {
     return toErrorResponse(err);
   }

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack } from 'expo-router';
+import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -9,9 +9,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet } from '@/components/sheet';
@@ -21,6 +24,7 @@ import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { eventTypeFields, type EventFieldKey } from '@/lib/event-fields';
 import type { Appointment, AppointmentType } from '@/lib/types';
 
 const TYPE_META: Record<AppointmentType, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
@@ -66,6 +70,7 @@ async function fetchMonth(month: Date): Promise<Appointment[]> {
 
 export default function CalendarScreen() {
   const { colors, fonts: f } = useTheme();
+  const insets = useSafeAreaInsets();
   const today = new Date();
   const [month, setMonth] = useState(() => monthStart(today));
   const [selected, setSelected] = useState<Date>(today);
@@ -108,27 +113,28 @@ export default function CalendarScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          title: 'Calendar',
-          headerRight: () => (
-            <Link href="/(app)/appointment-new" asChild>
-              <Pressable
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="New appointment"
-              >
-                <Ionicons name="add-circle" size={26} color={colors.primary} />
-              </Pressable>
-            </Link>
-          ),
-        }}
-      />
+      <View style={[styles.screenHeader, { paddingTop: insets.top + spacing.sm }]}>
+        <Text style={[styles.screenTitle, { color: colors.text, fontFamily: f.extrabold }]}>
+          Calendar
+        </Text>
+        <Link href="/(app)/appointment-new" asChild>
+          <Pressable
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="New appointment"
+          >
+            <Ionicons name="add-circle" size={30} color={colors.primary} />
+          </Pressable>
+        </Link>
+      </View>
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
+        contentContainerStyle={{
+          padding: spacing.lg,
+          gap: spacing.md,
+          paddingBottom: TAB_BAR_CLEARANCE,
+        }}
         refreshControl={
           <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
         }
@@ -256,7 +262,13 @@ export default function CalendarScreen() {
         )}
       </ScrollView>
 
-      <AppointmentDetail appointment={detail} onClose={() => setDetail(null)} />
+      {/* Keyed so the notes draft belongs to one event: without it the
+          sheet keeps its state when a different event is opened. */}
+      <AppointmentDetail
+        key={detail?.id ?? 'none'}
+        appointment={detail}
+        onClose={() => setDetail(null)}
+      />
     </View>
   );
 }
@@ -327,6 +339,17 @@ function AppointmentCard({
   );
 }
 
+/**
+ * Call-to-action for an event with nothing logged yet. Names the
+ * post-event field this type actually has — "Add minutes of the
+ * meeting" on a meeting, "Add visit feedback" on a site visit — rather
+ * than a generic "Add notes" that hides which of the three applies.
+ */
+function postFieldLabel(eventType: Appointment['event_type']): string {
+  const post = eventTypeFields(eventType).find((field) => field.phase === 'post');
+  return post ? `Add ${post.label.toLowerCase()}` : 'Add notes';
+}
+
 /** Bottom sheet: full info + complete / cancel / reschedule. */
 function AppointmentDetail({
   appointment,
@@ -341,6 +364,12 @@ function AppointmentDetail({
   const [picker, setPicker] = useState<'date' | 'time' | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingNotes, setEditingNotes] = useState(false);
+  const [notes, setNotes] = useState<Record<EventFieldKey, string>>({
+    agenda: appointment?.agenda ?? '',
+    minutes: appointment?.minutes ?? '',
+    outcome: appointment?.outcome ?? '',
+  });
 
   if (!appointment) return null;
   const meta = TYPE_META[appointment.event_type] ?? TYPE_META.other;
@@ -358,11 +387,58 @@ function AppointmentDetail({
     if (!appointment) return;
     haptic.tap();
     setBusy(true);
-    await supabase.from('appointments').update({ status }).eq('id', appointment.id);
+    setError(null);
+    // Ask for the row back rather than firing and forgetting: a write
+    // that errored — or matched nothing — used to close this sheet as if
+    // it had worked, leaving the event still 'scheduled' in the CRM with
+    // its reminders (src/lib/calendar/agent-reminders.ts) queued to fire
+    // an hour before an event the agent believed was closed.
+    const { data, error: updateError } = await supabase
+      .from('appointments')
+      .update({ status })
+      .eq('id', appointment.id)
+      .select('id');
     setBusy(false);
+
+    if (updateError || !data?.length) {
+      haptic.warn();
+      setError('Could not update this event. Check your connection and try again.');
+      return;
+    }
+
+    haptic.success();
     queryClient.invalidateQueries({ queryKey: ['appointments'] });
     reset();
     onClose();
+  }
+
+  // Only the fields that belong to this event type are written, so
+  // switching type later cannot leave a stale note behind — same rule
+  // the web calendar applies on save.
+  async function saveNotes() {
+    if (!appointment) return;
+    setBusy(true);
+    setError(null);
+    const payload: Partial<Record<EventFieldKey, string | null>> = {};
+    for (const field of eventTypeFields(appointment.event_type)) {
+      payload[field.key] = notes[field.key].trim() || null;
+    }
+    const { data, error: updateError } = await supabase
+      .from('appointments')
+      .update(payload)
+      .eq('id', appointment.id)
+      .select('id');
+    setBusy(false);
+
+    if (updateError || !data?.length) {
+      haptic.warn();
+      setError('Could not save these notes. Check your connection and try again.');
+      return;
+    }
+
+    haptic.success();
+    queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    setEditingNotes(false);
   }
 
   async function saveReschedule() {
@@ -427,9 +503,97 @@ function AppointmentDetail({
           {appointment.description ? (
             <DetailRow icon="text-outline" text={appointment.description} />
           ) : null}
-          {appointment.agenda ? (
-            <DetailRow icon="list-outline" text={appointment.agenda} />
-          ) : null}
+          {/* Type-specific notes (migration 128): agenda before the
+              event, minutes / outcome after it. Editable here because
+              the post-event ones exist to be filled in once the event
+              is done, which is when this sheet is open. */}
+          {editingNotes ? (
+            <View style={{ gap: spacing.md }}>
+              {eventTypeFields(appointment.event_type).map((field) => (
+                <View key={field.key} style={{ gap: 6 }}>
+                  <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.textMuted }}>
+                    {field.label.toUpperCase()}
+                    <Text style={{ fontFamily: fonts.regular, color: colors.textFaint }}>
+                      {field.phase === 'pre'
+                        ? '  — sent in the pre-event reminder'
+                        : '  — fill in after the event'}
+                    </Text>
+                  </Text>
+                  <TextInput
+                    multiline
+                    value={notes[field.key]}
+                    onChangeText={(next) =>
+                      setNotes((prev) => ({ ...prev, [field.key]: next }))
+                    }
+                    placeholder={field.placeholder}
+                    placeholderTextColor={colors.textFaint}
+                    accessibilityLabel={field.label}
+                    style={[
+                      styles.notesInput,
+                      {
+                        backgroundColor: colors.surface,
+                        borderColor: colors.border,
+                        color: colors.text,
+                      },
+                    ]}
+                  />
+                </View>
+              ))}
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <SheetButton
+                  label="Save notes"
+                  color={colors.primary}
+                  textColor={colors.onPrimary}
+                  disabled={busy}
+                  busy={busy}
+                  onPress={saveNotes}
+                />
+                <SheetButton
+                  label="Cancel"
+                  color={colors.surface}
+                  textColor={colors.textMuted}
+                  onPress={() => {
+                    setNotes({
+                      agenda: appointment.agenda ?? '',
+                      minutes: appointment.minutes ?? '',
+                      outcome: appointment.outcome ?? '',
+                    });
+                    setEditingNotes(false);
+                  }}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              {eventTypeFields(appointment.event_type)
+                .filter((field) => (appointment[field.key] ?? '').trim().length > 0)
+                .map((field) => (
+                  <DetailRow
+                    key={field.key}
+                    icon={field.phase === 'pre' ? 'list-outline' : 'create-outline'}
+                    text={`${field.label}: ${appointment[field.key]}`}
+                  />
+                ))}
+              <Pressable
+                onPress={() => {
+                  haptic.tap();
+                  setEditingNotes(true);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Add or edit notes for this event"
+                style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
+              >
+                <Ionicons name="create-outline" size={16} color={colors.primary} />
+                <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
+                  {eventTypeFields(appointment.event_type).some(
+                    (field) => (appointment[field.key] ?? '').trim().length > 0
+                  )
+                    ? 'Edit notes'
+                    : postFieldLabel(appointment.event_type)}
+                </Text>
+              </Pressable>
+            </>
+          )}
           {appointment.contact ? (
             <Link href={`/(app)/contact/${appointment.contact.id}`} asChild>
               <Pressable onPress={onClose}>
@@ -542,7 +706,7 @@ function DetailRow({
   text: string;
   accent?: boolean;
 }) {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
       <Ionicons name={icon} size={16} color={accent ? colors.primary : colors.textMuted} />
@@ -600,6 +764,13 @@ function SheetButton({
 }
 
 const styles = StyleSheet.create({
+  screenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.lg,
+  },
+  screenTitle: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   monthHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   grid: {
     borderRadius: radius.lg,
@@ -645,6 +816,17 @@ const styles = StyleSheet.create({
   sheet: {
     paddingHorizontal: spacing.lg,
     gap: spacing.md,
+  },
+  notesInput: {
+    minHeight: 76,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: fonts.regular,
+    textAlignVertical: 'top',
   },
   pickerButton: {
     flex: 1,

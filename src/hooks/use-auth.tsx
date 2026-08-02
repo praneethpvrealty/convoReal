@@ -15,6 +15,7 @@ import {
   canEditSettings as canEditSettingsFor,
   canManageMembers as canManageMembersFor,
   canSendMessages as canSendMessagesFor,
+  canViewGuardedLocation as canViewGuardedLocationFor,
   isAccountRole,
   isOrgRole,
   hasMinOrgRole,
@@ -119,6 +120,11 @@ interface AuthContextValue {
   canEditSettings: boolean;
   /** True if the caller can send messages and edit operational data (agent+). */
   canSendMessages: boolean;
+  /** True if the caller sees guarded properties' exact location and
+   *  private photos account-wide (admin+). Listing agents additionally
+   *  see their own properties — that per-property exception is decided
+   *  server-side, not by this flag. */
+  canViewGuardedLocations: boolean;
 
   // ----------------------------------------------------------
   // Org hierarchy (migration 082_org_hierarchy.sql) — source of
@@ -471,6 +477,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         : role
           ? canSendMessagesFor(role)
           : false,
+      canViewGuardedLocations: orgRole
+        ? hasMinOrgRole(orgRole, "org_leader")
+        : role
+          ? canViewGuardedLocationFor(role)
+          : false,
     };
   }, [profile?.account_role, profile?.account_id, profile?.org_role, profile?.team_id, profile?.is_read_only, account]);
 
@@ -525,6 +536,7 @@ export function useAuth(): AuthContextValue {
       canManageMembers: false,
       canEditSettings: false,
       canSendMessages: false,
+      canViewGuardedLocations: false,
       orgRole: null,
       teamId: null,
       isReadOnly: false,

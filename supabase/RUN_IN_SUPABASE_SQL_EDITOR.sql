@@ -2438,3 +2438,343 @@ CREATE POLICY notification_preferences_write ON notification_preferences
 -- ============================================================
 
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS price_per_sqft NUMERIC;
+
+-- ============================================================
+-- 168_inventory_stats_rpc.sql
+-- One scan for the inventory summary panel instead of five
+-- count=exact round trips. See the migration for the rationale.
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_properties_account_stats
+  ON properties(account_id) INCLUDE (status, is_published);
+
+CREATE OR REPLACE FUNCTION public.inventory_stats(p_account_id UUID)
+RETURNS TABLE (
+  total BIGINT,
+  published BIGINT,
+  available BIGINT,
+  sold_or_contract BIGINT,
+  pending_review BIGINT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    count(*),
+    count(*) FILTER (WHERE p.is_published),
+    count(*) FILTER (WHERE p.status = 'Available'),
+    count(*) FILTER (WHERE p.status IN ('Sold', 'Under Contract')),
+    count(*) FILTER (WHERE p.status = 'Pending Review')
+  FROM properties p
+  WHERE p.account_id = p_account_id
+    AND is_account_member(p_account_id);
+$$;
+
+REVOKE ALL ON FUNCTION public.inventory_stats(UUID) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.inventory_stats(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.inventory_stats(UUID) TO authenticated;
+
+-- ============================================================
+-- 169_dashboard_metrics_rpc.sql
+-- Dashboard metric cards in one round trip instead of nine.
+-- See the migration for the rationale.
+-- ============================================================
+
+CREATE INDEX IF NOT EXISTS idx_contacts_account_created
+  ON contacts(account_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_conversations_account_status_created
+  ON conversations(account_id, status, is_archived, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_account_sender_created
+  ON messages(account_id, sender_type, created_at);
+
+CREATE OR REPLACE FUNCTION public.dashboard_metrics(
+  p_account_id UUID,
+  p_today_start TIMESTAMPTZ,
+  p_yesterday_start TIMESTAMPTZ
+)
+RETURNS TABLE (
+  open_conversations BIGINT,
+  new_conversations_today BIGINT,
+  new_conversations_yesterday BIGINT,
+  new_contacts_today BIGINT,
+  new_contacts_yesterday BIGINT,
+  open_deals_count BIGINT,
+  open_deals_value NUMERIC,
+  messages_today BIGINT,
+  messages_yesterday BIGINT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    (SELECT count(*) FROM conversations c
+      WHERE c.account_id = p_account_id
+        AND c.status = 'open' AND c.is_archived = false),
+    (SELECT count(*) FROM conversations c
+      WHERE c.account_id = p_account_id
+        AND c.status = 'open' AND c.is_archived = false
+        AND c.created_at >= p_today_start),
+    (SELECT count(*) FROM conversations c
+      WHERE c.account_id = p_account_id
+        AND c.status = 'open' AND c.is_archived = false
+        AND c.created_at >= p_yesterday_start
+        AND c.created_at < p_today_start),
+    (SELECT count(*) FROM contacts ct
+      WHERE ct.account_id = p_account_id
+        AND ct.created_at >= p_today_start
+        AND NOT EXISTS (
+          SELECT 1 FROM conversations c
+          WHERE c.contact_id = ct.id AND c.is_archived = true
+        )),
+    (SELECT count(*) FROM contacts ct
+      WHERE ct.account_id = p_account_id
+        AND ct.created_at >= p_yesterday_start
+        AND ct.created_at < p_today_start
+        AND NOT EXISTS (
+          SELECT 1 FROM conversations c
+          WHERE c.contact_id = ct.id AND c.is_archived = true
+        )),
+    (SELECT count(*) FROM deals d
+      WHERE d.account_id = p_account_id AND d.status = 'open'),
+    (SELECT COALESCE(SUM(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02)), 0)
+       FROM deals d
+      WHERE d.account_id = p_account_id AND d.status = 'open'),
+    (SELECT count(*) FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.account_id = p_account_id
+        AND m.sender_type = 'agent'
+        AND c.is_archived = false
+        AND m.created_at >= p_today_start),
+    (SELECT count(*) FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.account_id = p_account_id
+        AND m.sender_type = 'agent'
+        AND c.is_archived = false
+        AND m.created_at >= p_yesterday_start
+        AND m.created_at < p_today_start)
+  WHERE is_account_member(p_account_id);
+$$;
+
+REVOKE ALL ON FUNCTION public.dashboard_metrics(UUID, TIMESTAMPTZ, TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.dashboard_metrics(UUID, TIMESTAMPTZ, TIMESTAMPTZ) FROM anon;
+GRANT EXECUTE ON FUNCTION public.dashboard_metrics(UUID, TIMESTAMPTZ, TIMESTAMPTZ) TO authenticated;
+
+-- ============================================================
+-- 170_dashboard_aggregates_rpc.sql
+-- Stop shipping raw message and deal rows to the browser so the
+-- dashboard can aggregate them in JavaScript.
+--
+-- Three loaders in src/lib/dashboard/queries.ts each pulled an
+-- unbounded row set over the wire:
+--
+--   loadConversationsSeries — every message in the selected range
+--     (7/30/90 days), to count them per day.
+--   loadResponseTime — every message in the last 14 days, to pair
+--     each first-inbound with the first outbound that followed it.
+--   loadPipelineDonut — every open deal, to group by stage and sum.
+--
+-- None of them had a LIMIT, so the payload grew linearly with account
+-- activity. Postgres can do all three in the database and return tens
+-- of rows instead of tens of thousands.
+--
+-- Note on time zones: the chart buckets by the VIEWER's local day
+-- (localDayKey uses getFullYear/getMonth/getDate), so the series
+-- function takes an IANA zone and truncates in it. Bucketing in UTC
+-- would silently shift every bar for anyone outside UTC.
+-- ============================================================
+
+-- Incoming/outgoing message counts per local day.
+CREATE OR REPLACE FUNCTION public.dashboard_conversations_series(
+  p_account_id UUID,
+  p_start TIMESTAMPTZ,
+  p_time_zone TEXT
+)
+RETURNS TABLE (
+  day DATE,
+  incoming BIGINT,
+  outgoing BIGINT
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    (m.created_at AT TIME ZONE p_time_zone)::date AS day,
+    count(*) FILTER (WHERE m.sender_type = 'customer'),
+    -- agent + bot both count as outgoing, matching the JS
+    count(*) FILTER (WHERE m.sender_type <> 'customer')
+  FROM messages m
+  JOIN conversations c ON c.id = m.conversation_id
+  WHERE m.account_id = p_account_id
+    AND c.is_archived = false
+    AND m.created_at >= p_start
+    AND is_account_member(p_account_id)
+  GROUP BY 1
+  ORDER BY 1;
+$$;
+
+COMMENT ON FUNCTION public.dashboard_conversations_series(UUID, TIMESTAMPTZ, TEXT) IS
+  'Per-local-day incoming/outgoing message counts. Replaces fetching every message in the range to bucket client-side.';
+
+-- Open deals per pipeline stage: count and brokerage total, using the
+-- same COALESCE(brokerage_amount, value * 0.02) fallback the JS used.
+-- Empty stages are dropped here rather than filtered afterwards.
+CREATE OR REPLACE FUNCTION public.dashboard_pipeline_donut(p_account_id UUID)
+RETURNS TABLE (
+  stage_id UUID,
+  stage_name TEXT,
+  stage_color TEXT,
+  deal_count BIGINT,
+  total_value NUMERIC
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT
+    s.id,
+    s.name,
+    COALESCE(NULLIF(s.color, ''), '#64748b'),
+    count(d.id),
+    COALESCE(SUM(COALESCE(d.brokerage_amount, COALESCE(d.value, 0) * 0.02)), 0)
+  FROM pipeline_stages s
+  -- pipeline_stages carries no account_id of its own; it is scoped
+  -- through its parent pipeline (migration 001 + 017).
+  JOIN pipelines pl
+    ON pl.id = s.pipeline_id
+   AND pl.account_id = p_account_id
+  JOIN deals d
+    ON d.stage_id = s.id
+   AND d.status = 'open'
+   AND d.account_id = p_account_id
+  WHERE is_account_member(p_account_id)
+  GROUP BY s.id, s.name, s.color, s.position
+  HAVING count(d.id) > 0
+  ORDER BY s.position;
+$$;
+
+COMMENT ON FUNCTION public.dashboard_pipeline_donut(UUID) IS
+  'Open-deal count and brokerage total per pipeline stage. Replaces fetching every open deal to group client-side.';
+
+-- First-inbound → first-following-outbound pairs, one per unreplied
+-- customer run, mirroring the walk the JS used to do over every
+-- message. `out_seq` counts outbound messages up to and including each
+-- row, so all customer messages waiting on the same reply share a
+-- block, and the outbound that answers them is the sole member of the
+-- next block. Returning pairs rather than raw messages keeps the
+-- caller's day-of-week and this-week/last-week bucketing untouched —
+-- that still has to happen in the viewer's local time.
+CREATE OR REPLACE FUNCTION public.dashboard_response_samples(
+  p_account_id UUID,
+  p_start TIMESTAMPTZ
+)
+RETURNS TABLE (
+  customer_at TIMESTAMPTZ,
+  response_at TIMESTAMPTZ
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  WITH ordered AS (
+    SELECT
+      m.conversation_id,
+      m.sender_type,
+      m.created_at,
+      SUM(CASE WHEN m.sender_type <> 'customer' THEN 1 ELSE 0 END) OVER (
+        PARTITION BY m.conversation_id
+        ORDER BY m.created_at
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+      ) AS out_seq
+    FROM messages m
+    JOIN conversations c ON c.id = m.conversation_id
+    WHERE m.account_id = p_account_id
+      AND c.is_archived = false
+      AND m.created_at >= p_start
+      AND is_account_member(p_account_id)
+  ),
+  waiting AS (
+    SELECT conversation_id, out_seq AS blk, MIN(created_at) AS customer_at
+    FROM ordered
+    WHERE sender_type = 'customer'
+    GROUP BY conversation_id, out_seq
+  ),
+  replies AS (
+    SELECT conversation_id, out_seq AS blk, MIN(created_at) AS response_at
+    FROM ordered
+    WHERE sender_type <> 'customer'
+    GROUP BY conversation_id, out_seq
+  )
+  SELECT w.customer_at, r.response_at
+  FROM waiting w
+  JOIN replies r
+    ON r.conversation_id = w.conversation_id
+   AND r.blk = w.blk + 1
+  WHERE r.response_at >= w.customer_at;
+$$;
+
+COMMENT ON FUNCTION public.dashboard_response_samples(UUID, TIMESTAMPTZ) IS
+  'Paired first-inbound/first-reply timestamps for response-time stats. Replaces fetching 14 days of messages to pair client-side.';
+
+REVOKE ALL ON FUNCTION public.dashboard_conversations_series(UUID, TIMESTAMPTZ, TEXT) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.dashboard_pipeline_donut(UUID) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.dashboard_response_samples(UUID, TIMESTAMPTZ) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.dashboard_conversations_series(UUID, TIMESTAMPTZ, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.dashboard_pipeline_donut(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.dashboard_response_samples(UUID, TIMESTAMPTZ) TO authenticated;
+
+-- ============================================================
+-- 171_whatsapp_reply_bridges.sql
+-- Maps an agent-facing WhatsApp ping back to the lead thread it is
+-- about, so a quote-reply to the ping reaches the lead. See the
+-- migration for the rationale.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS whatsapp_reply_bridges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  agent_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  agent_phone TEXT NOT NULL,
+  notification_message_id TEXT NOT NULL UNIQUE,
+  target_conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+  target_contact_id UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+  last_agent_reply_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_reply_bridges_conversation
+  ON whatsapp_reply_bridges (target_conversation_id, last_agent_reply_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_reply_bridges_account_created
+  ON whatsapp_reply_bridges (account_id, created_at);
+
+ALTER TABLE whatsapp_reply_bridges ENABLE ROW LEVEL SECURITY;
+
+DROP TRIGGER IF EXISTS set_whatsapp_reply_bridges_updated_at ON whatsapp_reply_bridges;
+CREATE TRIGGER set_whatsapp_reply_bridges_updated_at BEFORE UPDATE ON whatsapp_reply_bridges
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP POLICY IF EXISTS whatsapp_reply_bridges_select ON whatsapp_reply_bridges;
+CREATE POLICY whatsapp_reply_bridges_select ON whatsapp_reply_bridges FOR SELECT USING (
+  is_account_member(account_id)
+);
+
+-- ============================================================
+-- 179_property_unit_details.sql
+-- Unit details the listing portals mark mandatory but the CRM
+-- didn't model: furnishing, floor number, total floors and
+-- balconies. The portal post kit sends these real values instead
+-- of review-and-fix defaults.
+-- ============================================================
+
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS furnishing TEXT;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS floor_number INTEGER;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS total_floors INTEGER;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS balconies INTEGER;

@@ -56,6 +56,26 @@ export function avatarHue(seed: string): number {
   return h;
 }
 
+/**
+ * An amount the way an agent says it out loud: "₹16 Crore", "₹85 Lakhs",
+ * "₹45,000" — the readout under every price input.
+ *
+ * Mirrors `priceInWords` in `src/lib/currency-utils.ts`; the mobile app is
+ * a separate Expo project and cannot import from src/. Divergence is
+ * caught by `@/lib/mobile-parity.test.ts`. Distinct from `formatInr`
+ * below, which is the abbreviated form ("₹1.2 Cr") used in dense lists
+ * and cards.
+ */
+export function priceInWords(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '';
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return '';
+  const trim = (n: number) => n.toFixed(2).replace(/\.00$/, '').replace(/\.(\d)0$/, '.$1');
+  if (amount >= 10000000) return `₹${trim(amount / 10000000)} Crore`;
+  if (amount >= 100000) return `₹${trim(amount / 100000)} Lakhs`;
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
+
 /** Indian price notation: ₹85 L, ₹1.2 Cr. */
 export function formatInr(n: number | null | undefined): string {
   if (!n) return '—';

@@ -9,9 +9,11 @@ import {
   View,
 } from 'react-native';
 
+import { HOME_WIDGET_QUERY_KEY, HomeWidgets } from '@/components/home-widgets';
 import { AnimatedCounter } from '@/components/motion';
 import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
+import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { onGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
 
@@ -96,7 +98,7 @@ async function fetchOverview(): Promise<Overview> {
 }
 
 export default function DashboardScreen() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   const { data, isFetching, refetch } = useQuery({
     queryKey: ['overview'],
     queryFn: fetchOverview,
@@ -107,7 +109,14 @@ export default function DashboardScreen() {
       style={{ flex: 1 }}
       contentContainerStyle={styles.container}
       refreshControl={
-        <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+        <RefreshControl
+          refreshing={isFetching}
+          onRefresh={() => {
+            queryClient.invalidateQueries({ queryKey: [HOME_WIDGET_QUERY_KEY] });
+            refetch();
+          }}
+          tintColor={colors.primary}
+        />
       }
     >
       <Stack.Screen
@@ -122,6 +131,8 @@ export default function DashboardScreen() {
         openCount={data?.openDealsCount ?? 0}
         wonCount={data?.wonDealsCount ?? 0}
       />
+
+      <HomeWidgets />
 
       <SectionLabel text="Today" />
       <View style={styles.grid}>
@@ -169,7 +180,7 @@ export default function DashboardScreen() {
       </View>
 
       <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-        Response-time analytics and the Pulse visitor feed live on the web dashboard.
+        Response-time analytics live on the web dashboard.
       </Text>
     </ScrollView>
   );

@@ -1,5 +1,4 @@
 import { router } from 'expo-router';
-import { Alert } from 'react-native';
 
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
@@ -8,11 +7,24 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import type { Contact } from '@/lib/types';
 
+export interface OpenChatOutcome {
+  ok: boolean;
+  error?: string;
+}
+
 /** Open the CRM inbox thread for a contact — the latest conversation,
  *  or create one first (same insert as the web's handleWhatsAppClick)
- *  when the contact has never been messaged. */
-export async function openContactChat(contact: Contact) {
+ *  when the contact has never been messaged. Failures come back for the
+ *  caller to surface: this runs outside any component, so it has no
+ *  tree of its own to render a dialog into. */
+export async function openContactChat(
+  contact: Contact,
+  opts?: { draftText?: string }
+): Promise<OpenChatOutcome> {
   haptic.tap();
+  const draftParam = opts?.draftText
+    ? `?draftText=${encodeURIComponent(opts.draftText)}`
+    : '';
   const { data } = await supabase
     .from('conversations')
     .select('id')
@@ -21,11 +33,11 @@ export async function openContactChat(contact: Contact) {
     .limit(1)
     .maybeSingle();
   if (data?.id) {
-    router.push(`/(app)/conversation/${data.id}`);
-    return;
+    router.push(`/(app)/conversation/${data.id}${draftParam}`);
+    return { ok: true };
   }
   const { profile, session } = useAuthStore.getState();
-  if (!profile?.account_id) return;
+  if (!profile?.account_id) return { ok: false };
   const { data: conv, error } = await supabase
     .from('conversations')
     .insert({
@@ -37,9 +49,9 @@ export async function openContactChat(contact: Contact) {
     .single();
   if (error) {
     haptic.warn();
-    Alert.alert('Could not open thread', friendlyError(error.message));
-    return;
+    return { ok: false, error: friendlyError(error.message) };
   }
   queryClient.invalidateQueries({ queryKey: ['conversations'] });
-  router.push(`/(app)/conversation/${conv.id}`);
+  router.push(`/(app)/conversation/${conv.id}${draftParam}`);
+  return { ok: true };
 }

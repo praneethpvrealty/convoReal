@@ -1,16 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
-
-let _adminClient: ReturnType<typeof createClient> | null = null;
-function supabaseAdmin() {
-  if (!_adminClient) {
-    _adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-  }
-  return _adminClient;
-}
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 const IMAGE_MAX_WIDTH = 1200;
 const JPEG_QUALITY = 75;

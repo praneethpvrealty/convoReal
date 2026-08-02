@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PriceHint } from '@/components/ui/price-hint';
 import { Textarea } from '@/components/ui/textarea';
 
 interface BuyerPreferences {
@@ -160,6 +161,7 @@ function BuyerPreferencesForm({
               value={minBudget}
               onChange={(e) => setMinBudget(e.target.value)}
             />
+            <PriceHint value={minBudget} compact />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="p-max-budget" className="text-xs font-bold">
@@ -173,6 +175,7 @@ function BuyerPreferencesForm({
               value={maxBudget}
               onChange={(e) => setMaxBudget(e.target.value)}
             />
+            <PriceHint value={maxBudget} compact />
           </div>
         </CardContent>
       </Card>

@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       account_id?: string;
       session_key?: string;
       ref?: string;
+      share_id?: string;
       events?: BeaconEvent[];
     } | null;
 
@@ -76,6 +77,20 @@ export async function POST(request: NextRequest) {
       contactId = contact?.id ?? null;
     }
 
+    // Resolve the share-instance token (?s= on generic showcase shares,
+    // migration 173) with the same tenancy rule as ref: a forged id
+    // from another account must never label this account's events.
+    let shareId: string | null = null;
+    if (body?.share_id && UUID_RE.test(body.share_id)) {
+      const { data: share } = await db
+        .from('showcase_share_links')
+        .select('id')
+        .eq('id', body.share_id)
+        .eq('account_id', accountId)
+        .maybeSingle();
+      shareId = share?.id ?? null;
+    }
+
     const rows = events
       .filter((e) => e && typeof e.type === 'string' && EVENT_TYPES.has(e.type))
       .map((e) => ({
@@ -86,6 +101,7 @@ export async function POST(request: NextRequest) {
             ? e.property_id
             : null,
         session_key: sessionKey,
+        share_id: shareId,
         event_type: e.type,
         // Oversized metadata is dropped whole rather than truncated —
         // slicing serialized JSON yields invalid JSON.

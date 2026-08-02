@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { requireRole, toErrorResponse } from '@/lib/auth/account'
 import { sendPreferenceFlowToContact } from '@/lib/whatsapp/meta-flow-service'
 
 /**
@@ -11,29 +11,18 @@ import { sendPreferenceFlowToContact } from '@/lib/whatsapp/meta-flow-service'
  * "update my preferences" (see webhook-handler.ts).
  */
 export async function POST(request: NextRequest) {
+  // Outside the main try, whose catch surfaces the Meta error message
+  // as a 500. Sending a flow puts a WhatsApp message on the account's
+  // behalf, so it carries the same 'agent' gate as /api/whatsapp/send.
+  let supabase: Awaited<ReturnType<typeof requireRole>>['supabase']
+  let accountId: string
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    ;({ supabase, accountId } = await requireRole('agent'))
+  } catch (error) {
+    return toErrorResponse(error)
+  }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('account_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
-    const accountId = profile?.account_id as string | undefined
-    if (!accountId) {
-      return NextResponse.json(
-        { error: 'Your profile is not linked to an account.' },
-        { status: 403 }
-      )
-    }
-
+  try {
     const body = await request.json().catch(() => null)
     const contactId = body?.contact_id
     if (!contactId || typeof contactId !== 'string') {

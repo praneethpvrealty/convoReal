@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { localityStems, localityStemProbe, textContainsLocality } from './locality-match';
+import {
+  localityStems,
+  localityStemProbe,
+  rowMatchesLocality,
+  textContainsLocality,
+} from './locality-match';
 
 describe('localityStems', () => {
   it('splits fused nagar suffixes', () => {
@@ -73,5 +78,33 @@ describe('localityStemProbe', () => {
   it('returns null for short or multi-stem labels', () => {
     expect(localityStemProbe('HSR Layout')).toBeNull(); // stem "hsr" too short
     expect(localityStemProbe('Sarjapur Attibele Road')).toBeNull();
+  });
+});
+
+describe('rowMatchesLocality', () => {
+  // PROP-1108: the area is named only in the title, while `location`
+  // holds a street address that resolves to a same-named colony in
+  // another part of the city.
+  const koramangalaRow = {
+    title: 'Residential House in Koramangala 7th phase, opposite to the park',
+    location: 'Plot 27, 20th Main, Phase VIII, KHB Colony, Bangalore, Karnataka',
+    sublocality: 'KHB Colony',
+    locality_canonical: null,
+    project: null,
+  };
+
+  it('matches a locality named only in the title', () => {
+    expect(rowMatchesLocality(koramangalaRow, 'Koramangala')).toBe(true);
+  });
+
+  it('still matches on the other locality fields', () => {
+    expect(rowMatchesLocality({ sublocality: 'HSR Layout' }, 'HSR Layout')).toBe(true);
+    expect(rowMatchesLocality({ location: 'Surya City, Chandapura' }, 'Suryanagar')).toBe(true);
+    expect(rowMatchesLocality({ project: 'Prestige Falcon City' }, 'Falcon City')).toBe(true);
+  });
+
+  it('does not match an unrelated locality', () => {
+    expect(rowMatchesLocality(koramangalaRow, 'Whitefield')).toBe(false);
+    expect(rowMatchesLocality({ title: null, location: null }, 'Koramangala')).toBe(false);
   });
 });

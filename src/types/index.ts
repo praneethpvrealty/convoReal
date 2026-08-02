@@ -183,6 +183,10 @@ export interface Contact {
    *  by STOP ALERTS/START ALERTS chat commands and the buyer portal.
    *  'declined' excludes the contact from broadcast audiences. */
   buyer_alerts_consent?: 'pending' | 'granted' | 'declined';
+  /** When the match digest last asked a 'pending' buyer to opt in
+   *  (migration 174). Set once — a buyer who never answered is never
+   *  asked again. */
+  buyer_alerts_consent_requested_at?: string | null;
   /** Org hierarchy (migration 082) — which agent/team this contact is
    *  scoped to. Null = unassigned (visible to Org Manager/Leader via the
    *  "unassigned queue" RLS branch; invisible to Org Agents). */
@@ -239,6 +243,8 @@ export interface ShowcaseEvent {
   contact_id: string | null;
   property_id: string | null;
   session_key: string;
+  /** Share-instance token the visit arrived through (migration 173). */
+  share_id?: string | null;
   event_type: 'open' | 'view_property' | 'map_click' | 'gallery';
   metadata: Record<string, unknown>;
   created_at: string;
@@ -899,6 +905,11 @@ export interface Property {
   deal_remarks?: string | null;
   bedrooms?: number;
   bathrooms?: number;
+  /** Unit details for portal posting (migration 179). */
+  furnishing?: 'Furnished' | 'Semi-Furnished' | 'Unfurnished' | null;
+  floor_number?: number | null;
+  total_floors?: number | null;
+  balconies?: number | null;
   area_sqft?: number;
   area_unit?: string;
   land_area?: number;
@@ -914,6 +925,19 @@ export interface Property {
   longitude?: number | null;
   locality_place_id?: string | null;
   locality_canonical?: string | null;
+  /** Location guard (migration 175). NULL = derived from type: houses,
+   *  villas, farm houses and land default to 'locality' (exact address,
+   *  map pin and coordinates hidden), everything else to 'exact'. */
+  location_privacy?: 'exact' | 'locality' | null;
+  /** Photos moved to the non-public bucket (migration 175) — served only
+   *  through the authenticated proxy or an approved reveal token. */
+  private_images?: string[];
+  /** Set by the masking helpers, never stored: this row was
+   *  locality-substituted for the current viewer. */
+  location_guarded?: boolean;
+  /** Attached by the masking helpers so a viewer can see how many
+   *  photos exist behind the guard without receiving their paths. */
+  private_images_count?: number;
   /** Transient fields attached by the tiered location search
    *  (GET /api/properties?near_lat=...), not stored columns. */
   distance_km?: number | null;
@@ -990,11 +1014,14 @@ export interface Property {
 // Showcase Website Settings (033_add_showcase_settings.sql)
 // ============================================================
 
+// The brokerage's name is NOT here — it lives once, on `accounts.name`,
+// and reaches public pages via ShowcaseData.accountName. This table used
+// to carry its own `website_name` copy (plus a `website_url` nothing ever
+// read), so the showcase and the WhatsApp templates could greet the same
+// client under two different brands.
 export interface ShowcaseSettings {
   id: string;
   account_id: string;
-  website_name: string;
-  website_url: string;
   contact_phone: string;
   whatsapp_message_template: string;
   flyer_ai_provider?: 'google' | 'huggingface';

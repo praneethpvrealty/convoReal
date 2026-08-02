@@ -1,15 +1,17 @@
 {
   "name": "convoreal-mobile",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "version": "0.1.0",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "expo lint",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@bacons/apple-targets": "^5.0.0",
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.0.2",
@@ -23,6 +25,7 @@
     "aes-js": "^3.1.2",
     "expo": "~57.0.6",
     "expo-asset": "~57.0.5",
+    "expo-audio": "~57.0.3",
     "expo-blur": "~57.0.2",
     "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.5",
@@ -48,6 +51,7 @@
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-native": "0.86.0",
+    "react-native-android-widget": "^0.21.0",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-get-random-values": "~1.11.0",
     "react-native-maps": "1.27.2",
@@ -62,8 +66,11 @@
   "devDependencies": {
     "@types/aes-js": "^3.1.4",
     "@types/react": "~19.2.2",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "^57.0.0",
     "pngjs": "^7.0.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.7"
   },
   "private": true
 }

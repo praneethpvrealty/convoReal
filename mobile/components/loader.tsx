@@ -33,9 +33,12 @@ export function ConvoRealLoader({
 }) {
   const { colors, fonts: f } = useTheme();
   const reduced = useReducedMotion();
-  const [w, setW] = useState(0);
+  const [measured, setMeasured] = useState<{ size: number; width: number } | null>(null);
   const x = useSharedValue(0);
   const h = Math.ceil(size * 1.25);
+  // A measurement taken at another font size is stale — fall back to 0
+  // so the measurer's next layout pass supplies the right one.
+  const w = measured?.size === size ? measured.width : 0;
 
   useEffect(() => {
     if (!w || reduced) return;
@@ -45,17 +48,45 @@ export function ConvoRealLoader({
 
   const anim = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
 
+  const textStyle = {
+    fontSize: size,
+    fontFamily: f.extrabold,
+    letterSpacing: -0.02 * size,
+    lineHeight: h,
+    color: colors.primary,
+  } as const;
+
+  // Invisible copy that owns measurement for the whole lifetime — NOT
+  // just the first layout. The boot screen mounts this loader while the
+  // custom fonts are still loading, so the first layout measures the
+  // narrower system-fallback glyphs; freezing that width left the real
+  // ExtraBold render wrapping inside a too-small mask box, and the
+  // one-line-tall mask clipped it to "ConvoRe". Re-measuring on every
+  // layout change means the font swap simply resizes the mask.
+  // The wide zero-height frame matters: Yoga clamps an absolute child
+  // to its parent's width, and the parent is the mask-sized box — a
+  // clamped measurer would just echo the stale width back forever.
+  // (+2 slack: Android's reported width can land a hair under the real
+  // glyph advance.)
+  const measurer = (
+    <View pointerEvents="none" style={{ position: 'absolute', width: 9999, height: 0, opacity: 0 }}>
+      <Text
+        numberOfLines={1}
+        style={[textStyle, { alignSelf: 'flex-start' }]}
+        onLayout={(e) => {
+          const width = Math.ceil(e.nativeEvent.layout.width) + 2;
+          setMeasured((prev) =>
+            prev?.size === size && prev.width === width ? prev : { size, width },
+          );
+        }}
+      >
+        ConvoReal
+      </Text>
+    </View>
+  );
+
   const wordmark = (
-    <Text
-      onLayout={(e) => setW(Math.ceil(e.nativeEvent.layout.width))}
-      style={{
-        fontSize: size,
-        fontFamily: f.extrabold,
-        letterSpacing: -0.02 * size,
-        lineHeight: h,
-        color: colors.primary,
-      }}
-    >
+    <Text numberOfLines={1} ellipsizeMode="clip" style={textStyle}>
       ConvoReal
     </Text>
   );
@@ -65,6 +96,7 @@ export function ConvoRealLoader({
   if (reduced || !w) {
     return (
       <View accessibilityLabel={label} style={style}>
+        {measurer}
         {wordmark}
       </View>
     );
@@ -72,6 +104,7 @@ export function ConvoRealLoader({
 
   return (
     <View accessibilityLabel={label} style={style}>
+      {measurer}
       <MaskedView style={{ width: w, height: h }} maskElement={wordmark}>
         <View style={{ width: w, height: h, overflow: 'hidden' }}>
           <AnimatedGradient

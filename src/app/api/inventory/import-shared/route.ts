@@ -29,7 +29,8 @@ const COPIED_COLUMNS =
   'id, account_id, title, description, price, listing_type, rent_per_month, maintenance, advance, gst, ' +
   'jv_structure, owner_share_percent, builder_share_percent, goodwill_amount, ' +
   'bts_lease_years, bts_lock_in_years, bts_escalation_percent, ' +
-  'location, type, bedrooms, bathrooms, area_sqft, area_unit, land_area, land_area_unit, ' +
+  'location, type, bedrooms, bathrooms, furnishing, floor_number, total_floors, balconies, ' +
+  'area_sqft, area_unit, land_area, land_area_unit, ' +
   'super_built_area, sublocality, city, state, project, land_zone, ideal_for, dimensions, ' +
   'road_width, road_width_unit, facing_direction, nearby_highlights, features, images, ' +
   'google_map_link, latitude, longitude, locality_place_id, locality_canonical, is_published';

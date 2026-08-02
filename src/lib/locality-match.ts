@@ -62,6 +62,30 @@ export function textContainsLocality(field: string, label: string): boolean {
   return needleStems.every((s) => fieldStems.has(s));
 }
 
+/** Property fields the near-search name tier reads, in the order it
+ *  probes them. `title` belongs here because listings routinely name
+ *  the area only there ("House in Koramangala 7th phase") while
+ *  `location` holds a street address that never repeats it. */
+export const LOCALITY_MATCH_FIELDS = [
+  'locality_canonical',
+  'sublocality',
+  'location',
+  'project',
+  'title',
+] as const;
+
+/** True when any of a property row's locality-bearing fields names the
+ *  searched locality. */
+export function rowMatchesLocality(
+  row: Partial<Record<(typeof LOCALITY_MATCH_FIELDS)[number], string | null>>,
+  label: string
+): boolean {
+  return LOCALITY_MATCH_FIELDS.some((field) => {
+    const value = row[field];
+    return !!value && textContainsLocality(value, label);
+  });
+}
+
 /**
  * Stem usable as an extra `%stem%` ILIKE probe alongside the raw label
  * when fetching name-match candidates (e.g. "Suryanagar" → "surya",

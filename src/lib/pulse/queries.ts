@@ -13,7 +13,7 @@ export interface PulseStats {
   uniqueSessions: number;
   avgDwellTimeSec: number;
   topProperties: Array<{
-    property: Property;
+    property: { id: string; title: string; property_code: string | null; price: number };
     viewsCount: number;
     uniqueViewsCount: number;
   }>;
@@ -26,97 +26,68 @@ export interface HydratedShowcaseEvent extends Omit<ShowcaseEvent, 'metadata'> {
   };
   contact?: Contact | null;
   property?: Property | null;
+  /** The share-instance link the visit came through, when it did. */
+  share?: { id: string; created_at: string } | null;
 }
 
-export async function loadPulseStats(db: DB): Promise<PulseStats> {
-  const [eventsRes, topPropsRes] = await Promise.all([
-    db.from('showcase_events').select('session_key, event_type, metadata'),
-    // Only real property views — counting every property-tagged event
-    // (map clicks, gallery swipes) would inflate the Top Listings.
-    db
-      .from('showcase_events')
-      .select('property_id, session_key')
-      .eq('event_type', 'view_property')
-      .not('property_id', 'is', null),
+/** Aggregated in Postgres (migration 172) — counting opens, distinct
+ *  sessions and dwell in the browser meant downloading every event row
+ *  the account has ever logged, twice, with no upper bound. */
+export async function loadPulseStats(db: DB, accountId: string): Promise<PulseStats> {
+  const [statsRes, topRes] = await Promise.all([
+    db.rpc('pulse_stats', { p_account_id: accountId }).maybeSingle(),
+    db.rpc('pulse_top_properties', { p_account_id: accountId, p_limit: 5 }),
   ]);
 
-  if (eventsRes.error) throw eventsRes.error;
-  if (topPropsRes.error) throw topPropsRes.error;
+  if (statsRes.error) throw statsRes.error;
+  if (topRes.error) throw topRes.error;
 
-  const events = eventsRes.data ?? [];
-  // The dashboard tile promises "every link open counts as one" — so
-  // count only 'open' events, not every beacon the session emitted.
-  const totalViews = events.filter((e) => e.event_type === 'open').length;
+  const stats = statsRes.data as {
+    total_views: number;
+    unique_sessions: number;
+    avg_dwell_sec: number;
+  } | null;
 
-  const sessions = new Set(events.map((e) => e.session_key));
-  const uniqueSessions = sessions.size;
-
-  let totalDwellMs = 0;
-  let dwellCount = 0;
-  for (const e of events) {
-    if (e.event_type === 'view_property' && e.metadata) {
-      const meta = e.metadata as Record<string, unknown>;
-      if (typeof meta.duration_ms === 'number') {
-        totalDwellMs += meta.duration_ms;
-        dwellCount++;
-      }
-    }
-  }
-  const avgDwellTimeSec = dwellCount > 0 ? Math.round(totalDwellMs / dwellCount / 1000) : 0;
-
-  const propViews = new Map<string, { views: number; sessions: Set<string> }>();
-  for (const p of topPropsRes.data ?? []) {
-    const pid = p.property_id;
-    if (!pid) continue;
-    const current = propViews.get(pid) || { views: 0, sessions: new Set() };
-    current.views++;
-    current.sessions.add(p.session_key);
-    propViews.set(pid, current);
-  }
-
-  const sortedProps = Array.from(propViews.entries())
-    .sort((a, b) => b[1].views - a[1].views)
-    .slice(0, 5);
-
-  const topProperties: PulseStats['topProperties'] = [];
-  if (sortedProps.length > 0) {
-    const { data: properties } = await db
-      .from('properties')
-      .select('*')
-      .in('id', sortedProps.map(([id]) => id));
-
-    for (const [id, stats] of sortedProps) {
-      const property = properties?.find((p) => p.id === id);
-      if (property) {
-        topProperties.push({
-          property: property as Property,
-          viewsCount: stats.views,
-          uniqueViewsCount: stats.sessions.size,
-        });
-      }
-    }
-  }
+  const topRows = (topRes.data ?? []) as {
+    property_id: string;
+    title: string;
+    property_code: string | null;
+    price: number;
+    views_count: number;
+    unique_views_count: number;
+  }[];
 
   return {
-    totalViews,
-    uniqueSessions,
-    avgDwellTimeSec,
-    topProperties,
+    totalViews: stats?.total_views ?? 0,
+    uniqueSessions: stats?.unique_sessions ?? 0,
+    avgDwellTimeSec: stats?.avg_dwell_sec ?? 0,
+    topProperties: topRows.map((row) => ({
+      property: {
+        id: row.property_id,
+        title: row.title,
+        property_code: row.property_code,
+        price: row.price,
+      },
+      viewsCount: row.views_count,
+      uniqueViewsCount: row.unique_views_count,
+    })),
   };
 }
 
 export async function loadPulseFeed(db: DB): Promise<HydratedShowcaseEvent[]> {
   const { data, error } = await db
     .from('showcase_events')
-    .select('*, contact:contacts(*), property:properties(*)')
+    .select('*, contact:contacts(*), property:properties(*), share:showcase_share_links(id, created_at)')
     .order('created_at', { ascending: false })
     .limit(100);
 
   if (error) throw error;
 
+  type ShareRow = { id: string; created_at: string };
   type EventRow = Omit<ShowcaseEvent, 'contact' | 'property'> & {
     contact: Contact | Contact[] | null;
     property: Property | Property[] | null;
+    share: ShareRow | ShareRow[] | null;
   };
 
   return ((data ?? []) as unknown as EventRow[]).map((row) => ({
@@ -124,5 +95,6 @@ export async function loadPulseFeed(db: DB): Promise<HydratedShowcaseEvent[]> {
     metadata: row.metadata as HydratedShowcaseEvent['metadata'],
     contact: one(row.contact),
     property: one(row.property),
+    share: one(row.share),
   })) as HydratedShowcaseEvent[];
 }

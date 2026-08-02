@@ -60,6 +60,7 @@ interface ReminderAppointment {
   contact_ids?: string[] | null;
   contact: { id: string; name: string | null; phone: string | null } | null;
   property: { id: string; title: string | null; location: string | null } | null;
+  liaison?: { id: string; name: string | null; phone: string | null } | null;
 }
 
 /** Every attendee on the event — the contact_ids parties, with the
@@ -102,7 +103,7 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
 
   const { data: appointments, error } = await admin
     .from('appointments')
-    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location)')
+    .select('id, account_id, user_id, assigned_to, title, event_type, start_time, end_time, location, agenda, contact_ids, contact:contacts(id, name, phone), property:properties(id, title, location), liaison:liaisons(id, name, phone)')
     .eq('status', 'scheduled')
     .eq('agent_reminder_sent', false)
     .gt('start_time', now.toISOString())
@@ -149,6 +150,9 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       ...attendeesOf(appt, contactById).map(
         (c) => `👤 ${c.name || 'Contact'}${c.phone ? ` — ${c.phone}` : ''}`
       ),
+      appt.liaison
+        ? `⚖️ ${appt.liaison.name || 'Liaison'}${appt.liaison.phone ? ` — ${appt.liaison.phone}` : ''}`
+        : null,
       appt.property?.title ? `🏠 ${appt.property.title}` : null,
       appt.location ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}` : null,
       appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
@@ -165,24 +169,31 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       text: lines.join('\n'),
     });
 
-    if (result.success) {
-      await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
-      // Fire in-app + push only alongside a successful WhatsApp send, so a
-      // retrying window-closed appointment doesn't re-notify every tick.
-      await createNotification({
-        accountId: appt.account_id,
-        userId: assigneeId as string,
-        type: 'appointment_reminder',
-        eventKey: 'appointment_reminder',
-        title: `Coming up at ${istTime(appt.start_time)}`,
-        body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
-        entityType: 'appointment',
-        entityId: appt.id,
-        link: '/calendar',
-      });
-    } else {
-      console.warn(`[Agent Reminder] send failed for appt ${appt.id}:`, result.error);
+    if (!result.success) {
+      // Expected whenever the assignee hasn't messaged the bot in 24h: this
+      // is free-form text, so Meta rejects it outside the service window.
+      // An event booked days ahead reaches its reminder with the window
+      // long closed, which is the common case rather than the edge one.
+      console.warn(`[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`, result.error);
     }
+
+    // In-app and push have no service window, so they are NOT gated on the
+    // WhatsApp send — gating them meant a closed window silently cost the
+    // assignee every channel at once, and the retry it bought could only
+    // fail again for the same reason. One attempt, then marked, exactly as
+    // sendOverdueNudges does.
+    await admin.from('appointments').update({ agent_reminder_sent: true }).eq('id', appt.id);
+    await createNotification({
+      accountId: appt.account_id,
+      userId: assigneeId as string,
+      type: 'appointment_reminder',
+      eventKey: 'appointment_reminder',
+      title: `Coming up at ${istTime(appt.start_time)}`,
+      body: `${emoji} ${appt.title}${appt.location ? `\n📌 ${appt.location}` : ''}`,
+      entityType: 'appointment',
+      entityId: appt.id,
+      link: '/calendar',
+    });
   }
 }
 

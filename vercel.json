@@ -23,11 +23,19 @@
       "schedule": "0 5 * * *"
     },
     {
+      "path": "/api/cron/buyer-match-digest",
+      "schedule": "45 5 * * *"
+    },
+    {
       "path": "/api/cron/den-bids-expiry",
       "schedule": "30 5 * * *"
     },
     {
       "path": "/api/appointments/cron",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/location-request-timeouts",
       "schedule": "*/15 * * * *"
     }
   ]

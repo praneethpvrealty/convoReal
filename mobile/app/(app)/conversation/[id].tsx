@@ -32,13 +32,12 @@ import { Avatar } from '@/components/ui';
 import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
 import { buildInquiryDraft } from '@/lib/approve-contact';
 import { haptic } from '@/lib/haptics';
-import type { MessageTemplate } from '@/lib/types';
+import type { MessageTemplate , Conversation, Message, MessageStatus } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import { useHeaderHeight } from '@/lib/use-header-height';
-import type { Conversation, Message, MessageStatus } from '@/lib/types';
 
 const PAGE_SIZE = 60;
 
@@ -68,13 +67,16 @@ async function fetchConversation(id: string): Promise<Conversation | null> {
 }
 
 export default function ConversationScreen() {
-  const { colors, fonts: f } = useTheme();
+  const { colors } = useTheme();
   // `draftPropertyId` is set when the thread is opened from a contact
   // approval whose 24h window had closed — pre-draft the inquired
   // property's details so the agent can send them in one tap.
-  const { id, draftPropertyId } = useLocalSearchParams<{
+  const { id, draftPropertyId, draftText } = useLocalSearchParams<{
     id: string;
     draftPropertyId?: string;
+    /** Plain-text composer seed (e.g. a showcase share drafted from the
+     *  contact picker) — draftPropertyId wins when both are present. */
+    draftText?: string;
   }>();
   const headerHeight = useHeaderHeight();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -90,7 +92,7 @@ export default function ConversationScreen() {
     enabled: Boolean(draftPropertyId),
     queryFn: () => buildInquiryDraft(draftPropertyId!),
   });
-  const seedDraft = draftInquiry?.message;
+  const seedDraft = draftInquiry?.message ?? (draftText?.trim() ? draftText : undefined);
   const { data: messages, isLoading } = useQuery({
     queryKey: ['messages', id],
     queryFn: () => fetchMessages(id),
@@ -418,7 +420,7 @@ function Composer({
   contactName?: string;
   seedDraft?: string;
 }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, dark } = useTheme();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -456,7 +458,7 @@ function Composer({
     }
   }
 
-  function useSuggestion(text: string) {
+  function applySuggestion(text: string) {
     haptic.tap();
     setDraft(text);
     setSuggestions([]);
@@ -545,7 +547,7 @@ function Composer({
               <Pressable
                 key={`${i}-${s.slice(0, 12)}`}
                 style={[styles.suggestionChip, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
-                onPress={() => useSuggestion(s)}
+                onPress={() => applySuggestion(s)}
                 accessibilityRole="button"
                 accessibilityLabel={`Use suggested reply: ${s}`}
               >

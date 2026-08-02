@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Analytics } from "@vercel/analytics/react";
 import "./globals.css";
 import { ThemeProvider } from "@/hooks/use-theme";
+import { QueryProvider } from "@/components/layout/query-provider";
 import {
   DEFAULT_MODE,
   DEFAULT_THEME,
@@ -95,10 +96,12 @@ export default function RootLayout({
       </head>
       <body className="min-h-full bg-background text-foreground font-sans">
         <ThemeProvider>
-          <DeploymentCheck />
-          {children}
-          <Analytics />
-          <ThemedToaster />
+          <QueryProvider>
+            <DeploymentCheck />
+            {children}
+            <Analytics />
+            <ThemedToaster />
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

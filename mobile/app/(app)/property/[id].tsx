@@ -5,7 +5,6 @@ import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -21,6 +20,7 @@ import { BlurView } from 'expo-blur';
 import MapView, { Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
@@ -122,6 +122,13 @@ export default function PropertyDetailScreen() {
     : property.land_area
       ? `${property.land_area} ${property.land_area_unit || ''}`.trim()
       : null;
+  // Web parity: land area is its own spec whenever it isn't already what
+  // the Area tile shows — a 2500 Sq.Ft. house on an 8000 Sq.Ft. plot
+  // must surface both, not bury the plot in the description.
+  const landArea =
+    property.area_sqft && property.land_area
+      ? `${property.land_area} ${property.land_area_unit || 'Sq.Ft.'}`
+      : null;
   const priceWords = equivalentInr(
     property.listing_type === 'Rent' ? property.rent_per_month : property.price
   );
@@ -143,6 +150,7 @@ export default function PropertyDetailScreen() {
       ? { icon: 'location-outline' as const, label: 'Locality', value: property.sublocality }
       : null,
     area ? { icon: 'resize-outline' as const, label: 'Area', value: area } : null,
+    landArea ? { icon: 'map-outline' as const, label: 'Land Area', value: landArea } : null,
     property.facing_direction
       ? { icon: 'compass-outline' as const, label: 'Facing', value: property.facing_direction }
       : null,
@@ -630,18 +638,26 @@ function ActionRail({ property }: { property: Property }) {
   const [sharing, setSharing] = useState(false);
   const [flyerOpen, setFlyerOpen] = useState(false);
   const archived = property.status === 'Archived';
+  const { show, close, dialogProps } = useAppDialog();
 
   function confirmArchive() {
-    Alert.alert(
-      archived ? 'Unarchive this property?' : 'Archive this property?',
-      archived
+    show({
+      title: archived ? 'Unarchive this property?' : 'Archive this property?',
+      message: archived
         ? 'It becomes Available and shows in searches again.'
         : 'Archived listings are hidden from searches and the showcase.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: archived ? 'Unarchive' : 'Archive', onPress: doArchive },
-      ]
-    );
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: archived ? 'Unarchive' : 'Archive',
+          variant: 'primary',
+          onPress: () => {
+            close();
+            doArchive();
+          },
+        },
+      ],
+    });
   }
 
   async function doArchive() {
@@ -657,24 +673,32 @@ function ActionRail({ property }: { property: Property }) {
       queryClient.invalidateQueries({ queryKey: ['properties'] });
     } catch (e) {
       haptic.warn();
-      Alert.alert(
-        'Could not update',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-      );
+      show({
+        title: 'Could not update',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+      });
     } finally {
       setBusy(null);
     }
   }
 
   function confirmDelete() {
-    Alert.alert(
-      'Delete this property?',
-      'This permanently removes the listing, its photos and inquiry history. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: doDelete },
-      ]
-    );
+    show({
+      title: 'Delete this property?',
+      message:
+        'This permanently removes the listing, its photos and inquiry history. This cannot be undone.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Delete',
+          variant: 'destructive',
+          onPress: () => {
+            close();
+            doDelete();
+          },
+        },
+      ],
+    });
   }
 
   async function doDelete() {
@@ -686,10 +710,10 @@ function ActionRail({ property }: { property: Property }) {
       router.back();
     } catch (e) {
       haptic.warn();
-      Alert.alert(
-        'Could not delete',
-        friendlyError(e instanceof ApiError ? e.message : 'Try again.')
-      );
+      show({
+        title: 'Could not delete',
+        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+      });
       setBusy(null);
     }
   }
@@ -772,6 +796,7 @@ function ActionRail({ property }: { property: Property }) {
           </Pressable>
         );
       })}
+      <AppDialog {...dialogProps} />
     </View>
   );
 }
@@ -887,9 +912,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.xl,
   },
   title: { fontSize: 21, fontFamily: fonts.extrabold, lineHeight: 27 },
-  specGrid: { flexDirection: 'row', gap: spacing.sm },
+  // Wrapping, not one squeezed row: with Land Area a listing can carry
+  // five-plus specs, and flex: 1 tiles in a no-wrap row crush each other
+  // until the values truncate. minWidth caps phones at ~3 per row.
+  specGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   spec: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: '22%',
+    minWidth: 96,
     alignItems: 'center',
     gap: 3,
     borderRadius: radius.md,

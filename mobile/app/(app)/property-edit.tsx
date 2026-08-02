@@ -18,7 +18,7 @@ import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { OptionSheet } from '@/components/option-sheet';
 import { PropertyPhotoEditor } from '@/components/property-photo-editor';
-import { Banner, FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
+import { Banner, FilterChip, PriceHint, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
@@ -34,7 +34,7 @@ import {
 } from '@/lib/property-options';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { fonts, radius, spacing, useTheme } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
@@ -74,7 +74,7 @@ async function fetchProperty(id: string): Promise<Property | null> {
   const { data, error } = await supabase
     .from('properties')
     .select(
-      'id, title, description, price, rent_per_month, maintenance, status, listing_type, ' +
+      'id, title, description, price, rent_per_month, maintenance, status, listing_type, sold_price, ' +
         'bedrooms, bathrooms, area_sqft, area_unit, is_published, type, images, ' +
         'location, sublocality, city, state, land_area, land_area_unit, super_built_area, ' +
         'dimensions, facing_direction, google_map_link, features, nearby_highlights, ' +
@@ -130,6 +130,7 @@ function EditForm({ property }: { property: Property }) {
     property.maintenance ? String(property.maintenance) : ''
   );
   const [status, setStatus] = useState(property.status ?? 'Available');
+  const [soldPrice, setSoldPrice] = useState(property.sold_price ? String(property.sold_price) : '');
   const [bedrooms, setBedrooms] = useState(property.bedrooms ? String(property.bedrooms) : '');
   const [bathrooms, setBathrooms] = useState(property.bathrooms ? String(property.bathrooms) : '');
   const [area, setArea] = useState(property.area_sqft ? String(property.area_sqft) : '');
@@ -222,6 +223,9 @@ function EditForm({ property }: { property: Property }) {
       nearby_highlights: nearby,
       images,
       owner_contact_id: ownerContactId,
+      // Web parity: only meaningful while Sold; null clears a stale
+      // value if the status moves away from Sold.
+      sold_price: status === 'Sold' ? num(soldPrice) : null,
     };
     if (isRent) {
       body.rent_per_month = num(rent);
@@ -310,9 +314,7 @@ function EditForm({ property }: { property: Property }) {
                 onChangeText={setRent}
                 keyboardType="numeric"
               />
-              {num(rent) ? (
-                <Text style={[styles.amountHint, { color: colors.primary }]}>{formatInr(num(rent))}</Text>
-              ) : null}
+              <PriceHint value={rent} />
             </View>
             <View style={{ flex: 1, gap: 4 }}>
               <TextField
@@ -321,19 +323,13 @@ function EditForm({ property }: { property: Property }) {
                 onChangeText={setMaintenance}
                 keyboardType="numeric"
               />
-              {num(maintenance) ? (
-                <Text style={[styles.amountHint, { color: colors.primary }]}>
-                  {formatInr(num(maintenance))}
-                </Text>
-              ) : null}
+              <PriceHint value={maintenance} />
             </View>
           </View>
         ) : (
           <View style={{ gap: 4 }}>
             <TextField label="Price (₹)" value={price} onChangeText={setPrice} keyboardType="numeric" />
-            {num(price) ? (
-              <Text style={[styles.amountHint, { color: colors.primary }]}>{formatInr(num(price))}</Text>
-            ) : null}
+            <PriceHint value={price} />
           </View>
         )}
 
@@ -343,6 +339,22 @@ function EditForm({ property }: { property: Property }) {
             <FilterChip key={s} label={s} active={status === s} onPress={() => setStatus(s)} />
           ))}
         </View>
+
+        {status === 'Sold' ? (
+          <View style={{ gap: 4 }}>
+            <TextField
+              label="Final sale price (₹)"
+              value={soldPrice}
+              onChangeText={setSoldPrice}
+              keyboardType="numeric"
+              placeholder={num(price) ? `e.g. ${num(price)}` : 'e.g. 8500000'}
+            />
+            <PriceHint value={soldPrice} />
+            <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+              Optional — improves your area’s price accuracy. Never shown to buyers.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
@@ -493,6 +505,7 @@ function EditForm({ property }: { property: Property }) {
                       keyboardType="numeric"
                       placeholder="1350000"
                     />
+                    <PriceHint value={t.monthly_rent} />
                   </View>
                 </View>
                 <View style={styles.row}>
@@ -733,7 +746,6 @@ function SelectField({
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   row: { flexDirection: 'row', gap: spacing.sm },
-  amountHint: { fontSize: 12.5, fontFamily: fonts.bold, paddingHorizontal: 2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   select: {
     flexDirection: 'row',

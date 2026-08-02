@@ -23,6 +23,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MARKETING_CONFIG } from '@/config/marketing';
 import { CrmLeadForm } from '@/components/landing/crm-lead-form';
+import { CrmLeadBot } from '@/components/landing/crm-lead-bot';
 import { BRANDING } from '@/config/branding';
 
 export function MarketingLanding() {
@@ -50,6 +51,7 @@ export function MarketingLanding() {
   const [matchStep, setMatchStep] = useState<'idle' | 'matching' | 'completed'>('idle');
   const [showcaseStep, setShowcaseStep] = useState<'idle' | 'loading' | 'completed'>('idle');
   const [faqOpen, setFaqOpen] = useState<Record<number, boolean>>({});
+  const [showLeadForm, setShowLeadForm] = useState(false);
 
   const handleSimulateParse = () => {
     if (demoStep !== 'idle') return;
@@ -938,7 +940,16 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                 Tell us a bit about your business and we&apos;ll get you set up on WhatsApp — no credit card, no software to install.
               </p>
             </div>
-            <CrmLeadForm />
+            <div className="max-w-lg mx-auto">
+              {showLeadForm ? <CrmLeadForm /> : <CrmLeadBot variant="inline" />}
+              <button
+                type="button"
+                onClick={() => setShowLeadForm((v) => !v)}
+                className="mt-3 w-full text-center text-xs text-slate-500 hover:text-slate-300 font-semibold cursor-pointer"
+              >
+                {showLeadForm ? 'Rather just chat? Talk to the assistant' : 'Prefer a plain form? Switch to the form'}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -1033,6 +1044,8 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
           </div>
         </div>
       </footer>
+
+      <CrmLeadBot variant="floating" />
 
     </div>
   );

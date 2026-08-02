@@ -6,14 +6,16 @@ import { useMemo } from "react";
 import ContactsContent from "./contacts-content";
 import RequirementsPage from "../requirements/requirements-content";
 import AgentsPage from "../agents/agents-content";
+import SourcesContent from "./sources-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
-type TabId = "list" | "requirements" | "agents";
+type TabId = "list" | "requirements" | "agents" | "sources";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "list", label: "Contacts List" },
   { id: "requirements", label: "Requirements" },
   { id: "agents", label: "Agents" },
+  { id: "sources", label: "Sources" },
 ];
 
 /** Mirrors the quick-filter tabs in contacts-content.tsx (All Contacts is
@@ -43,6 +45,8 @@ export default function ContactsPage() {
         return { label: "Requirements", href: "/contacts?tab=requirements", icon: "ClipboardList" };
       case "agents":
         return { label: "Agents", href: "/contacts?tab=agents", icon: "UsersRound" };
+      case "sources":
+        return { label: "Lead Sources", href: "/contacts?tab=sources", icon: "Funnel" };
       case "list":
       default: {
         const filterLabel = quickFilter ? QUICK_FILTER_LABELS[quickFilter] : undefined;
@@ -96,6 +100,7 @@ export default function ContactsPage() {
         {activeTab === "list" && <ContactsContent />}
         {activeTab === "requirements" && <RequirementsPage />}
         {activeTab === "agents" && <AgentsPage />}
+        {activeTab === "sources" && <SourcesContent />}
       </div>
     </div>
   );

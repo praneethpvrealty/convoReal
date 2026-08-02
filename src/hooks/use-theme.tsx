@@ -24,7 +24,7 @@ import {
  * ThemeProvider — wraps the whole app, owns the active theme state.
  *
  * Two orthogonal axes:
- *   - theme: which of the 5 accent palettes (violet/emerald/…)
+ *   - theme: which of the 6 accent palettes (violet/emerald/…)
  *   - mode:  dark (default, the original look) or light — flips the
  *     neutral surfaces via `data-mode` on <html> (see globals.css)
  *

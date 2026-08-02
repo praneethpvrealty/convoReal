@@ -17,11 +17,17 @@ ConvoReal is a self-hostable **WhatsApp CRM for real-estate brokerages** (origin
 - Shared WhatsApp inbox via the Meta Cloud API (messages, templates, media, reactions).
 - Sales pipelines (Kanban), deals, and journey mind-map.
 - Broadcast campaigns, no-code automations, and interactive WhatsApp flows.
-- Public showcase portal (branded property listings, buyer/agent modes, interest tracking, document requests).
-- Email lead sync from MagicBricks / Housing.com / 99acres via IMAP webhooks.
-- Owner digests, appointment reminders, calendar & to-dos.
-- **Owners Den** — a separate owner-facing portal for deal-mode matching, bids, and token-safe deal rooms.
-- **Mobile app** — an Expo/React Native companion app in `mobile/`.
+- Public showcase portal (branded property listings, buyer/agent modes, interest tracking, document requests) plus SEO listing pages (`/property/[slug]`, `/projects/[project]`, `/farmland/[destination]`).
+- Email lead sync from MagicBricks / Housing.com / 99acres via IMAP webhooks, plus portal import via the Chrome extension in `extension/portal-autofill/`.
+- Owner digests, agent inventory digests, buyer match digests, appointment reminders, calendar & to-dos.
+- **Match Radar** — proactive contact↔property match events computed on top of `src/lib/matching.ts`.
+- **Showcase Pulse** — engagement tracking for public showcase visits and shares.
+- **Copilot** — the in-app AI helper (guided tours, rule-based nudges, semantic Q&A cache). See `src/lib/copilot/README.md`.
+- **Liaisons** — a directory of service providers with jobs, workflows, and payments.
+- **Listing media** — AI photo enhancement, generated listing videos (ffmpeg + Sarvam TTS), and YouTube upload.
+- **Owners Den** — a separate owner-facing portal (`/den`) for deal-mode matching, bids, and token-safe deal rooms.
+- **Buyer portal** — a separate buyer-facing portal (`/buyer`) for preferences, matches, and shortlists.
+- **Mobile app** — an Expo/React Native companion app in `mobile/` (its own `AGENTS.md`, deps, and tests).
 
 All tenant data lives in one Supabase PostgreSQL database and is isolated by `account_id` through Row-Level Security (RLS).
 
@@ -30,6 +36,13 @@ All tenant data lives in one Supabase PostgreSQL database and is isolated by `ac
 ## 2. Non-negotiable rules (AI Engineering Constitution)
 
 These rules are hard project conventions. Violating them will break the app or the security model.
+
+The canonical constitution lives in the [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS) at `03_ENGINEERING/30_AI_ENGINEERING_CONSTITUTION.md` — a cross-project knowledge repo covering product, business, architecture, engineering, AI and operations. It is restated here rather than only linked: this file is loaded into agent context automatically, a remote repo is not. §2.1–2.7 are the ConvoReal-specific expansion of it. If the two disagree, the Engineering OS wins on intent and this file wins on ConvoReal specifics — update both.
+
+Two canonical rules the subsections below do not otherwise restate:
+
+- **Preserve existing functionality.** Do not rewrite a large module without approval; extend an existing pattern rather than replacing it.
+- **Follow the golden workflow** — Analyze → Plan → Implement small change → Validate → Document → Commit — and summarize what changed and what the risks are.
 
 ### 2.1 Read before you write
 
@@ -53,16 +66,18 @@ These rules are hard project conventions. Violating them will break the app or t
 | React | 19.x | Functional components and hooks only; no class components |
 | TypeScript | ^6 | `strict` mode; avoid `any` |
 | Styling | Tailwind CSS v4 | `src/app/globals.css` with `@import "tailwindcss"`; PostCSS v4 setup |
-| UI primitives | shadcn/ui (`base-nova` style) | Reuse `src/components/ui/`; do not duplicate |
+| UI primitives | shadcn/ui (`base-nova` style) on `@base-ui/react` | Reuse `src/components/ui/`; do not duplicate |
 | Icons | lucide-react | Do not import other icon libraries |
 | Database | Supabase (PostgreSQL) | Every operational table must have `account_id` and RLS |
 | Auth | Supabase Auth | `@supabase/ssr` for SSR; `useAuth()` for client |
-| State | React Context + hooks | No Redux, Zustand, or other external state managers |
+| Client state | React Context + hooks | No Redux, Zustand, or other external state managers |
+| Server cache | @tanstack/react-query | For anything fetched. Not a state manager — it owns loading/error/refetch and dedupes requests, which the rule above does not cover. Mobile already used it; web adopted it starting with the dashboard. Do not hand-roll a new `useEffect` + `fetch` + `useState` triple |
 | Charts | Recharts | Do not add another chart library |
 | Toasts | sonner | Used via `<Toaster>` in root layout |
 | Dates | date-fns | No moment.js or dayjs |
 | Drag & drop | @dnd-kit | Pipeline Kanban board |
-| Flow builder | @xyflow/react | Automations/flows visual builder |
+| Flow builder | @xyflow/react (+ @dagrejs/dagre for layout) | Automations/flows/journey visual builders |
+| Image processing | sharp | Server-side resize/encode; do not add another imaging lib |
 | HTTP client | `fetch` (built-in) | No axios |
 | Webhook ingress | Go 1.24 (`go-ingress/`) | HMAC validation + Redis fan-out |
 | Queue | Redis (go-redis + ioredis) | `whatsapp-webhooks` list, `whatsapp-webhooks-dlq` for dead letters |
@@ -93,6 +108,8 @@ These rules are hard project conventions. Violating them will break the app or t
 - Enable RLS on every operational table.
 - Use `is_account_member()` (SECURITY DEFINER) in RLS policies for tenant membership.
 - Service-role clients must still enforce `account_id` scoping in code; do not rely on RLS alone when bypassing it.
+- Aggregate in SQL, not in the browser. `count: 'exact'` is a real `COUNT(*)`, not a metadata read — several of them on one screen means several scans of the account's rows. Selecting rows to `reduce()` them client-side ships a payload that grows with account activity. Add a `SECURITY DEFINER` function that names its account and guards with `is_account_member()` (see migrations 168–170).
+- Never interpolate a query result into a `.in()` / `.not('id','in', …)` filter without a bound — that list travels in the URL. Use a correlated `NOT EXISTS` inside a function instead.
 
 ### 2.7 WhatsApp rules
 
@@ -107,6 +124,7 @@ These rules are hard project conventions. Violating them will break the app or t
 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
+| Runtime | Node.js >= 20 | `engines` in `package.json`; CI runs Node 20 |
 | App server | Next.js 16.2.6 (App Router) | `next.config.ts` at project root |
 | Language | TypeScript ^6 | `tsconfig.json` strict mode, `@/` alias |
 | React | 19.2.4 | Server components by default |
@@ -116,9 +134,11 @@ These rules are hard project conventions. Violating them will break the app or t
 | Database | Supabase (PostgreSQL + RLS + Realtime) | `supabase/migrations/` and `supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql` |
 | Auth | Supabase Auth (GoTrue) | `@supabase/ssr` cookie-based SSR + mobile bearer-token support |
 | Storage | Supabase Storage (S3-compatible) | Avatars, property images, documents |
-| WhatsApp | Meta Cloud API v21.0 | `src/lib/whatsapp/meta-api.ts` |
-| AI | Google Gemini 2.5 / 1.5 flash | `src/lib/ai/gemini.ts` |
-| AI images | Google Imagen / Hugging Face | `HF_ACCESS_TOKEN` for Hugging Face |
+| WhatsApp | Meta Cloud API v21.0 | `META_API_VERSION` in `src/lib/whatsapp/meta-api.ts` |
+| AI | Google Gemini (3.x / 2.5 flash family + `gemini-embedding-001`) | Model ids live in `src/lib/ai/gemini.ts` — read them there, do not hardcode elsewhere |
+| AI images | Gemini image models, Stability, Hugging Face | `src/lib/ai/image-gen.ts`; `GEMINI_IMAGE_MODEL` / `STABILITY_API_KEY` / `HF_ACCESS_TOKEN` |
+| Listing video | ffmpeg + Sarvam TTS | `src/lib/video/listing-video-worker.ts` |
+| Video publishing | YouTube Data API (Google OAuth) | `src/lib/youtube/`, `youtube_config` table |
 | Queue | Redis | `ioredis` in Node, `go-redis` v9 in Go |
 | Ingress | Go 1.24.3 | `go-ingress/main.go` + `Dockerfile` |
 | Email | Resend | `src/lib/email.ts` |
@@ -126,7 +146,8 @@ These rules are hard project conventions. Violating them will break the app or t
 | Maps | Google Places | `src/lib/maps/google-places.ts` |
 | Cron | Vercel Cron | `vercel.json` |
 | Analytics | Vercel Analytics | `@vercel/analytics` |
-| Mobile | Expo ~57 / React Native 0.86 | `mobile/` directory, separate package.json |
+| CI | GitHub Actions | `.github/workflows/ci.yml` — web (lint/typecheck/test/build) + mobile jobs |
+| Mobile | Expo ~57 / React Native 0.86 / React 19.2.7 | `mobile/` directory, separate package.json and lockfile |
 | Browser extension | Chrome portal autofill | `extension/portal-autofill/` |
 
 ---
@@ -145,6 +166,7 @@ convoReal/
 ├── components.json               # shadcn/ui configuration
 ├── vercel.json                   # Build ignore rules + cron schedules
 ├── Dockerfile.worker             # Docker image for the queue worker
+├── .github/workflows/ci.yml      # Lint, typecheck, test, build (web + mobile)
 ├── src/
 │   ├── app/                      # Next.js App Router pages + API routes
 │   │   ├── (auth)/               # Login, signup, forgot-password, reset-password
@@ -159,18 +181,33 @@ convoReal/
 │   │   │   ├── flows/            # Interactive WhatsApp flow builder
 │   │   │   ├── calendar/         # Appointments & to-dos
 │   │   │   ├── journey/          # Journey mind-map
+│   │   │   ├── today/            # Daily agenda
+│   │   │   ├── radar/            # Match Radar events
+│   │   │   ├── pulse/            # Showcase engagement feed
+│   │   │   ├── requirements/     # Buyer requirements
+│   │   │   ├── liaisons/         # Service-provider directory, jobs, workflows
+│   │   │   ├── agents/           # Team/agent management
+│   │   │   ├── ads/              # Meta Ads integration
 │   │   │   ├── settings/         # Account settings
-│   │   │   └── ...               # agents, ads, today, pulse, radar, requirements, admin, dev
-│   │   ├── (den)/den/            # Owners Den portal (separate auth)
+│   │   │   └── ...               # admin, dev (chatbot simulator), checkout-demo
+│   │   ├── (den)/den/            # Owners Den portal (own login + phone verification)
+│   │   ├── (buyer)/buyer/        # Buyer portal (own login + phone verification)
 │   │   ├── api/                  # REST API routes (route.ts files)
+│   │   ├── property/[slug]/      # Public SEO listing page
+│   │   ├── projects/[project]/   # Public project page
+│   │   ├── farmland/[destination]/ # Public farmland landing page
 │   │   ├── docs/[token]/         # Public document viewer
 │   │   ├── join/[token]/         # Invitation acceptance
 │   │   ├── list/                 # Public listing referral page
+│   │   ├── verify-phone/         # Phone verification
+│   │   ├── profile-setup/        # Post-signup onboarding
+│   │   ├── .well-known/          # apple-app-site-association, assetlinks.json
 │   │   ├── page.tsx              # Landing / showcase page
 │   │   ├── layout.tsx            # Root layout + theme boot script
 │   │   └── globals.css           # Tailwind v4 + theme tokens
 │   ├── components/               # React components by domain
 │   │   ├── ui/                   # shadcn/ui primitives
+│   │   ├── tremor/               # Chart/stat primitives used by dashboard widgets
 │   │   ├── layout/               # Sidebar, header, shell
 │   │   ├── inbox/                # WhatsApp chat components
 │   │   ├── inventory/            # Property forms, cards, share dialogs
@@ -183,34 +220,50 @@ convoReal/
 │   │   ├── broadcasts/           # Broadcast wizard
 │   │   ├── calendar/             # Calendar & to-do components
 │   │   ├── dashboard/            # Dashboard widgets
+│   │   ├── copilot/              # In-app AI helper, tours, nudges
 │   │   ├── den/                  # Owners Den UI
-│   │   └── ...
-│   ├── hooks/                    # Custom React hooks (auth, RBAC, realtime, theme, etc.)
+│   │   ├── buyer/                # Buyer portal UI
+│   │   ├── liaisons/             # Liaison directory UI
+│   │   └── ...                   # chat, documents, journey, landing, onboarding, pulse, radar
+│   ├── hooks/                    # Custom React hooks (auth, RBAC, realtime, theme, credits, plan…)
 │   ├── lib/                      # Business logic & utilities
-│   │   ├── supabase/             # Client factories (client, server, admin patterns)
-│   │   ├── whatsapp/             # Meta API, webhooks, templates, encryption, flows
-│   │   ├── ai/                   # Gemini integration, chatbot engine
+│   │   ├── supabase/             # Client factories (client.ts, server.ts, admin.ts)
+│   │   ├── whatsapp/             # Meta API, webhooks, templates, encryption, flows, digests
+│   │   ├── ai/                   # Gemini integration, chatbot engine, intake, image gen
 │   │   ├── automations/          # Automation execution engine
 │   │   ├── flows/                # Interactive flow engine
-│   │   ├── auth/                 # Auth helpers, RBAC
+│   │   ├── bot/                  # WhatsApp funnels + catalog matching
+│   │   ├── copilot/              # Intent matching, tours, nudges, Q&A cache (see its README)
+│   │   ├── auth/                 # Auth helpers, RBAC, invitations
 │   │   ├── contacts/             # Contact helpers
-│   │   ├── inventory/            # Property helpers, matching
+│   │   ├── inventory/            # Property helpers, flyers, project slugs
 │   │   ├── matching.ts           # Contact-property matching engine
-│   │   ├── dashboard/            # Dashboard data queries
-│   │   ├── den/                  # Owners Den logic
-│   │   ├── marketplace/          # Razorpay, billing, credits
+│   │   ├── radar/                # Match Radar engine + queries
+│   │   ├── pulse/                # Showcase engagement tracker + queries
+│   │   ├── buyer/                # Buyer portal auth, preferences, matches, digests
+│   │   ├── den/                  # Owners Den logic (bids, masking, token-safe)
+│   │   ├── liaisons/             # Liaison services, jobs, workflows
+│   │   ├── dashboard/, today/    # Screen-level data queries
+│   │   ├── market/               # Market stats engine
+│   │   ├── portals/, portal-import/ # Portal post kits, listing import/matching
+│   │   ├── video/, pdf/, youtube/   # Listing video, PDF extraction, YouTube upload
+│   │   ├── seo/                  # JSON-LD builders
+│   │   ├── showcase/             # Public catalog data, QA, slugs
+│   │   ├── billing/, credits/, marketplace/ # Plans, credit wallet, Razorpay/Stripe
+│   │   ├── notifications/        # In-app + push notifications
 │   │   ├── storage/              # Uploads, image cleanup
-│   │   ├── email.ts              # Resend wrapper
+│   │   ├── email/, email.ts      # Resend wrapper + IMAP lead sync
 │   │   ├── maps/                 # Google Places proxy
 │   │   ├── data/                 # Static/locality data
+│   │   ├── rate-limit.ts         # In-memory fixed-window limiter (single instance only)
 │   │   └── utils.ts              # `cn()` Tailwind merge helper
 │   ├── scripts/                  # Background workers and admin scripts
 │   │   ├── queue-worker.ts       # Redis consumer for WhatsApp webhooks
 │   │   ├── replay-dlq.ts         # Replay dead-letter queue
-│   │   ├── check-documents-column.ts
+│   │   ├── reconcile-property-pins.ts
 │   │   ├── backfill-property-coords.ts
 │   │   └── ...
-│   ├── types/                    # Shared TypeScript definitions
+│   ├── types/                    # Shared TypeScript definitions (`src/types/index.ts`)
 │   └── proxy.ts                  # Auth-redirect helper (unit tested; not wired as Next.js middleware)
 ├── go-ingress/                   # Standalone Go webhook ingress
 │   ├── main.go                   # HMAC verify + Redis enqueue
@@ -218,20 +271,22 @@ convoReal/
 │   ├── Dockerfile                # Multi-stage Alpine build
 │   ├── go.mod / go.sum           # Go 1.24.3, go-redis v9
 ├── supabase/
-│   ├── migrations/               # 154 numbered SQL migrations (001–146 with some gaps/collisions)
+│   ├── migrations/               # 186 numbered SQL migrations (001–174, with gaps/collisions)
 │   └── RUN_IN_SUPABASE_SQL_EDITOR.sql  # Consolidated schema seed
-├── docs/                         # Deployment and architecture guides
-├── mobile/                       # Expo React Native app (separate package.json)
+├── docs/                         # Deployment, scaling, integration and design guides
+├── mobile/                       # Expo React Native app (own package.json + AGENTS.md)
 └── extension/portal-autofill/    # Chrome extension
 ```
 
 ### Codebase size (rough)
 
-- `src/app`: ~257 files, 82 pages + routes (`page.tsx`/`route.ts`).
-- `src/components`: ~186 files.
-- `src/lib`: ~222 files.
-- `src/**/*.test.ts`: ~82 test files.
-- `supabase/migrations`: 154 SQL files.
+- `src/app`: ~317 files — 60 `page.tsx` and 209 `route.ts`.
+- `src/components`: ~212 files.
+- `src/lib`: ~303 files.
+- `src/**/*.test.ts(x)`: ~118 test files.
+- `supabase/migrations`: 186 SQL files.
+
+These numbers drift with every feature. Re-count rather than trusting them if a decision depends on the exact figure.
 
 ---
 
@@ -255,6 +310,9 @@ All commands run from the project root unless noted.
 | `npm run worker` | Run the Redis webhook queue worker (`tsx src/scripts/queue-worker.ts`). |
 | `npm run queue:replay-dlq` | Replay dead-letter queue messages back into the main queue. |
 | `npm run check-db` | Run `src/scripts/check-documents-column.ts`. |
+| `npm run reconcile-pins` | Reconcile property map pins with derived coordinates. |
+
+CI (`.github/workflows/ci.yml`) runs `lint`, `typecheck`, `test`, and `build` for the web app and `lint`, `typecheck`, `test` for `mobile/`, both on Node 20. Run the same commands locally before pushing.
 
 ### Mobile app
 
@@ -268,6 +326,7 @@ Run from `mobile/`:
 | `cd mobile && npm run ios` | Start Expo for iOS. |
 | `cd mobile && npm run lint` | Expo lint. |
 | `cd mobile && npm run typecheck` | TypeScript check for mobile. |
+| `cd mobile && npm test` | Vitest over the mobile app's pure logic (`mobile/lib/**/*.test.ts`). |
 
 ### Go ingress
 
@@ -321,7 +380,17 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | `AUTOMATION_CRON_SECRET` / `CRON_SECRET` | Secret required by cron/endpoint routes |
 | `SUPABASE_SMS_HOOK_SECRET` | Secret for `/api/auth/sms-hook` (WhatsApp OTP) |
 | `TOKEN_SAFE_WEBHOOK_SECRET` | Secret for the token-safe escrow webhook |
-| `HF_ACCESS_TOKEN` | Hugging Face token for image generation |
+| `HF_ACCESS_TOKEN` / `HF_IMAGE_URL` | Hugging Face token and endpoint for image generation |
+| `GEMINI_IMAGE_MODEL` | Override the Gemini image model id |
+| `STABILITY_API_KEY` / `STABILITY_MODEL` | Stability credentials for AI photo enhancement |
+| `SARVAM_API_KEY` / `SARVAM_API_BASE` / `SARVAM_SPEAKER` | Sarvam TTS for generated listing videos |
+| `FFMPEG_PATH` / `VIDEO_FONT_PATH` | ffmpeg binary and font used by the listing-video worker |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Google OAuth for YouTube upload |
+| `ALLOWED_INVITE_HOSTS` | Allow-list of hosts accepted in invitation redirect links |
+| `CONVOREAL_MASTER_ACCOUNT_ID` | Master account used by admin/marketplace tooling |
+| `NEXT_PUBLIC_LEADS_EMAIL_DOMAIN` | Domain shown for per-account portal lead email addresses |
+| `PUBLIC_API_KEY` / `WACRM_PUBLIC_API_KEY` | API key for the public API surface |
+| `WHATSAPP_TEMPLATES_DRY_RUN` | Skip real template submissions to Meta when set |
 | `NEXT_PUBLIC_APP_URL` | Optional alias for the app URL (fallback for `NEXT_PUBLIC_SITE_URL`) |
 | `NEXT_PUBLIC_BASE_DOMAIN` | Base domain for branding/subdomain logic (default `convoreal.com`) |
 | `NEXT_PUBLIC_DEFAULT_WEBSITE_NAME` | Default site name (default `ConvoReal`) |
@@ -335,9 +404,17 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | `REDIRECT_FROM_DOMAIN` / `REDIRECT_TO_DOMAIN` | Domain redirect rules in `next.config.ts` |
 | `APPLE_TEAM_ID` / `ANDROID_APP_CERT_SHA256` | Deep-link / app-link configuration files |
 
+The authoritative list is the code, not this table. To re-derive it:
+
+```bash
+grep -rhoE 'process\.env\.[A-Z_0-9]+' src go-ingress | sed 's/process\.env\.//' | sort -u
+```
+
+The mobile app uses its own `EXPO_PUBLIC_*` variables (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_BASE_URL`).
+
 ### Vitest dummy secrets
 
-`vitest.config.ts` stubs `ENCRYPTION_KEY` and `META_APP_SECRET` so unit tests run without `.env.local`. Integration tests load real credentials from `.env.local` and skip if absent.
+`vitest.config.ts` stubs `ENCRYPTION_KEY` and `META_APP_SECRET` so unit tests run without `.env.local`. CI sets the same placeholders plus dummy public Supabase values so `next build` succeeds. Integration tests load real credentials from `.env.local` and skip if absent.
 
 ---
 
@@ -345,7 +422,7 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 
 ### 7.1 Schema source
 
-- **Incremental migrations**: `supabase/migrations/NNN_description.sql` (154 files, numbered roughly 001–146 with some gaps and collisions — e.g. two `063_*` files).
+- **Incremental migrations**: `supabase/migrations/NNN_description.sql` (186 files, numbered roughly 001–174 with some gaps and collisions — e.g. two `063_*` and two `173_*` files). Pick the next free number by listing the directory, and expect duplicates to already exist.
 - **Consolidated seed**: `supabase/RUN_IN_SUPABASE_SQL_EDITOR.sql` — a single file intended to be run in the Supabase SQL Editor to set up/reset the schema.
 - **Schema documentation**: `DATABASE_SCHEMA.md` describes the major table groups.
 
@@ -371,17 +448,23 @@ Plus:
 
 | Domain | Key tables |
 |--------|-----------|
-| Tenancy | `accounts`, `profiles`, `account_invitations` |
-| Contacts | `contacts`, `tags`, `contact_tags`, `custom_fields`, `contact_custom_values`, `contact_notes` |
-| Properties | `properties`, `showcase_settings`, `rera_projects`, `property_document_requests` |
-| WhatsApp | `conversations`, `messages`, `message_reactions`, `message_templates`, `whatsapp_config`, `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions` |
+| Tenancy | `accounts`, `profiles`, `teams`, `account_invitations`, `account_lifecycle_log` |
+| Contacts | `contacts`, `tags`, `contact_tags`, `custom_fields`, `contact_custom_values`, `contact_notes`, `contact_call_logs`, `contact_draft_sessions`, `contact_merge_log` |
+| Properties | `properties`, `showcase_settings`, `rera_projects`, `property_document_requests`, `property_draft_sessions`, `property_likes`, `property_ratings`, `property_shares`, `property_portal_listings` |
+| WhatsApp | `conversations`, `messages`, `message_reactions`, `message_templates`, `whatsapp_config`, `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions`, `whatsapp_reply_bridges`, `routing_rules` |
 | Pipelines | `pipelines`, `pipeline_stages`, `deals` |
 | Calendar | `appointments`, `appointment_reminder_log`, `todos` |
 | Automations | `automations`, `automation_steps`, `automation_logs`, `automation_pending_executions` |
 | Flows | `flows`, `flow_nodes`, `flow_runs`, `flow_run_events` |
+| Journey | `journey_stages`, `journey_items`, `journey_events` |
 | Owners Den | `den_users`, `den_contact_links`, `match_events`, `den_match_unlocks`, `property_bids`, `property_bid_events`, `deal_rooms`, `token_escrows` |
-| Marketing | `broadcasts`, `broadcast_recipients`, `contact_property_inquiries`, `showcase_events` |
-| Billing | `subscriptions`, `credit_transactions`, `credit_packages`, `referrals`, `marketplace_items` |
+| Buyer portal | `buyer_users`, `buyer_contact_links`, `buyer_shortlist_items`, `buyer_match_digest_log` |
+| Liaisons | `liaisons`, `liaison_jobs`, `liaison_workflows`, `liaison_job_payments` |
+| Digests | `owner_digest_settings`, `owner_digest_log`, `agent_inventory_digest_settings`, `agent_inventory_digest_log`, `agent_digest_log` |
+| Marketing | `broadcasts`, `broadcast_recipients`, `contact_property_inquiries`, `showcase_events`, `showcase_share_links`, `public_listing_submissions` |
+| Lead sources | `email_sync_configs`, `email_sync_logs`, `portal_accounts`, `portal_import_items`, `ad_campaigns`, `meta_ads_config`, `ctwa_referrals` |
+| Billing | `subscriptions`, `subscription_events`, `credit_wallets`, `credit_transactions`, `credit_packages`, `credit_package_prices`, `razorpay_orders`, `referrals`, `marketplace_items`, `marketplace_item_nodes`, `account_marketplace_items` |
+| Platform | `notifications`, `notification_devices`, `notification_preferences`, `copilot_qa_cache`, `ai_call_log`, `market_stats`, `image_cleanup_log`, `youtube_config`, `update_sessions` |
 
 ### 7.4 RLS and multi-tenancy
 
@@ -414,7 +497,16 @@ Plus:
 - Client-side: `useCan(action)` hook for conditional rendering.
 - Common helpers: `canManageMembers`, `canSendMessages`, `canViewOnly`.
 
-### 8.3 Auth gating (no Next.js middleware.ts)
+### 8.3 Non-staff personas (Owners Den, Buyer portal)
+
+Den and buyer users are `auth.users` rows with **no `profiles` row**, so every CRM RLS policy denies them by construction. Their data reaches them only through `/api/den/*` and `/api/buyer/*` handlers, which:
+
+1. Resolve a `DenContext` / `BuyerContext` via `withDenAuth()` (`src/lib/den/auth.ts`) or `withBuyerAuth()` (`src/lib/buyer/auth.ts`).
+2. Query with the service-role client under **explicit** owner/buyer scoping (`ctx.links`, `resolveOwnerPropertyIds(ctx)`, shortlist rows).
+
+That explicit scoping *is* the security boundary for these routes — RLS is not doing it for you. Never return service-role results from a Den or buyer handler without filtering through the context. Both personas require WhatsApp phone verification before the context is considered complete.
+
+### 8.4 Auth gating (no Next.js middleware.ts)
 
 There is **no `middleware.ts`** in the project. Auth gating is handled by:
 
@@ -470,7 +562,12 @@ Meta Cloud API
 | `src/lib/whatsapp/meta-flow-service.ts` | Native Meta Flows lifecycle (create, publish, register keys) |
 | `src/lib/whatsapp/preference-flow.ts` | Buyer preference intake native-flow blueprint |
 | `src/lib/whatsapp/routing-engine.ts` | Message routing rules |
-| `src/lib/whatsapp/owner-digest-template.ts` | Owner digest WhatsApp templates |
+| `src/lib/whatsapp/reply-bridge.ts` | Direct replies: agent pings are answerable from the agent's own WhatsApp |
+| `src/lib/whatsapp/customer-window.ts` | 24-hour free-form window bookkeeping |
+| `src/lib/whatsapp/template-*.ts` | Template build, validation, status normalisation, lifecycle, webhooks |
+| `src/lib/whatsapp/ctwa-attribution.ts` | Click-to-WhatsApp ad attribution |
+| `src/lib/whatsapp/*-digest-template.ts` | Owner, agent-inventory and property-alert digest templates |
+| `src/lib/bot/funnels.ts` | WhatsApp funnel + catalog-match conversation logic |
 | `src/app/api/whatsapp/webhook/route.ts` | Next.js fallback webhook endpoint (also can enqueue to Redis) |
 | `go-ingress/main.go` | Fast webhook ingress |
 | `src/scripts/queue-worker.ts` | Redis queue consumer |
@@ -491,15 +588,17 @@ Meta Cloud API
   - Success: `{ data: ... }`
   - Error: `{ error: string, code?: string }`
 - Auth-gated routes must call `supabase.auth.getUser()` at the top (via `createClient()` from `src/lib/supabase/server.ts`).
-- Public routes are under `/api/public/`.
-- Webhook routes are under `/api/whatsapp/webhook` and `/api/leads/email-webhook`.
+- Public routes are under `/api/public/` (showcase catalog, inquiries, documents, requirements, likes/ratings, AI Q&A).
+- Den and buyer routes live under `/api/den/` and `/api/buyer/` and use `withDenAuth()` / `withBuyerAuth()` — see §8.3.
+- Webhook routes are under `/api/whatsapp/webhook`, `/api/leads/email-webhook`, and `/api/webhooks/*` (Razorpay, Stripe, token-safe).
 - Cron routes are under `/api/cron/` and `/api/*/cron/`; they require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 - Rate-limit sensitive public endpoints using `src/lib/rate-limit.ts`.
 
 ### Common patterns in routes
 
 - Use `await createClient()` from `src/lib/supabase/server.ts` for the authenticated SSR client.
-- Use an inline `createClient(url, serviceRoleKey)` for webhooks/background jobs that need RLS bypass.
+- Auth-gated routes resolve the caller with `getCurrentAccount()` / `requireRole(min)` from `src/lib/auth/account.ts`, and report failures with `toErrorResponse(err)`. Do not hand-roll `auth.getUser()` plus a `profiles` lookup — that path skips the archived-account block and the role check. If a route's `catch` maps failures onto a domain error, resolve auth outside that `try` so a 401/403 is not reported as a send failure.
+- Use `supabaseAdmin()` from `src/lib/supabase/admin.ts` for webhooks/background jobs that need RLS bypass. Do not declare a local service-role singleton.
 - Parse and validate request bodies; never trust user input.
 - Return early with `NextResponse.json({ error: ... }, { status: ... })` on errors.
 
@@ -510,11 +609,11 @@ Meta Cloud API
 - Default to server components; add `"use client"` only when needed.
 - Use Tailwind CSS for layouts; follow the dark glassmorphic aesthetic (`bg-slate-900/50 border border-slate-800 rounded-xl`).
 - Use `cn()` from `src/lib/utils.ts` for conditional class merging.
-- Use shadcn/ui primitives from `src/components/ui/`.
+- Use shadcn/ui primitives from `src/components/ui/`; charts and stat tiles reuse `src/components/tremor/`.
 - Use Lucide icons from `lucide-react` only.
 - Props interfaces are defined inline at the top of component files.
 - Toasts use `sonner` (`Toaster` in `src/components/layout/themed-toaster.tsx`).
-- The app supports five accent themes (violet, emerald, cobalt, amber, rose) and light/dark mode. Theme logic is in `src/hooks/use-theme.tsx` and `src/lib/themes.ts`.
+- The app supports six accent themes (violet, emerald, cobalt, amber, rose, verdant — the last mirrors the mobile app's green identity) and light/dark mode. Theme logic is in `src/hooks/use-theme.tsx` and `src/lib/themes.ts`.
 
 ---
 
@@ -523,8 +622,10 @@ Meta Cloud API
 - **Framework**: Vitest.
 - **Unit tests**: `src/**/*.test.ts` / `src/**/*.test.tsx`. Run with `npm test`. They use dummy secrets and do not touch the network.
 - **Integration tests**: `src/**/*.integration.test.ts`. Run with `npm run test:integration`. They hit the live Supabase project using `SUPABASE_SERVICE_ROLE_KEY` and skip if credentials are absent.
+- **Mobile tests**: `mobile/lib/**/*.test.ts`. Run with `cd mobile && npm test` (separate Vitest config and dependency tree). Pure logic only — modules that import Supabase, Expo or React Native have no runtime under a plain Node runner.
 - **Go tests**: `cd go-ingress && go test`.
 - **Husky pre-commit**: runs `npm test` (see `.husky/pre-commit`).
+- **CI**: `.github/workflows/ci.yml` runs on every PR and push to `main`; older runs for the same branch are cancelled.
 - Tests are co-located with source files.
 
 ---
@@ -561,8 +662,10 @@ Defined in `vercel.json`:
 - `/api/cron/cleanup-images` — daily 03:00 UTC
 - `/api/cron/market-stats` — daily 21:30 UTC
 - `/api/cron/owner-digest` — daily 04:30 UTC
+- `/api/cron/agent-inventory-digest` — daily 04:45 UTC
 - `/api/cron/deal-mode-matching` — daily 05:00 UTC
 - `/api/cron/den-bids-expiry` — daily 05:30 UTC
+- `/api/cron/buyer-match-digest` — daily 05:45 UTC
 - `/api/appointments/cron` — every 15 minutes
 
 All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
@@ -576,6 +679,7 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 - **Webhook signatures**: Always verify `X-Hub-Signature-256` with `META_APP_SECRET` before processing webhooks. The Go ingress does this; the Next.js fallback route also does it.
 - **RLS**: Keep RLS enabled. Do not create service-role clients in client code. Even service-role routes must enforce `account_id` scoping.
 - **Media proxy**: Never expose Meta media URLs directly; proxy through `/api/whatsapp/media/[mediaId]`.
+- **Rate limiting**: `src/lib/rate-limit.ts` is an in-process fixed-window counter. It holds its Map in one Node process, so horizontal scale silently defeats it. If you deploy more than one instance, swap the `check` implementation for Redis/Upstash keeping the same return shape — call sites do not change.
 - **CSP**: Currently report-only (`Content-Security-Policy-Report-Only`). Flip to enforce only after validating no violations across every route for at least two deploys.
 - **Deep linking**: `.well-known/apple-app-site-association` and `.well-known/assetlinks.json` are generated from env vars `APPLE_TEAM_ID` and `ANDROID_APP_CERT_SHA256`.
 - **Security reports**: See `.github/SECURITY.md`. Do not open public security issues.
@@ -586,19 +690,27 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 
 | File | What it covers |
 |------|---------------|
+| [ConvoReal Engineering OS](https://github.com/praneethpvrealty/ConvoReal-Engineering-OS) | Cross-project knowledge repo: foundation, business, architecture, engineering, AI, governance (ADRs), operations, templates. `INDEX.md` lists every document. Source of the constitution restated in §2 |
 | `README.md` | Project overview, quick start, feature list |
-| `ARCHITECTURE.md` | System architecture, design decisions, performance notes |
 | `DATABASE_SCHEMA.md` | Table-by-table schema reference |
 | `PROJECT_HANDOVER.md` | Recent milestones, key features, coding standards |
-| `AI_ENGINEERING_CONSTITUTION.md` | Immutable rules for AI agents |
 | `CONTRIBUTING.md` | Fork/PR workflow, dev-loop commands |
+| `CHANGELOG.md` | Recent changes and feature history — the best record of current behaviour |
+| `FEATURE_ROADMAP.md` / `IMPLEMENTATION_PLAN.md` | Upcoming features and in-flight plans |
+| `mobile/AGENTS.md` | Rules for the Expo app — read it before touching `mobile/` |
+| `src/lib/copilot/README.md` | Copilot module: tours, nudges, cost model |
 | `docs/production-deployment.md` | Step-by-step production deployment |
-| `docs/scaling-architecture.md` | Scaling roadmap for 10k accounts/200M contacts |
+| `docs/scaling-architecture.md` / `docs/scaling-costs.md` | Scaling roadmap and cost model |
+| `docs/ultimate-whatsapp-onboarding-guide.md` / `docs/meta-onboarding-guide.md` | WhatsApp/Meta onboarding |
 | `docs/meta-ads-integration-plan.md` | Meta Ads OAuth and campaign integration |
 | `docs/OWNERS_DEN_TESTING.md` | Owners Den testing checklist |
-| `docs/CLOUDFLARE_EMAIL_SETUP.md` | Cloudflare email routing for portal leads |
-| `CHANGELOG.md` | Recent changes and feature history |
-| `ROADMAP.md` / `FEATURE_ROADMAP.md` | Upcoming features |
+| `docs/CLOUDFLARE_EMAIL_SETUP.md` / `docs/cloudflare-waf.md` | Cloudflare email routing and WAF |
+| `docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md` | Web/native split for shared features |
+| `docs/ai-photo-enhancement.md` / `docs/credits-policy-listing-video.md` | AI media features and their credit policy |
+| `docs/youtube-integration-setup.md` | YouTube OAuth and upload setup |
+| `docs/domain-rehosting-guide.md` / `docs/region-migration-mumbai.md` | Domain and region migrations |
+| `docs/refactoring-audit.md` | Known debt and refactor targets |
+| `.github/SECURITY.md` | Vulnerability reporting policy |
 
 ---
 

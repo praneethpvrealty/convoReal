@@ -12,6 +12,61 @@ export class ApiError extends Error {
   }
 }
 
+/** A request that never came back within REQUEST_TIMEOUT_MS. */
+export const API_TIMEOUT_STATUS = 408;
+/** A request the caller abandoned (e.g. Cancel on a bulk import). */
+export const API_CANCELLED_STATUS = 499;
+
+export function isTimeout(err: unknown): boolean {
+  return err instanceof ApiError && err.status === API_TIMEOUT_STATUS;
+}
+
+export function isCancelled(err: unknown): boolean {
+  return err instanceof ApiError && err.status === API_CANCELLED_STATUS;
+}
+
+/**
+ * How long one call may stall before it is abandoned. React Native's
+ * fetch has no default timeout: a connection that is accepted and never
+ * answered leaves the promise pending forever — no rejection, so no
+ * caller can react. That is how a single contact import left the sheet's
+ * spinner running with nothing written server-side.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  callerSignal?: AbortSignal | null
+): Promise<Response> {
+  const controller = new AbortController();
+  // A caller that gave up between calls (Cancel during a bulk import)
+  // hands over a signal that has already fired, so its 'abort' event
+  // will never arrive — check the flag as well as subscribing.
+  if (callerSignal?.aborted) controller.abort();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const abortFromCaller = () => controller.abort();
+  callerSignal?.addEventListener?.('abort', abortFromCaller);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (callerSignal?.aborted) {
+      throw new ApiError(API_CANCELLED_STATUS, 'Cancelled');
+    }
+    if (controller.signal.aborted) {
+      throw new ApiError(
+        API_TIMEOUT_STATUS,
+        'The server did not respond — check your connection and try again.'
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    callerSignal?.removeEventListener?.('abort', abortFromCaller);
+  }
+}
+
 /**
  * Call a Next.js API route with the current Supabase access token as
  * `Authorization: Bearer` — the transport the web repo's
@@ -34,6 +89,11 @@ export function apiBase(): string {
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const { signal: callerSignal, ...rest } = init ?? {};
+  const method = (rest.method ?? 'GET').toUpperCase();
+  // Replaying a body is only safe when the call has no side effect.
+  const isIdempotent = method === 'GET' || method === 'HEAD';
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -42,22 +102,33 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   const doFetch = (base: string, token: string) =>
-    fetch(`${base}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...init?.headers,
-        Authorization: `Bearer ${token}`,
+    fetchWithTimeout(
+      `${base}${path}`,
+      {
+        ...rest,
+        headers: {
+          'Content-Type': 'application/json',
+          ...rest.headers,
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+      callerSignal
+    );
 
   let res = await doFetch(apiBase(), session.access_token);
 
   try {
     const finalOrigin = res.url ? new URL(res.url).origin : null;
     if (finalOrigin && finalOrigin !== new URL(apiBase()).origin) {
+      // Pin the real origin for every later call either way.
       resolvedBase = finalOrigin;
-      res = await doFetch(resolvedBase, session.access_token);
+      // Re-issuing a POST here would send the body twice — the redirected
+      // hop may already have reached the server, so a replay can create
+      // the record again. Only idempotent calls are repeated; a mutating
+      // one that lost its Authorization header on the hop comes back 401
+      // and is retried below, which is safe because a 401 means nothing
+      // ran.
+      if (isIdempotent) res = await doFetch(resolvedBase, session.access_token);
     }
   } catch {
     // res.url unavailable — keep the configured base.

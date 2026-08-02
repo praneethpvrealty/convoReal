@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'expo-router';
+import { Link, Stack } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -11,9 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { Confetti, EnterRow } from '@/components/motion';
 import { BottomSheet } from '@/components/sheet';
 import { Avatar, ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
@@ -43,7 +41,6 @@ function propertyStatusForStage(stageName: string): string | null {
 
 export default function DealsScreen() {
   const { colors, fonts: f } = useTheme();
-  const insets = useSafeAreaInsets();
   const [pipelineId, setPipelineId] = useState<string | null>(null);
   const [stageId, setStageId] = useState<string | null>(null);
   const [movingDeal, setMovingDeal] = useState<Deal | null>(null);
@@ -121,9 +118,10 @@ export default function DealsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Deals</Text>
-        {pipelines && pipelines.length > 1 ? (
+      <Stack.Screen options={{ headerShown: true, title: 'Deals' }} />
+
+      {pipelines && pipelines.length > 1 ? (
+        <View style={styles.header}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={{ flexDirection: 'row', gap: spacing.sm }}>
               {pipelines.map((p) => (
@@ -139,8 +137,8 @@ export default function DealsScreen() {
               ))}
             </View>
           </ScrollView>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
 
       {/* Stage strip — the mobile take on kanban columns. */}
       <View style={styles.filtersRow}>
@@ -186,7 +184,7 @@ export default function DealsScreen() {
           style={{ flex: 1 }}
           data={stageDeals}
           keyExtractor={(d) => d.id}
-          contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
+          contentContainerStyle={{ paddingBottom: spacing.xxl }}
           refreshControl={
             <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
           }
@@ -321,8 +319,7 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   filtersRow: { height: 52, justifyContent: 'center' },
   filters: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: 'center' },
   stageSummary: {

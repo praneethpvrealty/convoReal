@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pushUrl, replaceUrl } from "@/lib/navigation";
 import { useCan } from '@/hooks/use-can';
@@ -48,7 +49,6 @@ import { PropertyShareDialog } from '@/components/inventory/property-share-dialo
 import { ImportSharedDialog } from '@/components/inventory/import-shared-dialog';
 import { PropertyEmailShareDialog } from '@/components/inventory/property-email-share-dialog';
 import { ShowcaseShareDialog } from '@/components/inventory/showcase-share-dialog';
-import { localCache } from '@/lib/cache-store';
 import { STARRED_PROPERTY_CAP } from '@/lib/starred-properties';
 import { PortalPostDialog } from '@/components/inventory/portal-post-dialog';
 import { PortalSyncDialog } from '@/components/inventory/portal-sync-dialog';
@@ -56,19 +56,27 @@ import { PORTALS, type PortalKey } from '@/lib/portals/post-kit';
 import { AnimatedCounter } from '@/components/ui/animated-counter';
 import { InfoHint } from '@/components/ui/info-hint';
 
+// Counts across ALL properties, independent of the current page/filters
+// so the summary cards always show accurate totals.
+const EMPTY_BADGES: Record<string, string[]> = {};
+
+const EMPTY_STATS = {
+  total: 0,
+  published: 0,
+  available: 0,
+  soldOrContract: 0,
+  pendingReview: 0,
+};
+
 export default function InventoryPage() {
   const canEdit = useCan('send-messages'); // Agent or higher can write
   const searchParams = useSearchParams();
   const initialSearch = searchParams?.get('search') || '';
   const initialPage = parseInt(searchParams?.get('page') || '0', 10);
 
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
   const [page, setPage] = useState(initialPage);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
   // Tiered location search: picking a locality shows exact matches first,
@@ -94,15 +102,6 @@ export default function InventoryPage() {
     setPage(0);
   }, [debouncedSearch, pickedPlace, radiusKm]);
 
-  // Global stats — counts across ALL properties, independent of the
-  // current page/filters so the summary cards always show accurate totals.
-  const [globalStats, setGlobalStats] = useState({
-    total: 0,
-    published: 0,
-    available: 0,
-    soldOrContract: 0,
-    pendingReview: 0,
-  });
 
   // Filters
   const [typeFilter] = useState('All');
@@ -128,90 +127,70 @@ export default function InventoryPage() {
   const [emailShareOpen, setEmailShareOpen] = useState(false);
   const [emailShareProperty, setEmailShareProperty] = useState<Property | null>(null);
   const [showcaseShareOpen, setShowcaseShareOpen] = useState(false);
-  const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
   const [portalOpen, setPortalOpen] = useState(false);
   const [portalSyncOpen, setPortalSyncOpen] = useState(false);
   const [portalProperty, setPortalProperty] = useState<Property | null>(null);
-  const [portalBadges, setPortalBadges] = useState<Record<string, string[]>>({});
 
   const { accountId } = useAuth();
-  const [currency, setCurrency] = useState('INR');
   const router = useRouter();
 
-  const fetchShowcaseSettings = useCallback(async () => {
-    if (!accountId) return;
-    try {
+  const queryClient = useQueryClient();
+
+  // Everything on this page that comes from the server hangs off the
+  // 'inventory' key, so a write invalidates the lot with one call
+  // instead of clearing a hand-rolled Map and re-running each fetcher.
+  const refreshInventory = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ['inventory'] });
+  }, [queryClient]);
+
+  const showcaseSettingsQuery = useQuery({
+    queryKey: ['inventory', 'showcase-settings', accountId],
+    queryFn: async () => {
       const supabase = createClient();
       const { data } = await supabase
         .from('showcase_settings')
         .select('*')
         .eq('account_id', accountId)
         .maybeSingle();
-      if (data) {
-        setShowcaseSettings(data);
-        if (data.currency) {
-          setCurrency(data.currency);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load showcase settings:', err);
-    }
-  }, [accountId]);
+      return (data as ShowcaseSettings | null) ?? null;
+    },
+    enabled: Boolean(accountId),
+  });
+  const showcaseSettings = showcaseSettingsQuery.data ?? null;
+  const currency = showcaseSettings?.currency ?? 'INR';
 
-  useEffect(() => {
-    fetchShowcaseSettings();
-  }, [fetchShowcaseSettings]);
-
-  // Fetch unfiltered, unpaginated counts for the summary stats panel.
-  // Uses Supabase HEAD queries (count only, no rows transferred) so it
-  // is cheap regardless of the total number of rows.
-  const fetchGlobalStats = useCallback(async () => {
-    if (!accountId) return;
-    try {
+  // Unfiltered, unpaginated counts for the summary stats panel, from a
+  // single scan of the account's inventory (migration 168). This was
+  // five parallel `count: 'exact'` HEAD requests — those are real
+  // COUNT(*)s, not metadata reads, so they scanned the account's whole
+  // inventory once each on every visit.
+  const globalStatsQuery = useQuery({
+    queryKey: ['inventory', 'stats', accountId],
+    queryFn: async () => {
       const supabase = createClient();
-      const [totalRes, publishedRes, availableRes, soldRes, pendingReviewRes] = await Promise.all([
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('is_published', true),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'Available'),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .in('status', ['Sold', 'Under Contract']),
-        supabase
-          .from('properties')
-          .select('*', { count: 'exact', head: true })
-          .eq('account_id', accountId)
-          .eq('status', 'Pending Review'),
-      ]);
-      setGlobalStats({
-        total: totalRes.count ?? 0,
-        published: publishedRes.count ?? 0,
-        available: availableRes.count ?? 0,
-        soldOrContract: soldRes.count ?? 0,
-        pendingReview: pendingReviewRes.count ?? 0,
-      });
-    } catch (err) {
-      console.error('Failed to load global stats:', err);
-    }
-  }, [accountId]);
+      const { data, error } = await supabase
+        .rpc('inventory_stats', { p_account_id: accountId })
+        .maybeSingle<{
+          total: number;
+          published: number;
+          available: number;
+          sold_or_contract: number;
+          pending_review: number;
+        }>();
+      if (error) throw error;
+      return {
+        total: data?.total ?? 0,
+        published: data?.published ?? 0,
+        available: data?.available ?? 0,
+        soldOrContract: data?.sold_or_contract ?? 0,
+        pendingReview: data?.pending_review ?? 0,
+      };
+    },
+    enabled: Boolean(accountId),
+  });
+  const globalStats = globalStatsQuery.data ?? EMPTY_STATS;
 
-  useEffect(() => {
-    fetchGlobalStats();
-  }, [fetchGlobalStats]);
-
-  const fetchProperties = useCallback(async () => {
+  const listParams = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
       limit: '25',
@@ -229,42 +208,40 @@ export default function InventoryPage() {
     if (reviewTab === 'all') params.set('exclude_archived', 'true');
     if (showcaseFilter !== 'All') params.set('is_published', showcaseFilter === 'Showcased' ? 'true' : 'false');
     if (sourceFilter !== 'All') params.set('listing_source', sourceFilter === 'Owner' ? 'owner' : 'agent');
-
-    const cacheKey = `properties-${params.toString()}`;
-    const cached = localCache.get<{ data: Property[]; pagination: { total: number; totalPages: number } }>(cacheKey);
-
-    if (cached) {
-      setProperties(cached.data || []);
-      setTotalCount(cached.pagination?.total || 0);
-      setTotalPages(cached.pagination?.totalPages || 0);
-      setLoading(false);
-    } else {
-      setLoading(true);
-    }
-
-    try {
-      const response = await fetch(`/api/properties?${params.toString()}&_t=${Date.now()}`, {
-        cache: 'no-store',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch properties');
-      }
-      const result = await response.json();
-      localCache.set(cacheKey, result);
-      setProperties(result.data || []);
-      setTotalCount(result.pagination?.total || 0);
-      setTotalPages(result.pagination?.totalPages || 0);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error loading properties';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
+    return params.toString();
   }, [page, debouncedSearch, pickedPlace, radiusKm, typeFilter, statusFilter, showcaseFilter, sourceFilter, reviewTab]);
 
+  // The querystring is the cache key, so paging back to a page already
+  // seen reads the cache. The previous request appended `&_t=` with
+  // `cache: 'no-store'` to defeat HTTP caching, then kept its own 30s
+  // Map alongside; both are gone.
+  const propertiesQuery = useQuery({
+    queryKey: ['inventory', 'list', listParams],
+    queryFn: async () => {
+      const response = await fetch(`/api/properties?${listParams}`);
+      if (!response.ok) throw new Error('Failed to fetch properties');
+      return (await response.json()) as {
+        data: Property[];
+        pagination?: { total: number; totalPages: number };
+      };
+    },
+    placeholderData: (prev) => prev,
+  });
+
   useEffect(() => {
-    fetchProperties();
-  }, [fetchProperties]);
+    if (propertiesQuery.error) {
+      const message =
+        propertiesQuery.error instanceof Error
+          ? propertiesQuery.error.message
+          : 'Error loading properties';
+      toast.error(message);
+    }
+  }, [propertiesQuery.error]);
+
+  const properties = useMemo(() => propertiesQuery.data?.data ?? [], [propertiesQuery.data]);
+  const totalCount = propertiesQuery.data?.pagination?.total ?? 0;
+  const totalPages = propertiesQuery.data?.pagination?.totalPages ?? 0;
+  const loading = propertiesQuery.isPending;
 
   // Sync page with URL
   useEffect(() => {
@@ -455,9 +432,7 @@ export default function InventoryPage() {
       toast.success('Property listing deleted successfully');
       setDeleteConfirmOpen(false);
       setDeleteTarget(null);
-      localCache.clear();
-      fetchProperties();
-      fetchGlobalStats();
+      refreshInventory();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error deleting property';
       toast.error(message);
@@ -489,9 +464,7 @@ export default function InventoryPage() {
           ? 'Property hidden from showcase'
           : 'Property is now public on showcase'
       );
-      localCache.clear();
-      fetchProperties();
-      fetchGlobalStats();
+      refreshInventory();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to update status';
       toast.error(message);
@@ -501,31 +474,33 @@ export default function InventoryPage() {
   // Which portals each visible property is live on — feeds the tiny
   // "99 / MB / H" badges on the cards. A missing table (migration 121
   // not applied) just leaves the badges off.
-  const fetchPortalBadges = useCallback(async () => {
-    if (!accountId || properties.length === 0) {
-      setPortalBadges({});
-      return;
-    }
-    const supabaseClient = createClient();
-    const { data } = await supabaseClient
-      .from('property_portal_listings')
-      .select('property_id, portal')
-      .eq('account_id', accountId)
-      .eq('status', 'active')
-      .in('property_id', properties.map((p) => p.id));
-    const map: Record<string, string[]> = {};
-    for (const row of data || []) {
-      const code = PORTALS[row.portal as PortalKey]?.shortCode;
-      if (!code) continue;
-      if (!map[row.property_id]) map[row.property_id] = [];
-      map[row.property_id].push(code);
-    }
-    setPortalBadges(map);
-  }, [accountId, properties]);
+  // Keyed by the ids actually on screen, so paging back to a page whose
+  // badges are already cached costs nothing. The id list is bounded by
+  // the page size (25), so it is safe in an `.in()` filter.
+  const visiblePropertyIds = useMemo(() => properties.map((p) => p.id), [properties]);
 
-  useEffect(() => {
-    fetchPortalBadges();
-  }, [fetchPortalBadges]);
+  const portalBadgesQuery = useQuery({
+    queryKey: ['inventory', 'portal-badges', accountId, visiblePropertyIds],
+    queryFn: async () => {
+      const supabaseClient = createClient();
+      const { data } = await supabaseClient
+        .from('property_portal_listings')
+        .select('property_id, portal')
+        .eq('account_id', accountId)
+        .eq('status', 'active')
+        .in('property_id', visiblePropertyIds);
+      const map: Record<string, string[]> = {};
+      for (const row of data || []) {
+        const code = PORTALS[row.portal as PortalKey]?.shortCode;
+        if (!code) continue;
+        if (!map[row.property_id]) map[row.property_id] = [];
+        map[row.property_id].push(code);
+      }
+      return map;
+    },
+    enabled: Boolean(accountId) && visiblePropertyIds.length > 0,
+  });
+  const portalBadges = portalBadgesQuery.data ?? EMPTY_BADGES;
 
   // Toggle the Contacts-page interest-filter star. The server enforces
   // the cap too; this pre-check just gives a friendlier local error.
@@ -564,8 +539,7 @@ export default function InventoryPage() {
           ? 'Removed from Contacts quick filters'
           : `Starred — now a quick filter on the Contacts page (${property.property_code || property.title})`
       );
-      localCache.clear();
-      fetchProperties();
+      refreshInventory();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to update star';
       toast.error(message);
@@ -593,9 +567,7 @@ export default function InventoryPage() {
       } else {
         toast.success('Listing approved and published');
       }
-      localCache.clear();
-      fetchProperties();
-      fetchGlobalStats();
+      refreshInventory();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to approve listing';
       toast.error(message);
@@ -615,9 +587,7 @@ export default function InventoryPage() {
         throw new Error(errData.error || 'Failed to reject listing');
       }
       toast.success('Listing rejected');
-      localCache.clear();
-      fetchProperties();
-      fetchGlobalStats();
+      refreshInventory();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to reject listing';
       toast.error(message);
@@ -635,9 +605,7 @@ export default function InventoryPage() {
       });
       if (!response.ok) throw new Error('Failed to update property status');
       toast.success(`Property ${label}`);
-      localCache.clear();
-      fetchProperties();
-      fetchGlobalStats();
+      refreshInventory();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : `Failed to ${label === 'archived' ? 'archive' : 'unarchive'} property`;
       toast.error(message);
@@ -1031,7 +999,7 @@ export default function InventoryPage() {
         open={formOpen}
         onOpenChange={handleFormOpenChange}
         property={selectedProperty}
-        onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
+        onSaved={() => refreshInventory()}
         viewOnly={formViewOnly}
       />
 
@@ -1039,7 +1007,7 @@ export default function InventoryPage() {
       <ImportSharedDialog
         open={importSharedOpen}
         onOpenChange={setImportSharedOpen}
-        onImported={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
+        onImported={() => refreshInventory()}
       />
 
       {/* Flyer Creator Dialog */}
@@ -1047,7 +1015,7 @@ export default function InventoryPage() {
         open={flyerOpen}
         onOpenChange={setFlyerOpen}
         property={flyerProperty}
-        onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
+        onSaved={() => refreshInventory()}
       />
 
       {/* Promote (Meta Ads) Dialog */}
@@ -1064,7 +1032,7 @@ export default function InventoryPage() {
         open={shareOpen}
         onOpenChange={setShareOpen}
         property={shareProperty}
-        onSaved={() => { localCache.clear(); fetchProperties(); fetchGlobalStats(); }}
+        onSaved={() => refreshInventory()}
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
       />
 
@@ -1081,7 +1049,7 @@ export default function InventoryPage() {
         onOpenChange={setPortalOpen}
         property={portalProperty}
         currency={currency}
-        onSaved={fetchPortalBadges}
+        onSaved={refreshInventory}
       />
 
       {/* Portal Inventory Sync Dialog */}
@@ -1089,10 +1057,7 @@ export default function InventoryPage() {
         open={portalSyncOpen}
         onOpenChange={setPortalSyncOpen}
         onImported={() => {
-          localCache.clear();
-          fetchProperties();
-          fetchGlobalStats();
-          fetchPortalBadges();
+          refreshInventory();
         }}
       />
 

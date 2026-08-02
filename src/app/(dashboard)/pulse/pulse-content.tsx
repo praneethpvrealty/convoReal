@@ -35,6 +35,7 @@ import { dedupeConsecutiveEvents } from "@/lib/pulse/dedupe-feed";
 import { HeartbeatLoader } from "@/components/ui/heartbeat-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { PropertyViewersDialog } from "@/components/pulse/property-viewers-dialog";
+import { LocationApprovalsPanel } from "@/components/pulse/location-approvals-panel";
 
 type FeedFilter = "all" | "property_views" | "identified";
 
@@ -59,14 +60,14 @@ export default function PulsePage() {
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("all");
   const [viewersFor, setViewersFor] = useState<{ id: string; title: string } | null>(null);
 
-  const fetchStatsAndFeed = useCallback(async (isRefresh = false) => {
+  const fetchStatsAndFeed = useCallback(async (accId: string, isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
     try {
       const db = createClient();
       const [statsData, feedData] = await Promise.all([
-        loadPulseStats(db),
+        loadPulseStats(db, accId),
         loadPulseFeed(db),
       ]);
       setStats(statsData);
@@ -82,7 +83,7 @@ export default function PulsePage() {
 
   useEffect(() => {
     if (accountId) {
-      fetchStatsAndFeed();
+      fetchStatsAndFeed(accountId);
     }
   }, [accountId, fetchStatsAndFeed]);
 
@@ -135,9 +136,18 @@ export default function PulsePage() {
   };
 
   const getEventDescription = (event: HydratedShowcaseEvent) => {
+    // A share-instance token names the link, not the person: the reader
+    // learns which of their shares brought this (still anonymous) visit.
     const contactName = event.contact
       ? event.contact.name || event.contact.phone
-      : "Anonymous Guest";
+      : event.share
+        ? `A guest (via the link shared ${new Date(event.share.created_at).toLocaleString("en-IN", {
+            day: "numeric",
+            month: "short",
+            hour: "numeric",
+            minute: "2-digit",
+          })})`
+        : "Anonymous Guest";
     const propertyTitle = event.property ? event.property.title : "a property";
 
     switch (event.event_type) {
@@ -225,8 +235,8 @@ export default function PulsePage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => fetchStatsAndFeed(true)}
-          disabled={loading || refreshing}
+          onClick={() => accountId && fetchStatsAndFeed(accountId, true)}
+          disabled={!accountId || loading || refreshing}
           className="shrink-0 text-xs font-bold text-slate-400 hover:text-white hover:bg-slate-900/40 rounded-xl cursor-pointer"
         >
           <RefreshCw className={`size-3.5 mr-1.5 ${refreshing ? "animate-spin" : ""}`} />
@@ -459,6 +469,8 @@ export default function PulsePage() {
               )}
             </div>
           </div>
+
+          <LocationApprovalsPanel />
         </>
       )}
 
