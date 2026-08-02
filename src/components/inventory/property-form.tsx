@@ -384,6 +384,7 @@ export function PropertyForm({
     tenant_name: string;
     area_sqft: string;
     monthly_rent: string;
+    advance: string;
     lease_start: string;
     lease_end: string;
     lock_in_months: string;
@@ -395,6 +396,7 @@ export function PropertyForm({
     tenant_name: '',
     area_sqft: '',
     monthly_rent: '',
+    advance: '',
     lease_start: '',
     lease_end: '',
     lock_in_months: '',
@@ -407,6 +409,10 @@ export function PropertyForm({
   };
   const floorRentTotal = useMemo(
     () => floorTenancies.reduce((sum, ft) => sum + (Number(ft.monthly_rent) || 0), 0),
+    [floorTenancies]
+  );
+  const floorAdvanceTotal = useMemo(
+    () => floorTenancies.reduce((sum, ft) => sum + (Number(ft.advance) || 0), 0),
     [floorTenancies]
   );
 
@@ -1342,6 +1348,7 @@ export function PropertyForm({
             tenant_name: ft.tenant_name || '',
             area_sqft: ft.area_sqft !== null && ft.area_sqft !== undefined ? String(ft.area_sqft) : '',
             monthly_rent: ft.monthly_rent !== null && ft.monthly_rent !== undefined ? String(ft.monthly_rent) : '',
+            advance: ft.advance !== null && ft.advance !== undefined ? String(ft.advance) : '',
             lease_start: ft.lease_start || '',
             lease_end: ft.lease_end || '',
             lock_in_months: ft.lock_in_months !== null && ft.lock_in_months !== undefined ? String(ft.lock_in_months) : '',
@@ -2277,6 +2284,7 @@ export function PropertyForm({
               tenant_name: ft.tenant_name.trim() || null,
               area_sqft: ft.area_sqft.trim() !== '' && !Number.isNaN(Number(ft.area_sqft)) ? Number(ft.area_sqft) : null,
               monthly_rent: ft.monthly_rent.trim() !== '' && !Number.isNaN(Number(ft.monthly_rent)) ? Number(ft.monthly_rent) : null,
+              advance: ft.advance.trim() !== '' && !Number.isNaN(Number(ft.advance)) ? Number(ft.advance) : null,
               lease_start: ft.lease_start || null,
               lease_end: ft.lease_end || null,
               lock_in_months: ft.lock_in_months.trim() !== '' && !Number.isNaN(Number(ft.lock_in_months)) ? Number(ft.lock_in_months) : null,
@@ -2969,6 +2977,7 @@ export function PropertyForm({
                               <th className="p-2.5 font-semibold">Tenant</th>
                               <th className="p-2.5 font-semibold text-right">Area (Sq.Ft.)</th>
                               <th className="p-2.5 font-semibold text-right">Rent (excl. GST)</th>
+                              <th className="p-2.5 font-semibold text-right">Advance</th>
                               <th className="p-2.5 font-semibold">Lease</th>
                               <th className="p-2.5 font-semibold text-right">Lock-in</th>
                               <th className="p-2.5 font-semibold">Maintenance</th>
@@ -2990,6 +2999,9 @@ export function PropertyForm({
                                 <td className="p-2.5 text-right font-bold text-emerald-400">
                                   {ft.monthly_rent ? formatCurrency(Number(ft.monthly_rent), currency) : '—'}
                                 </td>
+                                <td className="p-2.5 text-right font-semibold text-slate-100">
+                                  {ft.advance ? formatCurrency(Number(ft.advance), currency) : '—'}
+                                </td>
                                 <td className="p-2.5 whitespace-nowrap">
                                   {ft.lease_start || ft.lease_end
                                     ? `${ft.lease_start || '…'} → ${ft.lease_end || '…'}`
@@ -3002,14 +3014,19 @@ export function PropertyForm({
                               </tr>
                             ))}
                           </tbody>
-                          {floorRentTotal > 0 && (
+                          {(floorRentTotal > 0 || floorAdvanceTotal > 0) && (
                             <tfoot>
                               <tr className="border-t border-slate-850 bg-slate-950/30">
-                                <td className="p-2.5 font-bold text-white" colSpan={3}>Total monthly rent</td>
+                                <td className="p-2.5 font-bold text-white" colSpan={3}>Consolidated total</td>
                                 <td className="p-2.5 text-right font-black text-primary">
-                                  {formatCurrency(floorRentTotal, currency)}
+                                  {floorRentTotal > 0 ? formatCurrency(floorRentTotal, currency) : '—'}
                                 </td>
-                                <td className="p-2.5 text-[10px] text-slate-450" colSpan={3}>excluding GST</td>
+                                <td className="p-2.5 text-right font-black text-primary">
+                                  {floorAdvanceTotal > 0 ? formatCurrency(floorAdvanceTotal, currency) : '—'}
+                                </td>
+                                <td className="p-2.5 text-[10px] text-slate-450" colSpan={3}>
+                                  rent excluding GST
+                                </td>
                               </tr>
                             </tfoot>
                           )}
@@ -4302,6 +4319,17 @@ export function PropertyForm({
                             <PriceHint value={ft.monthly_rent} compact className="text-[10px]" />
                           </div>
                           <div className="space-y-1">
+                            <Label className="text-slate-400 text-[11px]">Advance / Deposit (₹)</Label>
+                            <Input
+                              type="number"
+                              value={ft.advance}
+                              onChange={(e) => updateFloorTenancy(idx, 'advance', e.target.value)}
+                              placeholder="e.g. 8100000"
+                              className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
+                            />
+                            <PriceHint value={ft.advance} compact className="text-[10px]" />
+                          </div>
+                          <div className="space-y-1">
                             <Label className="text-slate-400 text-[11px]">Lease Start</Label>
                             <Input
                               type="date"
@@ -4352,12 +4380,34 @@ export function PropertyForm({
                       </div>
                     ))}
 
-                    {floorTenancies.length > 0 && floorRentTotal > 0 && (
-                      <p className="text-xs font-semibold text-slate-300">
-                        Total monthly rent:{' '}
-                        <span className="text-primary">{formatCurrency(floorRentTotal, currency)}</span>{' '}
-                        <span className="text-slate-500 font-medium">(excluding GST)</span>
-                      </p>
+                    {floorTenancies.length > 0 && (floorRentTotal > 0 || floorAdvanceTotal > 0) && (
+                      <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 space-y-1.5">
+                        {floorRentTotal > 0 && (
+                          <p className="text-xs font-semibold text-slate-300 flex items-baseline justify-between gap-3">
+                            <span>
+                              Total monthly rent{' '}
+                              <span className="text-slate-500 font-medium">
+                                ({floorTenancies.length} floor{floorTenancies.length === 1 ? '' : 's'}, excluding GST)
+                              </span>
+                            </span>
+                            <span className="text-primary">{formatCurrency(floorRentTotal, currency)}</span>
+                          </p>
+                        )}
+                        {floorAdvanceTotal > 0 && (
+                          <p className="text-xs font-semibold text-slate-300 flex items-baseline justify-between gap-3">
+                            <span>
+                              Total advance / deposit{' '}
+                              <span className="text-slate-500 font-medium">held across all floors</span>
+                            </span>
+                            <span className="text-primary">{formatCurrency(floorAdvanceTotal, currency)}</span>
+                          </p>
+                        )}
+                        {floorRentTotal > 0 && floorAdvanceTotal > 0 && (
+                          <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-800/80">
+                            Deposit is {(floorAdvanceTotal / floorRentTotal).toFixed(1)}× the monthly rent.
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}

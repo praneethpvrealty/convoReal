@@ -17,6 +17,10 @@ export interface FloorTenancy {
   tenant_name: string | null;
   /** Monthly rent for this floor, excluding GST. */
   monthly_rent: number | null;
+  /** Interest-free security deposit held for this floor. Usually quoted
+   *  as a multiple of the rent, but stored as the absolute amount so a
+   *  rent revision cannot silently restate the deposit. */
+  advance: number | null;
   /** ISO date (YYYY-MM-DD). */
   lease_start: string | null;
   lease_end: string | null;
@@ -62,6 +66,7 @@ export function sanitizeFloorTenancies(raw: unknown): FloorTenancy[] {
       area_sqft: num(r.area_sqft),
       tenant_name: str(r.tenant_name, 120),
       monthly_rent: num(r.monthly_rent),
+      advance: num(r.advance),
       lease_start: isoDate(r.lease_start),
       lease_end: isoDate(r.lease_end),
       lock_in_months: num(r.lock_in_months),
@@ -72,6 +77,7 @@ export function sanitizeFloorTenancies(raw: unknown): FloorTenancy[] {
       row.floor ||
       row.tenant_name ||
       row.monthly_rent !== null ||
+      row.advance !== null ||
       row.area_sqft !== null ||
       row.lease_start ||
       row.lease_end ||
@@ -83,17 +89,33 @@ export function sanitizeFloorTenancies(raw: unknown): FloorTenancy[] {
   return rows;
 }
 
-/** Sum of all floors' monthly rent (excluding GST); null when no
- *  floor carries a rent figure. */
-export function totalMonthlyRent(tenancies: FloorTenancy[] | null | undefined): number | null {
+function sumField(
+  tenancies: FloorTenancy[] | null | undefined,
+  key: 'monthly_rent' | 'advance',
+): number | null {
   if (!tenancies || tenancies.length === 0) return null;
   let total = 0;
   let any = false;
   for (const t of tenancies) {
-    if (t.monthly_rent !== null && t.monthly_rent !== undefined) {
-      total += t.monthly_rent;
+    const value = t[key];
+    if (value !== null && value !== undefined) {
+      total += value;
       any = true;
     }
   }
+  // null rather than 0 when no floor carries the figure, so a rent roll
+  // that simply hasn't recorded deposits reads as "unknown" instead of
+  // asserting the building holds nothing.
   return any ? total : null;
+}
+
+/** Sum of all floors' monthly rent (excluding GST); null when no
+ *  floor carries a rent figure. */
+export function totalMonthlyRent(tenancies: FloorTenancy[] | null | undefined): number | null {
+  return sumField(tenancies, 'monthly_rent');
+}
+
+/** Sum of all floors' security deposit; null when no floor carries one. */
+export function totalAdvance(tenancies: FloorTenancy[] | null | undefined): number | null {
+  return sumField(tenancies, 'advance');
 }
