@@ -1,13 +1,13 @@
 // Port of the web's approveContact + sendPropertyDetailsHelper
 // (contact-detail-view.tsx): flip the contact active, then send the
 // inquired property's complete details + showcase link through the
-// CRM WhatsApp number. Meta only allows free text inside the 24-hour
+// Engine WhatsApp number. Meta only allows free text inside the 24-hour
 // customer window — outside it the caller gets the drafted message
 // (wa.me deep link) and the conversation for a template.
 
 import { useAuthStore } from '@/lib/auth-store';
 import { isReengagementError } from '@/lib/customer-window';
-import { sendPropertyViaCrm } from '@/lib/property-share-actions';
+import { sendPropertyViaEngine } from '@/lib/property-share-actions';
 import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message';
 import { supabase } from '@/lib/supabase';
 import { getShowcaseUrl } from '@/lib/welcome-message';
@@ -112,7 +112,7 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
   // details as free text, a closed one sends the approved property-alert
   // template. Only when neither is possible does the caller fall back to
   // manual template selection on the thread.
-  const outcome = await sendPropertyViaCrm(contact, property, detailsMessage);
+  const outcome = await sendPropertyViaEngine(contact, property, detailsMessage);
   if (outcome.error && !isReengagementError(outcome.error)) {
     return { ok: true, sent: false, property, detailsMessage, error: outcome.error };
   }

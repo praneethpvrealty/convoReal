@@ -114,7 +114,7 @@ export function parsePortalStatus(text: string): ParsedPortalStatus {
   return 'active';
 }
 
-/** Keyword → CRM property type (CATEGORY_SUBTYPES vocabulary),
+/** Keyword → Engine property type (CATEGORY_SUBTYPES vocabulary),
  *  most specific patterns first. */
 const TYPE_PATTERNS: Array<[RegExp, string]> = [
   [/agricultural\s*(land|plot)|farm\s*land/i, 'Agricultural Land'],

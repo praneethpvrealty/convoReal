@@ -100,7 +100,7 @@ export default function VerifyPhoneScreen() {
             </Text>
             <Text style={[styles.body, { color: colors.textMuted }]}>
               ConvoReal requires every team member to verify their WhatsApp number
-              with a one-time code before using the CRM.
+              with a one-time code before using the Engine.
             </Text>
           </View>
 

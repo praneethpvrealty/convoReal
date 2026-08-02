@@ -164,7 +164,7 @@ export async function checkIsAccountOwner(
 }
 
 /**
- * Saves a bot reply message in the CRM database thread and updates the conversation state.
+ * Saves a bot reply message in the Engine database thread and updates the conversation state.
  */
 async function saveBotMessage(
   conversationId: string,
@@ -1558,7 +1558,7 @@ export async function processOwnerChatbotMessage(
           }
 
           // Phonebook-style names ("Nataraj Bank DSA") get the qualifier moved
-          // into the CRM-only Name Tag so outbound messages stay clean.
+          // into the Engine-only Name Tag so outbound messages stay clean.
           const nameSplit = suggestNameTagSplit(draft.name!.trim());
           toInsert.push({
             account_id: accountId,
@@ -1601,7 +1601,7 @@ export async function processOwnerChatbotMessage(
         return rest;
       });
 
-      // Create new contacts in CRM
+      // Create new contacts in the Engine
       const { data: inserted, error: contactErr } = await supabaseAdmin()
         .from('contacts')
         .insert(contactsToInsert)
@@ -2278,7 +2278,7 @@ async function sendPropertyLimitReachedReply(
 
 /**
  * Core processor for the "List My Property" WhatsApp intake — an
- * external agent/property owner (NOT CRM staff) drafting a listing via
+ * external agent/property owner (NOT Engine staff) drafting a listing via
  * the flow engine's `start_property_intake` node. Reuses the same
  * AI-parsed draft/preview/Confirm-Cancel UX as `processOwnerChatbotMessage`,
  * but every confirmed listing lands as `status: 'Pending Review'` /

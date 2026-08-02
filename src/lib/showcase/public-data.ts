@@ -250,7 +250,7 @@ export async function cachedFetchShowcaseData(
 // Attach agent details and reduce each row to the public whitelist.
 // The full payload is serialized into the RSC stream of every showcase
 // page (readable via view-source), so exact location, coordinates and
-// CRM internals must never survive this step. Agent mode (mode=view)
+// Engine internals must never survive this step. Agent mode (mode=view)
 // reveals the map only for properties whose location is not guarded —
 // see src/lib/inventory/location-guard.ts.
 export function toPublicProperties(

@@ -16,7 +16,7 @@ Before modifying DNS records, you must register the domain inside your web hosti
 5. Hostinger will display the **IP Address** and **CNAME target** you need for your DNS records. Note down the IP Address (e.g., `185.185.185.185`).
 
 ### Option B: If using Vercel
-1. Log in to your **Vercel Dashboard** and open your CRM project.
+1. Log in to your **Vercel Dashboard** and open your Engine project.
 2. Go to **Settings** -> **Domains**.
 3. Type `convoreal.com` (and `www.convoreal.com`) and click **Add**.
 4. Vercel will show red status errors indicating "Invalid Configuration" and display the required A record IP (`76.76.21.21`) and CNAME target (`cname.vercel-dns.com`).

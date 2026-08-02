@@ -46,7 +46,7 @@ const SAME_SESSION_WINDOW_MS = 2 * 60 * 1000;
  * just the first. Best-effort throughout: a tracking failure must
  * never break the recipient's actual document access.
  *
- * Also resolves the requester's phone to an existing CRM contact in
+ * Also resolves the requester's phone to an existing Engine contact in
  * this account and, if found, treats the open like any other inbound
  * interaction: bumps `last_contacted_at` (the field "Hot leads going
  * quiet" keys off) so a client who quietly opened your shared

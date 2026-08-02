@@ -26,12 +26,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-interface FavoriteItem {
-  label: string;
-  href: string;
-  icon: string;
-}
+import { readFavorites, type FavoriteItem } from "@/lib/favorites-storage";
 
 const ICON_MAP: Record<string, typeof LayoutDashboard> = {
   LayoutDashboard,
@@ -56,16 +51,7 @@ const ICON_MAP: Record<string, typeof LayoutDashboard> = {
 export function FavoritesCard() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem("crm_favorites");
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return [];
-    }
-  });
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(readFavorites);
   const [startIndex, setStartIndex] = useState(0);
   const [, startTransition] = useTransition();
 
@@ -73,16 +59,7 @@ export function FavoritesCard() {
   const currentFullPath = pathname + (searchParams.toString() ? `?${searchParams.toString()}` : "");
 
   const loadFavorites = () => {
-    const stored = localStorage.getItem("crm_favorites");
-    if (stored) {
-      try {
-        setFavorites(JSON.parse(stored));
-      } catch (err) {
-        console.error("Failed to parse favorites", err);
-      }
-    } else {
-      setFavorites([]);
-    }
+    setFavorites(readFavorites());
   };
 
   useEffect(() => {

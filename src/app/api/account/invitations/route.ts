@@ -69,8 +69,8 @@ import {
 //   surface should set this to their canonical hostnames; everyone
 //   else gets today's permissive behavior.
 //
-// Previous implementation hard-defaulted to `https://wacrm.tech` (upstream fallback)
-// (the docs/marketing site, a different repo). Forks that didn't
+// Previous implementation hard-defaulted to the legacy upstream
+// marketing domain (a different repo). Forks that didn't
 // set `NEXT_PUBLIC_SITE_URL` got invite links pointing at the
 // marketing site, which 404s on `/join/<token>`. This resolution
 // chain removes the foot-gun.

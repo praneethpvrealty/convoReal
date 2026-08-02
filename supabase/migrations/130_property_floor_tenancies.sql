@@ -15,7 +15,7 @@
 --     "notes": "3-Star Hotel · 27 rooms + convention centre"
 --   }
 --
--- Internal / CRM-only (like properties.notes) — never rendered on
+-- Internal / Engine-only (like properties.notes) — never rendered on
 -- the public showcase. Validation lives in
 -- src/lib/inventory/floor-tenancies.ts.
 -- ============================================================
@@ -24,4 +24,4 @@ ALTER TABLE properties
   ADD COLUMN IF NOT EXISTS floor_tenancies JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 COMMENT ON COLUMN properties.floor_tenancies IS
-  'Floor-wise rent roll for pre-leased commercial buildings: tenant, monthly rent (excluding GST), lease window, lock-in, maintenance per floor. CRM-only.';
+  'Floor-wise rent roll for pre-leased commercial buildings: tenant, monthly rent (excluding GST), lease window, lock-in, maintenance per floor. Engine-only.';

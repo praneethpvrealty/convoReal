@@ -67,7 +67,7 @@ AS $$
         AND c.created_at >= p_yesterday_start
         AND c.created_at < p_today_start),
 
-    -- The account owner texting their own CRM number is not a lead.
+    -- The account owner texting their own Engine number is not a lead.
     -- Those self-chats are archived, and contacts carry no archive
     -- flag, so the owner's own contact is excluded by the archived
     -- conversation that points at it.

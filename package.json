@@ -2,7 +2,7 @@
   "name": "convoreal",
   "version": "0.2.2",
   "private": true,
-  "description": "WhatsApp CRM for real estate — property inventory, lead management, sales pipeline, broadcasts, automations, and public showcase portal.",
+  "description": "WhatsApp deal engine for real estate — property inventory, lead management, sales pipeline, broadcasts, automations, and public showcase portal.",
   "license": "MIT",
   "author": "Praneeth Kumar",
   "homepage": "https://convoreal.com",
@@ -14,7 +14,8 @@
     "url": "https://github.com/your-repo/convoreal/issues"
   },
   "keywords": [
-    "crm",
+    "real-estate",
+    "deal-engine",
     "whatsapp",
     "whatsapp-business-api",
     "nextjs",

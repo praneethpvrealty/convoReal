@@ -1,6 +1,6 @@
 // ============================================================
 // Portal listing matcher — decides whether a harvested listing
-// IS an existing CRM property. This is the anti-duplicate core
+// IS an existing Engine property. This is the anti-duplicate core
 // of portal sync, applying the inventory matching hierarchy:
 //
 //   Type gate → Location → Budget. Budget alone is NEVER a match.
@@ -16,7 +16,7 @@
 //
 // Cross-portal dedup: the same physical property harvested from
 // two portals gets one batch_group, so committing the batch
-// creates a single CRM property with two portal links.
+// creates a single Engine property with two portal links.
 // ============================================================
 
 import type { Property } from '@/types';

@@ -123,9 +123,9 @@ export function PropertyShareDialog({
   const [messageStyle, setMessageStyle] = useState<ShareTone>('professional');
   const [copiedMessage, setCopiedMessage] = useState(false);
   // Who the share is for: tabs on the first step. 'client' and 'agent'
-  // compose an external message; 'crm' hosts the in-CRM send flows
+  // compose an external message; 'engine' hosts the in-Engine send flows
   // (greeting / templates / catalog card).
-  const [audienceTab, setAudienceTab] = useState<'client' | 'agent' | 'crm'>('client');
+  const [audienceTab, setAudienceTab] = useState<'client' | 'agent' | 'engine'>('client');
   const [detailLevel, setDetailLevel] = useState<ShareDetailLevel>('standard');
   // User edits to the composed message; null = follow the auto-generated
   // text. Reset whenever any composer input changes.
@@ -1166,7 +1166,7 @@ export function PropertyShareDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* STEP 0: compose & share externally, or hand off to CRM flows */}
+        {/* STEP 0: compose & share externally, or hand off to Engine flows */}
         {broadcastStep === 'link' && (
           <div className="space-y-4 flex flex-col flex-1 min-h-0">
             {/* Audience tabs — the first decision is WHO this goes to */}
@@ -1174,7 +1174,7 @@ export function PropertyShareDialog({
               {([
                 { key: 'client', label: 'To Client', desc: 'Showcase page with inquiry form', icon: User },
                 { key: 'agent', label: 'To Co-Broker', desc: 'Clean page, no inquiry forms', icon: Handshake },
-                { key: 'crm', label: 'Send from CRM', desc: 'Templates · greeting · catalog', icon: Megaphone },
+                { key: 'engine', label: 'Send from Engine', desc: 'Templates · greeting · catalog', icon: Megaphone },
               ] as const).map((tab) => (
                 <button
                   key={tab.key}
@@ -1193,7 +1193,7 @@ export function PropertyShareDialog({
               ))}
             </div>
 
-            {audienceTab !== 'crm' && (
+            {audienceTab !== 'engine' && (
               <div className="bg-slate-950/20 border border-slate-850 p-4 rounded-xl space-y-4">
                 <p className="text-xs text-slate-400">
                   {audienceTab === 'agent'
@@ -1616,14 +1616,14 @@ export function PropertyShareDialog({
               </div>
             )}
 
-            {audienceTab === 'crm' && (
+            {audienceTab === 'engine' && (
               <>
             <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-3">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                 👋 Send Interactive Greeting First
               </h3>
               <p className="text-xs text-slate-400">
-                Sends a welcome greeting with quick reply buttons first. If the contact clicks <strong className="text-primary font-semibold">&quot;Sure, please send&quot;</strong>, the CRM will automatically share the full property details.
+                Sends a welcome greeting with quick reply buttons first. If the contact clicks <strong className="text-primary font-semibold">&quot;Sure, please send&quot;</strong>, the Engine will automatically share the full property details.
               </p>
               <div className="flex justify-end">
                 <Button

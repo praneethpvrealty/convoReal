@@ -224,7 +224,7 @@ export function formatDraftPreviewMessage(
 
 /**
  * Renders a WhatsApp-markdown preview of parsed contact drafts. Pure
- * string formatting: duplicate-detection against the CRM is a data
+ * string formatting: duplicate-detection against the Engine is a data
  * concern the caller resolves first, passing per-contact warning
  * strings (index-aligned with `container.contacts`, `null` for no
  * duplicate). Keeps the DB lookups out of the formatter so the web

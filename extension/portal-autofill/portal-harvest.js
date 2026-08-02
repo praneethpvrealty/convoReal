@@ -2,7 +2,7 @@
 // Portal harvester — the reverse of portal-fill.js. Runs on the
 // portal domains and scrapes the agent's OWN "My Listings" /
 // dashboard pages (their logged-in session, their data) into a
-// payload the CRM imports via the sync dialog.
+// payload the Engine imports via the sync dialog.
 //
 // Deliberately dumb scraping: find listing cards heuristically
 // (a link to a property-detail page, or a block with a ₹ price
@@ -15,7 +15,7 @@
 // listing id — scanning the same page twice, or overlapping
 // pagination, can never produce duplicates. The agent pages
 // through the dashboard clicking "Scan" on each page, then pulls
-// the batch from the CRM's Portal Sync dialog.
+// the batch from the Engine's Portal Sync dialog.
 // ============================================================
 
 (() => {
@@ -185,7 +185,7 @@
     const header = el('div', 'display:flex;align-items:center;gap:8px;padding:10px 12px;background:#064e3b;cursor:pointer');
     const title = el('div', 'flex:1');
     title.appendChild(el('div', 'font-weight:800;color:#6ee7b7', 'ConvoReal Sync'));
-    title.appendChild(el('div', 'color:#a7f3d0;font-size:10px', 'Collect your listings into the CRM'));
+    title.appendChild(el('div', 'color:#a7f3d0;font-size:10px', 'Collect your listings into the Engine'));
     header.appendChild(title);
     header.appendChild(el('span', 'color:#a7f3d0;font-size:14px', '−'));
     header.addEventListener('click', () => setExpanded(false));
@@ -245,7 +245,7 @@
       'background:linear-gradient(135deg,#059669,#047857)', 'color:#fff',
       'font-weight:800', 'font-size:12px', 'font-family:system-ui,sans-serif',
       'cursor:pointer', 'box-shadow:0 6px 24px rgba(5,150,105,.45)',
-    ].join(';'), 'Sync to CRM');
+    ].join(';'), 'Sync to Engine');
     launcher.id = LAUNCHER_ID;
     launcher.title = 'Collect your posted listings for ConvoReal';
     launcher.addEventListener('click', () => setExpanded(true));

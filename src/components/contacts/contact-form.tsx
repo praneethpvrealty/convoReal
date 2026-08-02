@@ -401,7 +401,7 @@ export function ContactForm({
             </div>
             <p className="col-span-6 -mt-1 text-xs text-slate-500">
               Messages always address the contact by Name alone — Second Name and
-              Name Tag show only inside the CRM. Name + Second Name must be unique
+              Name Tag show only inside the Engine. Name + Second Name must be unique
               across your contacts.
             </p>
           </div>

@@ -2,7 +2,7 @@
 
 // ============================================================
 // Buyer portal — shell. Deliberately minimal and BUYER-facing: no
-// CRM nav, no agent tooling. Top bar + bottom-tab nav on mobile.
+// Engine nav, no agent tooling. Top bar + bottom-tab nav on mobile.
 // ============================================================
 
 import Link from 'next/link';

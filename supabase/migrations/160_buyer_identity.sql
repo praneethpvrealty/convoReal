@@ -4,13 +4,13 @@
 -- The buyer portal (src/app/(buyer)/) is the authenticated surface
 -- for property BUYERS — the leads captured by the public showcase
 -- (classification 'Buyer', created by /api/public/inquiry and
--- /api/public/requirements). Until now they existed only as CRM
+-- /api/public/requirements). Until now they existed only as Engine
 -- `contacts` rows with no login.
 --
 -- Buyer users follow the Owners Den pattern (migration 132) exactly:
 --   * an auth.users row with NO profiles row. Every existing RLS
 --     policy gates through is_account_member() → profiles, so a
---     buyer user is denied by every CRM policy by construction.
+--     buyer user is denied by every Engine policy by construction.
 --   * All buyer data access goes through /api/buyer/* route handlers
 --     using the service-role client with explicit scoping
 --     (src/lib/buyer/auth.ts). The RLS below is defense in depth.

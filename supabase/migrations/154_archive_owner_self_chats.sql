@@ -1,4 +1,4 @@
--- The account owner texting their own CRM number (the WhatsApp lister
+-- The account owner texting their own Engine number (the WhatsApp lister
 -- self-chat) is not a lead. The webhook now keeps those threads
 -- archived and unread-free as messages arrive (webhook-handler.ts);
 -- this backfills the existing ones out of the shared inbox. Matching

@@ -1,6 +1,6 @@
 # Changelog
 
-User-visible changes in `wacrm`. Self-hosters: when pulling an update,
+User-visible changes in `convoreal`. Self-hosters: when pulling an update,
 check this file for any **migration required** notes and apply the
 matching SQL files from `supabase/migrations/` against your Supabase
 project before restarting the app.
@@ -31,7 +31,7 @@ and polish.
 ### Changed
 
 - **The WhatsApp assistant's help card now says what it can actually
-  do.** Texting your own CRM number used to answer with a four-line
+  do.** Texting your own Engine number used to answer with a four-line
   "AI Ingestion Chatbot" card that only described draft-session
   commands — and showed `*Cancel*` literally, because it used Markdown
   bold instead of WhatsApp's. Send *help* (or hi / menu / start) and
@@ -169,7 +169,7 @@ and polish.
   and a single WhatsApp button on the right. Tapping it opens
   WhatsApp with the prefilled welcome message; long-pressing offers
   the two other sends: a blank WhatsApp chat, or an internal message
-  in the CRM inbox (creating the conversation first if none exists,
+  in the Engine inbox (creating the conversation first if none exists,
   like the web). Long-pressing the row opens a quick preview sheet
   with the details the row no longer carries — budget, tags,
   interested-in properties, areas, email, company, last contacted —
@@ -208,7 +208,7 @@ and polish.
   numbers excluded.** Approving a Needs-Review contact no longer
   asks through a system dialog — one tap flips them active and,
   like desktop, auto-sends the inquired property's details
-  (address + map link) through the CRM WhatsApp number; outside
+  (address + map link) through the Engine WhatsApp number; outside
   Meta's 24-hour window it opens the thread for a template send
   instead. Contact screens now show connected properties like the
   web card: Managed properties for Owner/Seller/Developer (and
@@ -284,7 +284,7 @@ and polish.
   copy-link row, and channel buttons: WhatsApp, Telegram, Email, SMS,
   Copy message, and "More apps…" (native share sheet). New
   dependency: `expo-clipboard` — run `npm install` in `mobile/`.
-  CRM-tracked template sends stay in the conversation thread and the
+  Engine-tracked template sends stay in the conversation thread and the
   web dialog.
 
 - **Auto-generated listing videos.** A "Listing Video" card on the
@@ -467,7 +467,7 @@ and polish.
   once; the Journey canvas's JS-side colors follow suit.
 
 - **Light mode, app-wide.** A sun/moon toggle in the header switches
-  the whole CRM between the original dark look and a new light theme
+  the whole Engine between the original dark look and a new light theme
   (persisted per device, synced across tabs, no flash on load — the
   existing accent-theme boot script now applies `data-mode` too).
   Light mode is an orthogonal axis on top of the 5 accent themes:
@@ -546,7 +546,7 @@ and polish.
   `app_context: 'den'`, same as web /den/login; the idempotent
   `/api/den/auth/complete` runs on every entry so agency links stay
   fresh). A persisted surface flag routes each signed-in device to
-  the staff CRM or the Den shell. Den screens: **Home** — activity
+  the staff Engine or the Den shell. Den screens: **Home** — activity
   totals (views / enquiries / shortlists / site visits) over a 7/30
   day window plus every linked property with per-property stats,
   agency and Deal Mode chips; **Offers** — the masked-bidder offer
@@ -575,7 +575,7 @@ and polish.
   spec tiles, a conditional Listing Metadata card (super built area,
   dimensions, frontage/depth, road width, land zone, ideal for,
   rental income with computed yield), a floor-wise tenancy rent-roll
-  section, Nearby Landmarks chips, and the amber CRM-only Internal
+  section, Nearby Landmarks chips, and the amber Engine-only Internal
   Notes block. Every section hides when the property has no data.
 
 - **Mobile property detail: gallery + empty-field cleanup.** (1) Spec
@@ -943,9 +943,9 @@ and polish.
   the web mind map. Billing and Team settings remain deliberately
   web-only (Play-billing policy and admin surface).
 
-- **Mobile app: core CRM tranche — Inventory, Deals, Calendar,
+- **Mobile app: core Engine tranche — Inventory, Deals, Calendar,
   Templates (`mobile/`)** — the companion app grows from
-  inbox+contacts to the core CRM pillars, in a 5-tab layout (Inbox /
+  inbox+contacts to the core Engine pillars, in a 5-tab layout (Inbox /
   Contacts / Properties / Deals / More). Properties: list powered by
   the same `GET /api/properties` search the web uses (natural-language
   queries like "2bhk in whitefield under 80L" work), listing-type
@@ -1699,6 +1699,6 @@ whether you applied a previous one.
 
 ## [0.1.0]
 
-Initial template release. Core CRM: inbox, contacts, pipelines,
+Initial template release. Core Engine: inbox, contacts, pipelines,
 broadcasts, automations (with a Wait-step cron drain), WhatsApp
 Cloud API integration, Supabase auth + RLS.

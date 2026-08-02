@@ -20,7 +20,7 @@ function getSessionKey(): string {
 
 const FALLBACK_WHATSAPP = process.env.NEXT_PUBLIC_CONVOREAL_SALES_WHATSAPP || '';
 
-export function CrmLeadForm() {
+export function EngineLeadForm() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState(ROLES[0]);
@@ -37,7 +37,7 @@ export function CrmLeadForm() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch('/api/public/crm-lead', {
+      const res = await fetch('/api/public/engine-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

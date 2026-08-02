@@ -1,6 +1,6 @@
 # Scaling Architecture Blueprint: 10k Accounts, 40M Properties, 200M Contacts
 
-This document outlines the architectural blueprint, scaling strategies, and step-by-step roadmap required to scale the WhatsApp CRM from its current Next.js/Supabase serverless structure to support **10k active tenant accounts, 40 Million properties (120M images), and 200 Million contacts**.
+This document outlines the architectural blueprint, scaling strategies, and step-by-step roadmap required to scale the WhatsApp Engine from its current Next.js/Supabase serverless structure to support **10k active tenant accounts, 40 Million properties (120M images), and 200 Million contacts**.
 
 ---
 

@@ -1,11 +1,11 @@
-# Feature Roadmap: Real Estate waCRM
+# Feature Roadmap: Real Estate ConvoReal
 
-This document outlines the product vision, active milestones, and future development cycles for the Real Estate waCRM platform.
+This document outlines the product vision, active milestones, and future development cycles for the Real Estate ConvoReal platform.
 
 ---
 
 ## Product Vision
-To build the definitive, WhatsApp-first CRM for independent real estate agencies and brokers. The platform combines conversational AI ingestion, smart contact-property matching, automated scheduling, and public showcase sites into a unified, multi-tenant portal.
+To build the definitive, WhatsApp-first Engine for independent real estate agencies and brokers. The platform combines conversational AI ingestion, smart contact-property matching, automated scheduling, and public showcase sites into a unified, multi-tenant portal.
 
 ---
 

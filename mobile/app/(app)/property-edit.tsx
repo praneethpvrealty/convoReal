@@ -438,7 +438,7 @@ function EditForm({ property }: { property: Property }) {
             <SectionLabel text="Floor-wise tenancy (Rent roll)" />
             <Text style={{ fontSize: 12.5, color: colors.textMuted, marginTop: -6 }}>
               For pre-leased buildings — tenant, rent (excluding GST), lease period, lock-in and
-              maintenance per floor. Internal to your CRM; never shown on the showcase.
+              maintenance per floor. Internal to your Engine; never shown on the showcase.
             </Text>
             {tenancies.map((t, i) => (
               <View

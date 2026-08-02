@@ -36,7 +36,7 @@ export {
 } from "@/lib/maps/map-links";
 
 const FETCH_TIMEOUT_MS = 5000;
-const NOMINATIM_USER_AGENT = "ConvoRealCRM/1.0 (WhatsApp property listing intake)";
+const NOMINATIM_USER_AGENT = "ConvoReal/1.0 (WhatsApp property listing intake)";
 
 export interface ResolvedMapLocation {
   /** Human-readable address line for the draft's `location` field. */

@@ -2,7 +2,7 @@
 
 // ============================================================
 // Owners Den — portal shell. Deliberately minimal and OWNER-facing:
-// no CRM nav, no agent tooling. Top bar + bottom-tab nav on mobile.
+// no Engine nav, no agent tooling. Top bar + bottom-tab nav on mobile.
 // ============================================================
 
 import Link from "next/link";

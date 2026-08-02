@@ -756,7 +756,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40">
                 <div className="space-y-0.5">
                   <div className="text-sm font-semibold text-white">Self Sign-up Registration</div>
-                  <p className="text-xs text-slate-500">Allow new clients to create accounts on this CRM instance.</p>
+                  <p className="text-xs text-slate-500">Allow new clients to create accounts on this Engine instance.</p>
                 </div>
                 <input
                   type="checkbox"
@@ -1174,7 +1174,7 @@ export default function AdminDashboardPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-white text-base">Registered CRM Tenants</CardTitle>
+                  <CardTitle className="text-white text-base">Registered Engine Tenants</CardTitle>
                   <CardDescription className="text-slate-400">
                     Manage all organizations on the platform. Archive inactive accounts or permanently delete after archiving.
                   </CardDescription>

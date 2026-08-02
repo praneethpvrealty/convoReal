@@ -147,7 +147,7 @@ export async function POST(
       console.error("[doc-request] Contact upsert failed:", err);
     }
 
-    // 6. Route a message to the CRM inbox so the agent sees the request
+    // 6. Route a message to the Engine inbox so the agent sees the request
     if (contactId) {
       try {
         const { data: existingConv } = await admin
@@ -179,7 +179,7 @@ export async function POST(
             `👤 *Name*: ${requester_name.trim()}\n` +
             `📞 *Phone*: ${normalizedPhone}` +
             (requester_email ? `\n📧 *Email*: ${requester_email.trim()}` : "") +
-            `\n\n_Reply via the CRM dashboard to Approve or Reject this request._`;
+            `\n\n_Reply via the Engine dashboard to Approve or Reject this request._`;
 
           await admin.from("messages").insert({
             conversation_id: conversationId,
@@ -230,7 +230,7 @@ export async function POST(
                 `📄 *New Document Request*\n` +
                 `Property: ${property.title}${property.property_code ? ` (${property.property_code})` : ""}\n` +
                 `From: ${requester_name.trim()} · ${normalizedPhone}\n\n` +
-                `Open your CRM dashboard to Approve or Reject this request.`;
+                `Open your Engine dashboard to Approve or Reject this request.`;
 
               await sendWhatsAppMessageAndPersist({
                 accountId: account_id,

@@ -60,7 +60,7 @@ You need **two tenant accounts** so cross-tenant matching has two sides:
 | Agency A (owner side) | your main login | existing account |
 | Agency B (buyer side) | second staff signup | fresh email signup (this also exercises Scenario A) |
 
-Then, via the CRM UI (more realistic than SQL):
+Then, via the Engine UI (more realistic than SQL):
 
 1. **Agency A** → Contacts → add contact: name "Test Owner", phone
    `PHONE_OWNER`, classification **Owner**.
@@ -249,14 +249,14 @@ All as **Agency B** staff on the radar card.
 
 ## 9. Scenario H — isolation spot-checks
 
-1. `SQL` — a Den user can see nothing of the CRM (RLS denies by
+1. `SQL` — a Den user can see nothing of the Engine (RLS denies by
    construction; sanity-check the premise):
    ```sql
    SELECT count(*) FROM profiles p JOIN den_users d ON d.auth_user_id = p.user_id;
    -- expect 0 — no den user has a staff profile, so is_account_member() always fails for them
    ```
 2. UI: as the Den owner, try opening `/dashboard` — **Expect:** bounced to
-   profile-setup/login flows, never into a CRM workspace with data.
+   profile-setup/login flows, never into an Engine workspace with data.
 3. As Agency A staff, open `/radar` — **Expect:** your own Deal Mode property
    NEVER appears as a Direct Owner card (own-account excluded from the sweep).
 4. If you have a second owner contact in Agency A: log into the Den as

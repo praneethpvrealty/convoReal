@@ -10,7 +10,7 @@ Next.js 16 has breaking changes compared with older versions — APIs, file conv
 
 ## 1. What this project is
 
-ConvoReal is a self-hostable **WhatsApp CRM for real-estate brokerages** (originally forked from the `wacrm` template). It provides:
+ConvoReal is a self-hostable **WhatsApp deal engine for real-estate brokerages** (originally forked from the `wacrm` template). It provides:
 
 - Property inventory (50+ fields, images, documents, floor tenancies, RERA, AI-generated descriptions).
 - Contact/lead management with classification, tags, custom fields, and matching preferences.
@@ -389,7 +389,7 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | `ALLOWED_INVITE_HOSTS` | Allow-list of hosts accepted in invitation redirect links |
 | `CONVOREAL_MASTER_ACCOUNT_ID` | Master account used by admin/marketplace tooling |
 | `NEXT_PUBLIC_LEADS_EMAIL_DOMAIN` | Domain shown for per-account portal lead email addresses |
-| `PUBLIC_API_KEY` / `WACRM_PUBLIC_API_KEY` | API key for the public API surface |
+| `PUBLIC_API_KEY` | API key for the public API surface |
 | `WHATSAPP_TEMPLATES_DRY_RUN` | Skip real template submissions to Meta when set |
 | `NEXT_PUBLIC_APP_URL` | Optional alias for the app URL (fallback for `NEXT_PUBLIC_SITE_URL`) |
 | `NEXT_PUBLIC_BASE_DOMAIN` | Base domain for branding/subdomain logic (default `convoreal.com`) |
@@ -397,7 +397,7 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | `NEXT_PUBLIC_DEFAULT_WEBSITE_URL` | Default website URL (default `https://www.convoreal.com`) |
 | `NEXT_PUBLIC_DEFAULT_COUNTRY_CODE` | Default phone country code (default `91`) |
 | `NEXT_PUBLIC_DEFAULT_ACCOUNT_ID` | Default account for the public showcase landing page |
-| `NEXT_PUBLIC_CRM_VERTICAL` | Active vertical (default `real_estate`) |
+| `NEXT_PUBLIC_ENGINE_VERTICAL` | Active vertical (default `real_estate`) |
 | `NEXT_PUBLIC_COPILOT_ENABLED` | Copilot feature flag (default `true`) |
 | `NEXT_PUBLIC_CONVOREAL_SALES_WHATSAPP` | Sales WhatsApp number for landing-page fallback |
 | `NEXT_PUBLIC_BUILD_ID` | Git short SHA; injected by Vercel build command in `vercel.json` |
@@ -499,7 +499,7 @@ Plus:
 
 ### 8.3 Non-staff personas (Owners Den, Buyer portal)
 
-Den and buyer users are `auth.users` rows with **no `profiles` row**, so every CRM RLS policy denies them by construction. Their data reaches them only through `/api/den/*` and `/api/buyer/*` handlers, which:
+Den and buyer users are `auth.users` rows with **no `profiles` row**, so every Engine RLS policy denies them by construction. Their data reaches them only through `/api/den/*` and `/api/buyer/*` handlers, which:
 
 1. Resolve a `DenContext` / `BuyerContext` via `withDenAuth()` (`src/lib/den/auth.ts`) or `withBuyerAuth()` (`src/lib/buyer/auth.ts`).
 2. Query with the service-role client under **explicit** owner/buyer scoping (`ctx.links`, `resolveOwnerPropertyIds(ctx)`, shortlist rows).

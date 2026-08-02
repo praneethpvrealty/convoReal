@@ -1,5 +1,5 @@
 // ============================================================
-// CRM-side bridge — runs on ConvoReal pages only. The Portal Post
+// Engine-side bridge — runs on ConvoReal pages only. The Portal Post
 // dialog talks to it with window.postMessage:
 //
 //   CONVOREAL_PORTAL_EXT_PING     → replies ..._PONG (detection)

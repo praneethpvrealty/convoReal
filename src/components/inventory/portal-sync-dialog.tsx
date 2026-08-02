@@ -299,7 +299,7 @@ export function PortalSyncDialog({ open, onOpenChange, onImported }: PortalSyncD
               {extensionDetected ? (
                 <span>
                   Extension detected. On the portal, open <strong className="text-slate-200">My Listings</strong>, click{' '}
-                  <strong className="text-slate-200">Sync to CRM → Scan this page</strong> on each page, then pull here.
+                  <strong className="text-slate-200">Sync to Engine → Scan this page</strong> on each page, then pull here.
                 </span>
               ) : (
                 <span>
@@ -425,7 +425,7 @@ export function PortalSyncDialog({ open, onOpenChange, onImported }: PortalSyncD
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-slate-300 text-[11px] font-semibold">
-                Not in your CRM yet ({newItems.length})
+                Not in your Engine yet ({newItems.length})
               </Label>
               <Button
                 size="sm"
@@ -474,7 +474,7 @@ export function PortalSyncDialog({ open, onOpenChange, onImported }: PortalSyncD
         {harvests.length === 0 && reviewItems.length === 0 && newItems.length === 0 && (
           <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-6 text-center text-xs text-slate-500">
             Nothing to review. Collect listings on the portal with the extension&apos;s{' '}
-            <strong className="text-slate-300">Sync to CRM</strong> button, then pull them here.
+            <strong className="text-slate-300">Sync to Engine</strong> button, then pull them here.
           </div>
         )}
 

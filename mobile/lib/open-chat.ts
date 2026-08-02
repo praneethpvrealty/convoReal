@@ -12,7 +12,7 @@ export interface OpenChatOutcome {
   error?: string;
 }
 
-/** Open the CRM inbox thread for a contact — the latest conversation,
+/** Open the Engine inbox thread for a contact — the latest conversation,
  *  or create one first (same insert as the web's handleWhatsAppClick)
  *  when the contact has never been messaged. Failures come back for the
  *  caller to surface: this runs outside any component, so it has no

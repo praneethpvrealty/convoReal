@@ -234,7 +234,7 @@ export function propertyShowcaseUrl(baseUrl: string, property: Property): string
 /**
  * Post-approval "details reveal" for the lead's own inquiry: the same
  * complete-detail body a 'complete' share carries, plus the exact
- * address and the property's showcase link. Sent through the CRM
+ * address and the property's showcase link. Sent through the Engine
  * inside the 24-hour window and via a wa.me deep link outside it.
  */
 export function buildInquiryDetailsMessage(input: {

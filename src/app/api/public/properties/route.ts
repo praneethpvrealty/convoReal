@@ -13,7 +13,7 @@ const DEFAULT_LIMIT = 12;
 export async function GET(request: Request) {
   try {
     // 1. Optional API Key security check
-    const expectedApiKey = process.env.PUBLIC_API_KEY || process.env.WACRM_PUBLIC_API_KEY;
+    const expectedApiKey = process.env.PUBLIC_API_KEY;
     if (expectedApiKey) {
       const apiKey = request.headers.get("x-api-key");
       if (apiKey !== expectedApiKey) {

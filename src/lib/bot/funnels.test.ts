@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  FUNNEL_CRM,
+  FUNNEL_ENGINE,
   FUNNEL_END,
   FUNNEL_MATCH,
   funnelStep,
@@ -11,10 +11,10 @@ import {
   RENT_INTENT,
   SHOWCASE_AFTER_MATCH,
   SHOWCASE_FUNNEL,
-  crmFunnel,
+  engineFunnel,
 } from './funnels';
 
-const SENTINELS = [FUNNEL_END, FUNNEL_CRM, FUNNEL_MATCH];
+const SENTINELS = [FUNNEL_END, FUNNEL_ENGINE, FUNNEL_MATCH];
 
 function step(funnel: typeof SHOWCASE_FUNNEL, id: string) {
   const found = funnelStep(funnel, id);
@@ -23,9 +23,9 @@ function step(funnel: typeof SHOWCASE_FUNNEL, id: string) {
 }
 
 describe('SHOWCASE_FUNNEL', () => {
-  it('sends a professional to the CRM funnel and a buyer onward', () => {
+  it('sends a professional to the Engine funnel and a buyer onward', () => {
     const intent = step(SHOWCASE_FUNNEL, 'intent');
-    expect(nextStepId(intent, AGENT_INTENT, {})).toBe(FUNNEL_CRM);
+    expect(nextStepId(intent, AGENT_INTENT, {})).toBe(FUNNEL_ENGINE);
     expect(nextStepId(intent, 'Buying', {})).toBe('category');
     expect(nextStepId(intent, 'Investing', {})).toBe('category');
   });
@@ -65,16 +65,16 @@ describe('SHOWCASE_FUNNEL', () => {
   });
 });
 
-describe('crmFunnel', () => {
+describe('engineFunnel', () => {
   it('opens differently on our own site and on a customer portal', () => {
-    const website = step(crmFunnel('website'), 'role').ask;
-    const showcase = step(crmFunnel('showcase'), 'role').ask;
+    const website = step(engineFunnel('website'), 'role').ask;
+    const showcase = step(engineFunnel('showcase'), 'role').ask;
     expect(website).not.toBe(showcase);
     expect(showcase).toMatch(/ConvoReal/);
   });
 
   it('qualifies role, team and city before asking for the number', () => {
-    const funnel = crmFunnel('website');
+    const funnel = engineFunnel('website');
     expect(nextStepId(step(funnel, 'role'), 'Broker', {})).toBe('team_size');
     expect(nextStepId(step(funnel, 'team_size'), '2–5', {})).toBe('city');
     expect(nextStepId(step(funnel, 'city'), 'Bangalore', {})).toBe('name');
@@ -89,8 +89,8 @@ describe('every funnel', () => {
   it('only points at steps that exist, or at a sentinel', () => {
     for (const funnel of [
       SHOWCASE_FUNNEL,
-      crmFunnel('website'),
-      crmFunnel('showcase'),
+      engineFunnel('website'),
+      engineFunnel('showcase'),
     ]) {
       expect(funnelStep(funnel, funnel.first)).not.toBeNull();
       for (const s of funnel.steps) {

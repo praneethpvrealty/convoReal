@@ -6,7 +6,7 @@
 //
 // Pure helpers: the API routes sanitize untrusted payloads with
 // sanitizeFloorTenancies(), the form and cards sum with
-// totalMonthlyRent(). CRM-internal data — never shown on the
+// totalMonthlyRent(). Engine-internal data — never shown on the
 // public showcase.
 // ============================================================
 

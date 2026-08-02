@@ -125,7 +125,7 @@ export interface Contact {
    *  full name (migration 166). Never included in outbound messages,
    *  which address the contact by `name` alone. */
   second_name?: string | null;
-  /** Name Tag — short internal qualifier shown after the name in the CRM
+  /** Name Tag — short internal qualifier shown after the name in the Engine
    *  (e.g. "Bank DSA"). Never included in outbound messages, which use
    *  `name` only (migration 122). */
   name_tag?: string | null;
@@ -167,7 +167,7 @@ export interface Contact {
    *  matches one is a strong, decisive signal in src/lib/matching.ts. */
   pref_projects?: string[] | null;
   pref_min_roi?: number | null;
-  /** AI-suggested CRM tag labels (migration 150) — display-only until
+  /** AI-suggested Engine tag labels (migration 150) — display-only until
    *  an agent confirms one, which creates/attaches a real tag. */
   pref_suggested_tags?: string[] | null;
   /** AI-extracted / inferred listing intent(s): 'Sale' | 'Rent' | 'JV/JD' |
@@ -968,7 +968,7 @@ export interface Property {
   documents?: string[];
   google_map_link?: string | null;
   property_code?: string;
-  /** Internal agent notes — CRM-only, never shown on the public showcase. */
+  /** Internal agent notes — Engine-only, never shown on the public showcase. */
   notes?: string | null;
   owner_contact_id?: string | null;
   owner?: Contact | null;
@@ -981,7 +981,7 @@ export interface Property {
   rental_income?: number | null;
   roi?: number | null;
   /** Floor-wise rent roll for pre-leased commercial buildings
-   *  (migration 130) — CRM-only, never shown on the public showcase.
+   *  (migration 130) — Engine-only, never shown on the public showcase.
    *  Shape: src/lib/inventory/floor-tenancies.ts FloorTenancy[]. */
   floor_tenancies?: import('@/lib/inventory/floor-tenancies').FloorTenancy[] | null;
   listing_source?: 'owner' | 'agent' | 'whatsapp_lister' | 'web_lister';

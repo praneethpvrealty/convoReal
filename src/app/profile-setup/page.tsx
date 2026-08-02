@@ -118,7 +118,7 @@ function ProfileSetupPageInner() {
             Complete Your Profile
           </CardTitle>
           <CardDescription className="text-slate-400 font-medium">
-            Enter your details below to activate your convoReal CRM account.
+            Enter your details below to activate your ConvoReal account.
           </CardDescription>
         </CardHeader>
         <CardContent>

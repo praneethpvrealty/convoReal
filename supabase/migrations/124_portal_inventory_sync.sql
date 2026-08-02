@@ -1,7 +1,7 @@
 -- ============================================================
 -- Portal Inventory Sync — reverse flow of the Post Kit (121).
 -- The Chrome extension harvests the agent's OWN "My Listings"
--- dashboard on 99acres / MagicBricks / Housing; the CRM stages
+-- dashboard on 99acres / MagicBricks / Housing; the Engine stages
 -- each scraped listing, matches it against existing inventory
 -- and only creates properties the agent explicitly confirms.
 --
@@ -10,7 +10,7 @@
 --     portal_listing_id) — re-syncing upserts, never re-stages.
 --   * property_portal_listings partial unique index on
 --     (account_id, portal, portal_listing_id) — one portal
---     listing can only ever be linked to one CRM property.
+--     listing can only ever be linked to one Engine property.
 --   * portal_import_items.matched_property_id records the link
 --     once committed, so a committed item can never import twice.
 -- ============================================================

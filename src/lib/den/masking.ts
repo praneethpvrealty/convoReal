@@ -9,7 +9,7 @@
 //
 // Deliberately excluded: title, exact location/address, images,
 // google_map_link, coordinates, owner identity, property_code,
-// anything CRM-internal.
+// anything Engine-internal.
 // ============================================================
 
 import type { Property } from "@/types";
@@ -79,7 +79,7 @@ export function buildMaskedPropertySnapshot(property: Property): MaskedPropertyS
 }
 
 /** What a buyer sees AFTER unlocking — the listing content, still not
- *  the owning tenant's CRM internals (notes, deal_remarks, rent roll,
+ *  the owning tenant's Engine internals (notes, deal_remarks, rent roll,
  *  sold price). Owner name/phone are added by the unlock route from
  *  the owner contact. */
 export const UNLOCKED_PROPERTY_SELECT = [

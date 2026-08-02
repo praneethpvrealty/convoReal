@@ -1,6 +1,6 @@
 # Cloudflare Email Routing and Worker Setup Guide for convoreal.com
 
-This guide outlines the concrete steps to connect your domain **convoreal.com** to Cloudflare, configure Cloudflare Email Routing on a safe subdomain (**leads.convoreal.com**) to protect existing business email accounts, and deploy a serverless Worker to forward leads directly to your CRM webhook endpoint.
+This guide outlines the concrete steps to connect your domain **convoreal.com** to Cloudflare, configure Cloudflare Email Routing on a safe subdomain (**leads.convoreal.com**) to protect existing business email accounts, and deploy a serverless Worker to forward leads directly to your Engine webhook endpoint.
 
 ---
 
@@ -39,7 +39,7 @@ To ensure your existing business emails (e.g., `name@convoreal.com` hosted on Go
 
 ## Step 2: Create the Forwarding Worker
 
-Instead of routing incoming emails to a static inbox, we will route them to a serverless Cloudflare Worker that dynamically parses the destination and pushes it to the CRM.
+Instead of routing incoming emails to a static inbox, we will route them to a serverless Cloudflare Worker that dynamically parses the destination and pushes it to the Engine.
 
 1. In the Cloudflare Dashboard left sidebar (under "Observe" / "Build"), go to **Workers & Pages** &gt; **Overview**.
 2. Click **Create Application** &gt; **Create Worker**.
@@ -67,13 +67,13 @@ export default {
     const rawEmail = await new Response(message.raw).text();
     
     // Load config from environment variables
-    const crmBaseUrl = env.CRM_BASE_URL || 'https://wacrm.convoreal.com';
+    const engineBaseUrl = env.ENGINE_BASE_URL || 'https://wacrm.convoreal.com';
     const webhookToken = env.LEADS_WEBHOOK_TOKEN || '';
     
-    // Call the CRM webhook endpoint
-    const webhookUrl = `${crmBaseUrl}/api/leads/email-webhook?account_id=${accountId}&token=${webhookToken}`;
+    // Call the Engine webhook endpoint
+    const webhookUrl = `${engineBaseUrl}/api/leads/email-webhook?account_id=${accountId}&token=${webhookToken}`;
     
-    console.log(`Forwarding lead email for account ${accountId} to ${crmBaseUrl}`);
+    console.log(`Forwarding lead email for account ${accountId} to ${engineBaseUrl}`);
     
     try {
       const response = await fetch(webhookUrl, {
@@ -91,12 +91,12 @@ export default {
       
       if (!response.ok) {
         const text = await response.text();
-        console.error(`CRM Webhook rejected with status ${response.status}: ${text}`);
+        console.error(`Engine Webhook rejected with status ${response.status}: ${text}`);
       } else {
-        console.log(`Successfully delivered email to CRM for account ${accountId}`);
+        console.log(`Successfully delivered email to the Engine for account ${accountId}`);
       }
     } catch (err) {
-      console.error('Network error posting email webhook to CRM:', err);
+      console.error('Network error posting email webhook to the Engine:', err);
     }
   }
 }
@@ -111,10 +111,10 @@ export default {
 1. Go back to your Worker configuration page (click the back arrow to exit the editor).
 2. Go to the **Settings** tab &gt; **Variables**.
 3. Under **Environment Variables**, click **Add variable**:
-   * Name: `CRM_BASE_URL`
-     * Value: `https://wacrm.convoreal.com` (Replace with your actual CRM dashboard URL if different, e.g. Vercel deployment URL).
+   * Name: `ENGINE_BASE_URL`
+     * Value: `https://wacrm.convoreal.com` (Replace with your actual Engine dashboard URL if different, e.g. Vercel deployment URL).
    * Name: `LEADS_WEBHOOK_TOKEN`
-     * Value: Your secure webhook token matching `LEADS_WEBHOOK_TOKEN` in your CRM server's `.env.local` file.
+     * Value: Your secure webhook token matching `LEADS_WEBHOOK_TOKEN` in your Engine server's `.env.local` file.
 4. Click **Save and Deploy**.
 
 ---
@@ -135,4 +135,4 @@ Now we map incoming catch-all routing patterns directly to your newly created wo
    * Click **Save**.
 
 ### Verify the Routing
-Now, any email sent to `lead-sync-[account-id]@leads.convoreal.com` (such as `lead-sync-a3b0d-c3cb-4a28-84d3-67e3efa8c250@leads.convoreal.com`) will automatically trigger the worker, extract the target account ID, and push the parsed portal lead data straight into the waCRM database in real-time!
+Now, any email sent to `lead-sync-[account-id]@leads.convoreal.com` (such as `lead-sync-a3b0d-c3cb-4a28-84d3-67e3efa8c250@leads.convoreal.com`) will automatically trigger the worker, extract the target account ID, and push the parsed portal lead data straight into the waEngine database in real-time!

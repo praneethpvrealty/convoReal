@@ -1,6 +1,6 @@
 # Production Deployment Guide: Go Ingress, Redis, and Queue Workers
 
-This guide outlines the steps to deploy your decoupled WhatsApp CRM webhook ingestion pipeline to production.
+This guide outlines the steps to deploy your decoupled WhatsApp Engine webhook ingestion pipeline to production.
 
 ---
 
@@ -27,7 +27,7 @@ The Go Ingress Service should be deployed as a public web server using [go-ingre
 2. Go to [Railway Dashboard](https://railway.app) and create a **New Project**.
 3. Choose **Deploy from GitHub repository** and select your project.
 4. Open the service settings and set **Root Directory** to `go-ingress`. Railway will automatically locate the `Dockerfile` inside `go-ingress/` (which copies both `go.mod` and `go.sum`) and build it.
-5. Rename the service from `wacrm` to **`go-ingress`** in the settings.
+5. Rename the service from `convoreal` to **`go-ingress`** in the settings.
 6. Add the required **Environment Variables** in the Railway service settings:
    - `PORT`: `8080` (Railway will automatically map incoming HTTP port)
    - `REDIS_URL`: `rediss://default:password@host:port` (Your secure Upstash connection string)
@@ -45,7 +45,7 @@ The Queue Worker is deployed as a background daemon container (no public web end
 ### Deployment Steps (Railway):
 1. In the same Railway project, return to the main canvas (click the **`X`** in the top-right of any open service panel).
 2. Add a new service by clicking the **`+`** button on the bottom-left toolbar, right-clicking on the canvas, or pressing **`Cmd + K`** and selecting **`New Service`**.
-3. Choose **`Deploy from GitHub repo`** and select the same **`wacrm`** repository.
+3. Choose **`Deploy from GitHub repo`** and select the same **`convoreal`** repository.
 4. Click on this new service block to open its settings and configure:
    - **Service Name**: Rename it to **`queue-worker`** under settings.
    - **Docker File Path**: Under **Settings** ➔ **Build** ➔ scroll to the **Docker** section, and set **Dockerfile Path** to `Dockerfile.worker`. Leave the root directory empty/default `/` (since the Dockerfile is in the main directory).
@@ -74,7 +74,7 @@ The Queue Worker is deployed as a background daemon container (no public web end
 3. Navigate to **WhatsApp → Configuration** (or **Webhooks**).
 4. Click **Edit Webhook Settings**:
    - **Callback URL**: Paste your actual Railway service domain with `/api/whatsapp/webhook` appended (e.g., `https://go-ingress-production-xxxx.up.railway.app/api/whatsapp/webhook`).
-   - **Verify Token**: Enter the exact same value you configured in your Railway environment variables for `WHATSAPP_VERIFY_TOKEN` (e.g., `crm`).
+   - **Verify Token**: Enter the exact same value you configured in your Railway environment variables for `WHATSAPP_VERIFY_TOKEN` (e.g., `a-long-random-string`).
 5. Click **Verify and Save**. Meta will send a GET challenge. The Go service will verify the token (proxying it to Next.js if dynamic DB-verification is needed) and return the challenge instantly.
 6. Under Webhook Fields, ensure you subscribe to `messages` events.
 

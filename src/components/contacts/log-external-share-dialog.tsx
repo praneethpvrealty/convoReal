@@ -257,7 +257,7 @@ export function LogExternalShareDialog({
           <DialogDescription className="text-slate-400 text-xs">
             Record that you shared a property with{' '}
             <span className="text-white font-semibold">{contactName || contactPhone}</span>{' '}
-            outside the CRM (e.g. personal WhatsApp, SMS, in-person).
+            outside the Engine (e.g. personal WhatsApp, SMS, in-person).
           </DialogDescription>
         </DialogHeader>
 

@@ -68,7 +68,7 @@ export async function processReferralSignup(
   }
 
   // "Phone verified" here means the referee has a captured phone
-  // number, the same bar as the rest of this WhatsApp CRM's signup
+  // number, the same bar as the rest of this WhatsApp deal engine's signup
   // flow — there's no separate OTP verification step in this
   // codebase today.
   const { data: refereeProfile } = await supabase

@@ -19,4 +19,4 @@ CREATE INDEX IF NOT EXISTS idx_properties_text_search
   ON properties (account_id, location, sublocality, city);
 
 COMMENT ON COLUMN properties.notes IS
-  'Internal agent notes about the property — visible only in the CRM, never on the public portal. Useful for location landmarks, access instructions, owner details, etc.';
+  'Internal agent notes about the property — visible only in the Engine, never on the public portal. Useful for location landmarks, access instructions, owner details, etc.';

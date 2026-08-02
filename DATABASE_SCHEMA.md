@@ -1,4 +1,4 @@
-# Database Schema: Real Estate waCRM
+# Database Schema: Real Estate ConvoReal
 
 This document provides a comprehensive map of the PostgreSQL schema on Supabase. The application is built on a **multi-tenant architecture** where all operational tables are isolated at the database level by an `account_id` foreign key.
 
@@ -54,7 +54,7 @@ Pending team member invitations.
 ### Group B: Contacts Book
 
 #### 4. `contacts`
-The CRM address book.
+The Engine address book.
 - `id` (UUID, PK).
 - `account_id` (UUID, FK -> `accounts`).
 - `name` (TEXT): Contact full name.
@@ -140,7 +140,7 @@ Real estate inventory catalog.
 - `images` (TEXT[]): Array of asset URLs.
 - `rental_income` (NUMERIC): Monthly rental income yield.
 - `roi` (NUMERIC): Yearly rental yield % (`(rental_income * 12) / price * 100`).
-- `floor_tenancies` (JSONB, migration 130): Floor-wise rent roll for pre-leased commercial buildings — array of `{ floor, area_sqft, tenant_name, monthly_rent (excl. GST), lease_start, lease_end, lock_in_months, maintenance, notes }`. CRM-only, never shown on the public showcase. Validation: `src/lib/inventory/floor-tenancies.ts`.
+- `floor_tenancies` (JSONB, migration 130): Floor-wise rent roll for pre-leased commercial buildings — array of `{ floor, area_sqft, tenant_name, monthly_rent (excl. GST), lease_start, lease_end, lock_in_months, maintenance, notes }`. Engine-only, never shown on the public showcase. Validation: `src/lib/inventory/floor-tenancies.ts`.
 - `listing_source` (TEXT): CHECK constraint `('owner', 'agent')`.
 - `owner_contact_id` (UUID, FK -> `contacts`): Link to property owner's contact card.
 - `status` (TEXT): e.g. `'Available'`, `'Sold'`, `'Rented'`.
@@ -285,7 +285,7 @@ Used by `chatbot-engine.ts` to store half-parsed details from conversations whil
 - `pipeline_stages`: `id`, `pipeline_id`, `name`, `order_index`.
 
 #### 21. `deals`
-CRM sale opportunities.
+Engine sale opportunities.
 - `id`, `account_id`, `contact_id`, `stage_id`, `title`, `amount` (NUMERIC), `brokerage_percent` / `brokerage_amount`, `property_id` (UUID, FK -> `properties`).
 
 #### 22. Journey Mind Map (migrations 131 + 138)

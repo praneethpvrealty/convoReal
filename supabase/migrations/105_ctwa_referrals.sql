@@ -7,7 +7,7 @@
 -- attaches a `referral` object to that FIRST inbound message
 -- (source ad id, headline, click id, creative). The webhook records
 -- it here so the agent can see which ad produced each lead, and — once
--- Phase C exists — join spend to real CRM leads for cost-per-lead.
+-- Phase C exists — join spend to real Engine leads for cost-per-lead.
 --
 -- Service-role only: written by the webhook handler and read by authed
 -- API routes, both via the admin client. RLS on with no policies so

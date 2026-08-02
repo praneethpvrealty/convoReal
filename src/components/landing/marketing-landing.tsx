@@ -22,8 +22,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MARKETING_CONFIG } from '@/config/marketing';
-import { CrmLeadForm } from '@/components/landing/crm-lead-form';
-import { CrmLeadBot } from '@/components/landing/crm-lead-bot';
+import { EngineLeadForm } from '@/components/landing/engine-lead-form';
+import { EngineLeadBot } from '@/components/landing/engine-lead-bot';
 import { BRANDING } from '@/config/branding';
 
 export function MarketingLanding() {
@@ -425,7 +425,7 @@ export function MarketingLanding() {
                   <div className="h-[210px] rounded-xl border border-slate-850 bg-slate-950 p-4 overflow-y-auto leading-relaxed select-none text-[11px]">
                     {demoStep === 'idle' && (
                       <div className="font-mono text-slate-400 space-y-1">
-                        <span className="text-slate-500 font-bold block mb-1.5">{"// Messy chat message forwarded to CRM:"}</span>
+                        <span className="text-slate-500 font-bold block mb-1.5">{"// Messy chat message forwarded to the Engine:"}</span>
                         &ldquo;{MARKETING_CONFIG.demo.mockMessage}&rdquo;
                       </div>
                     )}
@@ -627,7 +627,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                   <div className="h-[210px] rounded-xl border border-slate-850 bg-slate-950 p-4 overflow-y-auto leading-relaxed select-none text-[11px]">
                     {matchStep === 'idle' && (
                       <div className="space-y-2 text-slate-350">
-                        <span className="text-slate-500 font-bold block mb-1.5">{"// Buyer preferences mapped in CRM:"}</span>
+                        <span className="text-slate-500 font-bold block mb-1.5">{"// Buyer preferences mapped in the Engine:"}</span>
                         <div className="flex justify-between border-b border-slate-900 pb-1">
                           <span className="text-slate-500">Client Profile</span>
                           <span className="font-semibold text-slate-200">Vikram Malhotra (Investor)</span>
@@ -941,7 +941,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
               </p>
             </div>
             <div className="max-w-lg mx-auto">
-              {showLeadForm ? <CrmLeadForm /> : <CrmLeadBot variant="inline" />}
+              {showLeadForm ? <EngineLeadForm /> : <EngineLeadBot variant="inline" />}
               <button
                 type="button"
                 onClick={() => setShowLeadForm((v) => !v)}
@@ -1035,7 +1035,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
             <span className="font-bold text-slate-350">ConvoReal</span>
           </div>
           <p className="font-medium">
-            &copy; {new Date().getFullYear()} ConvoReal CRM (waCRM). All rights reserved.
+            &copy; {new Date().getFullYear()} ConvoReal. All rights reserved.
           </p>
           <div className="flex items-center gap-6 font-semibold">
             <a href="/privacy" className="hover:text-slate-300">Privacy Policy</a>
@@ -1045,7 +1045,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
         </div>
       </footer>
 
-      <CrmLeadBot variant="floating" />
+      <EngineLeadBot variant="floating" />
 
     </div>
   );

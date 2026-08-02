@@ -215,7 +215,7 @@ The invite UI gives a one-tap **"Share on WhatsApp"** button (`https://wa.me/?te
 
 > Hey — I'm on the ConvoReal beta and I've got a seat for you.
 >
-> It's a WhatsApp-first CRM built for how we actually work: enquiries land as chats, inventory and matching in one place, no more Excel + 6 portals.
+> It's a WhatsApp-first Engine built for how we actually work: enquiries land as chats, inventory and matching in one place, no more Excel + 6 portals.
 >
 > Only 100 brokerages get in this month. Your link (expires in 14 days):
 > https://convoreal.com/i/XXXX
@@ -309,7 +309,7 @@ Replying `BUG <text>` to the ConvoReal number lands a `bug_reports` row via the 
 
 | Week | Engineering | Program |
 |---|---|---|
-| **0** (pre-launch) | Migration 187 (`beta_invites`, `accounts` columns, `beta_program`), gated `handle_new_user()`, seed route. Verify **all three signup paths** in §4.3 on a Supabase branch before touching prod. | Draft the 17-broker seed list. |
+| **0** (pre-launch) | Migration 188 (`beta_invites`, `accounts` columns, `beta_program`), gated `handle_new_user()`, seed route. Verify **all three signup paths** in §4.3 on a Supabase branch before touching prod. | Draft the 17-broker seed list. |
 | **1** | `/i/[token]`, peek + redeem routes, Settings → Invites hub. | Mint + send 17 seeds. Founder onboards each personally — a 10-minute call per seed is what converts a claimed seat into an active account. |
 | **2** | Bug-report widget, table, `/admin` Bugs tab. | Wave-1 accounts get their 5 seats. Nudge the seeds who haven't invited. |
 | **3** | Triage and fix. GitHub promotion. | Issue reserve seeds against the actual shortfall. |
@@ -347,8 +347,8 @@ The second-to-last row is the one that actually matters. A beta that produces 10
 
 **New**
 ```
-supabase/migrations/187_beta_invites.sql
-supabase/migrations/188_bug_reports.sql
+supabase/migrations/188_beta_invites.sql
+supabase/migrations/189_bug_reports.sql
 src/lib/beta/invites.ts                  # sibling of lib/auth/invitations.ts
 src/app/i/[token]/page.tsx
 src/app/api/beta-invites/route.ts

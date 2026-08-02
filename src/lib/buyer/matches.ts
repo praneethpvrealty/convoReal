@@ -37,7 +37,7 @@ const CURATED_LIMIT = 24;
 const DEAL_MODE_LIMIT = 12;
 
 /** Buyer-facing listing fields. An explicit list, not `*` — deal
- *  remarks, ownership status, documents and CRM internals must not
+ *  remarks, ownership status, documents and Engine internals must not
  *  ride along just because the row was selected. Mirrors the column
  *  discipline of /api/buyer/shortlist. */
 const MATCH_PROPERTY_COLUMNS = [

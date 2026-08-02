@@ -17,7 +17,7 @@ as a genuine photograph of the specific property.**
 
 ## Non-negotiable: honesty (this is the whole design constraint)
 
-A real-estate CRM must not mislead buyers. So:
+A real-estate Engine must not mislead buyers. So:
 
 - The enhanced image is **always tagged `ai_enhanced`** and rendered with a
   small **"AI-enhanced · representative"** badge on the showcase/card, and

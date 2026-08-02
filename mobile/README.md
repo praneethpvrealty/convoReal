@@ -1,6 +1,6 @@
 # ConvoReal Mobile (Android / iOS companion app)
 
-React Native + Expo (SDK 57) companion app for the ConvoReal web CRM, per
+React Native + Expo (SDK 57) companion app for the ConvoReal web Engine, per
 [`docs/mobile-app-implementation-plan.md`](../docs/mobile-app-implementation-plan.md).
 This directory is a self-contained npm project inside the monorepo — see the
 plan's "Repository Strategy" section for why the app lives here and not in a
@@ -136,7 +136,7 @@ SEO listing URLs (`/property/<slug>-<uuid>` → property).
   `ANDROID_APP_CERT_SHA256` / `APPLE_TEAM_ID`. They activate with the
   first EAS build (OS verification needs the real signing cert; Expo Go
   can never claim your domain).
-- **Only CRM-staff paths are claimed** (`/inventory`, `/pipelines`,
+- **Only Engine-staff paths are claimed** (`/inventory`, `/pipelines`,
   `/contacts`, `/calendar`, `/journey`, `/broadcasts`, `/settings`,
   `/dashboard` — the same list in the Android intent filter and the
   AASA route). Public showcase URLs — `/`, `/?property_id=…`,
@@ -176,7 +176,7 @@ the browser.
    `adb shell pm get-app-links com.convoreal.app` should show
    `www.convoreal.com: verified`. Force a re-check with
    `adb shell pm verify-app-links --re-verify com.convoreal.app`, then
-   test with a claimed CRM path:
+   test with a claimed Engine path:
    `adb shell am start -a android.intent.action.VIEW -d "https://www.convoreal.com/inventory"`
    (must open the app) and an unclaimed showcase link:
    `adb shell am start -a android.intent.action.VIEW -d "https://www.convoreal.com/?property_id=<id>"`

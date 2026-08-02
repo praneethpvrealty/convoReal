@@ -18,8 +18,8 @@ opinions become yours.
 ```bash
 # 1. Fork on GitHub: https://github.com/ArnasDon/wacrm → Fork
 # 2. Clone your fork
-git clone https://github.com/<your-username>/wacrm.git
-cd wacrm
+git clone https://github.com/<your-username>/convoreal.git
+cd convoreal
 
 cp .env.local.example .env.local   # fill in Supabase + Meta creds
 npm install
@@ -73,7 +73,7 @@ Not the primary flow, but welcome in specific cases:
 Less likely to land:
 
 - **New features.** The template's scope is intentionally narrow. A
-  "great idea for a CRM" is often a great idea for *your* CRM — i.e.
+  "great idea for an Engine" is often a great idea for *your* Engine — i.e.
   your fork — but would dilute the template for the next forker.
 - **Stack changes** (different ORM, different UI kit, different auth
   provider). These belong in a fork, not upstream.
@@ -95,7 +95,7 @@ closed — open the issue first to align.
 
 ## If you maintain a public fork
 
-- Rebrand. The "CRM Template for WhatsApp" name, favicon, and
+- Rebrand. The "Engine Template for WhatsApp" name, favicon, and
   `wacrm.tech` URL belong to the upstream project; please swap them
   for your own before putting your deployment in front of users.
 - Keep the MIT [`LICENSE`](./LICENSE) file — that's how the template's

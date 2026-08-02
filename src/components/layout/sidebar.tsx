@@ -214,7 +214,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               <MessageSquare className="h-4 w-4" />
             </div>
             <span className="text-[11px] font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
-              CONVOREAL CRM
+              CONVOREAL ENGINE
             </span>
           </Link>
           <button

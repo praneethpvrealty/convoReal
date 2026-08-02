@@ -1,6 +1,6 @@
-# ConvoReal — WhatsApp CRM for Real Estate
+# ConvoReal — WhatsApp Engine for Real Estate
 
-> Self-hostable WhatsApp CRM purpose-built for Indian real estate agents and brokerages. Property inventory, lead management, sales pipeline, broadcast campaigns, automations, and a branded public showcase portal — all integrated with the WhatsApp Business API.
+> Self-hostable WhatsApp Engine purpose-built for Indian real estate agents and brokerages. Property inventory, lead management, sales pipeline, broadcast campaigns, automations, and a branded public showcase portal — all integrated with the WhatsApp Business API.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-violet.svg)](./LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=nextdotjs)](https://nextjs.org)
@@ -11,7 +11,7 @@
 
 ## What you get
 
-**WhatsApp Business API CRM** with a real estate vertical:
+**WhatsApp Business API Engine** with a real estate vertical:
 
 - **Property inventory** — 50+ fields (sale/rent, commercial/residential/land, dimensions, RERA, documents, images). AI-generated descriptions and images. Owner/agent listing source tracking.
 - **Lead ingestion** — WhatsApp inbound, email sync from MagicBricks / Housing.com / 99acres, manual entry. Portal-specific parsing, property matching, automatic tagging.
@@ -151,7 +151,7 @@ Incoming portal emails are parsed by portal-specific extractors that:
 
 ### WhatsApp update sessions
 
-Contacts can update CRM data directly from WhatsApp:
+Contacts can update Engine data directly from WhatsApp:
 - "update property PROP-1018" → guided field-by-field property editing
 - "update contact" → guided field-by-field contact editing
 - Supports "cancel" to abort, "all" for full wizard, field-specific commands

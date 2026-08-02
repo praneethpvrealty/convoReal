@@ -31,7 +31,7 @@ export function buildOwnerDigestTemplatePayload(): TemplatePayload {
     footer_text: 'Reply STOP UPDATES to pause these updates',
     buttons: [
       // A tap opens the 24h window, so the follow-up conversation
-      // continues free-form in the CRM Inbox.
+      // continues free-form in the Engine Inbox.
       { type: 'QUICK_REPLY', text: 'Tell me more' },
       { type: 'QUICK_REPLY', text: 'Pause updates' },
     ],

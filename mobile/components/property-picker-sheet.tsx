@@ -30,7 +30,7 @@ import { getShowcaseUrl } from '@/lib/welcome-message';
  * WhatsApp thread. Search the same inventory the Properties tab does —
  * Available only, with no widening chip: a sold or off-market listing
  * has no business going out to a buyer. Multi-select, then send a
- * numbered "here are your options" message through the CRM number via
+ * numbered "here are your options" message through the Engine number via
  * the parent's send path.
  */
 export function PropertyPickerSheet({

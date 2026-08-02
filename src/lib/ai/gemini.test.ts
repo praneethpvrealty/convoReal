@@ -396,7 +396,7 @@ describe('classifyImageOrText image-only override', () => {
       const body = init?.body ? JSON.parse(init.body as string) : {};
       const sys = body.systemInstruction?.parts?.[0]?.text || '';
       let text = 'none';
-      if (sys.includes('real estate CRM classifier')) text = 'contact';
+      if (sys.includes('real estate lead classifier')) text = 'contact';
       else if (sys.includes('OCR engine')) text = ocrText;
       return {
         ok: true,
@@ -426,7 +426,7 @@ describe('classifyImageOrText schedule class', () => {
       const body = init?.body ? JSON.parse(init.body as string) : {};
       const sys = body.systemInstruction?.parts?.[0]?.text || '';
       let text = 'none';
-      if (sys.includes('real estate CRM classifier')) text = classification;
+      if (sys.includes('real estate lead classifier')) text = classification;
       else if (sys.includes('OCR engine')) text = ocrText;
       return {
         ok: true,

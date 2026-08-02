@@ -15,9 +15,9 @@ interface ExtendedManifest extends MetadataRoute.Manifest {
 
 export default function manifest(): MetadataRoute.Manifest {
   const manifestObj: ExtendedManifest = {
-    name: 'waCRM',
-    short_name: 'waCRM',
-    description: 'WhatsApp CRM for Real Estate',
+    name: 'ConvoReal',
+    short_name: 'ConvoReal',
+    description: 'WhatsApp Deal Engine for Real Estate',
     start_url: '/contacts',
     display: 'standalone',
     background_color: '#020617',

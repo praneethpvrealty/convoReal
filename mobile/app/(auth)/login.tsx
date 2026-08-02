@@ -59,7 +59,7 @@ export default function LoginScreen() {
             </LinearGradient>
             <Text style={[styles.wordmark, { color: colors.primary, fontFamily: f.extrabold }]}>ConvoReal</Text>
             <Text style={[styles.tagline, { color: colors.textMuted }]}>
-              WhatsApp CRM for real estate
+              WhatsApp Engine for real estate
             </Text>
           </View>
 

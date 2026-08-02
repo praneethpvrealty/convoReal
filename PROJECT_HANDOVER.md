@@ -1,4 +1,4 @@
-# Project Handover Document: Real Estate waCRM
+# Project Handover Document: Real Estate ConvoReal
 
 This document serves as a comprehensive project overview and state capture. If you are a new AI agent resuming work, read this document first to understand the project architecture, tech stack, database schema, folder layout, progress, and next steps.
 

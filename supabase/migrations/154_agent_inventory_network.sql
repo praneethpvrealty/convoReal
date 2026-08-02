@@ -2,7 +2,7 @@
 -- 154_agent_inventory_network.sql
 -- Agent inventory network: track who each property is shared with
 -- (buyers vs partner agents), keep cross-account lineage when a
--- shared property is imported into another brokerage's CRM, and
+-- shared property is imported into another brokerage's Engine, and
 -- send the ORIGINAL source agent a periodic WhatsApp digest of how
 -- many direct and indirect buyers their inventory reached. Source
 -- agents without a ConvoReal account get a signup invite with each
