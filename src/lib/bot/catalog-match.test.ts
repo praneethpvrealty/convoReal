@@ -160,6 +160,102 @@ describe('matchProperties', () => {
     expect(matches.map((m) => m.id)).toEqual(['b']);
   });
 
+  it('does not match a category on a generic qualifier alone', () => {
+    // Reported from a live showcase: a visitor asking to rent a
+    // "Residential House" was shown a "Residential PG building" as a
+    // fit, because the two share the word "residential".
+    const pg = property({
+      id: 'pg',
+      type: 'Residential PG building',
+      title: 'High rent yielding PG building on 2400 sqft plot',
+      sublocality: 'Ekath',
+      listing_type: 'Rent',
+      rent_per_month: 620_000,
+    });
+    const house = property({
+      id: 'house',
+      type: 'Independent House',
+      title: 'North facing independent house',
+      sublocality: 'Ekath',
+      listing_type: 'Rent',
+      rent_per_month: 120_000,
+    });
+
+    const { matches } = matchProperties(
+      [pg, house],
+      { intent: 'Renting', category: 'Residential House' },
+      10
+    );
+    // Only the house passes the category filter; the PG survives solely
+    // because the engine relaxes rather than dead-ending.
+    expect(matches[0].id).toBe('house');
+
+    const pgOnly = matchProperties(
+      [pg],
+      { intent: 'Renting', category: 'Residential House' },
+      10
+    );
+    expect(pgOnly.relaxed).toBe(true);
+  });
+
+  it('still matches the catalog chip for its own type', () => {
+    const pg = property({
+      id: 'pg',
+      type: 'Residential PG building',
+      listing_type: 'Rent',
+      rent_per_month: 620_000,
+    });
+    const { matches, relaxed } = matchProperties(
+      [pg],
+      { intent: 'Renting', category: 'Residential PG building' },
+      10
+    );
+    expect(matches.map((m) => m.id)).toEqual(['pg']);
+    expect(relaxed).toBe(false);
+  });
+
+  it('lets an all-generic category match on the qualifier', () => {
+    const shop = property({ id: 'shop', type: 'Commercial', price: 5_000_000 });
+    const villa = property({ id: 'villa', type: 'Villa', price: 5_000_000 });
+    const { matches, relaxed } = matchProperties(
+      [shop, villa],
+      { intent: 'Buying', category: 'Commercial' },
+      10
+    );
+    expect(matches.map((m) => m.id)).toEqual(['shop']);
+    expect(relaxed).toBe(false);
+  });
+
+  it('tolerates a plural the catalog spells singular', () => {
+    const villa = property({ id: 'villa', type: 'Villa', price: 5_000_000 });
+    const flat = property({ id: 'flat', type: 'Flat/Apartment', price: 5_000_000 });
+    const { matches, relaxed } = matchProperties(
+      [villa, flat],
+      { intent: 'Buying', category: 'Villas' },
+      10
+    );
+    expect(matches.map((m) => m.id)).toEqual(['villa']);
+    expect(relaxed).toBe(false);
+  });
+
+  it('does not treat a listing with no type as matching every category', () => {
+    const untyped = property({
+      id: 'untyped',
+      type: '',
+      title: 'Plot on Hosa Road',
+      price: 5_000_000,
+    });
+    const { matches, relaxed } = matchProperties(
+      [untyped],
+      { intent: 'Buying', category: 'Villa' },
+      10
+    );
+    // It can still be shown, but only as a relaxed result — never as a
+    // category fit.
+    expect(relaxed).toBe(true);
+    expect(matches.map((m) => m.id)).toEqual(['untyped']);
+  });
+
   it('reports an empty catalog honestly', () => {
     const { matches, scopeCount } = matchProperties([], { intent: 'Buying' });
     expect(matches).toEqual([]);
