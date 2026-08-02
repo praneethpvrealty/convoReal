@@ -259,7 +259,13 @@ export interface Appointment {
   contact_id?: string | null;
   contact_ids?: string[] | null;
   property_id?: string | null;
+  /** Type-specific notes (migration 128). `agenda` is filled while
+   *  planning and rides along on the pre-event brief; `minutes` and
+   *  `outcome` are logged after the event. Which of the three apply
+   *  depends on event_type — see lib/event-fields. */
   agenda?: string | null;
+  minutes?: string | null;
+  outcome?: string | null;
   contact?: Contact | null;
   property?: { id: string; title: string; location?: string | null } | null;
 }

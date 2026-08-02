@@ -502,6 +502,16 @@ export function PropertyShareSheet({
         onSelect={shareExternalWithContact}
         title="Share on WhatsApp"
         hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline. WhatsApp opens one chat at a time — to reach several people at once, use Send via ConvoReal WhatsApp above."
+        // Tapping leaves the share flow, so it closes the sheet rather
+        // than stacking the composer behind it.
+        nudge={{
+          text: 'Sending to a whole list? A Broadcast reaches everyone in one campaign, with delivery tracking.',
+          onPress: () => {
+            setPicker(null);
+            onClose();
+            router.push('/(app)/broadcast-new');
+          },
+        }}
         skipLabel="Open WhatsApp without a contact"
         onSkip={shareExternalWithoutContact}
       />
