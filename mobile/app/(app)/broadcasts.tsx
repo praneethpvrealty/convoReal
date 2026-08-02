@@ -1,5 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack } from 'expo-router';
+import { Link, Stack, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   FlatList,
@@ -63,6 +64,16 @@ export default function BroadcastsScreen() {
         options={{
           headerShown: true,
           title: 'Broadcasts',
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push('/(app)/broadcast-new')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="New broadcast"
+            >
+              <Ionicons name="add-circle" size={26} color={colors.primary} />
+            </Pressable>
+          ),
         }}
       />
       <FlatList
@@ -75,7 +86,8 @@ export default function BroadcastsScreen() {
         }
         ListHeaderComponent={
           <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-            Campaigns you created. Composing new broadcasts happens on the web app.
+            Campaigns you created. Tap + to send a new one; CSV uploads and
+            custom-field audiences are still web-only.
           </Text>
         }
         ListEmptyComponent={
@@ -83,7 +95,7 @@ export default function BroadcastsScreen() {
             <EmptyState
               icon="megaphone-outline"
               title="No campaigns yet"
-              subtitle="Broadcasts you create on the web will show their live delivery stats here."
+              subtitle="Tap + to send an approved template to a tag or your whole list. Delivery stats land here as it sends."
             />
           )
         }
