@@ -2973,7 +2973,7 @@ export function PropertyForm({
                         <table className="w-full text-xs">
                           <thead>
                             <tr className="border-b border-slate-850 bg-slate-950/30 text-left text-slate-450">
-                              <th className="p-2.5 font-semibold">Floor / Unit</th>
+                              <th className="p-2.5 font-semibold">Floor(s) / Unit(s)</th>
                               <th className="p-2.5 font-semibold">Tenant</th>
                               <th className="p-2.5 font-semibold text-right">Area (Sq.Ft.)</th>
                               <th className="p-2.5 font-semibold text-right">Rent (excl. GST)</th>
@@ -2987,7 +2987,7 @@ export function PropertyForm({
                             {floorTenancies.map((ft, idx) => (
                               <tr key={idx} className="text-slate-200">
                                 <td className="p-2.5 font-bold text-white">
-                                  {ft.floor || `Floor ${idx + 1}`}
+                                  {ft.floor || `Tenancy ${idx + 1}`}
                                   {ft.notes && (
                                     <p className="text-[10px] text-slate-450 font-medium mt-0.5">{ft.notes}</p>
                                   )}
@@ -4247,7 +4247,7 @@ export function PropertyForm({
                       <div>
                         <h4 className="text-sm font-semibold text-white">Floor-wise Tenancy (Rent Roll)</h4>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          For pre-leased buildings — tenant, rent (excluding GST), lease period, lock-in and maintenance per floor. Internal to your CRM; never shown on the showcase.
+                          For pre-leased buildings — one row per lease, not per floor. A tenant taking several floors, or the whole building, is a single row: name every floor it covers in the label. Internal to your CRM; never shown on the showcase.
                         </p>
                       </div>
                       <Button
@@ -4258,7 +4258,7 @@ export function PropertyForm({
                         className="border-slate-700 text-slate-300 hover:bg-slate-800 h-8 shrink-0"
                       >
                         <Plus className="size-3.5 mr-1" />
-                        Add Floor
+                        Add Tenancy
                       </Button>
                     </div>
 
@@ -4266,13 +4266,13 @@ export function PropertyForm({
                       <div key={idx} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3 space-y-3">
                         <div className="flex items-center justify-between">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                            Floor / Unit {idx + 1}
+                            Tenancy {idx + 1}
                           </span>
                           <button
                             type="button"
                             onClick={() => setFloorTenancies((prev) => prev.filter((_, i) => i !== idx))}
                             className="text-slate-500 hover:text-rose-400 transition-colors"
-                            aria-label={`Remove floor ${idx + 1}`}
+                            aria-label={`Remove tenancy ${idx + 1}`}
                           >
                             <Trash2 className="size-3.5" />
                           </button>
@@ -4280,11 +4280,11 @@ export function PropertyForm({
 
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div className="space-y-1">
-                            <Label className="text-slate-400 text-[11px]">Floor / Unit</Label>
+                            <Label className="text-slate-400 text-[11px]">Floor(s) / Unit(s)</Label>
                             <Input
                               value={ft.floor}
                               onChange={(e) => updateFloorTenancy(idx, 'floor', e.target.value)}
-                              placeholder="e.g. 2nd + 3rd Floor"
+                              placeholder="e.g. G+1+2+3+4, or Entire building"
                               className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-8 text-xs"
                             />
                           </div>
@@ -4387,7 +4387,7 @@ export function PropertyForm({
                             <span>
                               Total monthly rent{' '}
                               <span className="text-slate-500 font-medium">
-                                ({floorTenancies.length} floor{floorTenancies.length === 1 ? '' : 's'}, excluding GST)
+                                ({floorTenancies.length} tenanc{floorTenancies.length === 1 ? 'y' : 'ies'}, excluding GST)
                               </span>
                             </span>
                             <span className="text-primary">{formatCurrency(floorRentTotal, currency)}</span>
