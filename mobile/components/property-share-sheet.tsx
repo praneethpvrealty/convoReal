@@ -282,6 +282,60 @@ export function PropertyShareSheet({
     });
   }
 
+  // Fan-out for the CRM channel. Each contact gets their own greeting and
+  // their own 24-hour-window verdict, so sends are reported per person
+  // rather than as one pass/fail — a closed window for one recipient must
+  // not read as a failure for the rest.
+  async function sendViaConvoRealMany(contacts: Contact[]) {
+    if (contacts.length === 0) return;
+    // One recipient keeps the richer single-send path, which lands the
+    // agent in the conversation thread afterwards.
+    if (contacts.length === 1) {
+      await sendViaConvoReal(contacts[0]);
+      return;
+    }
+    setCrmSending(true);
+    haptic.send();
+    const blocked: string[] = [];
+    const failed: string[] = [];
+    let sent = 0;
+    for (const c of contacts) {
+      const outcome = await sendPropertyViaCrm(
+        c,
+        property,
+        addRecipientGreeting(message, c.name)
+      );
+      if (outcome.sent) {
+        sent++;
+      } else if (outcome.templateStatus) {
+        blocked.push(c.name || c.phone);
+      } else {
+        failed.push(c.name || c.phone);
+      }
+    }
+    setCrmSending(false);
+    setPicker(null);
+
+    if (sent === contacts.length) {
+      haptic.success();
+      onClose();
+      return;
+    }
+    haptic.warn();
+    setDialog({
+      title: `Sent to ${sent} of ${contacts.length}`,
+      message: [
+        blocked.length
+          ? `No message in the last 24 hours, so WhatsApp needs an approved template for: ${blocked.join(', ')}.`
+          : null,
+        failed.length ? `Could not send to: ${failed.join(', ')}.` : null,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+      actions: [{ label: 'OK', variant: 'primary', onPress: () => setDialog(null) }],
+    });
+  }
+
   const recipientName = contact ? contact.name || contact.phone : null;
 
   const channels = [
@@ -447,16 +501,18 @@ export function PropertyShareSheet({
         onClose={() => setPicker(null)}
         onSelect={shareExternalWithContact}
         title="Share on WhatsApp"
-        hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline."
+        hint="Pick a contact to open WhatsApp addressed to them and log the share on their timeline. WhatsApp opens one chat at a time — to reach several people at once, use Send via ConvoReal WhatsApp above."
         skipLabel="Open WhatsApp without a contact"
         onSkip={shareExternalWithoutContact}
       />
       <ContactPickerSheet
         visible={picker === 'crm'}
         onClose={() => setPicker(null)}
-        onSelect={sendViaConvoReal}
+        multiSelect
+        confirmLabel="Send"
+        onSelectMany={sendViaConvoRealMany}
         title="Send via ConvoReal WhatsApp"
-        hint="Choose who receives this listing from your business number."
+        hint="Pick everyone who should receive this listing from your business number. Search again to add more — your picks are kept."
         busy={crmSending}
         busyLabel="Sending from ConvoReal…"
       />

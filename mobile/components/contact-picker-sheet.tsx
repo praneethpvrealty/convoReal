@@ -12,15 +12,23 @@ import type { Contact } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 
 /**
- * Pick one CRM contact by name or phone — the same debounced `contacts`
+ * Pick CRM contacts by name or phone — the same debounced `contacts`
  * typeahead the new-appointment screen uses, lifted into a reusable
  * sheet. `onSkip` renders an escape row (e.g. "share without a contact");
  * `busy` swaps the list for a spinner while the caller's action runs.
+ *
+ * With `multiSelect`, rows toggle instead of firing immediately and the
+ * caller gets the whole set from `onSelectMany`. Picks are held by id
+ * rather than read off the visible rows, so searching again to find the
+ * next person does not silently drop the ones already chosen.
  */
 export function ContactPickerSheet({
   visible,
   onClose,
   onSelect,
+  onSelectMany,
+  multiSelect = false,
+  confirmLabel = 'Send',
   title = 'Choose a contact',
   hint,
   skipLabel,
@@ -30,7 +38,11 @@ export function ContactPickerSheet({
 }: {
   visible: boolean;
   onClose: () => void;
-  onSelect: (contact: Contact) => void;
+  onSelect?: (contact: Contact) => void;
+  /** Required when `multiSelect` — receives every picked contact. */
+  onSelectMany?: (contacts: Contact[]) => void;
+  multiSelect?: boolean;
+  confirmLabel?: string;
   title?: string;
   hint?: string;
   skipLabel?: string;
@@ -40,11 +52,24 @@ export function ContactPickerSheet({
 }) {
   const { colors, fonts: f } = useTheme();
   const [search, setSearch] = useState('');
+  const [picked, setPicked] = useState<Contact[]>([]);
   const debounced = useDebounced(search.trim());
 
   useEffect(() => {
-    if (!visible) setSearch('');
+    if (!visible) {
+      setSearch('');
+      setPicked([]);
+    }
   }, [visible]);
+
+  function togglePicked(contact: Contact) {
+    haptic.tap();
+    setPicked((prev) =>
+      prev.some((p) => p.id === contact.id)
+        ? prev.filter((p) => p.id !== contact.id)
+        : [...prev, contact]
+    );
+  }
 
   const { data, isFetching } = useQuery({
     queryKey: ['contact-picker', debounced],
@@ -146,17 +171,35 @@ export function ContactPickerSheet({
                 <ScrollView keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}>
                   <View style={{ gap: spacing.sm }}>
-                    {results.map((c) => (
+                    {results.map((c) => {
+                      const isPicked = picked.some((p) => p.id === c.id);
+                      return (
                       <Pressable
                         key={c.id}
                         onPress={() => {
+                          if (multiSelect) {
+                            togglePicked(c);
+                            return;
+                          }
                           haptic.tap();
-                          onSelect(c);
+                          onSelect?.(c);
                         }}
-                        accessibilityRole="button"
+                        accessibilityRole={multiSelect ? 'checkbox' : 'button'}
+                        accessibilityState={multiSelect ? { checked: isPicked } : undefined}
                         accessibilityLabel={c.name || c.phone}
-                        style={[styles.row, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+                        style={[
+                          styles.row,
+                          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                          isPicked && { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+                        ]}
                       >
+                        {multiSelect ? (
+                          <Ionicons
+                            name={isPicked ? 'checkbox' : 'square-outline'}
+                            size={20}
+                            color={isPicked ? colors.primary : colors.textFaint}
+                          />
+                        ) : null}
                         <Avatar name={c.name || c.phone} size={34} />
                         <View style={{ flex: 1, gap: 2 }}>
                           <View style={styles.nameRow}>
@@ -184,13 +227,53 @@ export function ContactPickerSheet({
                             ))}
                           </View>
                         </View>
-                        <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+                        {multiSelect ? null : (
+                          <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+                        )}
                       </Pressable>
-                    ))}
+                      );
+                    })}
                   </View>
                 </ScrollView>
               )}
             </View>
+
+            {/* Picks live above the search box's results, so the count and
+                the confirm stay visible while searching for the next one. */}
+            {multiSelect ? (
+              <Pressable
+                disabled={picked.length === 0}
+                onPress={() => {
+                  haptic.send();
+                  onSelectMany?.(picked);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: picked.length === 0 }}
+                accessibilityLabel={
+                  picked.length === 0
+                    ? 'Select contacts first'
+                    : `${confirmLabel} to ${picked.length} contacts`
+                }
+                style={[
+                  styles.confirm,
+                  {
+                    backgroundColor: picked.length === 0 ? colors.surfaceSunken : colors.primary,
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    fontSize: 14.5,
+                    fontFamily: f.bold,
+                    color: picked.length === 0 ? colors.textFaint : colors.onPrimary,
+                  }}
+                >
+                  {picked.length === 0
+                    ? 'Select contacts'
+                    : `${confirmLabel} to ${picked.length} contact${picked.length === 1 ? '' : 's'}`}
+                </Text>
+              </Pressable>
+            ) : null}
           </>
         )}
       </View>
@@ -215,6 +298,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     padding: 8,
+  },
+  confirm: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    paddingVertical: 13,
   },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },

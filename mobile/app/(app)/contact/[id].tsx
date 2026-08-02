@@ -28,11 +28,11 @@ import { ApproveCelebration, type ApproveCelebrationState } from '@/components/a
 import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
 import { PulseRing } from '@/components/motion';
-import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
+import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
-import { formatBudgetRange, formatInr } from '@/lib/format';
+import { cleanPhoneInput, formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
@@ -471,6 +471,9 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
   const [name, setName] = useState(contact.name ?? '');
   const [secondName, setSecondName] = useState(contact.second_name ?? '');
   const [nameTag, setNameTag] = useState(contact.name_tag ?? '');
+  const [secondaryPhones, setSecondaryPhones] = useState<string[]>(
+    contact.secondary_phones ?? []
+  );
   const [email, setEmail] = useState(contact.email ?? '');
   const [company, setCompany] = useState(contact.company ?? '');
   const [requirements, setRequirements] = useState(contact.requirements ?? '');
@@ -510,6 +513,22 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
       setError('That email address doesn\u2019t look right \u2014 check it and try again.');
       return;
     }
+    // Blank rows are just an unused "Add another number" tap, so they drop
+    // silently; anything actually typed has to be a usable number, since a
+    // half-entered one would be saved and later messaged.
+    const typedPhones = secondaryPhones.map((p) => p.trim()).filter(Boolean);
+    const normalizedPhones: string[] = [];
+    for (const entry of typedPhones) {
+      const normalized = cleanPhoneInput(entry);
+      if (!normalized) {
+        setError(
+          `"${entry}" doesn\u2019t look like a phone number \u2014 use 10 digits, or include the country code.`
+        );
+        return;
+      }
+      if (normalized === contact.phone || normalizedPhones.includes(normalized)) continue;
+      normalizedPhones.push(normalized);
+    }
     setSaving(true);
     setError(null);
     const { error: updateError } = await supabase
@@ -518,6 +537,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         name: name.trim() || null,
         second_name: secondName.trim() || null,
         name_tag: nameTag.trim() || null,
+        secondary_phones: normalizedPhones,
         email: email.trim() || null,
         company: company.trim() || null,
         requirements: requirements.trim() || null,
@@ -570,6 +590,57 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
           onChangeText={setNameTag}
           placeholder='Short qualifier, e.g. "Bank DSA"'
         />
+        {/* Primary number is set at creation and stays put — these are the
+            extra numbers (a second mobile, a WhatsApp-only number). */}
+        <View style={{ gap: spacing.sm }}>
+          <SectionLabel text="Other numbers" style={{ color: colors.textMuted }} />
+          <Text style={{ fontSize: 11.5, color: colors.textFaint, marginTop: -spacing.xs }}>
+            Primary: {contact.phone}
+          </Text>
+          {secondaryPhones.map((value, idx) => (
+            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <TextField
+                  value={value}
+                  onChangeText={(next) =>
+                    setSecondaryPhones((prev) =>
+                      prev.map((p, i) => (i === idx ? next : p))
+                    )
+                  }
+                  placeholder="+91 98765 43210"
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                />
+              </View>
+              <Pressable
+                hitSlop={10}
+                onPress={() => {
+                  haptic.tap();
+                  setSecondaryPhones((prev) => prev.filter((_, i) => i !== idx));
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove number ${idx + 1}`}
+              >
+                <Ionicons name="close-circle-outline" size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
+          ))}
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              setSecondaryPhones((prev) => [...prev, '']);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Add another number"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+            <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.primary }}>
+              Add another number
+            </Text>
+          </Pressable>
+        </View>
+
         <TextField
           label="Email"
           value={email}
