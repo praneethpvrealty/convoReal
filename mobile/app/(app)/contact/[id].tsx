@@ -30,6 +30,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
+import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { formatBudgetRange, formatInr } from '@/lib/format';
 import { friendlyError } from '@/lib/errors';
@@ -77,8 +78,10 @@ async function fetchContact(id: string): Promise<Contact | null> {
 
 export default function ContactDetailScreen() {
   const { colors, fonts: f } = useTheme();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const [editing, setEditing] = useState(false);
+  // `edit=1` opens straight in the editor — the phone import lands here
+  // so a freshly created contact can be filled in without a second tap.
+  const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
+  const [editing, setEditing] = useState(edit === '1');
 
   const { data: contact, isLoading } = useQuery({
     queryKey: ['contact', id],
@@ -111,7 +114,7 @@ export default function ContactDetailScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          title: contact?.name || contact?.phone || 'Contact',
+          title: (contact ? contactFullName(contact) : '') || contact?.phone || 'Contact',
           headerRight: () =>
             contact ? (
               <Pressable onPress={() => setEditing((e) => !e)} hitSlop={8}>
@@ -466,6 +469,7 @@ async function openConversation(contactId: string) {
 function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => void }) {
   const { colors, dark, fonts: f } = useTheme();
   const [name, setName] = useState(contact.name ?? '');
+  const [secondName, setSecondName] = useState(contact.second_name ?? '');
   const [nameTag, setNameTag] = useState(contact.name_tag ?? '');
   const [email, setEmail] = useState(contact.email ?? '');
   const [company, setCompany] = useState(contact.company ?? '');
@@ -512,6 +516,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
       .from('contacts')
       .update({
         name: name.trim() || null,
+        second_name: secondName.trim() || null,
         name_tag: nameTag.trim() || null,
         email: email.trim() || null,
         company: company.trim() || null,
@@ -552,7 +557,13 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         keyboardDismissMode="on-drag">
         {error ? <Banner kind="error" text={error} /> : null}
 
-        <TextField label="Name" value={name} onChangeText={setName} placeholder="Full name" />
+        <TextField label="Name" value={name} onChangeText={setName} placeholder="First name" />
+        <TextField
+          label="Second Name"
+          value={secondName}
+          onChangeText={setSecondName}
+          placeholder="Surname"
+        />
         <TextField
           label="Name Tag"
           value={nameTag}

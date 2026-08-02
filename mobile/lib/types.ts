@@ -32,6 +32,10 @@ export interface Contact {
   phone: string;
   secondary_phones?: string[];
   name?: string;
+  /** Surname/family name. Paired with `name` it forms the full name the
+   *  server's duplicate check is keyed on, so two "Rahul"s are told apart
+   *  by this rather than being rejected as a duplicate. */
+  second_name?: string | null;
   name_tag?: string | null;
   email?: string;
   company?: string;

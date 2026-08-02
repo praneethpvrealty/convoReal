@@ -851,9 +851,12 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
     setBusy(true);
     let ok = 0;
     let failed = 0;
+    // Only meaningful for a single-contact import, where we hand the user
+    // straight to the editor. A bulk import has no one contact to open.
+    let onlyCreatedId: string | null = null;
     for (const r of picked) {
       try {
-        await apiFetch('/api/contacts', {
+        const created = await apiFetch<{ id: string }>('/api/contacts', {
           method: 'POST',
           body: JSON.stringify({
             phone: cleanPhoneInput(r.phone) ?? r.phone,
@@ -863,6 +866,7 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
           }),
         });
         ok++;
+        onlyCreatedId = created?.id ?? null;
       } catch {
         failed++;
       }
@@ -872,6 +876,16 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
     setSelected(new Set());
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+
+    // A device contact arrives with only a name and number, so a single
+    // import goes straight to the editor to be filled in. Skip the banner
+    // and the delay — the destination screen is the confirmation.
+    if (picked.length === 1 && ok === 1 && onlyCreatedId) {
+      onClose();
+      router.push(`/(app)/contact/${onlyCreatedId}?edit=1`);
+      return;
+    }
+
     setResult(
       `Imported ${ok} contact${ok === 1 ? '' : 's'}${failed ? ` · ${failed} failed (duplicates or limits)` : ''}`
     );
