@@ -22,6 +22,10 @@ import {
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils'
 import { getSandboxSystemConfig } from '@/lib/system-settings'
+import {
+  CUSTOMER_WINDOW_EXPIRED_MESSAGE,
+  isWithinCustomerWindow,
+} from '@/lib/whatsapp/customer-window'
 
 /** Window within which an identical template to the same conversation is
  *  treated as a duplicate and skipped (double-submit / overlapping-trigger
@@ -294,6 +298,32 @@ export async function sendWhatsAppMessageAndPersist(
     } else {
       accessToken = decrypt(config.access_token)
       phoneNumberId = config.phone_number_id
+    }
+
+    // 3b. Meta's 24-hour customer service window. Free-form text is
+    // deliverable only within 24 hours of the contact's last inbound
+    // message; outside it Meta accepts the send, returns a wamid, then
+    // fails it asynchronously with 131047 — the message lands in the
+    // thread as a delivery failure minutes later. Every sender in the
+    // codebase funnels through here, so this is the one place that can
+    // stop it for automations, flows, reminders and notifications alike,
+    // rather than each caller remembering to check. Callers recognise the
+    // message via isReengagementError() and fall back to a template.
+    // Sandbox swaps in its own system template upstream, so it is left
+    // to that path.
+    if (args.kind === 'text' && config.integration_type !== 'sandbox') {
+      const { data: lastInbound } = await db
+        .from('messages')
+        .select('created_at')
+        .eq('conversation_id', resolvedConversationId)
+        .eq('sender_type', 'customer')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!isWithinCustomerWindow(lastInbound?.created_at ?? null)) {
+        throw new Error(CUSTOMER_WINDOW_EXPIRED_MESSAGE)
+      }
     }
 
     // 4. Send Message with Variant Retry loop
