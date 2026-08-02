@@ -124,17 +124,30 @@ lib/
 `app/+native-intent.ts` rewrites incoming links to app screens, covering
 the web's URL shapes: `?property_id=` / `?propertyId=` → property,
 `?contactId=` → contact, `?c=` → conversation, plus `/inventory`,
-`/pipelines`, `/calendar`, `/journey`, `/broadcasts`, `/settings`.
+`/pipelines`, `/calendar`, `/journey`, `/broadcasts`, `/settings` and
+SEO listing URLs (`/property/<slug>-<uuid>` → property).
 
 - **Scheme links work now**: `convoreal://property/<id>` (test in dev:
   `npx uri-scheme open "exp://<lan-ip>:8081/--/property/<id>" --android`).
-- **https links** (`https://convoreal.com/?property_id=…` opening the
-  app) are Android App Links / iOS Universal Links: the intent filters
-  and associated domains are declared in `app.json`, and the web serves
-  `/.well-known/assetlinks.json` + `apple-app-site-association` —
-  env-gated on `ANDROID_APP_CERT_SHA256` / `APPLE_TEAM_ID`. They
-  activate with the first EAS build (OS verification needs the real
-  signing cert; Expo Go can never claim your domain).
+- **https links** are Android App Links / iOS Universal Links: the
+  intent filters and associated domains are declared in `app.json`, and
+  the web serves `/.well-known/assetlinks.json` +
+  `apple-app-site-association` — env-gated on
+  `ANDROID_APP_CERT_SHA256` / `APPLE_TEAM_ID`. They activate with the
+  first EAS build (OS verification needs the real signing cert; Expo Go
+  can never claim your domain).
+- **Only CRM-staff paths are claimed** (`/inventory`, `/pipelines`,
+  `/contacts`, `/calendar`, `/journey`, `/broadcasts`, `/settings`,
+  `/dashboard` — the same list in the Android intent filter and the
+  AASA route). Public showcase URLs — `/`, `/?property_id=…`,
+  `/property/<slug>`, `/projects/*`, `/farmland/*`, `/list` — are
+  deliberately unclaimed: the app shell is auth-gated, so a buyer with
+  the app installed would hit a login screen instead of the listing.
+  OS link matching cannot see query strings, so the split is by path —
+  `/` stays with the browser, and links that must open the app
+  regardless (notifications, in-app shares to staff) use the
+  `convoreal://` scheme. Adding a new app screen that should catch its
+  web URL means adding its path prefix to BOTH lists.
 
 ### Activating Android App Links in production
 
@@ -163,8 +176,11 @@ the browser.
    `adb shell pm get-app-links com.convoreal.app` should show
    `www.convoreal.com: verified`. Force a re-check with
    `adb shell pm verify-app-links --re-verify com.convoreal.app`, then
-   test with
-   `adb shell am start -a android.intent.action.VIEW -d "https://www.convoreal.com/?property_id=<id>"`.
+   test with a claimed CRM path:
+   `adb shell am start -a android.intent.action.VIEW -d "https://www.convoreal.com/inventory"`
+   (must open the app) and an unclaimed showcase link:
+   `adb shell am start -a android.intent.action.VIEW -d "https://www.convoreal.com/?property_id=<id>"`
+   (must open the browser).
 
 ## `npm audit` noise
 
