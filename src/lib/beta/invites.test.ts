@@ -114,6 +114,7 @@ describe("betaInviteShareMessage", () => {
     });
     expect(msg).toContain("free Portfolio");
     expect(msg).toContain("import your buyer list");
+    expect(msg).toContain("turns a broker into a professional consultant");
   });
 
   it("quotes remaining seats when they are known", () => {

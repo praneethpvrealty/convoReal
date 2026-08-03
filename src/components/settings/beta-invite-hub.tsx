@@ -162,7 +162,7 @@ export function BetaInviteHub() {
             </h2>
             <p className="mt-1 max-w-prose text-sm text-slate-400">
               You have <b className="text-white">{remaining}</b> of {quota}{' '}
-              seats left to hand out. Give them to brokers you&apos;d actually
+              seats left to hand out. Give them to consultants you&apos;d actually
               vouch for — that&apos;s the whole point of an invite-only beta.
             </p>
           </div>

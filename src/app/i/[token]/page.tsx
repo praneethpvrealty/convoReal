@@ -213,7 +213,7 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
             </Bullet>
             <Bullet>
               <b className="text-white">Five seats of your own</b> to hand to
-              brokers you rate.
+              consultants you rate.
             </Bullet>
             <Bullet>
               <b className="text-white">A free Portfolio for your owners &amp;
@@ -244,6 +244,12 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
       </section>
 
       <div className="flex flex-col gap-3">
+        <p className="text-center text-sm leading-relaxed text-slate-300">
+          The AI era of real estate is here — this Engine is what turns a
+          broker into a{' '}
+          <b className="text-white">professional consultant</b>. Don&apos;t get
+          left behind.
+        </p>
         <Link href={`/signup?beta=${encodeURIComponent(token)}`}>
           <Button className="h-12 w-full text-base font-semibold">
             Claim seat {String(peek.seat_number).padStart(3, '0')}

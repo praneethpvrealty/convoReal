@@ -100,6 +100,8 @@ export function betaInviteShareMessage(args: {
     "",
     "Your owners and buyers get their own free Portfolio too — they watch interest and matches themselves; every deal still runs through you.",
     "",
+    "This is the AI era of real estate — the Engine is what turns a broker into a professional consultant. Don't get left behind.",
+    "",
     `Claim the seat, import your buyer list, and see what matches by tomorrow. ${scarcity}`,
     args.url,
   ].join("\n");
