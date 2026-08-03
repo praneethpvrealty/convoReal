@@ -1,4 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import {
+  buildPreferenceSourceText,
+  extractContactPreferences,
+  preferenceSourceHash,
+} from "@/lib/ai/preference-extraction";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { normalizePhoneWithCountryCode } from "@/lib/whatsapp/phone-utils";
@@ -339,6 +344,52 @@ export async function POST(request: Request) {
       }
     } catch (inboxErr) {
       console.error("[POST /api/public/requirements] Failed to route to inbox:", inboxErr);
+    }
+
+    // 6. Learn the free text. A visitor who types "2 BHK in Purva
+    // Westend" has named a project, and only AI extraction puts that
+    // in pref_projects where the matching engine reads it — the
+    // dropdown answers above already landed in the explicit columns.
+    // Deferred with after() so the form never waits on a model call,
+    // and skipped entirely when nothing was typed.
+    if (typeof notes === "string" && notes.trim()) {
+      const sourceText = buildPreferenceSourceText(contactFields.requirements, [
+        { note_text: noteText },
+      ]);
+      after(async () => {
+        try {
+          const prefs = await extractContactPreferences(sourceText);
+          const { error: prefErr } = await admin
+            .from("contacts")
+            .update({
+              pref_property_types: prefs.property_types,
+              pref_property_categories: prefs.property_categories,
+              pref_bhk_min: prefs.bhk_min,
+              pref_bhk_max: prefs.bhk_max,
+              pref_budget_min: prefs.budget_min,
+              pref_budget_max: prefs.budget_max,
+              pref_areas: prefs.areas,
+              pref_excluded_areas: prefs.excluded_areas,
+              pref_projects: prefs.projects,
+              pref_suggested_tags: prefs.suggested_tags,
+              pref_min_roi: prefs.min_roi,
+              pref_listing_types: prefs.listing_types,
+              pref_source_hash: preferenceSourceHash(sourceText),
+              pref_extracted_at: new Date().toISOString(),
+            })
+            .eq("id", contactId)
+            .eq("account_id", accountId);
+          if (prefErr) throw prefErr;
+
+          const { generateMatchEventForContact } = await import("@/lib/radar/engine");
+          await generateMatchEventForContact(admin, accountId, contactId);
+        } catch (extractErr) {
+          console.error(
+            "[POST /api/public/requirements] Preference extraction failed:",
+            extractErr
+          );
+        }
+      });
     }
 
     return NextResponse.json({ success: true, contactId });

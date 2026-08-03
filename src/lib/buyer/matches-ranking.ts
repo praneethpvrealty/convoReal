@@ -43,10 +43,17 @@ export const MIN_BUYER_MATCH_SCORE = 60;
 
 export function matchReasons(details: MatchDetails): string[] {
   const reasons: string[] = [];
+  // Leads, and takes the place of the location line: a named-project
+  // hit forces location to 'match' in the engine whether or not the
+  // buyer's stated areas cover the property, so "In your area" would be
+  // a claim nothing actually checked.
+  if (details.project === 'match') reasons.push('Project you asked for');
   if (details.type === 'match') reasons.push('Type you asked for');
   else if (details.type === 'partial') reasons.push('Same category');
-  if (details.location === 'match') reasons.push('In your area');
-  else if (details.location === 'partial') reasons.push('Same city');
+  if (details.project !== 'match') {
+    if (details.location === 'match') reasons.push('In your area');
+    else if (details.location === 'partial') reasons.push('Same city');
+  }
   if (details.budget === 'match') reasons.push('Within budget');
   else if (details.budget === 'partial') reasons.push('Just off budget');
   if (details.bhk === 'match') reasons.push('BHK fits');
