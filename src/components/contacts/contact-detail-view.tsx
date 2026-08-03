@@ -52,6 +52,7 @@ import {
   Clock,
   ArrowUp,
   Waypoints,
+  ArrowRightLeft,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -72,6 +73,7 @@ import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
+import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
@@ -129,6 +131,7 @@ export function ContactDetailView({
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
   const [logShareOpen, setLogShareOpen] = useState(false);
   const [greetingsOpen, setGreetingsOpen] = useState(false);
+  const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -1369,6 +1372,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     >
                       <MessageSquarePlus className="size-3 text-emerald-400 fill-current stroke-slate-950" />
                       Send Welcome
+                    </button>
+                    <button
+                      onClick={() => setMoveToEngineOpen(true)}
+                      className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      title="Invite them to message the Engine number, so their replies land in the inbox"
+                    >
+                      <ArrowRightLeft className="size-3 text-emerald-400" />
+                      Move to Engine
                     </button>
                     <button
                       onClick={() => setScheduleOpen(true)}
@@ -2882,6 +2893,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   fetchNotes();
                   onUpdated();
                 }}
+              />
+            )}
+            {/* Move to Engine WhatsApp Dialog */}
+            {contact && (
+              <MoveToEngineDialog
+                open={moveToEngineOpen}
+                onOpenChange={setMoveToEngineOpen}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
               />
             )}
             {/* Greetings Generator Dialog */}
