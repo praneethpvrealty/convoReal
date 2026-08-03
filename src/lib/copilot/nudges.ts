@@ -131,6 +131,30 @@ const rules: Rule[] = [
       cta: { label: 'Show me how', tourId: 'add-contact' },
     };
   },
+  // 8. Portal email leads not wired up. Only fires once WhatsApp is
+  //    connected — before that, the setup-whatsapp nudge is the ask.
+  async (db, accountId) => {
+    const { count: waCount, error: waError } = await db
+      .from('whatsapp_config')
+      .select('phone_number_id', { count: 'exact', head: true })
+      .eq('account_id', accountId);
+    if (waError) throw waError;
+    if ((waCount ?? 0) === 0) return null;
+    const { count, error } = await db
+      .from('email_sync_configs')
+      .select('*', { count: 'exact', head: true })
+      .eq('account_id', accountId)
+      .eq('is_active', true);
+    if (error) throw error;
+    if ((count ?? 0) > 0) return null;
+    return {
+      id: 'setup-email-leads',
+      priority: 8,
+      message:
+        'Getting leads on 99acres, MagicBricks or Housing? Forward them in and they become WhatsApp contacts automatically.',
+      cta: { label: 'Show me how', tourId: 'email-lead-sync' },
+    };
+  },
 ];
 
 /**

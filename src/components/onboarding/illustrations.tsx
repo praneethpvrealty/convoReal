@@ -10,6 +10,7 @@ import {
   Building2,
   Check,
   CheckCheck,
+  Mail,
   MessageCircle,
   Sparkles,
   User,
@@ -150,6 +151,59 @@ export function LeadFlowIllustration() {
             )}
           </div>
         ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** Portal lead email → forwarded → WhatsApp contact. */
+export function EmailLeadIllustration() {
+  return (
+    <Frame>
+      <div className="flex items-center gap-3">
+        <div className="flex-1 rounded-lg border border-slate-700/60 bg-slate-800/60 p-2.5">
+          <div className="mb-1.5 flex items-center gap-1">
+            <Mail className="size-3 text-amber-400" />
+            <span className="text-[10px] font-semibold text-slate-300">
+              99acres enquiry
+            </span>
+          </div>
+          <p className="text-[10px] leading-relaxed text-slate-400">
+            Ravi K · 98xxxxxx21
+            <br />
+            Budget ₹80L · Kokapet
+          </p>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <Bot className="size-4 text-violet-400" />
+          <svg
+            width="28"
+            height="8"
+            viewBox="0 0 28 8"
+            className="text-slate-600"
+          >
+            <path
+              d="M0 4h24m0 0l-4-3m4 3l-4 3"
+              stroke="currentColor"
+              fill="none"
+            />
+          </svg>
+        </div>
+        <div className="flex-1 rounded-lg border border-emerald-700/40 bg-emerald-950/40 p-2.5">
+          <div className="mb-1.5 flex items-center gap-1">
+            <MessageCircle className="size-3 text-emerald-400" />
+            <span className="text-[10px] font-semibold text-emerald-200">
+              Ravi K
+            </span>
+          </div>
+          <div className="space-y-1">
+            <div className="h-1.5 w-4/5 rounded bg-emerald-800/50" />
+            <div className="h-1.5 w-3/5 rounded bg-emerald-800/50" />
+          </div>
+          <p className="mt-1.5 flex items-center gap-1 text-[9px] text-emerald-400">
+            <Check className="size-2.5" /> Contact + auto-reply sent
+          </p>
+        </div>
       </div>
     </Frame>
   );

@@ -7,10 +7,18 @@ export interface OnboardingStatus {
   hasWhatsApp: boolean;
   hasProperties: boolean;
   hasContacts: boolean;
+  hasEmailLeadSync: boolean;
 }
 
 function dismissedKey(accountId: string) {
   return `onboarding_dismissed_${accountId}`;
+}
+
+// Email lead sync is the one step a consultant may legitimately never
+// complete (not everyone lists on portals), so "skip" is persisted
+// per-account instead of nagging on every visit.
+function emailLeadsSkippedKey(accountId: string) {
+  return `onboarding_email_leads_skipped_${accountId}`;
 }
 
 export function useOnboarding() {
@@ -18,6 +26,7 @@ export function useOnboarding() {
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState(false);
+  const [emailLeadsSkipped, setEmailLeadsSkipped] = useState(false);
 
   const accountId = profile?.account_id as string | undefined;
   // Only the account owner needs to complete setup. Agents, admins, and
@@ -29,6 +38,9 @@ export function useOnboarding() {
     if (!accountId) return;
     const key = dismissedKey(accountId);
     setDismissed(localStorage.getItem(key) === 'true');
+    setEmailLeadsSkipped(
+      localStorage.getItem(emailLeadsSkippedKey(accountId)) === 'true'
+    );
   }, [accountId]);
 
   const refresh = useCallback(async () => {
@@ -55,12 +67,30 @@ export function useOnboarding() {
     setDismissed(true);
   }
 
+  function skipEmailLeads() {
+    if (!accountId) return;
+    localStorage.setItem(emailLeadsSkippedKey(accountId), 'true');
+    setEmailLeadsSkipped(true);
+  }
+
   const allDone = status
-    ? status.hasWhatsApp && status.hasProperties && status.hasContacts
+    ? status.hasWhatsApp &&
+      status.hasProperties &&
+      status.hasContacts &&
+      (status.hasEmailLeadSync || emailLeadsSkipped)
     : false;
 
   // Show only for account owners who haven't dismissed and haven't completed all steps
   const shouldShow = isOwner && !loading && !dismissed && !!status && !allDone;
 
-  return { status, loading, dismissed, shouldShow, allDone, refresh, dismiss };
+  return {
+    status,
+    loading,
+    dismissed,
+    shouldShow,
+    allDone,
+    refresh,
+    dismiss,
+    skipEmailLeads,
+  };
 }
