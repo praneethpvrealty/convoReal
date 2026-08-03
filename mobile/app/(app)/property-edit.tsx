@@ -45,6 +45,7 @@ interface TenancyDraft {
   tenant_name: string;
   area_sqft: string;
   monthly_rent: string;
+  advance: string;
   lease_start: string;
   lease_end: string;
   lock_in_months: string;
@@ -57,6 +58,7 @@ const emptyTenancy: TenancyDraft = {
   tenant_name: '',
   area_sqft: '',
   monthly_rent: '',
+  advance: '',
   lease_start: '',
   lease_end: '',
   lock_in_months: '',
@@ -155,6 +157,7 @@ function EditForm({ property }: { property: Property }) {
       tenant_name: ft.tenant_name ?? '',
       area_sqft: ft.area_sqft != null ? String(ft.area_sqft) : '',
       monthly_rent: ft.monthly_rent != null ? String(ft.monthly_rent) : '',
+      advance: ft.advance != null ? String(ft.advance) : '',
       lease_start: ft.lease_start ?? '',
       lease_end: ft.lease_end ?? '',
       lock_in_months: ft.lock_in_months != null ? String(ft.lock_in_months) : '',
@@ -191,6 +194,7 @@ function EditForm({ property }: { property: Property }) {
   }
 
   const tenancyTotal = tenancies.reduce((sum, t) => sum + (num(t.monthly_rent) ?? 0), 0);
+  const advanceTotal = tenancies.reduce((sum, t) => sum + (num(t.advance) ?? 0), 0);
 
   async function save() {
     if (!title.trim()) {
@@ -244,6 +248,7 @@ function EditForm({ property }: { property: Property }) {
         tenant_name: t.tenant_name.trim() || null,
         area_sqft: num(t.area_sqft),
         monthly_rent: num(t.monthly_rent),
+        advance: num(t.advance),
         lease_start: t.lease_start || null,
         lease_end: t.lease_end || null,
         lock_in_months: num(t.lock_in_months),
@@ -509,6 +514,18 @@ function EditForm({ property }: { property: Property }) {
                   </View>
                 </View>
                 <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <TextField
+                      label="Advance / Deposit (₹)"
+                      value={t.advance}
+                      onChangeText={(v) => updateTenancy(i, 'advance', v)}
+                      keyboardType="numeric"
+                      placeholder="8100000"
+                    />
+                    <PriceHint value={t.advance} />
+                  </View>
+                </View>
+                <View style={styles.row}>
                   <TenancyDateField
                     label="Lease start"
                     value={t.lease_start}
@@ -561,14 +578,29 @@ function EditForm({ property }: { property: Property }) {
                 Add floor
               </Text>
             </Pressable>
-            {tenancyTotal > 0 ? (
-              <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
-                Total monthly rent:{' '}
-                <Text style={{ color: colors.primary }}>{formatInr(tenancyTotal)}</Text>{' '}
-                <Text style={{ fontFamily: f.medium, color: colors.textMuted }}>
-                  (excluding GST)
-                </Text>
-              </Text>
+            {tenancyTotal > 0 || advanceTotal > 0 ? (
+              <View style={{ gap: 4 }}>
+                {tenancyTotal > 0 ? (
+                  <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+                    Total monthly rent:{' '}
+                    <Text style={{ color: colors.primary }}>{formatInr(tenancyTotal)}</Text>{' '}
+                    <Text style={{ fontFamily: f.medium, color: colors.textMuted }}>
+                      (excluding GST)
+                    </Text>
+                  </Text>
+                ) : null}
+                {advanceTotal > 0 ? (
+                  <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.text }}>
+                    Total advance:{' '}
+                    <Text style={{ color: colors.primary }}>{formatInr(advanceTotal)}</Text>{' '}
+                    {tenancyTotal > 0 ? (
+                      <Text style={{ fontFamily: f.medium, color: colors.textMuted }}>
+                        ({(advanceTotal / tenancyTotal).toFixed(1)}× rent)
+                      </Text>
+                    ) : null}
+                  </Text>
+                ) : null}
+              </View>
             ) : null}
           </>
         ) : null}
