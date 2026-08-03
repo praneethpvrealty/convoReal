@@ -131,7 +131,7 @@ function SignupPageInner() {
               ConvoReal is invite-only
             </CardTitle>
             <CardDescription className="text-slate-400">
-              We&apos;re opening to 100 brokerages this month, each invited by
+              We&apos;re opening to 100 property consultants this month, each invited by
               someone already using it. Leave your number and we&apos;ll come
               to you when a seat frees up.
             </CardDescription>

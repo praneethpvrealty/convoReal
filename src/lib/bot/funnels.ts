@@ -123,7 +123,7 @@ export type EngineFunnelContext = 'website' | 'showcase';
 const ENGINE_OPENERS: Record<EngineFunnelContext, string> = {
   website: 'Happy to help. So I point you at the right thing — what do you do?',
   showcase:
-    'Good to know! This portal runs on ConvoReal, the WhatsApp deal engine for brokerages — I can get you the same thing for your own listings. What do you do?',
+    'Good to know! This portal runs on ConvoReal, the WhatsApp deal engine for property consultants — I can get you the same thing for your own listings. What do you do?',
 };
 
 const ENGINE_FUNNEL: Funnel = {

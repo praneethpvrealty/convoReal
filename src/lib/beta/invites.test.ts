@@ -134,6 +134,6 @@ describe("betaInviteShareMessage", () => {
       expiryDays: 14,
     });
     expect(msg).not.toContain("Only 0");
-    expect(msg).toContain("Only 100 brokerages get in this month");
+    expect(msg).toContain("Only 100 property consultants get in this month");
   });
 });

@@ -85,13 +85,13 @@ export function betaInviteShareMessage(args: {
   // always the last line so WhatsApp's link preview sits at the
   // bottom, next to the tap.
   const opener = args.inviterName
-    ? `${args.inviterName} here — I've got a ConvoReal beta seat for you. They're letting in 100 brokerages this month, invite-only.`
-    : "I've got a ConvoReal beta seat for you — they're letting in 100 brokerages this month, invite-only.";
+    ? `${args.inviterName} here — I've got a ConvoReal beta seat for you. They're letting in 100 property consultants this month, invite-only.`
+    : "I've got a ConvoReal beta seat for you — they're letting in 100 property consultants this month, invite-only.";
 
   const scarcity =
     typeof args.seatsRemaining === "number" && args.seatsRemaining > 0
       ? `Only ${args.seatsRemaining} of 100 seats left — your link dies in ${args.expiryDays} days:`
-      : `Only 100 brokerages get in this month — your link dies in ${args.expiryDays} days:`;
+      : `Only 100 property consultants get in this month — your link dies in ${args.expiryDays} days:`;
 
   return [
     opener,

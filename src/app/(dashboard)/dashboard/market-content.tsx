@@ -124,9 +124,9 @@ export default function MarketContent() {
           </h3>
           <p className="max-w-lg text-sm text-slate-400">
             Market insights are built from anonymized listing and buyer-demand
-            data shared by participating brokerages. No names, phone numbers or
+            data shared by participating consultants. No names, phone numbers or
             property identities are ever included, and a locality only appears
-            once at least five different brokerages contribute to it. Sharing
+            once at least five different consultants contribute to it. Sharing
             works both ways — enable it to contribute your anonymized aggregates
             and unlock the market view.
           </p>
@@ -159,8 +159,8 @@ export default function MarketContent() {
           <h3 className="text-lg font-bold text-white">No market data yet</h3>
           <p className="max-w-lg text-sm text-slate-400">
             Market cells are computed nightly and only published once at least
-            five different brokerages share data for the same locality and
-            month. Check back after more brokerages in your area enable sharing.
+            five different consultants share data for the same locality and
+            month. Check back after more consultants in your area enable sharing.
           </p>
           {data.isOwner && (
             <button
@@ -219,7 +219,7 @@ export default function MarketContent() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-400">
-          Anonymized market benchmarks from participating brokerages.
+          Anonymized market benchmarks from participating consultants.
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <select

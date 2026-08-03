@@ -87,7 +87,7 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
   demo: {
     title: "See the AI Parser in Action",
     subtitle: "Simulate how a messy text message forwarded from WhatsApp is automatically organized and mapped into a structured client lead card.",
-    mockMessage: "Hi PV Realty team, I got your contact from JP Nagar brochure. My name is Sridhar Rao. Looking for a 3 BHK duplex flat or villa plot near JP Nagar 7th Phase. Budget is strictly within 2.2 Crores. I also want at least a 4% ROI if I go for a commercial building. Email is sridhar.rao@outlook.com, phone 9845012345. Let me know if you have direct owner listings.",
+    mockMessage: "Hi Aryavarta Ventures team, I got your contact from JP Nagar brochure. My name is Sridhar Rao. Looking for a 3 BHK duplex flat or villa plot near JP Nagar 7th Phase. Budget is strictly within 2.2 Crores. I also want at least a 4% ROI if I go for a commercial building. Email is sridhar.rao@outlook.com, phone 9845012345. Let me know if you have direct owner listings.",
     parsedCard: {
       name: "Sridhar Rao",
       contact: "9845012345 · sridhar.rao@outlook.com",

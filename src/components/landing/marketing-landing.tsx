@@ -752,7 +752,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                         <span className="text-slate-500 font-bold block mb-1.5">{"// Configure custom portal mapping:"}</span>
                         <div className="flex justify-between items-center border-b border-slate-900 pb-1.5">
                           <span className="text-slate-500">Showcase Brand</span>
-                          <span className="font-semibold text-slate-200">{isRealEstate ? 'PV Realty' : 'Boutique Watch'}</span>
+                          <span className="font-semibold text-slate-200">{isRealEstate ? 'Aryavarta Ventures' : 'Boutique Watch'}</span>
                         </div>
                         <div className="flex justify-between items-center border-b border-slate-900 pb-1.5">
                           <span className="text-slate-500">Live URL</span>
@@ -779,7 +779,7 @@ Upgrade your timepiece with Italian craftsmanship. Made from genuine calfskin le
                         <div className="bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-800 flex justify-between items-center">
                           <div className="flex items-center gap-1.5">
                             <div className="size-3.5 rounded bg-indigo-600 flex items-center justify-center text-white text-[8px] font-extrabold">C</div>
-                            <span className="text-white font-extrabold text-[8px]">{isRealEstate ? 'PV Realty' : 'Boutique Watch'} Portal</span>
+                            <span className="text-white font-extrabold text-[8px]">{isRealEstate ? 'Aryavarta Ventures' : 'Boutique Watch'} Portal</span>
                           </div>
                           <span className="text-[7px] text-slate-400 font-mono">listings.yourdomain.com</span>
                         </div>

@@ -159,7 +159,7 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
             </span>
           </div>
           <p className="mt-3 text-sm text-slate-400">
-            ConvoReal opens to {peek.account_cap} brokerages this month. This
+            ConvoReal opens to {peek.account_cap} property consultants this month. This
             is one of them.
           </p>
 
@@ -312,7 +312,7 @@ const DEAD_END_COPY: Record<
     tag: 'Wave one closed',
     title: 'All the seats are taken.',
     body: () =>
-      "Wave one is full and we're not stretching it — this is as many brokerages as we can support properly this month. Wave two opens when this one settles. Leave your number and you'll be near the front of it.",
+      "Wave one is full and we're not stretching it — this is as many consultants as we can support properly this month. Wave two opens when this one settles. Leave your number and you'll be near the front of it.",
   },
 };
 
