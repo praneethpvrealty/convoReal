@@ -154,7 +154,11 @@ export async function resolveOwnerPropertyIds(ctx: DenContext): Promise<string[]
   const { data, error } = await db
     .from("properties")
     .select("id")
-    .in("owner_contact_id", ctx.links.map((l) => l.contactId));
+    .in("owner_contact_id", ctx.links.map((l) => l.contactId))
+    // owner_contact_id holds the REFERRING AGENT for agent-referred
+    // listings (migration 191) — those are the Engine's to manage,
+    // never the Portfolio's.
+    .neq("listing_source", "agent");
   if (error) {
     console.error("[resolveOwnerPropertyIds] query error:", error);
     return [];

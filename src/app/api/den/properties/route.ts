@@ -27,6 +27,7 @@ export const GET = withDenAuth(async (ctx) => {
     .from("properties")
     .select(DEN_PROPERTY_SELECT)
     .in("owner_contact_id", ctx.links.map((l) => l.contactId))
+    .neq("listing_source", "agent")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[den/properties GET] query error:", error);

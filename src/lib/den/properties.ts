@@ -121,6 +121,7 @@ export async function loadOwnedProperty(
     .select(DEN_PROPERTY_SELECT)
     .eq("id", propertyId)
     .in("owner_contact_id", contactIds)
+    .neq("listing_source", "agent")
     .maybeSingle();
   if (error) {
     console.error("[loadOwnedProperty] fetch error:", error);
