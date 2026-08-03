@@ -158,7 +158,7 @@ export async function PATCH(
       );
     }
 
-    const { shareLink } = await approveRequestAndSendReveal(
+    const { shareLink, revealDelivered } = await approveRequestAndSendReveal(
       admin,
       locRequest,
       ctx.userId
@@ -172,6 +172,7 @@ export async function PATCH(
     return NextResponse.json({
       data: maskAttributed(updated),
       share_link: shareLink,
+      reveal_sent: revealDelivered,
     });
   } catch (err) {
     return toErrorResponse(err);

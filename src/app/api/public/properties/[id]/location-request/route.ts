@@ -261,9 +261,13 @@ export async function POST(
               `📞 *Phone*: ${normalizedPhone}\n\n` +
               `_Open the property in the Engine dashboard to Approve or Reject this request._`;
 
+            // Not 'customer': a synthetic customer row would fool the
+            // dispatcher's 24-hour-window check into free-form sends
+            // that Meta then fails asynchronously with 131047 — the
+            // request came from the web, not from a WhatsApp message.
             await admin.from('messages').insert({
               conversation_id: conversationId,
-              sender_type: 'customer',
+              sender_type: 'bot',
               content_type: 'text',
               content_text: inboxText,
               message_id: `location-request-${locRequest.id}`,

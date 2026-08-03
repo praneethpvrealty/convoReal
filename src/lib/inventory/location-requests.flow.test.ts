@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // End-to-end drive of the consent state machine with the WhatsApp
 // transport captured and an in-memory stand-in for the four tables the
@@ -13,19 +13,28 @@ interface SentMessage {
   toPhone?: string | null;
   kind: string;
   text?: string | null;
+  templateName?: string | null;
+  messageParams?: {
+    body?: string[];
+    buttonParams?: Record<number, string>;
+  } | null;
   interactiveBody?: string | null;
   interactiveButtons?: Array<{ id: string; title: string }> | null;
 }
 
 const sent: SentMessage[] = [];
 
+async function defaultDispatcherImpl(args: SentMessage) {
+  sent.push(args);
+  return { success: true, messageId: `m-${sent.length}` };
+}
+
 vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
-  sendWhatsAppMessageAndPersist: vi.fn(async (args: SentMessage) => {
-    sent.push(args);
-    return { success: true, messageId: `m-${sent.length}` };
-  }),
+  sendWhatsAppMessageAndPersist: vi.fn(defaultDispatcherImpl),
 }));
 
+import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from '@/lib/whatsapp/customer-window';
 import {
   requestConsentFromContact,
   handleLocationConsentReply,
@@ -419,5 +428,94 @@ describe('multi-hop consent flow, end to end', () => {
     expect(redirect?.text).toContain(
       'speak with the person who shared you the property details'
     );
+  });
+});
+
+describe('reveal delivery outside the 24-hour window', () => {
+  // Seekers request from the public showcase, so their window is
+  // usually closed: the dispatcher rejects free-form text to the
+  // seeker's phone exactly like the real pre-flight guard.
+  const windowClosedImpl = async (args: SentMessage) => {
+    if (args.kind === 'text' && args.toPhone === '+919876543210') {
+      sent.push(args);
+      return { success: false, error: CUSTOMER_WINDOW_EXPIRED_MESSAGE };
+    }
+    return defaultDispatcherImpl(args);
+  };
+
+  beforeEach(() => {
+    vi.mocked(sendWhatsAppMessageAndPersist).mockImplementation(
+      windowClosedImpl as typeof sendWhatsAppMessageAndPersist
+    );
+  });
+  afterEach(() => {
+    vi.mocked(sendWhatsAppMessageAndPersist).mockImplementation(
+      defaultDispatcherImpl as typeof sendWhatsAppMessageAndPersist
+    );
+  });
+
+  function seedApprovedRevealTemplate(tables: Record<string, Row[]>) {
+    tables.message_templates = [
+      {
+        id: 'tpl-reveal',
+        account_id: ACCOUNT,
+        name: 'location_reveal',
+        status: 'APPROVED',
+        language: 'en_US',
+        body_text:
+          'Hi {{1}}, your request for the exact location of {{2}} has been approved by the listing team. Tap the button below to view the address, map pin and full photos. The link stays valid for 48 hours.',
+        buttons: [
+          {
+            type: 'URL',
+            text: 'View location',
+            url: 'https://app.convoreal.com/reveal/{{1}}',
+          },
+        ],
+        last_submitted_at: new Date().toISOString(),
+      },
+    ];
+  }
+
+  it('falls back to the approved location_reveal template with the token button', async () => {
+    const tables = freshTables();
+    seedApprovedRevealTemplate(tables);
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables);
+
+    const { shareLink, revealDelivered } = await approveRequestAndSendReveal(
+      admin,
+      request,
+      OWNER_USER
+    );
+
+    expect(revealDelivered).toBe(true);
+    const row = tables.property_location_requests[0];
+    expect(row.status).toBe('approved');
+    expect(row.share_sent_at).toBeTruthy();
+    expect(shareLink).toContain(`/reveal/${row.share_token}`);
+
+    const tpl = sent.find((m) => m.kind === 'template');
+    expect(tpl?.templateName).toBe('location_reveal');
+    expect(tpl?.toPhone).toBe('+919876543210');
+    expect(tpl?.messageParams?.body?.[0]).toBe('Rahul');
+    expect(tpl?.messageParams?.buttonParams?.[0]).toBe(row.share_token);
+  });
+
+  it('never claims the reveal was sent when no approved template exists', async () => {
+    const tables = freshTables();
+    const admin = fakeAdmin(tables);
+    const request = seedRequest(tables);
+
+    const { revealDelivered } = await approveRequestAndSendReveal(
+      admin,
+      request,
+      OWNER_USER
+    );
+
+    expect(revealDelivered).toBe(false);
+    const row = tables.property_location_requests[0];
+    expect(row.status).toBe('approved');
+    expect(row.share_sent_at).toBeUndefined();
+    expect(sent.some((m) => m.kind === 'template')).toBe(false);
   });
 });

@@ -48,6 +48,7 @@ import {
 } from '@/components/onboarding/illustrations';
 import { createClient } from '@/lib/supabase/client';
 import { buildPropertyAlertTemplatePayload } from '@/lib/whatsapp/property-alert-template';
+import { buildLocationRevealTemplatePayload } from '@/lib/whatsapp/location-reveal-template';
 import {
   buildOwnerDigestTemplatePayload,
   buildOwnerDigestConsentTemplatePayload,
@@ -250,6 +251,7 @@ function StarterTemplates() {
       buildPropertyAlertTemplatePayload(window.location.origin),
       buildOwnerDigestConsentTemplatePayload(),
       buildOwnerDigestTemplatePayload(),
+      buildLocationRevealTemplatePayload(window.location.origin),
     ];
     let payloads: TemplatePayload[] = builtins;
     try {
