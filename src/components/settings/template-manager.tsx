@@ -536,7 +536,7 @@ export function TemplateManager() {
     form.header_format !== 'none' && form.header_format !== 'text';
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="mt-4 space-y-4" data-tour="template-manager">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-white">

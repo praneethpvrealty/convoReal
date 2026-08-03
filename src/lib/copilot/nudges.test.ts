@@ -26,6 +26,7 @@ function makeDb(counts: {
   properties?: number;
   contacts?: number;
   email_sync_configs?: number;
+  showcase_settings?: number;
 }): SupabaseClient {
   return {
     from(table: string) {
@@ -51,6 +52,7 @@ const populated = {
   properties: 5,
   contacts: 10,
   email_sync_configs: 1,
+  showcase_settings: 1,
 };
 
 function expiringItem(hoursFromNow: number) {
@@ -129,6 +131,23 @@ describe('evaluateNudges', () => {
     );
     const nudge = after.find((n) => n.id === 'setup-email-leads');
     expect(nudge?.cta?.tourId).toBe('email-lead-sync');
+  });
+
+  it('showcase-brand nudge waits for properties, then fires until branded', async () => {
+    const before = await evaluateNudges(
+      makeDb({ ...populated, properties: 0, showcase_settings: 0 }),
+      'acc-1',
+    );
+    expect(
+      before.find((n) => n.id === 'setup-showcase-brand'),
+    ).toBeUndefined();
+
+    const after = await evaluateNudges(
+      makeDb({ ...populated, showcase_settings: 0 }),
+      'acc-1',
+    );
+    const nudge = after.find((n) => n.id === 'setup-showcase-brand');
+    expect(nudge?.cta?.href).toBe('/settings?tab=showcase');
   });
 
   it('one failing rule never blanks the rest', async () => {

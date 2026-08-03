@@ -15,6 +15,7 @@
 // ============================================================
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   MessageCircle,
   Building2,
@@ -26,14 +27,16 @@ import {
   Loader2,
   Sparkles,
   RefreshCw,
+  FileSpreadsheet,
+  FileCheck2,
   Forward,
   Bot,
   Compass,
   Copy,
   KeyRound,
   Mail,
-  Share2,
-  UserPlus,
+  Ticket,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StepMedia } from '@/components/onboarding/step-media';
@@ -41,8 +44,16 @@ import {
   ChatIllustration,
   EmailLeadIllustration,
   PropertyParseIllustration,
-  LeadFlowIllustration,
+  ImportBuyersIllustration,
 } from '@/components/onboarding/illustrations';
+import { createClient } from '@/lib/supabase/client';
+import { buildPropertyAlertTemplatePayload } from '@/lib/whatsapp/property-alert-template';
+import {
+  buildOwnerDigestTemplatePayload,
+  buildOwnerDigestConsentTemplatePayload,
+} from '@/lib/whatsapp/owner-digest-template';
+import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import type { MessageTemplate } from '@/types';
 import type { OnboardingStatus } from '@/hooks/useOnboarding';
 
 interface Props {
@@ -114,8 +125,8 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
           },
           {
             icon: <Users className="size-4 text-violet-400" />,
-            label: '3 · Watch leads arrive',
-            sub: 'Every enquiry becomes a contact by itself. You just reply.',
+            label: '3 · Bring in your buyers',
+            sub: 'Import your list once — matching starts immediately. New enquiries add themselves.',
           },
         ]}
       />
@@ -167,8 +178,11 @@ function StepWhatsApp({
       </StepMedia>
 
       {done ? (
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-950/40 p-3 text-sm text-emerald-300">
-          <Check className="size-4" /> WhatsApp is connected
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-950/40 p-3 text-sm text-emerald-300">
+            <Check className="size-4" /> WhatsApp is connected
+          </div>
+          <StarterTemplates />
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -213,6 +227,143 @@ function StepWhatsApp({
       >
         {done ? 'Continue' : "I'll do this later"}
       </Button>
+    </div>
+  );
+}
+
+// Starter templates — shown once WhatsApp is connected. Every account
+// comes pre-loaded with DRAFT templates (the reminder set seeded on
+// account creation, plus anything shared from the platform side);
+// this submits those drafts and whichever built-ins are missing, so
+// Meta's approval latency runs during setup instead of surfacing as
+// a broadcast failure later.
+
+function StarterTemplates() {
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ ok: number; total: number } | null>(
+    null
+  );
+
+  async function submitAll() {
+    setSubmitting(true);
+    const builtins = [
+      buildPropertyAlertTemplatePayload(window.location.origin),
+      buildOwnerDigestConsentTemplatePayload(),
+      buildOwnerDigestTemplatePayload(),
+    ];
+    let payloads: TemplatePayload[] = builtins;
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('message_templates')
+        .select(
+          'name, category, language, header_type, header_content, header_media_url, header_handle, body_text, footer_text, buttons, sample_values, status'
+        );
+      if (data) {
+        const rows = data as Partial<MessageTemplate>[];
+        const names = new Set(rows.map((t) => t.name));
+        const drafts = rows.filter((t) => (t.status || 'DRAFT') === 'DRAFT');
+        payloads = [
+          ...drafts.map(
+            (t): TemplatePayload => ({
+              name: t.name!,
+              category: t.category!,
+              language: t.language || 'en_US',
+              header_type: t.header_type,
+              header_content: t.header_content,
+              header_media_url: t.header_media_url,
+              header_handle: t.header_handle,
+              body_text: t.body_text!,
+              footer_text: t.footer_text,
+              buttons: t.buttons,
+              sample_values: t.sample_values,
+            })
+          ),
+          ...builtins.filter((b) => !names.has(b.name)),
+        ];
+      }
+    } catch {
+      // Draft lookup failed — the built-in set still goes out.
+    }
+    let ok = 0;
+    for (const payload of payloads) {
+      try {
+        const res = await fetch('/api/whatsapp/templates/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) ok++;
+      } catch {
+        // Counted as not submitted; the summary below reports it.
+      }
+    }
+    setResult({ ok, total: payloads.length });
+    setSubmitting(false);
+    if (ok === payloads.length) {
+      toast.success(
+        'Templates sent to Meta for approval — usually ready within a day.'
+      );
+    } else {
+      toast.error(
+        `${ok} of ${payloads.length} templates submitted. Retry the rest from Settings → WhatsApp → Templates.`
+      );
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-700/60">
+          <FileCheck2 className="size-4 text-amber-400" />
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-medium text-white">
+            While you&apos;re here — approve your ready-made templates
+          </p>
+          <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
+            Your account came pre-loaded with message templates — appointment
+            and site-visit reminders, a property alert, and owner updates. Meta
+            must approve them before they can be sent, and approval can take a
+            day. Submit them now: once approved, reminders go out automatically
+            and broadcasts can use them.
+          </p>
+          {result === null ? (
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={submitting}
+                onClick={submitAll}
+                className="gap-1.5 border-slate-700 text-slate-200 hover:bg-slate-700"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" /> Submitting…
+                  </>
+                ) : (
+                  <>Submit them for approval</>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  window.open('/settings?tab=whatsapp&sub=templates', '_blank')
+                }
+                className="gap-1 text-slate-400 hover:text-slate-200"
+              >
+                See them first
+              </Button>
+            </div>
+          ) : (
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400">
+              <Check className="size-3.5" /> {result.ok} of {result.total}{' '}
+              submitted — track them in Settings → WhatsApp → Templates
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -309,9 +460,9 @@ function StepProperty({
   );
 }
 
-// ── Step 3: Get first lead ────────────────────────────────────────────────────
+// ── Step 3: Bring in your buyers ──────────────────────────────────────────────
 
-function StepContact({
+function StepBuyers({
   onDone,
   onRefresh,
 }: {
@@ -334,47 +485,65 @@ function StepContact({
           <Users className="h-8 w-8 text-violet-400" />
         </div>
         <h2 className="mb-2 text-xl font-bold text-white">
-          Get your first lead
+          Bring in your buyers
         </h2>
         <p className="text-sm leading-relaxed text-slate-400">
-          You never type a lead into ConvoReal — they arrive by themselves the
-          moment someone messages your WhatsApp or opens your property link.
+          The matching engine works from your buyer list. Import the buyers you
+          already have — from your phone or an Excel sheet — and ConvoReal
+          starts matching them against your inventory right away.
         </p>
       </div>
 
-      <StepMedia slug="engine-first-lead" title="How leads arrive">
-        <LeadFlowIllustration />
+      <StepMedia slug="engine-import-buyers" title="Import your buyer list">
+        <ImportBuyersIllustration />
       </StepMedia>
 
       <HowItWorks
         items={[
           {
-            icon: <Share2 className="size-4 text-amber-400" />,
-            label: 'Share your property link',
-            sub: 'Every property has a public page — post it in your groups and status. Interest flows back here.',
+            icon: <FileSpreadsheet className="size-4 text-emerald-400" />,
+            label: 'Export your contacts',
+            sub: 'From your phone (Contacts → Export) or the Excel sheet you already keep — any CSV works',
           },
           {
-            icon: <MessageCircle className="size-4 text-emerald-400" />,
-            label: 'Buyer messages your WhatsApp',
-            sub: 'The contact and conversation are created automatically in your Inbox',
+            icon: <Upload className="size-4 text-blue-400" />,
+            label: 'Import them in one go',
+            sub: 'Contacts → Import maps your columns for you and skips duplicates',
           },
           {
-            icon: <UserPlus className="size-4 text-blue-400" />,
-            label: 'Or add someone you already know',
-            sub: 'Contacts → Add Contact for a buyer you spoke to before ConvoReal',
+            icon: <Sparkles className="text-primary size-4" />,
+            label: 'Matches appear on Radar',
+            sub: 'Every buyer is matched against your inventory automatically — see who fits what today',
           },
         ]}
       />
 
+      <p className="text-center text-xs text-slate-500">
+        No list yet? No problem — anyone who messages your WhatsApp or opens
+        your property links becomes a contact by themselves.
+      </p>
+
       <div className="flex flex-col gap-2">
-        <Button onClick={checkNow} disabled={checking} className="w-full gap-2">
+        <Button
+          className="w-full gap-2"
+          onClick={() => window.open('/contacts?import=1', '_blank')}
+        >
+          <Upload className="h-4 w-4" /> Open contact import
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={checkNow}
+          disabled={checking}
+          className="w-full gap-2 text-slate-400 hover:text-slate-200"
+        >
           {checking ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" /> Checking…
             </>
           ) : (
             <>
-              <RefreshCw className="h-4 w-4" /> I&apos;ve got a lead — check now
+              <RefreshCw className="h-4 w-4" /> I&apos;ve imported them — check
+              now
             </>
           )}
         </Button>
@@ -517,6 +686,30 @@ function AllDone({ onClose }: { onClose: () => void }) {
           through any screen.
         </p>
       </div>
+      <div className="border-primary/30 bg-primary/5 w-full rounded-xl border p-4 text-left">
+        <div className="flex items-start gap-3">
+          <div className="bg-primary/15 flex size-8 shrink-0 items-center justify-center rounded-lg">
+            <Ticket className="text-primary size-4" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white">
+              Know a consultant who&apos;d want in?
+            </p>
+            <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
+              Your account holds beta seats of its own. Hand one to a consultant
+              you rate — the beta grows on referrals, not ads.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => window.open('/settings?tab=invites', '_blank')}
+              className="mt-2.5 gap-1.5 border-slate-700 text-slate-200 hover:bg-slate-700"
+            >
+              <Ticket className="size-3.5" /> Share a seat
+            </Button>
+          </div>
+        </div>
+      </div>
       <Button onClick={onClose} className="w-full gap-2">
         Go to Dashboard <ArrowRight className="h-4 w-4" />
       </Button>
@@ -611,7 +804,7 @@ export function OnboardingWizard({
   const steps: StepDef[] = [
     { id: 'whatsapp', label: 'Connect WhatsApp', done: localDone.whatsapp },
     { id: 'property', label: 'Add property', done: localDone.properties },
-    { id: 'contact', label: 'Get a lead', done: localDone.contacts },
+    { id: 'contact', label: 'Add buyers', done: localDone.contacts },
     { id: 'email-leads', label: 'Portal leads', done: localDone.emailLeads },
   ];
 
@@ -692,7 +885,7 @@ export function OnboardingWizard({
             onRefresh={onRefresh}
           />
         ) : screen === 3 ? (
-          <StepContact
+          <StepBuyers
             onDone={() => advanceStep('contacts')}
             onRefresh={onRefresh}
           />
