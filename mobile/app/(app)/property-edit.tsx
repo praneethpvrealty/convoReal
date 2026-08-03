@@ -36,6 +36,9 @@ import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Property } from '@/lib/types';
+// The row shape the server sanitizes into. Type-only, so nothing from
+// the web lib reaches the bundle.
+import type { FloorTenancy } from '@shared/lib/inventory/floor-tenancies';
 
 const STATUSES = ['Available', 'Under Contract', 'Sold', 'Off Market', 'Archived'] as const;
 
@@ -243,7 +246,11 @@ function EditForm({ property }: { property: Property }) {
     // Server-side sanitizeFloorTenancies() drops empty rows and
     // re-validates every value.
     if (isCommercial) {
-      body.floor_tenancies = tenancies.map((t) => ({
+      // Typed as the shared FloorTenancy so a column added on the web
+      // cannot be quietly dropped here: its keys are required, so an
+      // omission fails the build instead of PUTting the field back as
+      // null over whatever the web had stored.
+      const rentRoll: FloorTenancy[] = tenancies.map((t) => ({
         floor: t.floor.trim(),
         tenant_name: t.tenant_name.trim() || null,
         area_sqft: num(t.area_sqft),
@@ -255,6 +262,7 @@ function EditForm({ property }: { property: Property }) {
         maintenance: t.maintenance.trim() || null,
         notes: t.notes.trim() || null,
       }));
+      body.floor_tenancies = rentRoll;
     }
     try {
       await apiFetch(`/api/properties/${property.id}`, {
