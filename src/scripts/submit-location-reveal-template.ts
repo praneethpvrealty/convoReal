@@ -9,10 +9,17 @@
  *   npx tsx src/scripts/submit-location-reveal-template.ts               # all connected accounts
  *   npx tsx src/scripts/submit-location-reveal-template.ts --dry-run    # preview
  *   npx tsx src/scripts/submit-location-reveal-template.ts --account=<uuid>
+ *   npx tsx src/scripts/submit-location-reveal-template.ts --origin=https://www.convoreal.com
  *
  * Requires in .env.local:
  *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- *   ENCRYPTION_KEY, NEXT_PUBLIC_SITE_URL
+ *   ENCRYPTION_KEY, NEXT_PUBLIC_SITE_URL (or --origin)
+ *
+ * The origin must be https and must be the public domain that serves
+ * /reveal/[token] — it is baked into the template's URL button on
+ * Meta's side, so a localhost origin would ship a broken button.
+ * --origin overrides NEXT_PUBLIC_SITE_URL for dev machines whose env
+ * points at localhost.
  *
  * Idempotent — an account whose latest location_reveal row is already
  * APPROVED or PENDING is left alone; DRAFT/REJECTED rows are
@@ -24,22 +31,15 @@ import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-import { decrypt } from '../lib/whatsapp/encryption';
-import { submitMessageTemplate } from '../lib/whatsapp/meta-api';
-import { validateTemplatePayload } from '../lib/whatsapp/template-validators';
-import { buildMetaTemplatePayload } from '../lib/whatsapp/template-components';
-import { normalizeStatus } from '../lib/whatsapp/template-status-normalize';
-import {
-  LOCATION_REVEAL_TEMPLATE_NAME,
-  buildLocationRevealTemplatePayload,
-} from '../lib/whatsapp/location-reveal-template';
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const origin = process.env.NEXT_PUBLIC_SITE_URL;
 const dryRun = process.argv.includes('--dry-run');
 const accountArg = process.argv.find((a) => a.startsWith('--account='));
 const onlyAccountId = accountArg ? accountArg.split('=')[1] : null;
+const originArg = process.argv.find((a) => a.startsWith('--origin='));
+const origin = originArg
+  ? originArg.split('=')[1]
+  : process.env.NEXT_PUBLIC_SITE_URL;
 
 if (!supabaseUrl || !serviceRoleKey) {
   console.error('Missing SUPABASE environment variables.');
@@ -47,7 +47,13 @@ if (!supabaseUrl || !serviceRoleKey) {
 }
 if (!origin) {
   console.error(
-    'Missing NEXT_PUBLIC_SITE_URL — the reveal URL button needs it.'
+    'Missing origin — set NEXT_PUBLIC_SITE_URL or pass --origin=https://...'
+  );
+  process.exit(1);
+}
+if (!origin.startsWith('https://')) {
+  console.error(
+    `Origin ${origin} is not https. The template's URL button is created on Meta's side and must point at the public /reveal domain — pass --origin=https://<your-production-domain>.`
   );
   process.exit(1);
 }
@@ -62,6 +68,21 @@ const supabase = createClient(supabaseUrl, serviceRoleKey);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
+  // Dynamic imports, after dotenv: static imports are hoisted above
+  // dotenv.config(), and encryption.ts captures ENCRYPTION_KEY into a
+  // module-level const at evaluation time — importing it statically
+  // bakes in undefined and decrypt() throws on Buffer.from(undefined).
+  const { decrypt } = await import('../lib/whatsapp/encryption');
+  const { submitMessageTemplate } = await import('../lib/whatsapp/meta-api');
+  const { validateTemplatePayload } =
+    await import('../lib/whatsapp/template-validators');
+  const { buildMetaTemplatePayload } =
+    await import('../lib/whatsapp/template-components');
+  const { normalizeStatus } =
+    await import('../lib/whatsapp/template-status-normalize');
+  const { LOCATION_REVEAL_TEMPLATE_NAME, buildLocationRevealTemplatePayload } =
+    await import('../lib/whatsapp/location-reveal-template');
+
   const payload = buildLocationRevealTemplatePayload(origin!);
   validateTemplatePayload(payload);
   const metaPayload = buildMetaTemplatePayload(payload);
