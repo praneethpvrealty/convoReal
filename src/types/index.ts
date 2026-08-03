@@ -141,11 +141,11 @@ export interface Contact {
    *  proximity matching falls back to the static locality table otherwise. */
   areas_of_interest_geo?: AreaOfInterestGeo[] | null;
   /** Agent-entered named projects/societies the contact wants
-   *  (migration 192). Explicit twin of the AI-extracted pref_projects;
+   *  (migration 193). Explicit twin of the AI-extracted pref_projects;
    *  src/lib/matching.ts matches the union of both. */
   projects_of_interest?: string[];
   /** When true, only listings in projects_of_interest/pref_projects can
-   *  match this contact (migration 192) — everything else is excluded
+   *  match this contact (migration 193) — everything else is excluded
    *  regardless of type, area or budget fit. */
   strict_project_match?: boolean;
   property_interests?: string[];
