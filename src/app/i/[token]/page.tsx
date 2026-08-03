@@ -215,6 +215,11 @@ function SeatPass({ peek, token }: { peek: PeekOk; token: string }) {
               <b className="text-white">Five seats of your own</b> to hand to
               brokers you rate.
             </Bullet>
+            <Bullet>
+              <b className="text-white">A free Portfolio for your owners &amp;
+              buyers</b> — they track interest and matches themselves; every
+              deal still runs through you.
+            </Bullet>
           </ul>
         </div>
         <div>

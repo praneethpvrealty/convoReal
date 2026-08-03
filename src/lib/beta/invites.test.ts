@@ -79,30 +79,41 @@ describe("betaInviteUrl", () => {
 describe("betaInviteShareMessage", () => {
   const url = "https://convoreal.com/i/abc";
 
-  it("leads with the link and signs off with the inviter", () => {
+  it("opens with the inviter's name and ends with the link", () => {
     const msg = betaInviteShareMessage({
       url,
       inviterName: "Praneeth",
       seatsRemaining: null,
       expiryDays: 14,
     });
-    expect(msg).toContain(url);
-    expect(msg).toContain("expires in 14 days");
-    expect(msg.trimEnd().endsWith("— Praneeth")).toBe(true);
+    // Name first (a real broker text starts with who's talking), URL
+    // last (WhatsApp's link preview renders at the bottom, next to
+    // the tap).
+    expect(msg.startsWith("Praneeth here — ")).toBe(true);
+    expect(msg.trimEnd().split("\n").pop()).toBe(url);
+    expect(msg).toContain("dies in 14 days");
   });
 
-  it("omits the sign-off rather than printing a dangling dash", () => {
+  it("reads naturally with no inviter name", () => {
     const msg = betaInviteShareMessage({
       url,
       inviterName: null,
       seatsRemaining: null,
       expiryDays: 14,
     });
-    // The body has its own em-dash ("Hey — I'm on..."), so assert on
-    // the sign-off line specifically: the last line must be the URL.
-    const lines = msg.trimEnd().split("\n");
-    expect(lines[lines.length - 1]).toBe(url);
-    expect(msg).not.toMatch(/^— /m);
+    expect(msg.startsWith("I've got a ConvoReal beta seat")).toBe(true);
+    expect(msg.trimEnd().split("\n").pop()).toBe(url);
+  });
+
+  it("carries the Portfolio hook and the week-one action", () => {
+    const msg = betaInviteShareMessage({
+      url,
+      inviterName: "Praneeth",
+      seatsRemaining: null,
+      expiryDays: 14,
+    });
+    expect(msg).toContain("free Portfolio");
+    expect(msg).toContain("import your buyer list");
   });
 
   it("quotes remaining seats when they are known", () => {

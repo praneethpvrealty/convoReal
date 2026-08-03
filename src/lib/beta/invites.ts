@@ -78,22 +78,31 @@ export function betaInviteShareMessage(args: {
   seatsRemaining?: number | null;
   expiryDays: number;
 }): string {
-  const lines = [
-    "Hey — I'm on the ConvoReal beta and I've got a seat for you.",
-    "",
-    "It's a WhatsApp-first deal engine built for how we actually work: enquiries land as chats, inventory and matching in one place, no more Excel + 6 portals.",
-    "",
+  // Action-promise angle: one concrete promise ("see what matches by
+  // tomorrow") and the exact first step, because the beta lives or
+  // dies on activation, not signups. The inviter's name opens the
+  // message — that's how a real broker text starts — and the URL is
+  // always the last line so WhatsApp's link preview sits at the
+  // bottom, next to the tap.
+  const opener = args.inviterName
+    ? `${args.inviterName} here — I've got a ConvoReal beta seat for you. They're letting in 100 brokerages this month, invite-only.`
+    : "I've got a ConvoReal beta seat for you — they're letting in 100 brokerages this month, invite-only.";
+
+  const scarcity =
     typeof args.seatsRemaining === "number" && args.seatsRemaining > 0
-      ? `Only ${args.seatsRemaining} of 100 seats left this month. Your link (expires in ${args.expiryDays} days):`
-      : `Only 100 brokerages get in this month. Your link (expires in ${args.expiryDays} days):`,
+      ? `Only ${args.seatsRemaining} of 100 seats left — your link dies in ${args.expiryDays} days:`
+      : `Only 100 brokerages get in this month — your link dies in ${args.expiryDays} days:`;
+
+  return [
+    opener,
+    "",
+    "It runs my whole business on WhatsApp: every enquiry becomes a contact by itself, inventory matches itself to my buyers, and owners get updates without me typing a word.",
+    "",
+    "Your owners and buyers get their own free Portfolio too — they watch interest and matches themselves; every deal still runs through you.",
+    "",
+    `Claim the seat, import your buyer list, and see what matches by tomorrow. ${scarcity}`,
     args.url,
-  ];
-
-  if (args.inviterName) {
-    lines.push("", `— ${args.inviterName}`);
-  }
-
-  return lines.join("\n");
+  ].join("\n");
 }
 
 /** Human label for a seat card. */
