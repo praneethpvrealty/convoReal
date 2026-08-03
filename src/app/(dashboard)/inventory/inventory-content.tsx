@@ -8,7 +8,8 @@ import { useCan } from '@/hooks/use-can';
 import { useAuth } from '@/hooks/use-auth';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
-import type { Property, ShowcaseSettings } from '@/types';
+import type { Contact, Property, ShowcaseSettings } from '@/types';
+import { getMatchingContacts } from '@/lib/matching';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -59,6 +60,8 @@ import { InfoHint } from '@/components/ui/info-hint';
 // Counts across ALL properties, independent of the current page/filters
 // so the summary cards always show accurate totals.
 const EMPTY_BADGES: Record<string, string[]> = {};
+
+const EMPTY_COUNTS: Record<string, number> = {};
 
 const EMPTY_STATS = {
   total: 0,
@@ -505,6 +508,36 @@ export default function InventoryPage() {
     enabled: Boolean(accountId) && visiblePropertyIds.length > 0,
   });
   const portalBadges = portalBadgesQuery.data ?? EMPTY_BADGES;
+
+  // Buyer contacts for the per-card match counts, fetched once per visit
+  // with only the columns src/lib/matching.ts reads — far lighter than
+  // the form's full `select('*')` it repeats on every dialog open.
+  const matchContactsQuery = useQuery({
+    queryKey: ['inventory', 'match-contacts', accountId],
+    queryFn: async () => {
+      const supabaseClient = createClient();
+      const { data, error } = await supabaseClient
+        .from('contacts')
+        .select(
+          'id, classification, requirements, min_budget, max_budget, no_budget, min_roi, property_interests, areas_of_interest, areas_of_interest_geo, projects_of_interest, strict_project_match, strict_area_match, pref_property_types, pref_property_categories, pref_bhk_min, pref_bhk_max, pref_budget_min, pref_budget_max, pref_areas, pref_excluded_areas, pref_projects, pref_min_roi, pref_listing_types, pref_extracted_at, contact_notes(note_text)'
+        )
+        .eq('classification', 'Buyer');
+      if (error) throw error;
+      return (data ?? []) as unknown as Contact[];
+    },
+    enabled: Boolean(accountId),
+    staleTime: 60_000,
+  });
+
+  const matchCounts = useMemo(() => {
+    const buyers = matchContactsQuery.data;
+    if (!buyers || buyers.length === 0 || properties.length === 0) return EMPTY_COUNTS;
+    const counts: Record<string, number> = {};
+    for (const property of properties) {
+      counts[property.id] = getMatchingContacts(property, buyers).length;
+    }
+    return counts;
+  }, [matchContactsQuery.data, properties]);
 
   // Toggle the Contacts-page interest-filter star. The server enforces
   // the cap too; this pre-check just gives a friendlier local error.
@@ -1041,6 +1074,7 @@ export default function InventoryPage() {
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
         onShare={handleShareClick}
         onMatches={(property) => handleViewClick(property, 'matches')}
+        matchCounts={matchContactsQuery.data ? matchCounts : undefined}
         onEmailShare={handleEmailShareClick}
         onApprove={handleApprove}
         onReject={handleReject}

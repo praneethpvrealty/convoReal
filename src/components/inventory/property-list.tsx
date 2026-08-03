@@ -69,6 +69,8 @@ interface PropertyListProps {
   onPromote?: (property: Property) => void;
   onShare?: (property: Property) => void;
   onMatches?: (property: Property) => void;
+  /** propertyId → number of matching buyer contacts, shown on the Matches button. */
+  matchCounts?: Record<string, number>;
   onEmailShare?: (property: Property) => void;
   onPortals?: (property: Property) => void;
   /** propertyId → portal short codes ("99" | "MB" | "H") currently live. */
@@ -92,6 +94,7 @@ export function PropertyList({
   onPromote,
   onShare,
   onMatches,
+  matchCounts,
   onEmailShare,
   onPortals,
   portalBadges,
@@ -823,6 +826,17 @@ export function PropertyList({
                       >
                         <>
                           <Users className="size-3.5 mr-1.5 text-emerald-400" /> Matches
+                          {matchCounts?.[property.id] !== undefined && (
+                            <span
+                              className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                matchCounts[property.id] > 0
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                                  : 'bg-slate-800 text-slate-500 border border-slate-700'
+                              }`}
+                            >
+                              {matchCounts[property.id]}
+                            </span>
+                          )}
                         </>
                       </TooltipTrigger>
                       <TooltipContent side="top">Matching contacts for this property</TooltipContent>
