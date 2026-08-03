@@ -26,6 +26,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
 import { AreasOfInterestInput } from '@/components/areas-of-interest-input';
 import { ConvoRealLoader } from '@/components/loader';
+import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
@@ -194,6 +195,7 @@ export default function ContactDetailScreen() {
 function ContactCard({ contact }: { contact: Contact }) {
   const { colors, dark, fonts: f } = useTheme();
   const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
+  const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const name = contact.name || contact.phone;
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
@@ -243,6 +245,11 @@ function ContactCard({ contact }: { contact: Contact }) {
           onPress={() => openWelcomeWhatsApp(contact)}
         />
         <ActionButton icon="chatbubbles" label="Inbox" onPress={() => openConversation(contact.id)} />
+        <ActionButton
+          icon="swap-horizontal"
+          label="To Engine"
+          onPress={() => setMoveToEngineOpen(true)}
+        />
         {contact.classification === 'Agent' ? (
           <ActionButton
             icon="map-outline"
@@ -318,6 +325,11 @@ function ContactCard({ contact }: { contact: Contact }) {
       </Text>
     </ScrollView>
     <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
+    <MoveToEngineSheet
+      visible={moveToEngineOpen}
+      onClose={() => setMoveToEngineOpen(false)}
+      contact={contact}
+    />
     </KeyboardAvoidingView>
   );
 }
