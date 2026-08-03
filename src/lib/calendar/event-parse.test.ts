@@ -337,7 +337,7 @@ describe('counterparty capture', () => {
   });
 
   it('resolves the counterparty independently of the person being met', () => {
-    // Kusuma the lawyer is not a CRM contact; Sharan is. Before this, the
+    // Kusuma the lawyer is not an Engine contact; Sharan is. Before this, the
     // event linked nobody and so reminded nobody.
     const contacts = [
       { id: 'sharan-id', name: 'Sharan' },

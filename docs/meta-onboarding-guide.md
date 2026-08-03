@@ -32,7 +32,7 @@ Before starting, the user must have a Meta Business Portfolio.
 
 ## Phase 2 — Create a Meta Developer App
 
-This app acts as the API bridge between the CRM database and Meta's servers.
+This app acts as the API bridge between the Engine database and Meta's servers.
 
 1. Go to the [Meta for Developers Portal](https://developers.facebook.com/apps).
 2. Click **Create App** (top right).
@@ -40,7 +40,7 @@ This app acts as the API bridge between the CRM database and Meta's servers.
    > [!TIP]
    > Selecting the WhatsApp use case pre-configures the app, saving manual configuration steps.
 4. Select your **Meta Business Portfolio** in the dropdown to link ownership.
-5. Give the app a name (e.g. `[My Business] CRM`) and click **Create App**.
+5. Give the app a name (e.g. `[My Business] Engine`) and click **Create App**.
 
 ---
 
@@ -59,19 +59,19 @@ This app acts as the API bridge between the CRM database and Meta's servers.
 
 ## Phase 4 — Generate a Permanent Access Token (System User)
 
-By default, developer console tokens expire in 24 hours. Production CRMs require a permanent **System User Token**.
+By default, developer console tokens expire in 24 hours. Production deployments require a permanent **System User Token**.
 
 1. Go to [Meta Business Settings](https://business.facebook.com/settings).
 2. Go to **Users** → **System Users** (left sidebar).
 3. Click **Add** to create a new system user. Select **Admin System User** as the role.
 4. **Assign Assets:**
    - Click on the new System User and click **Assign Assets**.
-   - **Apps:** Select your CRM app and toggle **Full Control** (Manage App) to **On**.
+   - **Apps:** Select your Engine app and toggle **Full Control** (Manage App) to **On**.
    - **WhatsApp Accounts:** Select your account and toggle **Full Control** (Manage WhatsApp Account) to **On**.
    - Click **Save Changes**.
 5. **Generate Token:**
    - Click **Generate New Token**.
-   - Select your CRM App from the dropdown.
+   - Select your Engine App from the dropdown.
    - Select **Never** for token expiration.
    - Check the following scopes:
      - `whatsapp_business_messaging` ✅
@@ -120,7 +120,7 @@ To go live for public clients, your Meta App must be approved for `catalog_manag
 ### Step 2: Complete App Settings
 1. Go to **App settings** → **Basic** in the sidebar.
 2. Enter the following mandatory information:
-   - **App Domains:** Your CRM domain (e.g., `convoreal.com`).
+   - **App Domains:** Your Engine domain (e.g., `convoreal.com`).
    - **Privacy Policy URL:** Link to your privacy policy.
    - **Terms of Service URL:** Link to your terms of service.
    - **User Data Deletion:** Choose "Data deletion instructions URL" and link to your privacy policy page (`#data-deletion`).
@@ -132,11 +132,11 @@ To go live for public clients, your Meta App must be approved for `catalog_manag
 1. Go to **Review** → **App Review** in the sidebar.
 2. Click **Next** on the draft submission page.
 3. Click **Reviewer instructions** to expand it:
-   - **App URL:** Input your CRM URL.
+   - **App URL:** Input your Engine URL.
    - **Testing steps:** Copy-paste step-by-step instructions showing where to log in and how to trigger the sync.
-   - **Test Credentials:** Provide a test user email and password created in your CRM for the reviewer to log in.
+   - **Test Credentials:** Provide a test user email and password created in your Engine for the reviewer to log in.
    - **Screen Recording Video:** Record a short walkthrough video (under 2 mins, under 100MB) demonstrating:
-     1. Logging in to the CRM.
+     1. Logging in to the Engine.
      2. Opening the inventory page and selecting a listing.
      3. Clicking **Sync to Catalog** and seeing it successfully upload.
      4. Opening the WhatsApp Share Dialog and showing the WhatsApp Product Card integration.

@@ -8,6 +8,7 @@ import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
 import { TopupModalProvider } from "@/components/layout/topup-modal-context";
 import { CreditTopup } from "@/components/settings/CreditTopup";
+import { BugReportSheet } from '@/components/support/bug-report-sheet';
 import { CopilotProvider } from "@/components/copilot/copilot-context";
 import { CopilotWidget } from "@/components/copilot/copilot-widget";
 import { TourOverlay } from "@/components/copilot/tour-overlay";
@@ -118,6 +119,10 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Beta bug channel. Hidden on an archived workspace, where every
+          other control is disabled too. */}
+      {!isAccountArchived && <BugReportSheet />}
 
       {/* Archived Account Overlay — rendered above everything when the
           super-admin has archived this workspace. All content is blurred

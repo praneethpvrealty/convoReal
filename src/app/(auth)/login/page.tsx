@@ -506,7 +506,7 @@ function LoginPageInner() {
             className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 transition-colors hover:bg-amber-500/10"
           >
             <span className="text-xs font-bold text-amber-400">
-              Own a property? List &amp; manage it yourself in the Owners Den
+              Own a property? List &amp; manage it in your Portfolio
             </span>
             <span className="shrink-0 text-xs font-black text-amber-400">→</span>
           </Link>

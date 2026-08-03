@@ -512,7 +512,7 @@ export default function TodayPage() {
             value={insights?.newContacts ?? 0}
             loading={insightsLoading}
             icon={<UserPlus className="size-3.5 text-emerald-400" />}
-            hint="Contacts added to your CRM in this period — from inbound chats, imports, or manual entry."
+            hint="Contacts added to your Engine in this period — from inbound chats, imports, or manual entry."
           />
           <InsightTile
             label="Msgs received"

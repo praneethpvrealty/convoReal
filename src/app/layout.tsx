@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     default: "ConvoReal",
     template: "%s — ConvoReal",
   },
-  description: "Self-hostable CRM template for WhatsApp.",
+  description: "Self-hostable WhatsApp deal engine for real estate.",
   robots: {
     index: false,
     follow: false,

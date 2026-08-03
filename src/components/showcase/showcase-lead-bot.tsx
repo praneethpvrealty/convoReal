@@ -5,7 +5,7 @@ import { MessageCircle, UserPlus } from 'lucide-react';
 import { LeadBot } from '@/components/chat/lead-bot';
 import { useLeadFunnel, type LeadFunnelApi } from '@/hooks/use-lead-funnel';
 import {
-  FUNNEL_CRM,
+  FUNNEL_ENGINE,
   FUNNEL_END,
   FUNNEL_MATCH,
   answerList,
@@ -13,7 +13,7 @@ import {
   type FunnelAnswers,
 } from '@/lib/bot/funnel';
 import {
-  crmFunnel,
+  engineFunnel,
   RENT_INTENT,
   SHOWCASE_AFTER_MATCH,
   SHOWCASE_FUNNEL,
@@ -42,7 +42,7 @@ interface ShowcaseLeadBotProps {
   onAccountClick?: () => void;
 }
 
-const SHOWCASE_CRM_FUNNEL = crmFunnel('showcase');
+const SHOWCASE_ENGINE_FUNNEL = engineFunnel('showcase');
 
 interface AskResponse {
   answer?: string | null;
@@ -82,7 +82,7 @@ export function ShowcaseLeadBot({
   // Which funnel finished, so the closing state offers the right next
   // step: a buyer gets their free account, a professional gets the
   // ConvoReal handoff. Never the other way round.
-  const [completed, setCompleted] = useState<'buyer' | 'crm' | null>(null);
+  const [completed, setCompleted] = useState<'buyer' | 'engine' | null>(null);
   const budgetRef = useRef<BudgetRange>({ min: null, max: null });
 
   const chipsFor = useCallback(
@@ -248,9 +248,9 @@ export function ShowcaseLeadBot({
     [accountId, referrerContactId]
   );
 
-  const submitCrmProspect = useCallback(
+  const submitEngineProspect = useCallback(
     async (answers: FunnelAnswers) => {
-      const res = await fetch('/api/public/crm-lead', {
+      const res = await fetch('/api/public/engine-lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -264,12 +264,12 @@ export function ShowcaseLeadBot({
           source_account_id: accountId,
         }),
       });
-      if (!res.ok) throw new Error('crm lead submission failed');
+      if (!res.ok) throw new Error('engine lead submission failed');
     },
     [accountId, sessionKey]
   );
 
-  const funnelRef = useRef<'showcase' | 'crm'>('showcase');
+  const funnelRef = useRef<'showcase' | 'engine'>('showcase');
 
   const handleSentinel = useCallback(
     (
@@ -277,9 +277,9 @@ export function ShowcaseLeadBot({
       answers: FunnelAnswers,
       api: LeadFunnelApi
     ): string | null => {
-      if (sentinel === FUNNEL_CRM) {
-        funnelRef.current = 'crm';
-        api.switchFunnel(SHOWCASE_CRM_FUNNEL);
+      if (sentinel === FUNNEL_ENGINE) {
+        funnelRef.current = 'engine';
+        api.switchFunnel(SHOWCASE_ENGINE_FUNNEL);
         return null;
       }
 
@@ -290,22 +290,22 @@ export function ShowcaseLeadBot({
       }
 
       if (sentinel === FUNNEL_END) {
-        const isCrm = funnelRef.current === 'crm';
+        const isEngine = funnelRef.current === 'engine';
         void (async () => {
           api.setLoading(true);
           try {
-            if (isCrm) await submitCrmProspect(answers);
+            if (isEngine) await submitEngineProspect(answers);
             else await submitBuyer(answers);
-            setCompleted(isCrm ? 'crm' : 'buyer');
+            setCompleted(isEngine ? 'engine' : 'buyer');
             // The buyer's CTA lives in the persistent footer below, so
             // the message itself carries no duplicate button.
             api.pushBot(
-              isCrm
+              isEngine
                 ? "Perfect — the ConvoReal team will reach out on WhatsApp shortly. Want to see it running on your own inventory? They'll set up a walkthrough."
                 : 'Done — the agent has your requirement and will send matching listings on WhatsApp, including the ones that never go public.',
-              isCrm ? (whatsappCard ?? undefined) : undefined
+              isEngine ? (whatsappCard ?? undefined) : undefined
             );
-            if (!isCrm) {
+            if (!isEngine) {
               api.pushBot(
                 'One more thing: a free account keeps every match in one place, lets you shortlist what you like, and shows owner-direct listings too. It signs you in on the number you just gave me — no password.'
               );
@@ -324,7 +324,7 @@ export function ShowcaseLeadBot({
 
       return null;
     },
-    [showMatches, submitBuyer, submitCrmProspect, whatsappCard]
+    [showMatches, submitBuyer, submitEngineProspect, whatsappCard]
   );
 
   const handleQuestion = useCallback(

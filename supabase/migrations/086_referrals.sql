@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS referrals (
   -- Abuse-prevention (cheap signals only — no OTP-based phone
   -- verification exists in this codebase yet, so "verified" here
   -- means the referee has a captured phone number, same bar as the
-  -- rest of the WhatsApp CRM signup flow).
+  -- rest of the WhatsApp Engine signup flow).
   referee_phone_verified BOOLEAN NOT NULL DEFAULT FALSE,
   signup_ip INET,  -- logged for future subnet-abuse analysis, not enforced yet
 

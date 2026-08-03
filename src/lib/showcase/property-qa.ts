@@ -198,7 +198,7 @@ export function answerFromPropertyData(question: string, property: QaProperty): 
 /**
  * Builds compact labelled grounding text for the AI path — every known
  * field, so the model answers open-ended questions from real listing
- * data instead of hallucinating. Internal/CRM fields (notes, owner
+ * data instead of hallucinating. Internal/Engine fields (notes, owner
  * contact, agent identity) are deliberately excluded.
  */
 export function buildPropertyContext(property: QaProperty): string {

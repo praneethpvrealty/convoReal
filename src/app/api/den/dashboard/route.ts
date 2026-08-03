@@ -51,6 +51,7 @@ export const GET = withDenAuth(async (ctx, req) => {
         .from("properties")
         .select("id, title, status, is_published, deal_mode, account_id, images, listing_type, price, rent_per_month")
         .in("owner_contact_id", contactIds)
+        .neq("listing_source", "agent")
     : { data: [] as Record<string, unknown>[] };
 
   const propertyMeta = new Map(

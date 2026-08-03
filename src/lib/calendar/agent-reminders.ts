@@ -9,7 +9,7 @@
 //  2. Morning digest: the member's full day, sent once per IST
 //     day (deduped via agent_digest_log even across cron races).
 //  3. Overdue nudge: an event that ended hours ago but was never
-//     marked complete — the CRM asks instead of the manager.
+//     marked complete — the Engine asks instead of the manager.
 //
 // Sends are free-form text via the account's own WhatsApp number;
 // if the 24h service window is closed Meta rejects the send and we

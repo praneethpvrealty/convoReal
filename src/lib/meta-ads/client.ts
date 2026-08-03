@@ -381,7 +381,7 @@ export interface CampaignInsights {
   impressions: number
   reach: number
   /** "Chats started" per Meta's own attribution — a Meta-side metric,
-   *  distinct from (and not to be confused with) real CRM leads. */
+   *  distinct from (and not to be confused with) real Engine leads. */
   conversationsStarted: number
 }
 

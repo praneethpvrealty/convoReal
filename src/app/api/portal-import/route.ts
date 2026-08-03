@@ -2,7 +2,7 @@
 // POST /api/portal-import — stage a harvest batch and match it.
 //
 // The Chrome extension scrapes the agent's own portal dashboard
-// and the CRM page forwards the payload here (the user's own
+// and the Engine page forwards the payload here (the user's own
 // authenticated session — no service-role, RLS applies).
 //
 // Idempotent by construction: staged items upsert on
@@ -10,7 +10,7 @@
 // updates rows in place. Items already committed to a property
 // (matched_property_id set) refresh that property's portal link
 // instead of re-entering the review queue — a listing can never
-// produce a second CRM property.
+// produce a second Engine property.
 //
 // GET /api/portal-import — pending review/new items + portal
 // account stats for the sync dialog.

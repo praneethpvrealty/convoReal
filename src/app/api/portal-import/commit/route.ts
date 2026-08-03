@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       }
 
       // Pull the whole cross-portal duplicate group so one physical
-      // property becomes one CRM property with N portal links.
+      // property becomes one Engine property with N portal links.
       let group = [item];
       if (item.batch_group) {
         const { data: groupData, error: groupError } = await ctx.supabase

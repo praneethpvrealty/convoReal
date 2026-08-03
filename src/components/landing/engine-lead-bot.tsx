@@ -5,11 +5,11 @@ import { MessageCircle } from 'lucide-react';
 import { LeadBot } from '@/components/chat/lead-bot';
 import { useLeadFunnel, type LeadFunnelApi } from '@/hooks/use-lead-funnel';
 import { FUNNEL_END, answerText, type FunnelAnswers } from '@/lib/bot/funnel';
-import { crmFunnel } from '@/lib/bot/funnels';
+import { engineFunnel } from '@/lib/bot/funnels';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 import { BRANDING } from '@/config/branding';
 
-interface CrmLeadBotProps {
+interface EngineLeadBotProps {
   variant: 'floating' | 'inline';
 }
 
@@ -21,7 +21,7 @@ interface SiteAskResponse {
 
 const FALLBACK_WHATSAPP =
   process.env.NEXT_PUBLIC_CONVOREAL_SALES_WHATSAPP || '';
-const WEBSITE_FUNNEL = crmFunnel('website');
+const WEBSITE_FUNNEL = engineFunnel('website');
 
 function fallbackWhatsAppLink(): string | null {
   const digits = FALLBACK_WHATSAPP.replace(/\D/g, '');
@@ -29,7 +29,7 @@ function fallbackWhatsAppLink(): string | null {
   return `https://wa.me/${digits}?text=${encodeURIComponent(`Hi! I'm interested in ${BRANDING.name}.`)}`;
 }
 
-export function CrmLeadBot({ variant }: CrmLeadBotProps) {
+export function EngineLeadBot({ variant }: EngineLeadBotProps) {
   const sessionKey = useMemo(getShowcaseSessionKey, []);
   const [handoffLink, setHandoffLink] = useState<string | null>(null);
 
@@ -60,7 +60,7 @@ export function CrmLeadBot({ variant }: CrmLeadBotProps) {
       void (async () => {
         api.setLoading(true);
         try {
-          const res = await fetch('/api/public/crm-lead', {
+          const res = await fetch('/api/public/engine-lead', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

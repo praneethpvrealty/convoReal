@@ -7,7 +7,7 @@
 -- mirror, the budget/creative we launched with, and a cached copy of
 -- the latest Insights numbers (refreshed by the Phase D dashboard).
 --
--- ad_id joins back to ctwa_referrals.source_id so real CRM leads can
+-- ad_id joins back to ctwa_referrals.source_id so real Engine leads can
 -- be counted per campaign (cost-per-lead). Service-role only — written
 -- and read via the /api/meta-ads/* routes with the admin client;
 -- RLS on with no policies, same stance as meta_ads_config.

@@ -390,7 +390,7 @@ function AppointmentDetail({
     setError(null);
     // Ask for the row back rather than firing and forgetting: a write
     // that errored — or matched nothing — used to close this sheet as if
-    // it had worked, leaving the event still 'scheduled' in the CRM with
+    // it had worked, leaving the event still 'scheduled' in the Engine with
     // its reminders (src/lib/calendar/agent-reminders.ts) queued to fire
     // an hour before an event the agent believed was closed.
     const { data, error: updateError } = await supabase

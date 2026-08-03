@@ -12,7 +12,7 @@
 // MASKED — and only after the intermediary closest to the owner
 // has consented does the request reach the owner's queue for the
 // final approve/reject. The seeker's name and phone never reach
-// the listing side in the clear, and no CRM contact is created
+// the listing side in the clear, and no Engine contact is created
 // for them: a co-broker's client must not be poachable through
 // their own location request. Chains deeper than one hop are
 // recorded in property_reshare_links (migration 176): a co-broker
@@ -302,7 +302,7 @@ export async function notifyOwnerQueue(
         `📍 *New Location Reveal Request*\n` +
         `Property: ${property.title}${property.property_code ? ` (${property.property_code})` : ''}\n` +
         `${fromLine}\n\n` +
-        `Open the property in your CRM dashboard to Approve or Reject.`,
+        `Open the property in your Engine dashboard to Approve or Reject.`,
     });
   } catch (err) {
     console.error('[location-requests] Owner notify failed:', err);
@@ -628,7 +628,7 @@ export async function sweepConsentTimeouts(
 
 /** True when the contact is a recorded re-sharer of this property —
  *  which makes them a consent-chain intermediary regardless of their
- *  CRM classification. */
+ *  Engine classification. */
 export async function hasReshareLink(
   admin: SupabaseClient,
   accountId: string,

@@ -2,7 +2,7 @@
 // Owners Den — property field whitelists.
 //
 // Den routes never `select('*')` on properties: owners see their own
-// listings, but not CRM internals written by agents. The SELECT list
+// listings, but not Engine internals written by agents. The SELECT list
 // below is the single source of truth for what an owner can READ;
 // DEN_EDITABLE_FIELDS is what they can WRITE (everything else —
 // status, publishing, type changes — stays with the managing agency,
@@ -11,7 +11,7 @@
 // Deliberately excluded from SELECT:
 //   * notes            — internal agent notes
 //   * deal_remarks     — internal land/JV notes
-//   * is_starred       — CRM UI state
+//   * is_starred       — Engine UI state
 //   * user_id          — the staff member who created the row
 //   * meta_catalog_*   — Meta catalog sync internals
 // ============================================================
@@ -121,6 +121,7 @@ export async function loadOwnedProperty(
     .select(DEN_PROPERTY_SELECT)
     .eq("id", propertyId)
     .in("owner_contact_id", contactIds)
+    .neq("listing_source", "agent")
     .maybeSingle();
   if (error) {
     console.error("[loadOwnedProperty] fetch error:", error);

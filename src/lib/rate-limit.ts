@@ -174,6 +174,21 @@ export const RATE_LIMITS = {
    *  the primary defense; this bounds how many challenges/guesses an
    *  admin session can burn through per minute on top of that). */
   adminOtp: { limit: 8, windowMs: 60_000 },
+  /** Public catalog read (`GET /api/public/properties`), per IP. The
+   *  endpoint pages a tenant's published inventory at up to MAX_LIMIT
+   *  (50) rows a call, so the budget is really "how fast can one
+   *  client drain a catalog". A full sync of a 500-listing brokerage
+   *  is 10 calls; 30/min leaves room for three of those a minute and
+   *  still caps a naive scraper at 1 500 rows/min. Applied before the
+   *  API-key check so key guessing is bounded too. */
+  publicCatalog: { limit: 30, windowMs: 60_000 },
+  /** Same endpoint, per `account_id`. The per-IP budget above does
+   *  nothing against a distributed scrape of ONE brokerage, which is
+   *  the case that actually costs a tenant. Deliberately well above
+   *  the per-IP number: this is a ceiling on total interest in a
+   *  single account, and setting it near the per-IP budget would let
+   *  one abuser lock out that tenant's legitimate integrations. */
+  publicCatalogAccount: { limit: 120, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

@@ -1,7 +1,7 @@
 /**
  * Plain-math geo helpers for tiered location search. Haversine over a
  * bounding-box prefilter is exact enough (±0.5%) and fast enough at
- * CRM inventory scale — deliberately no PostGIS dependency.
+ * Engine inventory scale — deliberately no PostGIS dependency.
  */
 
 const EARTH_RADIUS_KM = 6371;

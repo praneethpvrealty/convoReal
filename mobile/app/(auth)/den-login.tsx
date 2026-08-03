@@ -108,7 +108,7 @@ export default function DenLoginScreen() {
               <Ionicons name="home" size={32} color={colors.success} />
             </View>
             <Text style={{ fontSize: 26, fontFamily: f.extrabold, color: colors.text }}>
-              Owners Den
+              Portfolio
             </Text>
             <Text style={{ fontSize: 14, color: colors.textMuted, textAlign: 'center' }}>
               Track interest, offers and deals on your properties — across every
@@ -152,7 +152,7 @@ export default function DenLoginScreen() {
                 </Text>
                 <OtpInput value={otp} onChange={setOtp} onComplete={verify} />
                 <PrimaryButton
-                  label="Verify & enter the Den"
+                  label="Verify & enter your Portfolio"
                   busy={busy}
                   disabled={otp.length < 6}
                   onPress={() => verify(otp)}

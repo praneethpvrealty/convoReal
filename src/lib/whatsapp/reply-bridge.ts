@@ -156,7 +156,7 @@ function inboxLink(conversationId: string): string {
  * the notification that carried it.
  *
  * Skipped when the recipient IS the thread's contact — a staff member
- * texting the CRM number from their own phone would otherwise bridge
+ * texting the Engine number from their own phone would otherwise bridge
  * their thread to itself and relay their messages back to them.
  */
 export async function registerReplyBridge(args: {

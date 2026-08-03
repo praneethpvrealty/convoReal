@@ -2,7 +2,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -35,7 +35,7 @@ import {
   TextField,
   listCard,
 } from '@/components/ui';
-import { apiFetch, ApiError } from '@/lib/api';
+import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { approveAndSendDetails } from '@/lib/approve-contact';
 import { friendlyError } from '@/lib/errors';
 import { chatListTime, cleanPhoneInput, formatBudgetRange } from '@/lib/format';
@@ -789,6 +789,10 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
+  // Imports run one contact at a time, so the sheet reports where it has
+  // got to rather than showing one opaque spinner for the whole batch.
+  const [done, setDone] = useState(0);
+  const importAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -835,6 +839,17 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
       r.phone.includes(filter.trim())
   );
 
+  // Leaving the sheet mid-import abandons the calls rather than letting
+  // them run on against a screen nobody is watching.
+  useEffect(() => {
+    if (!visible) importAbort.current?.abort();
+  }, [visible]);
+
+  function cancelImport() {
+    haptic.tap();
+    importAbort.current?.abort();
+  }
+
   function toggle(key: string) {
     haptic.tap();
     setSelected((prev) => {
@@ -848,16 +863,23 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
   async function importSelected() {
     const picked = (rows ?? []).filter((r) => selected.has(r.key));
     if (picked.length === 0) return;
+    const abort = new AbortController();
+    importAbort.current = abort;
+    setResult(null);
+    setDone(0);
     setBusy(true);
     let ok = 0;
     let failed = 0;
+    let timedOut = false;
     // Only meaningful for a single-contact import, where we hand the user
     // straight to the editor. A bulk import has no one contact to open.
     let onlyCreatedId: string | null = null;
     for (const r of picked) {
+      if (abort.signal.aborted) break;
       try {
         const created = await apiFetch<{ id: string }>('/api/contacts', {
           method: 'POST',
+          signal: abort.signal,
           body: JSON.stringify({
             phone: cleanPhoneInput(r.phone) ?? r.phone,
             name: r.name || null,
@@ -867,11 +889,17 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
         });
         ok++;
         onlyCreatedId = created?.id ?? null;
-      } catch {
+      } catch (err) {
+        if (isCancelled(err)) break;
+        if (isTimeout(err)) timedOut = true;
         failed++;
       }
+      setDone((n) => n + 1);
     }
+    const cancelled = abort.signal.aborted;
+    importAbort.current = null;
     setBusy(false);
+    setDone(0);
     haptic.success();
     setSelected(new Set());
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
@@ -886,8 +914,13 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
       return;
     }
 
+    const failureReason = timedOut
+      ? 'the server did not respond'
+      : 'duplicates or limits';
     setResult(
-      `Imported ${ok} contact${ok === 1 ? '' : 's'}${failed ? ` · ${failed} failed (duplicates or limits)` : ''}`
+      cancelled
+        ? `Stopped — imported ${ok} contact${ok === 1 ? '' : 's'} before you cancelled.`
+        : `Imported ${ok} contact${ok === 1 ? '' : 's'}${failed ? ` · ${failed} failed (${failureReason})` : ''}`
     );
     // Success: give the banner a beat to register, then collapse the
     // sheet — the imported contacts are already in the list behind it.
@@ -949,13 +982,30 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
           })
         )}
       </ScrollView>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
+        {busy ? (
+          <Text style={{ textAlign: 'center', fontSize: 12, color: colors.textMuted }}>
+            Importing {Math.min(done + 1, selected.size)} of {selected.size}…
+          </Text>
+        ) : null}
         <PrimaryButton
           label={selected.size > 0 ? `Import ${selected.size} selected` : 'Select contacts to import'}
           busy={busy}
           disabled={selected.size === 0}
           onPress={importSelected}
         />
+        {busy ? (
+          <Pressable
+            onPress={cancelImport}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel import"
+            style={{ alignItems: 'center', paddingVertical: spacing.sm }}
+          >
+            <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.textMuted }}>
+              Cancel
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </BottomSheet>
   );

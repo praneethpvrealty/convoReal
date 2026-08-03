@@ -38,7 +38,43 @@
           "data": [
             {
               "scheme": "https",
-              "host": "www.convoreal.com"
+              "host": "www.convoreal.com",
+              "pathPrefix": "/inventory"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com",
+              "pathPrefix": "/pipelines"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com",
+              "pathPrefix": "/contacts"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com",
+              "pathPrefix": "/calendar"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com",
+              "pathPrefix": "/journey"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com",
+              "pathPrefix": "/broadcasts"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com",
+              "pathPrefix": "/settings"
+            },
+            {
+              "scheme": "https",
+              "host": "www.convoreal.com",
+              "pathPrefix": "/dashboard"
             }
           ],
           "category": [
@@ -82,7 +118,7 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "ConvoReal imports contacts you choose into your CRM."
+          "contactsPermission": "ConvoReal imports contacts you choose into your Engine."
         }
       ],
       [

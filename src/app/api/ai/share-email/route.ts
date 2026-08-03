@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     // Untyped supabase client can't infer the row shape from the column
     // string — same convention as the public similar-properties route.
-    // The drafted email leaves the CRM, so guarded listings contribute
+    // The drafted email leaves the Engine, so guarded listings contribute
     // locality only — no street address, no map pin.
     const row = property as unknown as ShareEmailProperty & {
       type: string;

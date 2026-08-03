@@ -44,7 +44,7 @@ export interface MarketingConfig {
 export const REAL_ESTATE_CONFIG: MarketingConfig = {
   vertical: 'real_estate',
   hero: {
-    badge: "WhatsApp-First Real Estate CRM",
+    badge: "WhatsApp-First Real Estate Deal Engine",
     headlineStart: "Turn WhatsApp Chats into ",
     headlineHighlight: "Closed Property Deals",
     headlineEnd: "",
@@ -55,7 +55,7 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
   features: [
     {
       title: "WhatsApp Lead Ingestion",
-      description: "Forward vCards, property texts, or even lead list screenshots directly to the CRM. Our AI processes them and saves structured drafts in bulk.",
+      description: "Forward vCards, property texts, or even lead list screenshots directly to the Engine. Our AI processes them and saves structured drafts in bulk.",
       icon: "message",
     },
     {
@@ -80,14 +80,14 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
     },
     {
       title: "Visit Reminder Engine",
-      description: "Schedule site visits on a visual calendar. The CRM fires automated WhatsApp reminder alerts to buyers and host agents to prevent missed appointments.",
+      description: "Schedule site visits on a visual calendar. The Engine fires automated WhatsApp reminder alerts to buyers and host agents to prevent missed appointments.",
       icon: "bell",
     },
   ],
   demo: {
     title: "See the AI Parser in Action",
     subtitle: "Simulate how a messy text message forwarded from WhatsApp is automatically organized and mapped into a structured client lead card.",
-    mockMessage: "Hi PV Realty team, I got your contact from JP Nagar brochure. My name is Sridhar Rao. Looking for a 3 BHK duplex flat or villa plot near JP Nagar 7th Phase. Budget is strictly within 2.2 Crores. I also want at least a 4% ROI if I go for a commercial building. Email is sridhar.rao@outlook.com, phone 9845012345. Let me know if you have direct owner listings.",
+    mockMessage: "Hi Aryavarta Ventures team, I got your contact from JP Nagar brochure. My name is Sridhar Rao. Looking for a 3 BHK duplex flat or villa plot near JP Nagar 7th Phase. Budget is strictly within 2.2 Crores. I also want at least a 4% ROI if I go for a commercial building. Email is sridhar.rao@outlook.com, phone 9845012345. Let me know if you have direct owner listings.",
     parsedCard: {
       name: "Sridhar Rao",
       contact: "9845012345 · sridhar.rao@outlook.com",
@@ -169,11 +169,11 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
   faqs: [
     {
       q: "How does the WhatsApp Lead Ingestion work?",
-      a: "Simply forward any lead message, client preference text, vCard, or screenshot from your clients to your designated CRM WhatsApp number. Our AI engine (powered by Google Gemini) automatically extracts contact details, budget constraints, and property preferences, and inserts them directly into your database within seconds.",
+      a: "Simply forward any lead message, client preference text, vCard, or screenshot from your clients to your designated Engine WhatsApp number. Our AI engine (powered by Google Gemini) automatically extracts contact details, budget constraints, and property preferences, and inserts them directly into your database within seconds.",
     },
     {
       q: "Do my clients need to install any app?",
-      a: "No! Your clients use standard WhatsApp. They can browse your properties via your branded Showcase portal, ask questions, or send requirements on WhatsApp. The CRM communicates with them seamlessly, sending automated site visit reminders and property links.",
+      a: "No! Your clients use standard WhatsApp. They can browse your properties via your branded Showcase portal, ask questions, or send requirements on WhatsApp. The Engine communicates with them seamlessly, sending automated site visit reminders and property links.",
     },
     {
       q: "Can I connect my own custom domain?",
@@ -193,7 +193,7 @@ export const REAL_ESTATE_CONFIG: MarketingConfig = {
 export const ECOMMERCE_CONFIG: MarketingConfig = {
   vertical: 'ecommerce',
   hero: {
-    badge: "WhatsApp-First E-Commerce CRM",
+    badge: "WhatsApp-First E-Commerce Deal Engine",
     headlineStart: "Turn WhatsApp Chats into ",
     headlineHighlight: "Shopify & Retail Sales",
     headlineEnd: "",
@@ -229,7 +229,7 @@ export const ECOMMERCE_CONFIG: MarketingConfig = {
     },
     {
       title: "Abandoned Cart Recovery",
-      description: "Follow up automatically. The CRM fires automated WhatsApp reminder alerts to shoppers who left items in their checkout cart, recovered in minutes.",
+      description: "Follow up automatically. The Engine fires automated WhatsApp reminder alerts to shoppers who left items in their checkout cart, recovered in minutes.",
       icon: "bell",
     },
   ],
@@ -338,5 +338,5 @@ export const ECOMMERCE_CONFIG: MarketingConfig = {
   ],
 };
 
-const activeVertical = process.env.NEXT_PUBLIC_CRM_VERTICAL || 'real_estate';
+const activeVertical = process.env.NEXT_PUBLIC_ENGINE_VERTICAL || 'real_estate';
 export const MARKETING_CONFIG = activeVertical === 'ecommerce' ? ECOMMERCE_CONFIG : REAL_ESTATE_CONFIG;

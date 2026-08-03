@@ -1,6 +1,6 @@
 # Changelog
 
-User-visible changes in `wacrm`. Self-hosters: when pulling an update,
+User-visible changes in `convoreal`. Self-hosters: when pulling an update,
 check this file for any **migration required** notes and apply the
 matching SQL files from `supabase/migrations/` against your Supabase
 project before restarting the app.
@@ -31,7 +31,7 @@ and polish.
 ### Changed
 
 - **The WhatsApp assistant's help card now says what it can actually
-  do.** Texting your own CRM number used to answer with a four-line
+  do.** Texting your own Engine number used to answer with a four-line
   "AI Ingestion Chatbot" card that only described draft-session
   commands — and showed `*Cancel*` literally, because it used Markdown
   bold instead of WhatsApp's. Send *help* (or hi / menu / start) and
@@ -169,7 +169,7 @@ and polish.
   and a single WhatsApp button on the right. Tapping it opens
   WhatsApp with the prefilled welcome message; long-pressing offers
   the two other sends: a blank WhatsApp chat, or an internal message
-  in the CRM inbox (creating the conversation first if none exists,
+  in the Engine inbox (creating the conversation first if none exists,
   like the web). Long-pressing the row opens a quick preview sheet
   with the details the row no longer carries — budget, tags,
   interested-in properties, areas, email, company, last contacted —
@@ -208,7 +208,7 @@ and polish.
   numbers excluded.** Approving a Needs-Review contact no longer
   asks through a system dialog — one tap flips them active and,
   like desktop, auto-sends the inquired property's details
-  (address + map link) through the CRM WhatsApp number; outside
+  (address + map link) through the Engine WhatsApp number; outside
   Meta's 24-hour window it opens the thread for a template send
   instead. Contact screens now show connected properties like the
   web card: Managed properties for Owner/Seller/Developer (and
@@ -284,7 +284,7 @@ and polish.
   copy-link row, and channel buttons: WhatsApp, Telegram, Email, SMS,
   Copy message, and "More apps…" (native share sheet). New
   dependency: `expo-clipboard` — run `npm install` in `mobile/`.
-  CRM-tracked template sends stay in the conversation thread and the
+  Engine-tracked template sends stay in the conversation thread and the
   web dialog.
 
 - **Auto-generated listing videos.** A "Listing Video" card on the
@@ -467,7 +467,7 @@ and polish.
   once; the Journey canvas's JS-side colors follow suit.
 
 - **Light mode, app-wide.** A sun/moon toggle in the header switches
-  the whole CRM between the original dark look and a new light theme
+  the whole Engine between the original dark look and a new light theme
   (persisted per device, synced across tabs, no flash on load — the
   existing accent-theme boot script now applies `data-mode` too).
   Light mode is an orthogonal axis on top of the 5 accent themes:
@@ -546,7 +546,7 @@ and polish.
   `app_context: 'den'`, same as web /den/login; the idempotent
   `/api/den/auth/complete` runs on every entry so agency links stay
   fresh). A persisted surface flag routes each signed-in device to
-  the staff CRM or the Den shell. Den screens: **Home** — activity
+  the staff Engine or the Den shell. Den screens: **Home** — activity
   totals (views / enquiries / shortlists / site visits) over a 7/30
   day window plus every linked property with per-property stats,
   agency and Deal Mode chips; **Offers** — the masked-bidder offer
@@ -575,7 +575,7 @@ and polish.
   spec tiles, a conditional Listing Metadata card (super built area,
   dimensions, frontage/depth, road width, land zone, ideal for,
   rental income with computed yield), a floor-wise tenancy rent-roll
-  section, Nearby Landmarks chips, and the amber CRM-only Internal
+  section, Nearby Landmarks chips, and the amber Engine-only Internal
   Notes block. Every section hides when the property has no data.
 
 - **Mobile property detail: gallery + empty-field cleanup.** (1) Spec
@@ -943,9 +943,9 @@ and polish.
   the web mind map. Billing and Team settings remain deliberately
   web-only (Play-billing policy and admin surface).
 
-- **Mobile app: core CRM tranche — Inventory, Deals, Calendar,
+- **Mobile app: core Engine tranche — Inventory, Deals, Calendar,
   Templates (`mobile/`)** — the companion app grows from
-  inbox+contacts to the core CRM pillars, in a 5-tab layout (Inbox /
+  inbox+contacts to the core Engine pillars, in a 5-tab layout (Inbox /
   Contacts / Properties / Deals / More). Properties: list powered by
   the same `GET /api/properties` search the web uses (natural-language
   queries like "2bhk in whitefield under 80L" work), listing-type
@@ -1189,7 +1189,7 @@ and polish.
 (adds `whatsapp_meta_flows`, `whatsapp_meta_flow_sessions`, and flow
 encryption-key columns on `whatsapp_config`).
 
-Foundation for multi-user accounts. Every wacrm install becomes
+Foundation for multi-user accounts. Every ConvoReal install becomes
 multi-tenant on the database side: a single user's signup creates a
 fresh "account", and every row is scoped to that account rather than
 to the user directly. The user-visible invite / members surface lands
@@ -1434,271 +1434,3 @@ Apply against your Supabase project before deploying this version:
   `redeem_invitation` (authenticated atomic move + orphan
   cleanup, with a domain-data safety check). Both bypass the
   RLS that would otherwise block their reads/writes. Idempotent.
-
-## [0.2.2] — 2026-05-29
-
-Flow nodes can now send media. Closes the most-requested gap from user
-feedback after the v0.2.0 Flows launch — flows were text-only and
-couldn't deliver an invoice, receipt, product photo, or short demo
-video mid-conversation.
-
-### Added
-
-- **`send_media` flow node.** Send an image (PNG / JPEG / WebP), video
-  (MP4 / 3GP), or document (PDF, Word, Excel, PowerPoint, TXT) to the
-  customer from any point in a flow. Pick a file in the builder, it
-  uploads to the new `flow-media` Supabase Storage bucket, and Meta
-  fetches the public URL at send time. Optional caption (1024 char cap,
-  supports `{{vars.X}}` interpolation); documents also take an optional
-  filename shown in the recipient's chat. Auto-advances after send —
-  same suspend semantics as `send_message`.
-  ([#156](https://github.com/ArnasDon/wacrm/pull/156))
-
-### Migration required
-
-Apply against your Supabase project before deploying this version:
-
-- `supabase/migrations/016_flow_media.sql` — does two things:
-  1. Adds `'send_media'` to the `flow_nodes.node_type` CHECK
-     constraint. Without this the `send_media` node fails to save with
-     a constraint violation.
-  2. Creates the public `flow-media` Supabase Storage bucket (16 MB
-     file-size cap, image / video / document MIME allowlist) plus
-     per-user RLS policies (path prefix = `auth.uid()`). Without this
-     the builder's file picker fails on upload. Same shape as the
-     `avatars` bucket from migration 008 — the bucket is **public** so
-     Meta can fetch the URL without credentials.
-
-The migration is idempotent and safe to re-run.
-
-## [0.2.1] — 2026-05-26
-
-Bug-fix release. Plugs a silent inbound-message drop that triggered
-when two users on the same instance saved the same WhatsApp
-`phone_number_id`.
-
-### Fixed
-
-- **Inbound WhatsApp messages no longer silently disappear** when two
-  users have claimed the same `phone_number_id`. Previously the
-  webhook used `.single()` to look up the owning config, which errors
-  `PGRST116` for both 0 rows *and* ≥2 rows — the second user's save
-  put the DB into the ≥2-row state and every inbound message was
-  dropped while the log misleadingly reported *"No config found for
-  phone_number_id"*. Three layers of fix: `POST /api/whatsapp/config`
-  now returns **409** when another user has already claimed the
-  number, the webhook lookup distinguishes 0 rows from ≥2 rows and
-  logs the conflicting `user_id`s, and a new DB constraint
-  (`UNIQUE(phone_number_id)`) prevents the bad state at the storage
-  layer. Reported in
-  [#136](https://github.com/ArnasDon/wacrm/issues/136), fixed in
-  [#143](https://github.com/ArnasDon/wacrm/pull/143).
-
-### Migration required
-
-Apply against your Supabase project before deploying this version:
-
-- `supabase/migrations/013_whatsapp_config_phone_number_id_unique.sql`
-  — adds `UNIQUE(phone_number_id)` to `whatsapp_config`. **Fails
-  loudly with a copy-pasteable resolution hint** if duplicate rows
-  already exist; auto-deduping would destroy encrypted tokens, so
-  the operator picks which row keeps the number. To check first:
-
-  ```sql
-  SELECT phone_number_id, array_agg(user_id) AS owners, count(*) AS n
-  FROM whatsapp_config
-  GROUP BY phone_number_id
-  HAVING count(*) > 1;
-  ```
-
-  If that returns rows, `DELETE` the duplicate row(s) you want to
-  drop, then re-run the migration.
-
-### Note on multi-user setups
-
-wacrm is intentionally **single-tenant per WhatsApp number**. RLS on
-`conversations`/`messages` is `auth.uid() = user_id`, so a second
-user physically cannot read messages routed to a different owner —
-two users sharing one number was never supported. If you need
-multiple humans handling the same inbox, run them under one shared
-account.
-
-## [0.2.0] — 2026-05-22
-
-The **Flows** release. Adds a no-code, branching, button-driven WhatsApp
-conversation engine that runs alongside Automations. Also ships a
-5-theme color picker in Settings and opens Flows to all users.
-
-### Added
-
-#### Flows — branching chatbot conversations
-
-- **Module + schema.** New `flows`, `flow_nodes`, `flow_runs`,
-  `flow_run_events` tables with partial unique indexes that enforce
-  one active run per contact. Widened `messages.content_type` CHECK
-  to accept `'interactive'`; added `interactive_reply_id` column so
-  the inbox can render button/list taps.
-  ([#112](https://github.com/ArnasDon/wacrm/pull/112))
-- **Runner engine.** `dispatchInboundToFlows` parses every inbound
-  webhook, decides whether the message is a reply on an active run
-  or a fresh trigger, advances the state machine, and reports back
-  to the webhook so consumed messages don't also fire automations.
-  Idempotent on Meta's `message_id`.
-  ([#114](https://github.com/ArnasDon/wacrm/pull/114))
-- **No-code builder UI** at `/flows`. Linear-list editor with
-  per-node config forms, live validator, draft/active/archived
-  status, and a 5-route REST API (`GET/POST /api/flows`,
-  `GET/PUT/DELETE /api/flows/[id]`, `POST /api/flows/[id]/activate`,
-  `GET /api/flows/[id]/runs`, `GET /api/flows/templates`).
-  ([#115](https://github.com/ArnasDon/wacrm/pull/115))
-- **Templates + v1.5 node types.** Three starter templates
-  (Welcome menu, FAQ bot, Lead capture) cloneable from the New-flow
-  dialog. Three new node types: `collect_input` (capture customer
-  text into a variable), `condition` (branch on var / tag / contact
-  field), `set_tag` (add or remove a tag). `{{vars.X}}` interpolation
-  in send_message + collect_input prompts. Per-flow run-history
-  viewer at `/flows/[id]/runs`.
-  ([#117](https://github.com/ArnasDon/wacrm/pull/117))
-- **Stale-run sweep cron** at `GET /api/flows/cron` — marks runs
-  past their configured timeout (default 24h) as `timed_out` so
-  abandoned conversations free up the contact for new triggers.
-  Reuses `AUTOMATION_CRON_SECRET`.
-  ([#114](https://github.com/ArnasDon/wacrm/pull/114))
-
-#### Color themes
-
-- **5 color themes** (Violet default, Emerald, Cobalt, Amber, Rose)
-  selectable from a new **Appearance** tab in Settings. CSS variables
-  scoped under `html[data-theme="..."]`, applied at runtime via
-  `dataset.theme`, persisted to `localStorage`. Inline boot script in
-  `layout.tsx` replays the choice before first paint so there's no
-  flash of the default.
-  ([#132](https://github.com/ArnasDon/wacrm/pull/132))
-- **Theme tokenization sweep** — every previously hard-coded
-  `violet-*` Tailwind class replaced with `primary` tokens across
-  ~49 files. Picking a non-violet theme now themes the whole app,
-  not just the chrome.
-  ([#133](https://github.com/ArnasDon/wacrm/pull/133))
-
-### Changed
-
-#### Flows — soft-GA
-
-- **Flows is now available to every authenticated user.** The
-  per-account beta gate is gone; the sidebar entry + page header
-  carry a small "Beta" chip as the only remaining signal.
-  ([#134](https://github.com/ArnasDon/wacrm/pull/134))
-- **Editor UX**:
-  - Internal `node_key` + per-button/row `reply_id` identifiers
-    hidden behind a per-node "Show advanced" disclosure.
-    ([#118](https://github.com/ArnasDon/wacrm/pull/118))
-  - `send_list` nodes can have multiple sections.
-    ([#119](https://github.com/ArnasDon/wacrm/pull/119))
-  - Collapsed node cards show a 1-line content preview per node
-    type (text excerpt, button titles, condition summary, etc.).
-    ([#120](https://github.com/ArnasDon/wacrm/pull/120))
-  - Validation issues are clickable: jump to + flash the offending
-    node.
-    ([#121](https://github.com/ArnasDon/wacrm/pull/121))
-  - Unsaved-changes "● Edited" indicator + `beforeunload` reload
-    guard.
-    ([#122](https://github.com/ArnasDon/wacrm/pull/122))
-  - New-flow dialog actually widens to fit the 3 template cards
-    (was capped at 384px by a baked-in `sm:max-w-sm` from shadcn).
-    ([#129](https://github.com/ArnasDon/wacrm/pull/129),
-    [#131](https://github.com/ArnasDon/wacrm/pull/131))
-  - Validation panel pinned to the viewport bottom so
-    activate-readiness follows the user as they scroll through nodes.
-    ([#130](https://github.com/ArnasDon/wacrm/pull/130))
-
-#### Engine reliability
-
-- **Atomic `execution_count` increment** via SECURITY DEFINER RPC —
-  prevents lost counts when two webhooks start runs concurrently.
-  Mirrors the automations engine pattern.
-  ([#124](https://github.com/ArnasDon/wacrm/pull/124))
-- **Preload all flow_nodes once per dispatch** — one SELECT per
-  inbound instead of one per advance-loop iteration. A 5-node
-  auto-advance chain now costs 1 round trip, not 5.
-  ([#125](https://github.com/ArnasDon/wacrm/pull/125))
-- **Wasted re-read dropped** after reprompt reset; `loadActiveRun`
-  switched to defensive `.limit(1)` so a migration glitch producing
-  duplicates can't crash dispatch.
-  ([#126](https://github.com/ArnasDon/wacrm/pull/126))
-
-### Security
-
-- **PII redacted from `reply_received` event payload** — customer
-  text is no longer persisted to `flow_run_events.payload`; only
-  the length is. A `collect_input` prompt asking "what's your card
-  number?" used to leave the PAN sitting in the events table.
-  ([#123](https://github.com/ArnasDon/wacrm/pull/123))
-- **Constant-time cron-secret compare** on `/api/flows/cron`
-  (`crypto.timingSafeEqual`) to close a theoretical
-  timing-side-channel on the `x-cron-secret` header check.
-  ([#127](https://github.com/ArnasDon/wacrm/pull/127))
-
-### Fixed
-
-- **`/flows` no longer spuriously redirects to `/dashboard`** when
-  navigating in. Root cause: `useAuth` flipped `loading: false`
-  before the profile fetch resolved. `use-auth` now exposes a
-  separate `profileLoading` boolean.
-  ([#128](https://github.com/ArnasDon/wacrm/pull/128))
-
-### Migration required
-
-Apply, in order, against your Supabase project:
-
-1. `supabase/migrations/010_flows.sql` — Flows core tables, indexes,
-   RLS policies, and the `messages` schema widening.
-2. `supabase/migrations/011_profile_beta_features.sql` — adds the
-   `profiles.beta_features` column. Surviving for future betas;
-   Flows no longer reads it.
-3. `supabase/migrations/012_flows_increment_counter.sql` — atomic
-   counter RPC. Without this the engine still runs but
-   `flows.execution_count` is racy.
-
-Each migration is idempotent — safe to re-run if you're not sure
-whether you applied a previous one.
-
-### Removed
-
-- **`src/lib/flows/feature-flag.ts`** + its tests. Flows is open to
-  all users; the `profiles.beta_features` column itself survives
-  for future beta gates.
-  ([#134](https://github.com/ArnasDon/wacrm/pull/134))
-
----
-
-## [0.1.1] — 2026-05-19
-
-### Added
-
-- Chat actions in the inbox: emoji reactions, reply-with-quote, and
-  copy-text on individual messages. Hover on desktop, long-press on
-  touch. Outbound reactions and replies forward to WhatsApp via the
-  Cloud API; inbound reactions and swipe-replies from customers
-  arrive through the webhook and appear in real time.
-
-### Migration required
-
-- Apply `supabase/migrations/009_message_actions.sql` to your
-  Supabase project. It adds `messages.reply_to_message_id` and the
-  new `message_reactions` table (with RLS and realtime). The
-  migration is idempotent — safe to re-run.
-
-### Changed
-
-- The webhook no longer stores inbound customer reactions as fake
-  text messages. They are written to `message_reactions` instead,
-  so any custom queries that counted reactions as messages will
-  need updating.
-
----
-
-## [0.1.0]
-
-Initial template release. Core CRM: inbox, contacts, pipelines,
-broadcasts, automations (with a Wait-step cron drain), WhatsApp
-Cloud API integration, Supabase auth + RLS.

@@ -1,5 +1,5 @@
 -- Second Name: surname stored separately from the first name so two
--- different people sharing a first name stay distinguishable in the CRM.
+-- different people sharing a first name stay distinguishable in the Engine.
 -- Deliberately kept out of the name column so WhatsApp templates,
 -- broadcasts, email and other outbound channels — which read
 -- contacts.name — keep addressing the contact by first name alone.

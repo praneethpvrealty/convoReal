@@ -108,7 +108,7 @@ export default function InventoryPage() {
   const [reviewTab, setReviewTab] = useState<'all' | 'review' | 'archived'>('all');
   const statusFilter = reviewTab === 'review' ? 'Pending Review' : reviewTab === 'archived' ? 'Archived' : 'All';
   const [showcaseFilter] = useState('All');
-  const [sourceFilter] = useState('All');
+  const [sourceFilter, setSourceFilter] = useState<'All' | 'Owner' | 'Agent'>('All');
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false);
@@ -772,6 +772,32 @@ export default function InventoryPage() {
           <Archive className="size-3.5" />
           Archived
         </button>
+
+        {/* Listing party — who the listing belongs to. 'Owner' is
+            owner-direct (incl. WhatsApp/web self-listings, which the
+            API groups under 'owner' only when stored that way);
+            'Agent' is co-broked stock referred by an outside agent
+            (owner_contact_id holds the referring agent's card). */}
+        <div className="ml-auto hidden items-center gap-1 pb-1.5 sm:flex">
+          {([
+            ['All', 'All'],
+            ['Owner', 'Own stock'],
+            ['Agent', 'Agent referred'],
+          ] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => { setSourceFilter(value); setPage(0); }}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                sourceFilter === value
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-slate-700 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Search Bar — inline on md+; on mobile it lives behind the
@@ -832,6 +858,29 @@ export default function InventoryPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* Mobile: the listing-party pills live on their own row — the
+          tab bar has no horizontal room for them at 360px. */}
+      <div className="flex items-center gap-1 sm:hidden">
+        {([
+          ['All', 'All'],
+          ['Owner', 'Own stock'],
+          ['Agent', 'Agent referred'],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => { setSourceFilter(value); setPage(0); }}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+              sourceFilter === value
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-slate-700 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Mobile: active-filter summary chip row (visible while the

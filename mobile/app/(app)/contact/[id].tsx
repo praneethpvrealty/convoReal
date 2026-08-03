@@ -18,7 +18,6 @@ import {
 import {
   AgentNotes,
   AgentProperties,
-  AgentRequirements,
   AgentSchedule,
   ContactTags,
   InterestedProperties,
@@ -54,7 +53,9 @@ const PROPERTY_INTEREST_OPTIONS = [
   'Old building selling at site rate',
 ];
 
-const BUYER_PREF_CLASSIFICATIONS: Classification[] = ['Buyer', 'Owner & Buyer', 'Agent'];
+/** Who gets the budget/areas/interests block. An agent's own brief is
+ *  free text in Requirements — they aren't shopping to a budget. */
+const BUYER_PREF_CLASSIFICATIONS: Classification[] = ['Buyer', 'Owner & Buyer'];
 
 function parseAmount(s: string): number | null {
   const n = Number(s.replace(/[^\d.]/g, ''));
@@ -293,12 +294,7 @@ function ContactCard({ contact }: { contact: Contact }) {
       ['Buyer', 'Agent', 'Owner & Buyer'].includes(contact.classification) ? (
         <InterestedProperties contact={contact} />
       ) : null}
-      {contact.classification === 'Agent' ? (
-        <>
-          <AgentRequirements key={`req-${contact.id}`} agent={contact} />
-          <AgentSchedule contact={contact} />
-        </>
-      ) : null}
+      {contact.classification === 'Agent' ? <AgentSchedule contact={contact} /> : null}
       <ContactTags contactId={contact.id} />
       <AgentNotes
         contactId={contact.id}
@@ -306,7 +302,9 @@ function ContactCard({ contact }: { contact: Contact }) {
       />
 
       <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-        Tap Edit above to update budget, areas and buyer preferences.
+        {contact.classification === 'Agent'
+          ? 'Tap Edit above to update their details and requirements.'
+          : 'Tap Edit above to update budget, areas and buyer preferences.'}
       </Text>
     </ScrollView>
     <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
@@ -565,6 +563,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    queryClient.invalidateQueries({ queryKey: ['agents-directory'] });
     onDone();
   }
 

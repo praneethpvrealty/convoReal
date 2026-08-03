@@ -29,7 +29,7 @@ export const PLAN_META: Record<
   },
   team: {
     label: 'Team',
-    tagline: 'For small brokerages',
+    tagline: 'For small teams',
     icon: 'people',
     gradient: ['#8b5cf6', '#5b21b6'],
     perks: '3 members · 4,500 contacts · 2,000 broadcasts / mo',

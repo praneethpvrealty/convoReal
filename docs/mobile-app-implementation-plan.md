@@ -1,6 +1,6 @@
 # Companion Mobile App Implementation Plan: iOS & Android
 
-This document outlines the architectural design, technology stack, and phase-by-phase execution plan for building a companion mobile application (iOS & Android) for the **ConvoReal** platform — a WhatsApp-first CRM for Indian real estate agents.
+This document outlines the architectural design, technology stack, and phase-by-phase execution plan for building a companion mobile application (iOS & Android) for the **ConvoReal** platform — a WhatsApp-first Engine for Indian real estate agents.
 
 **Status:** Updated July 17, 2026, after a repo audit and kickoff of Phase 1. Incorporates critical fixes for API authentication, offline strategy, push infrastructure, and real-time safety, plus the platform features that landed after the original review (Owners Den, Journey mind map, mandatory OTP phone verification). See [Platform State Audit](#platform-state-audit-july-17-2026) for what is already implemented versus outstanding.
 
@@ -88,7 +88,7 @@ The main costs (bigger clone, mixed dependency trees) are minor: `mobile/` keeps
 
 ## 🛠️ Technology Stack Recommendations
 
-To maximize code reuse, speed up time-to-market, and leverage the existing TypeScript/React ecosystem of waCRM, we recommend a hybrid cross-platform approach:
+To maximize code reuse, speed up time-to-market, and leverage the existing TypeScript/React ecosystem of ConvoReal, we recommend a hybrid cross-platform approach:
 
 | Layer | Recommended Choice | Rationale |
 | :--- | :--- | :--- |
@@ -189,7 +189,7 @@ sequenceDiagram
 
 ### 3. Native Contact Share & Direct Calling
 * **Calling Integration**: Click phone icons to launch native dialers via `expo-linking` (`tel:${phone}`).
-* **Share Sheet Extension**: Enable agents to highlight a contact info card or photo on their phone and share it directly into the waCRM app to generate a lead or save an attachment.
+* **Share Sheet Extension**: Enable agents to highlight a contact info card or photo on their phone and share it directly into the ConvoReal app to generate a lead or save an attachment.
 * **WhatsApp Deep Link**: Provide a quick shortcut to open the official WhatsApp app targeting a specific contact whenever direct native chats are needed.
 
 ---

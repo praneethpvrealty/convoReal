@@ -18,7 +18,7 @@ const UUID_RE =
 // photos) of a guarded listing. Directly-attributed visitors go to the
 // listing side's approval queue; visitors who came through a co-broker
 // share start that co-broker's consent chain instead, and their
-// identity never reaches the listing side in the clear (no CRM contact
+// identity never reaches the listing side in the clear (no Engine contact
 // is created for them).
 export async function POST(
   request: Request,
@@ -259,7 +259,7 @@ export async function POST(
               `🏡 *Property*: ${property.title}${property.property_code ? ` (${property.property_code})` : ''}\n` +
               `👤 *Name*: ${requester_name.trim()}\n` +
               `📞 *Phone*: ${normalizedPhone}\n\n` +
-              `_Open the property in the CRM dashboard to Approve or Reject this request._`;
+              `_Open the property in the Engine dashboard to Approve or Reject this request._`;
 
             await admin.from('messages').insert({
               conversation_id: conversationId,

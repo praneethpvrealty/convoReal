@@ -1134,7 +1134,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           }
         }
       } else {
-        toast.success('Contact approved and added to CRM!');
+        toast.success('Contact approved and added to the Engine!');
       }
 
       fetchContact();
@@ -1547,7 +1547,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </div>
                     <p className="col-span-6 -mt-0.5 text-[10px] text-slate-500">
                       Messages always use the Name alone — Second Name and Name Tag
-                      show only inside the CRM. Name + Second Name must be unique.
+                      show only inside the Engine. Name + Second Name must be unique.
                     </p>
                   </div>
                   <div className="space-y-1.5">

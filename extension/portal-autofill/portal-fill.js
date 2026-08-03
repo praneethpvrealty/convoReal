@@ -1,7 +1,7 @@
 // ============================================================
 // Portal-side filler — runs on 99acres / MagicBricks / Housing.
 // Shows a floating "ConvoReal" panel with the listing sent from
-// the CRM: one-click best-effort autofill of visible text fields,
+// the Engine: one-click best-effort autofill of visible text fields,
 // plus per-field copy buttons for everything the SPA forms won't
 // let us reach (custom dropdowns, multi-step wizards, OTP gates).
 //
@@ -238,7 +238,7 @@
     return [...rows.values()];
   }
 
-  // Portals list cities under one name while the CRM may hold the
+  // Portals list cities under one name while the Engine may hold the
   // other (renames + colloquial forms), so "Bengaluru" would miss the
   // exact "Bangalore" row and grab "Bengaluru East" by prefix instead.
   // Each group is a set of interchangeable names.
@@ -1004,7 +1004,7 @@
   // ── Floating launcher ─────────────────────────────────────────
   // The panel stays out of the way by default: a small floating
   // button bottom-right expands it on click. Sending a listing from
-  // the CRM auto-expands so the handoff is obvious.
+  // the Engine auto-expands so the handoff is obvious.
 
   const LAUNCHER_ID = 'convoreal-portal-launcher';
   let panelExpanded = false;
@@ -1053,7 +1053,7 @@
 
   let lastPayload = {};
 
-  // Drops the listing sent from the CRM so the panel returns to its
+  // Drops the listing sent from the Engine so the panel returns to its
   // empty state — the reset for "wrong property sent" without hunting
   // through chrome://extensions storage.
   function clearPayload() {
@@ -1079,7 +1079,7 @@
     if (area === 'local' && changes.convorealPortalPayload) {
       lastPayload = changes.convorealPortalPayload.newValue || {};
       hasPayload = !!(lastPayload.portals && lastPayload.portals[PORTAL] && lastPayload.portals[PORTAL].length > 0);
-      // A fresh send from the CRM pops the panel open so the handoff
+      // A fresh send from the Engine pops the panel open so the handoff
       // is visible without hunting for the button.
       panelExpanded = true;
       renderPanel(lastPayload);

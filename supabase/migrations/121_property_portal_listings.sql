@@ -3,7 +3,7 @@
 -- the external listing portals (99acres / MagicBricks / Housing).
 --
 -- Posting itself is manual (the portals expose no public APIs;
--- the CRM prepares copy-ready content and deep links). This table
+-- the Engine prepares copy-ready content and deep links). This table
 -- records the outcome: which portal, the live listing URL, when it
 -- was posted, and when it expires — so inventory cards can show
 -- portal badges and the reminder cron can nudge the agent before

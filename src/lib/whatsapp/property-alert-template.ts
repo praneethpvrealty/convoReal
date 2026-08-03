@@ -32,7 +32,7 @@ export function buildPropertyAlertTemplatePayload(origin: string): TemplatePaylo
     footer_text: 'Reply STOP to unsubscribe',
     buttons: [
       // Quick replies first (Meta rule). A tap opens the 24h window, so
-      // the follow-up conversation continues free-form in the CRM Inbox.
+      // the follow-up conversation continues free-form in the Engine Inbox.
       { type: 'QUICK_REPLY', text: 'Send photos & details' },
       { type: 'QUICK_REPLY', text: 'Book a site visit' },
       {

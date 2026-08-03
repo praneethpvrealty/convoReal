@@ -1429,7 +1429,7 @@ export function PropertyForm({
             setOwnerSearchInput(ownerContact.name || ownerContact.phone || '');
           }
         }
-        // The form's Owner/Agent toggle only models CRM-internal referral
+        // The form's Owner/Agent toggle only models Engine-internal referral
         // source; a WhatsApp self-listing is displayed as "Owner" here
         // (the "Submitted via WhatsApp" badge in the list view already
         // distinguishes it) rather than adding a third toggle state.
@@ -2881,12 +2881,12 @@ export function PropertyForm({
                     </div>
                   )}
 
-                  {/* INTERNAL NOTES (CRM-only) */}
+                  {/* INTERNAL NOTES (Engine-only) */}
                   {notes && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-semibold text-amber-400/80 uppercase tracking-wider flex items-center gap-1.5">
                         <span>Internal Notes</span>
-                        <span className="text-[9px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">CRM Only</span>
+                        <span className="text-[9px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">Engine Only</span>
                       </h4>
                       <div className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed bg-amber-950/10 p-4 rounded-xl border border-amber-900/30">
                         {notes}
@@ -4155,7 +4155,7 @@ export function PropertyForm({
                     <div className="space-y-1.5 col-span-2">
                       <Label htmlFor="prop-notes" className="text-slate-300 flex items-center gap-1.5">
                         Internal Notes
-                        <span className="text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">CRM Only — Not visible to clients</span>
+                        <span className="text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">Engine Only — Not visible to clients</span>
                       </Label>
                       <Textarea
                         id="prop-notes"
@@ -4166,7 +4166,7 @@ export function PropertyForm({
                         rows={3}
                       />
                       <p className="text-[10px] text-slate-500 leading-normal">
-                        Location landmarks, access info, owner contact preferences — searchable in the CRM but private to your team.
+                        Location landmarks, access info, owner contact preferences — searchable in the Engine but private to your team.
                       </p>
                     </div>
 
@@ -4247,7 +4247,7 @@ export function PropertyForm({
                       <div>
                         <h4 className="text-sm font-semibold text-white">Floor-wise Tenancy (Rent Roll)</h4>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          For pre-leased buildings — one row per lease, not per floor. A tenant taking several floors, or the whole building, is a single row: name every floor it covers in the label. Internal to your CRM; never shown on the showcase.
+                          For pre-leased buildings — one row per lease, not per floor. A tenant taking several floors, or the whole building, is a single row: name every floor it covers in the label. Internal to your Engine; never shown on the showcase.
                         </p>
                       </div>
                       <Button

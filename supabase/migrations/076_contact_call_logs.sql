@@ -1,7 +1,7 @@
 -- 076_contact_call_logs.sql
 -- Structured call log linked to contacts.
 -- Agents log calls manually: date/time, direction, duration, outcome, notes.
--- Not IVR — this is a CRM call journal, not telephony integration.
+-- Not IVR — this is an Engine call journal, not telephony integration.
 
 CREATE TABLE IF NOT EXISTS contact_call_logs (
   id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -1,5 +1,5 @@
 // The predefined "inventory_update" WhatsApp template + its per-send
-// parameter builders. This is the CRM-native counterpart of the
+// parameter builders. This is the Engine-native counterpart of the
 // showcase share dialog's inventory digest: instead of pasting the
 // digest into personal WhatsApp, the agent sends this pre-approved
 // Marketing template from their WhatsApp Business number, so replies

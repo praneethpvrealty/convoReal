@@ -4,11 +4,11 @@ import { useState, useEffect } from "react";
 import { Star } from "lucide-react";
 import { toast } from "sonner";
 
-interface FavoriteItem {
-  label: string;
-  href: string;
-  icon: string;
-}
+import {
+  readFavorites,
+  writeFavorites,
+  type FavoriteItem,
+} from "@/lib/favorites-storage";
 
 interface FavoriteButtonProps {
   label: string;
@@ -17,44 +17,18 @@ interface FavoriteButtonProps {
 }
 
 export function FavoriteButton({ label, href, icon }: FavoriteButtonProps) {
-  const [isFavorite, setIsFavorite] = useState(() => {
-    if (typeof window === "undefined") return false;
-    const stored = localStorage.getItem("crm_favorites");
-    if (!stored) return false;
-    try {
-      const favorites: FavoriteItem[] = JSON.parse(stored);
-      return favorites.some((item) => item.href === href);
-    } catch {
-      return false;
-    }
-  });
+  const [isFavorite, setIsFavorite] = useState(() =>
+    readFavorites().some((item) => item.href === href),
+  );
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      const stored = localStorage.getItem("crm_favorites");
-      if (stored) {
-        try {
-          const favorites: FavoriteItem[] = JSON.parse(stored);
-          setIsFavorite(favorites.some((item) => item.href === href));
-        } catch (err) {
-          console.error("Failed to parse favorites", err);
-        }
-      } else {
-        setIsFavorite(false);
-      }
+      setIsFavorite(readFavorites().some((item) => item.href === href));
     });
   }, [href]);
 
   const toggleFavorite = () => {
-    const stored = localStorage.getItem("crm_favorites");
-    let favorites: FavoriteItem[] = [];
-    if (stored) {
-      try {
-        favorites = JSON.parse(stored);
-      } catch (err) {
-        console.error("Failed to parse favorites", err);
-      }
-    }
+    let favorites: FavoriteItem[] = readFavorites();
 
     if (isFavorite) {
       // Remove from favorites
@@ -68,7 +42,7 @@ export function FavoriteButton({ label, href, icon }: FavoriteButtonProps) {
       toast.success(`Added "${label}" to Favorites`);
     }
 
-    localStorage.setItem("crm_favorites", JSON.stringify(favorites));
+    writeFavorites(favorites);
     // Dispatch custom event to notify Sidebar / FavoritesCard
     window.dispatchEvent(new Event("favorites-changed"));
   };

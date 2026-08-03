@@ -989,7 +989,7 @@ async function processMessage(
     return;
   }
 
-  // The account owner texting their own CRM number (the WhatsApp
+  // The account owner texting their own Engine number (the WhatsApp
   // lister/self-chat) is not a lead: keep that thread archived and
   // unread-free so it never surfaces in the shared inbox. Checked
   // here (before the conversation update) and reused below for the
@@ -1213,7 +1213,7 @@ async function processMessage(
   }
 
   if (ownerCheck.isOwner) {
-    console.log(`[webhook] Intercepted message from CRM owner: ${senderPhone}`)
+    console.log(`[webhook] Intercepted message from Engine owner: ${senderPhone}`)
     const handled = await processOwnerChatbotMessage(
       message,
       contentText,
@@ -1298,7 +1298,7 @@ async function processMessage(
 
       if (!existingContact) {
         // Forwarded phonebook cards carry the agent's quick-reference names
-        // ("Nataraj Bank DSA") — split the qualifier into the CRM-only Name
+        // ("Nataraj Bank DSA") — split the qualifier into the Engine-only Name
         // Tag so outbound messages use the clean name.
         const nameSplit = name ? suggestNameTagSplit(name) : null;
         const { error: insertErr } = await supabaseAdmin()

@@ -1,7 +1,7 @@
 // Tracking-aware actions behind the property share sheet: log an
 // external (personal-WhatsApp) share on a contact's timeline, and send a
 // listing through the account's own WhatsApp Business number (Meta Cloud
-// API) so it lands in the shared inbox thread. The CRM send is
+// API) so it lands in the shared inbox thread. The Engine send is
 // template-first server-side (/api/whatsapp/share-property): free text
 // inside the 24-hour window, the pre-approved `new_property_alert`
 // template outside it — mirroring Match Radar. Only a missing or
@@ -37,7 +37,7 @@ export async function logExternalShare(contact: Contact, property: Property): Pr
   ]);
 }
 
-export interface CrmSendOutcome {
+export interface EngineSendOutcome {
   sent: boolean;
   conversationId?: string;
   /** How it was delivered: the composed free text (window open) or the
@@ -55,11 +55,11 @@ export interface CrmSendOutcome {
  *  so it's logged in the shared inbox thread. Window detection and the
  *  template fallback happen server-side; the composed message is used
  *  as-is when free text is allowed. */
-export async function sendPropertyViaCrm(
+export async function sendPropertyViaEngine(
   contact: Contact,
   property: Property,
   message: string
-): Promise<CrmSendOutcome> {
+): Promise<EngineSendOutcome> {
   try {
     const res = await apiFetch<{
       data: {

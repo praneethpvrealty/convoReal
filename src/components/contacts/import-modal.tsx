@@ -281,7 +281,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           <DialogDescription className="text-slate-400">
             Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
             name, name_tag, email, company. Trailing qualifiers in names (e.g.
-            &quot;Nataraj Bank DSA&quot;) are auto-split into the CRM-only Name Tag.{" "}
+            &quot;Nataraj Bank DSA&quot;) are auto-split into the Engine-only Name Tag.{" "}
             <button
               type="button"
               onClick={handleDownloadSample}

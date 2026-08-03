@@ -13,7 +13,7 @@ export type FunnelAnswers = Record<string, string | string[]>;
 /** The funnel is complete — the caller submits the captured answers. */
 export const FUNNEL_END = '__end__';
 /** Hand the visitor over to the ConvoReal prospect funnel. */
-export const FUNNEL_CRM = '__crm__';
+export const FUNNEL_ENGINE = '__engine__';
 /** Run the catalog match and show results before asking for contact details. */
 export const FUNNEL_MATCH = '__match__';
 
@@ -36,7 +36,7 @@ export interface FunnelStep {
 }
 
 export interface Funnel {
-  id: 'showcase' | 'crm';
+  id: 'showcase' | 'engine';
   first: string;
   steps: FunnelStep[];
 }

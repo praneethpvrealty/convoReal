@@ -366,7 +366,7 @@ export async function classifyImageOrText(
   mimeType?: string
 ): Promise<'property' | 'contact' | 'schedule' | 'none'> {
   const systemInstruction =
-    "You are an expert real estate CRM classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
+    "You are an expert real estate lead classifier. Your job is to classify if the incoming message (which can be text and/or an image) is:\n" +
     "1. 'property': A property listing to be added to inventory, layout plan, listing advertisement, or property details description.\n" +
     "2. 'contact': Contact details, vCard details, request to add/save a contact/lead, screenshot of contact/profile details, or lead forwarding/inquiry messages containing contact name/phone and their property interest (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters' or Magicbricks/99acres/Housing forwards).\n" +
     "3. 'schedule': A meeting, site visit, call or appointment being arranged or confirmed for a stated day/time — typically a screenshot of a chat thread where two people settle on when to meet (e.g. 'Monday 5 pm the meeting with the lawyer is confirmed right' / 'Yes, its confirmed'), or a calendar invite screenshot.\n" +
@@ -916,7 +916,7 @@ export async function isContactMessage(text: string): Promise<boolean> {
 
   const systemInstruction = 
     "You are an expert contact classifier. Your job is to classify if the incoming message contains contact details " +
-    "to be saved, or requests to add, create, or save a contact/lead in a CRM system. " +
+    "to be saved, or requests to add, create, or save a contact/lead in a contact database. " +
     "Only respond with exactly 'true' or 'false'. Absolutely no markdown, no punctuation, and no other text.";
 
   const prompt = `Classify this message:\n\n"${cleanText}"`;

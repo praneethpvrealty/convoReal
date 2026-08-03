@@ -99,7 +99,7 @@ export const PLAN_CONFIG: Record<Plan, PlanConfig> = {
   team: {
     id: 'team',
     name: 'Team',
-    tagline: 'For small brokerages',
+    tagline: 'For small teams',
     monthlyPrice: 2499,
     quarterlyPrice: 6899,
     annualPrice: 24990,
