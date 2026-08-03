@@ -47,6 +47,9 @@ export async function POST(request: NextRequest) {
       source?: string;
       /** Showcase the prospect was browsing when the bot qualified them. */
       source_account_id?: string;
+      /** Why an /i/<token> visitor landed on the waitlist rather than a
+       *  live seat — 'expired' | 'used' | 'revoked' | 'program_full'. */
+      invite_state?: string;
     } | null;
 
     const name = (body?.name || '').trim().slice(0, 120);
@@ -56,6 +59,12 @@ export async function POST(request: NextRequest) {
     const teamSize = (body?.team_size || '').trim().slice(0, 40);
     const sessionKey = (body?.session_key || '').slice(0, 64);
     const fromShowcase = body?.source === 'showcase';
+    // A visitor who reached a spent or expired /i/<token> link. These
+    // are the warmest leads the invite programme produces — an
+    // invite-only launch generates forwarded links by design — so they
+    // land in the same pipeline rather than hitting a wall.
+    const fromWaitlist = body?.source === 'beta_waitlist';
+    const inviteState = (body?.invite_state || '').trim().slice(0, 40);
     const sourceAccountId =
       fromShowcase && body?.source_account_id && UUID_RE.test(body.source_account_id)
         ? body.source_account_id
@@ -106,7 +115,11 @@ export async function POST(request: NextRequest) {
         phone,
         name: name || 'Engine Prospect',
         classification: roleToClassification(role),
-        referrer: fromShowcase ? 'ConvoReal Showcase Bot' : 'ConvoReal Website',
+        referrer: fromWaitlist
+          ? 'ConvoReal Beta Waitlist'
+          : fromShowcase
+            ? 'ConvoReal Showcase Bot'
+            : 'ConvoReal Website',
         company: role || null,
       });
       contactId = result.contactId;
@@ -117,6 +130,7 @@ export async function POST(request: NextRequest) {
 
     // Tag for easy pipeline filtering.
     const tags = ['ConvoReal Prospect'];
+    if (fromWaitlist) tags.push('Beta Waitlist');
     if (fromShowcase) tags.push('Showcase Referral');
     if (role) tags.push(role);
     if (city) tags.push(city);
@@ -140,7 +154,12 @@ export async function POST(request: NextRequest) {
     }
 
     const noteLines = [
-      fromShowcase ? 'New ConvoReal prospect (via a customer showcase):' : 'New ConvoReal website prospect:',
+      fromWaitlist
+        ? 'Beta waitlist signup (reached an invite link they could not use):'
+        : fromShowcase
+          ? 'New ConvoReal prospect (via a customer showcase):'
+          : 'New ConvoReal website prospect:',
+      fromWaitlist && inviteState ? `• Invite link state: ${inviteState}` : null,
       foundOn ? `• Found on: ${foundOn}'s showcase` : null,
       role ? `• Role: ${role}` : null,
       city ? `• City: ${city}` : null,

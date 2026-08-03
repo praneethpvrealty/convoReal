@@ -1,6 +1,6 @@
 # Invite-Only Beta — Program & Implementation Plan
 
-Status: **proposed** (no production code changed by this document)
+Status: **implemented**. Migrations `188`–`190`, routes under `/api/beta-invites` and `/api/bug-reports`, the `/i/[token]` page, Settings → Invites, and Admin → Bugs are all in the repo. See §10 for where the build deviated from this plan and why.
 Target: **100 accounts in 30 days**, invite-only, **5 invites per account**, with a first-class bug-report channel.
 
 ---
@@ -372,3 +372,65 @@ src/lib/rate-limit.ts                    # no change — existing buckets reused
 ```
 
 Roughly 13 new files and 5 edits. No new dependencies.
+
+---
+
+## 10. Where the build deviated from this plan
+
+Six changes, each because the plan was wrong about something in the codebase rather than because the implementation took a shortcut.
+
+### 10.1 The baseline for `handle_new_user()` is migration **160**, not 099
+
+§4.2 said to build the gate on top of migration 099. That would have been a production outage.
+
+`handle_new_user()` has been redefined seven times (001, 017, 067, 088, 099, 132, 160). The live body is **160's**, and it opens with a guard 099 does not have:
+
+```sql
+IF NEW.raw_user_meta_data->>'app_context' IN ('den','buyer') THEN
+  RETURN NEW;
+END IF;
+```
+
+Owners Den and buyer-portal users are `auth.users` rows with **no `profiles` row** — that absence *is* their isolation, because every Engine RLS policy gates through `profiles`. Rebuilding from 099 would have deleted that guard, started minting staff accounts for every property owner who logged in, and then — once the gate landed — rejected their WhatsApp OTP logins outright, locking both portals.
+
+Migration 189 reproduces the guard **first**, before the gate. §4.3's three signup paths are really **four**, and the den/buyer path is the one that had to be checked before anything else.
+
+### 10.2 `sha256()`, not pgcrypto's `digest()`
+
+§4.3 specified `encode(digest(token,'sha256'),'hex')`. On Supabase, pgcrypto lives in the `extensions` schema, and every `SECURITY DEFINER` function here sets `search_path = public` — so `digest()` would not resolve at runtime.
+
+`hash_beta_token()` uses the Postgres 11+ built-in instead:
+
+```sql
+encode(sha256(convert_to(p_token, 'UTF8')), 'hex')
+```
+
+No extension dependency, and byte-identical to Node's `createHash('sha256')` — verified against the running database, and pinned by a unit test in `src/lib/beta/invites.test.ts`.
+
+### 10.3 Redemption happens in the trigger, not in a later `redeem_beta_invite()`
+
+§4.3 said the trigger should only *validate*, with redemption finalized separately after email verification. That leaves a window in which **one token creates unlimited accounts**, because nothing has been marked used yet — which defeats the entire mechanism.
+
+The invite is now stamped `accepted` in the same transaction that creates the account. `plpgsql`'s `BEGIN/EXCEPTION` opens a subtransaction, so a failed bootstrap rolls the stamping back with it — a seat is never burned by a half-done signup.
+
+The cost the plan was trying to avoid is real but small: an abandoned, never-verified signup holds a seat. It is self-healing, because `beta_seats_taken()` counts **accounts** — deleting the dead account returns the seat. There is no separate redeem route, and `/i/<token>` → `/signup?beta=<token>` is the whole flow.
+
+### 10.4 No cron to expire invites when the cap lands
+
+§4.4 called for a nightly job flipping pending invites to `expired` once the programme fills. `peek_beta_invite()` computes `program_full` live instead. A nightly job is stale between runs; this cannot be, and it's less code.
+
+### 10.5 The waitlist reuses `/api/public/engine-lead`
+
+§5.3 required waitlist capture on every dead-end state but didn't say where it lands. Rather than a new table, entries post to the existing prospect funnel with `source=beta_waitlist`, so they arrive in the master account's sales pipeline as tagged contacts with a note recording which dead end they hit. No new schema.
+
+### 10.6 Migration numbers, and one extra kill switch
+
+Numbers moved to **188** (`beta_invites`), **189** (the gate) and **190** (`bug_reports`) — 187 was taken by the CRM→Engine comment rename.
+
+`beta_program` also gained `gate_enabled`, which §3.3 didn't have. `issuance_open` only stops *new* invites being minted; it does nothing about a gate that is misbehaving. `UPDATE beta_program SET gate_enabled = FALSE` restores open signup instantly with no deploy — the rollback §7's risk register asked for.
+
+### Verification
+
+The three migrations were applied to a scratch PostgreSQL 16 instance and the gate exercised end to end — 36 assertions, all passing: den/buyer bypass, valid redemption and seat stamping, reuse, unknown/expired/revoked tokens, team invites and phone matches passing through ungated and consuming no seat, the cap, the kill switch, seat reclamation on account delete, the 5-invite quota, revoke-and-reissue, and every `peek` envelope.
+
+`beta_seats_taken()` counting accounts rather than accepted invites is what makes reclamation work, and it is tested.
