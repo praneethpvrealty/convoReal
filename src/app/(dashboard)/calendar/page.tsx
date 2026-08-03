@@ -96,6 +96,13 @@ interface SimpleProperty {
   property_code?: string | null;
   location: string | null;
   sublocality: string | null;
+  tags?: string[] | null;
+  price?: number | null;
+  type?: string | null;
+  bedrooms?: number | null;
+  area_sqft?: number | null;
+  area_unit?: string | null;
+  images?: string[] | null;
 }
 
 type ViewMode = "month" | "week" | "team" | "agenda";
@@ -197,7 +204,7 @@ export default function CalendarPage() {
 
       const { data: propsList } = await supabase
         .from("properties")
-        .select("id, title, property_code, location, sublocality")
+        .select("id, title, property_code, location, sublocality, tags, price, type, bedrooms, area_sqft, area_unit, images")
         .eq("account_id", accountId)
         .order("title");
       setProperties(propsList || []);
@@ -607,7 +614,8 @@ export default function CalendarPage() {
       .filter(
         (p) =>
           p.title.toLowerCase().includes(searchVal) ||
-          (p.property_code || "").toLowerCase().includes(searchVal)
+          (p.property_code || "").toLowerCase().includes(searchVal) ||
+          (p.tags || []).join(" ").toLowerCase().includes(searchVal)
       )
       .slice(0, 5);
   }, [properties, mentionType, mentionSearch]);

@@ -66,6 +66,7 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
+  Tag,
 } from 'lucide-react';
 import { haversineKm } from '@/lib/geo';
 import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
@@ -227,6 +228,8 @@ export function PropertyForm({
   const [googleMapLink, setGoogleMapLink] = useState('');
   const [locationPrivacy, setLocationPrivacy] = useState<'' | 'exact' | 'locality'>('');
   const [notes, setNotes] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState('');
 
   // Document Requests management
   interface DocRequest {
@@ -1441,6 +1444,8 @@ export function PropertyForm({
             : ''
         );
         setNotes(property.notes ?? '');
+        setTags(property.tags || []);
+        setTagInput('');
         // Preserve saved coordinates unless the agent re-touches the location
         setGeoPick(
           property.latitude != null && property.longitude != null
@@ -1546,6 +1551,8 @@ export function PropertyForm({
         setGoogleMapLink('');
         setLocationPrivacy('');
         setNotes('');
+        setTags([]);
+        setTagInput('');
         setGeoPick(null);
         setGoogleSuggestions([]);
         setOwnerContactId(defaultOwnerId ?? null);
@@ -2293,6 +2300,7 @@ export function PropertyForm({
             }))
           : [],
         notes: notes.trim() || null,
+        tags,
         // Coordinates from the Google Maps pick; nulls tell the server to
         // geocode the (possibly changed) location text instead.
         latitude: geoPick?.latitude ?? null,
@@ -2890,6 +2898,27 @@ export function PropertyForm({
                       </h4>
                       <div className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed bg-amber-950/10 p-4 rounded-xl border border-amber-900/30">
                         {notes}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* TAGS (Engine-only) */}
+                  {tags.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-amber-400/80 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>Tags</span>
+                        <span className="text-[9px] font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">Engine Only</span>
+                      </h4>
+                      <div className="flex flex-wrap gap-1.5">
+                        {tags.map((tag, idx) => (
+                          <span
+                            key={`${tag}-${idx}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-primary/15 border border-primary/25 px-2.5 py-1 text-[11px] font-semibold text-primary"
+                          >
+                            <Tag className="size-2.5" />
+                            {tag}
+                          </span>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -4167,6 +4196,60 @@ export function PropertyForm({
                       />
                       <p className="text-[10px] text-slate-500 leading-normal">
                         Location landmarks, access info, owner contact preferences — searchable in the Engine but private to your team.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5 col-span-2">
+                      <Label htmlFor="prop-tags" className="text-slate-300 flex items-center gap-1.5">
+                        Tags
+                        <span className="text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">Engine Only — Not visible to clients</span>
+                      </Label>
+                      <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-2 py-1.5 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 focus-within:ring-offset-slate-950">
+                        {tags.map((tag, idx) => (
+                          <span
+                            key={`${tag}-${idx}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-primary/15 border border-primary/25 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                          >
+                            <Tag className="size-2.5" />
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => setTags(tags.filter((_, i) => i !== idx))}
+                              className="text-primary/70 hover:text-primary"
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </span>
+                        ))}
+                        <input
+                          id="prop-tags"
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ',') {
+                              e.preventDefault();
+                              const next = tagInput.trim();
+                              if (next && !tags.some((t) => t.toLowerCase() === next.toLowerCase())) {
+                                setTags([...tags, next]);
+                              }
+                              setTagInput('');
+                            } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+                              setTags(tags.slice(0, -1));
+                            }
+                          }}
+                          onBlur={() => {
+                            const next = tagInput.trim();
+                            if (next && !tags.some((t) => t.toLowerCase() === next.toLowerCase())) {
+                              setTags([...tags, next]);
+                            }
+                            setTagInput('');
+                          }}
+                          placeholder={tags.length === 0 ? 'e.g. Brick and Bolt, Distress Sale — press Enter to add' : 'Add tag...'}
+                          className="h-6 min-w-[140px] flex-1 bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-normal">
+                        Builder names, campaigns, deal nicknames — typing any part of a tag finds this property in Inventory search and property pickers.
                       </p>
                     </div>
 

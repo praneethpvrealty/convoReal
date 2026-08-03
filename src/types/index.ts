@@ -970,6 +970,10 @@ export interface Property {
   property_code?: string;
   /** Internal agent notes — Engine-only, never shown on the public showcase. */
   notes?: string | null;
+  /** Internal free-text search tags (migration 192) — Engine-only, never
+   *  shown on the public showcase. Searchable via the generated tags_text
+   *  column in GET /api/properties. */
+  tags?: string[];
   owner_contact_id?: string | null;
   owner?: Contact | null;
   interested_contacts?: Contact[];

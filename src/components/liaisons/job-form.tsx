@@ -64,7 +64,7 @@ export function JobForm({
       supabase.from('contacts').select('*').order('name'),
       supabase
         .from('properties')
-        .select('id, title, property_code, location, sublocality, project')
+        .select('id, title, property_code, location, sublocality, project, tags')
         .order('title'),
     ]);
     if (contactsRes.data) setContacts(contactsRes.data);

@@ -50,7 +50,7 @@ export function NewJourneyDialog({
           .limit(1000),
         supabase
           .from("properties")
-          .select("id, title, property_code, location, sublocality, project")
+          .select("id, title, property_code, location, sublocality, project, tags")
           .eq("account_id", accountId)
           .order("created_at", { ascending: false })
           .limit(1000),

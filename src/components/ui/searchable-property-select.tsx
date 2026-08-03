@@ -2,8 +2,10 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronDown, X, Check } from 'lucide-react';
+import { Search, ChevronDown, X, Check, Tag, ImageOff } from 'lucide-react';
 import { useAnchoredDropdown } from '@/hooks/use-anchored-dropdown';
+import { formatCurrencyShort } from '@/lib/currency-utils';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 interface PropertyOption {
   id: string;
@@ -12,6 +14,13 @@ interface PropertyOption {
   location?: string | null;
   sublocality?: string | null;
   project?: string | null;
+  tags?: string[] | null;
+  price?: number | null;
+  type?: string | null;
+  bedrooms?: number | null;
+  area_sqft?: number | null;
+  area_unit?: string | null;
+  images?: string[] | null;
 }
 
 interface SearchablePropertySelectProps {
@@ -55,13 +64,15 @@ export function SearchablePropertySelect({
       const location = (p.location || '').toLowerCase();
       const sublocality = (p.sublocality || '').toLowerCase();
       const project = (p.project || '').toLowerCase();
-      
+      const tags = (p.tags || []).join(' ').toLowerCase();
+
       return (
         code.includes(query) ||
         title.includes(query) ||
         location.includes(query) ||
         sublocality.includes(query) ||
-        project.includes(query)
+        project.includes(query) ||
+        tags.includes(query)
       );
     });
   }, [search, properties]);
@@ -118,7 +129,7 @@ export function SearchablePropertySelect({
         <input
           ref={inputRef}
           type="text"
-          placeholder="Search properties by title, code or locality..."
+          placeholder="Search by title, code, locality or tag..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="h-8.5 w-full rounded-lg border border-slate-800 bg-slate-950 pl-8 pr-7 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-primary"
@@ -160,6 +171,17 @@ export function SearchablePropertySelect({
         ) : (
           filteredProperties.map((prop) => {
             const isSelected = value === prop.id;
+            const thumb = prop.images && prop.images.length > 0 ? storagePublicUrl(prop.images[0]) : '';
+            const meta = [
+              typeof prop.price === 'number' && prop.price > 0 ? formatCurrencyShort(prop.price) : null,
+              prop.type || null,
+              typeof prop.bedrooms === 'number' && prop.bedrooms > 0 ? `${prop.bedrooms} BHK` : null,
+              typeof prop.area_sqft === 'number' && prop.area_sqft > 0
+                ? `${prop.area_sqft.toLocaleString('en-IN')} ${prop.area_unit || 'Sq.Ft.'}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ');
             return (
               <div
                 key={prop.id}
@@ -173,6 +195,16 @@ export function SearchablePropertySelect({
                     : 'text-slate-200 hover:text-white'
                 }`}
               >
+                {prop.images !== undefined && (
+                  <div className="size-11 shrink-0 rounded-md overflow-hidden bg-slate-950 border border-slate-800 mr-2.5 flex items-center justify-center">
+                    {thumb ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt="" loading="lazy" className="size-full object-cover" />
+                    ) : (
+                      <ImageOff className="size-4 text-slate-700" />
+                    )}
+                  </div>
+                )}
                 <div className="min-w-0 pr-3 flex-1">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {prop.property_code && (
@@ -182,10 +214,28 @@ export function SearchablePropertySelect({
                     )}
                     <span className="font-bold truncate">{prop.title}</span>
                   </div>
+                  {meta && (
+                    <p className="text-[10px] text-slate-300 mt-0.5 truncate font-semibold">
+                      {meta}
+                    </p>
+                  )}
                   {prop.location && (
                     <p className="text-[10px] text-slate-450 mt-0.5 truncate font-medium">
                       📍 {prop.location}
                     </p>
+                  )}
+                  {prop.tags && prop.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {prop.tags.map((tag, idx) => (
+                        <span
+                          key={`${tag}-${idx}`}
+                          className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 border border-primary/20 px-1.5 py-0.5 text-[9px] font-semibold text-primary"
+                        >
+                          <Tag className="size-2" />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
                   )}
                 </div>
                 {isSelected && <Check className="size-3.5 text-primary shrink-0 mt-0.5" />}

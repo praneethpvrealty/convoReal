@@ -227,6 +227,7 @@ export async function GET(request: Request) {
             `description.ilike.${term},` +
             `ideal_for.ilike.${term},` +
             `notes.ilike.${term},` +
+            `tags_text.ilike.${term},` +
             `property_code.ilike.${term}`
           );
         }
@@ -527,6 +528,7 @@ export async function POST(request: Request) {
       land_use_zoning,
       deal_remarks,
       notes,
+      tags,
       documents,
       // locality coordinates (from the form's Places autocomplete pick)
       latitude,
@@ -638,6 +640,9 @@ export async function POST(request: Request) {
       bts_lock_in_years: typeof bts_lock_in_years === "number" ? bts_lock_in_years : null,
       bts_escalation_percent: typeof bts_escalation_percent === "number" ? bts_escalation_percent : null,
       notes: typeof notes === "string" ? notes.trim() || null : null,
+      tags: Array.isArray(tags)
+        ? tags.filter((t) => typeof t === "string" && t.trim().length > 0).map((t) => t.trim())
+        : [],
       latitude: typeof latitude === "number" && Number.isFinite(latitude) ? latitude : null,
       longitude: typeof longitude === "number" && Number.isFinite(longitude) ? longitude : null,
       locality_place_id:
