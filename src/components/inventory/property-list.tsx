@@ -31,6 +31,7 @@ import {
   ThumbsUp,
   Lock,
   Tag,
+  Users,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -67,6 +68,7 @@ interface PropertyListProps {
   onFlyer?: (property: Property) => void;
   onPromote?: (property: Property) => void;
   onShare?: (property: Property) => void;
+  onMatches?: (property: Property) => void;
   onEmailShare?: (property: Property) => void;
   onPortals?: (property: Property) => void;
   /** propertyId → portal short codes ("99" | "MB" | "H") currently live. */
@@ -89,6 +91,7 @@ export function PropertyList({
   onFlyer,
   onPromote,
   onShare,
+  onMatches,
   onEmailShare,
   onPortals,
   portalBadges,
@@ -803,6 +806,26 @@ export function PropertyList({
                         </>
                       </TooltipTrigger>
                       <TooltipContent side="top">Share property listing</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onMatches && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onMatches(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Users className="size-3.5 mr-1.5 text-emerald-400" /> Matches
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Matching contacts for this property</TooltipContent>
                     </Tooltip>
                   )}
                   <Tooltip>

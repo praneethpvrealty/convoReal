@@ -115,6 +115,7 @@ export default function InventoryPage() {
   const [importSharedOpen, setImportSharedOpen] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [formViewOnly, setFormViewOnly] = useState(false);
+  const [formInitialTab, setFormInitialTab] = useState<'details' | 'matches'>('details');
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -326,7 +327,8 @@ export default function InventoryPage() {
   }, [properties, selectedProperty, flyerProperty, shareProperty]);
 
   // Handle edit click - fetch full property with interested_contacts
-  async function handleViewClick(property: Property) {
+  async function handleViewClick(property: Property, tab: 'details' | 'matches' = 'details') {
+    setFormInitialTab(tab);
     try {
       const response = await fetch(`/api/properties/${property.id}`, {
         cache: 'no-store',
@@ -348,6 +350,7 @@ export default function InventoryPage() {
   }
 
   async function handleEditClick(property: Property) {
+    setFormInitialTab('details');
     try {
       const response = await fetch(`/api/properties/${property.id}`, {
         cache: 'no-store',
@@ -372,6 +375,7 @@ export default function InventoryPage() {
   function handleAddClick() {
     setSelectedProperty(null);
     setFormViewOnly(false);
+    setFormInitialTab('details');
     setFormOpen(true);
   }
 
@@ -1036,6 +1040,7 @@ export default function InventoryPage() {
         onFlyer={handleFlyerClick}
         onPromote={META_ADS_ENABLED ? handlePromoteClick : undefined}
         onShare={handleShareClick}
+        onMatches={(property) => handleViewClick(property, 'matches')}
         onEmailShare={handleEmailShareClick}
         onApprove={handleApprove}
         onReject={handleReject}
@@ -1050,6 +1055,7 @@ export default function InventoryPage() {
         property={selectedProperty}
         onSaved={() => refreshInventory()}
         viewOnly={formViewOnly}
+        initialTab={formInitialTab}
       />
 
       {/* Import Shared Property Dialog */}
