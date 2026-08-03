@@ -657,5 +657,108 @@ describe('getMatchingContacts', () => {
       const results = getMatchingContacts(prop, [projectContact, areaContact]);
       expect(results[0].contact.id).toBe('c-proj');
     });
+
+    it('reads the agent-entered watchlist as well as the AI-extracted one', () => {
+      const contact = createTestContact({ projects_of_interest: ['Purva Westend'] });
+      const prop = createTestProperty({ project: 'Purva Westend', type: 'Flat/ Apartment' });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.project).toBe('match');
+    });
+
+    it('matches a builder shorthand against the registered project name', () => {
+      const contact = createTestContact({ projects_of_interest: ['Purva Westend'] });
+      const prop = createTestProperty({
+        project: 'Puravankara Westend',
+        type: 'Flat/ Apartment',
+      });
+      expect(getMatchingContacts(prop, [contact])[0].details.project).toBe('match');
+    });
+  });
+
+  describe('Residential property interests', () => {
+    it('matches a flat buyer to an apartment', () => {
+      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const prop = createTestProperty({ type: 'Flat/ Apartment' });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.type).toBe('match');
+    });
+
+    it('keeps a flat buyer away from plots', () => {
+      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const prop = createTestProperty({ type: 'Residential Land/ Plot' });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(0);
+    });
+
+    it('matches a villa buyer to a villa', () => {
+      const contact = createTestContact({ property_interests: ['Villa'] });
+      const prop = createTestProperty({ type: 'Villa' });
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+    });
+
+    it('matches a commercial office seeker to office stock', () => {
+      const contact = createTestContact({ property_interests: ['Commercial Office Space'] });
+      const prop = createTestProperty({ type: 'Commercial Office Space' });
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+    });
+  });
+
+  describe('Strict project watchlist (strict_project_match)', () => {
+    it('excludes a listing outside the watchlist that otherwise fits', () => {
+      const contact = createTestContact({
+        projects_of_interest: ['Purva Westend'],
+        strict_project_match: true,
+        pref_property_types: ['Flat/ Apartment'],
+        pref_areas: ['HSR Layout'],
+        max_budget: 20000000,
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({
+        title: '2 BHK in SJR Blue Waters',
+        project: 'SJR Blue Waters',
+        type: 'Flat/ Apartment',
+        location: 'HSR Layout, Bangalore',
+        price: 15000000,
+      });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(0);
+    });
+
+    it('still matches the watchlisted project', () => {
+      const contact = createTestContact({
+        projects_of_interest: ['Purva Westend'],
+        strict_project_match: true,
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({
+        project: 'Purva Westend',
+        type: 'Flat/ Apartment',
+        location: 'Kudlu, Bangalore',
+      });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.project).toBe('match');
+    });
+
+    it('is inert when the watchlist is empty, so the flag alone excludes nobody', () => {
+      const contact = createTestContact({
+        strict_project_match: true,
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({ type: 'Flat/ Apartment', project: 'SJR Blue Waters' });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(1);
+    });
+
+    it('does not gate contacts who left the flag off', () => {
+      const contact = createTestContact({
+        projects_of_interest: ['Purva Westend'],
+        pref_property_types: ['Flat/ Apartment'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const prop = createTestProperty({ type: 'Flat/ Apartment', project: 'SJR Blue Waters' });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(1);
+    });
   });
 });

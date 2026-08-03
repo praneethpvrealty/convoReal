@@ -44,10 +44,16 @@ const DEDUPE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function chipsFromDetails(d: MatchDetails): string[] {
   const chips: string[] = [];
+  // A named-project hit forces location to 'match' in the engine, so it
+  // stands in for the locality chip rather than sitting next to one the
+  // matcher never verified.
+  if (d.project === 'match') chips.push('Named project');
   if (d.type === 'match') chips.push('Type match');
   else if (d.type === 'partial') chips.push('Category match');
-  if (d.location === 'match') chips.push('In area');
-  else if (d.location === 'partial') chips.push('Same city');
+  if (d.project !== 'match') {
+    if (d.location === 'match') chips.push('In area');
+    else if (d.location === 'partial') chips.push('Same city');
+  }
   if (d.budget === 'match') chips.push('Budget fit');
   else if (d.budget === 'partial') chips.push('Budget near');
   else if (d.budget === 'unknown') chips.push('No budget on file');

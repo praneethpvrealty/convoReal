@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
+import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
@@ -51,6 +53,7 @@ import {
   Clock,
   ArrowUp,
   Waypoints,
+  ArrowRightLeft,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -71,15 +74,10 @@ import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
+import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
-const PROPERTY_INTEREST_OPTIONS = [
-  'Vacant plot',
-  'Vacant building',
-  'Rental building with some ROI',
-  'Old building selling at site rate',
-];
 
 
 interface ContactDetailViewProps {
@@ -128,6 +126,7 @@ export function ContactDetailView({
   const [shareProperty, setShareProperty] = useState<Property | null>(null);
   const [logShareOpen, setLogShareOpen] = useState(false);
   const [greetingsOpen, setGreetingsOpen] = useState(false);
+  const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
 
   // Details tab
   const [editName, setEditName] = useState('');
@@ -211,6 +210,9 @@ export function ContactDetailView({
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
   const [editAreasText, setEditAreasText] = useState('');
   const [editAreasGeo, setEditAreasGeo] = useState<AreaOfInterestGeo[]>([]);
+  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<string[]>([]);
+  const [editProjectsText, setEditProjectsText] = useState('');
+  const [editStrictProjectMatch, setEditStrictProjectMatch] = useState(false);
   const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
   const [editMinRoi, setEditMinRoi] = useState('');
   const [savingPreferences, setSavingPreferences] = useState(false);
@@ -301,6 +303,10 @@ export function ContactDetailView({
         setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
         setEditNoBudget(!!data.no_budget);
         setEditStrictAreaMatch(!!data.strict_area_match);
+        const initialProjects = data.projects_of_interest ?? [];
+        setEditProjectsOfInterest(initialProjects);
+        setEditProjectsText(initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : ''));
+        setEditStrictProjectMatch(!!data.strict_project_match);
         const initialAreas = data.areas_of_interest ?? [];
         setEditAreasOfInterest(initialAreas);
         setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
@@ -1161,6 +1167,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         max_budget: editMaxBudget ? Number(editMaxBudget) : null,
         no_budget: editNoBudget,
         strict_area_match: editStrictAreaMatch,
+        projects_of_interest: editProjectsOfInterest,
+        strict_project_match: editProjectsOfInterest.length > 0 && editStrictProjectMatch,
         areas_of_interest: editAreasOfInterest,
         areas_of_interest_geo: prunedAreasGeo,
         property_interests: editPropertyInterests,
@@ -1359,6 +1367,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     >
                       <MessageSquarePlus className="size-3 text-emerald-400 fill-current stroke-slate-950" />
                       Send Welcome
+                    </button>
+                    <button
+                      onClick={() => setMoveToEngineOpen(true)}
+                      className="flex items-center gap-1.5 text-emerald-400 hover:text-emerald-350 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-md px-2 py-0.5 transition-all cursor-pointer font-medium"
+                      title="Invite them to message the Engine number, so their replies land in the inbox"
+                    >
+                      <ArrowRightLeft className="size-3 text-emerald-400" />
+                      Move to Engine
                     </button>
                     <button
                       onClick={() => setScheduleOpen(true)}
@@ -2051,6 +2067,23 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           Strict Area Match (Matches within 5 kms instead of 20 kms)
                         </label>
                       </div>
+                    </div>
+
+                    {/* Named Projects */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-400 text-xs font-semibold">Projects of Interest</Label>
+
+                      <ProjectsOfInterestInput
+                        projectsText={editProjectsText}
+                        projects={editProjectsOfInterest}
+                        strict={editStrictProjectMatch}
+                        onChange={(text, projects) => {
+                          setEditProjectsText(text);
+                          setEditProjectsOfInterest(projects);
+                        }}
+                        onStrictChange={setEditStrictProjectMatch}
+                        idPrefix="edit-cf"
+                      />
                     </div>
 
                     {/* Property Category Interests */}
@@ -2855,6 +2888,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   fetchNotes();
                   onUpdated();
                 }}
+              />
+            )}
+            {/* Move to Engine WhatsApp Dialog */}
+            {contact && (
+              <MoveToEngineDialog
+                open={moveToEngineOpen}
+                onOpenChange={setMoveToEngineOpen}
+                contactName={contact.name || ''}
+                contactPhone={contact.phone}
               />
             )}
             {/* Greetings Generator Dialog */}

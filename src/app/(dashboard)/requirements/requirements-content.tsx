@@ -35,6 +35,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ChecklistLoader } from "@/components/ui/checklist-loader"
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
 import { NameTagBadge } from "@/components/contacts/name-tag-badge"
+import { ProjectsOfInterestInput } from "@/components/contacts/projects-of-interest-input"
 import { SearchableContactSelect } from "@/components/ui/searchable-contact-select"
 import {
   Dialog,
@@ -88,6 +89,8 @@ interface ConsolidatedContact {
   pref_property_categories?: string[] | null
   pref_property_types?: string[] | null
   pref_suggested_tags?: string[] | null
+  projects_of_interest?: string[] | null
+  strict_project_match?: boolean | null
   pref_projects?: string[] | null
   contact_notes?: ContactNote[]
   contact_tags?: ContactTagJoin[]
@@ -115,6 +118,9 @@ export default function RequirementsPage() {
   const [editorContactId, setEditorContactId] = useState<string | null>(null)
   const [editorIsAdd, setEditorIsAdd] = useState(false)
   const [reqText, setReqText] = useState("")
+  const [reqProjects, setReqProjects] = useState<string[]>([])
+  const [reqProjectsText, setReqProjectsText] = useState("")
+  const [reqStrictProjects, setReqStrictProjects] = useState(false)
   const [savingReq, setSavingReq] = useState(false)
 
   const fetchRequirements = useCallback(async () => {
@@ -229,17 +235,25 @@ export default function RequirementsPage() {
     }
   }
 
+  const loadEditorFields = (c: ConsolidatedContact | null) => {
+    setReqText(c?.requirements ?? "")
+    const projects = c?.projects_of_interest ?? []
+    setReqProjects(projects)
+    setReqProjectsText(projects.join(", ") + (projects.length > 0 ? ", " : ""))
+    setReqStrictProjects(!!c?.strict_project_match)
+  }
+
   const openEditRequirements = (c: ConsolidatedContact) => {
     setEditorContactId(c.id)
     setEditorIsAdd(false)
-    setReqText(c.requirements ?? "")
+    loadEditorFields(c)
     setEditorOpen(true)
   }
 
   const openAddRequirements = () => {
     setEditorContactId(null)
     setEditorIsAdd(true)
-    setReqText("")
+    loadEditorFields(null)
     setEditorOpen(true)
   }
 
@@ -247,7 +261,7 @@ export default function RequirementsPage() {
   // so a stale card can't silently overwrite newer text.
   const handleEditorContactChange = (id: string | null) => {
     setEditorContactId(id)
-    setReqText(id ? data.find((c) => c.id === id)?.requirements ?? "" : "")
+    loadEditorFields(id ? data.find((c) => c.id === id) ?? null : null)
   }
 
   // `${contactId}:${tagName}` while a suggestion accept is in flight —
@@ -310,6 +324,8 @@ export default function RequirementsPage() {
         .from("contacts")
         .update({
           requirements: reqText.trim() || null,
+          projects_of_interest: reqProjects,
+          strict_project_match: reqProjects.length > 0 && reqStrictProjects,
           updated_at: new Date().toISOString(),
         })
         .eq("id", editorContactId)
@@ -677,7 +693,10 @@ export default function RequirementsPage() {
                         segmentation/broadcasts. Hidden once tagged. */}
                     {(() => {
                       const projects = visibleTagSuggestions(
-                        c.pref_projects,
+                        [
+                          ...(c.projects_of_interest ?? []),
+                          ...(c.pref_projects ?? []),
+                        ],
                         (c.contact_tags ?? []).map((t) => t.tags?.name),
                       )
                       if (projects.length === 0) return null
@@ -883,6 +902,21 @@ export default function RequirementsPage() {
                 Saving re-runs AI preference extraction, so budgets and interest
                 chips update from this text automatically.
               </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-300">Projects of Interest</Label>
+              <ProjectsOfInterestInput
+                projectsText={reqProjectsText}
+                projects={reqProjects}
+                strict={reqStrictProjects}
+                onChange={(text, projects) => {
+                  setReqProjectsText(text)
+                  setReqProjects(projects)
+                }}
+                onStrictChange={setReqStrictProjects}
+                idPrefix="req"
+              />
             </div>
           </div>
 

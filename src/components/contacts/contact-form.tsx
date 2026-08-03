@@ -6,6 +6,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, Property, AreaOfInterestGeo } from '@/types';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
+import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
@@ -31,12 +33,6 @@ import {
 } from '@/components/ui/tooltip';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 
-const PROPERTY_INTEREST_OPTIONS = [
-  'Vacant plot',
-  'Vacant building',
-  'Rental building with some ROI',
-  'Old building selling at site rate',
-];
 
 
 interface ContactFormProps {
@@ -96,6 +92,9 @@ export function ContactForm({
   const [areasOfInterest, setAreasOfInterest] = useState<string[]>([]);
   const [areasText, setAreasText] = useState('');
   const [areasGeo, setAreasGeo] = useState<AreaOfInterestGeo[]>([]);
+  const [projectsOfInterest, setProjectsOfInterest] = useState<string[]>([]);
+  const [projectsText, setProjectsText] = useState('');
+  const [strictProjectMatch, setStrictProjectMatch] = useState(false);
   const [propertyInterests, setPropertyInterests] = useState<string[]>([]);
   const [minRoi, setMinRoi] = useState('');
 
@@ -183,6 +182,10 @@ export function ContactForm({
       setAreasOfInterest(initialAreas);
       setAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
       setAreasGeo(contact?.areas_of_interest_geo ?? []);
+      const initialProjects = contact?.projects_of_interest ?? [];
+      setProjectsOfInterest(initialProjects);
+      setProjectsText(initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : ''));
+      setStrictProjectMatch(!!contact?.strict_project_match);
       setPropertyInterests(contact?.property_interests ?? []);
       setMinRoi(contact?.min_roi ? String(contact.min_roi) : '');
       setSource(contact?.source ?? '');
@@ -309,6 +312,8 @@ export function ContactForm({
         strict_area_match: strictAreaMatch,
         areas_of_interest: areasOfInterest,
         areas_of_interest_geo: pruneAreasGeo(areasGeo, areasOfInterest),
+        projects_of_interest: projectsOfInterest,
+        strict_project_match: projectsOfInterest.length > 0 && strictProjectMatch,
         property_interests: propertyInterests,
         min_roi: minRoi ? Number(minRoi) : null,
         source: source.trim() || null,
@@ -775,6 +780,23 @@ export function ContactForm({
                     Strict Area Match (Matches within 5 kms instead of 20 kms)
                   </label>
                 </div>
+              </div>
+
+              {/* Named Projects */}
+              <div className="space-y-2">
+                <Label className="text-slate-300">Projects of Interest</Label>
+
+                <ProjectsOfInterestInput
+                  projectsText={projectsText}
+                  projects={projectsOfInterest}
+                  strict={strictProjectMatch}
+                  onChange={(text, projects) => {
+                    setProjectsText(text);
+                    setProjectsOfInterest(projects);
+                  }}
+                  onStrictChange={setStrictProjectMatch}
+                  idPrefix="cf"
+                />
               </div>
 
               {/* Property Interests Checklist */}

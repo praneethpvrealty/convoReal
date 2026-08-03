@@ -29,7 +29,7 @@ export async function PUT(
       last_inquired_property_id, referrer, referrer_contact_id,
       min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo,
       property_interests, min_roi, source, dob, feedback_status,
-      strict_area_match,
+      strict_area_match, projects_of_interest, strict_project_match,
       // Related entities
       tag_ids,
       note_text,
@@ -71,6 +71,8 @@ export async function PUT(
       dob: typeof dob === 'string' && dob.trim() ? dob.trim() : null,
       feedback_status: typeof feedback_status === 'string' ? feedback_status : 'not_requested',
       strict_area_match: typeof strict_area_match === 'boolean' ? strict_area_match : false,
+      projects_of_interest: Array.isArray(projects_of_interest) ? projects_of_interest : [],
+      strict_project_match: typeof strict_project_match === 'boolean' ? strict_project_match : false,
       updated_at: new Date().toISOString(),
     };
 

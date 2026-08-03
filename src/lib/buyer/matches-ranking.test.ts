@@ -124,6 +124,30 @@ describe('matchReasons', () => {
     } as never);
     expect(reasons).toEqual(['Type you asked for', 'Same city', 'Within budget', 'BHK fits']);
   });
+
+  it('leads with the named project when the buyer asked for one', () => {
+    const reasons = matchReasons({
+      type: 'match',
+      location: 'match',
+      budget: 'match',
+      bhk: 'unknown',
+      roi: 'unknown',
+      project: 'match',
+    } as never);
+    expect(reasons[0]).toBe('Project you asked for');
+  });
+
+  it('drops the locality line on a project match, which the engine never checked', () => {
+    const reasons = matchReasons({
+      type: 'match',
+      location: 'match',
+      budget: 'unknown',
+      bhk: 'unknown',
+      roi: 'unknown',
+      project: 'match',
+    } as never);
+    expect(reasons).not.toContain('In your area');
+  });
 });
 
 describe('hasBuyerBrief', () => {
@@ -133,6 +157,7 @@ describe('hasBuyerBrief', () => {
     expect(hasBuyerBrief(buyer({ property_interests: ['Villa'] }))).toBe(true);
     expect(hasBuyerBrief(buyer({ min_roi: 6 }))).toBe(true);
     expect(hasBuyerBrief(buyer({ requirements: 'corner plot' }))).toBe(true);
+    expect(hasBuyerBrief(buyer({ projects_of_interest: ['Purva Westend'] }))).toBe(true);
   });
 
   it('rejects a contact with nothing on file, so nothing buyer-facing runs on noise', () => {

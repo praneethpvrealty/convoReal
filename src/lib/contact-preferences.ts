@@ -97,7 +97,9 @@ export function effectiveCategories(
  * AI tag suggestions still worth showing: drops suggestions whose
  * label matches an already-attached tag (case-insensitive), so a chip
  * disappears the moment an agent confirms it — or if someone already
- * tagged the contact manually with the same label.
+ * tagged the contact manually with the same label. Repeats within the
+ * list collapse too: agent-entered and AI-extracted sources routinely
+ * name the same thing.
  */
 export function visibleTagSuggestions(
   suggested: string[] | null | undefined,
@@ -111,5 +113,11 @@ export function visibleTagSuggestions(
       .map((n) => n.trim().toLowerCase())
       .filter(Boolean),
   );
-  return cleaned.filter((s) => !attached.has(s.toLowerCase()));
+  const seen = new Set<string>();
+  return cleaned.filter((s) => {
+    const key = s.toLowerCase();
+    if (attached.has(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
