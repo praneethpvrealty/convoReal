@@ -23,6 +23,7 @@ export function hasBuyerBrief(contact: Contact): boolean {
     contact.min_budget ||
       contact.max_budget ||
       contact.areas_of_interest?.length ||
+      contact.projects_of_interest?.length ||
       contact.property_interests?.length ||
       contact.min_roi ||
       contact.requirements?.trim()

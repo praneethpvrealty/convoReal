@@ -140,6 +140,14 @@ export interface Contact {
   /** Coordinates for Google-picked areas_of_interest entries (migration 126);
    *  proximity matching falls back to the static locality table otherwise. */
   areas_of_interest_geo?: AreaOfInterestGeo[] | null;
+  /** Agent-entered named projects/societies the contact wants
+   *  (migration 192). Explicit twin of the AI-extracted pref_projects;
+   *  src/lib/matching.ts matches the union of both. */
+  projects_of_interest?: string[];
+  /** When true, only listings in projects_of_interest/pref_projects can
+   *  match this contact (migration 192) — everything else is excluded
+   *  regardless of type, area or budget fit. */
+  strict_project_match?: boolean;
   property_interests?: string[];
   status?: 'active' | 'pending_review';
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;

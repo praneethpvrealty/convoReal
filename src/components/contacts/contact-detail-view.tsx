@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
@@ -211,6 +212,9 @@ export function ContactDetailView({
   const [editAreasOfInterest, setEditAreasOfInterest] = useState<string[]>([]);
   const [editAreasText, setEditAreasText] = useState('');
   const [editAreasGeo, setEditAreasGeo] = useState<AreaOfInterestGeo[]>([]);
+  const [editProjectsOfInterest, setEditProjectsOfInterest] = useState<string[]>([]);
+  const [editProjectsText, setEditProjectsText] = useState('');
+  const [editStrictProjectMatch, setEditStrictProjectMatch] = useState(false);
   const [editPropertyInterests, setEditPropertyInterests] = useState<string[]>([]);
   const [editMinRoi, setEditMinRoi] = useState('');
   const [savingPreferences, setSavingPreferences] = useState(false);
@@ -301,6 +305,10 @@ export function ContactDetailView({
         setEditMaxBudget(data.max_budget ? String(data.max_budget) : '');
         setEditNoBudget(!!data.no_budget);
         setEditStrictAreaMatch(!!data.strict_area_match);
+        const initialProjects = data.projects_of_interest ?? [];
+        setEditProjectsOfInterest(initialProjects);
+        setEditProjectsText(initialProjects.join(', ') + (initialProjects.length > 0 ? ', ' : ''));
+        setEditStrictProjectMatch(!!data.strict_project_match);
         const initialAreas = data.areas_of_interest ?? [];
         setEditAreasOfInterest(initialAreas);
         setEditAreasText(initialAreas.join(', ') + (initialAreas.length > 0 ? ', ' : ''));
@@ -1161,6 +1169,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         max_budget: editMaxBudget ? Number(editMaxBudget) : null,
         no_budget: editNoBudget,
         strict_area_match: editStrictAreaMatch,
+        projects_of_interest: editProjectsOfInterest,
+        strict_project_match: editProjectsOfInterest.length > 0 && editStrictProjectMatch,
         areas_of_interest: editAreasOfInterest,
         areas_of_interest_geo: prunedAreasGeo,
         property_interests: editPropertyInterests,
@@ -2051,6 +2061,23 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           Strict Area Match (Matches within 5 kms instead of 20 kms)
                         </label>
                       </div>
+                    </div>
+
+                    {/* Named Projects */}
+                    <div className="space-y-2">
+                      <Label className="text-slate-400 text-xs font-semibold">Projects of Interest</Label>
+
+                      <ProjectsOfInterestInput
+                        projectsText={editProjectsText}
+                        projects={editProjectsOfInterest}
+                        strict={editStrictProjectMatch}
+                        onChange={(text, projects) => {
+                          setEditProjectsText(text);
+                          setEditProjectsOfInterest(projects);
+                        }}
+                        onStrictChange={setEditStrictProjectMatch}
+                        idPrefix="edit-cf"
+                      />
                     </div>
 
                     {/* Property Category Interests */}

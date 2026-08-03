@@ -1,6 +1,6 @@
 import type { Contact, Property } from '@/types';
 import { normalizePropertyType } from '@/lib/property-types';
-import { textContainsLocality } from '@/lib/locality-match';
+import { textContainsProject } from '@/lib/project-match';
 
 // Static geocoordinates for major Bangalore sublocalities used for proximity-based matching.
 const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> = {
@@ -110,10 +110,12 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
  * Property → contact matching engine.
  *
  * A named-project match (the property's project/title is one the contact
- * listed in pref_projects) short-circuits the hierarchy: it qualifies the
- * contact, satisfies location, survives a type/excluded-area mismatch, and
- * scores above a generic locality hit — a buyer naming a project is the
- * strongest intent signal available.
+ * listed in projects_of_interest or pref_projects) short-circuits the
+ * hierarchy: it qualifies the contact, satisfies location, survives a
+ * type/excluded-area mismatch, and scores above a generic locality hit —
+ * a buyer naming a project is the strongest intent signal available.
+ * With strict_project_match set, the same list inverts into a gate:
+ * nothing outside those projects matches at all.
  *
  * Matching hierarchy (product rule): Property type → Location (if given) → Budget.
  *  - Type is a hard gate at the subtype level: an apartment seeker never
@@ -127,7 +129,7 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
  *
  * Preference sources, in priority order:
  *  1. Explicit fields the agent filled in (min/max budget, areas_of_interest,
- *     property_interests, min_roi).
+ *     projects_of_interest, property_interests, min_roi).
  *  2. AI-extracted pref_* columns (migration 092, populated by
  *     /api/contacts/extract-preferences from requirements + notes).
  *  3. Light text heuristics over requirements/notes as a fallback for
@@ -146,7 +148,8 @@ export interface MatchDetails {
   bhk: MatchVerdict;
   roi: MatchVerdict;
   /** 'match' = the property's project/title is one the contact named
-   *  in pref_projects — a decisive, high-intent signal. */
+   *  in projects_of_interest/pref_projects — a decisive, high-intent
+   *  signal. */
   project?: MatchVerdict;
 }
 
@@ -413,18 +416,32 @@ export function getMatchingContacts(
     const hasExtraction = !!contact.pref_extracted_at;
 
     // ── Named-project match ───────────────────────────────────────
-    // The buyer named specific projects/societies (pref_projects). A
-    // property in one of them is the strongest intent signal we have:
-    // it qualifies the contact and forces a location match regardless
-    // of the type/locality gates below.
-    const wantedProjects = (contact.pref_projects || []).map((p) => p.trim()).filter(Boolean);
+    // The buyer named specific projects/societies — agent-entered
+    // (projects_of_interest) or AI-extracted (pref_projects), the same
+    // explicit/AI split areas use. A property in one of them is the
+    // strongest intent signal we have: it qualifies the contact and
+    // forces a location match regardless of the type/locality gates
+    // below.
+    const wantedProjects = [
+      ...new Set(
+        [...(contact.projects_of_interest || []), ...(contact.pref_projects || [])]
+          .map((p) => p.trim())
+          .filter(Boolean)
+      ),
+    ];
     const projectMatch =
       wantedProjects.length > 0 &&
       wantedProjects.some(
         (p) =>
-          textContainsLocality(property.project || '', p) ||
-          textContainsLocality(property.title || '', p)
+          textContainsProject(property.project || '', p) ||
+          textContainsProject(property.title || '', p)
       );
+
+    // Strict watchlist: the buyer wants these projects and nothing
+    // else, so the list stops being a boost and becomes the first
+    // gate — a listing outside it cannot reach them on type, area or
+    // budget fit.
+    if (contact.strict_project_match && wantedProjects.length > 0 && !projectMatch) continue;
 
     // ── 0. Listing intent gate (Sale / Rent / JV/JD / Built to Suit) ──
     // JV/JD and Built to Suit are niche deals: they only ever surface for
