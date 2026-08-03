@@ -155,6 +155,7 @@ export async function PUT(
       land_use_zoning,
       deal_remarks,
       notes,
+      tags,
       documents,
       // locality coordinates (from the form's Places autocomplete pick)
       latitude,
@@ -383,6 +384,12 @@ export async function PUT(
 
     if (nearby_highlights !== undefined) {
       updateData.nearby_highlights = Array.isArray(nearby_highlights) ? nearby_highlights.filter(h => typeof h === "string") : [];
+    }
+
+    if (tags !== undefined) {
+      updateData.tags = Array.isArray(tags)
+        ? tags.filter((t) => typeof t === "string" && t.trim().length > 0).map((t) => t.trim())
+        : [];
     }
 
     if (owner_contact_id !== undefined) {

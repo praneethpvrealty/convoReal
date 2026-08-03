@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 
 import { useBuyer } from './buyer-provider';
+import { BuyerWelcome } from './buyer-welcome';
 import { Button } from '@/components/ui/button';
 
 const NAV = [
@@ -102,6 +103,8 @@ export function BuyerShell({ children }: { children: React.ReactNode }) {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6 pb-24 md:pb-8">
         {children}
       </main>
+
+      <BuyerWelcome />
 
       <nav className="bg-background/95 fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur md:hidden">
         <div className="mx-auto flex max-w-5xl items-stretch justify-around">
