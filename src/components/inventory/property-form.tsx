@@ -105,6 +105,7 @@ interface PropertyFormProps {
   defaultOwnerId?: string | null;
   onSaved: () => void;
   viewOnly?: boolean;
+  initialTab?: 'details' | 'matches';
 }
 
 function compressImageOnClient(file: File): Promise<Blob> {
@@ -144,6 +145,7 @@ export function PropertyForm({
   defaultOwnerId = null,
   onSaved,
   viewOnly = false,
+  initialTab = 'details',
 }: PropertyFormProps) {
   const supabase = createClient();
   const { user, accountId, profile } = useAuth();
@@ -763,12 +765,12 @@ export function PropertyForm({
       setVariableMappings({});
       setCustomVariableValues({});
       setBroadcastResults([]);
-      setActiveTab('details');
+      setActiveTab(initialTab);
       if (!property) {
         setInterestedContactIds([]);
       }
     }
-  }, [open, fetchContacts, fetchTemplates, fetchContactedStatus, property, accountId, supabase]);
+  }, [open, fetchContacts, fetchTemplates, fetchContactedStatus, property, accountId, supabase, initialTab]);
 
   useEffect(() => {
     if (open && property && contacts && contacts.length > 0) {

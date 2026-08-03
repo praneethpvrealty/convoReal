@@ -15,7 +15,7 @@ export type OnboardingMediaSlug =
   | 'engine-welcome'
   | 'engine-connect-whatsapp'
   | 'engine-add-property'
-  | 'engine-first-lead'
+  | 'engine-import-buyers'
   | 'engine-email-leads'
   | 'wa-setup-overview'
   | 'wa-setup-portfolio'
@@ -40,7 +40,7 @@ export const ONBOARDING_MEDIA: Record<OnboardingMediaSlug, OnboardingMedia> = {
   'engine-welcome': NONE,
   'engine-connect-whatsapp': NONE,
   'engine-add-property': NONE,
-  'engine-first-lead': NONE,
+  'engine-import-buyers': NONE,
   'engine-email-leads': NONE,
   'wa-setup-overview': NONE,
   'wa-setup-portfolio': NONE,

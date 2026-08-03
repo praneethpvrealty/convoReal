@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { OnboardingWizard } from "@/components/onboarding/onboarding-wizard";
+import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { TopupModalProvider } from "@/components/layout/topup-modal-context";
 import { CreditTopup } from "@/components/settings/CreditTopup";
 import { BugReportSheet } from '@/components/support/bug-report-sheet';
@@ -26,8 +28,20 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  const { shouldShow, status, dismiss, refresh, skipEmailLeads } =
-    useOnboarding();
+  const {
+    shouldShow,
+    status,
+    allDone,
+    dismissed,
+    emailLeadsSkipped,
+    dismiss,
+    refresh,
+    reopen,
+    skipEmailLeads,
+  } = useOnboarding();
+  const pathname = usePathname();
+  const showChecklist =
+    pathname === "/dashboard" && !!status && dismissed && !allDone;
 
   useEffect(() => {
     console.log('[SHELL GATE] evaluating profile:', {
@@ -117,6 +131,13 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
         <Header onOpenSidebar={() => setSidebarOpen(true)} />
         {/* Thinner horizontal padding on mobile so cards have room to breathe. */}
         <main className={`flex-1 overflow-y-auto p-4 sm:p-6 ${isAccountArchived ? 'pointer-events-none select-none opacity-40' : ''}`}>
+          {showChecklist && status && (
+            <SetupChecklist
+              status={status}
+              emailLeadsSkipped={emailLeadsSkipped}
+              onResume={reopen}
+            />
+          )}
           {children}
         </main>
       </div>

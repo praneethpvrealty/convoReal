@@ -31,6 +31,7 @@ import {
   ThumbsUp,
   Lock,
   Tag,
+  Users,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -67,6 +68,9 @@ interface PropertyListProps {
   onFlyer?: (property: Property) => void;
   onPromote?: (property: Property) => void;
   onShare?: (property: Property) => void;
+  onMatches?: (property: Property) => void;
+  /** propertyId → number of matching buyer contacts, shown on the Matches button. */
+  matchCounts?: Record<string, number>;
   onEmailShare?: (property: Property) => void;
   onPortals?: (property: Property) => void;
   /** propertyId → portal short codes ("99" | "MB" | "H") currently live. */
@@ -89,6 +93,8 @@ export function PropertyList({
   onFlyer,
   onPromote,
   onShare,
+  onMatches,
+  matchCounts,
   onEmailShare,
   onPortals,
   portalBadges,
@@ -803,6 +809,37 @@ export function PropertyList({
                         </>
                       </TooltipTrigger>
                       <TooltipContent side="top">Share property listing</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {onMatches && (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onMatches(property)}
+                            className="h-8 border-slate-800 hover:bg-slate-800 hover:text-white text-slate-300"
+                          />
+                        }
+                      >
+                        <>
+                          <Users className="size-3.5 mr-1.5 text-emerald-400" /> Matches
+                          {matchCounts?.[property.id] !== undefined && (
+                            <span
+                              className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                                matchCounts[property.id] > 0
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25'
+                                  : 'bg-slate-800 text-slate-500 border border-slate-700'
+                              }`}
+                            >
+                              {matchCounts[property.id]}
+                            </span>
+                          )}
+                        </>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">Matching contacts for this property</TooltipContent>
                     </Tooltip>
                   )}
                   <Tooltip>
