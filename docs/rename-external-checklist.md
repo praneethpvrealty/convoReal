@@ -32,10 +32,10 @@ The old `NEXT_PUBLIC_CRM_VERTICAL` is no longer read. Delete it once the new one
 
 `src/app/api/public/properties/route.ts` used to accept either `PUBLIC_API_KEY` or `WACRM_PUBLIC_API_KEY`; the legacy name is gone. **If neither was set, the rename changed nothing** — the guard is `if (expectedApiKey)`, so an unset variable skips the check entirely.
 
-Which surfaces a separate problem worth fixing while you're in here. `GET /api/public/properties` currently has:
+Which surfaces a separate problem worth fixing while you're in here. `GET /api/public/properties` has:
 
 - no API-key check (the variable is unset),
-- no rate limiting,
+- ~~no rate limiting~~ — **now limited**, 30/min per IP and 120/min per `account_id` (`RATE_LIMITS.publicCatalog` / `publicCatalogAccount`),
 - and **no callers inside this codebase** — the showcase reads Supabase directly through `src/lib/showcase/public-data.ts`, and every other hit on that path is a sub-route (`/similar`, `/[id]/document-request`, …).
 
 It accepts any `?account_id=` and returns that tenant's published inventory, 50 rows a page. `account_id` appears in showcase URLs, so it isn't a secret. The data is showcase-grade and location-guarded — not a breach — but it means any tenant's inventory can be bulk-scraped by a stranger with a loop, and that scales with the number of brokerages onboarded.
@@ -54,7 +54,9 @@ openssl rand -hex 32
 
 Callers then need an `x-api-key` header. If you later expose an external integration, hand it this key.
 
-*If you skip this:* nothing breaks and nothing regresses — the endpoint just stays open, exactly as it is today.
+*If you skip this:* nothing breaks and nothing regresses. The endpoint stays open to anyone, but rate limiting now bounds how fast it can be drained.
+
+> **The limiter is in-process.** `src/lib/rate-limit.ts` holds its Map in one Node process, so on Vercel's serverless fan-out each instance carries its own budget and the effective ceiling is higher than the numbers above. It raises the cost of scraping; it doesn't make it impossible. Setting the API key is still the real control. If you later need a hard limit, swap `checkRateLimit` for a Redis-backed version — the return shape is fixed, so no call site changes.
 
 ---
 
