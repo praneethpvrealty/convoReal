@@ -122,7 +122,8 @@ export const TOURS: Tour[] = [
   {
     id: 'connect-whatsapp',
     title: 'Connect WhatsApp',
-    description: 'Link your WhatsApp Business number to unlock chats and broadcasts',
+    description:
+      'Link your WhatsApp Business number to unlock chats and broadcasts',
     triggers: [
       /connect.{0,20}whatsapp/i,
       /whatsapp.{0,20}(setup|set up|connect|link|jodo|lagao|kaise|kese)/i,
@@ -190,6 +191,55 @@ export const TOURS: Tour[] = [
         target: 'broadcast-steps',
         title: 'Just follow the steps',
         body: 'Follow these 4 steps — pick a template, choose people, personalise, and send. WhatsApp only allows approved templates for broadcasts.',
+        advanceOn: 'next',
+      },
+    ],
+  },
+  {
+    id: 'submit-templates',
+    title: 'Use your ready-made templates',
+    description:
+      'Submit the pre-loaded WhatsApp templates to Meta and see where they work for you',
+    triggers: [
+      /(submit|approve|use|send).{0,25}template/i,
+      /template.{0,25}(submit|approve|use|draft|kaise|kese|bhejo|karo)/i,
+      /(draft|ready.?made|pre.?loaded|imported).{0,20}template/i,
+      /(appointment|visit).{0,20}reminder/i,
+    ],
+    steps: [
+      {
+        ...ANYWHERE,
+        target: 'nav-settings',
+        title: 'Open Settings',
+        body: 'Templates live in **Settings**. Click it at the bottom of the menu.',
+        advanceOn: 'click-target',
+        skipIfNextRouteActive: true,
+        requiresSidebar: true,
+      },
+      {
+        route: '/settings',
+        routeMatch: 'prefix',
+        target: 'settings-tab-whatsapp',
+        title: 'Go to the WhatsApp tab',
+        body: 'Click the **WhatsApp** tab.',
+        advanceOn: 'click-target',
+      },
+      {
+        route: '/settings',
+        routeMatch: 'prefix',
+        query: { tab: 'whatsapp' },
+        target: 'settings-tab-templates',
+        title: 'Open Templates',
+        body: 'Click the **Templates** tab.',
+        advanceOn: 'click-target',
+      },
+      {
+        route: '/settings',
+        routeMatch: 'prefix',
+        query: { tab: 'whatsapp', sub: 'templates' },
+        target: 'template-manager',
+        title: 'Your ready-made templates',
+        body: 'These came pre-loaded with your account. Anything marked **Draft** hasn’t gone to Meta yet — open it and press **Submit for approval**. Once approved, appointment and site-visit reminders send automatically, and Broadcasts can use them. ✅',
         advanceOn: 'next',
       },
     ],
