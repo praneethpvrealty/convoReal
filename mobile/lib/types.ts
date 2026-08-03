@@ -174,6 +174,7 @@ export interface Property {
         tenant_name?: string | null;
         area_sqft?: number | string | null;
         monthly_rent?: number | string | null;
+        advance?: number | string | null;
         lease_start?: string | null;
         lease_end?: string | null;
         lock_in_months?: number | string | null;

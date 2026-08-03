@@ -415,6 +415,7 @@ export default function PropertyDetailScreen() {
                   <Text style={{ fontSize: 12, color: colors.textMuted }}>
                     {[
                       ft.area_sqft ? `${ft.area_sqft} Sq.Ft.` : null,
+                      ft.advance ? `Advance ${formatInr(Number(ft.advance))}` : null,
                       ft.lease_start || ft.lease_end
                         ? `Lease ${ft.lease_start ?? '…'} → ${ft.lease_end ?? '…'}`
                         : null,
@@ -429,6 +430,50 @@ export default function PropertyDetailScreen() {
                   ) : null}
                 </View>
               ))}
+
+              {/* Consolidated across every tenancy — web parity. Shown
+                  only for the figures the rent roll actually records. */}
+              {(() => {
+                const rentTotal = property.floor_tenancies!.reduce(
+                  (sum, ft) => sum + (Number(ft.monthly_rent) || 0),
+                  0
+                );
+                const advTotal = property.floor_tenancies!.reduce(
+                  (sum, ft) => sum + (Number(ft.advance) || 0),
+                  0
+                );
+                if (rentTotal <= 0 && advTotal <= 0) return null;
+                return (
+                  <View
+                    style={[
+                      styles.tenancyCard,
+                      { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+                    ]}
+                  >
+                    {rentTotal > 0 ? (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}>
+                          Total monthly rent
+                        </Text>
+                        <Text style={{ fontSize: 13, fontFamily: f.extrabold, color: colors.primary }}>
+                          {formatInr(rentTotal)}
+                        </Text>
+                      </View>
+                    ) : null}
+                    {advTotal > 0 ? (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 12.5, fontFamily: f.semibold, color: colors.text }}>
+                          Total advance
+                          {rentTotal > 0 ? ` (${(advTotal / rentTotal).toFixed(1)}× rent)` : ''}
+                        </Text>
+                        <Text style={{ fontSize: 13, fontFamily: f.extrabold, color: colors.primary }}>
+                          {formatInr(advTotal)}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                );
+              })()}
             </View>
           </Section>
         ) : null}
