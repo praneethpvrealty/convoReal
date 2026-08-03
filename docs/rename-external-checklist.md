@@ -1,6 +1,8 @@
 # External changes checklist — Engine rename + fork cleanup
 
-Everything the rename needs that **isn't in the repo**. Ordered: items 1–2 must happen *before* the deploy, the rest can follow.
+Everything the rename needs that **isn't in the repo**. Ordered: item 1 must happen *before* the deploy, the rest can follow.
+
+Nothing on this list can break a third party. Item 2 is not a rename task at all — it's an unrelated open endpoint the rename happened to surface.
 
 Console UIs move around; the paths below are right as of writing, and the setting name is what to search for if a menu has shifted.
 
@@ -24,16 +26,35 @@ The old `NEXT_PUBLIC_CRM_VERTICAL` is no longer read. Delete it once the new one
 
 > `NEXT_PUBLIC_*` values are inlined at build time, not read at runtime — so this must be set **before** the build, and changing it later needs a redeploy, not just a restart.
 
-### 2. Vercel — confirm `PUBLIC_API_KEY` is set
+### 2. Vercel — set `PUBLIC_API_KEY` (not for the rename — to close an open endpoint)
 
 **Project → Settings → Environment Variables**
 
-`src/app/api/public/properties/route.ts` used to accept either `PUBLIC_API_KEY` or `WACRM_PUBLIC_API_KEY`. The legacy name is gone.
+`src/app/api/public/properties/route.ts` used to accept either `PUBLIC_API_KEY` or `WACRM_PUBLIC_API_KEY`; the legacy name is gone. **If neither was set, the rename changed nothing** — the guard is `if (expectedApiKey)`, so an unset variable skips the check entirely.
 
-- If `PUBLIC_API_KEY` is already set → nothing to do.
-- If only `WACRM_PUBLIC_API_KEY` was set → **copy its value into `PUBLIC_API_KEY` before deploying.**
+Which surfaces a separate problem worth fixing while you're in here. `GET /api/public/properties` currently has:
 
-*If you skip this:* any integration calling `/api/public/properties` starts getting rejected, silently, from the moment the deploy lands. This is the only item on this list that can break a third party.
+- no API-key check (the variable is unset),
+- no rate limiting,
+- and **no callers inside this codebase** — the showcase reads Supabase directly through `src/lib/showcase/public-data.ts`, and every other hit on that path is a sub-route (`/similar`, `/[id]/document-request`, …).
+
+It accepts any `?account_id=` and returns that tenant's published inventory, 50 rows a page. `account_id` appears in showcase URLs, so it isn't a secret. The data is showcase-grade and location-guarded — not a breach — but it means any tenant's inventory can be bulk-scraped by a stranger with a loop, and that scales with the number of brokerages onboarded.
+
+Setting the key closes it, and breaks nothing because nothing calls it:
+
+```bash
+openssl rand -hex 32
+```
+
+| | |
+|---|---|
+| Name | `PUBLIC_API_KEY` |
+| Value | the generated string |
+| Environments | Production, Preview, Development |
+
+Callers then need an `x-api-key` header. If you later expose an external integration, hand it this key.
+
+*If you skip this:* nothing breaks and nothing regresses — the endpoint just stays open, exactly as it is today.
 
 ---
 
