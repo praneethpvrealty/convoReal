@@ -35,6 +35,13 @@ interface SimpleProperty {
   title: string;
   property_code?: string | null;
   location?: string | null;
+  tags?: string[] | null;
+  price?: number | null;
+  type?: string | null;
+  bedrooms?: number | null;
+  area_sqft?: number | null;
+  area_unit?: string | null;
+  images?: string[] | null;
 }
 
 interface ScheduleDialogProps {
@@ -82,7 +89,7 @@ export function ScheduleDialog({
           .order('name'),
         supabase
           .from('properties')
-          .select('id, title, property_code, location')
+          .select('id, title, property_code, location, tags, price, type, bedrooms, area_sqft, area_unit, images')
           .eq('account_id', accountId)
           .order('title'),
       ]);

@@ -81,6 +81,7 @@ interface PropertyOption {
   location?: string | null;
   sublocality?: string | null;
   project?: string | null;
+  tags?: string[] | null;
 }
 
 interface PortalSyncDialogProps {
@@ -123,7 +124,7 @@ export function PortalSyncDialog({ open, onOpenChange, onImported }: PortalSyncD
   const fetchProperties = useCallback(async () => {
     const { data } = await supabase
       .from('properties')
-      .select('id, title, property_code, location, sublocality, project')
+      .select('id, title, property_code, location, sublocality, project, tags')
       .neq('status', 'Archived')
       .order('created_at', { ascending: false })
       .limit(500);

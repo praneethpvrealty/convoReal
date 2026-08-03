@@ -30,6 +30,7 @@ import {
   Waypoints,
   ThumbsUp,
   Lock,
+  Tag,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -641,6 +642,22 @@ export function PropertyList({
                         +{property.features.length - 3} more
                       </Badge>
                     )}
+                  </div>
+                )}
+
+                {/* Tags (Engine-only) */}
+                {property.tags && property.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-4">
+                    {property.tags.map((tag, i) => (
+                      <span
+                        key={i}
+                        title="Internal tag — never shown to clients"
+                        className="inline-flex items-center gap-1 rounded-full bg-primary/10 border border-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary"
+                      >
+                        <Tag className="size-2.5" />
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                 )}
 
