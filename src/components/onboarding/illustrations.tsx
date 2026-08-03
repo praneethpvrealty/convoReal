@@ -10,9 +10,11 @@ import {
   Building2,
   Check,
   CheckCheck,
+  FileSpreadsheet,
   Mail,
   MessageCircle,
   Sparkles,
+  Upload,
   User,
 } from 'lucide-react';
 
@@ -109,23 +111,23 @@ export function PropertyParseIllustration() {
   );
 }
 
-/** Shared showcase link → enquiries → contacts. */
-export function LeadFlowIllustration() {
+/** Buyer list (phone/Excel) → one import → matches on Radar. */
+export function ImportBuyersIllustration() {
   return (
     <Frame>
       <div className="flex items-center justify-between gap-2">
         {[
           {
-            icon: <MessageCircle className="size-4 text-emerald-400" />,
-            label: 'Buyer messages',
+            icon: <FileSpreadsheet className="size-4 text-emerald-400" />,
+            label: 'Your buyer list',
+          },
+          {
+            icon: <Upload className="size-4 text-blue-400" />,
+            label: 'One import',
           },
           {
             icon: <Sparkles className="text-primary size-4" />,
-            label: 'Contact created',
-          },
-          {
-            icon: <User className="size-4 text-blue-400" />,
-            label: 'In your inbox',
+            label: 'Matches on Radar',
           },
         ].map((node, i) => (
           <div key={node.label} className="flex flex-1 items-center gap-2">

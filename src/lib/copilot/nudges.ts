@@ -155,6 +155,29 @@ const rules: Rule[] = [
       cta: { label: 'Show me how', tourId: 'email-lead-sync' },
     };
   },
+  // 9. Showcase still on default branding. Only fires once there are
+  //    properties — branding matters when links are being shared.
+  async (db, accountId) => {
+    const { count: propCount, error: propError } = await db
+      .from('properties')
+      .select('*', { count: 'exact', head: true })
+      .eq('account_id', accountId);
+    if (propError) throw propError;
+    if ((propCount ?? 0) === 0) return null;
+    const { count, error } = await db
+      .from('showcase_settings')
+      .select('*', { count: 'exact', head: true })
+      .eq('account_id', accountId);
+    if (error) throw error;
+    if ((count ?? 0) > 0) return null;
+    return {
+      id: 'setup-showcase-brand',
+      priority: 9,
+      message:
+        'Your property links still show default branding. Put your own name on every page you share — takes two minutes.',
+      cta: { label: 'Brand my pages', href: '/settings?tab=showcase' },
+    };
+  },
 ];
 
 /**

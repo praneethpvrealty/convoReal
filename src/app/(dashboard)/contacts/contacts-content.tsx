@@ -659,6 +659,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [bulkImportContacts, setBulkImportContacts] = useState<BulkImportContact[]>([]);
 
+  // Deep link from onboarding: /contacts?import=1 lands with the CSV
+  // import dialog already open.
+  const importParam = searchParams?.get('import') === '1';
+  useEffect(() => {
+    if (importParam) setImportOpen(true);
+  }, [importParam]);
+
   // All tags for display
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
 

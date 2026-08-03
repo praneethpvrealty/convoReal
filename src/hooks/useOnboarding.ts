@@ -73,6 +73,13 @@ export function useOnboarding() {
     setEmailLeadsSkipped(true);
   }
 
+  // Un-dismiss: the dashboard setup checklist reopens the wizard here.
+  function reopen() {
+    if (!accountId) return;
+    localStorage.removeItem(dismissedKey(accountId));
+    setDismissed(false);
+  }
+
   const allDone = status
     ? status.hasWhatsApp &&
       status.hasProperties &&
@@ -89,8 +96,10 @@ export function useOnboarding() {
     dismissed,
     shouldShow,
     allDone,
+    emailLeadsSkipped,
     refresh,
     dismiss,
+    reopen,
     skipEmailLeads,
   };
 }
