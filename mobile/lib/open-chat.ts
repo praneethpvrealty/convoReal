@@ -18,7 +18,10 @@ export interface OpenChatOutcome {
  *  caller to surface: this runs outside any component, so it has no
  *  tree of its own to render a dialog into. */
 export async function openContactChat(
-  contact: Contact,
+  // Only the id is used, so this takes the id rather than a whole
+  // Contact row — callers that hold a partial (a viewer, a search hit)
+  // should not have to fabricate one.
+  contact: Pick<Contact, 'id'>,
   opts?: { draftText?: string }
 ): Promise<OpenChatOutcome> {
   haptic.tap();

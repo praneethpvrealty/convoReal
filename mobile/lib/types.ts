@@ -1,10 +1,20 @@
 /**
- * Mobile-side mirrors of the web app's types (src/types/index.ts),
- * trimmed to the columns the app reads. Keep field names identical to
- * the web definitions — they are the DB column names. When the mobile
- * build is wired into the monorepo's TS project references, replace
- * this file with direct imports from ../src/types.
+ * Types shared with the web app, plus the mobile-only shapes.
+ *
+ * `Contact` and `Property` are re-exported straight from
+ * src/types/index.ts via the @shared alias — they are DB row shapes,
+ * and hand-copying them let columns drift: a field added on the web
+ * was simply absent here, so mobile read it as undefined and wrote it
+ * back as null. The web file is type-only, so this costs nothing at
+ * runtime and nothing reaches the bundle.
+ *
+ * The rest below are mobile-only view models with no web counterpart.
+ * Anything that IS a DB row shape belongs in src/types, not here.
  */
+
+import type { Contact, Property } from '@shared/types';
+
+export type { Contact, Property };
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
@@ -25,39 +35,6 @@ export interface AreaOfInterestGeo {
   name: string;
   lat: number;
   lng: number;
-}
-
-export interface Contact {
-  id: string;
-  phone: string;
-  secondary_phones?: string[];
-  name?: string;
-  /** Surname/family name. Paired with `name` it forms the full name the
-   *  server's duplicate check is keyed on, so two "Rahul"s are told apart
-   *  by this rather than being rejected as a duplicate. */
-  second_name?: string | null;
-  name_tag?: string | null;
-  email?: string;
-  company?: string;
-  classification?: Classification;
-  avatar_url?: string;
-  min_budget?: number | null;
-  max_budget?: number | null;
-  no_budget?: boolean;
-  areas_of_interest?: string[];
-  /** Coordinates for Google-picked areas_of_interest entries (web parity,
-   *  migration 126). `name` matches the entry in areas_of_interest. */
-  areas_of_interest_geo?: AreaOfInterestGeo[] | null;
-  strict_area_match?: boolean;
-  min_roi?: number | null;
-  requirements?: string | null;
-  lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
-  status?: string | null;
-  referrer?: string | null;
-  source?: string | null;
-  last_contacted_at?: string | null;
-  last_inquired_property_id?: string | null;
-  property_interests?: string[] | null;
 }
 
 export interface Tag {
@@ -118,77 +95,6 @@ export interface Profile {
 // ------------------------------------------------------------------
 // Inventory (properties table; list served by GET /api/properties)
 // ------------------------------------------------------------------
-
-export interface Property {
-  id: string;
-  title: string;
-  property_code?: string | null;
-  description?: string | null;
-  price?: number | null;
-  sold_price?: number | null;
-  rent_per_month?: number | null;
-  location?: string | null;
-  sublocality?: string | null;
-  city?: string | null;
-  type?: string | null;
-  status?: string | null;
-  listing_type?: 'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit' | null;
-  bedrooms?: number | null;
-  bathrooms?: number | null;
-  area_sqft?: number | null;
-  area_unit?: string | null;
-  land_area?: number | null;
-  land_area_unit?: string | null;
-  facing_direction?: string | null;
-  features?: string[] | null;
-  /** Public Supabase Storage URLs, renderable directly. */
-  images?: string[] | null;
-  is_published?: boolean;
-  is_starred?: boolean;
-  google_map_link?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  listing_source?: string | null;
-  project?: string | null;
-  state?: string | null;
-  maintenance?: number | null;
-  advance?: number | null;
-  gst?: boolean | null;
-  owner_share_percent?: number | null;
-  builder_share_percent?: number | null;
-  roi?: number | null;
-  sublocality_2?: string | null;
-  super_built_area?: number | null;
-  dimensions?: string | null;
-  road_width?: number | null;
-  road_width_unit?: string | null;
-  land_zone?: string | null;
-  ideal_for?: string | null;
-  ownership_status?: string | null;
-  rental_income?: number | null;
-  nearby_highlights?: string[] | null;
-  notes?: string | null;
-  floor_tenancies?:
-    | {
-        floor?: string | null;
-        tenant_name?: string | null;
-        area_sqft?: number | string | null;
-        monthly_rent?: number | string | null;
-        advance?: number | string | null;
-        lease_start?: string | null;
-        lease_end?: string | null;
-        lock_in_months?: number | string | null;
-        maintenance?: string | null;
-        notes?: string | null;
-      }[]
-    | null;
-  owner_contact_id?: string | null;
-  owner?: { name?: string | null; phone?: string | null } | null;
-  created_at?: string;
-  /** Injected by /api/properties near-search responses. */
-  distance_km?: number;
-  location_tier?: 'exact' | 'nearby';
-}
 
 /** A locality picked from the Google-backed autocomplete proxy. */
 export interface PickedLocality {
