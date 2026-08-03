@@ -118,7 +118,7 @@ export async function notifyOwnerOfBid(
   const via = args.bidderAgency ? ` via ${args.bidderAgency}` : "";
   const text =
     args.kind === "new"
-      ? `💰 *New offer on your property!*\n\nHi ${firstName}, you've received an offer of *${inr(args.amount)}* on *${args.propertyTitle}*${via}.\n\nOpen your Owners Den to accept, reject or counter it.`
+      ? `💰 *New offer on your property!*\n\nHi ${firstName}, you've received an offer of *${inr(args.amount)}* on *${args.propertyTitle}*${via}.\n\nOpen your Portfolio to accept, reject or counter it.`
       : `An offer of ${inr(args.amount)} on *${args.propertyTitle}* was withdrawn by the buyer.`;
   return sendDenNotification(db, {
     accountId: args.ownerAccountId,

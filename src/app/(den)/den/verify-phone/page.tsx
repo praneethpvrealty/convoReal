@@ -200,7 +200,7 @@ export default function DenVerifyPhonePage() {
                 disabled={loading || otp.length !== 6}
                 className="mt-1 h-10 w-full rounded-xl bg-primary text-xs font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
               >
-                {loading ? "Verifying…" : "Verify & Enter the Den"}
+                {loading ? "Verifying…" : "Verify & enter your Portfolio"}
               </Button>
             </form>
           )}

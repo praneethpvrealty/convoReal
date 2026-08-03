@@ -109,7 +109,7 @@ export async function getDenContext(): Promise<DenContext> {
 
   if (error) {
     console.error("[getDenContext] den_users fetch error:", error);
-    throw new UnauthorizedError("Could not load Owners Den context");
+    throw new UnauthorizedError("Could not load your Portfolio context");
   }
   if (!denUser) {
     throw new PhoneUnverifiedError();

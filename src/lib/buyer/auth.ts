@@ -109,7 +109,7 @@ export async function getBuyerContext(): Promise<BuyerContext> {
 
   if (error) {
     console.error('[getBuyerContext] buyer_users fetch error:', error);
-    throw new UnauthorizedError('Could not load buyer portal context');
+    throw new UnauthorizedError('Could not load your Portfolio context');
   }
   if (!buyerUser) {
     throw new BuyerPhoneUnverifiedError();

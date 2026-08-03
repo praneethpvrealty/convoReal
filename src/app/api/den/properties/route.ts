@@ -112,7 +112,7 @@ export const POST = withDenAuth(async (ctx, req) => {
       description:
         typeof body.description === "string"
           ? body.description.slice(0, 5000)
-          : "Listed by the owner via Owners Den, pending review.",
+          : "Listed by the owner via their Portfolio, pending review.",
       price,
       location: location.slice(0, 300),
       type,

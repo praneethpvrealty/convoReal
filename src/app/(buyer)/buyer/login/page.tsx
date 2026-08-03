@@ -186,10 +186,10 @@ function BuyerLoginPageInner() {
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-inner">
             <Home className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-black tracking-tight text-white">My Properties</CardTitle>
+          <CardTitle className="text-2xl font-black tracking-tight text-white">Portfolio</CardTitle>
           <CardDescription className="font-medium text-slate-400">
-            Your private space to save shortlisted properties, manage your preferences and control
-            your alerts.
+            Your property search, in one place — shortlists, matches, preferences and
+            alerts.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">

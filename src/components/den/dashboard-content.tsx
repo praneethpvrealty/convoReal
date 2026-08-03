@@ -241,7 +241,7 @@ function DenWelcomeEmptyState() {
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10">
         <Building2 className="h-7 w-7 text-primary" />
       </span>
-      <h1 className="text-xl font-black tracking-tight">Welcome to your Owners Den</h1>
+      <h1 className="text-xl font-black tracking-tight">Welcome to your Portfolio</h1>
       <p className="text-sm font-medium text-muted-foreground">
         We didn&apos;t find any properties linked to {me?.phone ?? "your number"} yet. If an agency
         manages your property, ask them to add this WhatsApp number to your owner record — your

@@ -59,7 +59,7 @@ export default function DenHomeScreen() {
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 26, fontFamily: f.extrabold, color: colors.text }}>
-            Owners Den
+            Portfolio
           </Text>
           <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>
             {me.data?.display_name || me.data?.phone || 'Your properties, tracked'}

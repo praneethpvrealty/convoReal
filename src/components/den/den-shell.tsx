@@ -28,7 +28,7 @@ export function DenShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3 text-muted-foreground">
           <KeyRound className="h-8 w-8 animate-pulse" />
-          <p className="text-sm font-medium">Opening your Owners Den…</p>
+          <p className="text-sm font-medium">Opening your Portfolio…</p>
         </div>
       </div>
     );
@@ -44,7 +44,7 @@ export function DenShell({ children }: { children: React.ReactNode }) {
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
               <KeyRound className="h-4 w-4 text-primary" />
             </span>
-            <span className="text-sm font-black tracking-tight">Owners Den</span>
+            <span className="text-sm font-black tracking-tight">Portfolio</span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
             {NAV.map((item) => {

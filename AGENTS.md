@@ -25,8 +25,8 @@ ConvoReal is a self-hostable **WhatsApp deal engine for real-estate brokerages**
 - **Copilot** — the in-app AI helper (guided tours, rule-based nudges, semantic Q&A cache). See `src/lib/copilot/README.md`.
 - **Liaisons** — a directory of service providers with jobs, workflows, and payments.
 - **Listing media** — AI photo enhancement, generated listing videos (ffmpeg + Sarvam TTS), and YouTube upload.
-- **Owners Den** — a separate owner-facing portal (`/den`) for deal-mode matching, bids, and token-safe deal rooms.
-- **Buyer portal** — a separate buyer-facing portal (`/buyer`) for preferences, matches, and shortlists.
+- **Portfolio (owner side)** — the owner-facing portal (`/den`) for deal-mode matching, bids, and token-safe deal rooms. Customer-facing brand is **Portfolio**; code identifiers stay `den_*` (legacy code name, like the `crm.` redirect).
+- **Portfolio (buyer side)** — the buyer-facing portal (`/buyer`) for preferences, matches, and shortlists. Same **Portfolio** brand; code identifiers stay `buyer_*`.
 - **Mobile app** — an Expo/React Native companion app in `mobile/` (its own `AGENTS.md`, deps, and tests).
 
 All tenant data lives in one Supabase PostgreSQL database and is isolated by `account_id` through Row-Level Security (RLS).
