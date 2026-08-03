@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   RotateCcw,
   ArrowUpRight,
+  Compass,
   History,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -621,6 +622,35 @@ export function WhatsAppConfig() {
     <div className="grid gap-6 lg:grid-cols-[1fr_380px] mt-4">
       {/* Main config form */}
       <div className="space-y-6">
+        {/* First-time setup — point naive users at the guided walkthrough
+            instead of leaving them alone with a credentials form. */}
+        {!config && (
+          <Alert className="bg-primary/10 border-primary/40">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <Compass className="size-5 text-primary mt-0.5 shrink-0" />
+                <div>
+                  <AlertTitle className="text-white mb-1">
+                    New to Meta and WhatsApp Business?
+                  </AlertTitle>
+                  <AlertDescription className="text-slate-300 text-sm">
+                    Use the guided setup — it walks you through every Meta
+                    screen step by step, or our team can do the whole thing
+                    for you.
+                  </AlertDescription>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => (window.location.href = '/settings/whatsapp-setup')}
+              >
+                Open guided setup <ArrowUpRight className="size-3.5" />
+              </Button>
+            </div>
+          </Alert>
+        )}
+
         {/* Corrupted-token reset banner */}
         {showResetBanner && (
           <Alert className="bg-amber-950/40 border-amber-600/40">
