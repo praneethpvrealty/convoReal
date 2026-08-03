@@ -46,11 +46,14 @@ import {
   PropertyParseIllustration,
   ImportBuyersIllustration,
 } from '@/components/onboarding/illustrations';
+import { createClient } from '@/lib/supabase/client';
 import { buildPropertyAlertTemplatePayload } from '@/lib/whatsapp/property-alert-template';
 import {
   buildOwnerDigestTemplatePayload,
   buildOwnerDigestConsentTemplatePayload,
 } from '@/lib/whatsapp/owner-digest-template';
+import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import type { MessageTemplate } from '@/types';
 import type { OnboardingStatus } from '@/hooks/useOnboarding';
 
 interface Props {
@@ -228,24 +231,60 @@ function StepWhatsApp({
   );
 }
 
-// Starter templates — shown once WhatsApp is connected. Meta approval
-// takes hours to days, so kicking it off here hides that latency
-// behind the rest of setup instead of surfacing it as a broadcast
-// failure later.
-
-const STARTER_TEMPLATE_COUNT = 3;
+// Starter templates — shown once WhatsApp is connected. Every account
+// comes pre-loaded with DRAFT templates (the reminder set seeded on
+// account creation, plus anything shared from the platform side);
+// this submits those drafts and whichever built-ins are missing, so
+// Meta's approval latency runs during setup instead of surfacing as
+// a broadcast failure later.
 
 function StarterTemplates() {
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState<number | null>(null);
+  const [result, setResult] = useState<{ ok: number; total: number } | null>(
+    null
+  );
 
   async function submitAll() {
     setSubmitting(true);
-    const payloads = [
+    const builtins = [
       buildPropertyAlertTemplatePayload(window.location.origin),
       buildOwnerDigestConsentTemplatePayload(),
       buildOwnerDigestTemplatePayload(),
     ];
+    let payloads: TemplatePayload[] = builtins;
+    try {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('message_templates')
+        .select(
+          'name, category, language, header_type, header_content, header_media_url, header_handle, body_text, footer_text, buttons, sample_values, status'
+        );
+      if (data) {
+        const rows = data as Partial<MessageTemplate>[];
+        const names = new Set(rows.map((t) => t.name));
+        const drafts = rows.filter((t) => (t.status || 'DRAFT') === 'DRAFT');
+        payloads = [
+          ...drafts.map(
+            (t): TemplatePayload => ({
+              name: t.name!,
+              category: t.category!,
+              language: t.language || 'en_US',
+              header_type: t.header_type,
+              header_content: t.header_content,
+              header_media_url: t.header_media_url,
+              header_handle: t.header_handle,
+              body_text: t.body_text!,
+              footer_text: t.footer_text,
+              buttons: t.buttons,
+              sample_values: t.sample_values,
+            })
+          ),
+          ...builtins.filter((b) => !names.has(b.name)),
+        ];
+      }
+    } catch {
+      // Draft lookup failed — the built-in set still goes out.
+    }
     let ok = 0;
     for (const payload of payloads) {
       try {
@@ -259,11 +298,11 @@ function StarterTemplates() {
         // Counted as not submitted; the summary below reports it.
       }
     }
-    setSubmitted(ok);
+    setResult({ ok, total: payloads.length });
     setSubmitting(false);
     if (ok === payloads.length) {
       toast.success(
-        'Starter templates sent to Meta for approval — usually ready within a day.'
+        'Templates sent to Meta for approval — usually ready within a day.'
       );
     } else {
       toast.error(
@@ -280,34 +319,47 @@ function StarterTemplates() {
         </div>
         <div className="flex-1">
           <p className="text-sm font-medium text-white">
-            While you&apos;re here — start template approval
+            While you&apos;re here — approve your ready-made templates
           </p>
           <p className="mt-0.5 text-xs leading-relaxed text-slate-400">
-            Meta must approve message templates before you can broadcast or
-            reply after 24 hours, and approval can take a day. Submit the
-            starter set now so they&apos;re ready when you need them.
+            Your account came pre-loaded with message templates — appointment
+            and site-visit reminders, a property alert, and owner updates. Meta
+            must approve them before they can be sent, and approval can take a
+            day. Submit them now: once approved, reminders go out automatically
+            and broadcasts can use them.
           </p>
-          {submitted === null ? (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={submitting}
-              onClick={submitAll}
-              className="mt-2.5 gap-1.5 border-slate-700 text-slate-200 hover:bg-slate-700"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" /> Submitting…
-                </>
-              ) : (
-                <>Submit {STARTER_TEMPLATE_COUNT} starter templates</>
-              )}
-            </Button>
+          {result === null ? (
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={submitting}
+                onClick={submitAll}
+                className="gap-1.5 border-slate-700 text-slate-200 hover:bg-slate-700"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" /> Submitting…
+                  </>
+                ) : (
+                  <>Submit them for approval</>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  window.open('/settings?tab=whatsapp&sub=templates', '_blank')
+                }
+                className="gap-1 text-slate-400 hover:text-slate-200"
+              >
+                See them first
+              </Button>
+            </div>
           ) : (
             <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-400">
-              <Check className="size-3.5" /> {submitted} of{' '}
-              {STARTER_TEMPLATE_COUNT} submitted — track them in Settings →
-              WhatsApp → Templates
+              <Check className="size-3.5" /> {result.ok} of {result.total}{' '}
+              submitted — track them in Settings → WhatsApp → Templates
             </p>
           )}
         </div>
