@@ -2,7 +2,7 @@
 
 // ============================================================
 // Buyer portal — shell. Deliberately minimal and BUYER-facing: no
-// CRM nav, no agent tooling. Top bar + bottom-tab nav on mobile.
+// Engine nav, no agent tooling. Top bar + bottom-tab nav on mobile.
 // ============================================================
 
 import Link from 'next/link';
@@ -40,7 +40,7 @@ export function BuyerShell({ children }: { children: React.ReactNode }) {
       <div className="bg-background flex min-h-screen items-center justify-center">
         <div className="text-muted-foreground flex flex-col items-center gap-3">
           <Home className="h-8 w-8 animate-pulse" />
-          <p className="text-sm font-medium">Opening your buyer portal…</p>
+          <p className="text-sm font-medium">Opening your Portfolio…</p>
         </div>
       </div>
     );
@@ -57,7 +57,7 @@ export function BuyerShell({ children }: { children: React.ReactNode }) {
               <Home className="text-primary h-4 w-4" />
             </span>
             <span className="text-sm font-black tracking-tight">
-              My Properties
+              Portfolio
             </span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">

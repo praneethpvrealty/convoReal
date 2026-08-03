@@ -3,7 +3,7 @@
 //
 // The Den mirror of src/lib/auth/account.ts, for the property-owner
 // persona. A Den user is an auth.users row with NO profiles row
-// (migration 132) — every CRM RLS policy denies them by construction.
+// (migration 132) — every Engine RLS policy denies them by construction.
 // Their data access happens exclusively through /api/den/* handlers,
 // which resolve a DenContext here and then query with the
 // service-role client under EXPLICIT owner scoping:
@@ -109,7 +109,7 @@ export async function getDenContext(): Promise<DenContext> {
 
   if (error) {
     console.error("[getDenContext] den_users fetch error:", error);
-    throw new UnauthorizedError("Could not load Owners Den context");
+    throw new UnauthorizedError("Could not load your Portfolio context");
   }
   if (!denUser) {
     throw new PhoneUnverifiedError();
@@ -154,7 +154,11 @@ export async function resolveOwnerPropertyIds(ctx: DenContext): Promise<string[]
   const { data, error } = await db
     .from("properties")
     .select("id")
-    .in("owner_contact_id", ctx.links.map((l) => l.contactId));
+    .in("owner_contact_id", ctx.links.map((l) => l.contactId))
+    // owner_contact_id holds the REFERRING AGENT for agent-referred
+    // listings (migration 191) — those are the Engine's to manage,
+    // never the Portfolio's.
+    .neq("listing_source", "agent");
   if (error) {
     console.error("[resolveOwnerPropertyIds] query error:", error);
     return [];

@@ -5,16 +5,16 @@
 // intent, category, locality and budget, shows matching listings from
 // the catalog already on the page, then captures the number. Visitors
 // who identify as a real-estate professional are not buyers, so they
-// branch out to the CRM funnel instead of being filed as leads.
+// branch out to the Engine funnel instead of being filed as leads.
 //
-// CRM_FUNNEL — ConvoReal's own prospect funnel. Runs on the marketing
+// ENGINE_FUNNEL — ConvoReal's own prospect funnel. Runs on the marketing
 // site AND as the branch above, because every brokerage showcase is
 // visited by agents and builders who are themselves prospects.
 // ============================================================
 
-import { FUNNEL_CRM, FUNNEL_END, FUNNEL_MATCH, type Funnel } from './funnel';
+import { FUNNEL_ENGINE, FUNNEL_END, FUNNEL_MATCH, type Funnel } from './funnel';
 
-/** Intent chip that routes a professional into the CRM funnel. */
+/** Intent chip that routes a professional into the Engine funnel. */
 export const AGENT_INTENT = 'I list properties (agent/builder)';
 export const RENT_INTENT = 'Renting';
 /** Where the showcase funnel resumes once matches have been shown. */
@@ -37,14 +37,14 @@ export const RENT_BUDGET_CHIPS = [
   'Flexible',
 ];
 
-export const CRM_ROLE_CHIPS = [
+export const ENGINE_ROLE_CHIPS = [
   'Independent agent',
   'Broker',
   'Builder / Developer',
   'Agency / Team',
 ];
 
-export const CRM_TEAM_CHIPS = ['Just me', '2–5', '6–20', '20+'];
+export const ENGINE_TEAM_CHIPS = ['Just me', '2–5', '6–20', '20+'];
 
 export const SHOWCASE_FUNNEL: Funnel = {
   id: 'showcase',
@@ -55,7 +55,7 @@ export const SHOWCASE_FUNNEL: Funnel = {
       ask: 'Hi! 👋 I can help you find the right property here — or put you straight through to the team. What brings you in?',
       chips: ['Buying', RENT_INTENT, 'Investing', AGENT_INTENT],
       key: 'intent',
-      next: (answer) => (answer === AGENT_INTENT ? FUNNEL_CRM : 'category'),
+      next: (answer) => (answer === AGENT_INTENT ? FUNNEL_ENGINE : 'category'),
     },
     {
       id: 'category',
@@ -117,30 +117,30 @@ export const SHOWCASE_FUNNEL: Funnel = {
 
 /** Where the prospect was found. The opening line is the only thing
  *  that differs: on a customer's portal the bot has to explain why it's
- *  suddenly talking about a CRM, on our own site it doesn't. */
-export type CrmFunnelContext = 'website' | 'showcase';
+ *  suddenly talking about a deal engine, on our own site it doesn't. */
+export type EngineFunnelContext = 'website' | 'showcase';
 
-const CRM_OPENERS: Record<CrmFunnelContext, string> = {
+const ENGINE_OPENERS: Record<EngineFunnelContext, string> = {
   website: 'Happy to help. So I point you at the right thing — what do you do?',
   showcase:
-    'Good to know! This portal runs on ConvoReal, the WhatsApp CRM for brokerages — I can get you the same thing for your own listings. What do you do?',
+    'Good to know! This portal runs on ConvoReal, the WhatsApp deal engine for property consultants — I can get you the same thing for your own listings. What do you do?',
 };
 
-const CRM_FUNNEL: Funnel = {
-  id: 'crm',
+const ENGINE_FUNNEL: Funnel = {
+  id: 'engine',
   first: 'role',
   steps: [
     {
       id: 'role',
-      ask: CRM_OPENERS.website,
-      chips: CRM_ROLE_CHIPS,
+      ask: ENGINE_OPENERS.website,
+      chips: ENGINE_ROLE_CHIPS,
       key: 'role',
       next: 'team_size',
     },
     {
       id: 'team_size',
       ask: 'How many people are on your team?',
-      chips: CRM_TEAM_CHIPS,
+      chips: ENGINE_TEAM_CHIPS,
       key: 'team_size',
       next: 'city',
     },
@@ -162,7 +162,7 @@ const CRM_FUNNEL: Funnel = {
     },
     {
       id: 'phone',
-      ask: "Last one — your WhatsApp number, so we can show you the CRM on the channel you'll actually use it on.",
+      ask: "Last one — your WhatsApp number, so we can show you the Engine on the channel you'll actually use it on.",
       input: 'tel',
       placeholder: '98450 12345',
       key: 'phone',
@@ -171,11 +171,11 @@ const CRM_FUNNEL: Funnel = {
   ],
 };
 
-export function crmFunnel(context: CrmFunnelContext): Funnel {
+export function engineFunnel(context: EngineFunnelContext): Funnel {
   return {
-    ...CRM_FUNNEL,
-    steps: CRM_FUNNEL.steps.map((step) =>
-      step.id === 'role' ? { ...step, ask: CRM_OPENERS[context] } : step
+    ...ENGINE_FUNNEL,
+    steps: ENGINE_FUNNEL.steps.map((step) =>
+      step.id === 'role' ? { ...step, ask: ENGINE_OPENERS[context] } : step
     ),
   };
 }

@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 /**
- * Which side of the app this device signed into: the staff CRM or
+ * Which side of the app this device signed into: the staff Engine or
  * the owner-facing Owners Den. One Supabase session serves both —
  * the surface flag decides where an authenticated user lands.
  */

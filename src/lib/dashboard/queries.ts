@@ -38,7 +38,7 @@ function viewerTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
 }
 
-// The account owner texting their own CRM WhatsApp number is not a lead;
+// The account owner texting their own Engine WhatsApp number is not a lead;
 // those self-chats are archived (webhook-handler + migration 154's
 // backfill), so `conversations.is_archived = false` cleanly excludes them
 // from every dashboard metric and the activity feed. Contacts carry no

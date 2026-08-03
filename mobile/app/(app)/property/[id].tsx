@@ -444,7 +444,7 @@ export default function PropertyDetailScreen() {
         ) : null}
 
         {property.notes ? (
-          <Section title="Internal Notes · CRM only">
+          <Section title="Internal Notes · Engine only">
             <View
               style={[
                 styles.notesCard,

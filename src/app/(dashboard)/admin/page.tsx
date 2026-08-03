@@ -36,6 +36,15 @@ const MarketplaceTab = dynamic(() => import('./marketplace-tab'), {
   ),
 });
 
+const BugsTab = dynamic(() => import('./bugs-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <ConvoRealLoader size={26} label="Loading Bugs" />
+    </div>
+  ),
+});
+
 const BillingTab = dynamic(() => import('./billing-tab'), {
   ssr: false,
   loading: () => (
@@ -70,7 +79,7 @@ interface Organization {
 
 export default function AdminDashboardPage() {
   const { user, profileLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'bugs'>('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -597,6 +606,16 @@ export default function AdminDashboardPage() {
         >
           Billing
         </button>
+        <button
+          onClick={() => setActiveTab('bugs')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'bugs'
+              ? 'border-primary text-white bg-primary/5'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Bugs
+        </button>
       </div>
 
       {/* Tab Contents */}
@@ -756,7 +775,7 @@ export default function AdminDashboardPage() {
               <div className="flex items-center justify-between p-3 rounded-xl border border-slate-800 bg-slate-950/40">
                 <div className="space-y-0.5">
                   <div className="text-sm font-semibold text-white">Self Sign-up Registration</div>
-                  <p className="text-xs text-slate-500">Allow new clients to create accounts on this CRM instance.</p>
+                  <p className="text-xs text-slate-500">Allow new clients to create accounts on this Engine instance.</p>
                 </div>
                 <input
                   type="checkbox"
@@ -1174,7 +1193,7 @@ export default function AdminDashboardPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-white text-base">Registered CRM Tenants</CardTitle>
+                  <CardTitle className="text-white text-base">Registered Engine Tenants</CardTitle>
                   <CardDescription className="text-slate-400">
                     Manage all organizations on the platform. Archive inactive accounts or permanently delete after archiving.
                   </CardDescription>
@@ -1447,6 +1466,8 @@ export default function AdminDashboardPage() {
       {activeTab === 'marketplace' && <MarketplaceTab />}
 
       {activeTab === 'billing' && <BillingTab />}
+
+      {activeTab === 'bugs' && <BugsTab />}
     </div>
   );
 }

@@ -77,7 +77,7 @@ export function isPhoneVerified(session: Session): boolean {
 /**
  * Single sign-out path. Beyond ending the Supabase session it wipes the
  * TanStack Query cache — in memory and the plaintext AsyncStorage copy —
- * so CRM PII (contacts, phone numbers, message bodies, deals) never
+ * so Engine PII (contacts, phone numbers, message bodies, deals) never
  * outlives the signed-in user on the device.
  */
 export async function signOut(): Promise<void> {

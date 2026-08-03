@@ -179,7 +179,7 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY)(
       );
 
       // --- contacts: two countable, one hidden behind an archived
-      // conversation (the account owner texting their own CRM number).
+      // conversation (the account owner texting their own Engine number).
       const [contactA, contactB, contactC] = await insert('contacts', [
         {
           account_id: accountId,

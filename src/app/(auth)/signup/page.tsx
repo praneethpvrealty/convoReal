@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { MessageSquare, CheckCircle, UsersRound } from "lucide-react";
+import { WaitlistForm } from "@/components/beta/waitlist-form";
 
 // `useSearchParams` opts the component out of static prerendering
 // unless wrapped in Suspense — same pattern as /login.
@@ -42,6 +43,13 @@ function SignupPageInner() {
   // `referrals` row via processReferralSignup(), since there's no
   // active session yet to call an authed API route from here.
   const referredByCode = searchParams.get("ref");
+  // Beta invite token from /i/<token> → "Claim my seat". Distinct
+  // from `invite` above, which is a TEAM invite: that one adds you to
+  // someone's existing account, this one authorizes creating your own.
+  // Both are passed to signUp() as metadata and validated by
+  // handle_new_user() (migration 189) — the UI check below is a
+  // courtesy, the trigger is the actual gate.
+  const betaToken = searchParams.get("beta");
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -50,6 +58,10 @@ function SignupPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // Escape hatch for the one legitimate no-token signup: a user whose
+  // phone already matches an existing profile (migration 067). The
+  // trigger lets them through, so the UI must not hard-block them.
+  const [bypassGate, setBypassGate] = useState(false);
   const supabase = createClient();
 
 
@@ -75,7 +87,9 @@ function SignupPageInner() {
     // redirect (the app root).
     const emailRedirectTo = inviteToken
       ? `${window.location.origin}/join/${encodeURIComponent(inviteToken)}`
-      : undefined;
+      : betaToken
+        ? `${window.location.origin}/login`
+        : undefined;
 
     const { error } = await supabase.auth.signUp({
       email,
@@ -84,6 +98,8 @@ function SignupPageInner() {
         data: {
           full_name: fullName,
           ...(referredByCode ? { referred_by_code: referredByCode } : {}),
+          ...(betaToken ? { beta_invite: betaToken } : {}),
+          ...(inviteToken ? { team_invite: inviteToken } : {}),
         },
         ...(emailRedirectTo ? { emailRedirectTo } : {}),
       },
@@ -98,6 +114,50 @@ function SignupPageInner() {
     setSuccess(true);
     setLoading(false);
   };
+
+  // Invite-only notice. NOT the gate — handle_new_user() is
+  // (migration 189), because signUp() is a public endpoint callable
+  // with the anon key from anywhere. This just means a visitor with
+  // no invite gets a waitlist instead of a form that fails on submit.
+  if (!betaToken && !inviteToken && !bypassGate) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
+        <Card className="w-full max-w-md border-slate-800 bg-slate-900">
+          <CardHeader className="items-center text-center">
+            <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <UsersRound className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle className="text-xl text-white">
+              ConvoReal is invite-only
+            </CardTitle>
+            <CardDescription className="text-slate-400">
+              We&apos;re opening to 100 property consultants this month, each invited by
+              someone already using it. Leave your number and we&apos;ll come
+              to you when a seat frees up.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            <WaitlistForm inviteState="no_invite" cta="Add me to the list" />
+
+            <p className="text-center text-sm text-slate-400">
+              Already have an account?{" "}
+              <Link href="/login" className="text-primary hover:text-primary/80">
+                Sign in
+              </Link>
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setBypassGate(true)}
+              className="text-center text-xs text-slate-500 underline-offset-2 hover:text-slate-300 hover:underline"
+            >
+              My number is already registered with a team here
+            </button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -154,7 +214,7 @@ function SignupPageInner() {
           <CardDescription className="text-slate-400">
             {inviteToken
               ? "Verify your email, then accept the invitation to join your team."
-              : "Get started with CRM Template for WhatsApp"}
+              : "Get started with the ConvoReal Engine"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -259,7 +319,7 @@ function SignupPageInner() {
             className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 transition-colors hover:bg-amber-500/10"
           >
             <span className="text-xs font-bold text-amber-400">
-              Own a property? List &amp; manage it yourself in the Owners Den
+              Own a property? List &amp; manage it in your Portfolio
             </span>
             <span className="shrink-0 text-xs font-black text-amber-400">→</span>
           </Link>

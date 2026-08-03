@@ -29,7 +29,7 @@ function featuresAnswer(): string {
 }
 
 function overviewAnswer(): string {
-  return `${BRANDING.name} is a WhatsApp-first real-estate CRM: ${MARKETING_CONFIG.hero.subheadline}`;
+  return `${BRANDING.name} is a WhatsApp-first real-estate deal engine: ${MARKETING_CONFIG.hero.subheadline}`;
 }
 
 /** FAQ entries are matched on their distinctive words, not word-for-word. */

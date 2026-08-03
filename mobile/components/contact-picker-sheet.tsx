@@ -12,7 +12,7 @@ import type { Contact } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 
 /**
- * Pick CRM contacts by name or phone — the same debounced `contacts`
+ * Pick Engine contacts by name or phone — the same debounced `contacts`
  * typeahead the new-appointment screen uses, lifted into a reusable
  * sheet. `onSkip` renders an escape row (e.g. "share without a contact");
  * `busy` swaps the list for a spinner while the caller's action runs.

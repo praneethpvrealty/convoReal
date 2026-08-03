@@ -36,7 +36,7 @@ export interface ExtractedPreferences {
   projects: string[];
   min_roi: number | null;
   listing_types: ListingType[];
-  /** Short buyer-profile labels to SUGGEST as CRM tags (never
+  /** Short buyer-profile labels to SUGGEST as Engine tags (never
    *  auto-attached — an agent confirms each with a tap). */
   suggested_tags: string[];
 }
@@ -125,7 +125,7 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
   if (!text) return EMPTY_PREFERENCES;
 
   const systemInstruction =
-    'You are an expert real estate CRM analyst for the Indian market. You are given the free-text requirements and notes saved against a BUYER contact. ' +
+    'You are an expert real estate lead analyst for the Indian market. You are given the free-text requirements and notes saved against a BUYER contact. ' +
     'Extract their property-buying preferences as a JSON object with this exact structure:\n' +
     '{\n' +
     `  "property_types": Array of SPECIFIC property types the contact wants, each exactly one of: ${PROPERTY_TYPE_VALUES.map((v) => `'${v}'`).join(', ')}. Empty array if no specific type is stated.,\n` +

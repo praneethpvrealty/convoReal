@@ -25,7 +25,7 @@ export interface ParsedEventDraft {
   contact_name: string | null;
   /** The other party in the conversation the event came out of — the person
    *  arranging it rather than the person being met. Often the one who is
-   *  already a CRM contact, so both get linked and both get reminded. */
+   *  already an Engine contact, so both get linked and both get reminded. */
   counterparty_name: string | null;
   /** The professional role attached to contact_name when there is one
    *  ("lawyer", "surveyor", "khata agent"). Marks them as someone who
@@ -189,7 +189,7 @@ export function alignDraftToNamedWeekday(
 
 function buildSystemPrompt(now: Date, memberNames: string[]): string {
   return (
-    'You are the scheduling assistant inside a CRM used by Indian real-estate agents. ' +
+    'You are the scheduling assistant inside a sales platform used by Indian real-estate agents. ' +
     'The user logs calendar events and tasks by typing or speaking (Hindi, Kannada, Telugu, Tamil, or English — often mixed). ' +
     `Current date/time in India (IST): ${nowInIst(now)}.\n\n` +
     'From the given text or audio, extract ONE scheduling request as JSON with exactly these keys:\n' +
@@ -232,7 +232,7 @@ const SCREENSHOT_INSTRUCTION =
   'This image is a screenshot, usually of a chat conversation. Read every message bubble in order and extract the ONE appointment the people in it agree on.\n' +
   'Right-aligned / green bubbles are the person who forwarded you this screenshot; left-aligned / grey bubbles are the other party. The event is between them.\n' +
   'The small clock times printed on each bubble (e.g. "11:49") are when the MESSAGE was sent — never treat them as the appointment time. Use only a day/time stated inside the message wording.\n' +
-  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met, and put the person chatting in counterparty_name — both are attendees worth linking, and the one chatting is usually the one already in the CRM.\n' +
+  'Set contact_name to the person the appointment is WITH. When one name is the person being met and another is merely the person chatting, prefer the one being met, and put the person chatting in counterparty_name — both are attendees worth linking, and the one chatting is usually the one already in the contact database.\n' +
   'Put the conversation you read, as plain text, into "transcript".\n' +
   'If the thread never settles on a specific day or time, or is not about arranging a meeting at all, return intent "none" rather than guessing a slot.';
 
@@ -316,7 +316,7 @@ export interface EventUpdateInput {
 export async function parseEventUpdate(input: EventUpdateInput): Promise<ParsedEventDraft> {
   const now = input.now || new Date();
   const system =
-    'You are the scheduling assistant inside a CRM used by Indian real-estate agents. ' +
+    'You are the scheduling assistant inside a sales platform used by Indian real-estate agents. ' +
     `Current date/time in India (IST): ${nowInIst(now)}.\n\n` +
     'The user is correcting an event that already exists. Apply their instruction to it and return the FULL event as it should now read, ' +
     'in the same JSON shape used for new events (intent, title, event_type, start_time, day_of_week, end_time, duration_minutes, contact_name, property_hint, assignee_name, location, priority, notes, transcript).\n' +

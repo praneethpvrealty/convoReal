@@ -77,7 +77,7 @@ export async function completeDenAuth(args: {
         .maybeSingle();
       if (!raced) {
         console.error("[completeDenAuth] den_users insert failed:", createErr);
-        throw new Error("Could not create Owners Den profile");
+        throw new Error("Could not create your Portfolio profile");
       }
       denUserId = raced.id as string;
     } else {

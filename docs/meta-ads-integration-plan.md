@@ -20,7 +20,7 @@ ad runs on Instagram/Facebook with "Send WhatsApp message" as the CTA → the bu
 lands in the agent's existing ConvoReal inbox → the webhook auto-creates the contact, links the
 property, and attributes the lead to the ad. The differentiated value is the **closed loop**
 (ad → chat → contact → property → cost-per-lead), which Meta's own Ads Manager cannot do because
-it doesn't own the CRM side.
+it doesn't own the Engine side.
 
 **Why CTWA and not Lead Ads / traffic ads:** the destination is the agent's WhatsApp **business
 number — already connected to our webhook** (`whatsapp_config`). Zero new lead-capture
@@ -315,11 +315,11 @@ New page `src/app/(dashboard)/ads/page.tsx` (+ sidebar nav item, `Megaphone` ico
   `stale: true` flag.
 - **Leads column is ours, not Meta's**: `COUNT(ctwa_referrals WHERE source_id = ad_id)` — real
   contacts created, joined per campaign. Cost/lead = spend ÷ that count. Label the Meta metric
-  "Chats started (Meta)" and ours "Leads in CRM" — never conflate them.
+  "Chats started (Meta)" and ours "Leads in Engine" — never conflate them.
 - Table per campaign: property thumbnail+title, status pill + pause/resume toggle
   (`PATCH /api/meta-ads/campaigns/[id]` `{ action: 'pause'|'resume' }` → Meta status flip + local),
   daily budget (inline edit → `{ action: 'set_budget', daily_budget_inr }`), spend, reach,
-  chats started, **Leads in CRM** (click → contacts filtered to those leads), cost/lead,
+  chats started, **Leads in Engine** (click → contacts filtered to those leads), cost/lead,
   created date. Row menu: "Stop & archive" (Meta ARCHIVED + local), "View property".
 - Banners: `token_expired` → reconnect CTA; empty state → marketing copy + "Promote your first
   property" button.

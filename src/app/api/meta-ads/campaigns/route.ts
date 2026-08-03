@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
 // cached insights for any campaign whose data is older than 15
 // minutes (or has never been fetched); on a Meta failure for an
 // individual campaign, serves its last cached numbers with
-// `stale: true` rather than failing the whole list. "Leads in CRM" is
+// `stale: true` rather than failing the whole list. "Leads in Engine" is
 // computed from OUR OWN ctwa_referrals table (real contacts created),
 // never from Meta's numbers — the two are deliberately kept distinct
 // (see docs/meta-ads-integration-plan.md §6).
@@ -326,7 +326,7 @@ export async function GET() {
       .in('id', propertyIds);
     const propertyById = new Map((properties ?? []).map((p) => [p.id, p]));
 
-    // Leads in CRM per ad_id — count of distinct contacts whose first
+    // Leads in Engine per ad_id — count of distinct contacts whose first
     // touch was this ad, from our own attribution table.
     const adIds = campaigns.map((c) => c.ad_id).filter((id): id is string => !!id);
     const leadCountByAdId = new Map<string, number>();
@@ -432,7 +432,7 @@ export async function GET() {
               stale: isStale,
             }
           : null,
-        leadsInCrm: leads,
+        leadsInEngine: leads,
         costPerLeadInr: leads > 0 ? Math.round((spend / leads) * 100) / 100 : null,
       };
     });

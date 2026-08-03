@@ -1,7 +1,7 @@
 // ============================================================
 // WhatsApp scheduling for the owner chatbot — the agent texts or
 // voice-notes their own bot ("site visit with Varun tomorrow 4pm
-// at the JP Nagar plot") and it lands on the CRM calendar.
+// at the JP Nagar plot") and it lands on the Engine calendar.
 //
 // Runs BEFORE the property/contact intake flows, but only when no
 // draft session is active. A strict keyword pre-filter keeps
@@ -159,7 +159,7 @@ export function formatAgendaMessage(dateLabel: string, events: AgendaEvent[], to
 /** Confirmation sent back to a lead whose inbound message we turned
  *  into an appointment. Deliberately non-committal — the event lands on
  *  the agent's calendar and the agent confirms — and phrased for the
- *  contact, not the CRM owner. */
+ *  contact, not the Engine owner. */
 export function formatInboundConfirmation(params: {
   contactName: string | null;
   title: string;
@@ -614,7 +614,7 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   );
 
   // Both parties to the conversation are attendees. The person being met is
-  // often an outside professional with no CRM record, while the person who
+  // often an outside professional with no Engine record, while the person who
   // arranged it usually IS a contact — linking only the former left the event
   // attached to nobody, so nobody got a client reminder.
   const counterparty = resolveByName(draft.counterparty_name, contacts || [], (c) => c.name || '');

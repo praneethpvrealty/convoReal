@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 // then we serve an empty app list. Must be served as JSON at exactly
 // this path, no redirect.
 //
-// Only CRM-staff paths are claimed (mirroring the Android intent
+// Only Engine-staff paths are claimed (mirroring the Android intent
 // filter's pathPrefix list). Public showcase URLs — `/`,
 // `/?property_id=`, `/property/*`, `/projects/*`, `/farmland/*`,
 // `/list` — must never open the app: the app shell is auth-gated, so

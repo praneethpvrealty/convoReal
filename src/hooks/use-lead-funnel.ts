@@ -26,7 +26,7 @@ interface UseLeadFunnelOptions {
   /** Chips for steps that source them from live data. */
   chipsFor?: (source: NonNullable<FunnelStep['chipsFrom']>) => string[];
   /**
-   * Called for a `next` that isn't a step id (FUNNEL_END, FUNNEL_CRM,
+   * Called for a `next` that isn't a step id (FUNNEL_END, FUNNEL_ENGINE,
    * FUNNEL_MATCH). Return the step id to continue at, or null to stop
    * asking — the caller owns what happens next.
    */
@@ -102,7 +102,7 @@ export function useLeadFunnel({
   // that invoked it doesn't then overwrite the step it just set.
   const handedOverRef = useRef(false);
 
-  /** Restarts the machine on another funnel (buyer → CRM prospect). */
+  /** Restarts the machine on another funnel (buyer → Engine prospect). */
   const switchFunnel = useCallback(
     (nextFunnel: Funnel) => {
       handedOverRef.current = true;

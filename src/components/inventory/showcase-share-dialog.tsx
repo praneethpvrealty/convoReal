@@ -266,18 +266,18 @@ Best regards`;
     }
   };
 
-  // ── CRM template sending ─────────────────────────────────────
+  // ── Engine template sending ─────────────────────────────────────
   // The inventory_update Marketing template lets the digest go out from
   // the account's own WhatsApp Business number — replies land in the
   // ConvoReal Inbox (24h window opens, copilot takes over), instead of
   // leaking the conversation to the agent's personal WhatsApp.
-  const [crmTemplate, setCrmTemplate] = useState<MessageTemplate | null>(null);
-  const [crmTemplateChecked, setCrmTemplateChecked] = useState(false);
-  const [submittingCrmTemplate, setSubmittingCrmTemplate] = useState(false);
-  const [crmSendingContactId, setCrmSendingContactId] = useState<string | null>(null);
-  const [crmSentContactIds, setCrmSentContactIds] = useState<Set<string>>(new Set());
+  const [engineTemplate, setEngineTemplate] = useState<MessageTemplate | null>(null);
+  const [engineTemplateChecked, setEngineTemplateChecked] = useState(false);
+  const [submittingEngineTemplate, setSubmittingEngineTemplate] = useState(false);
+  const [engineSendingContactId, setEngineSendingContactId] = useState<string | null>(null);
+  const [engineSentContactIds, setEngineSentContactIds] = useState<Set<string>>(new Set());
 
-  const fetchCrmTemplate = useCallback(async () => {
+  const fetchEngineTemplate = useCallback(async () => {
     if (!accountId) return;
     const db = createClient();
     const { data } = await db
@@ -288,25 +288,25 @@ Best regards`;
       .order('last_submitted_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    setCrmTemplate((data as MessageTemplate | null) || null);
-    setCrmTemplateChecked(true);
+    setEngineTemplate((data as MessageTemplate | null) || null);
+    setEngineTemplateChecked(true);
   }, [accountId]);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     Promise.resolve().then(() => {
-      if (!cancelled) void fetchCrmTemplate();
+      if (!cancelled) void fetchEngineTemplate();
     });
     return () => {
       cancelled = true;
     };
-  }, [open, fetchCrmTemplate]);
+  }, [open, fetchEngineTemplate]);
 
-  const crmTemplateApproved = crmTemplate?.status === 'APPROVED';
+  const engineTemplateApproved = engineTemplate?.status === 'APPROVED';
 
-  const handleSubmitCrmTemplate = async () => {
-    setSubmittingCrmTemplate(true);
+  const handleSubmitEngineTemplate = async () => {
+    setSubmittingEngineTemplate(true);
     try {
       const payload = buildInventoryUpdateTemplatePayload(window.location.origin);
       const res = await fetch('/api/whatsapp/templates/submit', {
@@ -317,24 +317,24 @@ Best regards`;
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Template submission failed');
       toast.success('Template submitted to Meta — sending unlocks once it is approved (usually within minutes to a few hours).');
-      await fetchCrmTemplate();
+      await fetchEngineTemplate();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Template submission failed');
       console.error('[showcase-share] template submit failed:', err);
     } finally {
-      setSubmittingCrmTemplate(false);
+      setSubmittingEngineTemplate(false);
     }
   };
 
-  const handleCrmSendPersonal = async (contact: PickerContact) => {
-    if (!crmTemplate || !accountId) return;
-    setCrmSendingContactId(contact.id);
+  const handleEngineSendPersonal = async (contact: PickerContact) => {
+    if (!engineTemplate || !accountId) return;
+    setEngineSendingContactId(contact.id);
     try {
       const [residential, commercial, farmAndLand] = buildInventoryUpdateParams(summaryProperties ?? []);
       const firstName = contact.name?.trim().split(/\s+/)[0] || 'there';
       // Dynamic URL-button suffix → tracked, personalised portal open.
       const buttonParams: Record<number, string> = {};
-      (crmTemplate.buttons ?? []).forEach((btn, idx) => {
+      (engineTemplate.buttons ?? []).forEach((btn, idx) => {
         if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
           buttonParams[idx] = `?ref=${accountId}&v=${contact.id}`;
         }
@@ -350,21 +350,21 @@ Best regards`;
               ...(Object.keys(buttonParams).length > 0 ? { messageParams: { buttonParams } } : {}),
             },
           ],
-          template_name: crmTemplate.name,
-          template_language: crmTemplate.language || 'en_US',
+          template_name: engineTemplate.name,
+          template_language: engineTemplate.language || 'en_US',
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Send failed');
       const result = data.results?.[0];
       if (result?.status === 'failed') throw new Error(result.error || 'Delivery failure');
-      setCrmSentContactIds((prev) => new Set(prev).add(contact.id));
+      setEngineSentContactIds((prev) => new Set(prev).add(contact.id));
       toast.success(`Inventory update sent to ${contact.name || contact.phone} from your business number — replies land in your Inbox.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to send via CRM');
-      console.error('[showcase-share] CRM send failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to send via Engine');
+      console.error('[showcase-share] Engine send failed:', err);
     } finally {
-      setCrmSendingContactId(null);
+      setEngineSendingContactId(null);
     }
   };
 
@@ -669,37 +669,37 @@ Best regards`;
               </p>
             )}
 
-            {/* CRM template status — the preferred send path */}
-            {crmTemplateChecked && (
+            {/* Engine template status — the preferred send path */}
+            {engineTemplateChecked && (
               <div className="border border-primary/25 bg-primary/5 rounded-lg p-3 space-y-2">
                 <p className="text-[11px] font-bold text-primary flex items-center gap-1.5">
                   <Sparkles className="size-3.5" />
                   Send from your WhatsApp Business number
                 </p>
-                {crmTemplateApproved ? (
+                {engineTemplateApproved ? (
                   <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Template approved ✅ — use the <strong className="text-primary">CRM</strong> button
+                    Template approved ✅ — use the <strong className="text-primary">Engine</strong> button
                     next to any contact below. They get a personalised inventory snapshot with a
                     tracked showcase link and quick-reply buttons; their reply opens a conversation
                     in your <strong className="text-slate-300">Inbox</strong> where the copilot takes over.
                   </p>
-                ) : crmTemplate?.status === 'PENDING' ? (
+                ) : engineTemplate?.status === 'PENDING' ? (
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     Template submitted — waiting for Meta approval (usually minutes to a few hours).
-                    CRM sending unlocks automatically once approved.
+                    Engine sending unlocks automatically once approved.
                   </p>
-                ) : crmTemplate?.status === 'REJECTED' ? (
+                ) : engineTemplate?.status === 'REJECTED' ? (
                   <div className="space-y-2">
                     <p className="text-[11px] text-rose-400 leading-relaxed">
-                      Meta rejected the template{crmTemplate.rejection_reason ? `: ${crmTemplate.rejection_reason}` : ''}.
+                      Meta rejected the template{engineTemplate.rejection_reason ? `: ${engineTemplate.rejection_reason}` : ''}.
                     </p>
                     <Button
                       size="sm"
-                      onClick={() => void handleSubmitCrmTemplate()}
-                      disabled={submittingCrmTemplate}
+                      onClick={() => void handleSubmitEngineTemplate()}
+                      disabled={submittingEngineTemplate}
                       className="h-8 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
-                      {submittingCrmTemplate ? <Loader2 className="size-3.5 animate-spin" /> : 'Resubmit template'}
+                      {submittingEngineTemplate ? <Loader2 className="size-3.5 animate-spin" /> : 'Resubmit template'}
                     </Button>
                   </div>
                 ) : (
@@ -712,11 +712,11 @@ Best regards`;
                     </p>
                     <Button
                       size="sm"
-                      onClick={() => void handleSubmitCrmTemplate()}
-                      disabled={submittingCrmTemplate}
+                      onClick={() => void handleSubmitEngineTemplate()}
+                      disabled={submittingEngineTemplate}
                       className="h-8 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1.5"
                     >
-                      {submittingCrmTemplate ? (
+                      {submittingEngineTemplate ? (
                         <>
                           <Loader2 className="size-3.5 animate-spin" />
                           Submitting…
@@ -794,22 +794,22 @@ Best regards`;
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {crmTemplateApproved && (
+                      {engineTemplateApproved && (
                         <Button
                           size="sm"
-                          onClick={() => void handleCrmSendPersonal(contact)}
-                          disabled={crmSendingContactId !== null}
+                          onClick={() => void handleEngineSendPersonal(contact)}
+                          disabled={engineSendingContactId !== null}
                           title="Send the inventory update template from your WhatsApp Business number — replies land in your Inbox"
                           className="h-7 px-2.5 text-[11px] font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-1"
                         >
-                          {crmSendingContactId === contact.id ? (
+                          {engineSendingContactId === contact.id ? (
                             <Loader2 className="size-3 animate-spin" />
-                          ) : crmSentContactIds.has(contact.id) ? (
+                          ) : engineSentContactIds.has(contact.id) ? (
                             <Check className="size-3" />
                           ) : (
                             <Send className="size-3" />
                           )}
-                          CRM
+                          Engine
                         </Button>
                       )}
                       <Button

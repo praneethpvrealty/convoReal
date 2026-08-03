@@ -27,6 +27,7 @@ export const GET = withDenAuth(async (ctx) => {
     .from("properties")
     .select(DEN_PROPERTY_SELECT)
     .in("owner_contact_id", ctx.links.map((l) => l.contactId))
+    .neq("listing_source", "agent")
     .order("created_at", { ascending: false });
   if (error) {
     console.error("[den/properties GET] query error:", error);
@@ -112,7 +113,7 @@ export const POST = withDenAuth(async (ctx, req) => {
       description:
         typeof body.description === "string"
           ? body.description.slice(0, 5000)
-          : "Listed by the owner via Owners Den, pending review.",
+          : "Listed by the owner via their Portfolio, pending review.",
       price,
       location: location.slice(0, 300),
       type,

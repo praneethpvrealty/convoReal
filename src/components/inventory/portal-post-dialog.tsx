@@ -290,7 +290,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           })}
         </div>
 
-        {/* Portal-mandatory fields the CRM is missing */}
+        {/* Portal-mandatory fields the Engine is missing */}
         {missing.length > 0 && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
             <div className="flex items-center gap-2 text-xs font-semibold text-amber-300">

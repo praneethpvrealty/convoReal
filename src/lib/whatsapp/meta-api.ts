@@ -1544,7 +1544,7 @@ export async function syncProductToCatalog(
           availability: 'in stock',
           condition: 'new',
           url: productUrl,
-          brand: 'waCRM Properties',
+          brand: 'ConvoReal Properties',
         },
       },
     ],

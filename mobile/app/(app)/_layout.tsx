@@ -15,7 +15,7 @@ export default function AppLayout() {
   const { colors, fonts: f } = useTheme();
 
   // Home-screen widgets otherwise wait up to 30 minutes for the next
-  // periodic update — push fresh data every time the CRM opens.
+  // periodic update — push fresh data every time the Engine opens.
   useEffect(() => {
     if (session) void updateAllOsWidgets();
   }, [session]);
@@ -24,14 +24,14 @@ export default function AppLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  // This device signed in as a property owner — the staff CRM is not
+  // This device signed in as a property owner — the staff Engine is not
   // its surface; the Den shell owns the session.
   if (surface === 'den') {
     return <Redirect href="/(den)/den" />;
   }
 
   // Same gate as the web dashboard (migration 137): staff must have an
-  // OTP-verified WhatsApp number before using the CRM.
+  // OTP-verified WhatsApp number before using the Engine.
   if (!isPhoneVerified(session) && pathname !== '/verify-phone') {
     return <Redirect href="/(app)/verify-phone" />;
   }

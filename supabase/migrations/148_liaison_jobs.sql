@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS liaison_jobs (
   -- removed, but a job must keep saying what it was for.
   service_name TEXT NOT NULL,
 
-  -- Optional CRM links: whose paperwork, and for which listing.
+  -- Optional Engine links: whose paperwork, and for which listing.
   contact_id UUID REFERENCES contacts(id) ON DELETE SET NULL,
   property_id UUID REFERENCES properties(id) ON DELETE SET NULL,
 

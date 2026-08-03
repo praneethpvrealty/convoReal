@@ -315,7 +315,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "welcome",
       node_type: "send_buttons",
       config: {
-        text: "Welcome to PV Realty! 🏡 Let's help you find your dream property. What are you looking to do?",
+        text: "Welcome! 🏡 Let's help you find your dream property. What are you looking to do?",
         footer_text: "Select a requirement option below:",
         buttons: [
           {

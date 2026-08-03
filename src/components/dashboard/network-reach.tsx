@@ -43,7 +43,7 @@ export function NetworkReach() {
         <Share2 className="size-4 text-primary" />
         <h2 className="text-sm font-semibold text-white">My Inventory Network</h2>
         <span className="text-xs text-slate-500 ml-auto">
-          buyers reached via partner brokerages
+          buyers reached via partner consultants
         </span>
       </header>
       <div className="divide-y divide-slate-900/60">

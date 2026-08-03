@@ -28,7 +28,7 @@ import { haptic } from '@/lib/haptics';
 import { storagePublicUrl } from '@/lib/storage-url';
 import {
   logExternalShare,
-  sendPropertyViaCrm,
+  sendPropertyViaEngine,
 } from '@/lib/property-share-actions';
 import {
   addRecipientGreeting,
@@ -57,7 +57,7 @@ const DETAILS: { value: ShareDetailLevel; label: string }[] = [
  * Mobile port of the web share dialog: audience, tone and detail
  * pickers over the same message builder (lib/share-message mirrors
  * the web module 1:1), an editable draft, and channel buttons.
- * "Send from CRM" stays in the conversation thread's template picker.
+ * "Send from Engine" stays in the conversation thread's template picker.
  *
  * Opened from a contact's linked listing the recipient is already
  * known, so `contact` preselects it: both send paths address that
@@ -88,8 +88,8 @@ export function PropertyShareSheet({
   const [detail, setDetail] = useState<ShareDetailLevel>('standard');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState<'link' | 'message' | null>(null);
-  const [picker, setPicker] = useState<'external' | 'crm' | null>(null);
-  const [crmSending, setCrmSending] = useState(false);
+  const [picker, setPicker] = useState<'external' | 'engine' | null>(null);
+  const [engineSending, setEngineSending] = useState(false);
   const [sharingPhoto, setSharingPhoto] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
 
@@ -136,7 +136,7 @@ export function PropertyShareSheet({
 
   // External WhatsApp: address the deep link to the picked contact, tag the
   // showcase link so their activity is attributed in Pulse, and log the
-  // share on their CRM timeline; "skip" keeps the old behaviour (WhatsApp's
+  // share on their Engine timeline; "skip" keeps the old behaviour (WhatsApp's
   // own contact chooser, untracked link).
   async function shareExternalWithContact(contact: Contact) {
     setPicker(null);
@@ -231,14 +231,14 @@ export function PropertyShareSheet({
   // the pre-approved property template outside it — the dialog below
   // only appears when that template isn't approved yet.
   async function sendViaConvoReal(contact: Contact) {
-    setCrmSending(true);
+    setEngineSending(true);
     haptic.send();
-    const outcome = await sendPropertyViaCrm(
+    const outcome = await sendPropertyViaEngine(
       contact,
       property,
       addRecipientGreeting(message, contact.name)
     );
-    setCrmSending(false);
+    setEngineSending(false);
     setPicker(null);
     if (outcome.sent) {
       haptic.success();
@@ -282,7 +282,7 @@ export function PropertyShareSheet({
     });
   }
 
-  // Fan-out for the CRM channel. Each contact gets their own greeting and
+  // Fan-out for the Engine channel. Each contact gets their own greeting and
   // their own 24-hour-window verdict, so sends are reported per person
   // rather than as one pass/fail — a closed window for one recipient must
   // not read as a failure for the rest.
@@ -294,13 +294,13 @@ export function PropertyShareSheet({
       await sendViaConvoReal(contacts[0]);
       return;
     }
-    setCrmSending(true);
+    setEngineSending(true);
     haptic.send();
     const blocked: string[] = [];
     const failed: string[] = [];
     let sent = 0;
     for (const c of contacts) {
-      const outcome = await sendPropertyViaCrm(
+      const outcome = await sendPropertyViaEngine(
         c,
         property,
         addRecipientGreeting(message, c.name)
@@ -313,7 +313,7 @@ export function PropertyShareSheet({
         failed.push(c.name || c.phone);
       }
     }
-    setCrmSending(false);
+    setEngineSending(false);
     setPicker(null);
 
     if (sent === contacts.length) {
@@ -436,25 +436,25 @@ export function PropertyShareSheet({
 
         <SectionLabel text="Send from ConvoReal" />
         <Pressable
-          disabled={crmSending}
-          onPress={() => (contact ? void sendViaConvoReal(contact) : setPicker('crm'))}
+          disabled={engineSending}
+          onPress={() => (contact ? void sendViaConvoReal(contact) : setPicker('engine'))}
           accessibilityRole="button"
-          accessibilityState={{ disabled: crmSending, busy: crmSending }}
+          accessibilityState={{ disabled: engineSending, busy: engineSending }}
           accessibilityLabel={
             recipientName
               ? `Send via ConvoReal WhatsApp to ${recipientName}`
               : 'Send via ConvoReal WhatsApp'
           }
           style={[
-            styles.crmButton,
+            styles.engineButton,
             { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-            crmSending && { opacity: 0.6 },
+            engineSending && { opacity: 0.6 },
           ]}
         >
           <Ionicons name="logo-whatsapp" size={20} color={colors.primary} />
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.primary }}>
-              {crmSending
+              {engineSending
                 ? 'Sending from ConvoReal…'
                 : recipientName
                   ? `Send to ${recipientName}`
@@ -464,7 +464,7 @@ export function PropertyShareSheet({
               Delivers from your business number and logs to the chat thread
             </Text>
           </View>
-          {crmSending ? (
+          {engineSending ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
             <Ionicons name="chevron-forward" size={16} color={colors.primary} />
@@ -516,14 +516,14 @@ export function PropertyShareSheet({
         onSkip={shareExternalWithoutContact}
       />
       <ContactPickerSheet
-        visible={picker === 'crm'}
+        visible={picker === 'engine'}
         onClose={() => setPicker(null)}
         multiSelect
         confirmLabel="Send"
         onSelectMany={sendViaConvoRealMany}
         title="Send via ConvoReal WhatsApp"
         hint="Pick everyone who should receive this listing from your business number. Search again to add more — your picks are kept."
-        busy={crmSending}
+        busy={engineSending}
         busyLabel="Sending from ConvoReal…"
       />
       <AppDialog
@@ -596,7 +596,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 9,
   },
-  crmButton: {
+  engineButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,

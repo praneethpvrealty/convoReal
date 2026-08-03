@@ -375,6 +375,10 @@ export async function gatherOwnerDigests(
     .from('properties')
     .select('id, title, owner_contact_id')
     .eq('account_id', accountId)
+    // Agent-referred listings put the referring agent in
+    // owner_contact_id — they get the agent inventory digest, not an
+    // owner digest (migration 191 has the full story).
+    .neq('listing_source', 'agent')
   propertiesQuery = ownerContactIds
     ? propertiesQuery.in('owner_contact_id', ownerContactIds)
     : propertiesQuery.not('owner_contact_id', 'is', null)

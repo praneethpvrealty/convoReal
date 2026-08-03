@@ -293,7 +293,7 @@ export async function POST(request: Request) {
           phoneNumberId,
           accessToken: decryptedToken,
           to: cleanPhone,
-          text: `Your convoReal CRM verification code is: *${otpCode}*\n\nIt is valid for 5 minutes.`,
+          text: `Your ConvoReal verification code is: *${otpCode}*\n\nIt is valid for 5 minutes.`,
         });
         console.log(`[SMS Hook] Verification code sent via fallback text message (success=true) to: ****${cleanPhone.slice(-4)}`);
       } catch (fallbackError) {

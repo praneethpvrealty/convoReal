@@ -1,6 +1,6 @@
 # Pay-As-You-Grow Cost Breakdown & Scaling Roadmap
 
-This document provides a detailed cost analysis for scaling the WhatsApp CRM from a few hundred accounts up to the target scale of **10,000 accounts, 40 Million properties (with 120M images), and 200 Million contacts** over 6 months. 
+This document provides a detailed cost analysis for scaling the WhatsApp Engine from a few hundred accounts up to the target scale of **10,000 accounts, 40 Million properties (with 120M images), and 200 Million contacts** over 6 months. 
 
 It is designed to ensure you **minimize upfront costs** by utilizing serverless, pay-as-you-use, and free-tier-optimized platforms, ramping up spend only as your customer base and revenue grow.
 

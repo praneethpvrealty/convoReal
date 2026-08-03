@@ -3,15 +3,15 @@
 --
 -- The Owners Den (src/app/(den)/) is the first authenticated surface
 -- for property OWNERS — the people who own the real estate. Until now
--- they existed only as CRM `contacts` rows (classification 'Owner',
+-- they existed only as Engine `contacts` rows (classification 'Owner',
 -- referenced by properties.owner_contact_id) with no login.
 --
 -- Den users are a PARALLEL identity class, not staff:
 --   * an auth.users row with NO profiles row. Every existing RLS
 --     policy gates through is_account_member() → profiles, so a Den
---     user is denied by every CRM policy by construction. That is the
+--     user is denied by every Engine policy by construction. That is the
 --     isolation guarantee — owners can never see agents, other
---     tenants, or CRM internals. No existing policy changes here.
+--     tenants, or Engine internals. No existing policy changes here.
 --   * All Den data access goes through /api/den/* route handlers
 --     using the service-role client with explicit owner scoping
 --     (src/lib/den/auth.ts). The RLS below is defense in depth.
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS den_users (
 CREATE INDEX IF NOT EXISTS idx_den_users_phone_normalized
   ON den_users(phone_normalized);
 
--- One row per (den user, CRM contact) — the bridge from a Den login
+-- One row per (den user, Engine contact) — the bridge from a Den login
 -- to the tenant-scoped contact rows (and through owner_contact_id,
 -- to that tenant's properties). status 'revoked' lets an agency or
 -- support sever a bad link without losing the audit trail.
@@ -138,7 +138,7 @@ REVOKE ALL ON FUNCTION public.find_den_owner_contacts(TEXT) FROM anon, authentic
 --
 -- The live function (099_fix_handle_new_user_account_role_type.sql)
 -- bootstraps a staff accounts + profiles pair for EVERY new auth
--- user. A Den owner must NOT become a CRM tenant — their identity
+-- user. A Den owner must NOT become an Engine tenant — their identity
 -- rows are created by POST /api/den/auth/complete instead.
 --
 -- This is a verbatim copy of the 099 body with ONE addition: the

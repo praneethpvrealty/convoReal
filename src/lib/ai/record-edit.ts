@@ -91,7 +91,7 @@ export async function parseRecordUpdate(params: {
   const current = Object.fromEntries(fields.map((f) => [f, params.current[f] ?? null]));
 
   const system =
-    `You are a CRM data editor. The user is correcting an existing ${params.entityType} record.\n` +
+    `You are a record data editor. The user is correcting an existing ${params.entityType} record.\n` +
     `Apply their instruction and return the record as it should now read, as JSON with exactly these keys: ${fields.join(', ')}.\n` +
     'Carry every field the instruction does not mention through UNCHANGED. Never blank a field just because it went unmentioned. ' +
     'Prices are plain rupee numbers (1.2 crore -> 12000000). ' +

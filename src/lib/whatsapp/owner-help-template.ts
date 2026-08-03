@@ -19,7 +19,7 @@
 // engine / buyer chatbot instead. Keep any new caller inside that gate:
 // the greeting words below ("hi", "hello", "namaste") are exactly how a
 // lead opens a conversation, so an ungated caller would answer buyers
-// with a CRM manual.
+// with an Engine manual.
 // ============================================================
 
 import { BRANDING } from '@/config/branding';
@@ -65,7 +65,7 @@ export function buildOwnerHelpMessage(): string {
   const lines = [
     `🤖 *${BRANDING.name} on WhatsApp*`,
     '',
-    "Send it here and I'll file it into your CRM — no app needed.",
+    "Send it here and I'll file it into your Engine — no app needed.",
     '',
     '*🏠 Add a listing*',
     'Paste the details, or forward an ad screenshot or brochure PDF. I pull out price, area, locality, type and amenities, then show you a draft to confirm.',

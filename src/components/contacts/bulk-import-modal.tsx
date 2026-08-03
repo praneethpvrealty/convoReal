@@ -23,7 +23,7 @@ import { Check, Loader2 } from 'lucide-react';
 export interface BulkImportContact {
   name: string;
   /** Quick-recall qualifier split off the phonebook name (e.g. "Bank DSA").
-   *  Shown only inside the CRM; outbound messages use `name` alone. */
+   *  Shown only inside the Engine; outbound messages use `name` alone. */
   name_tag: string;
   phone: string;
   email: string;
@@ -132,7 +132,7 @@ export function BulkImportModal({
                 <TableHead className="text-slate-300 font-semibold">
                   Name Tag
                   <span className="block text-[10px] font-normal text-slate-500 normal-case">
-                    CRM-only label — not sent in messages
+                    Engine-only label — not sent in messages
                   </span>
                 </TableHead>
                 <TableHead className="text-slate-300 font-semibold">Phone</TableHead>

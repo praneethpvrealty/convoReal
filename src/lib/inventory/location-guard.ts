@@ -166,7 +166,7 @@ export function canViewExactLocation(
 }
 
 /**
- * Masks a row for an authenticated CRM member who may not see the
+ * Masks a row for an authenticated Engine member who may not see the
  * exact location. Identity passthrough for privileged viewers.
  */
 export function maskPropertyForViewer<T extends Property>(

@@ -59,7 +59,7 @@ export default function LoginScreen() {
             </LinearGradient>
             <Text style={[styles.wordmark, { color: colors.primary, fontFamily: f.extrabold }]}>ConvoReal</Text>
             <Text style={[styles.tagline, { color: colors.textMuted }]}>
-              WhatsApp CRM for real estate
+              WhatsApp Engine for real estate
             </Text>
           </View>
 
@@ -94,7 +94,7 @@ export default function LoginScreen() {
           >
             <Ionicons name="home-outline" size={15} color={colors.primary} />
             <Text style={{ color: colors.primary, fontSize: 13.5, fontFamily: f.semibold }}>
-              Property owner? Open the Owners Den
+              Property owner? Open your Portfolio
             </Text>
           </Pressable>
         </ScrollView>

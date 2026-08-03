@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
 import { CATEGORY_SUBTYPES, parsePropertyQuery } from "@/lib/search-parser";
+import {
+  checkRateLimit,
+  rateLimitResponse,
+  RATE_LIMITS,
+} from "@/lib/rate-limit";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { toPublicPropertyView } from "@/lib/inventory/location-guard";
 import type { Property } from "@/types";
@@ -8,12 +13,28 @@ import type { Property } from "@/types";
 const MAX_LIMIT = 50;
 const DEFAULT_LIMIT = 12;
 
+function getClientIp(request: Request): string {
+  const xff = request.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0].trim();
+  const xri = request.headers.get("x-real-ip");
+  if (xri) return xri.trim();
+  return "unknown";
+}
+
 // GET /api/public/properties
 // Public endpoint to fetch published and available properties for showcase with pagination
 export async function GET(request: Request) {
   try {
-    // 1. Optional API Key security check
-    const expectedApiKey = process.env.PUBLIC_API_KEY || process.env.WACRM_PUBLIC_API_KEY;
+    // 1. Per-IP budget. Runs before the API-key check so an unauthenticated
+    //    flood is rejected cheaply and key guessing is bounded.
+    const ipLimit = checkRateLimit(
+      `public-catalog:ip:${getClientIp(request)}`,
+      RATE_LIMITS.publicCatalog
+    );
+    if (!ipLimit.success) return rateLimitResponse(ipLimit);
+
+    // 2. Optional API Key security check
+    const expectedApiKey = process.env.PUBLIC_API_KEY;
     if (expectedApiKey) {
       const apiKey = request.headers.get("x-api-key");
       if (apiKey !== expectedApiKey) {
@@ -24,7 +45,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // 2. Resolve account_id from query parameters or default environment variable
+    // 3. Resolve account_id from query parameters or default environment variable
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get("account_id") || process.env.NEXT_PUBLIC_DEFAULT_ACCOUNT_ID;
 
@@ -35,7 +56,15 @@ export async function GET(request: Request) {
       );
     }
 
-    // 3. Pagination params
+    // 4. Per-account budget. The per-IP check above does nothing against a
+    //    distributed scrape of one brokerage's inventory; this bounds it.
+    const accountLimit = checkRateLimit(
+      `public-catalog:account:${accountId}`,
+      RATE_LIMITS.publicCatalogAccount
+    );
+    if (!accountLimit.success) return rateLimitResponse(accountLimit);
+
+    // 5. Pagination params
     const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10));
     const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT), 10)));
     const from = page * limit;
@@ -48,7 +77,7 @@ export async function GET(request: Request) {
     const location = searchParams.get("location")?.trim() || "";
     const search = searchParams.get("search")?.trim() || "";
 
-    // 4. Fetch properties bypassing RLS using supabaseAdmin client
+    // 6. Fetch properties bypassing RLS using supabaseAdmin client
     const client = supabaseAdmin();
     // NOTE: 'documents' is intentionally excluded — documents are private and
     // only accessible via approved share links (/docs/[token]). Rows are

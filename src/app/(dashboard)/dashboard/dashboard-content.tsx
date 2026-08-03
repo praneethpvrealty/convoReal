@@ -153,7 +153,7 @@ export default function DashboardContent() {
                   'vs yesterday',
                 ),
               }}
-              hint="Contacts added to your CRM today — from incoming messages or manual creation."
+              hint="Contacts added to your Engine today — from incoming messages or manual creation."
             />
             <MetricCard
               title="Expected Revenue (Brokerage)"

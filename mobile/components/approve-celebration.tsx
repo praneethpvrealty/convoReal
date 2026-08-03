@@ -43,9 +43,9 @@ export function ApproveCelebration({
     : null;
 
   const message = reengageId
-    ? `${name} is in your active contacts. Their 24-hour CRM window has closed — send ${
+    ? `${name} is in your active contacts. Their 24-hour Engine window has closed — send ${
         propertyName ? `the details for "${propertyName}"` : 'the property details'
-      } on WhatsApp, or open the CRM thread to send a template.`
+      } on WhatsApp, or open the Engine thread to send a template.`
     : outcome?.sent
       ? `The details for ${
           propertyName ? `"${propertyName}"` : 'the property they inquired about'
@@ -58,7 +58,7 @@ export function ApproveCelebration({
     ? [
         // Guaranteed delivery: the native deep link opens WhatsApp to
         // the lead with the complete details + showcase link pre-filled
-        // — no 24h window limit (the CRM free-text send would be
+        // — no 24h window limit (the Engine free-text send would be
         // rejected here).
         ...(contact && outcome?.detailsMessage
           ? [
@@ -76,7 +76,7 @@ export function ApproveCelebration({
           : []),
         {
           icon: 'chatbubbles' as const,
-          label: 'Open CRM thread',
+          label: 'Open Engine thread',
           onPress: () => {
             onClose();
             if (reengageHref) router.push(reengageHref);

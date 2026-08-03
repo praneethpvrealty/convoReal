@@ -1,4 +1,4 @@
-// CRM-display full name. Outbound messages must keep using `name` alone
+// Engine-display full name. Outbound messages must keep using `name` alone
 // (the first name) — never this helper (migration 166).
 export function contactFullName(contact: {
   name?: string | null;

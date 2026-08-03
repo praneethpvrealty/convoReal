@@ -31,7 +31,7 @@ interface CampaignRow {
     fetchedAt: string | null;
     stale: boolean;
   } | null;
-  leadsInCrm: number;
+  leadsInEngine: number;
   costPerLeadInr: number | null;
 }
 
@@ -199,7 +199,7 @@ export default function AdsPage() {
                 <th className="p-3 font-medium">Spend</th>
                 <th className="p-3 font-medium">Reach</th>
                 <th className="p-3 font-medium">Chats started (Meta)</th>
-                <th className="p-3 font-medium">Leads in CRM</th>
+                <th className="p-3 font-medium">Leads in Engine</th>
                 <th className="p-3 font-medium">Cost/lead</th>
                 <th className="p-3 font-medium"></th>
               </tr>
@@ -269,7 +269,7 @@ export default function AdsPage() {
                   </td>
                   <td className="p-3">{c.insights?.reach.toLocaleString('en-IN') ?? '—'}</td>
                   <td className="p-3">{c.insights?.conversationsStarted ?? '—'}</td>
-                  <td className="p-3 font-medium">{c.leadsInCrm}</td>
+                  <td className="p-3 font-medium">{c.leadsInEngine}</td>
                   <td className="p-3">{c.costPerLeadInr !== null ? formatINR(c.costPerLeadInr) : '—'}</td>
                   <td className="p-3">
                     <div className="flex items-center justify-end gap-1">

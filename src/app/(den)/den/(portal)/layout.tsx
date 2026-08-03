@@ -4,7 +4,7 @@ import { DenProvider } from "@/components/den/den-provider";
 import { DenShell } from "@/components/den/den-shell";
 
 export const metadata: Metadata = {
-  title: "Owners Den",
+  title: "Portfolio",
   description: "Your exclusive property owner portal",
 };
 

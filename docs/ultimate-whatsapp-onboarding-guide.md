@@ -14,8 +14,8 @@ graph TD
     BA --> CAT[Commerce Catalog]
     WA <-->|Connected Asset| CAT
     APP <-->|catalog_management permission| CAT
-    APP <-->|Webhooks| CRM[ConvoReal CRM Engine]
-    WA <-->|API Calls| CRM
+    APP <-->|Webhooks| Engine[ConvoReal Engine]
+    WA <-->|API Calls| Engine
 ```
 
 ---
@@ -38,7 +38,7 @@ Before starting, the client must have a verified Meta Business Portfolio.
 2. Click **Create App** (top right button).
 3. **Select Use Case**: Choose **Other** $\rightarrow$ **Next** $\rightarrow$ **Business** (or select **"Connect with customers through WhatsApp"**).
 4. **App Details**:
-   * **App Name**: Enter a recognizable name (e.g. `ConvoReal CRM`).
+   * **App Name**: Enter a recognizable name (e.g. `ConvoReal Engine`).
    * **App Contact Email**: Support or admin email.
    * **Business Portfolio**: Select the newly created Business Manager Portfolio from the dropdown list.
 5. Click **Create app**.
@@ -79,7 +79,7 @@ Standard Developer Console tokens expire in 24 hours. Production instances requi
 
 ### 3.2 Assign Assets to System User
 1. Select the new System User and click **Assign Assets**.
-2. **Apps**: Select your developer app (e.g., `ConvoReal CRM`) and toggle **Full Control** to **On**.
+2. **Apps**: Select your developer app (e.g., `ConvoReal Engine`) and toggle **Full Control** to **On**.
 3. **WhatsApp Accounts**: Select the WhatsApp account associated with the phone number and toggle **Full Control** to **On**.
 4. Click **Save Changes**.
 
@@ -127,7 +127,7 @@ Dynamic property sharing inside WhatsApp requires listing items in a Meta Catalo
 
 ## Phase 5 — Webhooks Setup (Inbound Message Ingestion)
 
-Webhooks let the CRM receive real-time updates when customers reply to your bots.
+Webhooks let the Engine receive real-time updates when customers reply to your bots.
 
 ### 5.1 Configure Webhook inside Meta Developer App
 1. Open your developer app $\rightarrow$ in the left menu click **WhatsApp** $\rightarrow$ **Configuration**.
@@ -144,7 +144,7 @@ Webhooks let the CRM receive real-time updates when customers reply to your bots
 
 Once all Meta assets are ready, link them to the client account dashboard:
 
-1. Log in to the **ConvoReal CRM Dashboard** (`https://www.convoreal.com`).
+1. Log in to the **ConvoReal Engine Dashboard** (`https://www.convoreal.com`).
 2. Go to **Settings** $\rightarrow$ **WhatsApp Config**.
 3. Paste the credentials:
    * **WhatsApp Access Token**: Enter the permanent system user token generated in Phase 3.

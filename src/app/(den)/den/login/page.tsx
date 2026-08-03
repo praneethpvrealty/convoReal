@@ -163,9 +163,9 @@ export default function DenLoginPage() {
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-inner">
             <KeyRound className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl font-black tracking-tight text-white">Owners Den</CardTitle>
+          <CardTitle className="text-2xl font-black tracking-tight text-white">Portfolio</CardTitle>
           <CardDescription className="font-medium text-slate-400">
-            Your private space to manage your properties, track buyer interest and sell on your terms.
+            Your properties, in one place — track buyer interest, receive offers and sell on your terms.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
@@ -265,7 +265,7 @@ export default function DenLoginPage() {
                 disabled={loading}
                 className="mt-1 h-10 w-full rounded-xl bg-primary text-xs font-bold text-white transition-all hover:bg-primary-hover disabled:opacity-50"
               >
-                {loading ? "Verifying…" : "Verify & Enter the Den"}
+                {loading ? "Verifying…" : "Verify & enter your Portfolio"}
               </Button>
             </form>
           )}

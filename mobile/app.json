@@ -118,7 +118,7 @@
       [
         "expo-contacts",
         {
-          "contactsPermission": "ConvoReal imports contacts you choose into your CRM."
+          "contactsPermission": "ConvoReal imports contacts you choose into your Engine."
         }
       ],
       [

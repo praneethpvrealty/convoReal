@@ -3,7 +3,7 @@
 //
 // The buyer mirror of src/lib/den/auth.ts, for the property-buyer
 // persona. A buyer user is an auth.users row with NO profiles row
-// (migration 160) — every CRM RLS policy denies them by construction.
+// (migration 160) — every Engine RLS policy denies them by construction.
 // Their data access happens exclusively through /api/buyer/* handlers,
 // which resolve a BuyerContext here and then query with the
 // service-role client under EXPLICIT scoping:
@@ -109,7 +109,7 @@ export async function getBuyerContext(): Promise<BuyerContext> {
 
   if (error) {
     console.error('[getBuyerContext] buyer_users fetch error:', error);
-    throw new UnauthorizedError('Could not load buyer portal context');
+    throw new UnauthorizedError('Could not load your Portfolio context');
   }
   if (!buyerUser) {
     throw new BuyerPhoneUnverifiedError();

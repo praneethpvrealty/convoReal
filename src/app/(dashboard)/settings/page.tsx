@@ -24,6 +24,7 @@ import {
   Workflow,
   Newspaper,
   Bell,
+  Ticket,
 } from 'lucide-react';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import {
@@ -59,6 +60,7 @@ import { CreditsTab } from '@/components/settings/credits-tab';
 import { cn } from '@/lib/utils';
 import { InfoHint } from '@/components/ui/info-hint';
 import { FavoriteButton } from "@/components/layout/favorite-button";
+import { BetaInviteHub } from "@/components/settings/beta-invite-hub";
 
 const BASE_TAB_VALUES = [
   'profile',
@@ -75,7 +77,7 @@ const BASE_TAB_VALUES = [
   'billing',
   'credits',
 ] as const;
-const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads'] as const;
+const FLAGGED_TAB_VALUES = ['members', 'teams', 'routing', 'ads', 'invites'] as const;
 const TAB_VALUES = [...BASE_TAB_VALUES, ...FLAGGED_TAB_VALUES] as const;
 type TabValue = (typeof TAB_VALUES)[number];
 
@@ -271,6 +273,7 @@ export default function SettingsPage() {
         { value: 'ai', label: 'AI Config', icon: Sparkles },
         { value: 'other', label: 'Other', icon: Sliders },
         ...(membersEnabled ? [{ value: 'members' as TabValue, label: 'Members', icon: UsersRound }] : []),
+        { value: 'invites' as TabValue, label: 'Invites', icon: Ticket },
         ...(teamsEnabled ? [{ value: 'teams' as TabValue, label: 'Teams', icon: Users }] : []),
         ...(routingEnabled ? [{ value: 'routing' as TabValue, label: 'Routing', icon: Route }] : []),
       ],
@@ -519,6 +522,10 @@ export default function SettingsPage() {
 
           <TabsContent value="other" className="mt-0">
             <OtherSettingsPanel />
+          </TabsContent>
+
+          <TabsContent value="invites" className="mt-0">
+            <BetaInviteHub />
           </TabsContent>
 
           <TabsContent value="billing" className="mt-0">
