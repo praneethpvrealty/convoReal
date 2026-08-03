@@ -572,7 +572,10 @@ export function OtherSettingsPanel() {
       </Card>
 
       {/* Email Lead Sourcing Card */}
-      <Card className="border-slate-800 bg-slate-900/50 backdrop-blur-sm">
+      <Card
+        className="border-slate-800 bg-slate-900/50 backdrop-blur-sm"
+        data-tour="email-lead-sourcing"
+      >
         <CardHeader>
           <CardTitle className="text-xl font-bold text-white flex items-center gap-2">
             <Mail className="size-5 text-primary" />

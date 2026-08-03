@@ -8,7 +8,7 @@ export async function GET() {
   try {
     const ctx = await getCurrentAccount();
 
-    const [waRes, propRes, contactRes] = await Promise.all([
+    const [waRes, propRes, contactRes, emailSyncRes] = await Promise.all([
       ctx.supabase
         .from('whatsapp_config')
         .select('phone_number_id', { count: 'exact', head: true })
@@ -21,12 +21,18 @@ export async function GET() {
         .from('contacts')
         .select('*', { count: 'exact', head: true })
         .eq('account_id', ctx.accountId),
+      ctx.supabase
+        .from('email_sync_configs')
+        .select('*', { count: 'exact', head: true })
+        .eq('account_id', ctx.accountId)
+        .eq('is_active', true),
     ]);
 
     return NextResponse.json({
       hasWhatsApp: (waRes.count ?? 0) > 0,
       hasProperties: (propRes.count ?? 0) > 0,
       hasContacts: (contactRes.count ?? 0) > 0,
+      hasEmailLeadSync: (emailSyncRes.count ?? 0) > 0,
     });
   } catch (err) {
     return toErrorResponse(err);

@@ -26,7 +26,8 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  const { shouldShow, status, dismiss, refresh } = useOnboarding();
+  const { shouldShow, status, dismiss, refresh, skipEmailLeads } =
+    useOnboarding();
 
   useEffect(() => {
     console.log('[SHELL GATE] evaluating profile:', {
@@ -166,6 +167,7 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
           status={status}
           onDismiss={dismiss}
           onRefresh={refresh}
+          onSkipEmailLeads={skipEmailLeads}
         />
       )}
 

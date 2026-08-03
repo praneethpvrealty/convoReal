@@ -29,7 +29,9 @@ import {
   Forward,
   Bot,
   Compass,
+  Copy,
   KeyRound,
+  Mail,
   Share2,
   UserPlus,
 } from 'lucide-react';
@@ -37,6 +39,7 @@ import { Button } from '@/components/ui/button';
 import { StepMedia } from '@/components/onboarding/step-media';
 import {
   ChatIllustration,
+  EmailLeadIllustration,
   PropertyParseIllustration,
   LeadFlowIllustration,
 } from '@/components/onboarding/illustrations';
@@ -46,6 +49,7 @@ interface Props {
   status: OnboardingStatus;
   onDismiss: () => void;
   onRefresh: () => Promise<void>;
+  onSkipEmailLeads: () => void;
 }
 
 function HowItWorks({
@@ -387,6 +391,113 @@ function StepContact({
   );
 }
 
+// ── Step 4: Import portal email leads ─────────────────────────────────────────
+
+function StepEmailLeads({
+  done,
+  onDone,
+  onSkip,
+  onRefresh,
+}: {
+  done: boolean;
+  onDone: () => void;
+  onSkip: () => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const [checking, setChecking] = useState(false);
+
+  async function checkNow() {
+    setChecking(true);
+    await onRefresh();
+    setChecking(false);
+    onDone();
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/15">
+          <Mail className="h-8 w-8 text-amber-400" />
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-white">
+          Bring in your portal leads
+        </h2>
+        <p className="text-sm leading-relaxed text-slate-400">
+          Getting enquiries on 99acres, MagicBricks or Housing? Set one
+          forwarding rule in your email — done once, in about two minutes — and
+          every portal lead lands here as a WhatsApp contact, replied to within
+          seconds.
+        </p>
+      </div>
+
+      <StepMedia slug="engine-email-leads" title="Portal leads by email">
+        <EmailLeadIllustration />
+      </StepMedia>
+
+      <HowItWorks
+        items={[
+          {
+            icon: <Copy className="size-4 text-amber-400" />,
+            label: 'Copy your ConvoReal lead address',
+            sub: 'Every account has its own. One click in Settings → Other → Email Lead Sourcing',
+          },
+          {
+            icon: <Forward className="size-4 text-blue-400" />,
+            label: 'Add a forwarding rule in Gmail / Outlook',
+            sub: 'Forward portal emails to that address — the step-by-step guide is on the same screen, and we confirm the rule for you automatically',
+          },
+          {
+            icon: <Bot className="size-4 text-violet-400" />,
+            label: 'Leads arrive by themselves',
+            sub: 'Name, phone and budget are read from the email, matched to your inventory, and greeted on WhatsApp if you switch auto-reply on',
+          },
+        ]}
+      />
+
+      {done ? (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-950/40 p-3 text-sm text-emerald-300">
+          <Check className="size-4" /> Email lead sync is on
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <Button
+            className="w-full gap-2"
+            onClick={() => window.open('/settings?tab=other', '_blank')}
+          >
+            <Mail className="h-4 w-4" /> Open email lead setup
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={checkNow}
+            disabled={checking}
+            className="w-full gap-2 text-slate-400 hover:text-slate-200"
+          >
+            {checking ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" /> I&apos;ve set it up — check
+                now
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-slate-500 hover:text-slate-300"
+        onClick={done ? onDone : onSkip}
+      >
+        {done ? 'Continue' : "I don't get leads by email — skip"}
+      </Button>
+    </div>
+  );
+}
+
 // ── All done ─────────────────────────────────────────────────────────────────
 
 function AllDone({ onClose }: { onClose: () => void }) {
@@ -463,17 +574,24 @@ function StepIndicator({
 
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
-// Screen order: welcome (0) → whatsapp (1) → property (2) → lead (3) → done (4).
-// The welcome screen only shows on a completely fresh account; a returning
-// user resumes at their first incomplete tracked step.
+// Screen order: welcome (0) → whatsapp (1) → property (2) → lead (3) →
+// email leads (4) → done (5). The welcome screen only shows on a completely
+// fresh account; a returning user resumes at their first incomplete tracked
+// step.
 
-export function OnboardingWizard({ status, onDismiss, onRefresh }: Props) {
+export function OnboardingWizard({
+  status,
+  onDismiss,
+  onRefresh,
+  onSkipEmailLeads,
+}: Props) {
   function firstIncompleteScreen() {
     if (!status.hasWhatsApp)
       return !status.hasProperties && !status.hasContacts ? 0 : 1;
     if (!status.hasProperties) return 2;
     if (!status.hasContacts) return 3;
-    return 4;
+    if (!status.hasEmailLeadSync) return 4;
+    return 5;
   }
 
   const [screen, setScreen] = useState(firstIncompleteScreen);
@@ -481,15 +599,20 @@ export function OnboardingWizard({ status, onDismiss, onRefresh }: Props) {
     whatsapp: status.hasWhatsApp,
     properties: status.hasProperties,
     contacts: status.hasContacts,
+    emailLeads: status.hasEmailLeadSync,
   });
 
   const allDone =
-    localDone.whatsapp && localDone.properties && localDone.contacts;
+    localDone.whatsapp &&
+    localDone.properties &&
+    localDone.contacts &&
+    localDone.emailLeads;
 
   const steps: StepDef[] = [
     { id: 'whatsapp', label: 'Connect WhatsApp', done: localDone.whatsapp },
     { id: 'property', label: 'Add property', done: localDone.properties },
     { id: 'contact', label: 'Get a lead', done: localDone.contacts },
+    { id: 'email-leads', label: 'Portal leads', done: localDone.emailLeads },
   ];
 
   function advanceStep(doneKey: keyof typeof localDone) {
@@ -507,10 +630,14 @@ export function OnboardingWizard({ status, onDismiss, onRefresh }: Props) {
       setScreen(3);
       return;
     }
-    setScreen(4);
+    if (!updated.emailLeads) {
+      setScreen(4);
+      return;
+    }
+    setScreen(5);
   }
 
-  const showChrome = !allDone && screen > 0 && screen < 4;
+  const showChrome = !allDone && screen > 0 && screen < 5;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm">
@@ -549,7 +676,7 @@ export function OnboardingWizard({ status, onDismiss, onRefresh }: Props) {
         {showChrome && <StepIndicator steps={steps} current={screen - 1} />}
 
         {/* Content */}
-        {allDone || screen === 4 ? (
+        {allDone || screen === 5 ? (
           <AllDone onClose={onDismiss} />
         ) : screen === 0 ? (
           <StepWelcome onNext={() => setScreen(firstIncompleteScreen() || 1)} />
@@ -564,9 +691,19 @@ export function OnboardingWizard({ status, onDismiss, onRefresh }: Props) {
             onDone={() => advanceStep('properties')}
             onRefresh={onRefresh}
           />
-        ) : (
+        ) : screen === 3 ? (
           <StepContact
             onDone={() => advanceStep('contacts')}
+            onRefresh={onRefresh}
+          />
+        ) : (
+          <StepEmailLeads
+            done={localDone.emailLeads}
+            onDone={() => advanceStep('emailLeads')}
+            onSkip={() => {
+              onSkipEmailLeads();
+              advanceStep('emailLeads');
+            }}
             onRefresh={onRefresh}
           />
         )}

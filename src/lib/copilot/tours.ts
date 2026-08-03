@@ -195,6 +195,46 @@ export const TOURS: Tour[] = [
     ],
   },
   {
+    id: 'email-lead-sync',
+    title: 'Get portal leads by email',
+    description:
+      'Forward 99acres, MagicBricks and Housing lead emails into ConvoReal automatically',
+    triggers: [
+      /(email|portal).{0,25}lead/i,
+      /lead.{0,25}(email|portal|forward|sync)/i,
+      /(99 ?acres|magic ?bricks|housing\.com)/i,
+      /(email|mail).{0,20}(forward|sync|jodo|lagao|kaise|kese)/i,
+    ],
+    steps: [
+      {
+        ...ANYWHERE,
+        target: 'nav-settings',
+        title: 'Open Settings',
+        body: 'Email lead setup is in **Settings**. Click it at the bottom of the menu.',
+        advanceOn: 'click-target',
+        skipIfNextRouteActive: true,
+        requiresSidebar: true,
+      },
+      {
+        route: '/settings',
+        routeMatch: 'prefix',
+        target: 'settings-tab-other',
+        title: 'Go to the Other tab',
+        body: 'Click the **Other** tab.',
+        advanceOn: 'click-target',
+      },
+      {
+        route: '/settings',
+        routeMatch: 'prefix',
+        query: { tab: 'other' },
+        target: 'email-lead-sourcing',
+        title: 'Your lead forwarding address',
+        body: 'Copy this address, then add a forwarding rule in your Gmail or Outlook for emails from 99acres, MagicBricks or Housing — the step-by-step guide is right below. Once the rule is on, every portal lead becomes a WhatsApp contact automatically. \u{1F4E9}',
+        advanceOn: 'next',
+      },
+    ],
+  },
+  {
     id: 'check-property-views',
     title: 'See who viewed your properties',
     description: 'Check visitor activity on your property links (Pulse)',

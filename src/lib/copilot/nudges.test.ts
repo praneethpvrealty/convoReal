@@ -16,13 +16,16 @@ const mockExpiring = vi.mocked(todayQueries.loadExpiringSessions);
 const mockQuiet = vi.mocked(todayQueries.loadHotGoingQuiet);
 const mockMatches = vi.mocked(radarQueries.loadMatchEvents);
 
-/** Chainable stub covering the head-count query shapes nudges.ts
- *  uses: from().select(head).gte() and from().select(head).eq(). */
+/** Chainable, thenable stub covering the head-count query shapes
+ *  nudges.ts uses: from().select(head).gte() and from().select(head)
+ *  .eq()[.eq()...] — eq returns the chain so filters stack, and the
+ *  chain itself awaits to the count result. */
 function makeDb(counts: {
   showcase_events?: number;
   whatsapp_config?: number;
   properties?: number;
   contacts?: number;
+  email_sync_configs?: number;
 }): SupabaseClient {
   return {
     from(table: string) {
@@ -33,7 +36,9 @@ function makeDb(counts: {
       const chain = {
         select: () => chain,
         gte: () => Promise.resolve(result),
-        eq: () => Promise.resolve(result),
+        eq: () => chain,
+        then: (resolve: (value: typeof result) => unknown) =>
+          Promise.resolve(result).then(resolve),
       };
       return chain;
     },
@@ -45,6 +50,7 @@ const populated = {
   whatsapp_config: 1,
   properties: 5,
   contacts: 10,
+  email_sync_configs: 1,
 };
 
 function expiringItem(hoursFromNow: number) {
@@ -108,6 +114,21 @@ describe('evaluateNudges', () => {
     const nudge = at.find((n) => n.id === 'pulse-weekly-views');
     expect(nudge?.message).toContain('3 views');
     expect(nudge?.cta?.tourId).toBe('check-property-views');
+  });
+
+  it('email-leads nudge waits for WhatsApp, then fires until sync is on', async () => {
+    const before = await evaluateNudges(
+      makeDb({ ...populated, whatsapp_config: 0, email_sync_configs: 0 }),
+      'acc-1',
+    );
+    expect(before.find((n) => n.id === 'setup-email-leads')).toBeUndefined();
+
+    const after = await evaluateNudges(
+      makeDb({ ...populated, email_sync_configs: 0 }),
+      'acc-1',
+    );
+    const nudge = after.find((n) => n.id === 'setup-email-leads');
+    expect(nudge?.cta?.tourId).toBe('email-lead-sync');
   });
 
   it('one failing rule never blanks the rest', async () => {
