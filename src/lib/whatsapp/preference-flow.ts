@@ -16,6 +16,11 @@
  * Everything in this module is pure (no I/O) so it can be unit tested.
  */
 
+import {
+  PROPERTY_INTEREST_OPTIONS,
+  PROPERTY_INTEREST_SHORT_TITLES,
+} from '@/lib/property-interests'
+
 export const PREFERENCE_FLOW_KEY = 'preference_intake'
 export const PREFERENCE_FLOW_NAME = 'Buyer Preference Intake'
 export const PREFERENCE_SCREEN_ID = 'PREFERENCES'
@@ -29,17 +34,15 @@ export const PREFERENCE_FLOW_JSON_VERSION = '7.2'
 export const PREFERENCE_FLOW_DATA_API_VERSION = '3.0'
 
 /**
- * Same vocabulary as PROPERTY_INTEREST_OPTIONS in
- * src/components/contacts/contact-form.tsx — the `id` is what gets
- * stored in contacts.property_interests, titles are shortened to stay
- * within Meta's 30-char CheckboxGroup item limit.
+ * The shared interest vocabulary, rendered for Meta: the `id` is what
+ * gets stored in contacts.property_interests, titles are shortened to
+ * stay within Meta's 30-char CheckboxGroup item limit.
  */
-export const PROPERTY_INTEREST_FLOW_OPTIONS: Array<{ id: string; title: string }> = [
-  { id: 'Vacant plot', title: 'Vacant plot' },
-  { id: 'Vacant building', title: 'Vacant building' },
-  { id: 'Rental building with some ROI', title: 'Rental building with ROI' },
-  { id: 'Old building selling at site rate', title: 'Old building at site rate' },
-]
+export const PROPERTY_INTEREST_FLOW_OPTIONS: Array<{ id: string; title: string }> =
+  PROPERTY_INTEREST_OPTIONS.map((id) => ({
+    id,
+    title: PROPERTY_INTEREST_SHORT_TITLES[id] ?? id,
+  }))
 
 // ── Flow JSON ─────────────────────────────────────────────────────
 

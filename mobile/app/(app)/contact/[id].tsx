@@ -46,7 +46,17 @@ import {
   type Property,
 } from '@/lib/types';
 
+// Mirrors src/lib/property-interests.ts on the web — the same strings
+// land in contacts.property_interests and are read by the shared
+// matching engine, so the two lists must not drift.
 const PROPERTY_INTEREST_OPTIONS = [
+  'Flat/ Apartment',
+  'Villa',
+  'Residential House',
+  'Residential Land/ Plot',
+  'Commercial Office Space',
+  'Commercial Shop',
+  'Agricultural Land',
   'Vacant plot',
   'Vacant building',
   'Rental building with some ROI',

@@ -676,6 +676,34 @@ describe('getMatchingContacts', () => {
     });
   });
 
+  describe('Residential property interests', () => {
+    it('matches a flat buyer to an apartment', () => {
+      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const prop = createTestProperty({ type: 'Flat/ Apartment' });
+      const results = getMatchingContacts(prop, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.type).toBe('match');
+    });
+
+    it('keeps a flat buyer away from plots', () => {
+      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const prop = createTestProperty({ type: 'Residential Land/ Plot' });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(0);
+    });
+
+    it('matches a villa buyer to a villa', () => {
+      const contact = createTestContact({ property_interests: ['Villa'] });
+      const prop = createTestProperty({ type: 'Villa' });
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+    });
+
+    it('matches a commercial office seeker to office stock', () => {
+      const contact = createTestContact({ property_interests: ['Commercial Office Space'] });
+      const prop = createTestProperty({ type: 'Commercial Office Space' });
+      expect(getMatchingContacts(prop, [contact])[0].details.type).toBe('match');
+    });
+  });
+
   describe('Strict project watchlist (strict_project_match)', () => {
     it('excludes a listing outside the watchlist that otherwise fits', () => {
       const contact = createTestContact({

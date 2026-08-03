@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, Property, AreaOfInterestGeo } from '@/types';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
@@ -32,12 +33,6 @@ import {
 } from '@/components/ui/tooltip';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 
-const PROPERTY_INTEREST_OPTIONS = [
-  'Vacant plot',
-  'Vacant building',
-  'Rental building with some ROI',
-  'Old building selling at site rate',
-];
 
 
 interface ContactFormProps {

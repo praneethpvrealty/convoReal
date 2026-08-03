@@ -1634,17 +1634,14 @@ export async function processOwnerChatbotMessage(
           for (const contact of inserted) {
             const matchedProp = matchedPropertyMap.get(contact.phone);
             if (matchedProp) {
-              let tagName = '';
-              if (matchedProp.project && matchedProp.project.trim().length >= 3) {
-                tagName = matchedProp.project.trim();
-              } else if (matchedProp.property_code) {
-                tagName = matchedProp.property_code.trim();
-              } else {
-                tagName = matchedProp.title.replace(/(?:\d+\s*(?:BHK|bhk)|apartment|villa|plot|house|for\s+sale|for\s+rent)/gi, '').trim();
-                if (tagName.length > 20) {
-                  tagName = tagName.substring(0, 20) + '...';
-                }
-              }
+              // Only a project name earns a tag. A property_code is an
+              // internal SKU and a chopped-up title is a listing, not a
+              // segment — both filled the tag picker with rows nobody
+              // could ever broadcast to.
+              const tagName =
+                matchedProp.project && matchedProp.project.trim().length >= 3
+                  ? matchedProp.project.trim()
+                  : '';
 
               if (tagName) {
                 const lowerName = tagName.toLowerCase();

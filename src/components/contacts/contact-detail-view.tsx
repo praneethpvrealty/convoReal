@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
+import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { contactFullName } from '@/lib/contacts/full-name';
@@ -77,12 +78,6 @@ import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog'
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
 import { isLocationGuarded } from '@/lib/inventory/location-guard';
 
-const PROPERTY_INTEREST_OPTIONS = [
-  'Vacant plot',
-  'Vacant building',
-  'Rental building with some ROI',
-  'Old building selling at site rate',
-];
 
 
 interface ContactDetailViewProps {
