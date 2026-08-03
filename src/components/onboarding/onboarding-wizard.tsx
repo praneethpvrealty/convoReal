@@ -1,5 +1,19 @@
 'use client';
 
+// ============================================================
+// First-run wizard for consultants. Assumes a user who has never
+// touched a CRM: every step explains WHY before HOW, carries an
+// illustration (upgraded to a walkthrough video via the media
+// registry once recorded), and offers one clearly-recommended
+// action plus an escape hatch.
+//
+// The three tracked steps mirror /api/onboarding/status —
+// WhatsApp connected, first property, first lead — and the
+// WhatsApp step hands off to the guided Meta setup at
+// /settings/whatsapp-setup rather than dumping a naive user into
+// a credentials form.
+// ============================================================
+
 import { useState } from 'react';
 import {
   MessageCircle,
@@ -8,16 +22,24 @@ import {
   Check,
   X,
   ArrowRight,
+  ArrowLeft,
   Loader2,
   Sparkles,
-  ExternalLink,
   RefreshCw,
   Forward,
   Bot,
-  UserCheck,
-  Zap,
+  Compass,
+  KeyRound,
+  Share2,
+  UserPlus,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { StepMedia } from '@/components/onboarding/step-media';
+import {
+  ChatIllustration,
+  PropertyParseIllustration,
+  LeadFlowIllustration,
+} from '@/components/onboarding/illustrations';
 import type { OnboardingStatus } from '@/hooks/useOnboarding';
 
 interface Props {
@@ -26,118 +48,249 @@ interface Props {
   onRefresh: () => Promise<void>;
 }
 
-// ── Step 1: Connect WhatsApp ──────────────────────────────────────────────────
-
-function StepWhatsApp({ onDone }: { onDone: () => void }) {
+function HowItWorks({
+  items,
+}: {
+  items: { icon: React.ReactNode; label: string; sub: string }[];
+}) {
   return (
-    <div className="flex flex-col items-center gap-6 text-center max-w-sm mx-auto">
-      <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 flex items-center justify-center">
-        <MessageCircle className="h-8 w-8 text-emerald-400" />
-      </div>
-      <div>
-        <h2 className="text-xl font-bold text-white mb-2">Connect WhatsApp</h2>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          ConvoReal runs through your WhatsApp Business number. Connect it once — every
-          lead, listing, and follow-up flows through there.
-        </p>
-      </div>
-
-      <div className="w-full bg-slate-800/60 rounded-xl border border-slate-700 p-4 text-left space-y-3">
-        <p className="text-xs font-semibold text-slate-300 uppercase tracking-wide">You&apos;ll need</p>
-        {[
-          'A WhatsApp Business account',
-          'Your Phone Number ID from Meta Business Manager',
-          'A permanent access token',
-        ].map((item) => (
-          <div key={item} className="flex items-start gap-2 text-sm text-slate-400">
-            <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
-            {item}
+    <div className="space-y-2">
+      {items.map((step, i) => (
+        <div
+          key={i}
+          className="flex items-start gap-3 rounded-xl border border-slate-700/60 bg-slate-800/40 p-3"
+        >
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-700/60">
+            {step.icon}
           </div>
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-2 w-full">
-        <Button
-          className="w-full gap-2"
-          onClick={() => window.open('/settings?tab=whatsapp', '_blank')}
-        >
-          Open WhatsApp Settings <ExternalLink className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="text-slate-500 hover:text-slate-300"
-          onClick={onDone}
-        >
-          I&apos;ll do this later
-        </Button>
-      </div>
+          <div>
+            <p className="text-sm font-medium text-white">{step.label}</p>
+            <p className="mt-0.5 text-xs text-slate-400">{step.sub}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ── Step 2: Add first property via WhatsApp ───────────────────────────────────
+// ── Step 0: Welcome ───────────────────────────────────────────────────────────
 
-function StepProperty({ onDone, onRefresh }: { onDone: () => void; onRefresh: () => Promise<void> }) {
+function StepWelcome({ onNext }: { onNext: () => void }) {
+  return (
+    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
+      <div className="text-center">
+        <div className="bg-primary/15 mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl">
+          <Compass className="text-primary h-8 w-8" />
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-white">
+          Welcome — here&apos;s how ConvoReal works
+        </h2>
+        <p className="text-sm leading-relaxed text-slate-400">
+          Your whole business runs through one WhatsApp number. Buyers message
+          it, listings go out from it, and everything lands here — organised,
+          searchable, and followed up automatically.
+        </p>
+      </div>
+
+      <StepMedia slug="engine-welcome" title="How ConvoReal works">
+        <ChatIllustration />
+      </StepMedia>
+
+      <HowItWorks
+        items={[
+          {
+            icon: <MessageCircle className="size-4 text-emerald-400" />,
+            label: '1 · Connect your WhatsApp number',
+            sub: 'One-time setup. We walk you through every screen — no tech knowledge needed.',
+          },
+          {
+            icon: <Building2 className="size-4 text-blue-400" />,
+            label: '2 · Add your first property',
+            sub: 'Forward any listing message and AI turns it into a shareable page.',
+          },
+          {
+            icon: <Users className="size-4 text-violet-400" />,
+            label: '3 · Watch leads arrive',
+            sub: 'Every enquiry becomes a contact by itself. You just reply.',
+          },
+        ]}
+      />
+
+      <Button className="w-full gap-2" onClick={onNext}>
+        Start setup — takes a few minutes <ArrowRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
+
+// ── Step 1: Connect WhatsApp ──────────────────────────────────────────────────
+
+function StepWhatsApp({
+  done,
+  onDone,
+  onRefresh,
+}: {
+  done: boolean;
+  onDone: () => void;
+  onRefresh: () => Promise<void>;
+}) {
   const [checking, setChecking] = useState(false);
 
   async function checkNow() {
     setChecking(true);
     await onRefresh();
     setChecking(false);
-    // Parent re-checks status; if hasProperties is now true it will advance
     onDone();
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-sm mx-auto w-full">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
       <div className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-blue-500/15 flex items-center justify-center mx-auto mb-4">
-          <Building2 className="h-8 w-8 text-blue-400" />
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/15">
+          <MessageCircle className="h-8 w-8 text-emerald-400" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Add your first property</h2>
-        <p className="text-sm text-slate-400">
-          The fastest way is through WhatsApp — just forward a property listing and our
-          AI will parse and create it for you.
+        <h2 className="mb-2 text-xl font-bold text-white">Connect WhatsApp</h2>
+        <p className="text-sm leading-relaxed text-slate-400">
+          This is the only technical step, and you don&apos;t have to do it
+          alone. Our guided setup walks you through Meta&apos;s screens one at a
+          time, with pictures of exactly what to click — or we can do the whole
+          thing for you.
         </p>
       </div>
 
-      {/* WhatsApp flow instructions */}
-      <div className="space-y-2">
-        {[
+      <StepMedia slug="engine-connect-whatsapp" title="Connect WhatsApp">
+        <ChatIllustration />
+      </StepMedia>
+
+      {done ? (
+        <div className="flex items-center justify-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-950/40 p-3 text-sm text-emerald-300">
+          <Check className="size-4" /> WhatsApp is connected
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <Button
+            className="w-full gap-2"
+            onClick={() => window.open('/settings/whatsapp-setup', '_blank')}
+          >
+            <Compass className="h-4 w-4" /> Open the guided setup
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full gap-2 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white"
+            onClick={() => window.open('/settings?tab=whatsapp', '_blank')}
+          >
+            <KeyRound className="h-4 w-4" /> I already have my API credentials
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={checkNow}
+            disabled={checking}
+            className="w-full gap-2 text-slate-400 hover:text-slate-200"
+          >
+            {checking ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4" /> I&apos;ve connected it — check
+                now
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="text-slate-500 hover:text-slate-300"
+        onClick={onDone}
+      >
+        {done ? 'Continue' : "I'll do this later"}
+      </Button>
+    </div>
+  );
+}
+
+// ── Step 2: Add first property ────────────────────────────────────────────────
+
+function StepProperty({
+  onDone,
+  onRefresh,
+}: {
+  onDone: () => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const [checking, setChecking] = useState(false);
+
+  async function checkNow() {
+    setChecking(true);
+    await onRefresh();
+    setChecking(false);
+    onDone();
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/15">
+          <Building2 className="h-8 w-8 text-blue-400" />
+        </div>
+        <h2 className="mb-2 text-xl font-bold text-white">
+          Add your first property
+        </h2>
+        <p className="text-sm leading-relaxed text-slate-400">
+          You already have listings sitting in your WhatsApp chats. Forward one
+          to your connected number and the AI turns it into a proper listing —
+          photos, price, location, everything.
+        </p>
+      </div>
+
+      <StepMedia
+        slug="engine-add-property"
+        title="Add a property from WhatsApp"
+      >
+        <PropertyParseIllustration />
+      </StepMedia>
+
+      <HowItWorks
+        items={[
           {
-            icon: <Forward className="h-4 w-4 text-blue-400" />,
+            icon: <Forward className="size-4 text-blue-400" />,
             label: 'Forward any property listing',
             sub: 'Text, photos, price, location — send it all at once to your ConvoReal number',
           },
           {
-            icon: <Bot className="h-4 w-4 text-violet-400" />,
-            label: 'AI parses the details',
-            sub: 'Extracts title, type, price, area, amenities — shows you a draft to review',
+            icon: <Bot className="size-4 text-violet-400" />,
+            label: 'AI reads the details',
+            sub: 'Title, type, price, area, amenities — it shows you a draft to review',
           },
           {
-            icon: <Check className="h-4 w-4 text-emerald-400" />,
+            icon: <Check className="size-4 text-emerald-400" />,
             label: 'Tap Confirm',
-            sub: 'Property is created in your inventory with a shareable showcase link',
+            sub: 'The property lands in your inventory with a shareable showcase link',
           },
-        ].map((step, i) => (
-          <div key={i} className="flex items-start gap-3 bg-slate-800/40 border border-slate-700/60 rounded-xl p-3">
-            <div className="w-8 h-8 rounded-lg bg-slate-700/60 flex items-center justify-center shrink-0">
-              {step.icon}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white">{step.label}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{step.sub}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
+
+      <p className="text-center text-xs text-slate-500">
+        Prefer typing? Go to{' '}
+        <b className="text-slate-400">Inventory → Add Property</b> and fill the
+        form instead — both end up in the same place.
+      </p>
 
       <div className="flex flex-col gap-2">
         <Button onClick={checkNow} disabled={checking} className="w-full gap-2">
-          {checking
-            ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</>
-            : <><RefreshCw className="h-4 w-4" /> I&apos;ve sent it — check now</>}
+          {checking ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4" /> I&apos;ve added one — check now
+            </>
+          )}
         </Button>
         <Button
           variant="ghost"
@@ -152,9 +305,15 @@ function StepProperty({ onDone, onRefresh }: { onDone: () => void; onRefresh: ()
   );
 }
 
-// ── Step 3: Get first lead via WhatsApp ───────────────────────────────────────
+// ── Step 3: Get first lead ────────────────────────────────────────────────────
 
-function StepContact({ onDone, onRefresh }: { onDone: () => void; onRefresh: () => Promise<void> }) {
+function StepContact({
+  onDone,
+  onRefresh,
+}: {
+  onDone: () => void;
+  onRefresh: () => Promise<void>;
+}) {
   const [checking, setChecking] = useState(false);
 
   async function checkNow() {
@@ -165,54 +324,55 @@ function StepContact({ onDone, onRefresh }: { onDone: () => void; onRefresh: () 
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-sm mx-auto w-full">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-5">
       <div className="text-center">
-        <div className="w-16 h-16 rounded-2xl bg-violet-500/15 flex items-center justify-center mx-auto mb-4">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/15">
           <Users className="h-8 w-8 text-violet-400" />
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Get your first lead</h2>
-        <p className="text-sm text-slate-400">
-          Leads come in automatically when buyers message your WhatsApp. You can
-          also share your property showcase link to drive inquiries.
+        <h2 className="mb-2 text-xl font-bold text-white">
+          Get your first lead
+        </h2>
+        <p className="text-sm leading-relaxed text-slate-400">
+          You never type a lead into ConvoReal — they arrive by themselves the
+          moment someone messages your WhatsApp or opens your property link.
         </p>
       </div>
 
-      {/* How leads flow in */}
-      <div className="space-y-2">
-        {[
+      <StepMedia slug="engine-first-lead" title="How leads arrive">
+        <LeadFlowIllustration />
+      </StepMedia>
+
+      <HowItWorks
+        items={[
           {
-            icon: <MessageCircle className="h-4 w-4 text-emerald-400" />,
+            icon: <Share2 className="size-4 text-amber-400" />,
+            label: 'Share your property link',
+            sub: 'Every property has a public page — post it in your groups and status. Interest flows back here.',
+          },
+          {
+            icon: <MessageCircle className="size-4 text-emerald-400" />,
             label: 'Buyer messages your WhatsApp',
-            sub: 'ConvoReal auto-creates their contact and opens a conversation in your inbox',
+            sub: 'The contact and conversation are created automatically in your Inbox',
           },
           {
-            icon: <Zap className="h-4 w-4 text-amber-400" />,
-            label: 'Share your property showcase',
-            sub: 'Every property has a public link — share it and inquiries flow in automatically',
+            icon: <UserPlus className="size-4 text-blue-400" />,
+            label: 'Or add someone you already know',
+            sub: 'Contacts → Add Contact for a buyer you spoke to before ConvoReal',
           },
-          {
-            icon: <UserCheck className="h-4 w-4 text-blue-400" />,
-            label: 'Or add one manually',
-            sub: 'Go to Contacts → Add Contact to add a lead you already spoke to',
-          },
-        ].map((step, i) => (
-          <div key={i} className="flex items-start gap-3 bg-slate-800/40 border border-slate-700/60 rounded-xl p-3">
-            <div className="w-8 h-8 rounded-lg bg-slate-700/60 flex items-center justify-center shrink-0">
-              {step.icon}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-white">{step.label}</p>
-              <p className="text-xs text-slate-400 mt-0.5">{step.sub}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
       <div className="flex flex-col gap-2">
         <Button onClick={checkNow} disabled={checking} className="w-full gap-2">
-          {checking
-            ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking…</>
-            : <><RefreshCw className="h-4 w-4" /> I&apos;ve got a lead — check now</>}
+          {checking ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking…
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4" /> I&apos;ve got a lead — check now
+            </>
+          )}
         </Button>
         <Button
           variant="ghost"
@@ -231,15 +391,19 @@ function StepContact({ onDone, onRefresh }: { onDone: () => void; onRefresh: () 
 
 function AllDone({ onClose }: { onClose: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-6 text-center max-w-sm mx-auto">
-      <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
+    <div className="mx-auto flex max-w-sm flex-col items-center gap-6 text-center">
+      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/20">
         <Sparkles className="h-10 w-10 text-emerald-400" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-white mb-2">You&apos;re all set! 🎉</h2>
-        <p className="text-sm text-slate-400 leading-relaxed">
-          ConvoReal is ready to go. Leads flow into your inbox, your listings are
-          shareable, and everything is tracked in one place.
+        <h2 className="mb-2 text-2xl font-bold text-white">
+          You&apos;re all set! 🎉
+        </h2>
+        <p className="text-sm leading-relaxed text-slate-400">
+          ConvoReal is ready to go. Leads flow into your inbox, your listings
+          are shareable, and everything is tracked in one place. If you&apos;re
+          ever stuck, the Copilot button at the bottom-right can walk you
+          through any screen.
         </p>
       </div>
       <Button onClick={onClose} className="w-full gap-2">
@@ -257,31 +421,39 @@ interface StepDef {
   done: boolean;
 }
 
-function StepIndicator({ steps, current }: { steps: StepDef[]; current: number }) {
+function StepIndicator({
+  steps,
+  current,
+}: {
+  steps: StepDef[];
+  current: number;
+}) {
   return (
-    <div className="flex items-center gap-1 mb-8 flex-wrap">
+    <div className="mb-8 flex flex-wrap items-center gap-1">
       {steps.map((step, i) => (
         <div key={step.id} className="flex items-center gap-1">
           <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
               step.done
                 ? 'bg-emerald-500/20 text-emerald-400'
                 : i === current
-                ? 'bg-primary/20 text-primary'
-                : 'bg-slate-800 text-slate-500'
+                  ? 'bg-primary/20 text-primary'
+                  : 'bg-slate-800 text-slate-500'
             }`}
           >
             {step.done ? (
               <Check className="h-3 w-3" />
             ) : (
-              <span className="w-3 h-3 rounded-full border border-current flex items-center justify-center text-[9px]">
+              <span className="flex h-3 w-3 items-center justify-center rounded-full border border-current text-[9px]">
                 {i + 1}
               </span>
             )}
             {step.label}
           </div>
           {i < steps.length - 1 && (
-            <div className={`h-px w-4 ${i < current || step.done ? 'bg-primary/40' : 'bg-slate-700'}`} />
+            <div
+              className={`h-px w-4 ${i < current || step.done ? 'bg-primary/40' : 'bg-slate-700'}`}
+            />
           )}
         </div>
       ))}
@@ -291,22 +463,28 @@ function StepIndicator({ steps, current }: { steps: StepDef[]; current: number }
 
 // ── Main wizard ───────────────────────────────────────────────────────────────
 
+// Screen order: welcome (0) → whatsapp (1) → property (2) → lead (3) → done (4).
+// The welcome screen only shows on a completely fresh account; a returning
+// user resumes at their first incomplete tracked step.
+
 export function OnboardingWizard({ status, onDismiss, onRefresh }: Props) {
-  function firstIncompleteStep() {
-    if (!status.hasWhatsApp) return 0;
-    if (!status.hasProperties) return 1;
-    if (!status.hasContacts) return 2;
-    return 3;
+  function firstIncompleteScreen() {
+    if (!status.hasWhatsApp)
+      return !status.hasProperties && !status.hasContacts ? 0 : 1;
+    if (!status.hasProperties) return 2;
+    if (!status.hasContacts) return 3;
+    return 4;
   }
 
-  const [step, setStep] = useState(firstIncompleteStep);
+  const [screen, setScreen] = useState(firstIncompleteScreen);
   const [localDone, setLocalDone] = useState({
     whatsapp: status.hasWhatsApp,
     properties: status.hasProperties,
     contacts: status.hasContacts,
   });
 
-  const allDone = localDone.whatsapp && localDone.properties && localDone.contacts;
+  const allDone =
+    localDone.whatsapp && localDone.properties && localDone.contacts;
 
   const steps: StepDef[] = [
     { id: 'whatsapp', label: 'Connect WhatsApp', done: localDone.whatsapp },
@@ -314,59 +492,98 @@ export function OnboardingWizard({ status, onDismiss, onRefresh }: Props) {
     { id: 'contact', label: 'Get a lead', done: localDone.contacts },
   ];
 
-  async function advanceStep(doneKey: keyof typeof localDone) {
+  function advanceStep(doneKey: keyof typeof localDone) {
     const updated = { ...localDone, [doneKey]: true };
     setLocalDone(updated);
-    // Move to next incomplete step
-    if (!updated.whatsapp) { setStep(0); return; }
-    if (!updated.properties) { setStep(1); return; }
-    if (!updated.contacts) { setStep(2); return; }
-    setStep(3);
+    if (!updated.whatsapp) {
+      setScreen(1);
+      return;
+    }
+    if (!updated.properties) {
+      setScreen(2);
+      return;
+    }
+    if (!updated.contacts) {
+      setScreen(3);
+      return;
+    }
+    setScreen(4);
   }
 
+  const showChrome = !allDone && screen > 0 && screen < 4;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-lg bg-[#0d1424] border border-slate-700/60 rounded-2xl shadow-2xl p-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-sm">
+      <div className="relative max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700/60 bg-[#0d1424] p-8 shadow-2xl">
         {/* Dismiss */}
         <button
           onClick={onDismiss}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors"
+          className="absolute top-4 right-4 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
           aria-label="Skip setup"
         >
           <X className="h-4 w-4" />
         </button>
 
+        {/* Back — from a tracked step to the welcome explainer */}
+        {showChrome && (
+          <button
+            onClick={() => setScreen(0)}
+            className="absolute top-4 left-4 rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-800 hover:text-slate-300"
+            aria-label="Back to overview"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+        )}
+
         {/* Header */}
-        {!allDone && step < 3 && (
-          <div className="mb-6">
-            <div className="text-xs text-slate-500 mb-1">Getting started</div>
-            <h1 className="text-lg font-bold text-white">Set up your ConvoReal workspace</h1>
+        {showChrome && (
+          <div className="mt-4 mb-6">
+            <div className="mb-1 text-xs text-slate-500">Getting started</div>
+            <h1 className="text-lg font-bold text-white">
+              Set up your ConvoReal workspace
+            </h1>
           </div>
         )}
 
         {/* Step indicator */}
-        {!allDone && step < 3 && <StepIndicator steps={steps} current={step} />}
+        {showChrome && <StepIndicator steps={steps} current={screen - 1} />}
 
         {/* Content */}
-        {allDone || step === 3 ? (
+        {allDone || screen === 4 ? (
           <AllDone onClose={onDismiss} />
-        ) : step === 0 ? (
-          <StepWhatsApp onDone={() => advanceStep('whatsapp')} />
-        ) : step === 1 ? (
-          <StepProperty onDone={() => advanceStep('properties')} onRefresh={onRefresh} />
+        ) : screen === 0 ? (
+          <StepWelcome onNext={() => setScreen(firstIncompleteScreen() || 1)} />
+        ) : screen === 1 ? (
+          <StepWhatsApp
+            done={localDone.whatsapp}
+            onDone={() => advanceStep('whatsapp')}
+            onRefresh={onRefresh}
+          />
+        ) : screen === 2 ? (
+          <StepProperty
+            onDone={() => advanceStep('properties')}
+            onRefresh={onRefresh}
+          />
         ) : (
-          <StepContact onDone={() => advanceStep('contacts')} onRefresh={onRefresh} />
+          <StepContact
+            onDone={() => advanceStep('contacts')}
+            onRefresh={onRefresh}
+          />
         )}
 
         {/* Dot navigation */}
-        {!allDone && step < 3 && (
-          <div className="flex justify-center gap-1.5 mt-8">
+        {showChrome && (
+          <div className="mt-8 flex justify-center gap-1.5">
             {steps.map((s, i) => (
               <button
                 key={s.id}
-                onClick={() => setStep(i)}
+                onClick={() => setScreen(i + 1)}
                 className={`h-1.5 rounded-full transition-all ${
-                  i === step ? 'bg-primary w-4' : s.done ? 'bg-emerald-500 w-1.5' : 'bg-slate-700 w-1.5'
+                  i + 1 === screen
+                    ? 'bg-primary w-4'
+                    : s.done
+                      ? 'w-1.5 bg-emerald-500'
+                      : 'w-1.5 bg-slate-700'
                 }`}
                 aria-label={`Go to step ${i + 1}`}
               />
