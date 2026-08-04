@@ -328,6 +328,7 @@ export interface CallLog {
   action_items?: string[] | null;
   update_draft?: string | null;
   update_sent_at?: string | null;
+  events_created_at?: string | null;
   created_at: string;
 }
 

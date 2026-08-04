@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  CalendarPlus,
   CheckCheck,
   ChevronDown,
   ChevronUp,
@@ -176,6 +177,7 @@ export function CallAnalysisSection({ contactId, call, contactName, onUpdated }:
   const [showTranscript, setShowTranscript] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
+  const [creatingEvents, setCreatingEvents] = useState(false);
 
   const hasAnalysis =
     call.summary || call.update_draft || call.transcript || call.recording_url;
@@ -201,6 +203,37 @@ export function CallAnalysisSection({ contactId, call, contactName, onUpdated }:
       toast.error(err instanceof Error ? err.message : 'Failed to save draft');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const createEvents = async () => {
+    setCreatingEvents(true);
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/calls/${call.id}/create-events`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to create events');
+      }
+      const { appointments = [], todos = [], liaison } = data.data ?? {};
+      const parts = [
+        appointments.length > 0 ? `${appointments.length} event${appointments.length > 1 ? 's' : ''}` : null,
+        todos.length > 0 ? `${todos.length} to-do${todos.length > 1 ? 's' : ''}` : null,
+      ].filter(Boolean);
+      toast.success(
+        `${parts.join(' + ')} created${liaison ? ` · ${liaison.name} linked for reminders` : ''}`,
+      );
+      if (liaison && !liaison.has_phone) {
+        toast.warning(
+          `Add a phone number for ${liaison.name} under Liaisons so their reminders can be delivered.`,
+        );
+      }
+      onUpdated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create events');
+    } finally {
+      setCreatingEvents(false);
     }
   };
 
@@ -274,6 +307,28 @@ export function CallAnalysisSection({ contactId, call, contactName, onUpdated }:
               </li>
             ))}
           </ul>
+          <div className="mt-1.5">
+            {call.events_created_at ? (
+              <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                <CheckCheck className="size-3" />
+                Events created{' '}
+                {new Date(call.events_created_at).toLocaleDateString('en-IN', {
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                })}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={creatingEvents}
+                onClick={createEvents}
+                className="border-slate-700 text-slate-300 hover:text-white"
+              >
+                {creatingEvents ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarPlus className="size-3.5" />}
+                {creatingEvents ? 'Creating…' : 'Create events & reminders'}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
