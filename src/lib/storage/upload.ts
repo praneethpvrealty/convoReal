@@ -101,6 +101,45 @@ export async function uploadPropertyVideo(
 }
 
 /**
+ * Uploads a call recording to the PRIVATE 'call-recordings' bucket under the
+ * account's folder and returns the bucket-relative object path. The bucket is
+ * not public — playback goes through the authed call-log recording route,
+ * which issues a short-lived signed URL.
+ */
+export async function uploadCallRecording(
+  accountId: string,
+  buffer: Buffer,
+  mimeType: string
+): Promise<string> {
+  const supabase = supabaseAdmin();
+
+  let ext = 'mp3';
+  if (mimeType) {
+    const parts = mimeType.split('/');
+    if (parts.length > 1) {
+      ext = parts[1].split('+')[0].split(';')[0];
+    }
+  }
+
+  const randomStr = Math.random().toString(36).substring(2, 7);
+  const path = `${accountId}/call-${Date.now()}-${randomStr}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('call-recordings')
+    .upload(path, buffer, {
+      cacheControl: '3600',
+      upsert: true,
+      contentType: mimeType,
+    });
+
+  if (uploadError) {
+    throw new Error(`Storage recording upload failed: ${uploadError.message}`);
+  }
+
+  return `call-recordings/${path}`;
+}
+
+/**
  * Uploads a file buffer directly to the 'property-documents' Supabase storage bucket under the account's folder,
  * returning the public URL.
  */

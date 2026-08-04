@@ -73,6 +73,7 @@ import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
+import { CallRecordingAnalyzer, CallAnalysisSection } from '@/components/contacts/call-analysis';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
@@ -2531,6 +2532,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               {/* Calls Tab */}
               <TabsContent value="calls" className="flex-1 min-h-0 h-full">
               <div className="h-full flex flex-col px-4 py-3 min-h-0">
+                {/* AI call analysis */}
+                {contactId && (
+                  <CallRecordingAnalyzer
+                    contactId={contactId}
+                    contactName={contact?.name || ''}
+                    onAnalyzed={fetchCalls}
+                  />
+                )}
+
                 {/* Log a call form */}
                 <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-3 mb-3 space-y-3">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Log a call</p>
@@ -2700,6 +2710,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                   hour: '2-digit', minute: '2-digit',
                                 })}
                               </p>
+                              {contactId && (
+                                <CallAnalysisSection
+                                  key={`${call.id}-${call.update_draft ?? ''}`}
+                                  contactId={contactId}
+                                  call={call}
+                                  contactName={contact?.name || ''}
+                                  onUpdated={fetchCalls}
+                                />
+                              )}
                             </div>
                             <button
                               onClick={async () => {

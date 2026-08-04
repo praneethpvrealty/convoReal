@@ -321,6 +321,13 @@ export interface CallLog {
   duration_seconds: number | null;
   outcome: CallOutcome;
   notes: string | null;
+  recording_url?: string | null;
+  transcript?: string | null;
+  summary?: string | null;
+  key_points?: string[] | null;
+  action_items?: string[] | null;
+  update_draft?: string | null;
+  update_sent_at?: string | null;
   created_at: string;
 }
 
