@@ -259,10 +259,8 @@
   const zAt = j => 100 + j * 40;
   const HOLE = { x: 0, z: 260, rx: 185, rz: 110 };
   const SAG = 70;
-  const inHole = (x, z) => {
-    const v = (x - HOLE.x) ** 2 / HOLE.rx ** 2 + (z - HOLE.z) ** 2 / HOLE.rz ** 2;
-    return v < 1 + 0.18 * Math.sin(x * 0.113 + z * 0.071);
-  };
+  const holeVal = (x, z) => (x - HOLE.x) ** 2 / HOLE.rx ** 2 + (z - HOLE.z) ** 2 / HOLE.rz ** 2;
+  const inHole = (x, z) => holeVal(x, z) < 1 + 0.18 * Math.sin(x * 0.113 + z * 0.071);
 
   const clamp01 = v => Math.max(0, Math.min(1, v));
   const easeOut = p => 1 - (1 - p) ** 3;
@@ -539,12 +537,12 @@
 
   // ---- Cards (DOM, driven per-frame)
   const LISTINGS_LOST = [
-    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -90, wz: 252 },
-    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 92, wz: 250 },
-    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -52, wz: 290 },
-    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 55, wz: 224 },
-    { type: 'Flat', title: '1 BHK Flat', loc: 'BTM Layout', spec: '₹52 L · 650 sqft', wx: 4, wz: 272 },
-    { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: -14, wz: 233 },
+    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -250, wz: 185 },
+    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 245, wz: 205 },
+    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -175, wz: 335 },
+    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 175, wz: 345 },
+    { type: 'Flat', title: '1 BHK Flat', loc: 'BTM Layout', spec: '₹52 L · 650 sqft', wx: -85, wz: 148 },
+    { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: 60, wz: 380 },
   ];
   const LISTINGS_CAUGHT = [
     { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', wx: -185, wz: 235, matches: '3 buyer matches' },
@@ -580,24 +578,58 @@
       const age = t - c.t0;
       if (age < 0) { el.style.opacity = 0; continue; }
       if (c.kind === 'lost') {
-        const p = clamp01(age / 4800);
-        const netYv = netY(l.wx, l.wz, t);
-        const y = Y_START - (Y_START + 430) * Math.pow(p, 1.35);
-        const pt = project(l.wx, y, l.wz);
-        if (!c.grazed && y < netYv) {
-          c.grazed = true;
-          state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 10 });
+        const FD = 1600, RD = 450, LD = 2100, TD = 1100;
+        let x = l.wx, z = l.wz, y, rotX = 6, rotZ = 0, op = 1;
+        if (!c.thr) {
+          if (age < FD) {
+            const p = age / FD;
+            y = lerp(Y_START, netY(x, z, t) + 4, Math.pow(p, 1.6));
+            rotX = 5 + p * 4;
+            op = p < 0.05 ? p * 20 : 1;
+          } else if (age < FD + RD) {
+            if (!c.landed) {
+              c.landed = true;
+              state.ripples.push({ x, z, t0: t, A: 20 });
+            }
+            const bt = age - FD;
+            y = netY(x, z, t) + 4 + 15 * Math.exp(-bt / 260) * Math.cos(bt * 0.021);
+            rotX = 9;
+          } else {
+            const rp = clamp01((age - FD - RD) / LD);
+            const q = rp * rp;
+            x = lerp(l.wx, l.wx * 0.06, q);
+            z = lerp(l.wz, 260 + (l.wz - 260) * 0.08, q);
+            y = netY(x, z, t) + 4 + 3 * Math.abs(Math.sin(q * 24)) * (1 - q);
+            rotX = 9;
+            rotZ = Math.sign(-l.wx) * 6 * Math.sin(rp * Math.PI);
+            const step = Math.floor((age - FD - RD) / 320);
+            if (step !== c.lastTrail && rp > 0.05) {
+              c.lastTrail = step;
+              state.ripples.push({ x, z, t0: t, A: 4 });
+            }
+            if (holeVal(x, z) < 0.85 || rp >= 1) {
+              c.thr = { a0: age, x, z, y: netY(x, z, t) + 4 };
+              state.ripples.push({ x, z, t0: t, A: 9 });
+            }
+          }
         }
-        const below = y < netYv;
-        if (below && !c.behind) {
+        if (c.thr) {
+          const tp = clamp01((age - c.thr.a0) / TD);
+          x = lerp(c.thr.x, c.thr.x * 0.72, tp);
+          z = lerp(c.thr.z, 260 + (c.thr.z - 260) * 0.72, tp);
+          y = c.thr.y - 880 * Math.pow(tp, 1.75);
+          rotX = 9 + tp * 26;
+          op = tp < 0.12 ? 1 : Math.max(0, 1 - (tp - 0.12) / 0.75);
+          if (tp >= 1) c.done = true;
+        }
+        if (!c.behind && y < netY(x, z, t) - 6) {
           c.behind = true;
           cardLayerBack.appendChild(el);
         }
+        const pt = project(x, y, z);
         const sc = pt.s;
-        el.style.opacity = p < 0.03 ? p * 33 : below ? Math.max(0, 1 - (netYv - y) / 320) : 1;
-        const rotX = 5 + 7 * p + (below ? clamp01((netYv - y) / 200) * 20 : 0);
-        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64}px) scale(${sc}) rotateX(${rotX}deg) rotate(${-2 + p * 4}deg)`;
-        if (p >= 1) c.done = true;
+        el.style.opacity = op;
+        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64 - 58 * sc}px) scale(${sc}) rotateX(${rotX}deg) rotate(${rotZ}deg)`;
       } else {
         const p = clamp01(age / 1300);
         const netYv = netY(l.wx, l.wz, t) + 3;
@@ -661,7 +693,7 @@
 
   function buildEvents() {
     const ev = [];
-    ev.push({ t: 100, fn: () => caption('', '01 · Today', 'Fresh listings come in… and fall straight through.') });
+    ev.push({ t: 100, fn: () => caption('', '01 · Today', 'Listings land all over the net… and every one slips through the tear.') });
     LISTINGS_LOST.forEach((l, i) => ev.push({ t: 700 + i * 820, fn: t => spawnLost(l, t) }));
 
     ev.push({ t: S2, fn: () => caption('violet', '02 · The ConvoReal engine', 'Buyer requirements are woven back into the net.') });
