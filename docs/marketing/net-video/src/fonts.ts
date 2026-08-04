@@ -1,10 +1,11 @@
 import { loadFont } from '@remotion/fonts';
-import { staticFile } from 'remotion';
+import { MANROPE } from './fontData';
 
-for (const weight of ['400', '600', '700', '800']) {
+for (const [weight, b64] of Object.entries(MANROPE)) {
   loadFont({
     family: 'Manrope',
-    url: staticFile(`manrope-latin-${weight}-normal.woff2`),
+    url: `data:font/woff2;base64,${b64}`,
+    format: 'woff2',
     weight,
   });
 }
