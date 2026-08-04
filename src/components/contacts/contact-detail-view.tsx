@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import type { Contact, Tag, ContactNote, CustomField, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
+import type { Contact, Tag, ContactNote, Deal, Property, CallLog, CallDirection, CallOutcome, ShowcaseSettings, AreaOfInterestGeo } from '@/types';
 import { PropertyForm } from '@/components/inventory/property-form';
 import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-input';
 import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
@@ -229,10 +229,6 @@ export function ContactDetailView({
   const [loadingNotes, setLoadingNotes] = useState(false);
 
   // Custom fields tab
-  const [customFields, setCustomFields] = useState<CustomField[]>([]);
-  const [customValues, setCustomValues] = useState<Record<string, string>>({});
-  const [savingCustom, setSavingCustom] = useState(false);
-  const [loadingCustom, setLoadingCustom] = useState(false);
 
   // Deals tab
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -638,29 +634,6 @@ export function ContactDetailView({
     setLoadingNotes(false);
   }, [contactId, supabase]);
 
-  const fetchCustomFields = useCallback(async () => {
-    if (!contactId) return;
-    setLoadingCustom(true);
-
-    const [fieldsRes, valuesRes] = await Promise.all([
-      supabase.from('custom_fields').select('*').order('field_name'),
-      supabase
-        .from('contact_custom_values')
-        .select('*')
-        .eq('contact_id', contactId),
-    ]);
-
-    if (fieldsRes.data) setCustomFields(fieldsRes.data);
-    if (valuesRes.data) {
-      const map: Record<string, string> = {};
-      valuesRes.data.forEach((v) => {
-        map[v.custom_field_id] = v.value ?? '';
-      });
-      setCustomValues(map);
-    }
-    setLoadingCustom(false);
-  }, [contactId, supabase]);
-
   const fetchDeals = useCallback(async () => {
     if (!contactId) return;
     setLoadingDeals(true);
@@ -690,13 +663,12 @@ export function ContactDetailView({
       fetchContact();
       fetchTags();
       fetchNotes();
-      fetchCustomFields();
       fetchDeals();
       fetchCalls();
       fetchAssociatedProperties();
       fetchAllProperties();
     }
-  }, [open, contactId, fetchShowcaseSettings, fetchContact, fetchTags, fetchNotes, fetchCustomFields, fetchDeals, fetchCalls, fetchAssociatedProperties, fetchAllProperties]);
+  }, [open, contactId, fetchShowcaseSettings, fetchContact, fetchTags, fetchNotes, fetchDeals, fetchCalls, fetchAssociatedProperties, fetchAllProperties]);
 
   useEffect(() => {
     if (open && contactId && allProperties.length > 0) {
@@ -1257,39 +1229,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   }
 
-  async function saveCustomFields() {
-    if (!contactId) return;
-    setSavingCustom(true);
-
-    try {
-      // Delete existing values and re-insert
-      await supabase
-        .from('contact_custom_values')
-        .delete()
-        .eq('contact_id', contactId);
-
-      const rows = Object.entries(customValues)
-        .filter(([, val]) => val.trim())
-        .map(([fieldId, val]) => ({
-          contact_id: contactId,
-          custom_field_id: fieldId,
-          value: val.trim(),
-        }));
-
-      if (rows.length > 0) {
-        const { error } = await supabase
-          .from('contact_custom_values')
-          .insert(rows);
-        if (error) throw error;
-      }
-
-      toast.success('Custom fields saved');
-    } catch {
-      toast.error('Failed to save custom fields');
-    }
-    setSavingCustom(false);
-  }
-
   function getInitials(name?: string | null) {
     if (!name) return '?';
     return name
@@ -1509,12 +1448,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
                 >
                   Notes
-                </TabsTrigger>
-                <TabsTrigger
-                  value="custom"
-                  className="data-active:bg-slate-800 data-active:text-primary text-slate-400 shrink-0"
-                >
-                  Custom Fields
                 </TabsTrigger>
                 <TabsTrigger
                   value="deals"
@@ -2519,60 +2452,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   )}
                 </div>
               </div>
-              </TabsContent>
-
-              {/* Custom Fields Tab */}
-              <TabsContent value="custom" className="flex-1 min-h-0 flex flex-col">
-                <div className="flex-1 overflow-y-auto px-4 py-3">
-                {loadingCustom ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="size-5 animate-spin text-slate-500" />
-                  </div>
-                ) : customFields.length === 0 ? (
-                  <p className="text-sm text-slate-500 text-center py-8">
-                    No custom fields defined. Create them in Settings.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {customFields.map((field) => (
-                      <div key={field.id} className="space-y-1.5">
-                        <Label className="text-slate-400 text-xs capitalize">
-                          {field.field_name}
-                        </Label>
-                        <Input
-                          value={customValues[field.id] ?? ''}
-                          onChange={(e) =>
-                            setCustomValues((prev) => ({
-                              ...prev,
-                              [field.id]: e.target.value,
-                            }))
-                          }
-                          placeholder={`Enter ${field.field_name}...`}
-                          className="bg-slate-800 border-slate-700 text-white h-8 text-sm placeholder:text-slate-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                </div>
-
-                {!loadingCustom && customFields.length > 0 && (
-                  <div className="shrink-0 px-4 py-2.5 border-t border-slate-800 bg-slate-900">
-                    <Button
-                      onClick={saveCustomFields}
-                      disabled={savingCustom}
-                      className="bg-primary hover:bg-primary/90 text-primary-foreground w-full"
-                      size="sm"
-                    >
-                      {savingCustom ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : (
-                        <Save className="size-3.5" />
-                      )}
-                      Save Custom Fields
-                    </Button>
-                  </div>
-                )}
               </TabsContent>
 
               {/* Deals Tab */}
