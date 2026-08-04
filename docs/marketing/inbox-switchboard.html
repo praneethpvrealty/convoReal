@@ -76,7 +76,7 @@
   .bubble {
     position: absolute; left: 0; top: 0; max-width: 212px;
     background: #1f2c34; border: 1px solid #2a3942; border-radius: 11px;
-    padding: 7px 11px; font-size: 11.5px; line-height: 1.35; color: #e2e8ee;
+    padding: 8px 12px; font-size: 12.5px; line-height: 1.35; color: #e2e8ee;
     box-shadow: 0 10px 26px -12px rgba(0, 0, 0, 0.85);
     will-change: transform, opacity; opacity: 0; width: max-content;
   }
@@ -88,7 +88,7 @@
   }
 
   #panel {
-    position: absolute; left: 480px; top: 316px; width: 320px; height: 84px;
+    position: absolute; left: 0; top: 0; width: 320px; height: 84px;
     transform: translate(-50%, -50%);
     border-radius: 16px; background: var(--glass); border: 1px solid rgba(139, 92, 246, 0.5);
     backdrop-filter: blur(8px);
@@ -127,7 +127,7 @@
     border-radius: 999px; padding: 3px 10px; opacity: 0; will-change: transform, opacity;
   }
 
-  #engine { position: absolute; left: 480px; top: 128px; will-change: transform, opacity; opacity: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #engine { position: absolute; left: 0; top: 0; will-change: transform, opacity; opacity: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
   #engine .ringbox { position: relative; width: 76px; height: 76px; }
   #engine .ring {
     position: absolute; inset: 0; border-radius: 50%;
@@ -236,18 +236,18 @@
   const easeOutBack = p => 1 + 2.70158 * (p - 1) ** 3 + 1.70158 * (p - 1) ** 2;
   const rnd = seed => { const s = Math.sin(seed * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 
-  const S2 = 10200, S3 = 18200, END = 30500;
+  const S2 = 12000, S3 = 20000, END = 32500;
   const PHONE = { x: 480, y: 358 };
-  const PANEL = { x: 480, y: 316 };
-  const ENGINE = { x: 480, y: 150 };
+  const PANEL = { x: 420, y: 316 };
+  const ENGINE = { x: 420, y: 150 };
 
   const AGENTS = [
-    { name: 'Priya', role: 'Buyer leads', color: '#a78bfa', x: 200, y: 452 },
-    { name: 'Arjun', role: 'Site visits', color: '#34d399', x: 480, y: 470 },
-    { name: 'Meera', role: 'Portal leads', color: '#f5c044', x: 760, y: 452 },
+    { name: 'Priya', role: 'Buyer leads', color: '#a78bfa', x: 788, y: 196 },
+    { name: 'Arjun', role: 'Site visits', color: '#34d399', x: 788, y: 322 },
+    { name: 'Meera', role: 'Portal leads', color: '#f5c044', x: 788, y: 448 },
   ];
-  const arriveT = i => AGENT_ARRIVE_BASE + i * 250;
-  const AGENT_ARRIVE_BASE = S2 + 2500;
+  const arriveT = i => AGENT_ARRIVE_BASE + i * 300;
+  const AGENT_ARRIVE_BASE = S2 + 2350;
 
   const MSGS1 = [
     { text: 'Is the 3 BHK in Koramangala available?', land: true },
@@ -263,12 +263,13 @@
     { text: 'Photos of the Sarjapur villa?' },
     { text: 'Call me back please…' },
   ].map((m, i) => ({
-    ...m, t0: 800 + i * 640,
+    ...m, t0: 800 + i * 700,
     x0: 180 + rnd(i * 3.7) * 600,
     off: (rnd(i * 5.1) - 0.5) * 50,
     dir: rnd(i * 7.3) > 0.5 ? 1 : -1,
   }));
-  const BADGE_STEPS = MSGS1.map((m, i) => ({ t: m.t0 + 1100, v: [3, 7, 12, 19, 27, 38, 52, 67, 81, 94, 99, 132][i] }));
+  const FALL1 = 2200;
+  const BADGE_STEPS = MSGS1.map((m, i) => ({ t: m.t0 + FALL1, v: [3, 7, 12, 19, 27, 38, 52, 67, 81, 94, 99, 132][i] }));
 
   const MSGS3 = [
     { text: '3 BHK in Koramangala?', tag: 'Buyer · Koramangala', agent: 0 },
@@ -280,13 +281,14 @@
   ].map((m, i) => ({
     ...m,
     t0: S3 + 600 + i * 1500,
-    x0: 240 + rnd(i * 11.3) * 480,
+    x0: 220 + rnd(i * 11.3) * 360,
     stampT: null, arrive: null,
   }));
+  const FALL3 = 2000;
   MSGS3.forEach(m => {
-    m.stampT = m.t0 + 780;
-    m.absorbT = m.t0 + 1250;
-    m.arrive = m.t0 + 2200;
+    m.stampT = m.t0 + 1410;
+    m.absorbT = m.t0 + 2150;
+    m.arrive = m.t0 + 3100;
   });
 
   const bezier = (p0, p1, p2, p3, t) => {
@@ -297,25 +299,30 @@
     };
   };
   const THREADS = AGENTS.map((a, i) => {
-    const p0 = { x: PANEL.x + (i - 1) * 60, y: PANEL.y + 42 };
-    const p3 = { x: a.x, y: a.y - 34 };
-    const p1 = { x: p0.x + (i - 1) * 30, y: p0.y + 55 };
-    const p2 = { x: p3.x - (i - 1) * 60, y: p3.y - 55 };
+    const p0 = { x: PANEL.x + 155, y: PANEL.y - 16 + i * 16 };
+    const p3 = { x: a.x - 94, y: a.y };
+    const p1 = { x: p0.x + 85, y: p0.y };
+    const p2 = { x: p3.x - 85, y: p3.y };
     const pts = [];
     for (let k = 0; k <= 40; k++) pts.push(bezier(p0, p1, p2, p3, k / 40));
-    return { pts, color: a.color, drawStart: S2 + 1600 + i * 300, mid: bezier(p0, p1, p2, p3, 0.52) };
+    return { pts, p0, color: a.color, drawStart: S2 + 1600 + i * 300, mid: bezier(p0, p1, p2, p3, 0.5) };
   });
   const WIRE_LABELS = [
-    { text: 'Buyers → Priya', x: THREADS[0].mid.x - 26, y: THREADS[0].mid.y },
-    { text: 'Site visits → Arjun', x: THREADS[1].mid.x + 78, y: THREADS[1].mid.y - 4 },
-    { text: 'Portals → Meera', x: THREADS[2].mid.x + 30, y: THREADS[2].mid.y },
-  ].map((l, i) => ({ ...l, showT: S2 + 2400 + i * 200 }));
+    { text: 'Buyers → Priya' },
+    { text: 'Site visits → Arjun' },
+    { text: 'Portals → Meera' },
+  ].map((l, i) => ({
+    ...l,
+    x: THREADS[i].mid.x,
+    y: THREADS[i].mid.y - 20,
+    showT: S2 + 2400 + i * 200,
+  }));
 
   const CAPTIONS = [
     { t0: 100, tone: '', eyebrow: '01 · Today', head: 'Every buyer pings one personal number. Chats pile up — and bounce.' },
     { t0: S2, tone: 'violet', eyebrow: '02 · The ConvoReal engine', head: 'One shared inbox. Rules route every chat to the right agent.' },
     { t0: S3, tone: 'gold', eyebrow: '03 · After ConvoReal', head: 'Answered, assigned, and tagged — in minutes, not hours.' },
-    { t0: 27200, tone: 'gold', eyebrow: 'ConvoReal', head: 'One inbox. Whole team. Zero missed leads.' },
+    { t0: 29500, tone: 'gold', eyebrow: 'ConvoReal', head: 'One inbox. Whole team. Zero missed leads.' },
   ];
 
   // ---- DOM actors (rebuilt on every startAt)
@@ -394,7 +401,7 @@
     badge.textContent = bv > 99 ? '99+' : bv;
     badge.style.opacity = bv > 0 ? 1 : 0;
     badge.style.transform = `scale(${1 + 0.45 * Math.exp(-(t - lastT) / 160)})`;
-    const lands = MSGS1.filter(m => m.land && t > m.t0 + 1100).length;
+    const lands = MSGS1.filter(m => m.land && t > m.t0 + FALL1).length;
     prows.forEach((r, i) => r.classList.toggle('on', i < lands));
   }
 
@@ -403,18 +410,17 @@
       const el = bubbles1[i];
       const age = t - m.t0;
       if (age < 0 || t > S2) { el.style.opacity = 0; return; }
-      const FALL = 1100;
-      if (age < FALL) {
-        const p = age / FALL;
+      if (age < FALL1) {
+        const p = age / FALL1;
         const x = lerp(m.x0, PHONE.x + m.off, easeOut(p));
         const y = lerp(-40, PHONE.y - 115, Math.pow(p, 1.3));
-        setT(el, x, y, `rotate(${(1 - p) * m.dir * 5}deg)`, p < 0.08 ? p * 12 : 1);
+        setT(el, x, y, `rotate(${(1 - p) * m.dir * 5}deg)`, p < 0.05 ? p * 20 : 1);
         el.style.filter = '';
       } else if (m.land) {
-        const p = clamp01((age - FALL) / 320);
+        const p = clamp01((age - FALL1) / 320);
         setT(el, PHONE.x + m.off * (1 - p), PHONE.y - 115 + p * 40, `scale(${1 - 0.75 * p})`, 1 - p);
       } else {
-        const dt = (age - FALL) / 1000;
+        const dt = (age - FALL1) / 1000;
         if (dt > 1.15) { el.style.opacity = 0; return; }
         const x = PHONE.x + m.off + m.dir * (150 + rnd(i * 9.7) * 90) * dt;
         const y = PHONE.y - 115 + 30 * dt + 420 * dt * dt;
@@ -467,10 +473,10 @@
       const age = t - m.t0;
       if (age < 0 || t > m.absorbT + 400) { el.style.opacity = 0; return; }
       if (t < m.absorbT) {
-        const p = clamp01(age / 1100);
+        const p = clamp01(age / FALL3);
         const x = lerp(m.x0, PANEL.x, easeOut(p));
         const y = lerp(-40, PANEL.y - 62, Math.pow(p, 1.25));
-        setT(el, x, y, '', p < 0.08 ? p * 12 : 1);
+        setT(el, x, y, '', p < 0.05 ? p * 20 : 1);
         chip.style.opacity = t >= m.stampT ? clamp01((t - m.stampT) / 200) : 0;
         chip.style.transform = `translateX(-50%) scale(${0.7 + 0.3 * easeOutBack(clamp01((t - m.stampT) / 300))})`;
       } else {
@@ -482,12 +488,13 @@
   }
 
   function updateStat(t) {
-    const inP = clamp01((t - 19400) / 450);
+    const showT = S3 + 1200, flipT = S3 + 7200;
+    const inP = clamp01((t - showT) / 450);
     stat.style.opacity = inP;
-    const fast = t >= 25400;
+    const fast = t >= flipT;
     stat.classList.toggle('fast', fast);
     statVal.textContent = fast ? '2 min' : '4 hrs';
-    const popAge = fast ? t - 25400 : t - 19400;
+    const popAge = fast ? t - flipT : t - showT;
     stat.style.transform = `scale(${1 + 0.25 * Math.exp(-popAge / 180)})`;
   }
 
@@ -528,6 +535,11 @@
         ctx.arc(head.x, head.y, 4, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.fillStyle = '#8b5cf6';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(th.p0.x, th.p0.y, 3.2, 0, Math.PI * 2);
+      ctx.fill();
       ctx.shadowBlur = 0;
     }
   }
@@ -540,7 +552,7 @@
       ctx.strokeStyle = `rgba(167,139,250,${(1 - p) * 0.9})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      const mp = clamp01((m.stampT - m.t0) / 1100);
+      const mp = clamp01((m.stampT - m.t0) / FALL3);
       const fy = lerp(-40, PANEL.y - 62, Math.pow(mp, 1.25));
       ctx.arc(PANEL.x, fy, 20 + p * 34, 0, Math.PI * 2);
       ctx.stroke();
