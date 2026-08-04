@@ -642,6 +642,7 @@ function parseGeminiResponse(rawResult: string): Record<string, unknown> {
           return m ? m[1] : null;
         };
         contact.name = extractContactStr("name");
+        contact.name_tag = extractContactStr("name_tag");
         contact.phone = extractContactStr("phone");
         contact.email = extractContactStr("email");
         contact.company = extractContactStr("company");
@@ -934,6 +935,9 @@ export async function isContactMessage(text: string): Promise<boolean> {
 
 export interface ParsedContactDraft {
   name: string | null;
+  /** Short qualifier shown next to the name inside the Engine only
+   *  (e.g. 'Advocate', 'Bank DSA') — kept out of outbound messages. */
+  name_tag: string | null;
   phone: string | null;
   email: string | null;
   company: string | null;
@@ -996,6 +1000,7 @@ export async function parseContactFromImageOrText(
     "  \"contacts\": [\n" +
     "    {\n" +
     "      \"name\": \"Full name of the contact or null\",\n" +
+    "      \"name_tag\": \"Short qualifier/label for the name — a profession or role tag like 'Advocate', 'CA', 'Bank DSA', 'Site Engineer' — when the input states one (e.g. 'Tag - Advocate') or appends it to the name. null otherwise.\",\n" +
     "      \"phone\": \"Phone number (numeric digits only, e.g. '9876543210' or with country code if visible like '919876543210') or null\",\n" +
     "      \"email\": \"Email address or null\",\n" +
     "      \"company\": \"Company name if specified or null\",\n" +
@@ -1012,6 +1017,7 @@ export async function parseContactFromImageOrText(
     "2. Set any fields that cannot be found to null. For classification, choose the best fit based on context. Lead forwards showing interest in buying/renting a property must be classified as 'Buyer'.\n" +
     "3. In lead forwarding messages (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters...'), extract the lead's name ('VaishaliGaur'), phone ('917737932199'), classify as 'Buyer', and put their interest ('Interested in SJR Blue Waters, Sarjapur Road Magicbricks') in 'notes'.\n" +
     "4. For Referrer/Sender details: If the message/image details mention any sender or referrer name/phone (e.g., 'Referred by Suresh' or 'Sent by Suresh'), extract it into `referrer_name` and `referrer_phone` respectively. If not mentioned, set to null.\n" +
+    "4b. For `name_tag`: an explicitly stated tag (e.g. 'Tag - Advocate', 'tag him as CA') always goes to `name_tag`, and a profession/role qualifier stuck onto the name (e.g. 'Vijay Sarthi Advocate') is split out — name 'Vijay Sarthi', name_tag 'Advocate'. Never leave a stated tag only in `notes`.\n" +
     "5. When the input is a screenshot or transcript of a BUYER conversation (questions about availability, budget, locations, sizes), read the ENTIRE conversation and consolidate every buying-criteria detail into `requirements`. Keep `notes` as the short source/summary line and put the detailed criteria in `requirements`. Do not drop preferences mentioned later in the chat.\n" +
     "6. Output MUST be valid JSON matching the schema.";
 
@@ -1044,6 +1050,7 @@ export async function parseContactFromImageOrText(
         const requirements = c.requirements || null;
         return {
           name: c.name || null,
+          name_tag: c.name_tag || null,
           phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
           email: c.email || null,
           company: c.company || null,
@@ -1071,7 +1078,7 @@ export async function updateContactDraft(
   const systemInstruction = 
     "You are an expert contact data updater. You are given a current contact drafts JSON object containing an array of contacts and a natural language instruction from the user.\n" +
     "Your job is to apply the updates requested by the user and return the complete updated JSON object matching the exact structure.\n" +
-    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name. If they add buying criteria (e.g. 'budget is 90L', 'wants a plot in Whitefield', 'looking for 2 acres near Hosur'), merge it into the `requirements` field, preserving any requirements already captured.\n" +
+    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name. If they say 'Tag - Advocate' or 'name tag is CA', update `name_tag` (a short profession/role label shown next to the name). If they add buying criteria (e.g. 'budget is 90L', 'wants a plot in Whitefield', 'looking for 2 acres near Hosur'), merge it into the `requirements` field, preserving any requirements already captured.\n" +
     "When you populate `requirements` with buying criteria and the contact's classification is 'Others', set that contact's classification to 'Buyer'.\n" +
     "Do not change any other fields unless requested by the user.\n" +
     "Output MUST be valid JSON.";
@@ -1089,6 +1096,7 @@ export async function updateContactDraft(
         const requirements = c.requirements || null;
         return {
           name: c.name || null,
+          name_tag: c.name_tag || null,
           phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
           email: c.email || null,
           company: c.company || null,
