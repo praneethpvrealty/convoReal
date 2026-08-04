@@ -1,5 +1,6 @@
 import { Composition } from 'remotion';
 import { NetVideo, DURATION_MS } from './NetVideo';
+import './fonts';
 
 const FPS = 30;
 

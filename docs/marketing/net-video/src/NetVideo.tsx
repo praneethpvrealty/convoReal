@@ -21,7 +21,7 @@ const rnd = (seed: number) => {
   return s - Math.floor(s);
 };
 const font = (weight: number | string, size: number) =>
-  `${weight} ${size}px "DejaVu Sans", "Liberation Sans", sans-serif`;
+  `${weight} ${size}px Manrope, "DejaVu Sans", sans-serif`;
 
 const CAM = { y: 150, z: -260, tilt: 0.45, f: 420, cx: 480, cy: 340 };
 const CT = Math.cos(CAM.tilt);

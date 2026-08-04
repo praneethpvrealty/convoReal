@@ -1,0 +1,666 @@
+<title>ConvoReal — The Switchboard (Marketing Animation)</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05070d;
+    --glass: rgba(15, 23, 42, 0.78);
+    --line: #223047;
+    --ink: #e6eaf3;
+    --ink-dim: #8d99b2;
+    --violet: #8b5cf6;
+    --violet-soft: #a78bfa;
+    --gold: #f5c044;
+    --gold-soft: #ffe9ad;
+    --wa: #25d366;
+    font-family: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(1100px 520px at 50% -8%, rgba(139, 92, 246, 0.10), transparent 65%);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 20px 64px;
+  }
+  header { width: min(100%, 1060px); margin-bottom: 22px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--violet-soft); font-weight: 600; margin-bottom: 10px; }
+  h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+  header p { color: var(--ink-dim); font-size: 14px; margin-top: 8px; max-width: 62ch; line-height: 1.55; }
+
+  #stageWrap {
+    position: relative; width: min(100%, 1060px); aspect-ratio: 16 / 9;
+    border-radius: 18px; overflow: hidden; border: 1px solid var(--line);
+    background: linear-gradient(180deg, #0b1020, #070a14);
+    box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
+  }
+  #stage { position: absolute; width: 960px; height: 540px; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(var(--s, 1)); }
+  #stage::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(720px 320px at 50% 112%, rgba(139, 92, 246, 0.09), transparent 70%),
+      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.025) 0 1px, transparent 1px 52px);
+  }
+  #wires { position: absolute; inset: 0; width: 960px; height: 540px; }
+  #actorLayer { position: absolute; inset: 0; pointer-events: none; }
+
+  #brand { position: absolute; top: 26px; right: 36px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; opacity: 0.9; }
+  #brand .bmark { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(145deg, #8b5cf6, #5b34b8); display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #f2edff; }
+
+  #phone { position: absolute; left: 0; top: 0; width: 138px; height: 248px; will-change: transform, opacity; }
+  #phone .shell {
+    position: absolute; inset: 0; border-radius: 22px;
+    background: #0d1524; border: 2px solid #33415c;
+    box-shadow: 0 18px 50px -18px rgba(0, 0, 0, 0.9);
+    transition: border-color 0.6s, box-shadow 0.6s;
+  }
+  #phone.hot .shell { border-color: rgba(248, 113, 113, 0.7); box-shadow: 0 0 30px -6px rgba(248, 113, 113, 0.4), 0 18px 50px -18px rgba(0, 0, 0, 0.9); }
+  #phone .notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 44px; height: 6px; border-radius: 3px; background: #223047; }
+  #phone .pscreen { position: absolute; inset: 20px 9px 12px; border-radius: 12px; background: #0b141a; overflow: hidden; display: flex; flex-direction: column; }
+  #phone .phead { display: flex; align-items: center; gap: 6px; padding: 8px 9px; background: #1f2c34; font-size: 9.5px; font-weight: 700; color: #cfd8dd; }
+  #phone .phead .pdot { width: 8px; height: 8px; border-radius: 50%; background: var(--wa); }
+  #phone .prow { display: flex; gap: 7px; align-items: center; padding: 7px 9px; border-bottom: 1px solid #16222b; opacity: 0; transform: translateY(6px); transition: opacity 0.35s, transform 0.35s; }
+  #phone .prow.on { opacity: 1; transform: none; }
+  #phone .prow .ra { width: 16px; height: 16px; border-radius: 50%; background: #2a3942; flex: none; }
+  #phone .prow .rl { flex: 1; }
+  #phone .prow .rl i { display: block; height: 4px; border-radius: 2px; background: #2a3942; margin: 3px 0; }
+  #phone .prow .rl i:last-child { width: 60%; }
+  #badge {
+    position: absolute; top: -10px; right: -12px; min-width: 26px; height: 26px; border-radius: 13px;
+    background: #ef4444; color: #fff; font-size: 11px; font-weight: 800;
+    display: grid; place-items: center; padding: 0 6px;
+    box-shadow: 0 4px 14px -4px rgba(239, 68, 68, 0.8);
+    will-change: transform;
+  }
+
+  .bubble {
+    position: absolute; left: 0; top: 0; max-width: 212px;
+    background: #1f2c34; border: 1px solid #2a3942; border-radius: 11px;
+    padding: 7px 11px; font-size: 11.5px; line-height: 1.35; color: #e2e8ee;
+    box-shadow: 0 10px 26px -12px rgba(0, 0, 0, 0.85);
+    will-change: transform, opacity; opacity: 0; width: max-content;
+  }
+  .bubble .src { display: inline-block; margin-right: 6px; font-size: 8.5px; font-weight: 800; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 6px; vertical-align: 1px; }
+  .bubble .tagchip {
+    position: absolute; left: 50%; bottom: -13px; transform: translateX(-50%);
+    font-size: 9px; font-weight: 700; white-space: nowrap;
+    padding: 3px 9px; border-radius: 999px; opacity: 0;
+  }
+
+  #panel {
+    position: absolute; left: 480px; top: 316px; width: 320px; height: 84px;
+    transform: translate(-50%, -50%);
+    border-radius: 16px; background: var(--glass); border: 1px solid rgba(139, 92, 246, 0.5);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 40px -10px rgba(139, 92, 246, 0.35), 0 18px 40px -18px rgba(0, 0, 0, 0.85);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    will-change: transform, opacity;
+  }
+  #panel .ptitle { font-size: 14.5px; font-weight: 700; }
+  #panel .ptitle b { color: var(--violet-soft); }
+  #panel .psub { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; color: var(--ink-dim); display: flex; align-items: center; gap: 6px; }
+  #panel .psub::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--wa); box-shadow: 0 0 8px var(--wa); }
+
+  .agent {
+    position: absolute; left: 0; top: 0; width: 168px; height: 62px;
+    transform: translate(-50%, -50%);
+    border-radius: 14px; background: var(--glass); border: 1px solid #33415c;
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; gap: 9px; padding: 0 12px;
+    box-shadow: 0 14px 34px -16px rgba(0, 0, 0, 0.85);
+    will-change: transform, opacity;
+  }
+  .agent .ava { width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: 13px; font-weight: 800; color: #0b1020; }
+  .agent .aname { font-size: 12.5px; font-weight: 700; }
+  .agent .arole { font-size: 9.5px; color: var(--ink-dim); }
+  .agent .acount {
+    margin-left: auto; min-width: 22px; height: 22px; border-radius: 11px; padding: 0 6px;
+    display: grid; place-items: center; font-size: 10.5px; font-weight: 800;
+    background: rgba(139, 92, 246, 0.18); border: 1px solid rgba(139, 92, 246, 0.5); color: #d9d3f5;
+  }
+  .agent .aticks { position: absolute; top: -9px; right: 10px; font-size: 11px; font-weight: 800; color: #53bdeb; opacity: 0; }
+
+  .wirelabel {
+    position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+    font-size: 10px; font-weight: 600; color: #d9d3f5; white-space: nowrap;
+    background: rgba(139, 92, 246, 0.16); border: 1px solid rgba(139, 92, 246, 0.5);
+    border-radius: 999px; padding: 3px 10px; opacity: 0; will-change: transform, opacity;
+  }
+
+  #engine { position: absolute; left: 480px; top: 128px; will-change: transform, opacity; opacity: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #engine .ringbox { position: relative; width: 76px; height: 76px; }
+  #engine .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0 70%, var(--violet) 92%, transparent 100%);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    animation: spin 1.6s linear infinite;
+  }
+  #engine .ring.r2 { inset: 8px; animation-duration: 2.4s; animation-direction: reverse; opacity: 0.6; }
+  #engine.paused .ring { animation-play-state: paused; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #engine .core { position: absolute; inset: 20px; border-radius: 11px; background: linear-gradient(145deg, #7c4fe8, #5b34b8); box-shadow: 0 0 30px rgba(139, 92, 246, 0.55); display: grid; place-items: center; font-weight: 800; font-size: 18px; color: #f2edff; }
+  #engine .ename { font-size: 12px; font-weight: 700; }
+  #engine .ename b { color: var(--violet-soft); }
+
+  #stat {
+    position: absolute; top: 64px; right: 36px; display: flex; align-items: baseline; gap: 7px;
+    font-size: 11px; color: var(--ink-dim); font-weight: 600; opacity: 0; will-change: transform, opacity;
+  }
+  #stat .sval { font-size: 15px; font-weight: 800; color: #c3cbdc; font-variant-numeric: tabular-nums; }
+  #stat.fast .sval { color: var(--gold); text-shadow: 0 0 18px rgba(245, 192, 68, 0.5); }
+
+  #cap { position: absolute; left: 44px; bottom: 34px; max-width: 430px; will-change: opacity; }
+  #cap .cEyebrow { font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 700; color: var(--ink-dim); margin-bottom: 7px; }
+  #cap .cHead { font-size: 23px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.22; text-wrap: balance; }
+  #cap.gold .cEyebrow { color: var(--gold); }
+  #cap.violet .cEyebrow { color: var(--violet-soft); }
+
+  #controls { width: min(100%, 1060px); margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  #controls button { font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); background: rgba(15, 23, 42, 0.7); border: 1px solid var(--line); border-radius: 10px; padding: 8px 16px; cursor: pointer; }
+  #controls button:hover { border-color: #35507a; }
+  #controls button:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+  #controls button.primary { background: linear-gradient(145deg, #7c4fe8, #5b34b8); border-color: transparent; }
+  #controls .scenes { display: flex; gap: 6px; margin-left: auto; }
+  #controls .scenes button { font-size: 12px; padding: 7px 13px; color: var(--ink-dim); }
+  #controls .scenes button.active { color: var(--ink); border-color: var(--violet); }
+  footer { width: min(100%, 1060px); margin-top: 18px; color: var(--ink-dim); font-size: 13px; line-height: 1.6; }
+  footer b { color: #c3cbdc; font-weight: 600; }
+</style>
+
+<header>
+  <div class="eyebrow">ConvoReal · Marketing Motion Concept</div>
+  <h1>The Switchboard</h1>
+  <p>Every buyer pings one overwhelmed personal phone — until the ConvoReal engine turns it into a shared inbox that routes, tags, and assigns every chat to the right agent.</p>
+</header>
+
+<div id="stageWrap">
+  <div id="stage">
+    <canvas id="wires" width="960" height="540"></canvas>
+    <div id="brand"><span class="bmark">C</span>ConvoReal</div>
+    <div id="stat"><span class="slabel">Avg. first reply</span><span class="sval">4 hrs</span></div>
+    <div id="actorLayer"></div>
+    <div id="engine" aria-hidden="true">
+      <div class="ringbox"><div class="ring"></div><div class="ring r2"></div><div class="core">C</div></div>
+      <div class="ename">Convo<b>Real</b> engine</div>
+    </div>
+    <div id="cap"><div class="cEyebrow"></div><div class="cHead"></div></div>
+  </div>
+</div>
+
+<div id="controls">
+  <button class="primary" id="btnReplay">Replay</button>
+  <button id="btnPause" aria-pressed="false">Pause</button>
+  <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-dim);cursor:pointer">
+    <input type="checkbox" id="chkLoop" checked> Loop
+  </label>
+  <div class="scenes" role="group" aria-label="Jump to scene">
+    <button data-scene="0">1 · Overload</button>
+    <button data-scene="1">2 · Route</button>
+    <button data-scene="2">3 · Assign</button>
+  </div>
+</div>
+
+<footer>
+  <b>Capture note:</b> screen-record the stage for Reels/WhatsApp Status, or ask for a Remotion port to render a clean MP4 — the animation is fully deterministic, so it ports 1:1. Names, messages, routing labels and timing are all editable.
+</footer>
+
+<script>
+(() => {
+  const stageWrap = document.getElementById('stageWrap');
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('wires');
+  const ctx = canvas.getContext('2d');
+  const actorLayer = document.getElementById('actorLayer');
+  const engine = document.getElementById('engine');
+  const stat = document.getElementById('stat');
+  const statVal = stat.querySelector('.sval');
+  const cap = document.getElementById('cap');
+  const capEyebrow = cap.querySelector('.cEyebrow');
+  const capHead = cap.querySelector('.cHead');
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = 960 * dpr;
+  canvas.height = 540 * dpr;
+  canvas.style.width = '960px';
+  canvas.style.height = '540px';
+  ctx.scale(dpr, dpr);
+
+  const fit = () => stage.style.setProperty('--s', (stageWrap.clientWidth / 960).toFixed(4));
+  new ResizeObserver(fit).observe(stageWrap);
+  fit();
+
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const easeOut = p => 1 - (1 - p) ** 3;
+  const easeOutBack = p => 1 + 2.70158 * (p - 1) ** 3 + 1.70158 * (p - 1) ** 2;
+  const rnd = seed => { const s = Math.sin(seed * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+  const S2 = 10200, S3 = 18200, END = 30500;
+  const PHONE = { x: 480, y: 358 };
+  const PANEL = { x: 480, y: 316 };
+  const ENGINE = { x: 480, y: 150 };
+
+  const AGENTS = [
+    { name: 'Priya', role: 'Buyer leads', color: '#a78bfa', x: 200, y: 452 },
+    { name: 'Arjun', role: 'Site visits', color: '#34d399', x: 480, y: 470 },
+    { name: 'Meera', role: 'Portal leads', color: '#f5c044', x: 760, y: 452 },
+  ];
+  const arriveT = i => AGENT_ARRIVE_BASE + i * 250;
+  const AGENT_ARRIVE_BASE = S2 + 2500;
+
+  const MSGS1 = [
+    { text: 'Is the 3 BHK in Koramangala available?', land: true },
+    { text: 'Can we visit the HSR plot on Sunday?', land: true },
+    { text: 'New lead: Rahul', src: 'MagicBricks', sc: '#f97316', land: true },
+    { text: 'Price for the Whitefield villa?', land: true },
+    { text: 'Budget ₹1.2 Cr, need 2 BHK' },
+    { text: 'Send brochure please 🙏' },
+    { text: 'New lead: Ananya', src: '99acres', sc: '#3b82f6', },
+    { text: 'Loan approved, ready to book!' },
+    { text: 'Any 2 BHK near Indiranagar metro?' },
+    { text: 'Is the plot RERA approved?' },
+    { text: 'Photos of the Sarjapur villa?' },
+    { text: 'Call me back please…' },
+  ].map((m, i) => ({
+    ...m, t0: 800 + i * 640,
+    x0: 180 + rnd(i * 3.7) * 600,
+    off: (rnd(i * 5.1) - 0.5) * 50,
+    dir: rnd(i * 7.3) > 0.5 ? 1 : -1,
+  }));
+  const BADGE_STEPS = MSGS1.map((m, i) => ({ t: m.t0 + 1100, v: [3, 7, 12, 19, 27, 38, 52, 67, 81, 94, 99, 132][i] }));
+
+  const MSGS3 = [
+    { text: '3 BHK in Koramangala?', tag: 'Buyer · Koramangala', agent: 0 },
+    { text: 'Visit Sunday 11 am?', tag: 'Site visit · HSR', agent: 1 },
+    { text: 'New lead: Rahul', src: 'MagicBricks', sc: '#f97316', tag: 'Portal lead', agent: 2 },
+    { text: 'Budget ₹1.2 Cr, 2 BHK', tag: 'Buyer · Indiranagar', agent: 0 },
+    { text: 'Reschedule to 5 pm?', tag: 'Site visit · Whitefield', agent: 1 },
+    { text: 'New lead: Ananya', src: '99acres', sc: '#3b82f6', tag: 'Portal lead', agent: 2 },
+  ].map((m, i) => ({
+    ...m,
+    t0: S3 + 600 + i * 1500,
+    x0: 240 + rnd(i * 11.3) * 480,
+    stampT: null, arrive: null,
+  }));
+  MSGS3.forEach(m => {
+    m.stampT = m.t0 + 780;
+    m.absorbT = m.t0 + 1250;
+    m.arrive = m.t0 + 2200;
+  });
+
+  const bezier = (p0, p1, p2, p3, t) => {
+    const u = 1 - t;
+    return {
+      x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+      y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+    };
+  };
+  const THREADS = AGENTS.map((a, i) => {
+    const p0 = { x: PANEL.x + (i - 1) * 60, y: PANEL.y + 42 };
+    const p3 = { x: a.x, y: a.y - 34 };
+    const p1 = { x: p0.x + (i - 1) * 30, y: p0.y + 55 };
+    const p2 = { x: p3.x - (i - 1) * 60, y: p3.y - 55 };
+    const pts = [];
+    for (let k = 0; k <= 40; k++) pts.push(bezier(p0, p1, p2, p3, k / 40));
+    return { pts, color: a.color, drawStart: S2 + 1600 + i * 300, mid: bezier(p0, p1, p2, p3, 0.52) };
+  });
+  const WIRE_LABELS = [
+    { text: 'Buyers → Priya', x: THREADS[0].mid.x - 26, y: THREADS[0].mid.y },
+    { text: 'Site visits → Arjun', x: THREADS[1].mid.x + 78, y: THREADS[1].mid.y - 4 },
+    { text: 'Portals → Meera', x: THREADS[2].mid.x + 30, y: THREADS[2].mid.y },
+  ].map((l, i) => ({ ...l, showT: S2 + 2400 + i * 200 }));
+
+  const CAPTIONS = [
+    { t0: 100, tone: '', eyebrow: '01 · Today', head: 'Every buyer pings one personal number. Chats pile up — and bounce.' },
+    { t0: S2, tone: 'violet', eyebrow: '02 · The ConvoReal engine', head: 'One shared inbox. Rules route every chat to the right agent.' },
+    { t0: S3, tone: 'gold', eyebrow: '03 · After ConvoReal', head: 'Answered, assigned, and tagged — in minutes, not hours.' },
+    { t0: 27200, tone: 'gold', eyebrow: 'ConvoReal', head: 'One inbox. Whole team. Zero missed leads.' },
+  ];
+
+  // ---- DOM actors (rebuilt on every startAt)
+  let phone, badge, prows, bubbles1, bubbles3, agentEls, labelEls, panel;
+
+  function buildActors() {
+    actorLayer.innerHTML = '';
+
+    phone = document.createElement('div');
+    phone.id = 'phone';
+    phone.innerHTML = `<div class="shell"></div><div class="notch"></div>
+      <div class="pscreen"><div class="phead"><span class="pdot"></span>My WhatsApp</div>
+      ${'<div class="prow"><span class="ra"></span><span class="rl"><i></i><i></i></span></div>'.repeat(4)}
+      </div><div id="badge">0</div>`;
+    actorLayer.appendChild(phone);
+    badge = phone.querySelector('#badge');
+    prows = [...phone.querySelectorAll('.prow')];
+
+    panel = document.createElement('div');
+    panel.id = 'panel';
+    panel.innerHTML = `<div class="ptitle">Convo<b>Real</b> · Shared Inbox</div><div class="psub">Routing rules active</div>`;
+    actorLayer.appendChild(panel);
+
+    agentEls = AGENTS.map(a => {
+      const el = document.createElement('div');
+      el.className = 'agent';
+      el.style.left = a.x + 'px';
+      el.style.top = a.y + 'px';
+      el.innerHTML = `<div class="ava" style="background:${a.color}">${a.name[0]}</div>
+        <div><div class="aname">${a.name}</div><div class="arole">${a.role}</div></div>
+        <div class="acount">0</div><div class="aticks">✓✓</div>`;
+      actorLayer.appendChild(el);
+      return { el, count: el.querySelector('.acount'), ticks: el.querySelector('.aticks') };
+    });
+
+    labelEls = WIRE_LABELS.map(l => {
+      const el = document.createElement('div');
+      el.className = 'wirelabel';
+      el.textContent = l.text;
+      el.style.left = l.x + 'px';
+      el.style.top = l.y + 'px';
+      actorLayer.appendChild(el);
+      return el;
+    });
+
+    const mkBubble = m => {
+      const el = document.createElement('div');
+      el.className = 'bubble';
+      el.innerHTML = (m.src ? `<span class="src" style="background:${m.sc};color:#fff">${m.src}</span>` : '') + m.text +
+        (m.tag ? `<span class="tagchip" style="background:${AGENTS[m.agent].color};color:#0b1020">${m.tag}</span>` : '');
+      actorLayer.appendChild(el);
+      return el;
+    };
+    bubbles1 = MSGS1.map(mkBubble);
+    bubbles3 = MSGS3.map(mkBubble);
+  }
+
+  // ---- pure per-frame updates
+  const setT = (el, x, y, extra = '', op = null) => {
+    el.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%) ${extra}`;
+    if (op !== null) el.style.opacity = op;
+  };
+
+  function updatePhone(t) {
+    const inP = easeOutBack(clamp01((t - 300) / 450));
+    const outP = clamp01((t - (S2 + 300)) / 500);
+    if (t < 300 || outP >= 1) { phone.style.opacity = 0; return; }
+    const shakeRamp = clamp01((t - 4000) / 4000) * (1 - outP);
+    const sx = Math.sin(t * 0.11) * 4 * shakeRamp;
+    const sy = Math.cos(t * 0.13) * 2 * shakeRamp;
+    setT(phone, PHONE.x + sx, PHONE.y + sy + outP * 60, `scale(${Math.max(0.01, inP * (1 - 0.3 * outP))})`, Math.min(inP, 1 - outP));
+    phone.classList.toggle('hot', t > 6200 && t < S2 + 300);
+
+    let bv = 0, lastT = 0;
+    for (const s of BADGE_STEPS) if (t >= s.t) { bv = s.v; lastT = s.t; }
+    badge.textContent = bv > 99 ? '99+' : bv;
+    badge.style.opacity = bv > 0 ? 1 : 0;
+    badge.style.transform = `scale(${1 + 0.45 * Math.exp(-(t - lastT) / 160)})`;
+    const lands = MSGS1.filter(m => m.land && t > m.t0 + 1100).length;
+    prows.forEach((r, i) => r.classList.toggle('on', i < lands));
+  }
+
+  function updateBubbles1(t) {
+    MSGS1.forEach((m, i) => {
+      const el = bubbles1[i];
+      const age = t - m.t0;
+      if (age < 0 || t > S2) { el.style.opacity = 0; return; }
+      const FALL = 1100;
+      if (age < FALL) {
+        const p = age / FALL;
+        const x = lerp(m.x0, PHONE.x + m.off, easeOut(p));
+        const y = lerp(-40, PHONE.y - 115, Math.pow(p, 1.3));
+        setT(el, x, y, `rotate(${(1 - p) * m.dir * 5}deg)`, p < 0.08 ? p * 12 : 1);
+        el.style.filter = '';
+      } else if (m.land) {
+        const p = clamp01((age - FALL) / 320);
+        setT(el, PHONE.x + m.off * (1 - p), PHONE.y - 115 + p * 40, `scale(${1 - 0.75 * p})`, 1 - p);
+      } else {
+        const dt = (age - FALL) / 1000;
+        if (dt > 1.15) { el.style.opacity = 0; return; }
+        const x = PHONE.x + m.off + m.dir * (150 + rnd(i * 9.7) * 90) * dt;
+        const y = PHONE.y - 115 + 30 * dt + 420 * dt * dt;
+        setT(el, x, y, `rotate(${m.dir * dt * 40}deg)`, Math.max(0, 1 - dt / 1.1));
+        el.style.filter = `grayscale(${clamp01(dt * 1.6)})`;
+      }
+    });
+  }
+
+  function updatePanel(t) {
+    const p = easeOutBack(clamp01((t - (S2 + 900)) / 500));
+    if (p <= 0) { panel.style.opacity = 0; return; }
+    setT(panel, PANEL.x, PANEL.y, `scale(${Math.max(0.01, p)})`, clamp01(p * 1.4));
+  }
+
+  function updateEngine(t) {
+    const inP = easeOutBack(clamp01((t - (S2 + 300)) / 550));
+    if (inP <= 0) { engine.style.opacity = 0; return; }
+    setT(engine, ENGINE.x, ENGINE.y, `scale(${Math.max(0.01, lerp(0.4, 1, inP))})`, clamp01(inP));
+  }
+
+  function updateAgents(t) {
+    agentEls.forEach((a, i) => {
+      const at = arriveT(i);
+      const inP = easeOutBack(clamp01((t - at) / 450));
+      if (inP <= 0) { a.el.style.opacity = 0; return; }
+      const arrivals = MSGS3.filter(m => m.agent === i && t >= m.arrive);
+      const last = arrivals.length ? arrivals[arrivals.length - 1].arrive : -1e9;
+      const pulse = 1 + 0.13 * Math.exp(-(t - last) / 200);
+      a.el.style.opacity = clamp01(inP);
+      a.el.style.transform = `translate(-50%,-50%) scale(${Math.max(0.01, inP * pulse)})`;
+      a.count.textContent = arrivals.length;
+      const tickAge = t - last;
+      a.ticks.style.opacity = tickAge < 900 ? clamp01(tickAge / 120) * clamp01((900 - tickAge) / 300) : 0;
+    });
+  }
+
+  function updateLabels(t) {
+    labelEls.forEach((el, i) => {
+      const p = easeOutBack(clamp01((t - WIRE_LABELS[i].showT) / 450));
+      el.style.opacity = clamp01(p) * (t >= S3 ? 0.55 : 1);
+      el.style.transform = `translate(-50%,-50%) scale(${Math.max(0.01, 0.7 + 0.3 * p)})`;
+    });
+  }
+
+  function updateBubbles3(t) {
+    MSGS3.forEach((m, i) => {
+      const el = bubbles3[i];
+      const chip = el.querySelector('.tagchip');
+      const age = t - m.t0;
+      if (age < 0 || t > m.absorbT + 400) { el.style.opacity = 0; return; }
+      if (t < m.absorbT) {
+        const p = clamp01(age / 1100);
+        const x = lerp(m.x0, PANEL.x, easeOut(p));
+        const y = lerp(-40, PANEL.y - 62, Math.pow(p, 1.25));
+        setT(el, x, y, '', p < 0.08 ? p * 12 : 1);
+        chip.style.opacity = t >= m.stampT ? clamp01((t - m.stampT) / 200) : 0;
+        chip.style.transform = `translateX(-50%) scale(${0.7 + 0.3 * easeOutBack(clamp01((t - m.stampT) / 300))})`;
+      } else {
+        const p = clamp01((t - m.absorbT) / 300);
+        setT(el, PANEL.x, PANEL.y - 62 + p * 36, `scale(${1 - 0.7 * p})`, 1 - p);
+        chip.style.opacity = 1 - p;
+      }
+    });
+  }
+
+  function updateStat(t) {
+    const inP = clamp01((t - 19400) / 450);
+    stat.style.opacity = inP;
+    const fast = t >= 25400;
+    stat.classList.toggle('fast', fast);
+    statVal.textContent = fast ? '2 min' : '4 hrs';
+    const popAge = fast ? t - 25400 : t - 19400;
+    stat.style.transform = `scale(${1 + 0.25 * Math.exp(-popAge / 180)})`;
+  }
+
+  function updateCaption(t) {
+    let idx = -1;
+    for (let i = 0; i < CAPTIONS.length; i++) if (t >= CAPTIONS[i].t0) idx = i;
+    if (idx < 0) { cap.style.opacity = 0; return; }
+    const c = CAPTIONS[idx];
+    let alpha = clamp01((t - c.t0 - 380) / 420);
+    const next = CAPTIONS[idx + 1];
+    if (next && t > next.t0 - 380) alpha = Math.min(alpha, clamp01((next.t0 - t) / 380));
+    if (capHead.textContent !== c.head) {
+      cap.className = c.tone;
+      capEyebrow.textContent = c.eyebrow;
+      capHead.textContent = c.head;
+    }
+    cap.style.opacity = alpha;
+  }
+
+  // ---- canvas: threads, ring flashes, travel dots, sparks
+  function drawThreads(t) {
+    for (const th of THREADS) {
+      const p = easeOut(clamp01((t - th.drawStart) / 750));
+      if (p <= 0) continue;
+      const n = Math.max(2, Math.floor(p * th.pts.length));
+      ctx.strokeStyle = 'rgba(139,92,246,0.85)';
+      ctx.lineWidth = 2;
+      ctx.shadowColor = '#8b5cf6';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      th.pts.slice(0, n).forEach((pt, k) => (k === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y)));
+      ctx.stroke();
+      if (p < 1) {
+        const head = th.pts[n - 1];
+        ctx.fillStyle = '#e9dfff';
+        ctx.shadowBlur = 16;
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  function drawFlashes(t) {
+    for (const m of MSGS3) {
+      const age = t - m.stampT;
+      if (age < 0 || age > 350) continue;
+      const p = age / 350;
+      ctx.strokeStyle = `rgba(167,139,250,${(1 - p) * 0.9})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const mp = clamp01((m.stampT - m.t0) / 1100);
+      const fy = lerp(-40, PANEL.y - 62, Math.pow(mp, 1.25));
+      ctx.arc(PANEL.x, fy, 20 + p * 34, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+
+  function drawTravels(t) {
+    for (const m of MSGS3) {
+      const start = m.absorbT + 250;
+      const p = (t - start) / 700;
+      if (p <= 0 || p >= 1) continue;
+      const th = THREADS[m.agent];
+      const idx = easeOut(p) * (th.pts.length - 1);
+      const color = AGENTS[m.agent].color;
+      for (let k = 0; k < 6; k++) {
+        const bi = Math.max(0, Math.floor(idx) - k * 2);
+        const pt = th.pts[bi];
+        ctx.globalAlpha = (1 - k / 6) * 0.9;
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, k === 0 ? 5 : 3.5 - k * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  function drawSparks(t) {
+    for (const m of MSGS3) {
+      const age = t - m.arrive;
+      if (age < 0 || age > 700) continue;
+      const a0 = AGENTS[m.agent];
+      for (let j = 0; j < 10; j++) {
+        const s0 = m.arrive * 0.013 + j * 7.7;
+        const life = 380 + rnd(s0 + 2) * 260;
+        if (age > life) continue;
+        const an = rnd(s0) * Math.PI * 2;
+        const v = 1 + rnd(s0 + 1) * 2.4;
+        const T = age / 16;
+        ctx.globalAlpha = 1 - age / life;
+        ctx.fillStyle = a0.color;
+        ctx.shadowColor = a0.color;
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(a0.x + Math.cos(an) * v * T, a0.y - 34 + (Math.sin(an) * v - 1) * T, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // ---- clock & controls
+  let clock = 0, playing = false, lastTick = 0;
+  const btnPause = document.getElementById('btnPause');
+  const chkLoop = document.getElementById('chkLoop');
+  const sceneBtns = [...document.querySelectorAll('#controls .scenes button')];
+
+  function startAt(t0) {
+    buildActors();
+    clock = t0;
+    playing = true;
+    btnPause.textContent = 'Pause';
+    btnPause.setAttribute('aria-pressed', 'false');
+    engine.classList.remove('paused');
+    lastTick = performance.now();
+  }
+
+  function frame(now) {
+    const dt = Math.min(now - lastTick, 64);
+    lastTick = now;
+    if (playing) {
+      clock += dt;
+      if (clock >= END) {
+        if (chkLoop.checked) startAt(0);
+        else playing = false;
+      }
+    }
+    const t = clock;
+    ctx.clearRect(0, 0, 960, 540);
+    drawThreads(t);
+    drawFlashes(t);
+    drawTravels(t);
+    drawSparks(t);
+    updatePhone(t);
+    updateBubbles1(t);
+    updateEngine(t);
+    updatePanel(t);
+    updateAgents(t);
+    updateLabels(t);
+    updateBubbles3(t);
+    updateStat(t);
+    updateCaption(t);
+    const idx = t >= S3 ? 2 : t >= S2 ? 1 : 0;
+    sceneBtns.forEach((b, i) => b.classList.toggle('active', i === idx));
+    requestAnimationFrame(frame);
+  }
+
+  document.getElementById('btnReplay').addEventListener('click', () => startAt(0));
+  btnPause.addEventListener('click', () => {
+    playing = !playing;
+    btnPause.textContent = playing ? 'Pause' : 'Play';
+    btnPause.setAttribute('aria-pressed', String(!playing));
+    engine.classList.toggle('paused', !playing);
+    if (playing) lastTick = performance.now();
+  });
+  sceneBtns.forEach((b, i) => b.addEventListener('click', () => startAt([0, S2, S3][i])));
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) {
+    buildActors();
+    clock = END - 2600;
+    playing = false;
+    lastTick = performance.now();
+  } else {
+    startAt(0);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
