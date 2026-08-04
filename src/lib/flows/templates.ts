@@ -297,7 +297,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
   slug: "real_estate_onboarding",
   name: "Real Estate Showcase",
   description:
-    "Onboard real estate customers, segment by Buy/Rent preferences, showcase matching property listings, and capture details for agents.",
+    "Onboard real estate customers, segment by Buy/Rent preferences and budget, showcase matching property listings, and capture details for agents.",
   icon: "MessageSquare",
   trigger_type: "keyword",
   trigger_config: {
@@ -321,12 +321,12 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
           {
             reply_id: "buy",
             title: "Buy Property",
-            next_node_key: "buy_menu",
+            next_node_key: "ask_buy_budget",
           },
           {
             reply_id: "rent",
             title: "Rent Property",
-            next_node_key: "rent_menu",
+            next_node_key: "ask_rent_budget",
           },
           {
             reply_id: "list",
@@ -337,10 +337,30 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       } as SendButtonsNodeConfig,
     },
     {
+      node_key: "ask_buy_budget",
+      node_type: "collect_input",
+      config: {
+        prompt_text:
+          "Great choice! 💰 What's your budget range for the purchase? This helps us match you with the right properties.\n\n_For example: 50L–1Cr, 1–2 Cr, 5 Cr+_",
+        var_key: "budget",
+        next_node_key: "buy_menu",
+      } as CollectInputNodeConfig,
+    },
+    {
+      node_key: "ask_rent_budget",
+      node_type: "collect_input",
+      config: {
+        prompt_text:
+          "💰 What's your monthly rent budget? This helps us match you with the right properties.\n\n_For example: 25K–50K, 50K–1L, 1L+_",
+        var_key: "budget",
+        next_node_key: "rent_menu",
+      } as CollectInputNodeConfig,
+    },
+    {
       node_key: "buy_menu",
       node_type: "send_list",
       config: {
-        text: "Great choice! Let's explore our buying options. What type of property interests you?",
+        text: "Let's explore our buying options. What type of property interests you?",
         button_label: "View Collections",
         sections: [
           {
@@ -609,7 +629,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "handoff_onboarding",
       node_type: "handoff",
       config: {
-        note: "Real Estate Buyer/Tenant Lead! Captured email: {{vars.email}}.",
+        note: "Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Captured email: {{vars.email}}.",
       } as HandoffNodeConfig,
     },
     {
