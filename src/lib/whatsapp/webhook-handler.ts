@@ -34,7 +34,10 @@ import { isLocationGuarded } from '@/lib/inventory/location-guard'
 import {
   CONSENT_APPROVE_PREFIX,
   CONSENT_DECLINE_PREFIX,
+  OWNER_APPROVE_PREFIX,
+  OWNER_REJECT_PREFIX,
   handleLocationConsentReply,
+  handleOwnerLocationReply,
 } from '@/lib/inventory/location-requests'
 import { parseBuyerMatchesCommand } from '@/lib/buyer/digest'
 import { buildBuyerMatchReply } from '@/lib/buyer/match-reply'
@@ -1540,6 +1543,18 @@ async function processMessage(
         senderPhone,
       })
       if (handledConsent) return
+    }
+    if (
+      interactiveReplyId.startsWith(OWNER_APPROVE_PREFIX) ||
+      interactiveReplyId.startsWith(OWNER_REJECT_PREFIX)
+    ) {
+      const handledOwner = await handleOwnerLocationReply({
+        admin: supabaseAdmin(),
+        accountId,
+        replyId: interactiveReplyId,
+        senderPhone,
+      })
+      if (handledOwner) return
     }
     if (interactiveReplyId.startsWith('share_property_yes:')) {
       const propertyId = interactiveReplyId.split(':')[1]

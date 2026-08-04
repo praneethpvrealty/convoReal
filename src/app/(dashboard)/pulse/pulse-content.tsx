@@ -35,7 +35,6 @@ import { dedupeConsecutiveEvents } from "@/lib/pulse/dedupe-feed";
 import { HeartbeatLoader } from "@/components/ui/heartbeat-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { PropertyViewersDialog } from "@/components/pulse/property-viewers-dialog";
-import { LocationApprovalsPanel } from "@/components/pulse/location-approvals-panel";
 
 type FeedFilter = "all" | "property_views" | "identified";
 
@@ -469,8 +468,6 @@ export default function PulsePage() {
               )}
             </div>
           </div>
-
-          <LocationApprovalsPanel />
         </>
       )}
 

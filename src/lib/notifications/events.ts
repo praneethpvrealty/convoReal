@@ -60,6 +60,14 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     description: 'Your appointments and to-dos for the day.',
     defaults: { app: true, whatsapp: false },
   },
+  {
+    key: 'location_request',
+    group: 'Showcase',
+    label: 'Location reveal requested',
+    description:
+      'A visitor asks for the exact location of a guarded listing. WhatsApp includes Approve/Reject buttons.',
+    defaults: { app: true, whatsapp: true },
+  },
 ];
 
 const EVENT_BY_KEY = new Map(NOTIFICATION_EVENTS.map((e) => [e.key, e]));

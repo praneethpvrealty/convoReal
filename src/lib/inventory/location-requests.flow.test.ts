@@ -33,17 +33,35 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
   sendWhatsAppMessageAndPersist: vi.fn(defaultDispatcherImpl),
 }));
 
+const notified: Array<Record<string, unknown>> = [];
+vi.mock('@/lib/notifications/create', () => ({
+  createNotification: vi.fn(async (input: Record<string, unknown>) => {
+    notified.push(input);
+    return { inAppId: 'n-1', whatsapp: null, pushCount: 0 };
+  }),
+}));
+vi.mock('@/lib/notifications/preferences', () => ({
+  resolveChannels: vi.fn(async () => ({
+    inApp: true,
+    push: true,
+    whatsapp: true,
+  })),
+}));
+
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from '@/lib/whatsapp/customer-window';
 import {
   requestConsentFromContact,
   handleLocationConsentReply,
+  handleOwnerLocationReply,
   approveRequestAndSendReveal,
   closeRequestWithRedirect,
   sweepConsentTimeouts,
   resolveNextIntermediary,
   CONSENT_APPROVE_PREFIX,
   CONSENT_DECLINE_PREFIX,
+  OWNER_APPROVE_PREFIX,
+  OWNER_REJECT_PREFIX,
   type LocationRequestRow,
 } from './location-requests';
 
@@ -253,6 +271,7 @@ function seedRequest(
 
 beforeEach(() => {
   sent.length = 0;
+  notified.length = 0;
 });
 
 describe('multi-hop consent flow, end to end', () => {
@@ -311,7 +330,8 @@ describe('multi-hop consent flow, end to end', () => {
       'forwarded to the agent who shared the property with you'
     );
 
-    // 4. B approves → top of chain → owner queue, owner notified masked.
+    // 4. B approves → top of chain → owner queue: in-app notification
+    //    plus a WhatsApp ping with Approve/Reject buttons, masked.
     await handleLocationConsentReply({
       admin,
       accountId: ACCOUNT,
@@ -325,29 +345,56 @@ describe('multi-hop consent flow, end to end', () => {
     }>;
     expect(chain2).toHaveLength(2);
     expect(chain2[1]).toMatchObject({ contact_id: B, decision: 'approved' });
+    expect(notified).toHaveLength(1);
+    expect(notified[0]).toMatchObject({
+      userId: OWNER_USER,
+      type: 'location_request',
+    });
+    expect(notified[0].body).toContain('Ra••• Sh•••');
+    expect(notified[0].body).not.toContain('Rahul Sharma');
     const ownerNotify = sent.find((m) => m.contactId === 'contact-owner');
-    expect(ownerNotify?.text).toContain('Location Reveal Request');
-    expect(ownerNotify?.text).toContain('Ra••• Sh•••');
-    expect(ownerNotify?.text).not.toContain('Rahul Sharma');
-    expect(ownerNotify?.text).not.toContain('9876543210');
+    expect(ownerNotify?.kind).toBe('interactive');
+    expect(ownerNotify?.interactiveBody).toContain('Location Reveal Request');
+    expect(ownerNotify?.interactiveBody).toContain('Ra••• Sh•••');
+    expect(ownerNotify?.interactiveBody).not.toContain('Rahul Sharma');
+    expect(ownerNotify?.interactiveBody).not.toContain('9876543210');
+    expect(ownerNotify?.interactiveButtons?.map((b) => b.id)).toEqual([
+      `${OWNER_APPROVE_PREFIX}req-1`,
+      `${OWNER_REJECT_PREFIX}req-1`,
+    ]);
 
-    // 5. Owner approves → token minted, seeker gets the reveal link,
-    //    C (the sharer the seeker came through) gets the private notice.
-    const { shareLink } = await approveRequestAndSendReveal(
+    // 5. A stranger tapping a forwarded owner button is NOT a decision.
+    const strangerOwner = await handleOwnerLocationReply({
       admin,
-      row() as unknown as LocationRequestRow,
-      OWNER_USER
-    );
+      accountId: ACCOUNT,
+      replyId: `${OWNER_APPROVE_PREFIX}req-1`,
+      senderPhone: '+911111111111',
+    });
+    expect(strangerOwner).toBe(true);
+    expect(row().status).toBe('pending');
+
+    // 6. Owner taps Approve on WhatsApp → token minted, seeker gets the
+    //    reveal link, C (the sharer the seeker came through) gets the
+    //    private notice, owner gets an ack.
+    await handleOwnerLocationReply({
+      admin,
+      accountId: ACCOUNT,
+      replyId: `${OWNER_APPROVE_PREFIX}req-1`,
+      senderPhone: '+919800000000',
+    });
     expect(row().status).toBe('approved');
     expect(row().share_token).toHaveLength(48);
-    expect(shareLink).toContain(`/reveal/${row().share_token}`);
     const reveal = sent.find((m) => m.toPhone === '+919876543210');
-    expect(reveal?.text).toContain(shareLink);
+    expect(reveal?.text).toContain(`/reveal/${row().share_token}`);
     expect(reveal?.text).toContain('48 hours');
     const notice = sent
       .filter((m) => m.contactId === C && m.kind === 'text')
       .at(-1);
     expect(notice?.text).toContain('details remain private');
+    const ownerAck = sent
+      .filter((m) => m.contactId === 'contact-owner' && m.kind === 'text')
+      .at(-1);
+    expect(ownerAck?.text).toContain('Approved');
   });
 
   it('resolveNextIntermediary walks C→B, tops out at B, and guards cycles', async () => {

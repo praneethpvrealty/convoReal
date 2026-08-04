@@ -38,6 +38,8 @@ import {
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils';
 import { maskName, maskPhone } from '@/lib/inventory/location-guard';
+import { createNotification } from '@/lib/notifications/create';
+import { resolveChannels } from '@/lib/notifications/preferences';
 import type { MessageTemplate } from '@/types';
 
 export const CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
@@ -45,6 +47,9 @@ export const REVEAL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 
 export const CONSENT_APPROVE_PREFIX = 'locreq_approve:';
 export const CONSENT_DECLINE_PREFIX = 'locreq_decline:';
+
+export const OWNER_APPROVE_PREFIX = 'locreq_owner_approve:';
+export const OWNER_REJECT_PREFIX = 'locreq_owner_reject:';
 
 export interface LocationRequestRow {
   id: string;
@@ -341,7 +346,56 @@ export async function requestConsentFromContact(
   return true;
 }
 
-/** Notifies the listing side that a request awaits their decision. */
+/** The Engine contact card mirroring the listing-side user's own
+ *  WhatsApp (matched by profile email) — the channel owner pings and
+ *  their button replies arrive on. */
+async function resolveOwnerWhatsAppContact(
+  admin: SupabaseClient,
+  accountId: string,
+  targetUserId: string
+): Promise<{ contactId: string; phone: string } | null> {
+  const { data: agentProfile } = await admin
+    .from('profiles')
+    .select('email')
+    .eq('user_id', targetUserId)
+    .maybeSingle();
+  if (!agentProfile?.email) return null;
+
+  const { data: agentContact } = await admin
+    .from('contacts')
+    .select('id, phone')
+    .eq('account_id', accountId)
+    .eq('email', agentProfile.email)
+    .maybeSingle();
+  if (!agentContact?.phone) return null;
+  return { contactId: agentContact.id, phone: agentContact.phone };
+}
+
+async function resolveOwnerUserId(
+  admin: SupabaseClient,
+  request: Pick<LocationRequestRow, 'account_id' | 'property_id'>
+): Promise<string | null> {
+  const { data: property } = await admin
+    .from('properties')
+    .select('user_id')
+    .eq('id', request.property_id)
+    .eq('account_id', request.account_id)
+    .maybeSingle();
+  if (property?.user_id) return property.user_id as string;
+
+  const { data: account } = await admin
+    .from('accounts')
+    .select('owner_user_id')
+    .eq('id', request.account_id)
+    .maybeSingle();
+  return (account?.owner_user_id as string | undefined) ?? null;
+}
+
+/** Notifies the listing side that a request awaits their decision:
+ *  in-app bell + mobile push through the notification system, plus a
+ *  WhatsApp ping with Approve/Reject buttons so the owner can decide
+ *  without opening the dashboard. Channels follow the account's
+ *  Settings → Notifications preferences for `location_request`. */
 export async function notifyOwnerQueue(
   admin: SupabaseClient,
   request: Pick<
@@ -375,38 +429,145 @@ export async function notifyOwnerQueue(
   const fromLine = attributed
     ? `From: ${maskName(request.requester_name)} · ${maskPhone(request.requester_phone)} (via a co-broker share — identity protected)`
     : `From: ${request.requester_name} · ${request.requester_phone}`;
+  const propertyLine = `${property.title}${property.property_code ? ` (${property.property_code})` : ''}`;
+
+  const channels = await resolveChannels(request.account_id, 'location_request');
+
+  await createNotification({
+    accountId: request.account_id,
+    userId: targetUserId,
+    type: 'location_request',
+    title: '📍 Location reveal request',
+    body: `${propertyLine} — ${fromLine}`,
+    entityType: 'property',
+    entityId: property.id,
+    link: `/inventory?propertyId=${property.property_code || property.id}`,
+    channels: { inApp: channels.inApp, push: channels.push, whatsapp: false },
+  });
+
+  if (!channels.whatsapp) return;
 
   try {
-    const { data: agentProfile } = await admin
-      .from('profiles')
-      .select('email')
-      .eq('user_id', targetUserId)
-      .maybeSingle();
-    if (!agentProfile?.email) return;
-
-    const { data: agentContact } = await admin
-      .from('contacts')
-      .select('id, phone')
-      .eq('account_id', request.account_id)
-      .eq('email', agentProfile.email)
-      .maybeSingle();
-    if (!agentContact?.phone) return;
+    const agent = await resolveOwnerWhatsAppContact(
+      admin,
+      request.account_id,
+      targetUserId
+    );
+    if (!agent) return;
 
     await sendWhatsAppMessageAndPersist({
       accountId: request.account_id,
       userId: targetUserId,
-      contactId: agentContact.id,
-      kind: 'text',
+      contactId: agent.contactId,
+      kind: 'interactive',
       senderType: 'bot',
-      text:
+      interactiveType: 'buttons',
+      interactiveBody:
         `📍 *New Location Reveal Request*\n` +
-        `Property: ${property.title}${property.property_code ? ` (${property.property_code})` : ''}\n` +
+        `Property: ${propertyLine}\n` +
         `${fromLine}\n\n` +
-        `Open the property in your Engine dashboard to Approve or Reject.`,
+        `Approve to send the exact location to the requester via WhatsApp, ` +
+        `or reject to redirect them to the person who shared them the property. ` +
+        `Also available on your dashboard.`,
+      interactiveButtons: [
+        { id: `${OWNER_APPROVE_PREFIX}${request.id}`, title: '✅ Approve' },
+        { id: `${OWNER_REJECT_PREFIX}${request.id}`, title: '❌ Reject' },
+      ],
     });
   } catch (err) {
     console.error('[location-requests] Owner notify failed:', err);
   }
+}
+
+export function parseOwnerReply(
+  replyId: string
+): { requestId: string; decision: 'approve' | 'reject' } | null {
+  if (replyId.startsWith(OWNER_APPROVE_PREFIX)) {
+    return {
+      requestId: replyId.slice(OWNER_APPROVE_PREFIX.length),
+      decision: 'approve',
+    };
+  }
+  if (replyId.startsWith(OWNER_REJECT_PREFIX)) {
+    return {
+      requestId: replyId.slice(OWNER_REJECT_PREFIX.length),
+      decision: 'reject',
+    };
+  }
+  return null;
+}
+
+/**
+ * Handles the listing side's Approve/Reject button reply from the
+ * owner-queue WhatsApp ping. Returns true when the reply targeted an
+ * owner decision and is fully handled. Only the resolved listing-side
+ * contact may decide — a forwarded button tapped by anyone else is
+ * ignored, and a request no longer sitting in the owner queue
+ * (already decided, or back with an intermediary) is left untouched.
+ */
+export async function handleOwnerLocationReply(args: {
+  admin: SupabaseClient;
+  accountId: string;
+  replyId: string;
+  senderPhone: string;
+}): Promise<boolean> {
+  const parsed = parseOwnerReply(args.replyId);
+  if (!parsed) return false;
+
+  const { data } = await args.admin
+    .from('property_location_requests')
+    .select('*')
+    .eq('id', parsed.requestId)
+    .eq('account_id', args.accountId)
+    .maybeSingle();
+  const request = data as LocationRequestRow | null;
+  if (!request) return true;
+  if (request.status !== 'pending' || request.pending_consent_contact_id)
+    return true;
+
+  const targetUserId = await resolveOwnerUserId(args.admin, request);
+  if (!targetUserId) return true;
+  const agent = await resolveOwnerWhatsAppContact(
+    args.admin,
+    args.accountId,
+    targetUserId
+  );
+  if (!agent || !phonesMatch(agent.phone, args.senderPhone)) return true;
+
+  const title = await propertyTitle(
+    args.admin,
+    request.account_id,
+    request.property_id
+  );
+
+  let ackText: string;
+  if (parsed.decision === 'approve') {
+    const { revealDelivered } = await approveRequestAndSendReveal(
+      args.admin,
+      request,
+      targetUserId
+    );
+    ackText = revealDelivered
+      ? `✅ Approved — ConvoReal has sent the exact location for *${title}* to the requester on WhatsApp.`
+      : `✅ Approved — but the reveal for *${title}* could not be delivered on WhatsApp. Open the property in your dashboard to copy the reveal link.`;
+  } else {
+    await closeRequestWithRedirect(args.admin, request, 'rejected');
+    ackText = `👍 Noted — the request for *${title}* was rejected. The requester has been redirected to the person who shared them the property.`;
+  }
+
+  try {
+    await sendWhatsAppMessageAndPersist({
+      accountId: request.account_id,
+      userId: targetUserId,
+      contactId: agent.contactId,
+      kind: 'text',
+      senderType: 'bot',
+      text: ackText,
+    });
+  } catch (err) {
+    console.error('[location-requests] Owner ack failed:', err);
+  }
+  return true;
 }
 
 /**

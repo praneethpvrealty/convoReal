@@ -11,7 +11,9 @@ import {
   RefreshCw,
   ArrowUp,
   User,
+  Loader2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
 interface ConsentHop {
@@ -106,6 +108,7 @@ function formatWhen(iso: string): string {
 export function LocationApprovalsPanel() {
   const [rows, setRows] = useState<LocationApprovalRow[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const fetchRows = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -126,7 +129,42 @@ export function LocationApprovalsPanel() {
     fetchRows();
   }, [fetchRows]);
 
-  if (rows === null) return null;
+  const handleAction = async (
+    row: LocationApprovalRow,
+    action: 'approve' | 'reject'
+  ) => {
+    setProcessingId(row.id);
+    try {
+      const res = await fetch(
+        `/api/properties/${row.property_id}/location-requests`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: row.id, action }),
+        }
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Action failed');
+      if (action === 'approve') {
+        toast.success(
+          'Request approved! Location link sent to the requester via WhatsApp.'
+        );
+      } else {
+        toast.info(
+          'Request rejected — the requester has been redirected to their sharer.'
+        );
+      }
+      await fetchRows(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Hidden until there is something to show — the dashboard stays
+  // clean for accounts that never use guarded locations.
+  if (rows === null || rows.length === 0) return null;
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
@@ -159,13 +197,7 @@ export function LocationApprovalsPanel() {
         </Button>
       </div>
 
-      {rows.length === 0 ? (
-        <p className="py-4 text-center text-xs text-slate-500">
-          No location requests yet. Requests for guarded listings will be
-          tracked here through every consent step.
-        </p>
-      ) : (
-        <div className="max-h-96 space-y-2.5 overflow-y-auto pr-1">
+      <div className="max-h-96 space-y-2.5 overflow-y-auto pr-1">
           {rows.map((row) => (
             <div
               key={row.id}
@@ -252,10 +284,40 @@ export function LocationApprovalsPanel() {
                   </p>
                 )}
               </div>
+
+              {row.status === 'pending' &&
+                !row.pending_consent_contact_name && (
+                  <div className="border-slate-850 flex gap-2 border-t pt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={processingId === row.id}
+                      onClick={() => handleAction(row, 'approve')}
+                      className="h-7 flex-1 bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-700"
+                    >
+                      {processingId === row.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <CheckCircle className="size-3" />
+                      )}
+                      Approve
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={processingId === row.id}
+                      onClick={() => handleAction(row, 'reject')}
+                      className="h-7 flex-1 border-red-900/50 text-xs font-bold text-red-400 hover:bg-red-950/20 hover:text-red-400"
+                    >
+                      <XCircle className="size-3" />
+                      Reject
+                    </Button>
+                  </div>
+                )}
             </div>
           ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

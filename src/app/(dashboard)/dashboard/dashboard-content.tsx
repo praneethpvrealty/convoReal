@@ -27,6 +27,7 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { LocationApprovalsPanel } from '@/components/dashboard/location-approvals-panel'
 import { ActiveUsers } from '@/components/dashboard/active-users'
 import { TeamWorkload } from '@/components/dashboard/team-workload'
 import { NetworkReach } from '@/components/dashboard/network-reach'
@@ -183,6 +184,11 @@ export default function DashboardContent() {
       {/* Quick actions */}
       <div className="relative z-10">
         <QuickActions />
+      </div>
+
+      {/* Guarded-location reveal approvals — hidden when there are none */}
+      <div className="relative z-10">
+        <LocationApprovalsPanel />
       </div>
 
       {/* Main Grid Content */}
