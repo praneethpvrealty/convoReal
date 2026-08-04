@@ -27,11 +27,18 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
+import {
+  LOCATION_REVEAL_TEMPLATE_NAME,
+  buildLocationRevealParams,
+} from '@/lib/whatsapp/location-reveal-template';
 import {
   normalizePhoneWithCountryCode,
   phonesMatch,
 } from '@/lib/whatsapp/phone-utils';
 import { maskName, maskPhone } from '@/lib/inventory/location-guard';
+import type { MessageTemplate } from '@/types';
 
 export const CONSENT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 export const REVEAL_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
@@ -159,20 +166,113 @@ async function sendToSeeker(
   accountId: string,
   requesterPhone: string,
   text: string
-): Promise<void> {
+): Promise<{ success: boolean; error?: string }> {
   const phone = normalizePhoneWithCountryCode(requesterPhone);
-  if (!phone) return;
-  try {
-    await sendWhatsAppMessageAndPersist({
-      accountId,
-      toPhone: phone,
-      kind: 'text',
-      senderType: 'bot',
-      text,
-    });
-  } catch (err) {
-    console.error('[location-requests] Seeker send failed:', err);
+  if (!phone) return { success: false, error: 'No reachable phone' };
+  const res = await sendWhatsAppMessageAndPersist({
+    accountId,
+    toPhone: phone,
+    kind: 'text',
+    senderType: 'bot',
+    text,
+  });
+  if (!res.success) {
+    console.error('[location-requests] Seeker send failed:', res.error);
   }
+  return { success: res.success, error: res.error };
+}
+
+function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
+  return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
+    const idx = parseInt(numberStr) - 1;
+    return idx >= 0 && idx < params.length ? params[idx] : match;
+  });
+}
+
+/**
+ * Delivers the reveal to the seeker, template-first in spirit: the
+ * free-form message goes out when the 24-hour window happens to be
+ * open; a closed window (seekers request from the public showcase, so
+ * it usually is) falls back to the pre-approved `location_reveal`
+ * Utility template carrying the token as the URL button suffix.
+ * Returns whether Meta accepted a send at all — the caller must not
+ * mark the reveal as sent otherwise.
+ */
+async function sendRevealToSeeker(
+  admin: SupabaseClient,
+  request: Pick<
+    LocationRequestRow,
+    'account_id' | 'requester_name' | 'requester_phone'
+  >,
+  propertyTitle: string,
+  shareLink: string,
+  token: string
+): Promise<boolean> {
+  const freeform = await sendToSeeker(
+    request.account_id,
+    request.requester_phone,
+    buildRevealMessage({
+      requesterName: request.requester_name,
+      propertyTitle,
+      revealLink: shareLink,
+    })
+  );
+  if (freeform.success) return true;
+  if (!isReengagementError(freeform.error)) return false;
+
+  const { data: templateRow } = await admin
+    .from('message_templates')
+    .select('*')
+    .eq('account_id', request.account_id)
+    .eq('name', LOCATION_REVEAL_TEMPLATE_NAME)
+    .order('last_submitted_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const template = templateRow as MessageTemplate | null;
+  if (template?.status !== 'APPROVED') {
+    console.error(
+      '[location-requests] Reveal undeliverable: window closed and no approved location_reveal template'
+    );
+    return false;
+  }
+
+  const phone = normalizePhoneWithCountryCode(request.requester_phone);
+  if (!phone) return false;
+  const params = buildLocationRevealParams(
+    request.requester_name,
+    propertyTitle
+  );
+  const bodyParams = truncateParametersToBudget(template.body_text, [
+    ...params,
+  ]);
+  const buttonParams: Record<number, string> = {};
+  (template.buttons ?? []).forEach((btn, idx) => {
+    if (btn.type === 'URL' && btn.url.includes('{{1}}')) {
+      buttonParams[idx] = token;
+    }
+  });
+  const res = await sendWhatsAppMessageAndPersist({
+    accountId: request.account_id,
+    toPhone: phone,
+    kind: 'template',
+    senderType: 'bot',
+    templateName: template.name,
+    templateLanguage: template.language || 'en_US',
+    templateParams: bodyParams,
+    messageParams: {
+      body: bodyParams,
+      ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+    },
+    templateRow: template,
+    text: resolveTemplateBodyText(template.body_text, bodyParams),
+  });
+  if (!res.success) {
+    console.error(
+      '[location-requests] Reveal template send failed:',
+      res.error
+    );
+  }
+  return res.success;
 }
 
 /**
@@ -320,7 +420,7 @@ export async function approveRequestAndSendReveal(
   admin: SupabaseClient,
   request: LocationRequestRow,
   approvedByUserId: string | null
-): Promise<{ shareLink: string }> {
+): Promise<{ shareLink: string; revealDelivered: boolean }> {
   const { token, expiresAt } = mintRevealToken();
   const shareLink = `${revealBaseUrl()}/reveal/${token}`;
 
@@ -342,19 +442,19 @@ export async function approveRequestAndSendReveal(
     request.account_id,
     request.property_id
   );
-  await sendToSeeker(
-    request.account_id,
-    request.requester_phone,
-    buildRevealMessage({
-      requesterName: request.requester_name,
-      propertyTitle: title,
-      revealLink: shareLink,
-    })
+  const revealDelivered = await sendRevealToSeeker(
+    admin,
+    request,
+    title,
+    shareLink,
+    token
   );
-  await admin
-    .from('property_location_requests')
-    .update({ share_sent_at: new Date().toISOString() })
-    .eq('id', request.id);
+  if (revealDelivered) {
+    await admin
+      .from('property_location_requests')
+      .update({ share_sent_at: new Date().toISOString() })
+      .eq('id', request.id);
+  }
 
   if (request.via_contact_id) {
     try {
@@ -370,7 +470,7 @@ export async function approveRequestAndSendReveal(
     }
   }
 
-  return { shareLink };
+  return { shareLink, revealDelivered };
 }
 
 /** Ends the request (rejected/expired) and redirects the seeker. */
