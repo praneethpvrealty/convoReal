@@ -53,7 +53,9 @@
   #net { position: absolute; inset: 0; width: 960px; height: 540px; }
 
   #cardLayer, #labelLayer { position: absolute; inset: 0; pointer-events: none; }
+  #cardLayer { perspective: 1000px; }
   .pcard {
+    transform-origin: 64px 64px;
     position: absolute; left: 0; top: 0; width: 128px; height: 128px;
     border-radius: 14px;
     background: var(--glass);
@@ -535,12 +537,12 @@
 
   // ---- Cards (DOM, driven per-frame)
   const LISTINGS_LOST = [
-    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -140, wz: 252 },
-    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 145, wz: 250 },
-    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -70, wz: 300 },
-    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 72, wz: 215 },
+    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -110, wz: 252 },
+    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 115, wz: 250 },
+    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -58, wz: 292 },
+    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 62, wz: 222 },
     { type: 'Flat', title: '1 BHK Flat', loc: 'BTM Layout', spec: '₹52 L · 650 sqft', wx: 4, wz: 272 },
-    { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: -12, wz: 230 },
+    { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: -14, wz: 233 },
   ];
   const LISTINGS_CAUGHT = [
     { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', wx: -185, wz: 235, matches: '3 buyer matches' },
@@ -570,52 +572,57 @@
   }
 
   function updateCards(t) {
+    const Y_START = 470;
     for (const c of cards) {
       const { l, el } = c;
       const age = t - c.t0;
       if (age < 0) { el.style.opacity = 0; continue; }
-      const surf = project(l.wx, netY(l.wx, l.wz, t) + 3, l.wz);
       if (c.kind === 'lost') {
         const p = clamp01(age / 4800);
-        const sy = -140 + Math.pow(p, 1.35) * 860;
-        if (!c.grazed && sy > surf.y) {
+        const netYv = netY(l.wx, l.wz, t);
+        const y = Y_START - (Y_START + 430) * Math.pow(p, 1.35);
+        const conv = clamp01((Y_START - y) / (Y_START - (netYv + 90)));
+        const cs = conv * conv * (3 - 2 * conv);
+        const wx = lerp(l.wx * 2.2, l.wx, cs);
+        const pt = project(wx, y, l.wz);
+        if (!c.grazed && y < netYv) {
           c.grazed = true;
           state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 10 });
         }
-        const below = sy > surf.y;
-        const sc = surf.s * (below ? lerp(1, 0.7, clamp01((sy - surf.y) / 320)) : 1);
-        el.style.opacity = p < 0.03 ? p * 33 : below ? Math.max(0, 1 - (sy - surf.y) / 280) : 1;
-        el.style.transform = `translate(${surf.x - 64 * sc}px, ${sy - 64 * sc}px) scale(${sc}) rotate(${-3 + p * 6}deg)`;
+        const below = y < netYv;
+        const sc = pt.s;
+        el.style.opacity = p < 0.03 ? p * 33 : below ? Math.max(0, 1 - (netYv - y) / 240) : 1;
+        const rotX = 6 + 8 * p + (below ? clamp01((netYv - y) / 200) * 22 : 0);
+        const rotZ = (l.wx > 0 ? -1 : 1) * (1 - cs) * 6 + p * 3;
+        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64}px) scale(${sc}) rotateX(${rotX}deg) rotate(${rotZ}deg)`;
         if (p >= 1) c.done = true;
       } else {
         const p = clamp01(age / 1300);
-        let sy, rot;
-        if (p < 1) {
-          sy = lerp(-140, surf.y, Math.pow(p, 1.7));
-          rot = -3 + p * 4;
-          el.style.opacity = p < 0.06 ? p * 16 : 1;
-        } else {
-          if (!c.impacted) {
-            c.impacted = true;
-            state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 34 });
-            state.rings.push({ x: l.wx, z: l.wz, t0: t, rmax: 130, dur: 750, color: 'rgba(245,192,68,0.9)' });
-            burst(surf.x, surf.y - 20, 26, '#ffe9ad', 2.6, 0.16);
-            el.classList.add('caught');
-            const chip = document.createElement('span');
-            chip.className = 'chip';
-            chip.textContent = '✓ ' + l.matches;
-            el.appendChild(chip);
-            setTimeout(() => chip.classList.add('pop'), 240);
-          }
-          const bt = age - 1300;
-          sy = surf.y + 22 * Math.exp(-bt / 360) * Math.cos(bt * 0.019 + Math.PI);
-          rot = 1.2 * Math.exp(-bt / 500) * Math.sin(bt * 0.012);
-          el.style.opacity = 1;
+        const netYv = netY(l.wx, l.wz, t) + 3;
+        let just = false;
+        if (p >= 1 && !c.impacted) {
+          c.impacted = true;
+          just = true;
+          state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 34 });
+          state.rings.push({ x: l.wx, z: l.wz, t0: t, rmax: 130, dur: 750, color: 'rgba(245,192,68,0.9)' });
+          el.classList.add('caught');
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = '✓ ' + l.matches;
+          el.appendChild(chip);
+          setTimeout(() => chip.classList.add('pop'), 240);
         }
-        const sc = surf.s;
-        el.style.transform = `translate(${surf.x - 64 * sc}px, ${sy - 118 * sc}px) scale(${sc}) rotate(${rot}deg)`;
+        const bt = Math.max(0, age - 1300);
+        const y = p < 1
+          ? lerp(Y_START, netYv, Math.pow(p, 1.7))
+          : netYv + 24 * Math.exp(-bt / 360) * Math.cos(bt * 0.019);
+        const pt = project(l.wx, y, l.wz);
+        if (just) burst(pt.x, pt.y - 40, 26, '#ffe9ad', 2.6, 0.16);
+        const sc = pt.s;
+        const rotZ = p < 1 ? -2 + p * 3 : 1.2 * Math.exp(-bt / 500) * Math.sin(bt * 0.012);
+        el.style.opacity = p < 0.05 ? p * 20 : 1;
+        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64 - 58 * sc}px) scale(${sc}) rotateX(12deg) rotate(${rotZ}deg)`;
       }
-      el.style.transformOrigin = 'top left';
     }
     cards = cards.filter(c => {
       if (c.done) { c.el.remove(); return false; }
