@@ -3,11 +3,8 @@
   :root {
     color-scheme: dark;
     --bg: #05070d;
-    --stage-bg-1: #0b1020;
-    --stage-bg-2: #070a14;
-    --glass: rgba(15, 23, 42, 0.72);
+    --glass: rgba(15, 23, 42, 0.78);
     --line: #223047;
-    --thread: #46536b;
     --ink: #e6eaf3;
     --ink-dim: #8d99b2;
     --violet: #8b5cf6;
@@ -39,7 +36,7 @@
     position: relative; width: min(100%, 1060px); aspect-ratio: 16 / 9;
     border-radius: 18px; overflow: hidden;
     border: 1px solid var(--line);
-    background: linear-gradient(180deg, var(--stage-bg-1), var(--stage-bg-2));
+    background: linear-gradient(180deg, #0b1020, #070a14);
     box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
   }
   #stage {
@@ -50,34 +47,14 @@
   #stage::before {
     content: ""; position: absolute; inset: 0;
     background:
-      radial-gradient(700px 300px at 50% 108%, rgba(139, 92, 246, 0.08), transparent 70%),
-      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.028) 0 1px, transparent 1px 48px),
-      repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.028) 0 1px, transparent 1px 48px);
+      radial-gradient(720px 320px at 50% 112%, rgba(139, 92, 246, 0.09), transparent 70%),
+      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.025) 0 1px, transparent 1px 52px);
   }
+  #net { position: absolute; inset: 0; width: 960px; height: 540px; }
 
-  #netSvg { position: absolute; inset: 0; overflow: visible; }
-  .rope, .vert { fill: none; stroke: var(--thread); stroke-linecap: round; }
-  .rope { stroke-width: 2.6; }
-  .vert { stroke-width: 1.8; }
-  .fray {
-    fill: none; stroke: var(--thread); stroke-width: 2.2; stroke-linecap: round;
-    transform-box: fill-box; transform-origin: top center;
-    animation: sway 2.6s ease-in-out infinite alternate;
-    transition: opacity 0.9s ease;
-  }
-  .fray.gone { opacity: 0; }
-  @keyframes sway { from { transform: rotate(3.5deg); } to { transform: rotate(-3.5deg); } }
-  .weave {
-    fill: none; stroke: var(--violet); stroke-width: 2.2; stroke-linecap: round;
-    filter: url(#threadGlow);
-  }
-  #netAll { transition: filter 1.2s ease; }
-  #netAll.energized { filter: drop-shadow(0 0 14px rgba(139, 92, 246, 0.28)); }
-  .knot { fill: #5b6a85; }
-
-  #cardLayer, #fxLayer { position: absolute; inset: 0; pointer-events: none; }
+  #cardLayer, #labelLayer { position: absolute; inset: 0; pointer-events: none; }
   .pcard {
-    position: absolute; top: 0; width: 128px; height: 128px;
+    position: absolute; left: 0; top: 0; width: 128px; height: 128px;
     border-radius: 14px;
     background: var(--glass);
     border: 1px solid #33415c;
@@ -98,7 +75,11 @@
     font-variant-numeric: tabular-nums; color: #c3cbdc;
     border-top: 1px solid #26334c; padding-top: 6px;
   }
-  .pcard.caught { border-color: rgba(245, 192, 68, 0.75); box-shadow: 0 0 0 1px rgba(245, 192, 68, 0.25), 0 0 34px -6px rgba(245, 192, 68, 0.45), 0 18px 40px -18px rgba(0, 0, 0, 0.85); transition: border-color 0.4s, box-shadow 0.4s; }
+  .pcard.caught {
+    border-color: rgba(245, 192, 68, 0.75);
+    box-shadow: 0 0 0 1px rgba(245, 192, 68, 0.25), 0 0 34px -6px rgba(245, 192, 68, 0.5), 0 18px 40px -18px rgba(0, 0, 0, 0.85);
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
   .chip {
     position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%) scale(0.6);
     white-space: nowrap; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
@@ -109,22 +90,23 @@
   .chip.pop { opacity: 1; transform: translateX(-50%) scale(1); transition: opacity 0.35s, transform 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); }
 
   .reqlabel {
-    position: absolute; transform: translate(-50%, -50%) scale(0.7);
+    position: absolute; left: 0; top: 0;
     font-size: 10.5px; font-weight: 600; color: #d9d3f5;
-    background: rgba(139, 92, 246, 0.14);
-    border: 1px solid rgba(139, 92, 246, 0.45);
+    background: rgba(139, 92, 246, 0.16);
+    border: 1px solid rgba(139, 92, 246, 0.5);
     border-radius: 999px; padding: 4px 11px 4px 8px;
     display: flex; align-items: center; gap: 6px;
     opacity: 0; white-space: nowrap;
     backdrop-filter: blur(4px);
-    transition: opacity 0.5s, transform 0.5s cubic-bezier(0.2, 1.3, 0.4, 1);
+    transition: opacity 0.5s;
+    will-change: transform;
   }
   .reqlabel::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--violet-soft); box-shadow: 0 0 8px var(--violet); }
-  .reqlabel.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .reqlabel.show { opacity: 1; }
   .reqlabel.dim { opacity: 0.45; }
 
   #engine {
-    position: absolute; left: 480px; top: 218px; transform: translate(-50%, -50%) scale(0.5);
+    position: absolute; left: 480px; top: 148px; transform: translate(-50%, -50%) scale(0.4);
     opacity: 0; display: flex; flex-direction: column; align-items: center; gap: 10px;
     transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 1.3, 0.4, 1);
   }
@@ -138,6 +120,7 @@
     animation: spin 1.6s linear infinite;
   }
   #engine .ring.r2 { inset: 9px; animation-duration: 2.4s; animation-direction: reverse; opacity: 0.6; }
+  #engine.paused .ring { animation-play-state: paused; }
   @keyframes spin { to { transform: rotate(360deg); } }
   #engine .core {
     position: absolute; inset: 22px; border-radius: 12px;
@@ -148,13 +131,6 @@
   }
   #engine .ename { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
   #engine .ename b { color: var(--violet-soft); }
-
-  .ring-pulse {
-    position: absolute; width: 60px; height: 60px; border-radius: 50%;
-    border: 2px solid var(--gold); transform: translate(-50%, -50%);
-    pointer-events: none;
-  }
-  .spark { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--gold-soft); box-shadow: 0 0 8px var(--gold); pointer-events: none; }
 
   #cap { position: absolute; left: 44px; bottom: 34px; max-width: 430px; transition: opacity 0.45s; }
   #cap .cEyebrow {
@@ -190,38 +166,22 @@
   #controls .scenes { display: flex; gap: 6px; margin-left: auto; }
   #controls .scenes button { font-size: 12px; padding: 7px 13px; color: var(--ink-dim); }
   #controls .scenes button.active { color: var(--ink); border-color: var(--violet); }
-  footer { width: min(100%, 1060px); margin-top: 18px; color: var(--ink-dim); font-size: 13px; line-height: 1.6; max-width: 1060px; }
+  footer { width: min(100%, 1060px); margin-top: 18px; color: var(--ink-dim); font-size: 13px; line-height: 1.6; }
   footer b { color: #c3cbdc; font-weight: 600; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .fray, #engine .ring { animation: none; }
-  }
 </style>
 
 <header>
   <div class="eyebrow">ConvoReal · Marketing Motion Concept</div>
   <h1>The Net</h1>
-  <p>Listings slip through a torn net — until the ConvoReal engine weaves it back from your buyers' requirements. Then every future listing is caught.</p>
+  <p>A horizontal safety net, torn open — listings drop straight through. The ConvoReal engine weaves it back from your buyers' requirements, and every future listing lands in it like treasure.</p>
 </header>
 
 <div id="stageWrap">
   <div id="stage">
+    <canvas id="net" width="960" height="540"></canvas>
     <div id="brand"><span class="bmark">C</span>ConvoReal</div>
-    <svg id="netSvg" width="960" height="540" viewBox="0 0 960 540" aria-hidden="true">
-      <defs>
-        <filter id="threadGlow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="2.6" result="b"/>
-          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <g id="netAll">
-        <g id="netBase"></g>
-        <g id="netFray"></g>
-        <g id="netWeave"></g>
-      </g>
-    </svg>
+    <div id="labelLayer"></div>
     <div id="cardLayer"></div>
-    <div id="fxLayer"></div>
     <div id="engine" aria-hidden="true">
       <div class="ringbox">
         <div class="ring"></div>
@@ -251,211 +211,411 @@
 </div>
 
 <footer>
-  <b>Capture note:</b> screen-record the stage for Reels/WhatsApp Status, or ask for a Remotion port to render a clean MP4 at any resolution. Copy, listings, timing and colors are all editable — this is a working prototype, not a locked cut.
+  <b>Capture note:</b> screen-record the stage for Reels/WhatsApp Status, or ask for a Remotion port to render a clean MP4 at any resolution. Copy, listings, camera angle and timing are all editable — this is a working prototype, not a locked cut.
 </footer>
 
 <script>
 (() => {
   const stageWrap = document.getElementById('stageWrap');
   const stage = document.getElementById('stage');
-  const netBase = document.getElementById('netBase');
-  const netFray = document.getElementById('netFray');
-  const netWeave = document.getElementById('netWeave');
-  const netAll = document.getElementById('netAll');
+  const canvas = document.getElementById('net');
+  const ctx = canvas.getContext('2d');
   const cardLayer = document.getElementById('cardLayer');
-  const fxLayer = document.getElementById('fxLayer');
+  const labelLayer = document.getElementById('labelLayer');
   const engine = document.getElementById('engine');
   const cap = document.getElementById('cap');
   const capEyebrow = cap.querySelector('.cEyebrow');
   const capHead = cap.querySelector('.cHead');
-  const SVGNS = 'http://www.w3.org/2000/svg';
 
-  const fit = () => {
-    stage.style.setProperty('--s', (stageWrap.clientWidth / 960).toFixed(4));
-  };
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = 960 * dpr;
+  canvas.height = 540 * dpr;
+  canvas.style.width = '960px';
+  canvas.style.height = '540px';
+  ctx.scale(dpr, dpr);
+
+  const fit = () => stage.style.setProperty('--s', (stageWrap.clientWidth / 960).toFixed(4));
   new ResizeObserver(fit).observe(stageWrap);
   fit();
 
-  const X0 = 70, X1 = 890, DEPTH = 128, ROWS = 4, COL_STEP = 45;
-  const GAP = [388, 572];
-  const ropeY = x => 344 + 26 * Math.sin(Math.PI * (x - X0) / (X1 - X0));
-  const rowY = (x, j) => ropeY(x) + (DEPTH / ROWS) * j;
-
-  const path = (parent, d, cls) => {
-    const p = document.createElementNS(SVGNS, 'path');
-    p.setAttribute('d', d);
-    p.setAttribute('class', cls);
-    parent.appendChild(p);
-    return p;
-  };
-  const ropeD = (j, xa, xb) => {
-    let d = `M ${xa} ${rowY(xa, j).toFixed(1)}`;
-    for (let x = xa + 10; x < xb; x += 10) d += ` L ${x} ${rowY(x, j).toFixed(1)}`;
-    d += ` L ${xb} ${rowY(xb, j).toFixed(1)}`;
-    return d;
-  };
-  const vertD = x => {
-    const yt = rowY(x, 0), yb = rowY(x, ROWS);
-    return `M ${x} ${yt.toFixed(1)} C ${x + 5} ${(yt + (yb - yt) * 0.35).toFixed(1)}, ${x - 4} ${(yt + (yb - yt) * 0.7).toFixed(1)}, ${x} ${yb.toFixed(1)}`;
-  };
-  const frayD = (x, y, dir) => {
-    const dx = 16 * dir, dy = 34;
-    return `M ${x} ${y.toFixed(1)} C ${x + dx * 0.6} ${(y + dy * 0.45).toFixed(1)}, ${x + dx} ${(y + dy * 0.8).toFixed(1)}, ${x + dx * 0.75} ${(y + dy).toFixed(1)}`;
-  };
-
-  let weavePaths = [];
-  function buildNet() {
-    netBase.innerHTML = ''; netFray.innerHTML = ''; netWeave.innerHTML = '';
-    weavePaths = [];
-    for (let j = 0; j <= ROWS; j++) {
-      const cls = j === 0 || j === ROWS ? 'rope' : 'vert';
-      path(netBase, ropeD(j, X0, GAP[0]), cls);
-      path(netBase, ropeD(j, GAP[1], X1), cls);
-      path(netFray, frayD(GAP[0], rowY(GAP[0], j), 1), 'fray');
-      path(netFray, frayD(GAP[1], rowY(GAP[1], j), -1), 'fray');
-      const w = path(netWeave, ropeD(j, GAP[0], GAP[1]), 'weave');
-      weavePaths.push({ el: w, x: (GAP[0] + GAP[1]) / 2 });
-    }
-    for (let x = X0 + COL_STEP; x < X1 - 8; x += COL_STEP) {
-      if (x > GAP[0] - 14 && x < GAP[1] + 14) {
-        const w = path(netWeave, vertD(x), 'weave');
-        weavePaths.push({ el: w, x });
-      } else {
-        path(netBase, vertD(x), 'vert');
-      }
-    }
-    for (const end of [X0, X1]) {
-      for (let j = 0; j <= ROWS; j++) {
-        const k = document.createElementNS(SVGNS, 'circle');
-        k.setAttribute('cx', end); k.setAttribute('cy', rowY(end, j).toFixed(1));
-        k.setAttribute('r', 3.4); k.setAttribute('class', 'knot');
-        netBase.appendChild(k);
-      }
-    }
-    for (const w of weavePaths) {
-      const len = w.el.getTotalLength();
-      w.len = len;
-      w.el.style.strokeDasharray = len;
-      w.el.style.strokeDashoffset = len;
-    }
-    weavePaths.sort((a, b) => Math.abs(a.x - 480) - Math.abs(b.x - 480));
+  // ---- 3D projection: horizontal net on the x/z ground plane, camera above & in front
+  const CAM = { y: 150, z: -260, tilt: 0.45, f: 420, cx: 480, cy: 340 };
+  const CT = Math.cos(CAM.tilt), ST = Math.sin(CAM.tilt);
+  function project(x, y, z) {
+    const Y = y - CAM.y, Z = z - CAM.z;
+    const Y2 = Y * CT + Z * ST;
+    const Z2 = -Y * ST + Z * CT;
+    const s = CAM.f / Z2;
+    return { x: CAM.cx + x * s, y: CAM.cy - Y2 * s, s };
   }
-  buildNet();
 
+  // ---- Net grid geometry
+  const NX = 16, NZ = 8;
+  const xAt = i => -336 + i * 42;
+  const zAt = j => 100 + j * 40;
+  const HOLE = { x: 0, z: 260, rx: 115, rz: 85 };
+  const SAG = 70;
+  const inHole = (x, z) => (x - HOLE.x) ** 2 / HOLE.rx ** 2 + (z - HOLE.z) ** 2 / HOLE.rz ** 2 < 1;
+
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const easeOut = p => 1 - (1 - p) ** 3;
+
+  let state = null;
+
+  function bowlY(x, z) {
+    const r2 = (x / 340) ** 2 + ((z - 260) / 170) ** 2;
+    return -SAG * (1 - Math.min(r2, 1));
+  }
+  function netY(x, z, t) {
+    let y = bowlY(x, z) + 2.5 * Math.sin(t * 0.0011 + (x + z) * 0.004);
+    for (const r of state.ripples) {
+      const age = t - r.t0;
+      if (age < 0) continue;
+      const d = Math.hypot(x - r.x, z - r.z);
+      y += r.A * Math.sin(age * 0.014 - d * 0.05) * Math.exp(-d / 160) * Math.exp(-age / 700);
+    }
+    return y;
+  }
+
+  // ---- Broken-thread analysis: rows (constant z) and columns (constant x)
+  function analyzeLines() {
+    const lines = [];
+    for (let j = 0; j <= NZ; j++) {
+      const nodes = [];
+      for (let i = 0; i <= NX; i++) nodes.push({ x: xAt(i), z: zAt(j), hole: inHole(xAt(i), zAt(j)) });
+      lines.push({ nodes, mid: Math.abs(zAt(j) - HOLE.z) });
+    }
+    for (let i = 0; i <= NX; i++) {
+      const nodes = [];
+      for (let j = 0; j <= NZ; j++) nodes.push({ x: xAt(i), z: zAt(j), hole: inHole(xAt(i), zAt(j)) });
+      lines.push({ nodes, mid: Math.abs(xAt(i) - HOLE.x) });
+    }
+    for (const ln of lines) {
+      const first = ln.nodes.findIndex(n => n.hole);
+      if (first === -1) { ln.broken = false; continue; }
+      let last = first;
+      for (let k = first; k < ln.nodes.length; k++) if (ln.nodes[k].hole) last = k;
+      ln.broken = true;
+      ln.gapA = first - 1;
+      ln.gapB = last + 1;
+    }
+    return lines;
+  }
+
+  function freshState() {
+    const lines = analyzeLines();
+    const strands = [];
+    for (const ln of lines) {
+      if (!ln.broken) continue;
+      for (const [idx, dir] of [[ln.gapA, 1], [ln.gapB, -1]]) {
+        const n = ln.nodes[idx];
+        strands.push({ x: n.x, z: n.z, dir, len: 42 + Math.abs(Math.sin(n.x * 7 + n.z * 3)) * 26, phase: (n.x + n.z) * 0.05 });
+      }
+    }
+    const broken = lines.filter(l => l.broken).sort((a, b) => a.mid - b.mid);
+    broken.forEach((ln, k) => { ln.weaveStart = null; ln.weaveOrder = k; ln.flashed = false; });
+    return {
+      lines, strands,
+      ripples: [], rings: [], particles: [],
+      retractStart: null, energizeStart: null,
+      charging: false, chargeTarget: project(0, 118, HOLE.z),
+    };
+  }
+
+  function weaveProgress(ln, t) {
+    if (ln.weaveStart === null) return 0;
+    return easeOut(clamp01((t - ln.weaveStart) / 950));
+  }
+  function energize(t) {
+    if (state.energizeStart === null) return 0;
+    return clamp01((t - state.energizeStart) / 800);
+  }
+  function retract(t) {
+    if (state.retractStart === null) return 0;
+    return clamp01((t - state.retractStart) / 1200);
+  }
+
+  const lerp = (a, b, p) => a + (b - a) * p;
+  function threadColor(e) {
+    return `rgb(${Math.round(lerp(70, 116, e))},${Math.round(lerp(83, 100, e))},${Math.round(lerp(107, 195, e))})`;
+  }
+
+  function drawSmooth(pts) {
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let k = 1; k < pts.length - 1; k++) {
+      const xc = (pts[k].x + pts[k + 1].x) / 2, yc = (pts[k].y + pts[k + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[k].x, pts[k].y, xc, yc);
+    }
+    if (pts.length > 1) ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+  }
+
+  function drawPartial(pts, p) {
+    let total = 0;
+    const segs = [];
+    for (let k = 1; k < pts.length; k++) {
+      const d = Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y);
+      segs.push(d); total += d;
+    }
+    let target = total * p, end = pts[0];
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let k = 1; k < pts.length; k++) {
+      if (target >= segs[k - 1]) {
+        ctx.lineTo(pts[k].x, pts[k].y);
+        end = pts[k];
+        target -= segs[k - 1];
+      } else {
+        const f = target / segs[k - 1];
+        end = { x: lerp(pts[k - 1].x, pts[k].x, f), y: lerp(pts[k - 1].y, pts[k].y, f) };
+        ctx.lineTo(end.x, end.y);
+        break;
+      }
+    }
+    return end;
+  }
+
+  function renderNet(t) {
+    const e = energize(t);
+    const rp = retract(t);
+
+    ctx.save();
+    const g = ctx.createRadialGradient(480, 300, 40, 480, 300, 360);
+    g.addColorStop(0, 'rgba(0,0,0,0.35)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.save(); ctx.translate(480, 300); ctx.scale(1, 0.32); ctx.translate(-480, -300);
+    ctx.beginPath(); ctx.arc(480, 300, 360, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+
+    const base = threadColor(e);
+
+    for (const ln of state.lines) {
+      const proj = ln.nodes.map(n => project(n.x, netY(n.x, n.z, t), n.z));
+      const midS = proj[Math.floor(proj.length / 2)].s;
+      ctx.strokeStyle = base;
+      ctx.lineWidth = 2.1 * midS / 0.8;
+      ctx.globalAlpha = 0.55 + midS * 0.5;
+      ctx.lineCap = 'round';
+      if (!ln.broken) {
+        ctx.beginPath(); drawSmooth(proj); ctx.stroke();
+      } else {
+        ctx.beginPath(); drawSmooth(proj.slice(0, ln.gapA + 1)); ctx.stroke();
+        ctx.beginPath(); drawSmooth(proj.slice(ln.gapB)); ctx.stroke();
+        const p = weaveProgress(ln, t);
+        if (p > 0) {
+          const bridge = proj.slice(ln.gapA, ln.gapB + 1);
+          ctx.save();
+          ctx.strokeStyle = e > 0 ? base : '#8b5cf6';
+          ctx.shadowColor = '#8b5cf6';
+          ctx.shadowBlur = e > 0 ? 6 : 12;
+          ctx.lineWidth = 2.3 * midS / 0.8;
+          ctx.beginPath();
+          const head = drawPartial(bridge, p);
+          ctx.stroke();
+          if (p < 1) {
+            ctx.fillStyle = '#e9dfff';
+            ctx.shadowBlur = 18;
+            ctx.beginPath(); ctx.arc(head.x, head.y, 4.5, 0, Math.PI * 2); ctx.fill();
+          } else if (!ln.flashed) {
+            ln.flashed = true;
+            burst(head.x, head.y, 7, '#c4b5fd', 2.5, 0);
+          }
+          ctx.restore();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    if (rp < 1) {
+      ctx.strokeStyle = threadColor(0);
+      ctx.globalAlpha = 0.9 * (1 - rp);
+      for (const s of state.strands) {
+        const yTop = netY(s.x, s.z, t);
+        const lenNow = s.len * (1 - rp);
+        const sway = Math.sin(t * 0.0025 + s.phase) * 12;
+        const pts = [];
+        for (let k = 0; k <= 4; k++) {
+          const f = k / 4;
+          pts.push(project(s.x + s.dir * 4 * f + sway * f * f, yTop - lenNow * f, s.z));
+        }
+        ctx.lineWidth = 2 * pts[0].s / 0.8;
+        ctx.beginPath(); drawSmooth(pts); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    for (const r of state.rings) {
+      const p = clamp01((t - r.t0) / r.dur);
+      if (p >= 1) continue;
+      const rad = r.rmax * easeOut(p);
+      ctx.strokeStyle = r.color;
+      ctx.globalAlpha = (1 - p) * 0.9;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = r.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      for (let k = 0; k <= 40; k++) {
+        const a = (k / 40) * Math.PI * 2;
+        const wx = r.x + Math.cos(a) * rad, wz = r.z + Math.sin(a) * rad * 0.8;
+        const pt = project(wx, netY(wx, wz, t), wz);
+        k === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    state.rings = state.rings.filter(r => t - r.t0 < r.dur);
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- Particles (screen space)
+  function burst(sx, sy, n, color, size, grav) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 1.2 + Math.random() * 3.2;
+      state.particles.push({
+        x: sx, y: sy,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.6,
+        age: 0, life: 500 + Math.random() * 420,
+        color, size: size * (0.7 + Math.random() * 0.7), grav,
+      });
+    }
+  }
+  function renderParticles(dt) {
+    if (state.charging) {
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 70 + Math.random() * 60;
+        state.particles.push({
+          x: state.chargeTarget.x + Math.cos(a) * r,
+          y: state.chargeTarget.y + Math.sin(a) * r * 0.7,
+          seek: true, age: 0, life: 620,
+          color: '#a78bfa', size: 2.2, grav: 0, vx: 0, vy: 0,
+        });
+      }
+    }
+    for (const p of state.particles) {
+      p.age += dt;
+      if (p.seek) {
+        p.x += (state.chargeTarget.x - p.x) * 0.09;
+        p.y += (state.chargeTarget.y - p.y) * 0.09;
+      } else {
+        p.x += p.vx * dt / 16;
+        p.y += p.vy * dt / 16;
+        p.vy += p.grav * dt / 16;
+      }
+      const a = 1 - p.age / p.life;
+      if (a <= 0) continue;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    state.particles = state.particles.filter(p => p.age < p.life);
+  }
+
+  // ---- Cards (DOM, driven per-frame)
   const LISTINGS_LOST = [
-    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', x: 452 },
-    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', x: 500 },
-    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', x: 466 },
+    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -22, wz: 250 },
+    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 20, wz: 270 },
+    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: 0, wz: 258 },
   ];
   const LISTINGS_CAUGHT = [
-    { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', x: 330, matches: '3 buyer matches' },
-    { type: 'Plot', title: 'Corner Plot', loc: 'HSR Layout', spec: '2,000 sqft · North', x: 486, matches: '5 buyer matches' },
-    { type: 'Villa', title: '4 BHK Villa', loc: 'Whitefield', spec: '₹3.1 Cr · 3,200 sqft', x: 640, matches: '2 buyer matches' },
+    { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', wx: -185, wz: 235, matches: '3 buyer matches' },
+    { type: 'Plot', title: 'Corner Plot', loc: 'HSR Layout', spec: '2,000 sqft · North', wx: 5, wz: 268, matches: '5 buyer matches' },
+    { type: 'Villa', title: '4 BHK Villa', loc: 'Whitefield', spec: '₹3.1 Cr · 3,200 sqft', wx: 195, wz: 232, matches: '2 buyer matches' },
   ];
   const REQ_LABELS = [
-    { text: '3 BHK · Koramangala', x: 236, y: 392 },
-    { text: 'Plot ≥ 2,000 sqft · HSR', x: 700, y: 386 },
-    { text: '₹90 L – 1.4 Cr · Flats', x: 380, y: 470 },
-    { text: 'Villa · Whitefield', x: 590, y: 468 },
+    { text: '3 BHK · Koramangala', wx: -250, wz: 310 },
+    { text: 'Plot ≥ 2,000 sqft · HSR', wx: 248, wz: 305 },
+    { text: '₹90 L – 1.4 Cr · Flats', wx: -100, wz: 165 },
+    { text: 'Villa · Whitefield', wx: 118, wz: 355 },
   ];
 
+  let cards = [];
   function makeCard(l) {
     const el = document.createElement('div');
     el.className = 'pcard';
-    el.style.left = (l.x - 64) + 'px';
     el.innerHTML = `<div class="ptype">${l.type}</div><div class="ptitle">${l.title}</div><div class="ploc">${l.loc}</div><div class="pspec">${l.spec}</div>`;
     cardLayer.appendChild(el);
     return el;
   }
-
-  const liveAnims = new Set();
-  function track(anim) {
-    liveAnims.add(anim);
-    anim.finished.then(() => liveAnims.delete(anim)).catch(() => liveAnims.delete(anim));
-    return anim;
+  function spawnLost(l, t0) {
+    cards.push({ kind: 'lost', l, t0, el: makeCard(l), grazed: false });
+  }
+  function spawnCatch(l, t0) {
+    cards.push({ kind: 'catch', l, t0, el: makeCard(l), impacted: false });
   }
 
-  function fallThrough(l) {
-    const el = makeCard(l);
-    track(el.animate([
-      { transform: 'translateY(-170px) rotate(-5deg)', opacity: 0, easing: 'linear' },
-      { transform: 'translateY(-130px) rotate(-4deg)', opacity: 1, offset: 0.06, easing: 'cubic-bezier(.5,0,.85,.5)' },
-      { transform: 'translateY(320px) rotate(3deg)', opacity: 1, offset: 0.6, easing: 'cubic-bezier(.25,0,.8,.6)' },
-      { transform: 'translateY(600px) rotate(7deg)', opacity: 0 },
-    ], { duration: 2500, fill: 'forwards' })).finished.then(() => el.remove()).catch(() => {});
-  }
-
-  function fallCatch(l) {
-    const el = makeCard(l);
-    track(el.animate([
-      { transform: 'translateY(-170px) rotate(-4deg)', opacity: 0, easing: 'linear' },
-      { transform: 'translateY(-146px) rotate(-3deg)', opacity: 1, offset: 0.05, easing: 'cubic-bezier(.55,0,.85,.55)' },
-      { transform: 'translateY(338px) rotate(2deg)', offset: 0.62, easing: 'cubic-bezier(.2,.9,.3,1)' },
-      { transform: 'translateY(302px) rotate(-1.5deg)', offset: 0.79, easing: 'ease-in-out' },
-      { transform: 'translateY(314px) rotate(0.5deg)' },
-    ], { duration: 1800, fill: 'forwards' }));
-    return el;
-  }
-
-  function netSag() {
-    track(netAll.animate([
-      { transform: 'translateY(0)' },
-      { transform: 'translateY(13px)', offset: 0.38, easing: 'cubic-bezier(.3,.8,.4,1)' },
-      { transform: 'translateY(-3px)', offset: 0.72, easing: 'ease-in-out' },
-      { transform: 'translateY(0)' },
-    ], { duration: 750 }));
-  }
-
-  function goldBurst(x, y) {
-    const ring = document.createElement('div');
-    ring.className = 'ring-pulse';
-    ring.style.left = x + 'px'; ring.style.top = y + 'px';
-    fxLayer.appendChild(ring);
-    track(ring.animate([
-      { transform: 'translate(-50%,-50%) scale(0.35)', opacity: 0.95 },
-      { transform: 'translate(-50%,-50%) scale(1.9)', opacity: 0 },
-    ], { duration: 700, easing: 'cubic-bezier(.2,.7,.3,1)' })).finished.then(() => ring.remove()).catch(() => {});
-    for (let i = 0; i < 13; i++) {
-      const s = document.createElement('div');
-      s.className = 'spark';
-      s.style.left = x + 'px'; s.style.top = y + 'px';
-      fxLayer.appendChild(s);
-      const a = (i / 13) * Math.PI * 2 + Math.random() * 0.5;
-      const r = 42 + Math.random() * 46;
-      track(s.animate([
-        { transform: 'translate(0,0) scale(1)', opacity: 1 },
-        { transform: `translate(${Math.cos(a) * r}px, ${Math.sin(a) * r - 24}px) scale(0.2)`, opacity: 0 },
-      ], { duration: 620 + Math.random() * 320, easing: 'cubic-bezier(.2,.6,.4,1)' })).finished.then(() => s.remove()).catch(() => {});
+  function updateCards(t) {
+    for (const c of cards) {
+      const { l, el } = c;
+      const age = t - c.t0;
+      if (age < 0) { el.style.opacity = 0; continue; }
+      const surf = project(l.wx, netY(l.wx, l.wz, t) + 3, l.wz);
+      if (c.kind === 'lost') {
+        const p = clamp01(age / 2600);
+        const sy = -140 + Math.pow(p, 1.75) * 860;
+        if (!c.grazed && sy > surf.y) {
+          c.grazed = true;
+          state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 10 });
+        }
+        const below = sy > surf.y;
+        const sc = surf.s * (below ? lerp(1, 0.7, clamp01((sy - surf.y) / 320)) : 1);
+        el.style.opacity = p < 0.05 ? p * 20 : below ? Math.max(0, 1 - (sy - surf.y) / 300) : 1;
+        el.style.transform = `translate(${surf.x - 64 * sc}px, ${sy - 64 * sc}px) scale(${sc}) rotate(${-4 + p * 9}deg)`;
+        if (p >= 1) c.done = true;
+      } else {
+        const p = clamp01(age / 1300);
+        let sy, rot;
+        if (p < 1) {
+          sy = lerp(-140, surf.y, Math.pow(p, 1.7));
+          rot = -3 + p * 4;
+          el.style.opacity = p < 0.06 ? p * 16 : 1;
+        } else {
+          if (!c.impacted) {
+            c.impacted = true;
+            state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 34 });
+            state.rings.push({ x: l.wx, z: l.wz, t0: t, rmax: 130, dur: 750, color: 'rgba(245,192,68,0.9)' });
+            burst(surf.x, surf.y - 20, 26, '#ffe9ad', 2.6, 0.16);
+            el.classList.add('caught');
+            const chip = document.createElement('span');
+            chip.className = 'chip';
+            chip.textContent = '✓ ' + l.matches;
+            el.appendChild(chip);
+            setTimeout(() => chip.classList.add('pop'), 240);
+          }
+          const bt = age - 1300;
+          sy = surf.y + 22 * Math.exp(-bt / 360) * Math.cos(bt * 0.019 + Math.PI);
+          rot = 1.2 * Math.exp(-bt / 500) * Math.sin(bt * 0.012);
+          el.style.opacity = 1;
+        }
+        const sc = surf.s;
+        el.style.transform = `translate(${surf.x - 64 * sc}px, ${sy - 118 * sc}px) scale(${sc}) rotate(${rot}deg)`;
+      }
+      el.style.transformOrigin = 'top left';
     }
-  }
-
-  function catchImpact(el, l) {
-    netSag();
-    goldBurst(l.x, 372);
-    el.classList.add('caught');
-    const chip = document.createElement('span');
-    chip.className = 'chip';
-    chip.textContent = '✓ ' + l.matches;
-    el.appendChild(chip);
-    setTimeout(() => chip.classList.add('pop'), 240);
-  }
-
-  function weaveThread(w, dur) {
-    const a = track(w.el.animate(
-      [{ strokeDashoffset: w.len }, { strokeDashoffset: 0 }],
-      { duration: dur, easing: 'ease-out', fill: 'forwards' }
-    ));
-    a.finished.then(() => { w.el.style.strokeDashoffset = 0; }).catch(() => {});
+    cards = cards.filter(c => {
+      if (c.done) { c.el.remove(); return false; }
+      return true;
+    });
   }
 
   const reqEls = REQ_LABELS.map(r => {
     const el = document.createElement('div');
     el.className = 'reqlabel';
     el.textContent = r.text;
-    el.style.left = r.x + 'px'; el.style.top = r.y + 'px';
-    fxLayer.appendChild(el);
+    labelLayer.appendChild(el);
     return el;
   });
+  function updateLabels(t) {
+    REQ_LABELS.forEach((r, i) => {
+      const pt = project(r.wx, netY(r.wx, r.wz, t) + 6, r.wz);
+      reqEls[i].style.transform = `translate(${pt.x}px, ${pt.y - 16}px) translate(-50%,-50%) scale(${0.75 + pt.s * 0.45})`;
+    });
+  }
 
   function caption(tone, eyebrow, head) {
     cap.style.opacity = 0;
@@ -467,69 +627,74 @@
     }, 420);
   }
 
-  const S2 = 6600, S3 = 13600, END = 24200;
+  // ---- Timeline
+  const S2 = 7200, S3 = 15200, END = 26400;
 
   function buildEvents() {
     const ev = [];
-    ev.push({ t: 60, fn: () => caption('', '01 · Today', 'Fresh listings come in… and slip right through.') });
-    LISTINGS_LOST.forEach((l, i) => ev.push({ t: 800 + i * 1550, fn: () => fallThrough(l) }));
+    ev.push({ t: 100, fn: () => caption('', '01 · Today', 'Fresh listings come in… and fall straight through.') });
+    LISTINGS_LOST.forEach((l, i) => ev.push({ t: 900 + i * 1700, fn: t => spawnLost(l, t) }));
 
-    ev.push({ t: S2, fn: () => caption('violet', '02 · The ConvoReal engine', 'Buyer requirements are woven into a net.') });
-    ev.push({ t: S2 + 300, fn: () => engine.classList.add('on') });
-    ev.push({ t: S2 + 900, fn: () => weavePaths.forEach((w, i) => setTimeout(() => weaveThread(w, 640), i * 130)) });
-    ev.push({ t: S2 + 1000, fn: () => netFray.querySelectorAll('.fray').forEach(f => f.classList.add('gone')) });
-    ev.push({ t: S2 + 3300, fn: () => { netAll.classList.add('energized'); reqEls.forEach((el, i) => setTimeout(() => el.classList.add('show'), i * 180)); } });
-    ev.push({ t: S3 - 700, fn: () => engine.classList.remove('on') });
+    ev.push({ t: S2, fn: () => caption('violet', '02 · The ConvoReal engine', 'Buyer requirements are woven back into the net.') });
+    ev.push({ t: S2 + 300, fn: () => { engine.classList.add('on'); state.charging = true; } });
+    ev.push({ t: S2 + 1400, fn: t => {
+      state.charging = false;
+      state.ripples.push({ x: HOLE.x, z: HOLE.z, t0: t, A: 26 });
+      state.rings.push({ x: HOLE.x, z: HOLE.z, t0: t, rmax: 330, dur: 1100, color: 'rgba(139,92,246,0.85)' });
+      state.retractStart = t;
+    } });
+    ev.push({ t: S2 + 1600, fn: t => {
+      state.lines.filter(l => l.broken).forEach(l => { l.weaveStart = t + l.weaveOrder * 260; });
+    } });
+    ev.push({ t: S2 + 5600, fn: t => {
+      state.energizeStart = t;
+      state.ripples.push({ x: HOLE.x, z: HOLE.z, t0: t, A: 20 });
+      state.rings.push({ x: HOLE.x, z: HOLE.z, t0: t, rmax: 360, dur: 1300, color: 'rgba(167,139,250,0.7)' });
+      reqEls.forEach((el, i) => setTimeout(() => el.classList.add('show'), 300 + i * 180));
+    } });
+    ev.push({ t: S3 - 800, fn: () => engine.classList.remove('on') });
 
-    ev.push({ t: S3, fn: () => { caption('gold', '03 · After ConvoReal', 'Every new listing is caught — and matched.'); reqEls.forEach(el => el.classList.add('dim')); } });
-    LISTINGS_CAUGHT.forEach((l, i) => {
-      const t0 = S3 + 500 + i * 1650;
-      let el = null;
-      ev.push({ t: t0, fn: () => { el = fallCatch(l); } });
-      ev.push({ t: t0 + 1120, fn: () => el && catchImpact(el, l) });
-    });
-    ev.push({ t: S3 + 6300, fn: () => caption('gold', 'ConvoReal', 'The WhatsApp deal engine that never lets a listing slip.') });
+    ev.push({ t: S3, fn: () => {
+      caption('gold', '03 · After ConvoReal', 'Every new listing is caught — and matched.');
+      reqEls.forEach(el => el.classList.add('dim'));
+    } });
+    LISTINGS_CAUGHT.forEach((l, i) => ev.push({ t: S3 + 600 + i * 2000, fn: t => spawnCatch(l, t) }));
+    ev.push({ t: S3 + 7400, fn: () => caption('gold', 'ConvoReal', 'The WhatsApp deal engine that never lets a listing slip.') });
     return ev.sort((a, b) => a.t - b.t);
   }
 
-  let events = [], pending = [], clock = 0, playing = false, lastTick = 0, rafId = 0;
+  // ---- Clock / control
+  let pending = [], clock = 0, playing = false, lastTick = 0, rafId = 0;
   const btnPause = document.getElementById('btnPause');
   const chkLoop = document.getElementById('chkLoop');
   const sceneBtns = [...document.querySelectorAll('#controls .scenes button')];
 
   function resetStage() {
-    liveAnims.forEach(a => a.cancel());
-    liveAnims.clear();
-    cardLayer.innerHTML = '';
-    fxLayer.querySelectorAll('.ring-pulse,.spark').forEach(n => n.remove());
+    state = freshState();
+    cards.forEach(c => c.el.remove());
+    cards = [];
     engine.classList.remove('on');
-    netAll.classList.remove('energized');
-    netFray.querySelectorAll('.fray').forEach(f => f.classList.remove('gone'));
-    weavePaths.forEach(w => { w.el.getAnimations().forEach(a => a.cancel()); w.el.style.strokeDashoffset = w.len; });
     reqEls.forEach(el => el.classList.remove('show', 'dim'));
     cap.style.opacity = 0;
   }
 
-  function applyWovenInstant() {
-    weavePaths.forEach(w => { w.el.style.strokeDashoffset = 0; });
-    netFray.querySelectorAll('.fray').forEach(f => f.classList.add('gone'));
-    netAll.classList.add('energized');
+  function instantWeave() {
+    state.lines.filter(l => l.broken).forEach(l => { l.weaveStart = -10000; l.flashed = true; });
+    state.retractStart = -10000;
+    state.energizeStart = -10000;
     reqEls.forEach(el => el.classList.add('show'));
   }
 
   function startAt(t0) {
     resetStage();
-    if (t0 >= S3) applyWovenInstant();
-    events = buildEvents();
-    pending = events.filter(e => e.t >= t0);
+    if (t0 >= S3) instantWeave();
+    pending = buildEvents().filter(e => e.t >= t0);
     clock = t0;
     playing = true;
     btnPause.textContent = 'Pause';
     btnPause.setAttribute('aria-pressed', 'false');
+    engine.classList.remove('paused');
     lastTick = performance.now();
-    cancelAnimationFrame(rafId);
-    rafId = requestAnimationFrame(tick);
-    markScene();
   }
 
   function markScene() {
@@ -537,18 +702,25 @@
     sceneBtns.forEach((b, i) => b.classList.toggle('active', i === idx));
   }
 
-  function tick(now) {
+  function frame(now) {
+    const dt = Math.min(now - lastTick, 64);
+    lastTick = now;
     if (playing) {
-      clock += now - lastTick;
-      while (pending.length && pending[0].t <= clock) pending.shift().fn();
-      markScene();
+      clock += dt;
+      while (pending.length && pending[0].t <= clock) pending.shift().fn(clock);
       if (clock >= END) {
-        if (chkLoop.checked) { startAt(0); return; }
-        playing = false;
+        if (chkLoop.checked) startAt(0);
+        else playing = false;
       }
     }
-    lastTick = now;
-    rafId = requestAnimationFrame(tick);
+    ctx.clearRect(0, 0, 960, 540);
+    state.ripples = state.ripples.filter(r => clock - r.t0 < 2600);
+    renderNet(clock);
+    renderParticles(playing ? dt : 0);
+    updateCards(clock);
+    updateLabels(clock);
+    markScene();
+    rafId = requestAnimationFrame(frame);
   }
 
   document.getElementById('btnReplay').addEventListener('click', () => startAt(0));
@@ -556,30 +728,35 @@
     playing = !playing;
     btnPause.textContent = playing ? 'Pause' : 'Play';
     btnPause.setAttribute('aria-pressed', String(!playing));
-    liveAnims.forEach(a => playing ? a.play() : a.pause());
+    engine.classList.toggle('paused', !playing);
+    if (playing) lastTick = performance.now();
   });
   sceneBtns.forEach((b, i) => b.addEventListener('click', () => startAt([0, S2, S3][i])));
 
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) {
-    applyWovenInstant();
-    reqEls.forEach(el => el.classList.add('dim'));
+    resetStage();
+    instantWeave();
+    clock = END - 1000;
     LISTINGS_CAUGHT.forEach(l => {
-      const el = makeCard(l);
-      el.style.transform = 'translateY(314px)';
-      el.classList.add('caught');
+      const c = { kind: 'catch', l, t0: clock - 5000, el: makeCard(l), impacted: true };
+      c.el.classList.add('caught');
       const chip = document.createElement('span');
       chip.className = 'chip pop';
       chip.textContent = '✓ ' + l.matches;
-      el.appendChild(chip);
+      c.el.appendChild(chip);
+      cards.push(c);
     });
+    reqEls.forEach(el => el.classList.add('show', 'dim'));
     cap.className = 'gold';
     capEyebrow.textContent = 'ConvoReal';
     capHead.textContent = 'Every new listing is caught — and matched.';
     cap.style.opacity = 1;
     playing = false;
+    lastTick = performance.now();
   } else {
     startAt(0);
   }
+  rafId = requestAnimationFrame(frame);
 })();
 </script>
