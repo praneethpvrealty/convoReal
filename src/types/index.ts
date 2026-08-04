@@ -158,6 +158,10 @@ export interface Contact {
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;
+  /** False parks the requirement (migration 194): it stops being offered
+   *  to co-brokers via src/lib/requirements/share.ts. Matching, Radar and
+   *  the buyer digest are unaffected. */
+  requirement_active?: boolean;
   min_roi?: number | null;
   /** AI-extracted structured preferences (migration 092) — populated by
    *  /api/contacts/extract-preferences from requirements + notes text.

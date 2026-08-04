@@ -25,6 +25,9 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Power,
+  ShieldCheck,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AnimatedCounter } from "@/components/ui/animated-counter"
@@ -37,6 +40,12 @@ import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
 import { NameTagBadge } from "@/components/contacts/name-tag-badge"
 import { ProjectsOfInterestInput } from "@/components/contacts/projects-of-interest-input"
 import { SearchableContactSelect } from "@/components/ui/searchable-contact-select"
+import {
+  buildRequirementDigest,
+  isShareable,
+  type RequirementShareMode,
+  type ShareableRequirement,
+} from "@/lib/requirements/share"
 import {
   Dialog,
   DialogContent,
@@ -80,6 +89,7 @@ interface ConsolidatedContact {
   max_budget?: number
   no_budget?: boolean
   requirements?: string
+  requirement_active?: boolean | null
   areas_of_interest?: string[]
   property_interests?: string[]
   // AI-extracted fallbacks (migration 092) — merged for display via
@@ -111,6 +121,15 @@ export default function RequirementsPage() {
 
   // Copy status per card
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  // Co-broker sharing. `shareIds` drives both the single-card share
+  // (one id) and the multi-select digest; masked is the default because
+  // the recipient is someone outside the brokerage.
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [shareIds, setShareIds] = useState<string[] | null>(null)
+  const [shareMode, setShareMode] = useState<RequirementShareMode>("masked")
+  const [shareCopied, setShareCopied] = useState(false)
+  const [parkingId, setParkingId] = useState<string | null>(null)
 
   // Add/edit requirements dialog. `editorContactId` is preset when a
   // card's pencil opened it; in add mode the user picks the client.
@@ -154,53 +173,87 @@ export default function RequirementsPage() {
     return { total, hot, buyers, agents }
   }, [data])
 
-  // Text formatter for copy/share operations
-  const formatRequirementText = (c: ConsolidatedContact) => {
-    const budgetStr = c.no_budget
-      ? "No Budget Limit"
-      : c.max_budget
-      ? `Budget: ${formatCurrency(c.max_budget)}`
-      : "Budget: Not specified"
+  // Card row → the shape src/lib/requirements/share.ts formats. Tags
+  // and the latest note are handed over but only survive in full mode.
+  const toShareable = (c: ConsolidatedContact): ShareableRequirement => ({
+    id: c.id,
+    name: c.name,
+    classification: c.classification,
+    no_budget: c.no_budget,
+    min_budget: c.min_budget,
+    max_budget: c.max_budget,
+    requirements: c.requirements,
+    areas_of_interest: c.areas_of_interest,
+    projects_of_interest: c.projects_of_interest,
+    tags: (c.contact_tags ?? []).map((t) => t.tags?.name),
+    latestNote: c.contact_notes?.[0]?.note_text,
+    requirement_active: c.requirement_active,
+  })
 
-    const reqs = c.requirements ? `Requirements: ${c.requirements}` : ""
-    const areas =
-      c.areas_of_interest && c.areas_of_interest.length > 0
-        ? `Locations: ${c.areas_of_interest.join(", ")}`
-        : ""
-    const tagsStr =
-      c.contact_tags && c.contact_tags.length > 0
-        ? `Tags: ${c.contact_tags.map((t) => t.tags?.name).filter(Boolean).join(", ")}`
-        : ""
+  const shareText = useMemo(() => {
+    if (!shareIds) return ""
+    const rows = data.filter((c) => shareIds.includes(c.id)).map(toShareable)
+    return buildRequirementDigest(rows, shareMode)
+  }, [shareIds, shareMode, data])
 
-    const recentNotes =
-      c.contact_notes && c.contact_notes.length > 0
-        ? `Notes: ${c.contact_notes[0].note_text}`
-        : ""
-
-    return [
-      `Client Profile: ${c.name} (${c.classification})`,
-      budgetStr,
-      reqs,
-      areas,
-      tagsStr,
-      recentNotes,
-    ]
-      .filter(Boolean)
-      .join("\n• ")
-  }
-
+  // The agent's own record, always unmasked — this one stays in the
+  // Engine rather than going to a co-broker.
   const handleCopy = async (c: ConsolidatedContact) => {
-    const text = formatRequirementText(c)
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(buildRequirementDigest([toShareable(c)], "full"))
     setCopiedId(c.id)
     toast.success("Requirements copied to clipboard")
     setTimeout(() => setCopiedId(null), 2500)
   }
 
-  const handleShareWhatsApp = (c: ConsolidatedContact) => {
-    const text = `*CONSOLIDATED CLIENT REQUIREMENT*\n\n• ` + formatRequirementText(c)
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`
-    window.open(url, "_blank")
+  const openShare = (ids: string[]) => {
+    if (ids.length === 0) return
+    setShareMode("masked")
+    setShareCopied(false)
+    setShareIds(ids)
+  }
+
+  const copyShareText = async () => {
+    if (!shareText) return
+    await navigator.clipboard.writeText(shareText)
+    setShareCopied(true)
+    toast.success("Copied — paste it wherever your brokers are")
+    setTimeout(() => setShareCopied(false), 2500)
+  }
+
+  const sendShareOnWhatsApp = () => {
+    if (!shareText) return
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank")
+  }
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    )
+  }
+
+  // Parking is a scoped column update, the same write path the
+  // requirements editor uses.
+  const toggleRequirementActive = async (c: ConsolidatedContact) => {
+    const next = c.requirement_active === false
+    setParkingId(c.id)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase
+        .from("contacts")
+        .update({ requirement_active: next, updated_at: new Date().toISOString() })
+        .eq("id", c.id)
+      if (error) throw error
+      setData((prev) =>
+        prev.map((row) => (row.id === c.id ? { ...row, requirement_active: next } : row))
+      )
+      if (!next) setSelectedIds((prev) => prev.filter((x) => x !== c.id))
+      toast.success(next ? "Requirement is active again" : "Requirement parked")
+    } catch (err) {
+      console.error("[Requirements] Park toggle failed:", err)
+      toast.error("Couldn't update this requirement")
+    } finally {
+      setParkingId(null)
+    }
   }
 
   const handleStartChat = async (c: ConsolidatedContact) => {
@@ -532,6 +585,31 @@ export default function RequirementsPage() {
         </div>
       </div>
 
+      {selectedIds.length > 0 && (
+        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-2xl border border-primary/30 bg-slate-900/90 px-4 py-3 backdrop-blur">
+          <span className="text-xs font-black text-white">
+            {selectedIds.length} requirement{selectedIds.length === 1 ? "" : "s"} selected
+          </span>
+          <Button
+            onClick={() => openShare(selectedIds)}
+            size="sm"
+            className="h-8 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90"
+          >
+            <Share2 className="size-3.5" />
+            Share with brokers
+          </Button>
+          <Button
+            onClick={() => setSelectedIds([])}
+            variant="ghost"
+            size="sm"
+            className="h-8 rounded-xl text-xs font-bold text-slate-400 hover:text-white"
+          >
+            <X className="size-3.5" />
+            Clear
+          </Button>
+        </div>
+      )}
+
       {/* Cards Grid */}
       <div className="relative z-10 flex-1 min-h-0">
         {loading ? (
@@ -550,14 +628,18 @@ export default function RequirementsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredData.map((c) => {
               const isHot = c.lead_temp === "HOT"
+              const isParked = c.requirement_active === false
+              const isSelected = selectedIds.includes(c.id)
               return (
                 <div
                   key={c.id}
                   className={`flex flex-col rounded-2xl border p-5 backdrop-blur-sm shadow transition-all duration-300 relative group overflow-hidden ${
-                    isHot
+                    isSelected
+                      ? "border-primary bg-slate-900/70 ring-2 ring-primary/40"
+                      : isHot
                       ? "border-primary bg-slate-900/65 shadow-primary/10 ring-1 ring-primary/25"
                       : "border-slate-800/80 bg-slate-900/45 hover:border-primary/25 hover:shadow-primary/5 hover:scale-[1.01]"
-                  }`}
+                  } ${isParked ? "opacity-55" : ""}`}
                 >
                   {/* Subtle top accent corner glow */}
                   <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-[24px] pointer-events-none group-hover:bg-primary/10 transition-all" />
@@ -565,6 +647,18 @@ export default function RequirementsPage() {
                   {/* Header Row */}
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        disabled={isParked || !isShareable(toShareable(c))}
+                        onChange={() => toggleSelected(c.id)}
+                        title={
+                          isParked
+                            ? "Parked requirements are not shared"
+                            : "Select for a co-broker share"
+                        }
+                        className="size-4 shrink-0 rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 disabled:opacity-30 cursor-pointer"
+                      />
                       <Avatar className="size-9 border border-slate-800">
                         <AvatarFallback className="bg-primary/10 text-xs font-black text-primary">
                           {c.name?.charAt(0).toUpperCase() || "?"}
@@ -589,6 +683,11 @@ export default function RequirementsPage() {
                       >
                         {c.classification}
                       </span>
+                      {isParked && (
+                        <span className="inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[8px] font-black text-amber-400">
+                          PARKED
+                        </span>
+                      )}
                       {c.lead_temp && (
                         <span
                           className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[8px] font-black ${
@@ -835,13 +934,34 @@ export default function RequirementsPage() {
                         )}
                       </Button>
 
-                      {/* WhatsApp Share Action */}
+                      {/* Park / unpark — parked briefs are never shared */}
                       <Button
-                        onClick={() => handleShareWhatsApp(c)}
+                        onClick={() => toggleRequirementActive(c)}
+                        disabled={parkingId === c.id}
                         variant="ghost"
                         size="icon-sm"
-                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20"
-                        title="Share on WhatsApp"
+                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20 disabled:opacity-40"
+                        title={
+                          isParked
+                            ? "Reactivate — start sharing this requirement again"
+                            : "Park — stop offering this requirement to co-brokers"
+                        }
+                      >
+                        {parkingId === c.id ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Power className={`size-3.5 ${isParked ? "text-amber-400" : "text-emerald-400"}`} />
+                        )}
+                      </Button>
+
+                      {/* Co-broker share */}
+                      <Button
+                        onClick={() => openShare([c.id])}
+                        disabled={isParked}
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20 disabled:opacity-40"
+                        title={isParked ? "Parked — reactivate to share" : "Share with a co-broker"}
                       >
                         <Share2 className="size-3.5 text-primary" />
                       </Button>
@@ -853,6 +973,84 @@ export default function RequirementsPage() {
           </div>
         )}
       </div>
+
+      {/* Co-broker share */}
+      <Dialog open={shareIds !== null} onOpenChange={(open) => !open && setShareIds(null)}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-white">
+              Share with co-brokers
+              {shareIds && shareIds.length > 1 ? ` — ${shareIds.length} requirements` : ""}
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Masked is the default: the brief goes out under a reference code, with no
+              client name, tags or internal notes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              {(["masked", "full"] as RequirementShareMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setShareMode(mode)}
+                  className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold transition-colors cursor-pointer ${
+                    shareMode === mode
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-slate-800 bg-slate-950/30 text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {mode === "masked" ? "🔒 Masked (recommended)" : "Full detail"}
+                </button>
+              ))}
+            </div>
+
+            {shareMode === "full" ? (
+              <p className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-2.5 text-[11px] text-amber-200/90 leading-relaxed">
+                <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
+                Full detail sends the client&apos;s name, your tags and your most recent
+                note exactly as written. Only pick this for someone inside your brokerage.
+              </p>
+            ) : (
+              <p className="flex items-start gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-[11px] text-emerald-200/90 leading-relaxed">
+                <ShieldCheck className="size-3.5 shrink-0 mt-0.5" />
+                Name, tags and notes are withheld. The requirement text itself is sent as
+                you wrote it — check the preview if it names anyone.
+              </p>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-300">Preview</Label>
+              <Textarea
+                readOnly
+                value={shareText}
+                className="bg-slate-950/40 border-slate-800 text-slate-200 h-56 text-xs leading-relaxed"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="bg-slate-900 border-slate-700">
+            <Button
+              variant="outline"
+              onClick={copyShareText}
+              disabled={!shareText}
+              className="border-slate-700 text-slate-300 hover:bg-slate-800"
+            >
+              {shareCopied ? <Check className="size-4 text-emerald-400" /> : <Copy className="size-4" />}
+              Copy
+            </Button>
+            <Button
+              onClick={sendShareOnWhatsApp}
+              disabled={!shareText}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
+            >
+              <Share2 className="size-4" />
+              Send on WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add / Edit Requirements Dialog */}
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
