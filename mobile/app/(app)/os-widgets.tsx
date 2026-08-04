@@ -120,6 +120,7 @@ function OsWidgetCard({ id }: { id: WidgetId }) {
   });
 
   const previewWidth = Math.min(width - spacing.lg * 2 - spacing.md * 2, 340);
+  const previewHeight = id === 'inbox' ? 200 : 120;
   const palette = osWidgetPalette(dark);
   // WidgetPreview calls the native renderer the moment it mounts and
   // logs a red "not linked" error where the module is missing (Expo Go,
@@ -152,13 +153,14 @@ function OsWidgetCard({ id }: { id: WidgetId }) {
         {nativePreviewReady ? (
           <WidgetPreview
             width={previewWidth}
-            height={120}
+            height={previewHeight}
             renderWidget={() => (
               <OsWidgetView
                 id={id}
                 summary={summary ?? null}
                 updatedAt={bubbleTime(new Date().toISOString())}
                 palette={palette}
+                height={previewHeight}
               />
             )}
           />
@@ -205,6 +207,17 @@ function MockWidgetPreview({
       <Text style={{ fontSize: 12, color: palette.muted }} numberOfLines={1}>
         {summary ? summary.sub : 'Open ConvoReal and sign in'}
       </Text>
+      {(summary?.lines ?? []).slice(0, 3).map((line, index) => (
+        <View key={`${line.title}-${index}`} style={styles.mockLine}>
+          <Text style={{ fontSize: 12, fontFamily: fonts.bold, color: palette.text }} numberOfLines={1}>
+            {line.title}
+          </Text>
+          <Text style={{ flex: 1, fontSize: 12, color: palette.muted }} numberOfLines={1}>
+            {line.detail}
+          </Text>
+          <Text style={{ fontSize: 10, color: palette.muted }}>{line.time}</Text>
+        </View>
+      ))}
       <Text style={{ fontSize: 10, color: palette.muted, marginTop: spacing.sm }}>
         Updated {bubbleTime(new Date().toISOString())}
       </Text>
@@ -241,5 +254,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.sm,
+  },
+  mockLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
   },
 });
