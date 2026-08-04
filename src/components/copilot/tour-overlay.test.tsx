@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 
 // ============================================================
 // Guards the pointer-events contract of the tour spotlight.
@@ -9,9 +9,9 @@
 // ancestor, the step never advanced, and the Link never navigated —
 // every click-target step in every tour was a dead end.
 //
-// WHAT THIS CANNOT DO: jsdom has no layout or hit-testing, so it
-// cannot dispatch a click at a coordinate and prove which element
-// receives it. These assert the property that decides that outcome,
+// WHAT THIS CANNOT DO: the DOM environment has no layout or
+// hit-testing, so it cannot dispatch a click at a coordinate and prove
+// which element receives it. These assert the property that decides that outcome,
 // read through a real stylesheet via getComputedStyle rather than by
 // matching class strings — so they still hold if the utility classes
 // are renamed. A true hit-test needs a browser.
