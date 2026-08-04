@@ -6,6 +6,10 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // Component tests opt into jsdom per file with
+    // `// @vitest-environment jsdom`; this setup stubs the layout-backed
+    // browser APIs jsdom lacks and is a no-op under node.
+    setupFiles: ["./src/test/setup-dom.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     // *.integration.test.ts files hit the real, shared Supabase project
     // over the network (service_role client, no mocking) — they must
