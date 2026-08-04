@@ -1,0 +1,585 @@
+<title>ConvoReal — The Net (Marketing Animation)</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05070d;
+    --stage-bg-1: #0b1020;
+    --stage-bg-2: #070a14;
+    --glass: rgba(15, 23, 42, 0.72);
+    --line: #223047;
+    --thread: #46536b;
+    --ink: #e6eaf3;
+    --ink-dim: #8d99b2;
+    --violet: #8b5cf6;
+    --violet-soft: #a78bfa;
+    --gold: #f5c044;
+    --gold-soft: #ffe9ad;
+    font-family: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(1100px 520px at 50% -8%, rgba(139, 92, 246, 0.10), transparent 65%);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 64px;
+  }
+  header { width: min(100%, 1060px); margin-bottom: 22px; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--violet-soft); font-weight: 600; margin-bottom: 10px;
+  }
+  h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+  header p { color: var(--ink-dim); font-size: 14px; margin-top: 8px; max-width: 62ch; line-height: 1.55; }
+
+  #stageWrap {
+    position: relative; width: min(100%, 1060px); aspect-ratio: 16 / 9;
+    border-radius: 18px; overflow: hidden;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--stage-bg-1), var(--stage-bg-2));
+    box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
+  }
+  #stage {
+    position: absolute; width: 960px; height: 540px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(var(--s, 1));
+  }
+  #stage::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(700px 300px at 50% 108%, rgba(139, 92, 246, 0.08), transparent 70%),
+      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.028) 0 1px, transparent 1px 48px),
+      repeating-linear-gradient(0deg, rgba(148, 163, 184, 0.028) 0 1px, transparent 1px 48px);
+  }
+
+  #netSvg { position: absolute; inset: 0; overflow: visible; }
+  .rope, .vert { fill: none; stroke: var(--thread); stroke-linecap: round; }
+  .rope { stroke-width: 2.6; }
+  .vert { stroke-width: 1.8; }
+  .fray {
+    fill: none; stroke: var(--thread); stroke-width: 2.2; stroke-linecap: round;
+    transform-box: fill-box; transform-origin: top center;
+    animation: sway 2.6s ease-in-out infinite alternate;
+    transition: opacity 0.9s ease;
+  }
+  .fray.gone { opacity: 0; }
+  @keyframes sway { from { transform: rotate(3.5deg); } to { transform: rotate(-3.5deg); } }
+  .weave {
+    fill: none; stroke: var(--violet); stroke-width: 2.2; stroke-linecap: round;
+    filter: url(#threadGlow);
+  }
+  #netAll { transition: filter 1.2s ease; }
+  #netAll.energized { filter: drop-shadow(0 0 14px rgba(139, 92, 246, 0.28)); }
+  .knot { fill: #5b6a85; }
+
+  #cardLayer, #fxLayer { position: absolute; inset: 0; pointer-events: none; }
+  .pcard {
+    position: absolute; top: 0; width: 128px; height: 128px;
+    border-radius: 14px;
+    background: var(--glass);
+    border: 1px solid #33415c;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.85);
+    padding: 14px 13px;
+    display: flex; flex-direction: column; gap: 4px;
+    will-change: transform, opacity;
+  }
+  .pcard .ptype {
+    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--violet-soft); font-weight: 700;
+  }
+  .pcard .ptitle { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+  .pcard .ploc { font-size: 11.5px; color: var(--ink-dim); }
+  .pcard .pspec {
+    margin-top: auto; font-size: 11.5px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: #c3cbdc;
+    border-top: 1px solid #26334c; padding-top: 6px;
+  }
+  .pcard.caught { border-color: rgba(245, 192, 68, 0.75); box-shadow: 0 0 0 1px rgba(245, 192, 68, 0.25), 0 0 34px -6px rgba(245, 192, 68, 0.45), 0 18px 40px -18px rgba(0, 0, 0, 0.85); transition: border-color 0.4s, box-shadow 0.4s; }
+  .chip {
+    position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%) scale(0.6);
+    white-space: nowrap; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    color: #100c02; background: linear-gradient(180deg, var(--gold-soft), var(--gold));
+    border-radius: 999px; padding: 4px 10px; opacity: 0;
+    box-shadow: 0 6px 18px -6px rgba(245, 192, 68, 0.7);
+  }
+  .chip.pop { opacity: 1; transform: translateX(-50%) scale(1); transition: opacity 0.35s, transform 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); }
+
+  .reqlabel {
+    position: absolute; transform: translate(-50%, -50%) scale(0.7);
+    font-size: 10.5px; font-weight: 600; color: #d9d3f5;
+    background: rgba(139, 92, 246, 0.14);
+    border: 1px solid rgba(139, 92, 246, 0.45);
+    border-radius: 999px; padding: 4px 11px 4px 8px;
+    display: flex; align-items: center; gap: 6px;
+    opacity: 0; white-space: nowrap;
+    backdrop-filter: blur(4px);
+    transition: opacity 0.5s, transform 0.5s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  .reqlabel::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--violet-soft); box-shadow: 0 0 8px var(--violet); }
+  .reqlabel.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .reqlabel.dim { opacity: 0.45; }
+
+  #engine {
+    position: absolute; left: 480px; top: 218px; transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  #engine.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #engine .ringbox { position: relative; width: 84px; height: 84px; }
+  #engine .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0 70%, var(--violet) 92%, transparent 100%);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    animation: spin 1.6s linear infinite;
+  }
+  #engine .ring.r2 { inset: 9px; animation-duration: 2.4s; animation-direction: reverse; opacity: 0.6; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #engine .core {
+    position: absolute; inset: 22px; border-radius: 12px;
+    background: linear-gradient(145deg, #7c4fe8, #5b34b8);
+    box-shadow: 0 0 34px rgba(139, 92, 246, 0.55);
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 20px; color: #f2edff;
+  }
+  #engine .ename { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+  #engine .ename b { color: var(--violet-soft); }
+
+  .ring-pulse {
+    position: absolute; width: 60px; height: 60px; border-radius: 50%;
+    border: 2px solid var(--gold); transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  .spark { position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--gold-soft); box-shadow: 0 0 8px var(--gold); pointer-events: none; }
+
+  #cap { position: absolute; left: 44px; bottom: 34px; max-width: 430px; transition: opacity 0.45s; }
+  #cap .cEyebrow {
+    font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-dim); margin-bottom: 7px;
+  }
+  #cap .cHead { font-size: 23px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.22; text-wrap: balance; }
+  #cap.gold .cEyebrow { color: var(--gold); }
+  #cap.violet .cEyebrow { color: var(--violet-soft); }
+
+  #brand {
+    position: absolute; top: 26px; right: 36px; display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 14px; letter-spacing: -0.01em; opacity: 0.9;
+  }
+  #brand .bmark {
+    width: 22px; height: 22px; border-radius: 7px;
+    background: linear-gradient(145deg, #8b5cf6, #5b34b8);
+    display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #f2edff;
+  }
+
+  #controls {
+    width: min(100%, 1060px); margin-top: 16px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  }
+  #controls button {
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--ink);
+    background: rgba(15, 23, 42, 0.7); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 16px; cursor: pointer;
+  }
+  #controls button:hover { border-color: #35507a; }
+  #controls button:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+  #controls button.primary { background: linear-gradient(145deg, #7c4fe8, #5b34b8); border-color: transparent; }
+  #controls .scenes { display: flex; gap: 6px; margin-left: auto; }
+  #controls .scenes button { font-size: 12px; padding: 7px 13px; color: var(--ink-dim); }
+  #controls .scenes button.active { color: var(--ink); border-color: var(--violet); }
+  footer { width: min(100%, 1060px); margin-top: 18px; color: var(--ink-dim); font-size: 13px; line-height: 1.6; max-width: 1060px; }
+  footer b { color: #c3cbdc; font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fray, #engine .ring { animation: none; }
+  }
+</style>
+
+<header>
+  <div class="eyebrow">ConvoReal · Marketing Motion Concept</div>
+  <h1>The Net</h1>
+  <p>Listings slip through a torn net — until the ConvoReal engine weaves it back from your buyers' requirements. Then every future listing is caught.</p>
+</header>
+
+<div id="stageWrap">
+  <div id="stage">
+    <div id="brand"><span class="bmark">C</span>ConvoReal</div>
+    <svg id="netSvg" width="960" height="540" viewBox="0 0 960 540" aria-hidden="true">
+      <defs>
+        <filter id="threadGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="2.6" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g id="netAll">
+        <g id="netBase"></g>
+        <g id="netFray"></g>
+        <g id="netWeave"></g>
+      </g>
+    </svg>
+    <div id="cardLayer"></div>
+    <div id="fxLayer"></div>
+    <div id="engine" aria-hidden="true">
+      <div class="ringbox">
+        <div class="ring"></div>
+        <div class="ring r2"></div>
+        <div class="core">C</div>
+      </div>
+      <div class="ename">Convo<b>Real</b> engine</div>
+    </div>
+    <div id="cap">
+      <div class="cEyebrow"></div>
+      <div class="cHead"></div>
+    </div>
+  </div>
+</div>
+
+<div id="controls">
+  <button class="primary" id="btnReplay">Replay</button>
+  <button id="btnPause" aria-pressed="false">Pause</button>
+  <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-dim);cursor:pointer">
+    <input type="checkbox" id="chkLoop" checked> Loop
+  </label>
+  <div class="scenes" role="group" aria-label="Jump to scene">
+    <button data-scene="0">1 · Slip</button>
+    <button data-scene="1">2 · Weave</button>
+    <button data-scene="2">3 · Catch</button>
+  </div>
+</div>
+
+<footer>
+  <b>Capture note:</b> screen-record the stage for Reels/WhatsApp Status, or ask for a Remotion port to render a clean MP4 at any resolution. Copy, listings, timing and colors are all editable — this is a working prototype, not a locked cut.
+</footer>
+
+<script>
+(() => {
+  const stageWrap = document.getElementById('stageWrap');
+  const stage = document.getElementById('stage');
+  const netBase = document.getElementById('netBase');
+  const netFray = document.getElementById('netFray');
+  const netWeave = document.getElementById('netWeave');
+  const netAll = document.getElementById('netAll');
+  const cardLayer = document.getElementById('cardLayer');
+  const fxLayer = document.getElementById('fxLayer');
+  const engine = document.getElementById('engine');
+  const cap = document.getElementById('cap');
+  const capEyebrow = cap.querySelector('.cEyebrow');
+  const capHead = cap.querySelector('.cHead');
+  const SVGNS = 'http://www.w3.org/2000/svg';
+
+  const fit = () => {
+    stage.style.setProperty('--s', (stageWrap.clientWidth / 960).toFixed(4));
+  };
+  new ResizeObserver(fit).observe(stageWrap);
+  fit();
+
+  const X0 = 70, X1 = 890, DEPTH = 128, ROWS = 4, COL_STEP = 45;
+  const GAP = [388, 572];
+  const ropeY = x => 344 + 26 * Math.sin(Math.PI * (x - X0) / (X1 - X0));
+  const rowY = (x, j) => ropeY(x) + (DEPTH / ROWS) * j;
+
+  const path = (parent, d, cls) => {
+    const p = document.createElementNS(SVGNS, 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('class', cls);
+    parent.appendChild(p);
+    return p;
+  };
+  const ropeD = (j, xa, xb) => {
+    let d = `M ${xa} ${rowY(xa, j).toFixed(1)}`;
+    for (let x = xa + 10; x < xb; x += 10) d += ` L ${x} ${rowY(x, j).toFixed(1)}`;
+    d += ` L ${xb} ${rowY(xb, j).toFixed(1)}`;
+    return d;
+  };
+  const vertD = x => {
+    const yt = rowY(x, 0), yb = rowY(x, ROWS);
+    return `M ${x} ${yt.toFixed(1)} C ${x + 5} ${(yt + (yb - yt) * 0.35).toFixed(1)}, ${x - 4} ${(yt + (yb - yt) * 0.7).toFixed(1)}, ${x} ${yb.toFixed(1)}`;
+  };
+  const frayD = (x, y, dir) => {
+    const dx = 16 * dir, dy = 34;
+    return `M ${x} ${y.toFixed(1)} C ${x + dx * 0.6} ${(y + dy * 0.45).toFixed(1)}, ${x + dx} ${(y + dy * 0.8).toFixed(1)}, ${x + dx * 0.75} ${(y + dy).toFixed(1)}`;
+  };
+
+  let weavePaths = [];
+  function buildNet() {
+    netBase.innerHTML = ''; netFray.innerHTML = ''; netWeave.innerHTML = '';
+    weavePaths = [];
+    for (let j = 0; j <= ROWS; j++) {
+      const cls = j === 0 || j === ROWS ? 'rope' : 'vert';
+      path(netBase, ropeD(j, X0, GAP[0]), cls);
+      path(netBase, ropeD(j, GAP[1], X1), cls);
+      path(netFray, frayD(GAP[0], rowY(GAP[0], j), 1), 'fray');
+      path(netFray, frayD(GAP[1], rowY(GAP[1], j), -1), 'fray');
+      const w = path(netWeave, ropeD(j, GAP[0], GAP[1]), 'weave');
+      weavePaths.push({ el: w, x: (GAP[0] + GAP[1]) / 2 });
+    }
+    for (let x = X0 + COL_STEP; x < X1 - 8; x += COL_STEP) {
+      if (x > GAP[0] - 14 && x < GAP[1] + 14) {
+        const w = path(netWeave, vertD(x), 'weave');
+        weavePaths.push({ el: w, x });
+      } else {
+        path(netBase, vertD(x), 'vert');
+      }
+    }
+    for (const end of [X0, X1]) {
+      for (let j = 0; j <= ROWS; j++) {
+        const k = document.createElementNS(SVGNS, 'circle');
+        k.setAttribute('cx', end); k.setAttribute('cy', rowY(end, j).toFixed(1));
+        k.setAttribute('r', 3.4); k.setAttribute('class', 'knot');
+        netBase.appendChild(k);
+      }
+    }
+    for (const w of weavePaths) {
+      const len = w.el.getTotalLength();
+      w.len = len;
+      w.el.style.strokeDasharray = len;
+      w.el.style.strokeDashoffset = len;
+    }
+    weavePaths.sort((a, b) => Math.abs(a.x - 480) - Math.abs(b.x - 480));
+  }
+  buildNet();
+
+  const LISTINGS_LOST = [
+    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', x: 452 },
+    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', x: 500 },
+    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', x: 466 },
+  ];
+  const LISTINGS_CAUGHT = [
+    { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', x: 330, matches: '3 buyer matches' },
+    { type: 'Plot', title: 'Corner Plot', loc: 'HSR Layout', spec: '2,000 sqft · North', x: 486, matches: '5 buyer matches' },
+    { type: 'Villa', title: '4 BHK Villa', loc: 'Whitefield', spec: '₹3.1 Cr · 3,200 sqft', x: 640, matches: '2 buyer matches' },
+  ];
+  const REQ_LABELS = [
+    { text: '3 BHK · Koramangala', x: 236, y: 392 },
+    { text: 'Plot ≥ 2,000 sqft · HSR', x: 700, y: 386 },
+    { text: '₹90 L – 1.4 Cr · Flats', x: 380, y: 470 },
+    { text: 'Villa · Whitefield', x: 590, y: 468 },
+  ];
+
+  function makeCard(l) {
+    const el = document.createElement('div');
+    el.className = 'pcard';
+    el.style.left = (l.x - 64) + 'px';
+    el.innerHTML = `<div class="ptype">${l.type}</div><div class="ptitle">${l.title}</div><div class="ploc">${l.loc}</div><div class="pspec">${l.spec}</div>`;
+    cardLayer.appendChild(el);
+    return el;
+  }
+
+  const liveAnims = new Set();
+  function track(anim) {
+    liveAnims.add(anim);
+    anim.finished.then(() => liveAnims.delete(anim)).catch(() => liveAnims.delete(anim));
+    return anim;
+  }
+
+  function fallThrough(l) {
+    const el = makeCard(l);
+    track(el.animate([
+      { transform: 'translateY(-170px) rotate(-5deg)', opacity: 0, easing: 'linear' },
+      { transform: 'translateY(-130px) rotate(-4deg)', opacity: 1, offset: 0.06, easing: 'cubic-bezier(.5,0,.85,.5)' },
+      { transform: 'translateY(320px) rotate(3deg)', opacity: 1, offset: 0.6, easing: 'cubic-bezier(.25,0,.8,.6)' },
+      { transform: 'translateY(600px) rotate(7deg)', opacity: 0 },
+    ], { duration: 2500, fill: 'forwards' })).finished.then(() => el.remove()).catch(() => {});
+  }
+
+  function fallCatch(l) {
+    const el = makeCard(l);
+    track(el.animate([
+      { transform: 'translateY(-170px) rotate(-4deg)', opacity: 0, easing: 'linear' },
+      { transform: 'translateY(-146px) rotate(-3deg)', opacity: 1, offset: 0.05, easing: 'cubic-bezier(.55,0,.85,.55)' },
+      { transform: 'translateY(338px) rotate(2deg)', offset: 0.62, easing: 'cubic-bezier(.2,.9,.3,1)' },
+      { transform: 'translateY(302px) rotate(-1.5deg)', offset: 0.79, easing: 'ease-in-out' },
+      { transform: 'translateY(314px) rotate(0.5deg)' },
+    ], { duration: 1800, fill: 'forwards' }));
+    return el;
+  }
+
+  function netSag() {
+    track(netAll.animate([
+      { transform: 'translateY(0)' },
+      { transform: 'translateY(13px)', offset: 0.38, easing: 'cubic-bezier(.3,.8,.4,1)' },
+      { transform: 'translateY(-3px)', offset: 0.72, easing: 'ease-in-out' },
+      { transform: 'translateY(0)' },
+    ], { duration: 750 }));
+  }
+
+  function goldBurst(x, y) {
+    const ring = document.createElement('div');
+    ring.className = 'ring-pulse';
+    ring.style.left = x + 'px'; ring.style.top = y + 'px';
+    fxLayer.appendChild(ring);
+    track(ring.animate([
+      { transform: 'translate(-50%,-50%) scale(0.35)', opacity: 0.95 },
+      { transform: 'translate(-50%,-50%) scale(1.9)', opacity: 0 },
+    ], { duration: 700, easing: 'cubic-bezier(.2,.7,.3,1)' })).finished.then(() => ring.remove()).catch(() => {});
+    for (let i = 0; i < 13; i++) {
+      const s = document.createElement('div');
+      s.className = 'spark';
+      s.style.left = x + 'px'; s.style.top = y + 'px';
+      fxLayer.appendChild(s);
+      const a = (i / 13) * Math.PI * 2 + Math.random() * 0.5;
+      const r = 42 + Math.random() * 46;
+      track(s.animate([
+        { transform: 'translate(0,0) scale(1)', opacity: 1 },
+        { transform: `translate(${Math.cos(a) * r}px, ${Math.sin(a) * r - 24}px) scale(0.2)`, opacity: 0 },
+      ], { duration: 620 + Math.random() * 320, easing: 'cubic-bezier(.2,.6,.4,1)' })).finished.then(() => s.remove()).catch(() => {});
+    }
+  }
+
+  function catchImpact(el, l) {
+    netSag();
+    goldBurst(l.x, 372);
+    el.classList.add('caught');
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.textContent = '✓ ' + l.matches;
+    el.appendChild(chip);
+    setTimeout(() => chip.classList.add('pop'), 240);
+  }
+
+  function weaveThread(w, dur) {
+    const a = track(w.el.animate(
+      [{ strokeDashoffset: w.len }, { strokeDashoffset: 0 }],
+      { duration: dur, easing: 'ease-out', fill: 'forwards' }
+    ));
+    a.finished.then(() => { w.el.style.strokeDashoffset = 0; }).catch(() => {});
+  }
+
+  const reqEls = REQ_LABELS.map(r => {
+    const el = document.createElement('div');
+    el.className = 'reqlabel';
+    el.textContent = r.text;
+    el.style.left = r.x + 'px'; el.style.top = r.y + 'px';
+    fxLayer.appendChild(el);
+    return el;
+  });
+
+  function caption(tone, eyebrow, head) {
+    cap.style.opacity = 0;
+    setTimeout(() => {
+      cap.className = tone;
+      capEyebrow.textContent = eyebrow;
+      capHead.textContent = head;
+      cap.style.opacity = 1;
+    }, 420);
+  }
+
+  const S2 = 6600, S3 = 13600, END = 24200;
+
+  function buildEvents() {
+    const ev = [];
+    ev.push({ t: 60, fn: () => caption('', '01 · Today', 'Fresh listings come in… and slip right through.') });
+    LISTINGS_LOST.forEach((l, i) => ev.push({ t: 800 + i * 1550, fn: () => fallThrough(l) }));
+
+    ev.push({ t: S2, fn: () => caption('violet', '02 · The ConvoReal engine', 'Buyer requirements are woven into a net.') });
+    ev.push({ t: S2 + 300, fn: () => engine.classList.add('on') });
+    ev.push({ t: S2 + 900, fn: () => weavePaths.forEach((w, i) => setTimeout(() => weaveThread(w, 640), i * 130)) });
+    ev.push({ t: S2 + 1000, fn: () => netFray.querySelectorAll('.fray').forEach(f => f.classList.add('gone')) });
+    ev.push({ t: S2 + 3300, fn: () => { netAll.classList.add('energized'); reqEls.forEach((el, i) => setTimeout(() => el.classList.add('show'), i * 180)); } });
+    ev.push({ t: S3 - 700, fn: () => engine.classList.remove('on') });
+
+    ev.push({ t: S3, fn: () => { caption('gold', '03 · After ConvoReal', 'Every new listing is caught — and matched.'); reqEls.forEach(el => el.classList.add('dim')); } });
+    LISTINGS_CAUGHT.forEach((l, i) => {
+      const t0 = S3 + 500 + i * 1650;
+      let el = null;
+      ev.push({ t: t0, fn: () => { el = fallCatch(l); } });
+      ev.push({ t: t0 + 1120, fn: () => el && catchImpact(el, l) });
+    });
+    ev.push({ t: S3 + 6300, fn: () => caption('gold', 'ConvoReal', 'The WhatsApp deal engine that never lets a listing slip.') });
+    return ev.sort((a, b) => a.t - b.t);
+  }
+
+  let events = [], pending = [], clock = 0, playing = false, lastTick = 0, rafId = 0;
+  const btnPause = document.getElementById('btnPause');
+  const chkLoop = document.getElementById('chkLoop');
+  const sceneBtns = [...document.querySelectorAll('#controls .scenes button')];
+
+  function resetStage() {
+    liveAnims.forEach(a => a.cancel());
+    liveAnims.clear();
+    cardLayer.innerHTML = '';
+    fxLayer.querySelectorAll('.ring-pulse,.spark').forEach(n => n.remove());
+    engine.classList.remove('on');
+    netAll.classList.remove('energized');
+    netFray.querySelectorAll('.fray').forEach(f => f.classList.remove('gone'));
+    weavePaths.forEach(w => { w.el.getAnimations().forEach(a => a.cancel()); w.el.style.strokeDashoffset = w.len; });
+    reqEls.forEach(el => el.classList.remove('show', 'dim'));
+    cap.style.opacity = 0;
+  }
+
+  function applyWovenInstant() {
+    weavePaths.forEach(w => { w.el.style.strokeDashoffset = 0; });
+    netFray.querySelectorAll('.fray').forEach(f => f.classList.add('gone'));
+    netAll.classList.add('energized');
+    reqEls.forEach(el => el.classList.add('show'));
+  }
+
+  function startAt(t0) {
+    resetStage();
+    if (t0 >= S3) applyWovenInstant();
+    events = buildEvents();
+    pending = events.filter(e => e.t >= t0);
+    clock = t0;
+    playing = true;
+    btnPause.textContent = 'Pause';
+    btnPause.setAttribute('aria-pressed', 'false');
+    lastTick = performance.now();
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(tick);
+    markScene();
+  }
+
+  function markScene() {
+    const idx = clock >= S3 ? 2 : clock >= S2 ? 1 : 0;
+    sceneBtns.forEach((b, i) => b.classList.toggle('active', i === idx));
+  }
+
+  function tick(now) {
+    if (playing) {
+      clock += now - lastTick;
+      while (pending.length && pending[0].t <= clock) pending.shift().fn();
+      markScene();
+      if (clock >= END) {
+        if (chkLoop.checked) { startAt(0); return; }
+        playing = false;
+      }
+    }
+    lastTick = now;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  document.getElementById('btnReplay').addEventListener('click', () => startAt(0));
+  btnPause.addEventListener('click', () => {
+    playing = !playing;
+    btnPause.textContent = playing ? 'Pause' : 'Play';
+    btnPause.setAttribute('aria-pressed', String(!playing));
+    liveAnims.forEach(a => playing ? a.play() : a.pause());
+  });
+  sceneBtns.forEach((b, i) => b.addEventListener('click', () => startAt([0, S2, S3][i])));
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) {
+    applyWovenInstant();
+    reqEls.forEach(el => el.classList.add('dim'));
+    LISTINGS_CAUGHT.forEach(l => {
+      const el = makeCard(l);
+      el.style.transform = 'translateY(314px)';
+      el.classList.add('caught');
+      const chip = document.createElement('span');
+      chip.className = 'chip pop';
+      chip.textContent = '✓ ' + l.matches;
+      el.appendChild(chip);
+    });
+    cap.className = 'gold';
+    capEyebrow.textContent = 'ConvoReal';
+    capHead.textContent = 'Every new listing is caught — and matched.';
+    cap.style.opacity = 1;
+    playing = false;
+  } else {
+    startAt(0);
+  }
+})();
+</script>
