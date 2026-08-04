@@ -52,8 +52,8 @@
   }
   #net { position: absolute; inset: 0; width: 960px; height: 540px; }
 
-  #cardLayer, #labelLayer { position: absolute; inset: 0; pointer-events: none; }
-  #cardLayer { perspective: 1000px; }
+  #cardLayer, #cardLayerBack, #labelLayer { position: absolute; inset: 0; pointer-events: none; }
+  #cardLayer, #cardLayerBack { perspective: 1000px; }
   .pcard {
     transform-origin: 64px 64px;
     position: absolute; left: 0; top: 0; width: 128px; height: 128px;
@@ -180,6 +180,7 @@
 
 <div id="stageWrap">
   <div id="stage">
+    <div id="cardLayerBack"></div>
     <canvas id="net" width="960" height="540"></canvas>
     <div id="brand"><span class="bmark">C</span>ConvoReal</div>
     <div id="labelLayer"></div>
@@ -223,6 +224,7 @@
   const canvas = document.getElementById('net');
   const ctx = canvas.getContext('2d');
   const cardLayer = document.getElementById('cardLayer');
+  const cardLayerBack = document.getElementById('cardLayerBack');
   const labelLayer = document.getElementById('labelLayer');
   const engine = document.getElementById('engine');
   const cap = document.getElementById('cap');
@@ -537,10 +539,10 @@
 
   // ---- Cards (DOM, driven per-frame)
   const LISTINGS_LOST = [
-    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -110, wz: 252 },
-    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 115, wz: 250 },
-    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -58, wz: 292 },
-    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 62, wz: 222 },
+    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -90, wz: 252 },
+    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 92, wz: 250 },
+    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -52, wz: 290 },
+    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 55, wz: 224 },
     { type: 'Flat', title: '1 BHK Flat', loc: 'BTM Layout', spec: '₹52 L · 650 sqft', wx: 4, wz: 272 },
     { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: -14, wz: 233 },
   ];
@@ -581,20 +583,20 @@
         const p = clamp01(age / 4800);
         const netYv = netY(l.wx, l.wz, t);
         const y = Y_START - (Y_START + 430) * Math.pow(p, 1.35);
-        const conv = clamp01((Y_START - y) / (Y_START - (netYv + 90)));
-        const cs = conv * conv * (3 - 2 * conv);
-        const wx = lerp(l.wx * 2.2, l.wx, cs);
-        const pt = project(wx, y, l.wz);
+        const pt = project(l.wx, y, l.wz);
         if (!c.grazed && y < netYv) {
           c.grazed = true;
           state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 10 });
         }
         const below = y < netYv;
+        if (below && !c.behind) {
+          c.behind = true;
+          cardLayerBack.appendChild(el);
+        }
         const sc = pt.s;
-        el.style.opacity = p < 0.03 ? p * 33 : below ? Math.max(0, 1 - (netYv - y) / 240) : 1;
-        const rotX = 6 + 8 * p + (below ? clamp01((netYv - y) / 200) * 22 : 0);
-        const rotZ = (l.wx > 0 ? -1 : 1) * (1 - cs) * 6 + p * 3;
-        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64}px) scale(${sc}) rotateX(${rotX}deg) rotate(${rotZ}deg)`;
+        el.style.opacity = p < 0.03 ? p * 33 : below ? Math.max(0, 1 - (netYv - y) / 320) : 1;
+        const rotX = 5 + 7 * p + (below ? clamp01((netYv - y) / 200) * 20 : 0);
+        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64}px) scale(${sc}) rotateX(${rotX}deg) rotate(${-2 + p * 4}deg)`;
         if (p >= 1) c.done = true;
       } else {
         const p = clamp01(age / 1300);
