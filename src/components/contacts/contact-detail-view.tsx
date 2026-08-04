@@ -238,6 +238,7 @@ export function ContactDetailView({
   // Calls tab
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loadingCalls, setLoadingCalls] = useState(false);
+  const callHistoryRef = useRef<HTMLDivElement | null>(null);
   const [callForm, setCallForm] = useState<{
     direction: CallDirection;
     outcome: CallOutcome;
@@ -2531,13 +2532,21 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Calls Tab */}
               <TabsContent value="calls" className="flex-1 min-h-0 h-full">
-              <div className="h-full flex flex-col px-4 py-3 min-h-0">
+              {/* The whole tab scrolls: on small screens the two form
+                  panels fill the viewport, so a nested-scroll history
+                  list would end up with zero height and the AI update
+                  draft below them would be unreachable. */}
+              <div className="h-full overflow-y-auto px-4 py-3">
                 {/* AI call analysis */}
                 {contactId && (
                   <CallRecordingAnalyzer
                     contactId={contactId}
                     contactName={contact?.name || ''}
-                    onAnalyzed={fetchCalls}
+                    onAnalyzed={() => {
+                      void fetchCalls().then(() => {
+                        callHistoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      });
+                    }}
                   />
                 )}
 
@@ -2659,7 +2668,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 </div>
 
                 {/* Call history list */}
-                <div className="flex-1 overflow-y-auto space-y-2">
+                <div ref={callHistoryRef} className="space-y-2 scroll-mt-3">
                   {loadingCalls ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="size-5 animate-spin text-slate-500" />
