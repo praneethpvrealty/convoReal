@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     "scratch/**",
     // The Expo app has its own lint setup (`cd mobile && npm run lint`).
     "mobile/**",
+    // Standalone Remotion project for the marketing net video.
+    "docs/marketing/net-video/**",
   ]),
 ]);
 
