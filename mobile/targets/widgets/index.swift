@@ -10,9 +10,16 @@ import WidgetKit
 private let appGroup = "group.com.convoreal.app"
 private let storeKey = "home-widget-summaries"
 
+struct LinePayload: Codable {
+  let title: String
+  let detail: String
+  let time: String
+}
+
 struct SummaryPayload: Codable {
   let value: String
   let sub: String
+  let lines: [LinePayload]?
 }
 
 struct SummaryStore: Codable {
@@ -42,7 +49,7 @@ struct SummaryProvider: TimelineProvider {
   func placeholder(in context: Context) -> SummaryEntry {
     SummaryEntry(
       date: Date(),
-      summary: SummaryPayload(value: placeholderValue, sub: placeholderSub),
+      summary: SummaryPayload(value: placeholderValue, sub: placeholderSub, lines: nil),
       updatedAt: nil
     )
   }
@@ -69,6 +76,7 @@ struct SummaryWidgetView: View {
   let entry: SummaryEntry
 
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.widgetFamily) private var family
 
   private var accent: Color {
     colorScheme == .dark
@@ -100,6 +108,26 @@ struct SummaryWidgetView: View {
         .font(.system(size: 12))
         .foregroundStyle(.secondary)
         .lineLimit(1)
+      if family != .systemSmall, let lines = entry.summary?.lines, !lines.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(Array(lines.prefix(3).enumerated()), id: \.offset) { _, line in
+            HStack(spacing: 6) {
+              Text(line.title)
+                .font(.system(size: 12, weight: .bold))
+                .lineLimit(1)
+              Text(line.detail)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+              Text(line.time)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+        .padding(.top, 4)
+      }
       Spacer()
       if let updatedAt = entry.updatedAt {
         Text("Updated \(updatedAt)")

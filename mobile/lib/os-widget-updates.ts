@@ -23,7 +23,8 @@ export async function updateOsWidget(id: WidgetId): Promise<void> {
     : null;
   await requestWidgetUpdate({
     widgetName: OS_WIDGET_NAMES[id],
-    renderWidget: () => renderOsWidget(id, summary, bubbleTime(new Date().toISOString())),
+    renderWidget: (info) =>
+      renderOsWidget(id, summary, bubbleTime(new Date().toISOString()), info.height),
   });
 }
 
