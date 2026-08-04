@@ -46,6 +46,7 @@ import {
   buildPropertyShareMessage,
   buildShareTargets,
   greetingName,
+  showcaseOriginForHost,
   type ShareDetailLevel,
   type ShareTone,
 } from '@/lib/share-message-builder';
@@ -114,6 +115,7 @@ export function PropertyShareDialog({
   const [freshClassification, setFreshClassification] = useState<'Buyer' | 'Agent'>('Buyer');
   const [addingFresh, setAddingFresh] = useState(false);
   const [currency, setCurrency] = useState('INR');
+  const [showcaseSubdomain, setShowcaseSubdomain] = useState<string | null>(null);
   const [catalogId, setCatalogId] = useState<string | null>(null);
   const [shareMode, setShareMode] = useState<'template' | 'catalog' | 'greeting'>('template');
   const [syncingCatalog, setSyncingCatalog] = useState(false);
@@ -200,7 +202,10 @@ export function PropertyShareDialog({
   // audience + tone + detail-level pickers (share-message-builder).
   const autoMessage = useMemo(() => {
     if (!property) return '';
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const origin =
+      typeof window !== 'undefined'
+        ? showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)
+        : '';
     const url =
       audienceTab === 'agent'
         ? `${origin}/?property_id=${property.id}&mode=view`
@@ -215,7 +220,7 @@ export function PropertyShareDialog({
       agentName: profile?.full_name || undefined,
       agentPhone: profile?.phone || undefined,
     });
-  }, [property, audienceTab, detailLevel, messageStyle, currency, profile]);
+  }, [property, audienceTab, detailLevel, messageStyle, currency, profile, showcaseSubdomain]);
 
   // Any composer input change discards manual edits back to auto text.
   useEffect(() => {
@@ -279,18 +284,18 @@ export function PropertyShareDialog({
   // Get showcase URL for copying
   const showcaseUrl = useMemo(() => {
     if (!property) return '';
-    return typeof window !== 'undefined' 
-      ? `${window.location.origin}/?property_id=${property.id}` 
+    return typeof window !== 'undefined'
+      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}`
       : `/?property_id=${property.id}`;
-  }, [property]);
+  }, [property, showcaseSubdomain]);
 
   // Agent showcase URL — clean listing detail page (no inquiry form, no buttons)
   const agentShowcaseUrl = useMemo(() => {
     if (!property) return '';
     return typeof window !== 'undefined'
-      ? `${window.location.origin}/?property_id=${property.id}&mode=view`
+      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}&mode=view`
       : `/?property_id=${property.id}&mode=view`;
-  }, [property]);
+  }, [property, showcaseSubdomain]);
 
   // ── Send personally (tracked) ────────────────────────────────
   // Same property link tagged with ?v=<contactId>, so the recipient's
@@ -519,16 +524,17 @@ export function PropertyShareDialog({
         fetchContacts();
         fetchTemplates();
 
-        // Load currency settings from showcase_settings
+        // Load currency + subdomain settings from showcase_settings
         supabase
           .from('showcase_settings')
-          .select('currency')
+          .select('currency, subdomain')
           .eq('account_id', accountId)
           .maybeSingle()
           .then(({ data }) => {
             if (data?.currency) {
               setCurrency(data.currency);
             }
+            setShowcaseSubdomain(data?.subdomain || null);
           });
       }
     } else if (!open) {

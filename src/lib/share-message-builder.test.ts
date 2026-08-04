@@ -7,6 +7,7 @@ import {
   formatShareAmount,
   greetingName,
   propertyShowcaseUrl,
+  showcaseOriginForHost,
 } from './share-message-builder';
 
 const baseProperty = {
@@ -183,6 +184,35 @@ describe('propertyShowcaseUrl', () => {
     const withCode = { ...baseProperty, property_code: 'PROP-1006' } as Property;
     expect(propertyShowcaseUrl('https://www.convoreal.com/', withCode)).toBe(
       'https://www.convoreal.com/?property_id=PROP-1006'
+    );
+  });
+});
+
+describe('showcaseOriginForHost', () => {
+  it('keeps the current host when no subdomain is configured', () => {
+    expect(showcaseOriginForHost('www.convoreal.com', 'https:', null)).toBe(
+      'https://www.convoreal.com'
+    );
+  });
+
+  it('swaps the host prefix for the configured subdomain', () => {
+    expect(showcaseOriginForHost('www.convoreal.com', 'https:', 'aryavartaventures')).toBe(
+      'https://aryavartaventures.convoreal.com'
+    );
+    expect(showcaseOriginForHost('other.convoreal.com', 'https:', 'aryavartaventures')).toBe(
+      'https://aryavartaventures.convoreal.com'
+    );
+  });
+
+  it('prefixes the subdomain on bare domains, localhost, and IPs', () => {
+    expect(showcaseOriginForHost('convoreal.com', 'https:', 'aryavartaventures')).toBe(
+      'https://aryavartaventures.convoreal.com'
+    );
+    expect(showcaseOriginForHost('localhost:3000', 'http:', 'aryavartaventures')).toBe(
+      'http://aryavartaventures.localhost:3000'
+    );
+    expect(showcaseOriginForHost('127.0.0.1:3000', 'http:', 'aryavartaventures')).toBe(
+      'http://aryavartaventures.127.0.0.1:3000'
     );
   });
 });
