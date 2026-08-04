@@ -85,11 +85,7 @@ export function PropertyViewersSheet({
                     </View>
                     <Pressable
                       onPress={async () => {
-                        const outcome = await openContactChat({
-                          id: v.contactId,
-                          phone: v.phone ?? '',
-                          name: v.name ?? undefined,
-                        });
+                        const outcome = await openContactChat({ id: v.contactId });
                         if (!outcome.ok && outcome.error) {
                           show({ title: 'Could not open thread', message: outcome.error });
                         } else if (outcome.ok) {
