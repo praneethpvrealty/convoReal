@@ -21,10 +21,15 @@ const TYPE_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> 
   appointment_reminder: 'alarm-outline',
   appointment_overdue: 'checkmark-done-outline',
   daily_digest: 'sunny-outline',
+  location_request: 'location-outline',
 };
 
 /** Map a web deep link stored on the row to the mobile route. */
 function openTarget(n: NotificationRow) {
+  if (n.type === 'location_request') {
+    router.push('/(app)/dashboard');
+    return;
+  }
   if (n.entity_type === 'conversation' && n.entity_id) {
     router.push(`/(app)/conversation/${n.entity_id}`);
     return;

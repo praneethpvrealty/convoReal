@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 
 import { HOME_WIDGET_QUERY_KEY, HomeWidgets } from '@/components/home-widgets';
+import { LOCATION_APPROVALS_QUERY_KEY, LocationApprovals } from '@/components/location-approvals';
 import { AnimatedCounter } from '@/components/motion';
 import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
@@ -113,6 +114,7 @@ export default function DashboardScreen() {
           refreshing={isFetching}
           onRefresh={() => {
             queryClient.invalidateQueries({ queryKey: [HOME_WIDGET_QUERY_KEY] });
+            queryClient.invalidateQueries({ queryKey: [LOCATION_APPROVALS_QUERY_KEY] });
             refetch();
           }}
           tintColor={colors.primary}
@@ -133,6 +135,8 @@ export default function DashboardScreen() {
       />
 
       <HomeWidgets />
+
+      <LocationApprovals />
 
       <SectionLabel text="Today" />
       <View style={styles.grid}>
