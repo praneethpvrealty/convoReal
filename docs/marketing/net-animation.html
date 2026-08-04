@@ -253,9 +253,12 @@
   const NX = 16, NZ = 8;
   const xAt = i => -336 + i * 42;
   const zAt = j => 100 + j * 40;
-  const HOLE = { x: 0, z: 260, rx: 115, rz: 85 };
+  const HOLE = { x: 0, z: 260, rx: 185, rz: 110 };
   const SAG = 70;
-  const inHole = (x, z) => (x - HOLE.x) ** 2 / HOLE.rx ** 2 + (z - HOLE.z) ** 2 / HOLE.rz ** 2 < 1;
+  const inHole = (x, z) => {
+    const v = (x - HOLE.x) ** 2 / HOLE.rx ** 2 + (z - HOLE.z) ** 2 / HOLE.rz ** 2;
+    return v < 1 + 0.18 * Math.sin(x * 0.113 + z * 0.071);
+  };
 
   const clamp01 = v => Math.max(0, Math.min(1, v));
   const easeOut = p => 1 - (1 - p) ** 3;
@@ -307,9 +310,18 @@
     const strands = [];
     for (const ln of lines) {
       if (!ln.broken) continue;
+      const isCol = ln.nodes[0].x === ln.nodes[1].x;
       for (const [idx, dir] of [[ln.gapA, 1], [ln.gapB, -1]]) {
         const n = ln.nodes[idx];
-        strands.push({ x: n.x, z: n.z, dir, len: 42 + Math.abs(Math.sin(n.x * 7 + n.z * 3)) * 26, phase: (n.x + n.z) * 0.05 });
+        const h1 = Math.abs(Math.sin(n.x * 7 + n.z * 3));
+        const h2 = Math.abs(Math.sin(n.x * 3.3 + n.z * 5.1));
+        strands.push({
+          x: n.x, z: n.z,
+          ux: isCol ? 0 : dir, uz: isCol ? dir : 0,
+          inLen: 16 + h2 * 34,
+          len: 46 + h1 * 42,
+          phase: (n.x + n.z) * 0.05,
+        });
       }
     }
     const broken = lines.filter(l => l.broken).sort((a, b) => a.mid - b.mid);
@@ -432,11 +444,16 @@
       for (const s of state.strands) {
         const yTop = netY(s.x, s.z, t);
         const lenNow = s.len * (1 - rp);
-        const sway = Math.sin(t * 0.0025 + s.phase) * 12;
+        const inNow = s.inLen * (1 - rp);
+        const sway = Math.sin(t * 0.0025 + s.phase) * 10;
         const pts = [];
-        for (let k = 0; k <= 4; k++) {
-          const f = k / 4;
-          pts.push(project(s.x + s.dir * 4 * f + sway * f * f, yTop - lenNow * f, s.z));
+        for (let k = 0; k <= 5; k++) {
+          const f = k / 5;
+          pts.push(project(
+            s.x + s.ux * inNow * f + sway * f * f,
+            yTop - lenNow * Math.pow(f, 1.35),
+            s.z + s.uz * inNow * f
+          ));
         }
         ctx.lineWidth = 2 * pts[0].s / 0.8;
         ctx.beginPath(); drawSmooth(pts); ctx.stroke();
@@ -518,9 +535,12 @@
 
   // ---- Cards (DOM, driven per-frame)
   const LISTINGS_LOST = [
-    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -22, wz: 250 },
-    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 20, wz: 270 },
-    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: 0, wz: 258 },
+    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -140, wz: 252 },
+    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 145, wz: 250 },
+    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -70, wz: 300 },
+    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 72, wz: 215 },
+    { type: 'Flat', title: '1 BHK Flat', loc: 'BTM Layout', spec: '₹52 L · 650 sqft', wx: 4, wz: 272 },
+    { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: -12, wz: 230 },
   ];
   const LISTINGS_CAUGHT = [
     { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', wx: -185, wz: 235, matches: '3 buyer matches' },
@@ -556,16 +576,16 @@
       if (age < 0) { el.style.opacity = 0; continue; }
       const surf = project(l.wx, netY(l.wx, l.wz, t) + 3, l.wz);
       if (c.kind === 'lost') {
-        const p = clamp01(age / 2600);
-        const sy = -140 + Math.pow(p, 1.75) * 860;
+        const p = clamp01(age / 4800);
+        const sy = -140 + Math.pow(p, 1.35) * 860;
         if (!c.grazed && sy > surf.y) {
           c.grazed = true;
           state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 10 });
         }
         const below = sy > surf.y;
         const sc = surf.s * (below ? lerp(1, 0.7, clamp01((sy - surf.y) / 320)) : 1);
-        el.style.opacity = p < 0.05 ? p * 20 : below ? Math.max(0, 1 - (sy - surf.y) / 300) : 1;
-        el.style.transform = `translate(${surf.x - 64 * sc}px, ${sy - 64 * sc}px) scale(${sc}) rotate(${-4 + p * 9}deg)`;
+        el.style.opacity = p < 0.03 ? p * 33 : below ? Math.max(0, 1 - (sy - surf.y) / 280) : 1;
+        el.style.transform = `translate(${surf.x - 64 * sc}px, ${sy - 64 * sc}px) scale(${sc}) rotate(${-3 + p * 6}deg)`;
         if (p >= 1) c.done = true;
       } else {
         const p = clamp01(age / 1300);
@@ -628,12 +648,12 @@
   }
 
   // ---- Timeline
-  const S2 = 7200, S3 = 15200, END = 26400;
+  const S2 = 10600, S3 = 18600, END = 29800;
 
   function buildEvents() {
     const ev = [];
     ev.push({ t: 100, fn: () => caption('', '01 · Today', 'Fresh listings come in… and fall straight through.') });
-    LISTINGS_LOST.forEach((l, i) => ev.push({ t: 900 + i * 1700, fn: t => spawnLost(l, t) }));
+    LISTINGS_LOST.forEach((l, i) => ev.push({ t: 700 + i * 820, fn: t => spawnLost(l, t) }));
 
     ev.push({ t: S2, fn: () => caption('violet', '02 · The ConvoReal engine', 'Buyer requirements are woven back into the net.') });
     ev.push({ t: S2 + 300, fn: () => { engine.classList.add('on'); state.charging = true; } });
@@ -644,7 +664,7 @@
       state.retractStart = t;
     } });
     ev.push({ t: S2 + 1600, fn: t => {
-      state.lines.filter(l => l.broken).forEach(l => { l.weaveStart = t + l.weaveOrder * 260; });
+      state.lines.filter(l => l.broken).forEach(l => { l.weaveStart = t + l.weaveOrder * 200; });
     } });
     ev.push({ t: S2 + 5600, fn: t => {
       state.energizeStart = t;
