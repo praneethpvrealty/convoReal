@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
-import { useCurrentFrame, useVideoConfig } from 'remotion';
+import { useEffect, useRef, useState } from 'react';
+import { continueRender, delayRender, useCurrentFrame, useVideoConfig } from 'remotion';
+import { injectFonts } from './fonts';
 
 export const DURATION_MS = 29800;
 
@@ -827,6 +828,23 @@ export const NetVideo = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const ref = useRef<HTMLCanvasElement>(null);
+  const [handle] = useState(() => delayRender('Loading Manrope'));
+  const [fontsReady, setFontsReady] = useState(false);
+  useEffect(() => {
+    injectFonts();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      setFontsReady(true);
+      continueRender(handle);
+    };
+    Promise.all(['400', '600', '700', '800'].map((w) => document.fonts.load(`${w} 16px Manrope`)))
+      .then(finish)
+      .catch(finish);
+    const to = setTimeout(finish, 5000);
+    return () => clearTimeout(to);
+  }, [handle]);
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -834,6 +852,6 @@ export const NetVideo = () => {
     if (!ctx) return;
     ctx.clearRect(0, 0, 1920, 1080);
     draw(ctx, (frame / fps) * 1000);
-  }, [frame, fps]);
+  }, [frame, fps, fontsReady]);
   return <canvas ref={ref} width={1920} height={1080} style={{ width: '100%', height: '100%' }} />;
 };
