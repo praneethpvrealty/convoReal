@@ -179,6 +179,9 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new ApiError(res.status, body?.error ?? `Request failed (${res.status})`);
   }
+  // 204 No Content (e.g. DELETE /api/properties/[id]) has an empty body —
+  // res.json() would throw and turn a successful call into an error dialog.
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
