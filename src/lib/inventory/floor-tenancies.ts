@@ -10,6 +10,8 @@
 // public showcase.
 // ============================================================
 
+import { isoDateOrNull } from './iso-date';
+
 export interface FloorTenancy {
   /** Floor / unit label, e.g. "Ground Floor", "2nd + 3rd Floor". */
   floor: string;
@@ -44,11 +46,6 @@ function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
 }
 
-function isoDate(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const t = v.trim();
-  return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
-}
 
 /**
  * Normalizes an untrusted floor_tenancies payload into a bounded,
@@ -67,8 +64,8 @@ export function sanitizeFloorTenancies(raw: unknown): FloorTenancy[] {
       tenant_name: str(r.tenant_name, 120),
       monthly_rent: num(r.monthly_rent),
       advance: num(r.advance),
-      lease_start: isoDate(r.lease_start),
-      lease_end: isoDate(r.lease_end),
+      lease_start: isoDateOrNull(r.lease_start),
+      lease_end: isoDateOrNull(r.lease_end),
       lock_in_months: num(r.lock_in_months),
       maintenance: str(r.maintenance),
       notes: str(r.notes),
