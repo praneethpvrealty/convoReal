@@ -44,40 +44,36 @@ const NONE: OnboardingMedia = { videoUrl: null, caption: null };
  * publishing a video is replacing a single `null` with its URL — and
  * doubles as the brief for what that video should cover.
  *
- * Note the caption only appears under a player: a slot with no video
- * yet shows its illustration alone (or nothing, where the surface has
- * no illustration), never a caption on its own.
+ * A caption annotates whichever figure is showing, illustration or
+ * video, so write it about the subject rather than the medium: it has
+ * to still read correctly after the swap. It says what the figure
+ * shows, never what the step's body copy already said. Slots with no
+ * illustration behind them stay silent until their video lands.
  */
 export const ONBOARDING_MEDIA: Record<OnboardingMediaSlug, OnboardingMedia> = {
   'engine-welcome': {
     videoUrl: null,
-    caption:
-      'How enquiries, listings and follow-ups all run through one WhatsApp number.',
+    caption: 'An enquiry arrives, and the lead is saved before you type.',
   },
   'engine-connect-whatsapp': {
     videoUrl: null,
-    caption:
-      'Why WhatsApp needs a Business number, and the two ways to get one connected.',
+    caption: 'Once connected, every message to your number lands here.',
   },
   'engine-templates': {
     videoUrl: null,
-    caption:
-      'Why Meta reviews your templates, and what sending opens up once they are approved.',
+    caption: 'One approval per template, then it sends on its own.',
   },
   'engine-add-property': {
     videoUrl: null,
-    caption:
-      'Forwarding a listing to your number and confirming the draft the AI builds from it.',
+    caption: 'The message you forward, and the listing built from it.',
   },
   'engine-import-buyers': {
     videoUrl: null,
-    caption:
-      'Exporting your contacts from a phone or Excel sheet, and running the import.',
+    caption: 'Your existing list, matched against your inventory.',
   },
   'engine-email-leads': {
     videoUrl: null,
-    caption:
-      'Setting the forwarding rule in Gmail, including the confirmation code step.',
+    caption: 'A portal enquiry, turned into a contact and greeted for you.',
   },
   'engine-share-seats': {
     videoUrl: null,
@@ -95,21 +91,19 @@ export const ONBOARDING_MEDIA: Record<OnboardingMediaSlug, OnboardingMedia> = {
   },
   'wa-setup-portfolio': {
     videoUrl: null,
-    caption: 'Creating your Meta Business Portfolio, screen by screen.',
+    caption: 'The three details Meta asks for.',
   },
   'wa-setup-app': {
     videoUrl: null,
-    caption: 'Creating the Meta app and adding WhatsApp to it.',
+    caption: 'The choices that create your app and tie it to the portfolio.',
   },
   'wa-setup-number': {
     videoUrl: null,
-    caption:
-      'Adding your number, verifying it, and setting the two-step PIN you will need later.',
+    caption: 'Your number, and the two IDs you copy in step 5.',
   },
   'wa-setup-token': {
     videoUrl: null,
-    caption:
-      'Creating a system user and generating a token that does not expire.',
+    caption: 'The settings that make the token permanent.',
   },
   'wa-setup-credentials': {
     videoUrl: null,
