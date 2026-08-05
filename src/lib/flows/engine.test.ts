@@ -13,6 +13,7 @@ import {
   splitByBudget,
   matchListingSelection,
   resolveInterestTarget,
+  buildHandoffBrief,
   type ShownListing,
   type ListingRow,
 } from "./engine";
@@ -535,5 +536,38 @@ describe("resolveInterestTarget", () => {
 
   it("returns null when there is nowhere to go", () => {
     expect(resolveInterestTarget({ text: "x", buttons: [] })).toBeNull();
+  });
+});
+
+describe("buildHandoffBrief", () => {
+  it("gives an agent everything the funnel collected, in reading order", () => {
+    expect(
+      buildHandoffBrief({
+        budget: "1-2cr",
+        category: "Rent Yielding Buildings",
+        intent: "Buying",
+        interested_property: "BTM corner (PROP-1077)",
+      }),
+    ).toBe(
+      "Looking to: Buying · Type: Rent Yielding Buildings · Budget: 1-2cr · Interested in: BTM corner (PROP-1077)",
+    );
+  });
+
+  it("skips what the funnel never got", () => {
+    expect(buildHandoffBrief({ budget: "1-2cr" })).toBe("Budget: 1-2cr");
+  });
+
+  it("ignores engine bookkeeping and blank answers", () => {
+    expect(
+      buildHandoffBrief({
+        budget: "  ",
+        __shown_listings: [{ n: 1, id: "p1", title: "x", code: null }],
+      }),
+    ).toBe("");
+  });
+
+  it("is empty for a run that captured nothing", () => {
+    expect(buildHandoffBrief({})).toBe("");
+    expect(buildHandoffBrief(null)).toBe("");
   });
 });

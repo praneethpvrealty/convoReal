@@ -42,6 +42,9 @@ import {
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { parseBudgetText } from "@/lib/bot/catalog-match";
+import { appendRequirement } from "@/lib/ai/buyer-qualification";
+import { createNotification } from "@/lib/notifications/create";
+import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
@@ -799,12 +802,56 @@ async function sendListAndSuspend(
   return { outcome: "advanced", node_key: node.node_key };
 }
 
+/** Vars worth telling an agent about, in the order they read naturally.
+ *  Underscored engine bookkeeping (the shown-listings array) is skipped. */
+const BRIEF_VAR_LABELS: [key: string, label: string][] = [
+  ["intent", "Looking to"],
+  ["category", "Type"],
+  ["budget", "Budget"],
+  ["locality", "Area"],
+  ["interested_property", "Interested in"],
+  ["email", "Email"],
+];
+
+/**
+ * The one-line brief an agent needs to open this conversation cold:
+ * everything the funnel collected, in reading order, skipping what it
+ * never got. Empty string when the run captured nothing.
+ *
+ * Exported for tests.
+ */
+export function buildHandoffBrief(vars: Record<string, unknown> | null | undefined): string {
+  if (!vars) return "";
+  const parts: string[] = [];
+  for (const [key, label] of BRIEF_VAR_LABELS) {
+    const value = vars[key];
+    if (typeof value === "string" && value.trim()) {
+      parts.push(`${label}: ${value.trim()}`);
+    }
+  }
+  return parts.join(" · ");
+}
+
 async function executeHandoff(
   db: AdminClient,
   run: FlowRunRow,
   node: FlowNodeRow,
 ): Promise<void> {
   const cfg = node.config as { assign_to?: string; note?: string };
+
+  // Who picks this up: the node's explicit assignee, else whoever the
+  // conversation is already routed to, else the account owner. Resolved
+  // before the update so the notification and the assignment agree.
+  const { data: conv } = run.conversation_id
+    ? await db
+        .from("conversations")
+        .select("assigned_agent_id")
+        .eq("id", run.conversation_id)
+        .maybeSingle()
+    : { data: null };
+  const assignee =
+    cfg.assign_to ?? (conv?.assigned_agent_id as string | null) ?? run.user_id;
+
   const convUpdate: Record<string, unknown> = {
     status: "pending",
     updated_at: new Date().toISOString(),
@@ -816,9 +863,63 @@ async function executeHandoff(
       .update(convUpdate)
       .eq("id", run.conversation_id);
   }
+
+  const brief = buildHandoffBrief(run.vars);
+
+  // The brief belongs on the contact, not only in this run's event log:
+  // requirements is what matching, Radar and the buyer digest read, and
+  // it outlives the flow run.
+  if (run.contact_id && brief) {
+    const { data: contact } = await db
+      .from("contacts")
+      .select("name, requirements")
+      .eq("id", run.contact_id)
+      .maybeSingle();
+    const merged = appendRequirement(contact?.requirements as string | null, brief);
+    if (merged && merged !== contact?.requirements) {
+      await db.from("contacts").update({ requirements: merged }).eq("id", run.contact_id);
+    }
+  }
+
+  // A lead who asked for a human is told to a human. Without this the
+  // handoff only flipped the conversation to 'pending' and hoped somebody
+  // was looking at the inbox.
+  if (assignee) {
+    const { data: contact } = run.contact_id
+      ? await db.from("contacts").select("name, phone").eq("id", run.contact_id).maybeSingle()
+      : { data: null };
+    const who = (contact?.name as string | null) || (contact?.phone as string | null) || "A lead";
+    try {
+      await createNotification({
+        accountId: run.account_id,
+        userId: assignee,
+        type: "new_message",
+        eventKey: "flow_handoff",
+        title: `${who} asked to speak to an agent`,
+        body: brief || cfg.note || null,
+        entityType: "conversation",
+        entityId: run.conversation_id,
+        link: run.conversation_id ? `/inbox?conversation=${run.conversation_id}` : null,
+        whatsappText: [
+          "🙋 *A lead asked to speak to an agent*",
+          `👤 ${who}`,
+          brief ? `\n${brief}` : null,
+          "",
+          BRIDGE_REPLY_HINT,
+        ]
+          .filter((l): l is string => l !== null)
+          .join("\n"),
+      });
+    } catch (err) {
+      // A notification failure must not strand the run mid-handoff.
+      console.error("[flows] handoff notification failed:", err);
+    }
+  }
+
   await logEvent(db, run.id, "handoff", node.node_key, {
     note: cfg.note ?? null,
-    assigned_to: cfg.assign_to ?? null,
+    brief: brief || null,
+    assigned_to: assignee ?? null,
   });
   await endRun(db, run.id, "handed_off", "handoff_node");
 }
