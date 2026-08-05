@@ -14,6 +14,7 @@ import {
   matchListingSelection,
   resolveInterestTarget,
   buildHandoffBrief,
+  preferLocality,
   type ShownListing,
   type ListingRow,
 } from "./engine";
@@ -569,5 +570,44 @@ describe("buildHandoffBrief", () => {
   it("is empty for a run that captured nothing", () => {
     expect(buildHandoffBrief({})).toBe("");
     expect(buildHandoffBrief(null)).toBe("");
+  });
+});
+
+describe("preferLocality", () => {
+  const rows = [
+    { sublocality: "Whitefield", location: "Whitefield, Bangalore" },
+    { sublocality: "Koramangala", location: "5th Block, Koramangala, Bangalore" },
+    { sublocality: "HSR Layout", location: "Sector 2, HSR Layout, Bangalore" },
+  ];
+
+  it("puts the named area first without dropping the rest", () => {
+    const out = preferLocality(rows, "Koramangala");
+    expect(out.map((r) => r.sublocality)).toEqual(["Koramangala", "Whitefield", "HSR Layout"]);
+  });
+
+  it("reads more than one area from a free-text answer", () => {
+    const out = preferLocality(rows, "Koramangala and HSR");
+    expect(out.slice(0, 2).map((r) => r.sublocality)).toEqual(["Koramangala", "HSR Layout"]);
+  });
+
+  it("handles commas and slashes the way people type them", () => {
+    expect(preferLocality(rows, "HSR Layout, Whitefield")[0].sublocality).toBe("Whitefield");
+    expect(preferLocality(rows, "Koramangala/HSR")[0].sublocality).toBe("Koramangala");
+  });
+
+  it("matches the full location line, not only the sublocality", () => {
+    const out = preferLocality(rows, "5th Block");
+    expect(out[0].sublocality).toBe("Koramangala");
+  });
+
+  it("keeps the original order when the area matches nothing", () => {
+    expect(preferLocality(rows, "Chennai").map((r) => r.sublocality)).toEqual(
+      rows.map((r) => r.sublocality),
+    );
+  });
+
+  it("is a no-op for an unanswered or throwaway reply", () => {
+    expect(preferLocality(rows, null)).toEqual(rows);
+    expect(preferLocality(rows, "any")).toEqual(rows);
   });
 });
