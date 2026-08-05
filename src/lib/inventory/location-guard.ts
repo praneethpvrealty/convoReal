@@ -158,6 +158,9 @@ export function toPublicPropertyView(
   view.location_guarded = guarded && !grantedLocation;
   view.location_revealed = reveal;
   view.private_images_count = p.private_images?.length ?? 0;
+  // The paths never travel — the viewer gets a count and fetches each
+  // photo back through the grant-token proxy.
+  view.private_images_revealed = opts.granted?.privateImages === true;
   if (opts.granted?.documents) {
     view.documents = p.documents ?? [];
   }

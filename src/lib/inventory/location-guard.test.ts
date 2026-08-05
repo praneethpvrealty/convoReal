@@ -190,7 +190,7 @@ describe('toPublicPropertyView', () => {
   it('a location grant overrides the type guard', () => {
     const view = toPublicPropertyView(guardedProperty, {
       revealExact: false,
-      granted: { location: true, documents: false },
+      granted: { location: true, documents: false, privateImages: false },
     }) as unknown as Record<string, unknown>;
     expect(view.location).toBe(guardedProperty.location);
     expect(view.google_map_link).toBe(guardedProperty.google_map_link);
@@ -204,7 +204,7 @@ describe('toPublicPropertyView', () => {
   it('a location grant does not drag documents along with it', () => {
     const view = toPublicPropertyView(guardedProperty, {
       revealExact: false,
-      granted: { location: true, documents: false },
+      granted: { location: true, documents: false, privateImages: false },
     }) as unknown as Record<string, unknown>;
     expect(view.documents).toBeUndefined();
   });
@@ -212,7 +212,7 @@ describe('toPublicPropertyView', () => {
   it('a documents grant attaches documents and nothing else', () => {
     const view = toPublicPropertyView(guardedProperty, {
       revealExact: false,
-      granted: { location: false, documents: true },
+      granted: { location: false, documents: true, privateImages: false },
     }) as unknown as Record<string, unknown>;
     expect(view.documents).toEqual(guardedProperty.documents);
     expect(view.location).toBe('HSR Layout, Bangalore');
@@ -224,7 +224,7 @@ describe('toPublicPropertyView', () => {
   it('a grant never widens the private-image or owner fields', () => {
     const view = toPublicPropertyView(guardedProperty, {
       revealExact: true,
-      granted: { location: true, documents: true },
+      granted: { location: true, documents: true, privateImages: true },
     }) as unknown as Record<string, unknown>;
     for (const key of [
       'private_images',
@@ -238,10 +238,35 @@ describe('toPublicPropertyView', () => {
     expect(view.private_images_count).toBe(1);
   });
 
+  it('a private-image grant flags the photos without leaking their paths', () => {
+    const view = toPublicPropertyView(guardedProperty, {
+      revealExact: false,
+      granted: { location: false, documents: false, privateImages: true },
+    }) as unknown as Record<string, unknown>;
+    expect(view.private_images_revealed).toBe(true);
+    expect(view.private_images_count).toBe(1);
+    // The bucket paths must never travel — the viewer refetches each
+    // photo through the grant-token proxy.
+    expect(view.private_images).toBeUndefined();
+    // And it widens nothing else.
+    expect(view.location).toBe('HSR Layout, Bangalore');
+    expect(view.google_map_link).toBeNull();
+    expect(view.documents).toBeUndefined();
+  });
+
+  it('leaves photos flagged shut without a private-image grant', () => {
+    const view = toPublicPropertyView(guardedProperty, {
+      revealExact: false,
+      granted: { location: true, documents: true, privateImages: false },
+    }) as unknown as Record<string, unknown>;
+    expect(view.private_images_revealed).toBe(false);
+    expect(view.private_images).toBeUndefined();
+  });
+
   it('an empty grant leaves the masked defaults in place', () => {
     const view = toPublicPropertyView(guardedProperty, {
       revealExact: false,
-      granted: { location: false, documents: false },
+      granted: { location: false, documents: false, privateImages: false },
     }) as unknown as Record<string, unknown>;
     expect(view.location).toBe('HSR Layout, Bangalore');
     expect(view.documents).toBeUndefined();

@@ -966,6 +966,11 @@ export interface Property {
   /** Attached by the masking helpers so a viewer can see how many
    *  photos exist behind the guard without receiving their paths. */
   private_images_count?: number;
+  /** Set by the masking helpers, never stored: a share grant
+   *  (migration 199) opened the guarded photos to this viewer. The
+   *  paths still never travel — they fetch each one through
+   *  /api/public/share-grant/[token]/image/[index]. */
+  private_images_revealed?: boolean;
   /** Transient fields attached by the tiered location search
    *  (GET /api/properties?near_lat=...), not stored columns. */
   distance_km?: number | null;

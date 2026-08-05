@@ -11,10 +11,11 @@
 // revoking it — or letting it lapse — puts that link back on the
 // masked default with nothing to undo on the listing.
 //
-// Deliberately NOT covered: private_images. Those live in a non-public
-// bucket and are served through the approved-request proxy
-// (/api/public/reveal/[token]/image/[idx]); a share grant reveals the
-// address, map pin and documents only.
+// Private photos (migration 199) are not widened into the payload —
+// they live in a bucket with no read policy. The token itself becomes
+// the credential for a service-role proxy,
+// /api/public/share-grant/[token]/image/[index], mirroring what an
+// approved location request already does for /api/public/reveal.
 // ============================================================
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -29,6 +30,7 @@ export interface ShareGrant {
   token: string;
   reveal_location: boolean;
   reveal_documents: boolean;
+  reveal_private_images: boolean;
   expires_at: string;
   revoked_at: string | null;
   view_count: number;
@@ -36,11 +38,12 @@ export interface ShareGrant {
   created_at: string;
 }
 
-/** What a resolved grant permits, reduced to the two flags the
- *  property view cares about. */
+/** What a resolved grant permits, reduced to the flags the property
+ *  view cares about. */
 export interface GrantedReveals {
   location: boolean;
   documents: boolean;
+  privateImages: boolean;
 }
 
 export function mintShareGrantToken(): { token: string; expiresAt: string } {
@@ -66,11 +69,12 @@ export function grantedReveals(
   now: Date = new Date()
 ): GrantedReveals {
   if (!grant || !isGrantLive(grant, now)) {
-    return { location: false, documents: false };
+    return { location: false, documents: false, privateImages: false };
   }
   return {
     location: grant.reveal_location,
     documents: grant.reveal_documents,
+    privateImages: grant.reveal_private_images,
   };
 }
 
