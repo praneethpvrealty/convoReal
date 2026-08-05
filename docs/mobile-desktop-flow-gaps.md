@@ -7,7 +7,6 @@ Audit of the Expo app (`mobile/`, 27 route files) against the Next.js dashboard 
 | Web feature                    | Web surface                                       | Notes                                                                |
 | ------------------------------ | ------------------------------------------------- | -------------------------------------------------------------------- |
 | Today (daily agenda)           | `/dashboard?tab=today`                            | Due follow-ups, appointments, streak, unread jumps.                  |
-| Todos                          | Calendar page, `/api/todos`                       | Mobile calendar is appointments-only.                                |
 | Liaisons                       | `/liaisons`                                       | Directory, jobs & payments, workflows. Zero references in `mobile/`. |
 | Requirements screen            | `/contacts?tab=requirements`, `/api/requirements` | Mobile only has requirement fields inside contact detail.            |
 | Buyer portal                   | `src/app/(buyer)/buyer/*`                         | Mobile has no `(buyer)` group; only Owners Den.                      |
@@ -53,10 +52,10 @@ Mobile-only extras: device-contact import, "near me" GPS search, Android/iOS hom
 ## Closed since the audit
 
 - **Match Radar** — `mobile/app/(app)/radar.tsx` (More → Match Radar): event feed, target selection, one-tap send via `/api/radar/send`, dismiss, masked direct-owner cards. Template setup and the deal-mode unlock stay on the web.
+- **Todos** — `mobile/lib/todos.ts` + a To-dos section on the Calendar tab: quick-add with priority and due date/time, complete/delete, linked contact/property display. Contact/property mentions stay a web smart-add feature.
 
 ## Suggested closing order
 
-1. **Todos** — `/api/todos` already exists; fold into the mobile calendar.
-2. **Today** — aggregate screen over data mobile already fetches.
-3. Requirements screen, deal create/edit, property creation, Den deal rooms.
-4. Larger items (liaisons, buyer portal, call logs, top-up) as separate projects.
+1. **Today** — aggregate screen over data mobile already fetches.
+2. Requirements screen, deal create/edit, property creation, Den deal rooms.
+3. Larger items (liaisons, buyer portal, call logs, top-up) as separate projects.
