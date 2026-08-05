@@ -57,5 +57,5 @@ Mobile-only extras: device-contact import, "near me" GPS search, Android/iOS hom
 
 ## Suggested closing order
 
-1. Requirements screen, deal create/edit, property creation, Den deal rooms.
+1. Requirements screen, deal edit/delete, property creation, Den deal rooms.
 2. Larger items (liaisons, buyer portal, call logs, top-up) as separate projects.
