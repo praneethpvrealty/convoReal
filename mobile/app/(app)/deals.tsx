@@ -127,7 +127,7 @@ export default function DealsScreen() {
               <Pressable
                 onPress={() =>
                   router.push({
-                    pathname: '/(app)/deal-new',
+                    pathname: '/(app)/deal-edit',
                     params: {
                       pipelineId: activePipeline,
                       ...(activeStage ? { stageId: activeStage } : {}),
@@ -221,7 +221,16 @@ export default function DealsScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <DealCard deal={item} onMove={() => setMovingDeal(item)} />
+              <DealCard
+                deal={item}
+                onMove={() => setMovingDeal(item)}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/(app)/deal-edit',
+                    params: { id: item.id },
+                  })
+                }
+              />
             </EnterRow>
           )}
         />
@@ -274,7 +283,15 @@ export default function DealsScreen() {
   );
 }
 
-function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
+function DealCard({
+  deal,
+  onMove,
+  onEdit,
+}: {
+  deal: Deal;
+  onMove: () => void;
+  onEdit: () => void;
+}) {
   const { colors, fonts: f } = useTheme();
   const contactName = deal.contact?.name || deal.contact?.phone;
 
@@ -282,14 +299,20 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
     <View
       style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
     >
-      <View style={styles.cardTop}>
+      <Pressable
+        style={styles.cardTop}
+        onPress={onEdit}
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${deal.title}`}
+      >
         <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
           {deal.title}
         </Text>
         <Text style={{ fontSize: 15, fontFamily: f.extrabold, color: colors.primary }}>
           {formatInr(deal.value)}
         </Text>
-      </View>
+        <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
+      </Pressable>
 
       {contactName ? (
         <Link href={`/(app)/contact/${deal.contact_id}`} asChild>
