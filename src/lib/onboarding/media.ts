@@ -14,10 +14,13 @@
 export type OnboardingMediaSlug =
   | 'engine-welcome'
   | 'engine-connect-whatsapp'
+  | 'engine-templates'
   | 'engine-add-property'
   | 'engine-import-buyers'
   | 'engine-email-leads'
+  | 'engine-share-seats'
   | 'wa-setup-overview'
+  | 'wa-setup-concierge'
   | 'wa-setup-portfolio'
   | 'wa-setup-app'
   | 'wa-setup-number'
@@ -36,13 +39,35 @@ export interface OnboardingMedia {
 
 const NONE: OnboardingMedia = { videoUrl: null, caption: null };
 
+/**
+ * Every slot, with what its video should cover — this doubles as the
+ * shot list. A slot whose surface has no illustration behind it renders
+ * nothing at all until a URL lands here, so an unrecorded video is
+ * invisible rather than a broken frame.
+ *
+ *   engine-welcome           What ConvoReal is, end to end (the 2-min pitch)
+ *   engine-connect-whatsapp  Why a Business number, and the two paths to one
+ *   engine-templates         Draft → submit → approved, and what that unlocks
+ *   engine-add-property      Forwarding a listing and confirming the AI draft
+ *   engine-import-buyers     Exporting contacts and running the CSV import
+ *   engine-email-leads       Setting the Gmail rule and the verification catch
+ *   engine-share-seats       What a beta seat is and how to hand one over
+ *   wa-setup-overview        What the whole Meta setup involves, before starting
+ *   wa-setup-concierge       What our team does for you on the setup call
+ *   wa-setup-*               One per Meta console screen, click by click
+ *   den-welcome              What the owner Portfolio shows, and why it's safe
+ *   buyer-welcome            How buyer preferences turn into matches
+ */
 export const ONBOARDING_MEDIA: Record<OnboardingMediaSlug, OnboardingMedia> = {
   'engine-welcome': NONE,
   'engine-connect-whatsapp': NONE,
+  'engine-templates': NONE,
   'engine-add-property': NONE,
   'engine-import-buyers': NONE,
   'engine-email-leads': NONE,
+  'engine-share-seats': NONE,
   'wa-setup-overview': NONE,
+  'wa-setup-concierge': NONE,
   'wa-setup-portfolio': NONE,
   'wa-setup-app': NONE,
   'wa-setup-number': NONE,

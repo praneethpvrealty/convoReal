@@ -1,6 +1,19 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import { ONBOARDING_MEDIA, getOnboardingMedia, toEmbedUrl } from './media';
+
+/** Every .tsx under src/, so slot usage can be verified. */
+function componentSources(dir: string, acc: string[] = []): string[] {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) componentSources(path, acc);
+    else if (entry.name.endsWith('.tsx')) acc.push(readFileSync(path, 'utf8'));
+  }
+  return acc;
+}
 
 describe('toEmbedUrl', () => {
   it('converts watch URLs', () => {
@@ -38,6 +51,20 @@ describe('getOnboardingMedia', () => {
       const media = getOnboardingMedia(slug as keyof typeof ONBOARDING_MEDIA);
       expect(media).toHaveProperty('videoUrl');
       expect(media).toHaveProperty('caption');
+    }
+  });
+
+  it('every registered slot is rendered by some component', () => {
+    // A slot nobody renders is a video that will never appear once
+    // it's recorded — wa-setup-overview shipped dead exactly this way.
+    const sources = componentSources('src');
+    for (const slug of Object.keys(ONBOARDING_MEDIA)) {
+      expect(
+        sources.some(
+          (src) => src.includes(`'${slug}'`) || src.includes(`"${slug}"`)
+        ),
+        `slot "${slug}" is registered but never rendered`
+      ).toBe(true);
     }
   });
 
