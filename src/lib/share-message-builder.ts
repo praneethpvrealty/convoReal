@@ -243,6 +243,26 @@ export function showcaseOriginForHost(
   return `${protocol}//${subdomain}.${base}`;
 }
 
+/**
+ * The account's showcase base as a full URL: its own subdomain when it
+ * has one, otherwise the site with `?ref=<account>` so the catalog
+ * knows whose listings to render.
+ *
+ * Takes the site URL rather than reading the environment so it stays
+ * pure and works from a route handler, a client component or the
+ * mobile bundle — each of which reaches the same origin differently.
+ */
+export function showcaseBaseUrl(
+  siteUrl: string,
+  subdomain: string | null,
+  accountId: string | null,
+): string {
+  const site = new URL(siteUrl);
+  const url = new URL(showcaseOriginForHost(site.host, site.protocol, subdomain));
+  if (!subdomain && accountId) url.searchParams.set('ref', accountId);
+  return url.toString();
+}
+
 /** Append `property_id` to the account's showcase base, preserving any
  *  query params (`?ref=` when there's no subdomain). */
 export function propertyShowcaseUrl(baseUrl: string, property: Property): string {

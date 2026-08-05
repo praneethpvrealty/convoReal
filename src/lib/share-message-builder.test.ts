@@ -8,6 +8,7 @@ import {
   greetingName,
   propertyShowcaseUrl,
   showcaseOriginForHost,
+  showcaseBaseUrl,
 } from './share-message-builder';
 
 const baseProperty = {
@@ -287,5 +288,38 @@ describe('greetingName', () => {
     expect(greetingName('')).toBeNull();
     expect(greetingName(null)).toBeNull();
     expect(greetingName(undefined)).toBeNull();
+  });
+});
+
+describe('showcaseBaseUrl', () => {
+  it('uses the account subdomain when it has one, with no ref param', () => {
+    expect(showcaseBaseUrl('https://www.convoreal.com', 'aryavarta', 'acc-1')).toBe(
+      'https://aryavarta.convoreal.com/'
+    );
+  });
+
+  it("tags the bare site with ?ref= when there is no subdomain, so the catalog knows whose listings to show", () => {
+    expect(showcaseBaseUrl('https://www.convoreal.com', null, 'acc-1')).toBe(
+      'https://www.convoreal.com/?ref=acc-1'
+    );
+  });
+
+  it('omits ref when there is no account either', () => {
+    expect(showcaseBaseUrl('https://www.convoreal.com', null, null)).toBe(
+      'https://www.convoreal.com/'
+    );
+  });
+
+  it('keeps localhost intact rather than stripping a "subdomain" off it', () => {
+    expect(showcaseBaseUrl('http://localhost:3000', 'aryavarta', 'acc-1')).toBe(
+      'http://aryavarta.localhost:3000/'
+    );
+  });
+
+  it('produces a base that propertyShowcaseUrl can extend without losing ref', () => {
+    const base = showcaseBaseUrl('https://www.convoreal.com', null, 'acc-1');
+    expect(propertyShowcaseUrl(base, { ...baseProperty, property_code: 'CR-12' })).toBe(
+      'https://www.convoreal.com/?ref=acc-1&property_id=CR-12'
+    );
   });
 });

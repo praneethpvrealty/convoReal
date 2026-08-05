@@ -10,6 +10,7 @@ import * as Linking from 'expo-linking';
 import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
 import { queryClient } from '@/lib/query';
+import { showcaseBaseUrl } from '@/lib/share-message';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
 
@@ -24,18 +25,7 @@ interface WelcomeLinkInput {
 /** Same host math as the web: the showcase lives on the account's
  *  subdomain of the app's base domain when one is configured. */
 function showcaseBase(subdomain: string | null, accountId: string | null): URL {
-  const api = new URL(ENV.apiBaseUrl);
-  const parts = api.host.split('.');
-  let hostDomain = api.host;
-  if (parts.length > 2 && !api.host.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(api.hostname)) {
-    hostDomain = parts.slice(1).join('.');
-  }
-  const target = subdomain ? `${subdomain}.${hostDomain}` : api.host;
-  const url = new URL(`${api.protocol}//${target}`);
-  if (!subdomain && accountId) {
-    url.searchParams.set('ref', accountId);
-  }
-  return url;
+  return new URL(showcaseBaseUrl(ENV.apiBaseUrl, subdomain, accountId));
 }
 
 export function buildWelcomeLink({
@@ -55,7 +45,10 @@ export function buildWelcomeLink({
   let linkSection = '';
   if (propDetails) {
     const singlePropUrl = new URL(showcaseUrlObj.toString());
-    singlePropUrl.searchParams.set('property_id', propDetails.property_code || propDetails.id);
+    singlePropUrl.searchParams.set(
+      'property_id',
+      propDetails.property_code || propDetails.id
+    );
 
     const matchingUrl = new URL(showcaseUrlObj.toString());
     if (propDetails.listing_type) {
@@ -90,7 +83,9 @@ ${matchingUrl.toString()}`;
 
       const filterDesc = [
         contact.property_interests?.[0],
-        contact.areas_of_interest?.[0] ? `in ${contact.areas_of_interest[0]}` : '',
+        contact.areas_of_interest?.[0]
+          ? `in ${contact.areas_of_interest[0]}`
+          : '',
       ]
         .filter(Boolean)
         .join(' ');

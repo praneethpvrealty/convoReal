@@ -31,8 +31,10 @@ export function formatShareAmount(
   const n = Number(amount);
   if (!n || isNaN(n) || n <= 0) return '';
   if (currency === 'INR') {
-    if (n >= 10000000) return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
-    if (n >= 100000) return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
+    if (n >= 10000000)
+      return `₹${(n / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+    if (n >= 100000)
+      return `₹${(n / 100000).toFixed(2).replace(/\.00$/, '')} Lakhs`;
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
@@ -47,7 +49,10 @@ export function formatShareAmount(
 }
 
 function priceLine(property: Property, currency: string): string {
-  if (property.listing_type === 'Rent' || property.listing_type === 'Built to Suit') {
+  if (
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit'
+  ) {
     const rent = formatShareAmount(property.rent_per_month, currency);
     if (!rent) return 'Price on request';
     const maint = formatShareAmount(property.maintenance, currency);
@@ -64,16 +69,22 @@ function priceLine(property: Property, currency: string): string {
 
 function locationLine(property: Property): string {
   return (
-    [property.sublocality, property.city, property.state].filter(Boolean).join(', ') ||
+    [property.sublocality, property.city, property.state]
+      .filter(Boolean)
+      .join(', ') ||
     property.location ||
     ''
   );
 }
 
 function areaLine(property: Property): string {
-  const isLand = (property.type || '').includes('Land') || (property.type || '').includes('Plot');
+  const isLand =
+    (property.type || '').includes('Land') ||
+    (property.type || '').includes('Plot');
   const val = isLand ? property.land_area : property.area_sqft;
-  const unit = isLand ? property.land_area_unit || 'sqft' : property.area_unit || 'sqft';
+  const unit = isLand
+    ? property.land_area_unit || 'sqft'
+    : property.area_unit || 'sqft';
   return val ? `${val} ${unit}` : '';
 }
 
@@ -134,18 +145,29 @@ function completeBody(property: Property, currency: string): string {
     property.bedrooms ? `${property.bedrooms} BHK` : '',
     property.bathrooms ? `${property.bathrooms} Bath` : '',
     areaLine(property),
-    property.super_built_area ? `${property.super_built_area} super built-up` : '',
+    property.super_built_area
+      ? `${property.super_built_area} super built-up`
+      : '',
     property.dimensions || '',
     property.facing_direction ? `${property.facing_direction} facing` : '',
-    property.road_width ? `${property.road_width} ${property.road_width_unit || 'ft'} road` : '',
+    property.road_width
+      ? `${property.road_width} ${property.road_width_unit || 'ft'} road`
+      : '',
   ].filter(Boolean);
   if (property.type || physical.length > 0) {
-    lines.push(`📐 ${[property.type, ...physical].filter(Boolean).join(' · ')}`);
+    lines.push(
+      `📐 ${[property.type, ...physical].filter(Boolean).join(' · ')}`
+    );
   }
 
-  if (property.listing_type === 'Rent' || property.listing_type === 'Built to Suit') {
+  if (
+    property.listing_type === 'Rent' ||
+    property.listing_type === 'Built to Suit'
+  ) {
     const terms = [
-      property.advance ? `Advance ${formatShareAmount(property.advance, currency)}` : '',
+      property.advance
+        ? `Advance ${formatShareAmount(property.advance, currency)}`
+        : '',
       property.gst ? 'GST applicable' : '',
     ].filter(Boolean);
     if (terms.length > 0) lines.push(`📋 ${terms.join(' · ')}`);
@@ -154,7 +176,9 @@ function completeBody(property: Property, currency: string): string {
   const features = (property.features || []).filter(Boolean).slice(0, 6);
   if (features.length > 0) lines.push(`✨ ${features.join(' | ')}`);
 
-  const highlights = (property.nearby_highlights || []).filter(Boolean).slice(0, 5);
+  const highlights = (property.nearby_highlights || [])
+    .filter(Boolean)
+    .slice(0, 5);
   if (highlights.length > 0) lines.push(`🚩 Nearby: ${highlights.join(' | ')}`);
 
   if (property.rental_income) {
@@ -163,7 +187,8 @@ function completeBody(property: Property, currency: string): string {
     );
   }
 
-  if (property.google_map_link) lines.push(`🗺 Map: ${property.google_map_link}`);
+  if (property.google_map_link)
+    lines.push(`🗺 Map: ${property.google_map_link}`);
 
   return lines.join('\n');
 }
@@ -214,20 +239,47 @@ export function buildPropertyShareMessage(input: ShareMessageInput): string {
 export function showcaseOriginForHost(
   host: string,
   protocol: string,
-  subdomain?: string | null,
+  subdomain?: string | null
 ): string {
   if (!subdomain) return `${protocol}//${host}`;
   const parts = host.split('.');
   const base =
-    parts.length <= 2 || host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(host)
+    parts.length <= 2 ||
+    host.includes('localhost') ||
+    /^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(host)
       ? host
       : parts.slice(1).join('.');
   return `${protocol}//${subdomain}.${base}`;
 }
 
+/**
+ * The account's showcase base as a full URL: its own subdomain when it
+ * has one, otherwise the site with `?ref=<account>` so the catalog
+ * knows whose listings to render.
+ *
+ * Takes the site URL rather than reading it, so the same function works
+ * from the server, the browser and this bundle — each of which reaches
+ * the origin differently.
+ */
+export function showcaseBaseUrl(
+  siteUrl: string,
+  subdomain: string | null,
+  accountId: string | null
+): string {
+  const site = new URL(siteUrl);
+  const url = new URL(
+    showcaseOriginForHost(site.host, site.protocol, subdomain)
+  );
+  if (!subdomain && accountId) url.searchParams.set('ref', accountId);
+  return url.toString();
+}
+
 /** Append `property_id` to the account's showcase base, preserving any
  *  query params (getShowcaseUrl adds `?ref=` when there's no subdomain). */
-export function propertyShowcaseUrl(baseUrl: string, property: Property): string {
+export function propertyShowcaseUrl(
+  baseUrl: string,
+  property: Property
+): string {
   const id = property.property_code || property.id;
   const sep = baseUrl.includes('?') ? '&' : '?';
   return `${baseUrl}${sep}property_id=${encodeURIComponent(id)}`;
@@ -310,8 +362,21 @@ export function buildShortlistMessage(input: {
  * returns the message untouched.
  */
 const GREETING_HONORIFICS = new Set([
-  'mr', 'mrs', 'ms', 'miss', 'mstr', 'master', 'dr', 'prof', 'shri', 'sri',
-  'smt', 'kum', 'sir', 'madam', 'mx',
+  'mr',
+  'mrs',
+  'ms',
+  'miss',
+  'mstr',
+  'master',
+  'dr',
+  'prof',
+  'shri',
+  'sri',
+  'smt',
+  'kum',
+  'sir',
+  'madam',
+  'mx',
 ]);
 
 /** Name to greet by: the full name minus any leading honorific, so
@@ -320,7 +385,10 @@ const GREETING_HONORIFICS = new Set([
 export function greetingName(name?: string | null): string | null {
   const tokens = (name || '').trim().split(/\s+/).filter(Boolean);
   let i = 0;
-  while (i < tokens.length && GREETING_HONORIFICS.has(tokens[i].replace(/\./g, '').toLowerCase())) {
+  while (
+    i < tokens.length &&
+    GREETING_HONORIFICS.has(tokens[i].replace(/\./g, '').toLowerCase())
+  ) {
     i++;
   }
   const rest = tokens.slice(i);
@@ -328,7 +396,10 @@ export function greetingName(name?: string | null): string | null {
   return tokens.length > 0 ? tokens.join(' ') : null;
 }
 
-export function addRecipientGreeting(message: string, name?: string | null): string {
+export function addRecipientGreeting(
+  message: string,
+  name?: string | null
+): string {
   const greetName = greetingName(name);
   if (!greetName) return message;
   return message.replace(
