@@ -28,10 +28,10 @@ function TabIcon({
   outline: keyof typeof Ionicons.glyphMap;
 }) {
   const { colors, dark } = useTheme();
-  // Spec: dark = near-white pill with deep-forest icon; light =
-  // soft green tint pill with WhatsApp-green icon.
+  // Dark = near-white pill with the ink ground as the icon; light =
+  // soft violet tint pill with the violet icon.
   const activePill = dark ? 'rgba(255,255,255,0.92)' : colors.primarySoft;
-  const activeIcon = dark ? '#0E2E22' : colors.primary;
+  const activeIcon = dark ? colors.background : colors.primary;
 
   // The active pill springs in behind the icon and the icon lifts a
   // touch — a small premium beat instead of an instant fill swap.
@@ -65,7 +65,7 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
-  const { colors, dark } = useTheme();
+  const { colors, dark, shadows } = useTheme();
   const insets = useSafeAreaInsets();
 
   return (
@@ -102,7 +102,7 @@ export default function TabsLayout() {
           overflow: 'hidden',
           backgroundColor: colors.tabBar,
           elevation: 10,
-          shadowColor: dark ? '#000000' : '#075E54',
+          shadowColor: shadows.card.shadowColor,
           shadowOpacity: 0.18,
           shadowRadius: 18,
           shadowOffset: { width: 0, height: 8 },

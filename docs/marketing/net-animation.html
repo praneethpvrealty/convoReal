@@ -1,0 +1,898 @@
+<title>ConvoReal — The Net (Marketing Animation)</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #05070d;
+    --glass: rgba(15, 23, 42, 0.78);
+    --line: #223047;
+    --ink: #e6eaf3;
+    --ink-dim: #8d99b2;
+    --violet: #8b5cf6;
+    --violet-soft: #a78bfa;
+    --gold: #f5c044;
+    --gold-soft: #ffe9ad;
+    font-family: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    background-image: radial-gradient(1100px 520px at 50% -8%, rgba(139, 92, 246, 0.10), transparent 65%);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 64px;
+  }
+  header { width: min(100%, 1060px); margin-bottom: 22px; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--violet-soft); font-weight: 600; margin-bottom: 10px;
+  }
+  h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 700; letter-spacing: -0.02em; text-wrap: balance; }
+  header p { color: var(--ink-dim); font-size: 14px; margin-top: 8px; max-width: 62ch; line-height: 1.55; }
+
+  #stageWrap {
+    position: relative; width: min(100%, 1060px); aspect-ratio: 16 / 9;
+    border-radius: 18px; overflow: hidden;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, #0b1020, #070a14);
+    box-shadow: 0 30px 80px -30px rgba(0, 0, 0, 0.8);
+  }
+  #stage {
+    position: absolute; width: 960px; height: 540px;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(var(--s, 1));
+  }
+  #stage::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(720px 320px at 50% 112%, rgba(139, 92, 246, 0.09), transparent 70%),
+      repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.025) 0 1px, transparent 1px 52px);
+  }
+  #net { position: absolute; inset: 0; width: 960px; height: 540px; }
+  #stage.cta > *:not(canvas) { opacity: 0 !important; transition: opacity 0.7s ease; }
+
+
+  #cardLayer, #cardLayerBack, #labelLayer { position: absolute; inset: 0; pointer-events: none; }
+  #cardLayer, #cardLayerBack { perspective: 1000px; }
+  .pcard {
+    transform-origin: 64px 64px;
+    position: absolute; left: 0; top: 0; width: 128px; height: 128px;
+    border-radius: 14px;
+    background: var(--glass);
+    border: 1px solid #33415c;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.85);
+    padding: 14px 13px;
+    display: flex; flex-direction: column; gap: 4px;
+    will-change: transform, opacity;
+  }
+  .pcard .ptype {
+    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--violet-soft); font-weight: 700;
+  }
+  .pcard .ptitle { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+  .pcard .ploc { font-size: 11.5px; color: var(--ink-dim); }
+  .pcard .pspec {
+    margin-top: auto; font-size: 11.5px; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: #c3cbdc;
+    border-top: 1px solid #26334c; padding-top: 6px;
+  }
+  .pcard.caught {
+    border-color: rgba(245, 192, 68, 0.75);
+    box-shadow: 0 0 0 1px rgba(245, 192, 68, 0.25), 0 0 34px -6px rgba(245, 192, 68, 0.5), 0 18px 40px -18px rgba(0, 0, 0, 0.85);
+    transition: border-color 0.4s, box-shadow 0.4s;
+  }
+  .chip {
+    position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%) scale(0.6);
+    white-space: nowrap; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    color: #100c02; background: linear-gradient(180deg, var(--gold-soft), var(--gold));
+    border-radius: 999px; padding: 4px 10px; opacity: 0;
+    box-shadow: 0 6px 18px -6px rgba(245, 192, 68, 0.7);
+  }
+  .chip.pop { opacity: 1; transform: translateX(-50%) scale(1); transition: opacity 0.35s, transform 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); }
+
+  .reqlabel {
+    position: absolute; left: 0; top: 0;
+    font-size: 10.5px; font-weight: 600; color: #d9d3f5;
+    background: rgba(139, 92, 246, 0.16);
+    border: 1px solid rgba(139, 92, 246, 0.5);
+    border-radius: 999px; padding: 4px 11px 4px 8px;
+    display: flex; align-items: center; gap: 6px;
+    opacity: 0; white-space: nowrap;
+    backdrop-filter: blur(4px);
+    transition: opacity 0.5s;
+    will-change: transform;
+  }
+  .reqlabel::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--violet-soft); box-shadow: 0 0 8px var(--violet); }
+  .reqlabel.show { opacity: 1; }
+  .reqlabel.dim { opacity: 0.45; }
+
+  #engine {
+    position: absolute; left: 480px; top: 148px; transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    transition: opacity 0.6s, transform 0.6s cubic-bezier(0.2, 1.3, 0.4, 1);
+  }
+  #engine.on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  #engine .ringbox { position: relative; width: 84px; height: 84px; }
+  #engine .ring {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0 70%, var(--violet) 92%, transparent 100%);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px));
+    animation: spin 1.6s linear infinite;
+  }
+  #engine .ring.r2 { inset: 9px; animation-duration: 2.4s; animation-direction: reverse; opacity: 0.6; }
+  #engine.paused .ring { animation-play-state: paused; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #engine .core {
+    position: absolute; inset: 22px; border-radius: 12px;
+    background: linear-gradient(145deg, #7c4fe8, #5b34b8);
+    box-shadow: 0 0 34px rgba(139, 92, 246, 0.55);
+    display: grid; place-items: center;
+    font-weight: 800; font-size: 20px; color: #f2edff;
+  }
+  #engine .ename { font-size: 13px; font-weight: 700; letter-spacing: 0.02em; }
+  #engine .ename b { color: var(--violet-soft); }
+
+  #cap { position: absolute; left: 44px; bottom: 34px; max-width: 430px; transition: opacity 0.45s; }
+  #cap .cEyebrow {
+    font-size: 10.5px; letter-spacing: 0.22em; text-transform: uppercase;
+    font-weight: 700; color: var(--ink-dim); margin-bottom: 7px;
+  }
+  #cap .cHead { font-size: 23px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.22; text-wrap: balance; }
+  #cap.gold .cEyebrow { color: var(--gold); }
+  #cap.violet .cEyebrow { color: var(--violet-soft); }
+
+  #brand {
+    position: absolute; top: 26px; right: 36px; display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 14px; letter-spacing: -0.01em; opacity: 0.9;
+  }
+  #brand .bmark {
+    width: 22px; height: 22px; border-radius: 7px;
+    background: linear-gradient(145deg, #8b5cf6, #5b34b8);
+    display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #f2edff;
+  }
+
+  #controls {
+    width: min(100%, 1060px); margin-top: 16px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  }
+  #controls button {
+    font: inherit; font-size: 13px; font-weight: 600; color: var(--ink);
+    background: rgba(15, 23, 42, 0.7); border: 1px solid var(--line);
+    border-radius: 10px; padding: 8px 16px; cursor: pointer;
+  }
+  #controls button:hover { border-color: #35507a; }
+  #controls button:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+  #controls button.primary { background: linear-gradient(145deg, #7c4fe8, #5b34b8); border-color: transparent; }
+  #controls .scenes { display: flex; gap: 6px; margin-left: auto; }
+  #controls .scenes button { font-size: 12px; padding: 7px 13px; color: var(--ink-dim); }
+  #controls .scenes button.active { color: var(--ink); border-color: var(--violet); }
+  footer { width: min(100%, 1060px); margin-top: 18px; color: var(--ink-dim); font-size: 13px; line-height: 1.6; }
+  footer b { color: #c3cbdc; font-weight: 600; }
+</style>
+
+<header>
+  <div class="eyebrow">ConvoReal · Marketing Motion Concept</div>
+  <h1>The Net</h1>
+  <p>A horizontal safety net, torn open — listings drop straight through. The ConvoReal engine weaves it back from your buyers' requirements, and every future listing lands in it like treasure.</p>
+</header>
+
+<div id="stageWrap">
+  <div id="stage">
+    <div id="cardLayerBack"></div>
+    <canvas id="net" width="960" height="540"></canvas>
+    <div id="brand"><span class="bmark">C</span>ConvoReal</div>
+    <div id="labelLayer"></div>
+    <div id="cardLayer"></div>
+    <div id="engine" aria-hidden="true">
+      <div class="ringbox">
+        <div class="ring"></div>
+        <div class="ring r2"></div>
+        <div class="core">C</div>
+      </div>
+      <div class="ename">Convo<b>Real</b> engine</div>
+    </div>
+    <div id="cap">
+      <div class="cEyebrow"></div>
+      <div class="cHead"></div>
+    </div>
+  </div>
+</div>
+
+<div id="controls">
+  <button class="primary" id="btnReplay">Replay</button>
+  <button id="btnPause" aria-pressed="false">Pause</button>
+  <label style="display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-dim);cursor:pointer">
+    <input type="checkbox" id="chkLoop" checked> Loop
+  </label>
+  <div class="scenes" role="group" aria-label="Jump to scene">
+    <button data-scene="0">1 · Slip</button>
+    <button data-scene="1">2 · Weave</button>
+    <button data-scene="2">3 · Catch</button>
+  </div>
+</div>
+
+<footer>
+  <b>Capture note:</b> screen-record the stage for Reels/WhatsApp Status, or ask for a Remotion port to render a clean MP4 at any resolution. Copy, listings, camera angle and timing are all editable — this is a working prototype, not a locked cut.
+</footer>
+
+<script>
+(() => {
+  const stageWrap = document.getElementById('stageWrap');
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('net');
+  const ctx = canvas.getContext('2d');
+  const cardLayer = document.getElementById('cardLayer');
+  const cardLayerBack = document.getElementById('cardLayerBack');
+  const labelLayer = document.getElementById('labelLayer');
+  const engine = document.getElementById('engine');
+  const cap = document.getElementById('cap');
+  const capEyebrow = cap.querySelector('.cEyebrow');
+  const capHead = cap.querySelector('.cHead');
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = 960 * dpr;
+  canvas.height = 540 * dpr;
+  canvas.style.width = '960px';
+  canvas.style.height = '540px';
+  ctx.scale(dpr, dpr);
+
+  const fit = () => stage.style.setProperty('--s', (stageWrap.clientWidth / 960).toFixed(4));
+  new ResizeObserver(fit).observe(stageWrap);
+  fit();
+
+  // ---- 3D projection: horizontal net on the x/z ground plane, camera above & in front
+  const CAM = { y: 150, z: -260, tilt: 0.45, f: 420, cx: 480, cy: 340 };
+  const CT = Math.cos(CAM.tilt), ST = Math.sin(CAM.tilt);
+  function project(x, y, z) {
+    const Y = y - CAM.y, Z = z - CAM.z;
+    const Y2 = Y * CT + Z * ST;
+    const Z2 = -Y * ST + Z * CT;
+    const s = CAM.f / Z2;
+    return { x: CAM.cx + x * s, y: CAM.cy - Y2 * s, s };
+  }
+
+  // ---- Net grid geometry
+  const NX = 16, NZ = 8;
+  const xAt = i => -336 + i * 42;
+  const zAt = j => 100 + j * 40;
+  const HOLE = { x: 0, z: 260, rx: 185, rz: 110 };
+  const SAG = 70;
+  const holeVal = (x, z) => (x - HOLE.x) ** 2 / HOLE.rx ** 2 + (z - HOLE.z) ** 2 / HOLE.rz ** 2;
+  const inHole = (x, z) => holeVal(x, z) < 1 + 0.18 * Math.sin(x * 0.113 + z * 0.071);
+
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const easeOut = p => 1 - (1 - p) ** 3;
+
+  let state = null;
+
+  function bowlY(x, z) {
+    const r2 = (x / 340) ** 2 + ((z - 260) / 170) ** 2;
+    return -SAG * (1 - Math.min(r2, 1));
+  }
+  function netY(x, z, t) {
+    let y = bowlY(x, z) + 2.5 * Math.sin(t * 0.0011 + (x + z) * 0.004);
+    for (const r of state.ripples) {
+      const age = t - r.t0;
+      if (age < 0) continue;
+      const d = Math.hypot(x - r.x, z - r.z);
+      y += r.A * Math.sin(age * 0.014 - d * 0.05) * Math.exp(-d / 160) * Math.exp(-age / 700);
+    }
+    return y;
+  }
+
+  // ---- Broken-thread analysis: rows (constant z) and columns (constant x)
+  function analyzeLines() {
+    const lines = [];
+    for (let j = 0; j <= NZ; j++) {
+      const nodes = [];
+      for (let i = 0; i <= NX; i++) nodes.push({ x: xAt(i), z: zAt(j), hole: inHole(xAt(i), zAt(j)) });
+      lines.push({ nodes, mid: Math.abs(zAt(j) - HOLE.z) });
+    }
+    for (let i = 0; i <= NX; i++) {
+      const nodes = [];
+      for (let j = 0; j <= NZ; j++) nodes.push({ x: xAt(i), z: zAt(j), hole: inHole(xAt(i), zAt(j)) });
+      lines.push({ nodes, mid: Math.abs(xAt(i) - HOLE.x) });
+    }
+    for (const ln of lines) {
+      const first = ln.nodes.findIndex(n => n.hole);
+      if (first === -1) { ln.broken = false; continue; }
+      let last = first;
+      for (let k = first; k < ln.nodes.length; k++) if (ln.nodes[k].hole) last = k;
+      ln.broken = true;
+      ln.gapA = first - 1;
+      ln.gapB = last + 1;
+    }
+    return lines;
+  }
+
+  function freshState() {
+    const lines = analyzeLines();
+    const strands = [];
+    for (const ln of lines) {
+      if (!ln.broken) continue;
+      const isCol = ln.nodes[0].x === ln.nodes[1].x;
+      for (const [idx, dir] of [[ln.gapA, 1], [ln.gapB, -1]]) {
+        const n = ln.nodes[idx];
+        const h1 = Math.abs(Math.sin(n.x * 7 + n.z * 3));
+        const h2 = Math.abs(Math.sin(n.x * 3.3 + n.z * 5.1));
+        strands.push({
+          x: n.x, z: n.z,
+          ux: isCol ? 0 : dir, uz: isCol ? dir : 0,
+          inLen: 16 + h2 * 34,
+          len: 46 + h1 * 42,
+          phase: (n.x + n.z) * 0.05,
+        });
+      }
+    }
+    const broken = lines.filter(l => l.broken).sort((a, b) => a.mid - b.mid);
+    broken.forEach((ln, k) => { ln.weaveStart = null; ln.weaveOrder = k; ln.flashed = false; });
+    return {
+      lines, strands,
+      ripples: [], rings: [], particles: [],
+      retractStart: null, energizeStart: null,
+      charging: false, chargeTarget: project(0, 118, HOLE.z),
+    };
+  }
+
+  function weaveProgress(ln, t) {
+    if (ln.weaveStart === null) return 0;
+    return easeOut(clamp01((t - ln.weaveStart) / 950));
+  }
+  function energize(t) {
+    if (state.energizeStart === null) return 0;
+    return clamp01((t - state.energizeStart) / 800);
+  }
+  function retract(t) {
+    if (state.retractStart === null) return 0;
+    return clamp01((t - state.retractStart) / 1200);
+  }
+
+  const lerp = (a, b, p) => a + (b - a) * p;
+  function threadColor(e) {
+    return `rgb(${Math.round(lerp(70, 116, e))},${Math.round(lerp(83, 100, e))},${Math.round(lerp(107, 195, e))})`;
+  }
+
+  function drawSmooth(pts) {
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let k = 1; k < pts.length - 1; k++) {
+      const xc = (pts[k].x + pts[k + 1].x) / 2, yc = (pts[k].y + pts[k + 1].y) / 2;
+      ctx.quadraticCurveTo(pts[k].x, pts[k].y, xc, yc);
+    }
+    if (pts.length > 1) ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+  }
+
+  function drawPartial(pts, p) {
+    let total = 0;
+    const segs = [];
+    for (let k = 1; k < pts.length; k++) {
+      const d = Math.hypot(pts[k].x - pts[k - 1].x, pts[k].y - pts[k - 1].y);
+      segs.push(d); total += d;
+    }
+    let target = total * p, end = pts[0];
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let k = 1; k < pts.length; k++) {
+      if (target >= segs[k - 1]) {
+        ctx.lineTo(pts[k].x, pts[k].y);
+        end = pts[k];
+        target -= segs[k - 1];
+      } else {
+        const f = target / segs[k - 1];
+        end = { x: lerp(pts[k - 1].x, pts[k].x, f), y: lerp(pts[k - 1].y, pts[k].y, f) };
+        ctx.lineTo(end.x, end.y);
+        break;
+      }
+    }
+    return end;
+  }
+
+  function renderNet(t) {
+    const e = energize(t);
+    const rp = retract(t);
+
+    ctx.save();
+    const g = ctx.createRadialGradient(480, 300, 40, 480, 300, 360);
+    g.addColorStop(0, 'rgba(0,0,0,0.35)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.save(); ctx.translate(480, 300); ctx.scale(1, 0.32); ctx.translate(-480, -300);
+    ctx.beginPath(); ctx.arc(480, 300, 360, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.restore();
+
+    const base = threadColor(e);
+
+    for (const ln of state.lines) {
+      const proj = ln.nodes.map(n => project(n.x, netY(n.x, n.z, t), n.z));
+      const midS = proj[Math.floor(proj.length / 2)].s;
+      ctx.strokeStyle = base;
+      ctx.lineWidth = 2.1 * midS / 0.8;
+      ctx.globalAlpha = 0.55 + midS * 0.5;
+      ctx.lineCap = 'round';
+      if (!ln.broken) {
+        ctx.beginPath(); drawSmooth(proj); ctx.stroke();
+      } else {
+        ctx.beginPath(); drawSmooth(proj.slice(0, ln.gapA + 1)); ctx.stroke();
+        ctx.beginPath(); drawSmooth(proj.slice(ln.gapB)); ctx.stroke();
+        const p = weaveProgress(ln, t);
+        if (p > 0) {
+          const bridge = proj.slice(ln.gapA, ln.gapB + 1);
+          ctx.save();
+          ctx.strokeStyle = e > 0 ? base : '#8b5cf6';
+          ctx.shadowColor = '#8b5cf6';
+          ctx.shadowBlur = e > 0 ? 6 : 12;
+          ctx.lineWidth = 2.3 * midS / 0.8;
+          ctx.beginPath();
+          const head = drawPartial(bridge, p);
+          ctx.stroke();
+          if (p < 1) {
+            ctx.fillStyle = '#e9dfff';
+            ctx.shadowBlur = 18;
+            ctx.beginPath(); ctx.arc(head.x, head.y, 4.5, 0, Math.PI * 2); ctx.fill();
+          } else if (!ln.flashed) {
+            ln.flashed = true;
+            burst(head.x, head.y, 7, '#c4b5fd', 2.5, 0);
+          }
+          ctx.restore();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    if (rp < 1) {
+      ctx.strokeStyle = threadColor(0);
+      ctx.globalAlpha = 0.9 * (1 - rp);
+      for (const s of state.strands) {
+        const yTop = netY(s.x, s.z, t);
+        const lenNow = s.len * (1 - rp);
+        const inNow = s.inLen * (1 - rp);
+        const sway = Math.sin(t * 0.0025 + s.phase) * 10;
+        const pts = [];
+        for (let k = 0; k <= 5; k++) {
+          const f = k / 5;
+          pts.push(project(
+            s.x + s.ux * inNow * f + sway * f * f,
+            yTop - lenNow * Math.pow(f, 1.35),
+            s.z + s.uz * inNow * f
+          ));
+        }
+        ctx.lineWidth = 2 * pts[0].s / 0.8;
+        ctx.beginPath(); drawSmooth(pts); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    for (const r of state.rings) {
+      const p = clamp01((t - r.t0) / r.dur);
+      if (p >= 1) continue;
+      const rad = r.rmax * easeOut(p);
+      ctx.strokeStyle = r.color;
+      ctx.globalAlpha = (1 - p) * 0.9;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = r.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      for (let k = 0; k <= 40; k++) {
+        const a = (k / 40) * Math.PI * 2;
+        const wx = r.x + Math.cos(a) * rad, wz = r.z + Math.sin(a) * rad * 0.8;
+        const pt = project(wx, netY(wx, wz, t), wz);
+        k === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    state.rings = state.rings.filter(r => t - r.t0 < r.dur);
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- Particles (screen space)
+  function burst(sx, sy, n, color, size, grav) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 1.2 + Math.random() * 3.2;
+      state.particles.push({
+        x: sx, y: sy,
+        vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1.6,
+        age: 0, life: 500 + Math.random() * 420,
+        color, size: size * (0.7 + Math.random() * 0.7), grav,
+      });
+    }
+  }
+  function renderParticles(dt) {
+    if (state.charging) {
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 70 + Math.random() * 60;
+        state.particles.push({
+          x: state.chargeTarget.x + Math.cos(a) * r,
+          y: state.chargeTarget.y + Math.sin(a) * r * 0.7,
+          seek: true, age: 0, life: 620,
+          color: '#a78bfa', size: 2.2, grav: 0, vx: 0, vy: 0,
+        });
+      }
+    }
+    for (const p of state.particles) {
+      p.age += dt;
+      if (p.seek) {
+        p.x += (state.chargeTarget.x - p.x) * 0.09;
+        p.y += (state.chargeTarget.y - p.y) * 0.09;
+      } else {
+        p.x += p.vx * dt / 16;
+        p.y += p.vy * dt / 16;
+        p.vy += p.grav * dt / 16;
+      }
+      const a = 1 - p.age / p.life;
+      if (a <= 0) continue;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.color;
+      ctx.shadowColor = p.color;
+      ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    state.particles = state.particles.filter(p => p.age < p.life);
+  }
+
+  // ---- Cards (DOM, driven per-frame)
+  const LISTINGS_LOST = [
+    { type: 'House', title: '3 BHK House', loc: 'Koramangala', spec: '₹2.4 Cr · 1,850 sqft', wx: -250, wz: 185 },
+    { type: 'Plot', title: 'Vacant Plot', loc: 'HSR Layout', spec: '2,400 sqft · East facing', wx: 245, wz: 205 },
+    { type: 'Flat', title: '2 BHK Flat', loc: 'Indiranagar', spec: '₹95 L · 1,120 sqft', wx: -175, wz: 335 },
+    { type: 'Villa', title: '3 BHK Villa', loc: 'Sarjapur Road', spec: '₹1.9 Cr · 2,400 sqft', wx: 175, wz: 345 },
+    { type: 'Flat', title: '1 BHK Flat', loc: 'BTM Layout', spec: '₹52 L · 650 sqft', wx: -85, wz: 148 },
+    { type: 'House', title: 'Duplex House', loc: 'JP Nagar', spec: '₹1.6 Cr · 1,600 sqft', wx: 60, wz: 380 },
+  ];
+  const LISTINGS_CAUGHT = [
+    { type: 'Flat', title: '3 BHK Flat', loc: 'Koramangala', spec: '₹1.35 Cr · 1,540 sqft', wx: -185, wz: 235, matches: '3 buyer matches' },
+    { type: 'Plot', title: 'Corner Plot', loc: 'HSR Layout', spec: '2,000 sqft · North', wx: 5, wz: 268, matches: '5 buyer matches' },
+    { type: 'Villa', title: '4 BHK Villa', loc: 'Whitefield', spec: '₹3.1 Cr · 3,200 sqft', wx: 195, wz: 232, matches: '2 buyer matches' },
+  ];
+  const REQ_LABELS = [
+    { text: '3 BHK · Koramangala', wx: -250, wz: 310 },
+    { text: 'Plot ≥ 2,000 sqft · HSR', wx: 248, wz: 305 },
+    { text: '₹90 L – 1.4 Cr · Flats', wx: -100, wz: 165 },
+    { text: 'Villa · Whitefield', wx: 118, wz: 355 },
+  ];
+
+  let cards = [];
+  function makeCard(l) {
+    const el = document.createElement('div');
+    el.className = 'pcard';
+    el.innerHTML = `<div class="ptype">${l.type}</div><div class="ptitle">${l.title}</div><div class="ploc">${l.loc}</div><div class="pspec">${l.spec}</div>`;
+    cardLayer.appendChild(el);
+    return el;
+  }
+  function spawnLost(l, t0) {
+    cards.push({ kind: 'lost', l, t0, el: makeCard(l), grazed: false });
+  }
+  function spawnCatch(l, t0) {
+    cards.push({ kind: 'catch', l, t0, el: makeCard(l), impacted: false });
+  }
+
+  function updateCards(t) {
+    const Y_START = 470;
+    for (const c of cards) {
+      const { l, el } = c;
+      const age = t - c.t0;
+      if (age < 0) { el.style.opacity = 0; continue; }
+      if (c.kind === 'lost') {
+        const FD = 1600, RD = 450, LD = 2100, TD = 1100;
+        let x = l.wx, z = l.wz, y, rotX = 6, rotZ = 0, op = 1;
+        if (!c.thr) {
+          if (age < FD) {
+            const p = age / FD;
+            y = lerp(Y_START, netY(x, z, t) + 4, Math.pow(p, 1.6));
+            rotX = 5 + p * 4;
+            op = p < 0.05 ? p * 20 : 1;
+          } else if (age < FD + RD) {
+            if (!c.landed) {
+              c.landed = true;
+              state.ripples.push({ x, z, t0: t, A: 20 });
+            }
+            const bt = age - FD;
+            y = netY(x, z, t) + 4 + 15 * Math.exp(-bt / 260) * Math.cos(bt * 0.021);
+            rotX = 9;
+          } else {
+            const rp = clamp01((age - FD - RD) / LD);
+            const q = rp * rp;
+            x = lerp(l.wx, l.wx * 0.06, q);
+            z = lerp(l.wz, 260 + (l.wz - 260) * 0.08, q);
+            y = netY(x, z, t) + 4 + 3 * Math.abs(Math.sin(q * 24)) * (1 - q);
+            rotX = 9;
+            rotZ = Math.sign(-l.wx) * 6 * Math.sin(rp * Math.PI);
+            const step = Math.floor((age - FD - RD) / 320);
+            if (step !== c.lastTrail && rp > 0.05) {
+              c.lastTrail = step;
+              state.ripples.push({ x, z, t0: t, A: 4 });
+            }
+            if (holeVal(x, z) < 0.85 || rp >= 1) {
+              c.thr = { a0: age, x, z, y: netY(x, z, t) + 4 };
+              state.ripples.push({ x, z, t0: t, A: 9 });
+            }
+          }
+        }
+        if (c.thr) {
+          const tp = clamp01((age - c.thr.a0) / TD);
+          x = lerp(c.thr.x, c.thr.x * 0.72, tp);
+          z = lerp(c.thr.z, 260 + (c.thr.z - 260) * 0.72, tp);
+          y = c.thr.y - 880 * Math.pow(tp, 1.75);
+          rotX = 9 + tp * 26;
+          op = tp < 0.12 ? 1 : Math.max(0, 1 - (tp - 0.12) / 0.75);
+          if (tp >= 1) c.done = true;
+        }
+        if (!c.behind && y < netY(x, z, t) - 6) {
+          c.behind = true;
+          cardLayerBack.appendChild(el);
+        }
+        const pt = project(x, y, z);
+        const sc = pt.s;
+        el.style.opacity = op;
+        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64 - 58 * sc}px) scale(${sc}) rotateX(${rotX}deg) rotate(${rotZ}deg)`;
+      } else {
+        const p = clamp01(age / 1300);
+        const netYv = netY(l.wx, l.wz, t) + 3;
+        let just = false;
+        if (p >= 1 && !c.impacted) {
+          c.impacted = true;
+          just = true;
+          state.ripples.push({ x: l.wx, z: l.wz, t0: t, A: 34 });
+          state.rings.push({ x: l.wx, z: l.wz, t0: t, rmax: 130, dur: 750, color: 'rgba(245,192,68,0.9)' });
+          el.classList.add('caught');
+          const chip = document.createElement('span');
+          chip.className = 'chip';
+          chip.textContent = '✓ ' + l.matches;
+          el.appendChild(chip);
+          setTimeout(() => chip.classList.add('pop'), 240);
+        }
+        const bt = Math.max(0, age - 1300);
+        const y = p < 1
+          ? lerp(Y_START, netYv, Math.pow(p, 1.7))
+          : netYv + 24 * Math.exp(-bt / 360) * Math.cos(bt * 0.019);
+        const pt = project(l.wx, y, l.wz);
+        if (just) burst(pt.x, pt.y - 40, 26, '#ffe9ad', 2.6, 0.16);
+        const sc = pt.s;
+        const rotZ = p < 1 ? -2 + p * 3 : 1.2 * Math.exp(-bt / 500) * Math.sin(bt * 0.012);
+        el.style.opacity = p < 0.05 ? p * 20 : 1;
+        el.style.transform = `translate(${pt.x - 64}px, ${pt.y - 64 - 58 * sc}px) scale(${sc}) rotateX(12deg) rotate(${rotZ}deg)`;
+      }
+    }
+    cards = cards.filter(c => {
+      if (c.done) { c.el.remove(); return false; }
+      return true;
+    });
+  }
+
+  const reqEls = REQ_LABELS.map(r => {
+    const el = document.createElement('div');
+    el.className = 'reqlabel';
+    el.textContent = r.text;
+    labelLayer.appendChild(el);
+    return el;
+  });
+  function updateLabels(t) {
+    REQ_LABELS.forEach((r, i) => {
+      const pt = project(r.wx, netY(r.wx, r.wz, t) + 6, r.wz);
+      reqEls[i].style.transform = `translate(${pt.x}px, ${pt.y - 16}px) translate(-50%,-50%) scale(${0.75 + pt.s * 0.45})`;
+    });
+  }
+
+  function caption(tone, eyebrow, head) {
+    cap.style.opacity = 0;
+    setTimeout(() => {
+      cap.className = tone;
+      capEyebrow.textContent = eyebrow;
+      capHead.textContent = head;
+      cap.style.opacity = 1;
+    }, 420);
+  }
+
+
+  function drawCTA(t, T0, kicker) {
+    const p = Math.max(0, Math.min(1, (t - T0) / 700));
+    if (p <= 0) return;
+    const e = 1 - (1 - p) ** 3;
+    const F = (w, s) => `${w} ${s}px Manrope, "Avenir Next", "Segoe UI", system-ui, sans-serif`;
+    ctx.save();
+    ctx.globalAlpha = p;
+    ctx.fillStyle = '#05070d';
+    ctx.fillRect(0, 0, 960, 540);
+    const rg = ctx.createRadialGradient(480, 250, 20, 480, 250, 430);
+    rg.addColorStop(0, 'rgba(139,92,246,0.22)');
+    rg.addColorStop(1, 'rgba(139,92,246,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, 960, 540);
+
+    ctx.translate(480, 214 + (1 - e) * 22);
+    ctx.textBaseline = 'middle';
+
+    ctx.font = F(800, 26);
+    const wm = ctx.measureText('ConvoReal').width;
+    const bx = -(wm + 48) / 2;
+    const lg = ctx.createLinearGradient(bx, -18, bx + 36, 18);
+    lg.addColorStop(0, '#8b5cf6');
+    lg.addColorStop(1, '#5b34b8');
+    ctx.fillStyle = lg;
+    ctx.beginPath(); ctx.roundRect(bx, -18, 36, 36, 11); ctx.fill();
+    ctx.fillStyle = '#f2edff';
+    ctx.font = F(800, 20);
+    ctx.textAlign = 'center';
+    ctx.fillText('C', bx + 18, 1);
+    ctx.fillStyle = '#e6eaf3';
+    ctx.font = F(800, 26);
+    ctx.textAlign = 'left';
+    ctx.fillText('ConvoReal', bx + 48, 1);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = F(700, 10.5);
+    ctx.letterSpacing = '2.4px';
+    ctx.fillText('WHATSAPP DEAL ENGINE FOR REAL ESTATE', 0, 48);
+    ctx.letterSpacing = '0px';
+    ctx.fillStyle = '#e6eaf3';
+    ctx.font = F(700, 25);
+    ctx.fillText(kicker, 0, 88);
+
+    ctx.font = F(800, 15);
+    const bt = 'Start free  →';
+    const bw = ctx.measureText(bt).width + 60;
+    const by = 138;
+    const bg = ctx.createLinearGradient(0, by - 23, 0, by + 23);
+    bg.addColorStop(0, '#7c4fe8');
+    bg.addColorStop(1, '#5b34b8');
+    ctx.fillStyle = bg;
+    ctx.shadowColor = 'rgba(139,92,246,0.6)';
+    ctx.shadowBlur = 24 + 10 * Math.sin(t * 0.004);
+    ctx.beginPath(); ctx.roundRect(-bw / 2, by - 23, bw, 46, 23); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#f6f3ff';
+    ctx.fillText(bt, 0, by + 1);
+
+    ctx.fillStyle = '#c3cbdc';
+    ctx.font = F(700, 14);
+    ctx.fillText('convoreal.com', 0, by + 52);
+    ctx.fillStyle = '#8d99b2';
+    ctx.font = F(500, 11.5);
+    ctx.fillText('Free Starter plan · Upgrade when your team grows', 0, by + 76);
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+  }
+
+  // ---- Timeline
+  const S2 = 10600, S3 = 18600, CTA_T = 27800, END = 33200;
+
+  function buildEvents() {
+    const ev = [];
+    ev.push({ t: 100, fn: () => caption('', '01 · Today', 'Listings land all over the net… and every one slips through the tear.') });
+    LISTINGS_LOST.forEach((l, i) => ev.push({ t: 700 + i * 820, fn: t => spawnLost(l, t) }));
+
+    ev.push({ t: S2, fn: () => caption('violet', '02 · The ConvoReal engine', 'Buyer requirements are woven back into the net.') });
+    ev.push({ t: S2 + 300, fn: () => { engine.classList.add('on'); state.charging = true; } });
+    ev.push({ t: S2 + 1400, fn: t => {
+      state.charging = false;
+      state.ripples.push({ x: HOLE.x, z: HOLE.z, t0: t, A: 26 });
+      state.rings.push({ x: HOLE.x, z: HOLE.z, t0: t, rmax: 330, dur: 1100, color: 'rgba(139,92,246,0.85)' });
+      state.retractStart = t;
+    } });
+    ev.push({ t: S2 + 1600, fn: t => {
+      state.lines.filter(l => l.broken).forEach(l => { l.weaveStart = t + l.weaveOrder * 200; });
+    } });
+    ev.push({ t: S2 + 5600, fn: t => {
+      state.energizeStart = t;
+      state.ripples.push({ x: HOLE.x, z: HOLE.z, t0: t, A: 20 });
+      state.rings.push({ x: HOLE.x, z: HOLE.z, t0: t, rmax: 360, dur: 1300, color: 'rgba(167,139,250,0.7)' });
+      reqEls.forEach((el, i) => setTimeout(() => el.classList.add('show'), 300 + i * 180));
+    } });
+    ev.push({ t: S3 - 800, fn: () => engine.classList.remove('on') });
+
+    ev.push({ t: S3, fn: () => {
+      caption('gold', '03 · After ConvoReal', 'Every new listing is caught — and matched.');
+      reqEls.forEach(el => el.classList.add('dim'));
+    } });
+    LISTINGS_CAUGHT.forEach((l, i) => ev.push({ t: S3 + 600 + i * 2000, fn: t => spawnCatch(l, t) }));
+    ev.push({ t: S3 + 7400, fn: () => caption('gold', 'ConvoReal', 'The WhatsApp deal engine that never lets a listing slip.') });
+    return ev.sort((a, b) => a.t - b.t);
+  }
+
+  // ---- Clock / control
+  let pending = [], clock = 0, playing = false, lastTick = 0, rafId = 0;
+  const btnPause = document.getElementById('btnPause');
+  const chkLoop = document.getElementById('chkLoop');
+  const sceneBtns = [...document.querySelectorAll('#controls .scenes button')];
+
+  function resetStage() {
+    state = freshState();
+    cards.forEach(c => c.el.remove());
+    cards = [];
+    engine.classList.remove('on');
+    reqEls.forEach(el => el.classList.remove('show', 'dim'));
+    cap.style.opacity = 0;
+  }
+
+  function instantWeave() {
+    state.lines.filter(l => l.broken).forEach(l => { l.weaveStart = -10000; l.flashed = true; });
+    state.retractStart = -10000;
+    state.energizeStart = -10000;
+    reqEls.forEach(el => el.classList.add('show'));
+  }
+
+  function startAt(t0) {
+    resetStage();
+    if (t0 >= S3) instantWeave();
+    pending = buildEvents().filter(e => e.t >= t0);
+    clock = t0;
+    playing = true;
+    btnPause.textContent = 'Pause';
+    btnPause.setAttribute('aria-pressed', 'false');
+    engine.classList.remove('paused');
+    lastTick = performance.now();
+  }
+
+  function markScene() {
+    const idx = clock >= S3 ? 2 : clock >= S2 ? 1 : 0;
+    sceneBtns.forEach((b, i) => b.classList.toggle('active', i === idx));
+  }
+
+  function frame(now) {
+    const dt = Math.min(now - lastTick, 64);
+    lastTick = now;
+    if (playing) {
+      clock += dt;
+      while (pending.length && pending[0].t <= clock) pending.shift().fn(clock);
+      if (clock >= END) {
+        if (chkLoop.checked) startAt(0);
+        else playing = false;
+      }
+    }
+    ctx.clearRect(0, 0, 960, 540);
+    state.ripples = state.ripples.filter(r => clock - r.t0 < 2600);
+    renderNet(clock);
+    renderParticles(playing ? dt : 0);
+    updateCards(clock);
+    updateLabels(clock);
+    drawCTA(clock, CTA_T, 'Never let a listing slip again.');
+    markScene();
+    stage.classList.toggle('cta', clock >= CTA_T);
+    rafId = requestAnimationFrame(frame);
+  }
+
+  document.getElementById('btnReplay').addEventListener('click', () => startAt(0));
+  btnPause.addEventListener('click', () => {
+    playing = !playing;
+    btnPause.textContent = playing ? 'Pause' : 'Play';
+    btnPause.setAttribute('aria-pressed', String(!playing));
+    engine.classList.toggle('paused', !playing);
+    if (playing) lastTick = performance.now();
+  });
+  sceneBtns.forEach((b, i) => b.addEventListener('click', () => startAt([0, S2, S3][i])));
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduced) {
+    resetStage();
+    instantWeave();
+    clock = END - 1000;
+    LISTINGS_CAUGHT.forEach(l => {
+      const c = { kind: 'catch', l, t0: clock - 5000, el: makeCard(l), impacted: true };
+      c.el.classList.add('caught');
+      const chip = document.createElement('span');
+      chip.className = 'chip pop';
+      chip.textContent = '✓ ' + l.matches;
+      c.el.appendChild(chip);
+      cards.push(c);
+    });
+    reqEls.forEach(el => el.classList.add('show', 'dim'));
+    cap.className = 'gold';
+    capEyebrow.textContent = 'ConvoReal';
+    capHead.textContent = 'Every new listing is caught — and matched.';
+    cap.style.opacity = 1;
+    playing = false;
+    lastTick = performance.now();
+  } else {
+    startAt(0);
+  }
+  rafId = requestAnimationFrame(frame);
+})();
+</script>

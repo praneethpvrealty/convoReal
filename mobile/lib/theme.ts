@@ -6,16 +6,25 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 /**
  * ConvoReal design tokens — "aurora glass" system
  * (docs/design/GLASS_UI_IMPLEMENTATION_SPEC.md).
- * Light = Option 7 "WhatsApp Native on Glass", dark = Option 4
- * "Liquid Glass". Components read colors/type via useTheme(), never
- * from a static palette. Screens render over <AuroraBackground/>, so
- * `surface`/`glass` are translucent and MUST stay translucent.
+ *
+ * Colour is split by function, not by platform:
+ *   - Brand chrome (primary, backgrounds, tab bar, headers, CTAs) is
+ *     Convo Violet, matching the web app and `public/brand/`.
+ *   - The chat thread keeps WhatsApp-native bubble greens and blue
+ *     read ticks — that familiarity is functional, not branding.
+ *   - `success` stays green because it means live/delivered, not
+ *     "ConvoReal".
+ * Never move violet into the bubbles or green into the chrome.
+ *
+ * Components read colors/type via useTheme(), never from a static
+ * palette. Screens render over <AuroraBackground/>, so `surface`/
+ * `glass` are translucent and MUST stay translucent.
  */
 export interface ThemeColors {
   primary: string;
   onPrimary: string;
   primarySoft: string;
-  /** Mint accent — price pins, live chips, highlights. */
+  /** Soft brand accent — price pins, live chips, highlights. */
   mint: string;
   mintText: string;
   /** Solid underlay painted beneath the aurora image. */
@@ -25,6 +34,10 @@ export interface ThemeColors {
   surfaceRaised: string;
   /** Recessed neutral wells inside cards (spec pills, previews). */
   surfaceSunken: string;
+  /** Opaque panel for anything that floats OVER glass (dropdowns,
+   *  peek capsules) or renders outside the aurora (widgets, the error
+   *  boundary). Translucent fills let the layer beneath read through. */
+  surfaceWell: string;
   /** Frosted-glass fill + hairline border for GlassCard & floating bars. */
   glass: string;
   glassBorder: string;
@@ -43,66 +56,80 @@ export interface ThemeColors {
   dangerSoft: string;
   success: string;
   successSoft: string;
+  /** Text/icons sitting on a `success` fill. */
+  onSuccess: string;
   warning: string;
   warningSoft: string;
+  /** Text/icons sitting on a `warning` fill. */
+  onWarning: string;
+  /** Filled rating stars. */
+  rating: string;
+  /** Sweep highlight for shimmer/skeleton gradients. */
+  shimmer: string;
   readTick: string;
   tabBar: string;
   /** @deprecated Same as `tabBar` in the glass system. */
   tabBarGlass: string;
 }
 
-/** Light — Option 7 "WhatsApp Native on Glass". */
+/** Light — violet chrome over glass, WhatsApp-native thread. */
 export const lightColors: ThemeColors = {
-  primary: '#075E54',
+  primary: '#7C3AED',
   onPrimary: '#FFFFFF',
-  primarySoft: 'rgba(7,94,84,0.10)',
-  mint: 'rgba(37,211,102,0.16)',
-  mintText: '#075E54',
-  background: '#EAF4EE',
+  primarySoft: 'rgba(124,58,237,0.10)',
+  mint: 'rgba(124,58,237,0.14)',
+  mintText: '#6D28D9',
+  background: '#EFEDF8',
   surface: 'rgba(255,255,255,0.55)',
   surfaceRaised: 'rgba(255,255,255,0.72)',
-  surfaceSunken: 'rgba(17,27,33,0.05)',
+  surfaceSunken: 'rgba(22,19,39,0.05)',
+  surfaceWell: '#FFFFFF',
   glass: 'rgba(255,255,255,0.55)',
   glassBorder: 'rgba(255,255,255,0.9)',
-  backdrop: 'rgba(7,30,25,0.35)',
-  border: '#E9EDEF',
-  text: '#111B21',
-  textMuted: '#5D6E66',
-  textFaint: '#8AA39A',
+  backdrop: 'rgba(12,8,26,0.35)',
+  border: '#E6E4F0',
+  text: '#161327',
+  textMuted: '#6B6480',
+  textFaint: '#9A93AD',
   incomingBubble: 'rgba(255,255,255,0.72)',
   incomingText: '#111B21',
   outgoingBubble: '#D9FDD3',
   outgoingText: '#111B21',
-  outgoingMeta: '#5D6E66',
+  outgoingMeta: '#5F7A63',
   danger: '#D5493B',
   dangerSoft: 'rgba(213,73,59,0.10)',
   success: '#25D366',
   successSoft: 'rgba(37,211,102,0.16)',
+  onSuccess: '#FFFFFF',
   warning: '#B07E1F',
   warningSoft: 'rgba(176,126,31,0.12)',
+  onWarning: '#FFFFFF',
+  rating: '#E5A50A',
+  shimmer: '#FFFFFF',
   readTick: '#53bdeb',
   tabBar: 'rgba(255,255,255,0.92)',
   tabBarGlass: 'rgba(255,255,255,0.92)',
 };
 
-/** Dark — Option 4 "Liquid Glass". */
+/** Dark — "Liquid Glass" over Ink. */
 export const darkColors: ThemeColors = {
-  primary: '#C6F68D',
-  onPrimary: '#10220F',
-  primarySoft: 'rgba(198,246,141,0.16)',
-  mint: 'rgba(123,227,176,0.14)',
-  mintText: '#7BE3B0',
-  background: '#0A1F16',
+  primary: '#A78BFA',
+  onPrimary: '#1B1033',
+  primarySoft: 'rgba(167,139,250,0.16)',
+  mint: 'rgba(167,139,250,0.14)',
+  mintText: '#C4B5FD',
+  background: '#0B1020',
   surface: 'rgba(255,255,255,0.09)',
   surfaceRaised: 'rgba(255,255,255,0.14)',
   surfaceSunken: 'rgba(255,255,255,0.06)',
+  surfaceWell: '#171A33',
   glass: 'rgba(255,255,255,0.09)',
   glassBorder: 'rgba(255,255,255,0.16)',
-  backdrop: 'rgba(4,12,9,0.55)',
+  backdrop: 'rgba(6,6,18,0.55)',
   border: 'rgba(255,255,255,0.16)',
-  text: '#F2FBF4',
-  textMuted: 'rgba(235,250,240,0.62)',
-  textFaint: 'rgba(235,250,240,0.38)',
+  text: '#EDEAF7',
+  textMuted: 'rgba(237,234,247,0.62)',
+  textFaint: 'rgba(237,234,247,0.38)',
   incomingBubble: 'rgba(255,255,255,0.09)',
   incomingText: '#F2FBF4',
   outgoingBubble: '#1F5B49',
@@ -112,12 +139,55 @@ export const darkColors: ThemeColors = {
   dangerSoft: 'rgba(255,122,107,0.16)',
   success: '#5EE0A0',
   successSoft: 'rgba(94,224,160,0.16)',
+  onSuccess: '#08301D',
   warning: '#FFC24B',
   warningSoft: 'rgba(255,194,75,0.16)',
+  onWarning: '#3A2A05',
+  rating: '#F5C044',
+  shimmer: '#FFFFFF',
   readTick: '#53bdeb',
-  tabBar: 'rgba(16,33,25,0.88)',
-  tabBarGlass: 'rgba(16,33,25,0.88)',
+  tabBar: 'rgba(16,18,40,0.88)',
+  tabBarGlass: 'rgba(16,18,40,0.88)',
 };
+
+/**
+ * Raw brand constants, mirroring `public/brand/` and the web app.
+ *
+ * Only for surfaces that genuinely cannot call `useTheme()` — Android
+ * home-screen widgets (no React runtime), the error boundary (renders
+ * when the provider may be gone) and native channel config. Everything
+ * inside the app reads `useTheme().colors` instead; adding a hex to a
+ * component is what let mobile and web drift apart in the first place.
+ */
+export const brand = {
+  violet: '#7C3AED',
+  violetSoft: '#A78BFA',
+  violetDeep: '#5B34B8',
+  gold: '#F5C044',
+  ink: '#0B1020',
+  inkRaised: '#171A33',
+  inkWell: '#12142B',
+  paper: '#EFEDF8',
+  paperWell: '#F4F2FB',
+  white: '#FFFFFF',
+  text: '#161327',
+  textDim: '#6B6480',
+  textOnInk: '#EDEAF7',
+  textDimOnInk: '#9A93AD',
+  border: '#E6E4F0',
+  borderOnInk: '#2A2A47',
+  danger: '#D5493B',
+  live: '#25D366',
+} as const;
+
+/** Celebration burst — brand violet and gold, never the channel green. */
+export const confettiColors = [
+  brand.violet,
+  brand.violetSoft,
+  brand.gold,
+  '#FFE9AD',
+  brand.violetDeep,
+] as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32 } as const;
 export const radius = { sm: 10, md: 14, lg: 20, xl: 26, full: 999 } as const;
@@ -132,14 +202,14 @@ export interface ThemeShadow {
 
 const lightShadows = {
   card: {
-    shadowColor: '#071E19',
+    shadowColor: '#1B1033',
     shadowOpacity: 0.06,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
     elevation: 3,
   },
   soft: {
-    shadowColor: '#071E19',
+    shadowColor: '#1B1033',
     shadowOpacity: 0.05,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 3 },
@@ -147,7 +217,7 @@ const lightShadows = {
   },
   /** Glow under gradient hero cards. */
   hero: {
-    shadowColor: '#075E54',
+    shadowColor: '#7C3AED',
     shadowOpacity: 0.3,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
@@ -187,8 +257,8 @@ const darkShadows = {
 export const shadows = lightShadows;
 
 /** Brand gradient — kept for hero cards; glass UI prefers solid tokens. */
-export const brandGradient = ['#075E54', '#128C7E'] as const;
-export const brandGradientDark = ['#1F5B49', '#2E7D5F'] as const;
+export const brandGradient = ['#7C3AED', '#5B34B8'] as const;
+export const brandGradientDark = ['#6D28D9', '#4C2A9E'] as const;
 /** @deprecated Hot-lead rings are now solid `colors.success` (light) /
  *  lime ring + glow (dark) — see Avatar. Kept so old code compiles. */
 export const hotGradient = ['#E9A23B', '#D5493B', '#B85C9E'] as const;
@@ -212,15 +282,15 @@ export const onGradient = {
 /**
  * Price-pin palette for map markers. Deliberately NOT theme-driven:
  * pins float on Google's tile palette (which follows the map's own
- * userInterfaceStyle), so the WhatsApp-green pill stays legible in
- * both app appearances.
+ * userInterfaceStyle), so a solid brand pill stays legible in both app
+ * appearances.
  */
 export const mapPin = {
-  bg: '#D9FDD3',
+  bg: brand.violet,
   bgMuted: '#E7E4DB',
-  text: '#075E54',
+  text: brand.white,
   textMuted: '#3d453f',
-  dot: '#25D366',
+  dot: brand.gold,
   dotMuted: '#69766F',
   border: '#FFFFFF',
 } as const;
@@ -336,7 +406,7 @@ export const classificationColors: Record<string, { light: string; dark: string 
   Owner: { light: '#0e7490', dark: '#67e8f9' },
   Seller: { light: '#a16207', dark: '#fde047' },
   Buyer: { light: '#15803d', dark: '#86efac' },
-  Agent: { light: '#075E54', dark: '#7BE3B0' },
+  Agent: { light: '#4338ca', dark: '#a5b4fc' },
   Developer: { light: '#be185d', dark: '#f9a8d4' },
   'Owner & Buyer': { light: '#0369a1', dark: '#7dd3fc' },
   Others: { light: '#57534e', dark: '#d6d3d1' },

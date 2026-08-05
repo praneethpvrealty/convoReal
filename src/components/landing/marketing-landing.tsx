@@ -21,6 +21,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ConvoRealMark } from '@/components/brand/mark';
 import { MARKETING_CONFIG } from '@/config/marketing';
 import { EngineLeadForm } from '@/components/landing/engine-lead-form';
 import { EngineLeadBot } from '@/components/landing/engine-lead-bot';
@@ -138,8 +139,8 @@ export function MarketingLanding() {
       <header className="sticky top-0 z-50 w-full border-b border-slate-900 bg-slate-950/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-black text-white text-xl tracking-tighter shadow-lg shadow-indigo-500/25">
-              C
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+              <ConvoRealMark className="h-6 w-6" />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-indigo-400 bg-clip-text text-transparent tracking-tight">
               ConvoReal

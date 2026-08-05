@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 
 import { registerDevice } from './api';
+import { brand } from './theme';
 
 function projectId(): string | undefined {
   return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
@@ -41,7 +42,7 @@ async function registerForPushNotifications(): Promise<void> {
     await Notifications.setNotificationChannelAsync('default', {
       name: 'Default',
       importance: Notifications.AndroidImportance.HIGH,
-      lightColor: '#0A1F16',
+      lightColor: brand.violet,
     });
   }
 

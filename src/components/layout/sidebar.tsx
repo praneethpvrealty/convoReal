@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import { SidebarCreditWidget } from "@/components/layout/SidebarCreditWidget";
 import { FavoritesCard } from "@/components/layout/favorites-card";
+import { ConvoRealMark } from "@/components/brand/mark";
 import {
   Crown,
   Headset,
@@ -210,8 +211,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             close button is hidden since the sidebar is always-visible. */}
         <div className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-900/60 px-4 bg-slate-950/20 backdrop-blur-sm relative z-10">
           <Link href="/dashboard" prefetch={false} className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-indigo-650 text-white shadow-md shadow-primary/20">
-              <MessageSquare className="h-4 w-4" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-indigo-650 shadow-md shadow-primary/20">
+              <ConvoRealMark className="h-5 w-5" />
             </div>
             <span className="text-[11px] font-black tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
               CONVOREAL ENGINE

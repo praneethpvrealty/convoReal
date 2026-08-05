@@ -108,7 +108,7 @@ export function ConvoRealLoader({
       <MaskedView style={{ width: w, height: h }} maskElement={wordmark}>
         <View style={{ width: w, height: h, overflow: 'hidden' }}>
           <AnimatedGradient
-            colors={[colors.primary, '#FFFFFF', colors.primary]}
+            colors={[colors.primary, colors.shimmer, colors.primary]}
             locations={[0.4, 0.5, 0.6]}
             start={{ x: 0, y: 0.3 }}
             end={{ x: 1, y: 0.7 }}

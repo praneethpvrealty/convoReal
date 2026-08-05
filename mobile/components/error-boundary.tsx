@@ -5,6 +5,8 @@ import { router, usePathname } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, useColorScheme, View } from 'react-native';
 
+import { brand } from '@/lib/theme';
+
 /**
  * App-wide fallback for a screen that throws while rendering. Expo Router
  * mounts this (exported as `ErrorBoundary` from the root layout) instead
@@ -23,11 +25,13 @@ export function AppErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   const pathname = usePathname();
   const [copied, setCopied] = useState(false);
   const [showStack, setShowStack] = useState(false);
+  // Static brand constants, not useTheme() — the provider may be the
+  // thing that just threw.
   const c = dark
-    ? { bg: '#0A1512', card: '#12211C', border: '#22332C', fg: '#E7ECEA', muted: '#9DB0A8' }
-    : { bg: '#EEF5F1', card: '#FFFFFF', border: '#DCE7E1', fg: '#0A1F16', muted: '#5B6B63' };
-  const primary = '#0F7A54';
-  const wellBg = dark ? '#0A1512' : '#F2F7F4';
+    ? { bg: brand.ink, card: brand.inkWell, border: brand.borderOnInk, fg: brand.textOnInk, muted: brand.textDimOnInk }
+    : { bg: brand.paper, card: brand.white, border: brand.border, fg: brand.text, muted: brand.textDim };
+  const primary = dark ? brand.violetSoft : brand.violet;
+  const wellBg = dark ? brand.ink : brand.paperWell;
 
   // runtimeVersion is the resolved fingerprint in a build, but stays the
   // unresolved `{ policy }` object in Expo Go — print it only when it is
@@ -145,7 +149,9 @@ export function AppErrorBoundary({ error, retry }: ErrorBoundaryProps) {
           accessibilityRole="button"
           style={{ backgroundColor: primary, borderRadius: 999, paddingVertical: 13, alignItems: 'center', marginTop: 4 }}
         >
-          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 15 }}>Try again</Text>
+          <Text style={{ color: dark ? brand.ink : brand.white, fontWeight: '700', fontSize: 15 }}>
+            Try again
+          </Text>
         </Pressable>
         <Pressable
           onPress={() => router.replace('/(app)/(tabs)')}

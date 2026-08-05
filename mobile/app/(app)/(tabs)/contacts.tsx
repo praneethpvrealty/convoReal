@@ -724,7 +724,7 @@ function ContactPeekCard({
   tags: string[];
   propertyCodes: Record<string, string>;
 }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, fonts: f } = useTheme();
   // property_interests are category labels, not ids — they read as-is;
   // only last_inquired_property_id resolves to a property code.
   const inquiredCode = contact.last_inquired_property_id
@@ -761,9 +761,9 @@ function ContactPeekCard({
       style={[
         styles.peekCapsule,
         {
-          backgroundColor: dark ? 'rgba(16,42,30,0.97)' : 'rgba(255,255,255,0.97)',
+          backgroundColor: colors.surfaceWell,
           borderColor: colors.primary,
-          shadowColor: dark ? colors.primary : '#0B3D2E',
+          shadowColor: colors.primary,
         },
       ]}
     >

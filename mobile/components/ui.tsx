@@ -59,13 +59,13 @@ export function Avatar({
   );
 
   if (!ring) return core;
-  // Spec rule 5: light = 2.5px solid bright-green ring; dark = thin
-  // lime ring with a soft lime glow (no gradient sweep).
+  // Spec rule 5: light = 2.5px solid ring in the live colour; dark =
+  // thin ring with a soft glow (no gradient sweep).
   const ringStyle = dark
     ? {
         borderWidth: 1.5,
-        borderColor: 'rgba(198,246,141,0.55)',
-        shadowColor: '#C6F68D',
+        borderColor: colors.successSoft,
+        shadowColor: colors.success,
         shadowOpacity: 0.22,
         shadowRadius: 9,
         shadowOffset: { width: 0, height: 0 },
@@ -137,7 +137,7 @@ export function IconButton({
 }
 
 export function UnreadBadge({ count }: { count: number }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, fonts: f } = useTheme();
   if (count <= 0) return null;
   return (
     <View
@@ -152,7 +152,7 @@ export function UnreadBadge({ count }: { count: number }) {
         paddingHorizontal: 6,
       }}
     >
-      <Text style={{ color: dark ? '#10220F' : '#FFFFFF', fontSize: 12, fontFamily: f.bold }}>
+      <Text style={{ color: colors.onSuccess, fontSize: 12, fontFamily: f.bold }}>
         {count > 99 ? '99+' : count}
       </Text>
     </View>

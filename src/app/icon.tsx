@@ -1,9 +1,10 @@
 import { ImageResponse } from "next/og";
 
-// Replaces the default Next.js favicon with the brand mark — Hostinger
-// violet rounded square + white chat-square glyph — matching the
-// sidebar logo in `src/components/layout/sidebar.tsx`. Next.js renders
-// this at build time and auto-injects <link rel="icon"> into <head>.
+// The ConvoReal mark — a gable roof and a chat bubble in one silhouette,
+// with the reply bar in Signal Gold. Source artwork and usage rules live
+// in `public/brand/` and `docs/marketing/brand-guidelines.html`; this is
+// the 32px favicon variant with thickened bars so both survive the pixel
+// grid. Next.js renders it at build time and injects <link rel="icon">.
 //
 // This route takes precedence over src/app/favicon.ico, which is the
 // Next.js default and can stay on disk harmlessly (or be removed).
@@ -22,21 +23,23 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#7c3aed", // primary (Hostinger-aligned purple)
-          borderRadius: 6,
+          background: "#7C3AED",
+          borderRadius: 7,
         }}
       >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#ffffff"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <svg width="26" height="26" viewBox="0 0 64 64">
+          <path
+            fill="#FFFFFF"
+            d="M 34.6 7.2 L 55.2 23.6 Q 57 25.1 57 27.6 L 57 43 Q 57 52 48 52 L 20 52 L 8.6 60.8 Q 7 62 7 59.6 L 7 27.6 Q 7 25.1 8.8 23.6 L 29.4 7.2 Q 32 5 34.6 7.2 Z"
+          />
+          <path
+            fill="#7C3AED"
+            d="M 19 27.5 L 39 27.5 A 3.75 3.75 0 0 1 39 35 L 19 35 A 3.75 3.75 0 0 1 19 27.5 Z"
+          />
+          <path
+            fill="#F5C044"
+            d="M 27 40 L 45 40 A 3.75 3.75 0 0 1 45 47.5 L 27 47.5 A 3.75 3.75 0 0 1 27 40 Z"
+          />
         </svg>
       </div>
     ),

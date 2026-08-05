@@ -1,14 +1,16 @@
 import { FlexWidget, TextWidget, type WidgetRepresentation } from 'react-native-android-widget';
 
 import { WIDGET_DEEP_LINKS, WIDGET_DEFS, type WidgetId } from '@/lib/home-widgets';
+import { brand } from '@/lib/theme';
 import type { WidgetSummary, WidgetSummaryLine } from '@/lib/widget-summaries';
 
 /**
  * Android home-screen widget UI. Rendered by the headless widget task
  * (no React runtime on the launcher), so it only uses the
  * react-native-android-widget primitives — never RN components, hooks
- * or useTheme(). Colors are hex from the aurora-glass palette; widgets
- * sit on the wallpaper, so fills are solid, not glass.
+ * or useTheme(). Colours come from the static `brand` constants rather
+ * than literals so the widget cannot drift from the app; widgets sit on
+ * the wallpaper, so fills are solid, not glass.
  */
 
 export interface OsWidgetPalette {
@@ -19,17 +21,17 @@ export interface OsWidgetPalette {
 }
 
 const LIGHT: OsWidgetPalette = {
-  background: '#FFFFFF',
-  text: '#111B21',
-  muted: '#5D6E66',
-  accent: '#075E54',
+  background: brand.white,
+  text: brand.text,
+  muted: brand.textDim,
+  accent: brand.violet,
 };
 
 const DARK: OsWidgetPalette = {
-  background: '#102119',
-  text: '#F2FBF4',
-  muted: '#9DB4A9',
-  accent: '#C6F68D',
+  background: brand.inkWell,
+  text: brand.textOnInk,
+  muted: brand.textDimOnInk,
+  accent: brand.violetSoft,
 };
 
 export function osWidgetPalette(dark: boolean): OsWidgetPalette {
