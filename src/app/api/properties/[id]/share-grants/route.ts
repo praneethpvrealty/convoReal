@@ -3,6 +3,7 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { canViewExactLocation } from '@/lib/inventory/location-guard';
 import {
   mintShareGrantToken,
+  ttlMsForKey,
   type ShareGrant,
 } from '@/lib/inventory/share-grants';
 import type { Property } from '@/types';
@@ -43,7 +44,8 @@ export async function GET(
 
 // POST /api/properties/[id]/share-grants
 // Mints a pre-approved reveal for one share. Body:
-//   { contact_id?: string, reveal_location?: bool, reveal_documents?: bool }
+//   { contact_id?: string, reveal_location?: bool, reveal_documents?: bool,
+//     reveal_private_images?: bool, expires_in?: '24h' | '7d' | '30d' }
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -141,7 +143,11 @@ export async function POST(
       contactId = contact.id;
     }
 
-    const { token, expiresAt } = mintShareGrantToken();
+    // Unrecognised choices fall back to the default rather than
+    // erroring — but never to something longer-lived.
+    const { token, expiresAt } = mintShareGrantToken(
+      ttlMsForKey(typeof body.expires_in === 'string' ? body.expires_in : null)
+    );
 
     const { data: grant, error } = await ctx.supabase
       .from('property_share_grants')
