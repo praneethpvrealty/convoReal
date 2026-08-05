@@ -20,8 +20,7 @@ SET config = jsonb_set(
       to_jsonb(
         'Interested in any of these? *Reply with its number* (e.g. 2) and I''ll have our specialist send photos, full details and arrange a site visit. 👇'::text
       )
-    ),
-    updated_at = NOW()
+    )
 WHERE node_key = 'post_listings'
   AND node_type = 'send_buttons'
   AND config->>'text' = 'Interested in any of these? Our specialist can share more details, photos, and arrange a site visit. 👇';
@@ -33,8 +32,7 @@ SET config = jsonb_set(
       to_jsonb(
         'Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Interested in: {{vars.interested_property}}. Captured email: {{vars.email}}.'::text
       )
-    ),
-    updated_at = NOW()
+    )
 WHERE node_key = 'handoff_onboarding'
   AND node_type = 'handoff'
   AND config->>'note' = 'Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Captured email: {{vars.email}}.';
