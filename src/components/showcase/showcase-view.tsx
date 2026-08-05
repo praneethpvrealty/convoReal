@@ -89,6 +89,9 @@ interface ShowcaseViewProps {
   /** Share-instance token from generic shares (?s=…) — labels which
    *  share a visit came from in Pulse. Never filters. */
   shareId?: string;
+  /** Share-grant token (?g=…), already verified server-side. Doubles as
+   *  the credential the guarded-photo proxy checks on every fetch. */
+  shareGrantToken?: string;
   /** Destination landing pages override the hero copy. */
   hero?: { title: string; highlight: string; subtitle: string; badges?: string[] };
   /** Accent theme applied when the URL has no ?theme= override. */
@@ -123,6 +126,7 @@ export function ShowcaseView({
   initialAgentMode = false,
   visitorRef,
   shareId,
+  shareGrantToken,
   hero,
   initialTheme,
   disableSavedState = false
@@ -206,7 +210,30 @@ export function ShowcaseView({
   // the last slide (index = images.length) instead of its own panel.
   // Prefer the unlisted YouTube copy (adaptive streaming, zero delivery
   // cost); fall back to the storage-hosted MP4.
-  const detailImages = (selectedProperty?.images ?? []).map(storagePublicUrl);
+  // Guarded photos join the detail carousel behind the public ones when
+  // a share grant opened them. Only their count travels — each is
+  // fetched back through the proxy, which re-checks the token. They stay
+  // out of the grid cards and the hero preload: a guarded facade must
+  // not become a listing's cover photo.
+  const detailImages = useMemo(() => {
+    const publicImages = (selectedProperty?.images ?? []).map(storagePublicUrl);
+    if (!selectedProperty?.private_images_revealed || !shareGrantToken) {
+      return publicImages;
+    }
+    const guardedCount = selectedProperty.private_images_count ?? 0;
+    return [
+      ...publicImages,
+      ...Array.from(
+        { length: guardedCount },
+        (_, i) => `/api/public/share-grant/${shareGrantToken}/image/${i}`
+      ),
+    ];
+  }, [
+    selectedProperty?.images,
+    selectedProperty?.private_images_revealed,
+    selectedProperty?.private_images_count,
+    shareGrantToken,
+  ]);
   const detailYouTubeId =
     selectedProperty?.youtube_status === 'ready' ? selectedProperty.youtube_video_id : null;
   const detailVideoUrl =
@@ -2049,7 +2076,8 @@ export function ShowcaseView({
                       <h5 className="text-[11px] font-extrabold text-amber-500 uppercase tracking-wider">Exact Address Masked</h5>
                       <p className="text-[11px] text-slate-400 leading-relaxed mt-0.5">
                         Street address & Google Maps pin link are hidden for privacy.
-                        {(selectedProperty.private_images_count ?? 0) > 0
+                        {(selectedProperty.private_images_count ?? 0) > 0 &&
+                        !selectedProperty.private_images_revealed
                           ? ` ${selectedProperty.private_images_count} more photo${(selectedProperty.private_images_count ?? 0) > 1 ? 's' : ''} and the exact location are shared on request.`
                           : ' They are shared directly to your WhatsApp number on request approval.'}
                       </p>

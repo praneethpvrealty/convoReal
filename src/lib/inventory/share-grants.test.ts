@@ -17,6 +17,7 @@ const baseGrant: ShareGrant = {
   token: 'x'.repeat(48),
   reveal_location: true,
   reveal_documents: true,
+  reveal_private_images: true,
   expires_at: new Date(Date.now() + 60_000).toISOString(),
   revoked_at: null,
   view_count: 0,
@@ -75,19 +76,24 @@ describe('isGrantLive', () => {
 
 describe('grantedReveals', () => {
   it('reveals nothing without a grant', () => {
-    expect(grantedReveals(null)).toEqual({ location: false, documents: false });
+    expect(grantedReveals(null)).toEqual({
+      location: false,
+      documents: false,
+      privateImages: false,
+    });
   });
 
   it('reveals nothing for a dead grant, whatever its flags say', () => {
     expect(
       grantedReveals({ ...baseGrant, revoked_at: new Date().toISOString() })
-    ).toEqual({ location: false, documents: false });
+    ).toEqual({ location: false, documents: false, privateImages: false });
   });
 
   it('passes through the flags of a live grant', () => {
     expect(grantedReveals({ ...baseGrant, reveal_documents: false })).toEqual({
       location: true,
       documents: false,
+      privateImages: true,
     });
   });
 });

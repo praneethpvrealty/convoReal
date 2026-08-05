@@ -59,16 +59,17 @@ export async function POST(
 
     const revealLocation = body.reveal_location === true;
     const revealDocuments = body.reveal_documents === true;
-    if (!revealLocation && !revealDocuments) {
+    const revealPrivateImages = body.reveal_private_images === true;
+    if (!revealLocation && !revealDocuments && !revealPrivateImages) {
       return NextResponse.json(
-        { error: 'Grant must reveal the location, the documents, or both' },
+        { error: 'Grant must reveal at least one thing' },
         { status: 400 }
       );
     }
 
     const { data: property } = await ctx.supabase
       .from('properties')
-      .select('id, type, user_id, location_privacy, documents')
+      .select('id, type, user_id, location_privacy, documents, private_images')
       .eq('id', propertyId)
       .eq('account_id', ctx.accountId)
       .maybeSingle();
@@ -82,9 +83,11 @@ export async function POST(
 
     // An agent who cannot see a guarded listing's exact pin themselves
     // must not be able to hand it to a buyer — same rule the internal
-    // read path enforces, applied to the grant.
+    // read path enforces, applied to the grant. Guarded photos ride the
+    // same check: a facade identifies a house on the ground the way its
+    // address does, which is why they are held back in the first place.
     if (
-      revealLocation &&
+      (revealLocation || revealPrivateImages) &&
       !canViewExactLocation(
         { role: ctx.role, userId: ctx.userId },
         property as Pick<Property, 'type' | 'user_id' | 'location_privacy'>
@@ -93,7 +96,7 @@ export async function POST(
       return NextResponse.json(
         {
           error:
-            "Only an admin or this listing's own agent can reveal its exact location",
+            "Only an admin or this listing's own agent can reveal its exact location or guarded photos",
         },
         { status: 403 }
       );
@@ -105,6 +108,16 @@ export async function POST(
     if (revealDocuments && docs.length === 0) {
       return NextResponse.json(
         { error: 'This property has no documents to share' },
+        { status: 400 }
+      );
+    }
+
+    const privateImages = Array.isArray((property as Property).private_images)
+      ? (property as Property).private_images!.filter((p) => p?.trim())
+      : [];
+    if (revealPrivateImages && privateImages.length === 0) {
+      return NextResponse.json(
+        { error: 'This property has no guarded photos to share' },
         { status: 400 }
       );
     }
@@ -140,6 +153,7 @@ export async function POST(
         token,
         reveal_location: revealLocation,
         reveal_documents: revealDocuments,
+        reveal_private_images: revealPrivateImages,
         expires_at: expiresAt,
       })
       .select()

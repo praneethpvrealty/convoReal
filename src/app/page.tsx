@@ -458,6 +458,7 @@ export default async function RootPage({ searchParams }: PageProps) {
         initialAgentMode={isAgentMode}
         visitorRef={resolvedParams.v}
         shareId={resolvedParams.s}
+        shareGrantToken={shareGrant?.token}
       />
     </>
   );

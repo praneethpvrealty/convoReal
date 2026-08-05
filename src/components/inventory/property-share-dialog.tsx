@@ -145,6 +145,7 @@ export function PropertyShareDialog({
   // others.
   const [revealLocation, setRevealLocation] = useState(false);
   const [revealDocuments, setRevealDocuments] = useState(false);
+  const [revealPrivateImages, setRevealPrivateImages] = useState(false);
   const [linkGrant, setLinkGrant] = useState<{ id: string; token: string } | null>(null);
   const [grantBusy, setGrantBusy] = useState(false);
   const linkGrantRef = useRef<{ id: string; token: string } | null>(null);
@@ -196,6 +197,11 @@ export function PropertyShareDialog({
     [property?.documents],
   );
 
+  const propertyPrivateImageCount = useMemo(
+    () => (property?.private_images ?? []).filter((p) => p?.trim()).length,
+    [property?.private_images],
+  );
+
   const mintGrant = useCallback(
     async (contactId: string | null) => {
       if (!propertyId) return null;
@@ -206,13 +212,14 @@ export function PropertyShareDialog({
           contact_id: contactId,
           reveal_location: revealLocation,
           reveal_documents: revealDocuments,
+          reveal_private_images: revealPrivateImages,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to unmask this share');
       return json.data as { id: string; token: string };
     },
-    [propertyId, revealLocation, revealDocuments],
+    [propertyId, revealLocation, revealDocuments, revealPrivateImages],
   );
 
   const revokeGrant = useCallback(
@@ -243,7 +250,7 @@ export function PropertyShareDialog({
       contactGrantsRef.current = {};
       setLinkGrant(null);
       if (previous) void revokeGrant(previous.id);
-      if (!revealLocation && !revealDocuments) return;
+      if (!revealLocation && !revealDocuments && !revealPrivateImages) return;
 
       setGrantBusy(true);
       try {
@@ -256,6 +263,7 @@ export function PropertyShareDialog({
         toast.error(err instanceof Error ? err.message : 'Failed to unmask this share');
         setRevealLocation(false);
         setRevealDocuments(false);
+        setRevealPrivateImages(false);
       } finally {
         if (!cancelled) setGrantBusy(false);
       }
@@ -263,7 +271,15 @@ export function PropertyShareDialog({
     return () => {
       cancelled = true;
     };
-  }, [open, propertyId, revealLocation, revealDocuments, mintGrant, revokeGrant]);
+  }, [
+    open,
+    propertyId,
+    revealLocation,
+    revealDocuments,
+    revealPrivateImages,
+    mintGrant,
+    revokeGrant,
+  ]);
 
   // Closing the dialog resets the switches; the grant itself stays live
   // for the link already sent.
@@ -275,6 +291,7 @@ export function PropertyShareDialog({
       setLinkGrant(null);
       setRevealLocation(false);
       setRevealDocuments(false);
+      setRevealPrivateImages(false);
     });
   }, [open]);
 
@@ -283,7 +300,9 @@ export function PropertyShareDialog({
   /** A grant bound to this recipient, minted on first send to them. */
   const ensureContactGrant = useCallback(
     async (contactId: string): Promise<string | null> => {
-      if (!revealLocation && !revealDocuments) return null;
+      if (!revealLocation && !revealDocuments && !revealPrivateImages) {
+        return null;
+      }
       const existing = contactGrantsRef.current[contactId];
       if (existing) return existing;
       try {
@@ -301,7 +320,7 @@ export function PropertyShareDialog({
         return grantToken;
       }
     },
-    [revealLocation, revealDocuments, mintGrant, grantToken],
+    [revealLocation, revealDocuments, revealPrivateImages, mintGrant, grantToken],
   );
 
   // Currency Formatter
@@ -482,7 +501,7 @@ export function PropertyShareDialog({
   );
 
   const handleWhatsAppPersonal = (contact: Contact) => {
-    const needsGrant = revealLocation || revealDocuments;
+    const needsGrant = revealLocation || revealDocuments || revealPrivateImages;
     // Minting is a round trip, and a window opened after an await is
     // what popup blockers exist to stop. Claim the tab on the click,
     // then point it at WhatsApp once the recipient's key exists.
@@ -503,7 +522,7 @@ export function PropertyShareDialog({
   const handleCopyPersonal = async (contact: Contact) => {
     try {
       const token =
-        revealLocation || revealDocuments
+        revealLocation || revealDocuments || revealPrivateImages
           ? await ensureContactGrant(contact.id)
           : null;
       await navigator.clipboard.writeText(buildPersonalMessage(contact, token));
@@ -1475,6 +1494,18 @@ export function PropertyShareDialog({
                         toggle: () => setRevealDocuments((v) => !v),
                         disabledHint:
                           propertyDocumentCount === 0 ? 'None uploaded' : null,
+                      },
+                      {
+                        key: 'privateImages' as const,
+                        icon: ImageIcon,
+                        label:
+                          propertyPrivateImageCount > 0
+                            ? `Guarded photos (${propertyPrivateImageCount})`
+                            : 'Guarded photos',
+                        on: revealPrivateImages,
+                        toggle: () => setRevealPrivateImages((v) => !v),
+                        disabledHint:
+                          propertyPrivateImageCount === 0 ? 'None marked' : null,
                       },
                     ]).map((sw) => (
                       <button
