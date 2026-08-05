@@ -969,6 +969,26 @@ export function normalizeClassification(val?: string | null): "Owner" | "Seller"
 }
 
 /**
+ * A name tag holding a classification value is the contact's role, not a
+ * name qualifier. The draft preview labels the field "Role/Classification",
+ * so an owner correcting it answers in that vocabulary ("Role - agent") —
+ * and the prompt describes `name_tag` as a "profession or role tag", which
+ * catches it first. Promote the value to where the user meant it to go.
+ *
+ * A genuine tag ('Advocate', 'CA', 'Bank DSA') normalizes to 'Others' and
+ * is left alone.
+ */
+export function promoteClassificationFromNameTag(
+  nameTag: string | null,
+  classification: ParsedContactDraft["classification"]
+): { name_tag: string | null; classification: ParsedContactDraft["classification"] } {
+  if (!nameTag) return { name_tag: nameTag, classification };
+  const promoted = normalizeClassification(nameTag);
+  if (promoted === "Others") return { name_tag: nameTag, classification };
+  return { name_tag: null, classification: promoted };
+}
+
+/**
  * `requirements` holds a buyer's stated buying criteria, so a contact that
  * has requirements is a buyer. When the parser/updater leaves the
  * classification unresolved ('Others') but a requirement is present, treat
@@ -1018,6 +1038,7 @@ export async function parseContactFromImageOrText(
     "3. In lead forwarding messages (e.g. 'VaishaliGaur, 917737932199 is interested in SJR Blue Waters...'), extract the lead's name ('VaishaliGaur'), phone ('917737932199'), classify as 'Buyer', and put their interest ('Interested in SJR Blue Waters, Sarjapur Road Magicbricks') in 'notes'.\n" +
     "4. For Referrer/Sender details: If the message/image details mention any sender or referrer name/phone (e.g., 'Referred by Suresh' or 'Sent by Suresh'), extract it into `referrer_name` and `referrer_phone` respectively. If not mentioned, set to null.\n" +
     "4b. For `name_tag`: an explicitly stated tag (e.g. 'Tag - Advocate', 'tag him as CA') always goes to `name_tag`, and a profession/role qualifier stuck onto the name (e.g. 'Vijay Sarthi Advocate') is split out — name 'Vijay Sarthi', name_tag 'Advocate'. Never leave a stated tag only in `notes`.\n" +
+    "4c. `name_tag` NEVER holds one of the `classification` values. When the stated label is 'Owner', 'Seller', 'Buyer', 'Agent', 'Developer' or 'Owner & Buyer' — however it is phrased ('Role - agent', 'he is an agent', 'tag as owner') — it belongs in `classification` and `name_tag` stays null. `name_tag` is only for professions outside that list, like 'Advocate' or 'CA'.\n" +
     "5. When the input is a screenshot or transcript of a BUYER conversation (questions about availability, budget, locations, sizes), read the ENTIRE conversation and consolidate every buying-criteria detail into `requirements`. Keep `notes` as the short source/summary line and put the detailed criteria in `requirements`. Do not drop preferences mentioned later in the chat.\n" +
     "6. Output MUST be valid JSON matching the schema.";
 
@@ -1048,13 +1069,17 @@ export async function parseContactFromImageOrText(
     return {
       contacts: contactsList.map((c: Partial<ParsedContactDraft>) => {
         const requirements = c.requirements || null;
+        const { name_tag, classification } = promoteClassificationFromNameTag(
+          c.name_tag || null,
+          normalizeClassification(c.classification)
+        );
         return {
           name: c.name || null,
-          name_tag: c.name_tag || null,
+          name_tag,
           phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
           email: c.email || null,
           company: c.company || null,
-          classification: inferBuyerFromRequirements(normalizeClassification(c.classification), requirements),
+          classification: inferBuyerFromRequirements(classification, requirements),
           notes: c.notes || null,
           requirements,
           referrer_name: c.referrer_name || null,
@@ -1078,7 +1103,8 @@ export async function updateContactDraft(
   const systemInstruction = 
     "You are an expert contact data updater. You are given a current contact drafts JSON object containing an array of contacts and a natural language instruction from the user.\n" +
     "Your job is to apply the updates requested by the user and return the complete updated JSON object matching the exact structure.\n" +
-    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name. If they say 'Tag - Advocate' or 'name tag is CA', update `name_tag` (a short profession/role label shown next to the name). If they add buying criteria (e.g. 'budget is 90L', 'wants a plot in Whitefield', 'looking for 2 acres near Hosur'), merge it into the `requirements` field, preserving any requirements already captured.\n" +
+    "For example, if the user says 'name of second contact is Vaishali', update the name of the second contact. If they say 'change classification to Agent for all', update the classification field to 'Agent' for all contacts in the list. If they say 'referred by Ramesh', update referrer_name. If they say 'Tag - Advocate' or 'name tag is CA', update `name_tag` (a short profession label shown next to the name). If they add buying criteria (e.g. 'budget is 90L', 'wants a plot in Whitefield', 'looking for 2 acres near Hosur'), merge it into the `requirements` field, preserving any requirements already captured.\n" +
+    "The draft preview shown to the user labels `classification` as \"Role/Classification\", so any instruction naming a role — 'Role - agent', 'role is owner', 'he is a developer', 'mark as buyer' — updates `classification` and leaves `name_tag` untouched. `name_tag` NEVER holds 'Owner', 'Seller', 'Buyer', 'Agent', 'Developer' or 'Owner & Buyer'; it is only for professions outside that list, like 'Advocate' or 'CA'.\n" +
     "When you populate `requirements` with buying criteria and the contact's classification is 'Others', set that contact's classification to 'Buyer'.\n" +
     "Do not change any other fields unless requested by the user.\n" +
     "Output MUST be valid JSON.";
@@ -1094,13 +1120,17 @@ export async function updateContactDraft(
     return {
       contacts: contactsList.map((c: Partial<ParsedContactDraft>) => {
         const requirements = c.requirements || null;
+        const { name_tag, classification } = promoteClassificationFromNameTag(
+          c.name_tag || null,
+          normalizeClassification(c.classification)
+        );
         return {
           name: c.name || null,
-          name_tag: c.name_tag || null,
+          name_tag,
           phone: c.phone ? (normalizePhoneWithCountryCode(c.phone) || null) : null,
           email: c.email || null,
           company: c.company || null,
-          classification: inferBuyerFromRequirements(normalizeClassification(c.classification), requirements),
+          classification: inferBuyerFromRequirements(classification, requirements),
           notes: c.notes || null,
           requirements,
           referrer_name: c.referrer_name || null,
