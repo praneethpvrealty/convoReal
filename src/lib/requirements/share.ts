@@ -30,7 +30,8 @@ export interface ShareableRequirement {
   tags?: (string | null | undefined)[] | null;
   /** Most recent note text — full mode only. */
   latestNote?: string | null;
-  /** False parks the requirement: it stops being offered to co-brokers. */
+  /** False parks the requirement: it stops matching and stops being
+   *  offered to co-brokers. */
   requirement_active?: boolean | null;
 }
 
@@ -71,6 +72,8 @@ function cleanList(values: (string | null | undefined)[] | null | undefined): st
 /**
  * A requirement worth sending: not parked, and carrying something a
  * co-broker could act on. A card with only a name is noise to them.
+ * Parked rows are also skipped by the matching engine itself — this is
+ * the share-side half of the same rule.
  */
 export function isShareable(r: ShareableRequirement): boolean {
   if (r.requirement_active === false) return false;
