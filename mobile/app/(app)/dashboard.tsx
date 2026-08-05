@@ -11,6 +11,7 @@ import {
 
 import { HOME_WIDGET_QUERY_KEY, HomeWidgets } from '@/components/home-widgets';
 import { LOCATION_APPROVALS_QUERY_KEY, LocationApprovals } from '@/components/location-approvals';
+import { PropertyApprovals } from '@/components/property-approvals';
 import { AnimatedCounter } from '@/components/motion';
 import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
@@ -137,6 +138,8 @@ export default function DashboardScreen() {
       <HomeWidgets />
 
       <LocationApprovals />
+
+      <PropertyApprovals />
 
       <SectionLabel text="Today" />
       <View style={styles.grid}>

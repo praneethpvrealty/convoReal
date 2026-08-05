@@ -24,6 +24,7 @@ import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { EnterRow, PressScale } from '@/components/motion';
+import { PropertyApprovals } from '@/components/property-approvals';
 import { EmptyState, FilterChip, PropertyCardSkeleton, SearchBar } from '@/components/ui';
 import {
   apiFetch,
@@ -375,6 +376,15 @@ export default function PropertiesScreen() {
           keyExtractor={(p) => p.id}
           contentContainerStyle={{ paddingBottom: TAB_BAR_CLEARANCE }}
           keyboardDismissMode="on-drag"
+          // Listings awaiting review are filtered out of the list below
+          // (it asks for Available), so without this they are invisible
+          // on the tab that owns them. Renders nothing when there are
+          // none to review.
+          ListHeaderComponent={
+            <PropertyApprovals
+              style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}
+            />
+          }
           onEndReached={() => hasNextPage && fetchNextPage()}
           onEndReachedThreshold={0.4}
           refreshControl={
