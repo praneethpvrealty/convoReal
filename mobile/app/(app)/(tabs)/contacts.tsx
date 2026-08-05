@@ -4,6 +4,7 @@ import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -276,6 +277,10 @@ export default function ContactsScreen() {
   const [peekId, setPeekId] = useState<string | null>(null);
   const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
   const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
+  // Approving flips the contact, drafts the details and sends them over
+  // WhatsApp — several round-trips. Without this the row looked inert
+  // for the whole wait and the tap read as ignored.
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const { show, dialogProps } = useAppDialog();
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
@@ -293,8 +298,15 @@ export default function ContactsScreen() {
    *  celebrate with the follow-up funnel (falling back to the thread's
    *  template picker outside the 24-hour window). */
   async function handleApprove(contact: Contact) {
+    if (approvingId) return;
     haptic.tap();
-    const result = await approveAndSendDetails(contact);
+    setApprovingId(contact.id);
+    let result;
+    try {
+      result = await approveAndSendDetails(contact);
+    } finally {
+      setApprovingId(null);
+    }
     if (!result.ok) {
       haptic.warn();
       show({ title: 'Could not approve', message: friendlyError(result.error ?? 'Try again.') });
@@ -415,6 +427,7 @@ export default function ContactsScreen() {
                 }
                 tags={data?.tags[item.id] ?? []}
                 onApprove={() => handleApprove(item)}
+                approving={approvingId === item.id}
                 onPeekStart={() => setPeekId(item.id)}
                 onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
@@ -596,6 +609,7 @@ function ContactRow({
   tags,
   contactedProperty,
   onApprove,
+  approving,
   onPeekStart,
   onPeekEnd,
   onWhatsAppMenu,
@@ -605,6 +619,7 @@ function ContactRow({
   tags: string[];
   contactedProperty?: string;
   onApprove: () => void;
+  approving?: boolean;
   onPeekStart: () => void;
   onPeekEnd: () => void;
   onWhatsAppMenu: (at: { x: number; y: number }) => void;
@@ -680,11 +695,17 @@ function ContactRow({
               <Pressable
                 hitSlop={8}
                 onPress={onApprove}
+                disabled={approving}
                 accessibilityRole="button"
-                accessibilityLabel={`Approve ${name}`}
+                accessibilityLabel={approving ? `Approving ${name}` : `Approve ${name}`}
+                accessibilityState={{ disabled: approving, busy: approving }}
                 style={[styles.action, { backgroundColor: colors.warningSoft }]}
               >
-                <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
+                {approving ? (
+                  <ActivityIndicator size="small" color={colors.warning} />
+                ) : (
+                  <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
+                )}
               </Pressable>
             </PulseRing>
           ) : null}
