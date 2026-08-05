@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { EmptyState } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -477,6 +477,11 @@ function AppointmentDetail({
       }}
       contentStyle={styles.sheet}
     >
+      <ScrollView
+        style={sheetScrollArea}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ gap: spacing.md }}
+      >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <View style={[styles.typeBadge, { backgroundColor: colors.primarySoft }]}>
               <Ionicons name={meta.icon} size={17} color={colors.primary} />
@@ -693,6 +698,7 @@ function AppointmentDetail({
               </View>
             )
           ) : null}
+      </ScrollView>
     </BottomSheet>
   );
 }

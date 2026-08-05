@@ -13,13 +13,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { FilterChip, SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
@@ -76,11 +75,6 @@ export function PropertyShareSheet({
   contact?: Contact | null;
 }) {
   const { colors, fonts: f } = useTheme();
-  // A definite pixel cap keeps the scroll area bounded so it renders and
-  // scrolls inside the sheet — a percentage/flex height collapses to zero
-  // against the sheet's content-sized (maxHeight-only) container.
-  const { height: winH } = useWindowDimensions();
-  const scrollMax = Math.round(winH * 0.72);
   const session = useAuthStore((s) => s.session);
   const fullName = useAuthStore((s) => s.profile?.full_name);
   const [audience, setAudience] = useState<ShareAudience>('client');
@@ -357,7 +351,7 @@ export function PropertyShareSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Share property">
       <ScrollView
-        style={{ maxHeight: scrollMax }}
+        style={sheetScrollArea}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.sm }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"

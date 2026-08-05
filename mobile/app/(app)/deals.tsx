@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { Confetti, EnterRow } from '@/components/motion';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { Avatar, ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
@@ -220,6 +220,7 @@ export default function DealsScreen() {
                 <Ionicons name="close" size={20} color={colors.textMuted} />
               </Pressable>
             </View>
+        <ScrollView style={sheetScrollArea}>
             {(stages ?? [])
               .filter((s) => s.id !== movingDeal?.stage_id)
               .map((s) => (
@@ -243,6 +244,7 @@ export default function DealsScreen() {
                   </Text>
                 </Pressable>
               ))}
+        </ScrollView>
       </BottomSheet>
     </View>
   );
