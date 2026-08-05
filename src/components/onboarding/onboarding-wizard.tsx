@@ -45,6 +45,7 @@ import {
   EmailLeadIllustration,
   PropertyParseIllustration,
   ImportBuyersIllustration,
+  TemplateApprovalIllustration,
 } from '@/components/onboarding/illustrations';
 import { createClient } from '@/lib/supabase/client';
 import { buildPropertyAlertTemplatePayload } from '@/lib/whatsapp/property-alert-template';
@@ -330,6 +331,15 @@ function StarterTemplates() {
             day. Submit them now: once approved, reminders go out automatically
             and broadcasts can use them.
           </p>
+
+          <StepMedia
+            slug="engine-templates"
+            title="How template approval works"
+            className="mt-3"
+          >
+            <TemplateApprovalIllustration />
+          </StepMedia>
+
           {result === null ? (
             <div className="mt-2.5 flex flex-wrap gap-2">
               <Button
@@ -701,6 +711,15 @@ function AllDone({ onClose }: { onClose: () => void }) {
               Your account holds beta seats of its own. Hand one to a consultant
               you rate — the beta grows on referrals, not ads.
             </p>
+
+            {/* Video-only slot: nothing renders until a walkthrough is
+                registered, so the finish screen stays clean. */}
+            <StepMedia
+              slug="engine-share-seats"
+              title="Sharing your beta seats"
+              className="mt-3"
+            />
+
             <Button
               size="sm"
               variant="outline"
