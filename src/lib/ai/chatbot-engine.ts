@@ -166,7 +166,7 @@ export async function checkIsAccountOwner(
 /**
  * Saves a bot reply message in the Engine database thread and updates the conversation state.
  */
-async function saveBotMessage(
+export async function saveBotMessage(
   conversationId: string,
   replyText: string,
   metaMessageId?: string

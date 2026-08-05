@@ -74,6 +74,8 @@ export function OtherSettingsPanel() {
   const [autoReplyText, setAutoReplyText] = useState('Hi {name}, thanks for your interest on the property listed on {source}. Kindly let me know your requirements and budget, I will share the appropriate properties.');
   const [autoReplyTemplateName, setAutoReplyTemplateName] = useState<string | null>(null);
   const [approvedTemplates, setApprovedTemplates] = useState<MessageTemplate[]>([]);
+  const [autoQualify, setAutoQualify] = useState(true);
+  const [autoQualifySaving, setAutoQualifySaving] = useState(false);
   const [hasSyncConfig, setHasSyncConfig] = useState(false);
   const [syncConfigLoading, setSyncConfigLoading] = useState(true);
   const [syncConfigSaving, setSyncConfigSaving] = useState(false);
@@ -185,6 +187,33 @@ export function OtherSettingsPanel() {
     }
   }, [accountId, supabase]);
 
+  const fetchAutoQualify = useCallback(async () => {
+    if (!accountId) return;
+    const { data } = await supabase
+      .from('whatsapp_config')
+      .select('auto_qualify_leads')
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (data) setAutoQualify(data.auto_qualify_leads !== false);
+  }, [accountId, supabase]);
+
+  const handleToggleAutoQualify = async () => {
+    if (!accountId || autoQualifySaving) return;
+    const next = !autoQualify;
+    setAutoQualifySaving(true);
+    const { error } = await supabase
+      .from('whatsapp_config')
+      .update({ auto_qualify_leads: next })
+      .eq('account_id', accountId);
+    setAutoQualifySaving(false);
+    if (error) {
+      toast.error('Failed to update lead qualification');
+      return;
+    }
+    setAutoQualify(next);
+    toast.success(next ? 'Lead replies will be qualified automatically' : 'Lead replies left to your agents');
+  };
+
   const fetchApprovedTemplates = useCallback(async () => {
     if (!accountId) return;
     try {
@@ -252,13 +281,14 @@ export function OtherSettingsPanel() {
     fetchProjectCount();
     fetchSyncConfig(true);
     fetchApprovedTemplates();
-    
+    fetchAutoQualify();
+
     // Load last synced from localStorage if exists
     const stored = localStorage.getItem('krera_last_synced');
     if (stored) {
       setLastSynced(stored);
     }
-  }, [accountId, supabase, fetchProjectCount, fetchSyncConfig, fetchApprovedTemplates]);
+  }, [accountId, supabase, fetchProjectCount, fetchSyncConfig, fetchApprovedTemplates, fetchAutoQualify]);
 
   useEffect(() => {
     if (!accountId) return;
@@ -731,6 +761,26 @@ export function OtherSettingsPanel() {
                 </div>
                 <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 shrink-0 ${autoReply ? 'bg-primary' : 'bg-slate-700'}`}>
                   <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 ${autoReply ? 'translate-x-4' : 'translate-x-0'}`} />
+                </div>
+              </div>
+
+              {/* Toggle Auto-Qualify */}
+              <div
+                onClick={handleToggleAutoQualify}
+                className={`p-4 rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-between select-none ${
+                  autoQualify
+                    ? 'border-primary bg-primary/5 text-white shadow-[0_0_15px_rgba(99,102,241,0.05)]'
+                    : 'border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:bg-slate-950/40'
+                } ${autoQualifySaving ? 'pointer-events-none opacity-60' : ''}`}
+              >
+                <div className="space-y-0.5 pr-2">
+                  <h4 className="text-xs font-bold text-slate-100">Auto-Qualify Lead Replies</h4>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    Read the lead&apos;s answer, save it as their requirement, then ask for what&apos;s missing or send matching listings.
+                  </p>
+                </div>
+                <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 shrink-0 ${autoQualify ? 'bg-primary' : 'bg-slate-700'}`}>
+                  <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 ${autoQualify ? 'translate-x-4' : 'translate-x-0'}`} />
                 </div>
               </div>
             </div>
