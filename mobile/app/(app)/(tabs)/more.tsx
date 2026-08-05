@@ -20,15 +20,10 @@ import { UpdateStatus } from '@/components/update-status';
 import { Avatar, SectionLabel } from '@/components/ui';
 import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
-import { resolveDisplayName } from '@/lib/display-name';
 import { useFavorites } from '@/lib/favorites-store';
+import { resolveDisplayName } from '@/lib/display-name';
 import { haptic } from '@/lib/haptics';
-import {
-  favoriteLinks,
-  MENU_LINKS,
-  MENU_SECTIONS,
-  type MenuRouteId,
-} from '@/lib/menu';
+import { MENU_LINKS, MENU_SECTIONS, type MenuRouteId } from '@/lib/menu';
 import {
   fonts,
   radius,
@@ -52,7 +47,6 @@ export default function MoreScreen() {
   const profile = useAuthStore((s) => s.profile);
   const credits = useCredits();
   const [editOpen, setEditOpen] = useState(false);
-  const favorites = favoriteLinks(useFavorites((s) => s.ids));
 
   const displayName = resolveDisplayName(
     profile?.full_name,
@@ -133,25 +127,6 @@ export default function MoreScreen() {
       </View>
 
       <SubscriptionCard />
-
-      {favorites.length > 0 ? (
-        <View style={styles.section}>
-          <SectionLabel text="Favourites" />
-          <View
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.glass,
-                borderColor: colors.glassBorder,
-              },
-            ]}
-          >
-            {favorites.map((fav, i) => (
-              <MenuRow key={fav.id} id={fav.id} divided={i > 0} />
-            ))}
-          </View>
-        </View>
-      ) : null}
 
       {MENU_SECTIONS.map((section) => (
         <View key={section.title} style={styles.section}>
@@ -257,10 +232,12 @@ export default function MoreScreen() {
 
 /**
  * One menu destination: the row navigates, the star pins it to the
- * Favourites card at the top. Starring lives here rather than on each
- * screen's header (where the web puts it) because More *is* the
- * browse surface on a phone — the sidebar the web stars into is
- * always on screen, this list is not.
+ * favourites bar behind the Favourites tab.
+ *
+ * Managing the list stays here while reaching for it happens from the
+ * tab bar — More is the browse surface, where you already are when you
+ * decide something is worth pinning; the bar is the shortcut back,
+ * reachable from any screen without opening More at all.
  */
 function MenuRow({ id, divided }: { id: MenuRouteId; divided: boolean }) {
   const { colors } = useTheme();
