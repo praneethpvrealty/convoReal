@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "render": "remotion render src/index.ts TheNet out/the-net.mp4 --timeout=120000",
+    "render:switchboard": "remotion render src/index.ts Switchboard out/switchboard.mp4 --timeout=120000",
     "still": "remotion still src/index.ts TheNet",
     "studio": "remotion studio src/index.ts"
   },

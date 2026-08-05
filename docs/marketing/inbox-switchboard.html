@@ -314,7 +314,7 @@
   ].map((l, i) => ({
     ...l,
     x: THREADS[i].mid.x,
-    y: THREADS[i].mid.y - 20,
+    y: THREADS[i].mid.y - 28,
     showT: S2 + 2400 + i * 200,
   }));
 
@@ -475,13 +475,13 @@
       if (t < m.absorbT) {
         const p = clamp01(age / FALL3);
         const x = lerp(m.x0, PANEL.x, easeOut(p));
-        const y = lerp(-40, PANEL.y - 62, Math.pow(p, 1.25));
+        const y = lerp(-40, PANEL.y - 82, Math.pow(p, 1.25));
         setT(el, x, y, '', p < 0.05 ? p * 20 : 1);
         chip.style.opacity = t >= m.stampT ? clamp01((t - m.stampT) / 200) : 0;
         chip.style.transform = `translateX(-50%) scale(${0.7 + 0.3 * easeOutBack(clamp01((t - m.stampT) / 300))})`;
       } else {
         const p = clamp01((t - m.absorbT) / 300);
-        setT(el, PANEL.x, PANEL.y - 62 + p * 36, `scale(${1 - 0.7 * p})`, 1 - p);
+        setT(el, PANEL.x, PANEL.y - 82 + p * 36, `scale(${1 - 0.7 * p})`, 1 - p);
         chip.style.opacity = 1 - p;
       }
     });
@@ -553,7 +553,7 @@
       ctx.lineWidth = 2;
       ctx.beginPath();
       const mp = clamp01((m.stampT - m.t0) / FALL3);
-      const fy = lerp(-40, PANEL.y - 62, Math.pow(mp, 1.25));
+      const fy = lerp(-40, PANEL.y - 82, Math.pow(mp, 1.25));
       ctx.arc(PANEL.x, fy, 20 + p * 34, 0, Math.PI * 2);
       ctx.stroke();
     }
