@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
 
-// PATCH  /api/contacts/[id]/calls/[callId] — edit notes / AI update draft
+// PATCH  /api/contacts/[id]/calls/[callId] — edit notes / AI update
+//        draft, or mark the update as sent by hand
 // DELETE /api/contacts/[id]/calls/[callId]
 
 export async function PATCH(
@@ -15,6 +16,7 @@ export async function PATCH(
     const body = (await request.json().catch(() => null)) as {
       notes?: string | null;
       update_draft?: string | null;
+      mark_sent?: boolean;
     } | null;
 
     const updates: Record<string, string | null> = {};
@@ -23,6 +25,13 @@ export async function PATCH(
     }
     if (body && 'update_draft' in body) {
       updates.update_draft = body.update_draft?.trim() || null;
+    }
+    // The agent sent the update from their own WhatsApp instead of the
+    // Engine (the usual reason: the 24-hour window is shut). Only the
+    // flag is accepted, never a caller-supplied timestamp, so the stamp
+    // still means "the server saw this happen".
+    if (body?.mark_sent) {
+      updates.update_sent_at = new Date().toISOString();
     }
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
