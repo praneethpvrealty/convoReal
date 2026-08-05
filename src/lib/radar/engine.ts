@@ -158,6 +158,46 @@ export interface RankedPropertyMatch {
 }
 
 /**
+ * The ranking itself, over rows already in hand. Split out so the dev
+ * chatbot simulator can rank against a contact that was never saved.
+ */
+export function rankProperties(
+  contact: Contact,
+  properties: Property[]
+): RankedPropertyMatch[] {
+  const wanted = [...(contact.areas_of_interest || []), ...(contact.pref_areas || [])]
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean);
+
+  // Proximity matching resolves a whole neighbourhood to 'match', so
+  // listings in the area the contact actually named tie with listings a
+  // few kilometres away. Naming the area is the stronger signal — it
+  // breaks the tie without changing which listings qualify.
+  const inNamedArea = (p: Property): boolean => {
+    if (wanted.length === 0) return false;
+    const haystack = [p.sublocality, p.location, p.project]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return wanted.some((a) => haystack.includes(a));
+  };
+
+  const matched: RankedPropertyMatch[] = [];
+  for (const property of properties) {
+    const [result] = getMatchingContacts(property, [contact]);
+    if (result && result.score >= MIN_SCORE) {
+      matched.push({ property, score: result.score, details: result.details });
+    }
+  }
+
+  matched.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return Number(inNamedArea(b.property)) - Number(inNamedArea(a.property));
+  });
+  return matched;
+}
+
+/**
  * Ranks the account's live inventory against one contact's stated
  * preferences, best first. Shared by the Radar event writer below and by
  * the WhatsApp lead-qualification reply (src/lib/ai/buyer-qualification.ts)
@@ -166,7 +206,13 @@ export interface RankedPropertyMatch {
 export async function rankPropertiesForContact(
   db: SupabaseClient,
   accountId: string,
-  contactId: string
+  contactId: string,
+  /** Tightens locality matching from the default 20km radius to 5km for
+   *  this ranking only, without touching the contact's own
+   *  strict_area_match. Radar suggests to an agent who filters before
+   *  sending; a reply sent straight to a buyer who just named their area
+   *  cannot afford the loose radius. */
+  opts: { strictArea?: boolean } = {}
 ): Promise<RankedPropertyMatch[]> {
   const [{ data: contact }, { data: properties }] = await Promise.all([
     db
@@ -186,16 +232,11 @@ export async function rankPropertiesForContact(
   if (!contact || !properties || properties.length === 0) return [];
   if (!['Buyer', 'Agent'].includes((contact as Contact).classification || '')) return [];
 
-  const matched: RankedPropertyMatch[] = [];
-  for (const property of properties as Property[]) {
-    const [result] = getMatchingContacts(property, [contact as Contact]);
-    if (result && result.score >= MIN_SCORE) {
-      matched.push({ property, score: result.score, details: result.details });
-    }
-  }
+  const subject = opts.strictArea
+    ? ({ ...(contact as Contact), strict_area_match: true } as Contact)
+    : (contact as Contact);
 
-  matched.sort((a, b) => b.score - a.score);
-  return matched;
+  return rankProperties(subject, properties as Property[]);
 }
 
 /**

@@ -195,6 +195,38 @@ export function buildNoMatchReply(
   );
 }
 
+export interface QualificationOutcome {
+  /** The rung being asked, or null when the reply carries listings. */
+  missing: QualifierField | null;
+  /** Exactly the text the lead receives. */
+  reply: string;
+}
+
+/**
+ * The reply decision, given everything already gathered. The production
+ * handler and the dev simulator both go through here, so what the
+ * simulator prints is what a lead would actually be sent.
+ */
+export function buildQualificationReply(
+  prefs: ExtractedPreferences,
+  contactName: string | null | undefined,
+  matches: RankedPropertyMatch[],
+  areaSuggestions: string[],
+  baseUrl: string,
+  contactId: string
+): QualificationOutcome {
+  const missing = nextQualifier(prefs);
+  if (missing) {
+    return { missing, reply: buildQualifierQuestion(missing, prefs, areaSuggestions) };
+  }
+  return {
+    missing: null,
+    reply: matches.length
+      ? buildMatchesReply(contactName, matches, baseUrl, contactId)
+      : buildNoMatchReply(contactName, prefs),
+  };
+}
+
 /**
  * Comparable form of the fields the ladder and the matcher read, so a
  * re-extraction that changed nothing can be told apart from one that
@@ -254,8 +286,31 @@ export function appendRequirement(
   return prev ? `${prev}\n${next}` : next;
 }
 
-/** Localities of live inventory, most common first — chips for the
- *  location question so the buyer picks from what we can actually show. */
+/**
+ * Localities of live inventory, most common first — chips for the
+ * location question so the buyer picks from what we can actually show.
+ *
+ * Exported for tests. Only sublocalities count: a listing with no
+ * sublocality would otherwise contribute its city, and offering
+ * "Koramangala, Bangalore, HSR Layout" to someone standing in Bangalore
+ * is not a choice.
+ */
+export function tallyAreaSuggestions(
+  rows: { sublocality?: string | null; city?: string | null }[]
+): string[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const area = (row.sublocality || '').trim();
+    if (!area) continue;
+    if (area.toLowerCase() === (row.city || '').trim().toLowerCase()) continue;
+    counts.set(area, (counts.get(area) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_AREA_SUGGESTIONS)
+    .map(([area]) => area);
+}
+
 async function suggestAreas(accountId: string): Promise<string[]> {
   const { data } = await supabaseAdmin()
     .from('properties')
@@ -265,15 +320,7 @@ async function suggestAreas(accountId: string): Promise<string[]> {
     .eq('status', 'Available')
     .limit(200);
 
-  const counts = new Map<string, number>();
-  for (const row of data || []) {
-    const area = (row.sublocality || row.city || '').trim();
-    if (area) counts.set(area, (counts.get(area) || 0) + 1);
-  }
-  return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, MAX_AREA_SUGGESTIONS)
-    .map(([area]) => area);
+  return tallyAreaSuggestions(data || []);
 }
 
 async function softBurn(accountId: string): Promise<void> {
@@ -412,24 +459,24 @@ export async function processBuyerQualificationMessage(
     }
 
     const missing = nextQualifier(prefs);
-    if (missing) {
-      const areas = missing === 'location' ? await suggestAreas(accountId) : [];
-      await reply(
-        buildQualifierQuestion(missing, prefs, areas),
-        contactRecord,
-        conversation,
-        accessToken,
-        phoneNumberId
-      );
-      return true;
-    }
-
-    const matches = await rankPropertiesForContact(db, accountId, contact.id);
+    const areas = missing === 'location' ? await suggestAreas(accountId) : [];
+    const matches = missing
+      ? []
+      : await rankPropertiesForContact(db, accountId, contact.id, {
+          strictArea: true,
+        });
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const outcome = buildQualificationReply(
+      prefs,
+      contact.name,
+      matches,
+      areas,
+      baseUrl,
+      contact.id
+    );
+
     await reply(
-      matches.length
-        ? buildMatchesReply(contact.name, matches, baseUrl, contact.id)
-        : buildNoMatchReply(contact.name, prefs),
+      outcome.reply,
       contactRecord,
       conversation,
       accessToken,
@@ -437,12 +484,15 @@ export async function processBuyerQualificationMessage(
     );
 
     // Surface the same matches on Match Radar so the agent picks the
-    // thread up already knowing what the lead was shown.
-    void generateMatchEventForContact(db, accountId, contact.id).catch(
-      (err) => {
-        console.error('[buyer-qualification] radar event failed:', err);
-      }
-    );
+    // thread up already knowing what the lead was shown. Only once the
+    // ladder is answered — a half-qualified buyer is not a Radar event.
+    if (!outcome.missing) {
+      void generateMatchEventForContact(db, accountId, contact.id).catch(
+        (err) => {
+          console.error('[buyer-qualification] radar event failed:', err);
+        }
+      );
+    }
 
     return true;
   } catch (err) {
