@@ -42,6 +42,8 @@
       repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.025) 0 1px, transparent 1px 52px);
   }
   #wires { position: absolute; inset: 0; width: 960px; height: 540px; }
+  #stage.cta > *:not(canvas) { opacity: 0 !important; transition: opacity 0.7s ease; }
+
   #actorLayer { position: absolute; inset: 0; pointer-events: none; }
 
   #brand { position: absolute; top: 26px; right: 36px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; opacity: 0.9; }
@@ -236,7 +238,7 @@
   const easeOutBack = p => 1 + 2.70158 * (p - 1) ** 3 + 1.70158 * (p - 1) ** 2;
   const rnd = seed => { const s = Math.sin(seed * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
 
-  const S2 = 12000, S3 = 20000, END = 32500;
+  const S2 = 12000, S3 = 20000, CTA_T = 31200, END = 36200;
   const PHONE = { x: 480, y: 358 };
   const PANEL = { x: 420, y: 316 };
   const ENGINE = { x: 420, y: 150 };
@@ -608,6 +610,77 @@
     }
   }
 
+
+  function drawCTA(t, T0, kicker) {
+    const p = Math.max(0, Math.min(1, (t - T0) / 700));
+    if (p <= 0) return;
+    const e = 1 - (1 - p) ** 3;
+    const F = (w, s) => `${w} ${s}px Manrope, "Avenir Next", "Segoe UI", system-ui, sans-serif`;
+    ctx.save();
+    ctx.globalAlpha = p;
+    ctx.fillStyle = '#05070d';
+    ctx.fillRect(0, 0, 960, 540);
+    const rg = ctx.createRadialGradient(480, 250, 20, 480, 250, 430);
+    rg.addColorStop(0, 'rgba(139,92,246,0.22)');
+    rg.addColorStop(1, 'rgba(139,92,246,0)');
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, 960, 540);
+
+    ctx.translate(480, 214 + (1 - e) * 22);
+    ctx.textBaseline = 'middle';
+
+    ctx.font = F(800, 26);
+    const wm = ctx.measureText('ConvoReal').width;
+    const bx = -(wm + 48) / 2;
+    const lg = ctx.createLinearGradient(bx, -18, bx + 36, 18);
+    lg.addColorStop(0, '#8b5cf6');
+    lg.addColorStop(1, '#5b34b8');
+    ctx.fillStyle = lg;
+    ctx.beginPath(); ctx.roundRect(bx, -18, 36, 36, 11); ctx.fill();
+    ctx.fillStyle = '#f2edff';
+    ctx.font = F(800, 20);
+    ctx.textAlign = 'center';
+    ctx.fillText('C', bx + 18, 1);
+    ctx.fillStyle = '#e6eaf3';
+    ctx.font = F(800, 26);
+    ctx.textAlign = 'left';
+    ctx.fillText('ConvoReal', bx + 48, 1);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#a78bfa';
+    ctx.font = F(700, 10.5);
+    ctx.letterSpacing = '2.4px';
+    ctx.fillText('WHATSAPP DEAL ENGINE FOR REAL ESTATE', 0, 48);
+    ctx.letterSpacing = '0px';
+    ctx.fillStyle = '#e6eaf3';
+    ctx.font = F(700, 25);
+    ctx.fillText(kicker, 0, 88);
+
+    ctx.font = F(800, 15);
+    const bt = 'Start free  →';
+    const bw = ctx.measureText(bt).width + 60;
+    const by = 138;
+    const bg = ctx.createLinearGradient(0, by - 23, 0, by + 23);
+    bg.addColorStop(0, '#7c4fe8');
+    bg.addColorStop(1, '#5b34b8');
+    ctx.fillStyle = bg;
+    ctx.shadowColor = 'rgba(139,92,246,0.6)';
+    ctx.shadowBlur = 24 + 10 * Math.sin(t * 0.004);
+    ctx.beginPath(); ctx.roundRect(-bw / 2, by - 23, bw, 46, 23); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#f6f3ff';
+    ctx.fillText(bt, 0, by + 1);
+
+    ctx.fillStyle = '#c3cbdc';
+    ctx.font = F(700, 14);
+    ctx.fillText('convoreal.com', 0, by + 52);
+    ctx.fillStyle = '#8d99b2';
+    ctx.font = F(500, 11.5);
+    ctx.fillText('Free Starter plan · Upgrade when your team grows', 0, by + 76);
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+  }
+
   // ---- clock & controls
   let clock = 0, playing = false, lastTick = 0;
   const btnPause = document.getElementById('btnPause');
@@ -649,6 +722,8 @@
     updateBubbles3(t);
     updateStat(t);
     updateCaption(t);
+    drawCTA(t, CTA_T, 'Give your team one shared inbox.');
+    stage.classList.toggle('cta', t >= CTA_T);
     const idx = t >= S3 ? 2 : t >= S2 ? 1 : 0;
     sceneBtns.forEach((b, i) => b.classList.toggle('active', i === idx));
     requestAnimationFrame(frame);

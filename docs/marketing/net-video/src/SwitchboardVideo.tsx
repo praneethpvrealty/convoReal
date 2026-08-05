@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { continueRender, delayRender, useCurrentFrame, useVideoConfig } from 'remotion';
 import { injectFonts } from './fonts';
 
-export const SWITCHBOARD_DURATION_MS = 32500;
+export const SWITCHBOARD_DURATION_MS = 36200;
+const CTA_T = 31200;
 
 const S2 = 12000;
 const S3 = 20000;
@@ -777,6 +778,81 @@ function drawBrand(ctx: Ctx) {
   ctx.textBaseline = 'alphabetic';
 }
 
+
+function drawCTA(ctx: Ctx, t: number, T0: number, kicker: string) {
+  const p = clamp01((t - T0) / 700);
+  if (p <= 0) return;
+  const e = easeOut(p);
+  const c = ctx as Ctx & { letterSpacing: string };
+  ctx.save();
+  ctx.globalAlpha = p;
+  ctx.fillStyle = '#05070d';
+  ctx.fillRect(0, 0, 960, 540);
+  const rg = ctx.createRadialGradient(480, 250, 20, 480, 250, 430);
+  rg.addColorStop(0, 'rgba(139,92,246,0.22)');
+  rg.addColorStop(1, 'rgba(139,92,246,0)');
+  ctx.fillStyle = rg;
+  ctx.fillRect(0, 0, 960, 540);
+
+  ctx.translate(480, 214 + (1 - e) * 22);
+  ctx.textBaseline = 'middle';
+
+  ctx.font = font(800, 26);
+  const wm = ctx.measureText('ConvoReal').width;
+  const bx = -(wm + 48) / 2;
+  const lg = ctx.createLinearGradient(bx, -18, bx + 36, 18);
+  lg.addColorStop(0, '#8b5cf6');
+  lg.addColorStop(1, '#5b34b8');
+  ctx.fillStyle = lg;
+  ctx.beginPath();
+  ctx.roundRect(bx, -18, 36, 36, 11);
+  ctx.fill();
+  ctx.fillStyle = '#f2edff';
+  ctx.font = font(800, 20);
+  ctx.textAlign = 'center';
+  ctx.fillText('C', bx + 18, 1);
+  ctx.fillStyle = '#e6eaf3';
+  ctx.font = font(800, 26);
+  ctx.textAlign = 'left';
+  ctx.fillText('ConvoReal', bx + 48, 1);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#a78bfa';
+  ctx.font = font(700, 10.5);
+  c.letterSpacing = '2.4px';
+  ctx.fillText('WHATSAPP DEAL ENGINE FOR REAL ESTATE', 0, 48);
+  c.letterSpacing = '0px';
+  ctx.fillStyle = '#e6eaf3';
+  ctx.font = font(700, 25);
+  ctx.fillText(kicker, 0, 88);
+
+  ctx.font = font(800, 15);
+  const bt = 'Start free  →';
+  const bw = ctx.measureText(bt).width + 60;
+  const by = 138;
+  const bg = ctx.createLinearGradient(0, by - 23, 0, by + 23);
+  bg.addColorStop(0, '#7c4fe8');
+  bg.addColorStop(1, '#5b34b8');
+  ctx.fillStyle = bg;
+  ctx.shadowColor = 'rgba(139,92,246,0.6)';
+  ctx.shadowBlur = 24 + 10 * Math.sin(t * 0.004);
+  ctx.beginPath();
+  ctx.roundRect(-bw / 2, by - 23, bw, 46, 23);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#f6f3ff';
+  ctx.fillText(bt, 0, by + 1);
+
+  ctx.fillStyle = '#c3cbdc';
+  ctx.font = font(700, 14);
+  ctx.fillText('convoreal.com', 0, by + 52);
+  ctx.fillStyle = '#8d99b2';
+  ctx.font = font(500, 11.5);
+  ctx.fillText('Free Starter plan · Upgrade when your team grows', 0, by + 76);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+}
+
 function draw(ctx: Ctx, t: number) {
   ctx.save();
   ctx.scale(2, 2);
@@ -795,6 +871,7 @@ function draw(ctx: Ctx, t: number) {
   drawStat(ctx, t);
   drawCaption(ctx, t);
   drawBrand(ctx);
+  drawCTA(ctx, t, CTA_T, 'Give your team one shared inbox.');
   ctx.restore();
 }
 
