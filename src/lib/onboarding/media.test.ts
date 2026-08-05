@@ -68,6 +68,17 @@ describe('getOnboardingMedia', () => {
     }
   });
 
+  it('every slot carries a caption, written before its recording', () => {
+    // Captions are authored up front so publishing a video is a
+    // one-token edit. A new slot without one would ship a bare player.
+    for (const [slug, media] of Object.entries(ONBOARDING_MEDIA)) {
+      expect(
+        media.caption?.trim(),
+        `slot "${slug}" has no caption`
+      ).toBeTruthy();
+    }
+  });
+
   it('registered video URLs must be embeddable', () => {
     for (const [slug, media] of Object.entries(ONBOARDING_MEDIA)) {
       if (media.videoUrl) {
