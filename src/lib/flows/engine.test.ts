@@ -10,6 +10,8 @@ import {
   isSuspending,
   isTerminal,
   evaluateConditionPredicate,
+  splitByBudget,
+  type ListingRow,
 } from "./engine";
 
 describe("matchReplyId", () => {
@@ -398,5 +400,66 @@ describe("evaluateConditionPredicate", () => {
         configValue: "anything",
       }),
     ).toBe(false);
+  });
+});
+
+describe("splitByBudget", () => {
+  const row = (id: string, price: number | null): ListingRow => ({
+    id,
+    title: `Listing ${id}`,
+    location: "Bangalore",
+    type: "Commercial Shop",
+    bedrooms: null,
+    area_sqft: null,
+    price,
+    property_code: `PROP-${id}`,
+    listing_type: "Sale",
+  });
+
+  it("leads with what the lead can actually afford", () => {
+    const { withinBudget, aboveBudget } = splitByBudget(
+      [row("a", 320_000_000), row("b", 103_000_000), row("c", 18_000_000)],
+      "1-2cr",
+      5,
+    );
+    expect(withinBudget.map((p) => p.id)).toEqual(["c"]);
+    expect(aboveBudget.map((p) => p.id)).toEqual(["b", "a"]);
+  });
+
+  it("puts the nearest stretch first, not the most expensive listing in stock", () => {
+    const { aboveBudget } = splitByBudget(
+      [row("dear", 500_000_000), row("near", 25_000_000)],
+      "1-2cr",
+      5,
+    );
+    expect(aboveBudget[0].id).toBe("near");
+  });
+
+  it("never spends a slot on a stretch listing while in-budget stock remains", () => {
+    const within = [row("w1", 10_000_000), row("w2", 11_000_000), row("w3", 12_000_000)];
+    const { withinBudget, aboveBudget } = splitByBudget(
+      [...within, row("over", 900_000_000)],
+      "1-2cr",
+      3,
+    );
+    expect(withinBudget).toHaveLength(3);
+    expect(aboveBudget).toHaveLength(0);
+  });
+
+  it("keeps price-on-request listings rather than dropping them", () => {
+    const { withinBudget } = splitByBudget([row("poa", null)], "1-2cr", 5);
+    expect(withinBudget.map((p) => p.id)).toEqual(["poa"]);
+  });
+
+  it("is a no-op when no budget was collected", () => {
+    const rows = [row("a", 320_000_000), row("b", 18_000_000)];
+    const { withinBudget, aboveBudget } = splitByBudget(rows, null, 5);
+    expect(withinBudget.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(aboveBudget).toHaveLength(0);
+  });
+
+  it("is a no-op when the budget text means nothing", () => {
+    const rows = [row("a", 320_000_000)];
+    expect(splitByBudget(rows, "not sure yet", 5).withinBudget).toHaveLength(1);
   });
 });

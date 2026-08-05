@@ -41,6 +41,7 @@ import {
   engineSendText,
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
+import { parseBudgetText } from "@/lib/bot/catalog-match";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
 import {
   type CollectInputNodeConfig,
@@ -322,10 +323,58 @@ async function loadAllNodes(
   return map;
 }
 
+export interface ListingRow {
+  id: string;
+  title: string;
+  location: string | null;
+  type: string | null;
+  bedrooms: number | null;
+  area_sqft: number | null;
+  price: number | null;
+  property_code: string | null;
+  listing_type: string | null;
+}
+
+/**
+ * Orders a category's listings against the budget the funnel already
+ * collected. In-budget first, newest first as before; the remaining
+ * slots go to the cheapest listings above the ceiling, so what follows
+ * is the nearest stretch rather than the most expensive thing in stock.
+ *
+ * No budget on the run (or an unparseable one) keeps the previous
+ * newest-first behaviour untouched.
+ *
+ * Exported for tests.
+ */
+export function splitByBudget(
+  properties: ListingRow[],
+  budgetText: string | null,
+  limit: number,
+): { withinBudget: ListingRow[]; aboveBudget: ListingRow[] } {
+  const { max } = budgetText ? parseBudgetText(budgetText) : { max: null };
+  if (max == null) {
+    return { withinBudget: properties.slice(0, limit), aboveBudget: [] };
+  }
+
+  const within = properties.filter((p) => p.price != null && p.price > 0 && p.price <= max);
+  const above = properties
+    .filter((p) => p.price != null && p.price > max)
+    .sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+  // Price-on-request listings can't be judged against a budget, so they
+  // sit with the in-budget group rather than being dropped.
+  const unpriced = properties.filter((p) => p.price == null || p.price <= 0);
+
+  const withinBudget = [...within, ...unpriced].slice(0, limit);
+  return {
+    withinBudget,
+    aboveBudget: above.slice(0, Math.max(0, limit - withinBudget.length)),
+  };
+}
+
 /**
  * Query the account's published properties and format them into a
  * WhatsApp-friendly text message.  Respects the node's optional
- * type / listing_type filters and limit.
+ * type / listing_type filters and limit, and the run's collected budget.
  */
 async function fetchAndFormatPropertyListings(
   db: AdminClient,
@@ -333,6 +382,9 @@ async function fetchAndFormatPropertyListings(
   cfg: SendPropertyListingsNodeConfig,
 ): Promise<string> {
   const limit = Math.max(1, Math.min(cfg.limit ?? 5, 10));
+  // Over-fetch so the budget the lead already gave can pick which of
+  // these fill the slots, rather than whichever happen to be newest.
+  const pool = Math.min(limit * 6, 60);
   let query = db
     .from("properties")
     .select("id, title, location, type, bedrooms, area_sqft, price, property_code, listing_type")
@@ -340,7 +392,7 @@ async function fetchAndFormatPropertyListings(
     .eq("is_published", true)
     .eq("status", "Available")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    .limit(pool);
 
   if (cfg.filter_types && cfg.filter_types.length > 0) {
     query = query.in("type", cfg.filter_types);
@@ -368,12 +420,25 @@ async function fetchAndFormatPropertyListings(
     );
   }
 
+  const { withinBudget, aboveBudget } = splitByBudget(
+    properties as ListingRow[],
+    typeof run.vars?.budget === "string" ? run.vars.budget : null,
+    limit,
+  );
+  const shown = [...withinBudget, ...aboveBudget];
+
   const currency = "₹";
   const lines: (string | null)[] = [intro, ""];
 
-  for (let i = 0; i < properties.length; i++) {
-    const p = properties[i];
+  for (let i = 0; i < shown.length; i++) {
+    const p = shown[i];
     const idx = i + 1;
+    // The stretch options are separated rather than silently mixed in —
+    // a lead who said 1-2cr should not have to read four prices to work
+    // out that nothing here is theirs.
+    if (withinBudget.length > 0 && i === withinBudget.length) {
+      lines.push("_Above your budget, but worth a look:_", "");
+    }
     const priceLabel =
       (p.listing_type === "Rent" || p.listing_type === "Built to Suit") && p.price
         ? `${currency}${(p.price / 1000).toFixed(0)}K/month`
