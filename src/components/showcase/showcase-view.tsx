@@ -4,6 +4,10 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { showcaseImageUrl, SHOWCASE_IMAGE_WIDTHS } from '@/lib/showcase-image';
 import { storagePublicUrl } from '@/lib/storage/url';
+import {
+  documentDisplayName,
+  parsePropertyDocuments,
+} from '@/lib/inventory/documents';
 import { createShowcaseTracker } from '@/lib/pulse/tracker';
 import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 import { toast } from 'sonner';
@@ -30,6 +34,7 @@ import {
   Bell,
   Home,
   Play,
+  Download,
 } from 'lucide-react';
 import type { Property, ShowcaseSettings } from '@/types';
 import { BRANDING } from '@/config/branding';
@@ -207,6 +212,12 @@ export function ShowcaseView({
   const detailVideoUrl =
     selectedProperty?.video_status === 'ready' ? storagePublicUrl(selectedProperty.video_url) : null;
   const detailHasVideo = Boolean(detailYouTubeId || detailVideoUrl);
+  // Only ever populated when the link carried a share grant that
+  // revealed documents — the public payload omits them otherwise.
+  const grantedDocuments = useMemo(
+    () => parsePropertyDocuments(selectedProperty?.documents),
+    [selectedProperty?.documents]
+  );
   const detailMediaCount = detailImages.length + (detailHasVideo ? 1 : 0);
   const isVideoSlide = detailHasVideo && activeImageIdx >= detailImages.length;
   const detailTouchXRef = useRef<number | null>(null);
@@ -1981,8 +1992,9 @@ export function ShowcaseView({
                   )}
                 </div>
 
-                {/* Location on Map — shown in agent mode with google_map_link */}
-                {isAgentMode && selectedProperty.google_map_link && (
+                {/* Location on Map — agent mode, or a share grant that
+                    unmasked this link (?g=) */}
+                {(isAgentMode || selectedProperty.location_revealed) && selectedProperty.google_map_link && (
                   <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2">
                     <div className="flex items-start gap-2.5">
                       <div className="h-7 w-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
@@ -2023,8 +2035,10 @@ export function ShowcaseView({
 
                 {/* Masked Exact Location Block — shown to buyers, and to
                     co-broker (agent-mode) viewers when the listing's
-                    location is guarded */}
-                {(!isAgentMode || selectedProperty.location_guarded) && (
+                    location is guarded. A share grant stands it down:
+                    there is nothing left to request. */}
+                {!selectedProperty.location_revealed &&
+                  (!isAgentMode || selectedProperty.location_guarded) && (
                 <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2 backdrop-blur-sm relative overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent pointer-events-none" />
                   <div className="flex items-start gap-2.5">
@@ -2289,8 +2303,35 @@ export function ShowcaseView({
                 )}
               </div>
 
-              {/* ─── Request Documents Block — hidden in agent mode ─── */}
-              {!isAgentMode && (
+              {/* ─── Documents — a share grant (?g=) delivers the files
+                   inline; otherwise buyers ask and the agent approves ─── */}
+              {grantedDocuments.length > 0 ? (
+                <div className="mt-4 space-y-2">
+                  <h4 className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center gap-1">
+                    <FileText className="size-3.5 text-slate-650" />
+                    Property Documents ({grantedDocuments.length})
+                  </h4>
+                  {grantedDocuments.map((doc, idx) => (
+                    <a
+                      key={idx}
+                      href={doc.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between gap-3 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-primary/40 rounded-xl px-4 py-3 transition-all group"
+                    >
+                      <div className="flex items-center gap-3 truncate">
+                        <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                          <FileText className="size-4 text-primary" />
+                        </div>
+                        <p className="text-xs font-semibold text-white truncate group-hover:text-primary transition-colors">
+                          {doc.title?.trim() || documentDisplayName(doc.url, idx)}
+                        </p>
+                      </div>
+                      <Download className="size-4 text-slate-500 group-hover:text-primary shrink-0 transition-colors" />
+                    </a>
+                  ))}
+                </div>
+              ) : !isAgentMode ? (
               <div className="mt-4">
                 {docReqSuccess === selectedProperty.id ? (
                   <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl p-4 flex items-start gap-3">
@@ -2376,7 +2417,7 @@ export function ShowcaseView({
                   </button>
                 )}
               </div>
-              )}
+              ) : null}
 
               {/* Inquiry Form Block — hidden in agent mode */}
               {!isAgentMode && (

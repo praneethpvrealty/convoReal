@@ -18,6 +18,7 @@
 import type { Property } from '@/types';
 import { isLandType } from '@/lib/inventory/property-options';
 import { hasMinRole, type AccountRole } from '@/lib/auth/roles';
+import type { GrantedReveals } from '@/lib/inventory/share-grants';
 
 export type LocationPrivacy = 'exact' | 'locality';
 
@@ -64,7 +65,8 @@ export function localityLabel(p: {
 /**
  * Everything a public (showcase / public API) viewer may receive.
  * Exact-location fields are handled separately by `toPublicPropertyView`.
- * Deliberately excluded: documents, notes, deal_remarks, owner_contact_id,
+ * Deliberately excluded: documents (attached only under a share grant
+ * that says so), notes, deal_remarks, owner_contact_id,
  * owner, sold_price, floor_tenancies, min_bid, deal_mode, source_property_id,
  * ownership_status, land_use_zoning, meta_catalog_error, private_images,
  * locality_place_id, locality_canonical.
@@ -130,23 +132,35 @@ export const PUBLIC_PROPERTY_FIELDS = [
  * (`location`, `google_map_link`, `latitude`, `longitude`) are included
  * only when the surface is allowed to reveal them AND the property is
  * not guarded; otherwise `location` carries the locality label.
+ *
+ * `granted` carries a share grant's decision (migration 198): the agent
+ * unmasking this one link for this one recipient. It overrides the type
+ * guard — that is the whole point of granting it — and is the only way
+ * `documents` reach a public payload at all.
  */
 export function toPublicPropertyView(
   p: Property,
-  opts: { revealExact: boolean }
+  opts: { revealExact: boolean; granted?: GrantedReveals }
 ): Property {
   const view: Record<string, unknown> = {};
   for (const key of PUBLIC_PROPERTY_FIELDS) {
     view[key] = p[key as keyof Property];
   }
   const guarded = isLocationGuarded(p);
-  const reveal = opts.revealExact && !guarded;
+  const grantedLocation = opts.granted?.location === true;
+  const reveal = grantedLocation || (opts.revealExact && !guarded);
   view.location = reveal ? p.location : localityLabel(p);
   view.google_map_link = reveal ? (p.google_map_link ?? null) : null;
   view.latitude = reveal ? (p.latitude ?? null) : null;
   view.longitude = reveal ? (p.longitude ?? null) : null;
-  view.location_guarded = guarded;
+  // A granted link has nothing left to mask, so the masked block and
+  // the request prompt both stand down for it.
+  view.location_guarded = guarded && !grantedLocation;
+  view.location_revealed = reveal;
   view.private_images_count = p.private_images?.length ?? 0;
+  if (opts.granted?.documents) {
+    view.documents = p.documents ?? [];
+  }
   return view as unknown as Property;
 }
 

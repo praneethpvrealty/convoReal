@@ -186,6 +186,67 @@ describe('toPublicPropertyView', () => {
       expect(PUBLIC_PROPERTY_FIELDS).not.toContain(key);
     }
   });
+
+  it('a location grant overrides the type guard', () => {
+    const view = toPublicPropertyView(guardedProperty, {
+      revealExact: false,
+      granted: { location: true, documents: false },
+    }) as unknown as Record<string, unknown>;
+    expect(view.location).toBe(guardedProperty.location);
+    expect(view.google_map_link).toBe(guardedProperty.google_map_link);
+    expect(view.latitude).toBe(guardedProperty.latitude);
+    expect(view.longitude).toBe(guardedProperty.longitude);
+    expect(view.location_revealed).toBe(true);
+    // Nothing left to mask, so the request prompt stands down.
+    expect(view.location_guarded).toBe(false);
+  });
+
+  it('a location grant does not drag documents along with it', () => {
+    const view = toPublicPropertyView(guardedProperty, {
+      revealExact: false,
+      granted: { location: true, documents: false },
+    }) as unknown as Record<string, unknown>;
+    expect(view.documents).toBeUndefined();
+  });
+
+  it('a documents grant attaches documents and nothing else', () => {
+    const view = toPublicPropertyView(guardedProperty, {
+      revealExact: false,
+      granted: { location: false, documents: true },
+    }) as unknown as Record<string, unknown>;
+    expect(view.documents).toEqual(guardedProperty.documents);
+    expect(view.location).toBe('HSR Layout, Bangalore');
+    expect(view.google_map_link).toBeNull();
+    expect(view.location_revealed).toBe(false);
+    expect(view.location_guarded).toBe(true);
+  });
+
+  it('a grant never widens the private-image or owner fields', () => {
+    const view = toPublicPropertyView(guardedProperty, {
+      revealExact: true,
+      granted: { location: true, documents: true },
+    }) as unknown as Record<string, unknown>;
+    for (const key of [
+      'private_images',
+      'owner_contact_id',
+      'notes',
+      'deal_remarks',
+      'sold_price',
+    ]) {
+      expect(view[key], key).toBeUndefined();
+    }
+    expect(view.private_images_count).toBe(1);
+  });
+
+  it('an empty grant leaves the masked defaults in place', () => {
+    const view = toPublicPropertyView(guardedProperty, {
+      revealExact: false,
+      granted: { location: false, documents: false },
+    }) as unknown as Record<string, unknown>;
+    expect(view.location).toBe('HSR Layout, Bangalore');
+    expect(view.documents).toBeUndefined();
+    expect(view.location_guarded).toBe(true);
+  });
 });
 
 describe('canViewExactLocation', () => {

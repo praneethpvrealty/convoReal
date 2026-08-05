@@ -4,7 +4,10 @@ import { FileText, Download, AlertTriangle, Clock, CheckCircle } from 'lucide-re
 import Link from 'next/link';
 import { DocAccessGate } from '@/components/documents/doc-access-gate';
 import { trackDocumentView } from '@/lib/documents/track-view';
-import { storagePublicUrl } from '@/lib/storage/url';
+import {
+  documentDisplayName,
+  parsePropertyDocuments,
+} from '@/lib/inventory/documents';
 
 export const metadata: Metadata = {
   title: 'Property Documents',
@@ -86,21 +89,7 @@ export default async function DocumentsPage({ params }: PageProps) {
     last_viewed_at: docRequest.last_viewed_at,
   });
 
-  const dbDocs: string[] = Array.isArray(property?.documents)
-    ? property.documents.filter((d: string) => d?.trim())
-    : [];
-
-  const parsedDocuments = dbDocs.map((doc: string) => {
-    if (doc.trim().startsWith('{')) {
-      try {
-        const parsed = JSON.parse(doc);
-        return { url: storagePublicUrl(parsed.url || ''), title: parsed.title || '' };
-      } catch {
-        // Fall back to plain string
-      }
-    }
-    return { url: storagePublicUrl(doc), title: '' };
-  }).filter(d => d.url.length > 0);
+  const parsedDocuments = parsePropertyDocuments(property?.documents);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center px-4 py-16 font-sans">
@@ -146,14 +135,8 @@ export default async function DocumentsPage({ params }: PageProps) {
             <div className="space-y-2">
               {parsedDocuments.map((doc, idx) => {
                 const docUrl = doc.url;
-                const filename =
-                  docUrl.split('/').pop()?.split('?')[0] || `document-${idx + 1}`;
-                const decodedFilename = decodeURIComponent(filename);
-                const cleanName = decodedFilename
-                  .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-[a-zA-Z0-9]+-/, '')
-                  .replace(/^[a-fA-F0-9-]+\/(img-|doc-|file-)\d+-/, '');
-
-                const displayTitle = doc.title?.trim() || cleanName || `Document ${idx + 1}`;
+                const displayTitle =
+                  doc.title?.trim() || documentDisplayName(docUrl, idx);
 
                 return (
                   <a

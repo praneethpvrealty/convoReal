@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/automations/admin-client";
-import { storagePublicUrl } from "@/lib/storage/url";
+import { parsePropertyDocuments } from "@/lib/inventory/documents";
 import { trackDocumentView } from "@/lib/documents/track-view";
 import { checkRateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
@@ -70,21 +70,7 @@ export async function POST(request: Request) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const property = docRequest.property as any;
-    const dbDocs: string[] = Array.isArray(property?.documents)
-      ? property.documents.filter((d: string) => d?.trim())
-      : [];
-
-    const parsedDocuments = dbDocs.map((doc: string) => {
-      if (doc.trim().startsWith("{")) {
-        try {
-          const parsed = JSON.parse(doc);
-          return { url: storagePublicUrl(parsed.url || ""), title: parsed.title || "" };
-        } catch {
-          // fall through
-        }
-      }
-      return { url: storagePublicUrl(doc), title: "" };
-    }).filter(d => d.url.length > 0);
+    const parsedDocuments = parsePropertyDocuments(property?.documents);
 
     // Best-effort: never let view tracking block the recipient's access.
     void trackDocumentView(admin, {
