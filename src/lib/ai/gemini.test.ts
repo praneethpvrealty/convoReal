@@ -25,7 +25,7 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'mock-gemini-api-key-for-testing';
 }
 
-import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, promoteClassificationFromNameTag, classifyImageOrText, normalizeListingFeatures } from './gemini';
+import { parseListingFromImageOrText, updateListingDraft, parseContactFromImageOrText, updateContactDraft, looksLikePropertyListing, looksLikeBuyerRequirement, inferBuyerFromRequirements, normalizeClassification, promoteClassificationFromNameTag, classifyImageOrText, normalizeListingFeatures } from './gemini';
 
 describe('Gemini AI WhatsApp Parsers', { timeout: 30000 }, () => {
   beforeEach(() => {
@@ -360,12 +360,38 @@ describe('inferBuyerFromRequirements', () => {
   });
 });
 
+describe('normalizeClassification', () => {
+  it('maps the local words for the two roles the Engine names differently', () => {
+    expect(normalizeClassification('broker')).toBe('Agent');
+    expect(normalizeClassification('Broker')).toBe('Agent');
+    expect(normalizeClassification('builder')).toBe('Developer');
+    expect(normalizeClassification(' Builder ')).toBe('Developer');
+  });
+
+  it('still maps the canonical values', () => {
+    expect(normalizeClassification('agent')).toBe('Agent');
+    expect(normalizeClassification('developer')).toBe('Developer');
+    expect(normalizeClassification('owner and buyer')).toBe('Owner & Buyer');
+  });
+
+  it('leaves an unrelated profession as Others', () => {
+    expect(normalizeClassification('Advocate')).toBe('Others');
+    expect(normalizeClassification('Bank DSA')).toBe('Others');
+    expect(normalizeClassification(null)).toBe('Others');
+  });
+});
+
 describe('promoteClassificationFromNameTag', () => {
   it('moves the role an owner typed into the preview\'s "Role" field', () => {
     expect(promoteClassificationFromNameTag('agent', 'Others')).toEqual({
       name_tag: null,
       classification: 'Agent',
     });
+  });
+
+  it('reads the words the trade actually uses', () => {
+    expect(promoteClassificationFromNameTag('broker', 'Others').classification).toBe('Agent');
+    expect(promoteClassificationFromNameTag('Builder', 'Others').classification).toBe('Developer');
   });
 
   it('promotes every classification value, however it was cased', () => {
