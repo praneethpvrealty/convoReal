@@ -741,6 +741,15 @@ Content-Transfer-Encoding: quoted-printable
 
       // Verify tags were assigned correctly
       expect(mockDb.contact_tags.length).toBeGreaterThan(0);
+
+      // The sync log records what was asked for next to what was picked,
+      // so a wrong match is reviewable without the mailbox (migration 200).
+      const log = mockDb.email_sync_logs.at(-1) as Record<string, unknown>;
+      expect(log.matched_property_id).toBe('prop-123');
+      expect(log.match_score).toBeGreaterThanOrEqual(2);
+      expect(log.parsed_property_type).toBe('Industrial Land');
+      expect(log.parsed_location).toBe('Bommasandra');
+      expect(String(log.body_preview).length).toBeGreaterThan(200);
     });
 
     it('should parse 99acres lead, match with HSR property and assign tags', async () => {

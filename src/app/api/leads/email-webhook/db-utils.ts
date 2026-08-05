@@ -83,6 +83,19 @@ export async function assignTagsToContact(
   }
 }
 
+/** What the lead email asked for and which listing the scorer picked —
+ *  recorded so a wrong match can be spotted from the log rather than
+ *  from the mailbox (migration 200). */
+export interface SyncLogMatchAudit {
+  parsedPropertyType?: string | null;
+  parsedLocation?: string | null;
+  parsedAreaSqft?: number | null;
+  parsedPrice?: number | null;
+  parsedBedrooms?: number | null;
+  matchedPropertyId?: string | null;
+  matchScore?: number | null;
+}
+
 export async function writeSyncLog(args: {
   accountId: string;
   sender: string;
@@ -94,6 +107,7 @@ export async function writeSyncLog(args: {
   errorMessage?: string;
   bodyPreview?: string;
   ledgerId?: string | null;
+  match?: SyncLogMatchAudit;
 }) {
   try {
     const supabase = getAdminClient();
@@ -108,6 +122,13 @@ export async function writeSyncLog(args: {
       error_message: args.errorMessage || null,
       body_preview: args.bodyPreview || null,
       ledger_id: args.ledgerId || null,
+      parsed_property_type: args.match?.parsedPropertyType ?? null,
+      parsed_location: args.match?.parsedLocation ?? null,
+      parsed_area_sqft: args.match?.parsedAreaSqft ?? null,
+      parsed_price: args.match?.parsedPrice ?? null,
+      parsed_bedrooms: args.match?.parsedBedrooms ?? null,
+      matched_property_id: args.match?.matchedPropertyId ?? null,
+      match_score: args.match?.matchScore ?? null,
     });
   } catch (err) {
     console.error('[lead-webhook] Failed to write sync log:', err);

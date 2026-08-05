@@ -165,6 +165,11 @@ export function checkIsNonLeadEmail(subject: string, sender: string): boolean {
 
 const LEAD_WEBHOOK_LIMIT = { limit: 60, windowMs: 60_000 };
 
+/** Enough of the mail to re-read the enquiry when a match looks wrong.
+ *  At 200 the preview held only the HTML doctype header, so a
+ *  mis-matched lead could not be re-checked without the mailbox. */
+const BODY_PREVIEW_CHARS = 4000;
+
 export async function POST(request: Request) {
   let accountId = '';
   let sender = '';
@@ -307,7 +312,7 @@ export async function POST(request: Request) {
           subject,
           status: 'ignored',
           errorMessage: 'Verification email processed',
-          bodyPreview: bodyText.slice(0, 200),
+          bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
         });
       } else {
         console.warn(`[lead-webhook] Received verification email but no account_id resolved.`);
@@ -332,7 +337,7 @@ export async function POST(request: Request) {
           subject,
           status: 'ignored',
           errorMessage: 'Filtered: non-lead email (notification/marketing/system)',
-          bodyPreview: bodyText.slice(0, 200),
+          bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
         });
       }
       return NextResponse.json({ status: 'filtered', message: 'Non-lead email filtered out.' });
@@ -391,7 +396,7 @@ export async function POST(request: Request) {
         extractedEmail: parsed.email,
         status: 'failed',
         errorMessage: 'Failed to extract phone number from lead email',
-        bodyPreview: bodyText.slice(0, 200),
+        bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
       });
       return NextResponse.json({ error: 'Failed to extract phone number from lead' }, { status: 422 });
     }
@@ -408,7 +413,7 @@ export async function POST(request: Request) {
         extractedEmail: parsed.email,
         status: 'failed',
         errorMessage: 'Extracted phone number is invalid',
-        bodyPreview: bodyText.slice(0, 200),
+        bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
       });
       return NextResponse.json({ error: 'Extracted phone number is invalid' }, { status: 422 });
     }
@@ -431,7 +436,7 @@ export async function POST(request: Request) {
         extractedEmail: parsed.email,
         status: 'ignored',
         errorMessage: 'Email lead synchronization is disabled for this account',
-        bodyPreview: bodyText.slice(0, 200),
+        bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
       });
       return NextResponse.json({ error: 'Email lead synchronization is disabled for this account' }, { status: 403 });
     }
@@ -551,6 +556,9 @@ export async function POST(request: Request) {
 
     // Match properties from email against user's listings
     let matchedPropertyIds: string[] = [];
+    // Score the winner took, logged so a coincidental match (a low score
+    // with no parsed locality) is recognisable afterwards.
+    let topMatchScore: number | null = null;
     if (parsed.propertyType || parsed.propertyLocation || parsed.housingPropertyId) {
       try {
         // Fetch user's published properties.
@@ -631,13 +639,14 @@ export async function POST(request: Request) {
           });
 
           // Require at least 2 points so type-only near-matches still qualify
-          const matchedProperties = scoredProperties
+          const ranked = scoredProperties
             .filter((sp) => sp.score >= 2)
-            .sort((a, b) => b.score - a.score)
-            .map((sp) => sp.property);
+            .sort((a, b) => b.score - a.score);
+          const matchedProperties = ranked.map((sp) => sp.property);
 
           if (matchedProperties.length > 0) {
             matchedPropertyIds = matchedProperties.map(p => p.id);
+            topMatchScore = ranked[0].score;
             console.log(`[lead-webhook] Matched ${matchedProperties.length} properties: ${matchedProperties.map(p => p.title).join(', ')} from ${parsed.source} inquiry`);
 
             // Find the maximum matching score
@@ -708,6 +717,18 @@ export async function POST(request: Request) {
       }
     }
 
+    // What the buyer asked for, next to the listing the scorer chose —
+    // the pair that makes a wrong match reviewable later (migration 200).
+    const matchAudit = {
+      parsedPropertyType: parsed.propertyType,
+      parsedLocation: parsed.propertyLocation,
+      parsedAreaSqft: parsed.areaSqft,
+      parsedPrice: parsed.propertyPrice,
+      parsedBedrooms: parsed.bedrooms,
+      matchedPropertyId: matchedPropertyIds[0] ?? null,
+      matchScore: topMatchScore,
+    };
+
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
     const { data: existingContact } = await supabase
       .from('contacts')
@@ -735,7 +756,8 @@ export async function POST(request: Request) {
         extractedEmail: parsed.email,
         status: 'failed',
         errorMessage: 'No user profile found for this account',
-        bodyPreview: bodyText.slice(0, 200),
+        bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
+        match: matchAudit,
       });
       return NextResponse.json({ error: 'No user found for this account' }, { status: 422 });
     }
@@ -869,7 +891,8 @@ export async function POST(request: Request) {
         extractedEmail: parsed.email,
         status: 'success',
         errorMessage: 'Existing contact preferences updated',
-        bodyPreview: bodyText.slice(0, 200),
+        bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
+        match: matchAudit,
       });
 
       // Trigger automatic WhatsApp reply — always send for email leads
@@ -938,7 +961,8 @@ export async function POST(request: Request) {
         extractedEmail: parsed.email,
         status: 'failed',
         errorMessage: `Failed to insert contact: ${insertErr.message}`,
-        bodyPreview: bodyText.slice(0, 200),
+        bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
+        match: matchAudit,
       });
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
@@ -1020,7 +1044,8 @@ export async function POST(request: Request) {
       errorMessage: unusableName
         ? `New contact created — portal name "${unusableName}" was unusable, placeholder applied`
         : 'New contact created',
-      bodyPreview: bodyText.slice(0, 200),
+      bodyPreview: bodyText.slice(0, BODY_PREVIEW_CHARS),
+      match: matchAudit,
     });
 
     // Trigger automatic WhatsApp reply — always send for email leads
@@ -1063,7 +1088,7 @@ export async function POST(request: Request) {
         subject: subject || '',
         status: 'failed',
         errorMessage: error.message || 'Server error',
-        bodyPreview: bodyText?.slice(0, 200) || '',
+        bodyPreview: bodyText?.slice(0, BODY_PREVIEW_CHARS) || '',
       });
     }
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
