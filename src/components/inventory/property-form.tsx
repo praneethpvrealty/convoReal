@@ -219,6 +219,7 @@ export function PropertyForm({
   const [roadWidthUnit, setRoadWidthUnit] = useState('Feet');
   const [facingDirection, setFacingDirection] = useState('');
   const [furnishing, setFurnishing] = useState('');
+  const [possessionDate, setPossessionDate] = useState('');
   const [floorNumber, setFloorNumber] = useState('');
   const [totalFloors, setTotalFloors] = useState('');
   const [balconies, setBalconies] = useState('');
@@ -1409,6 +1410,7 @@ export function PropertyForm({
         setRoadWidthUnit(property.road_width_unit ?? 'Feet');
         setFacingDirection(property.facing_direction ?? '');
         setFurnishing(property.furnishing ?? '');
+        setPossessionDate(property.possession_date ?? '');
         setFloorNumber(property.floor_number !== null && property.floor_number !== undefined ? String(property.floor_number) : '');
         setTotalFloors(property.total_floors !== null && property.total_floors !== undefined ? String(property.total_floors) : '');
         setBalconies(property.balconies !== null && property.balconies !== undefined ? String(property.balconies) : '');
@@ -2265,6 +2267,7 @@ export function PropertyForm({
         bedrooms: parsedBedrooms,
         bathrooms: parsedBathrooms,
         furnishing: !isLand && furnishing ? furnishing : null,
+        possession_date: possessionDate || null,
         floor_number: parsedFloorNumber,
         total_floors: parsedTotalFloors,
         balconies: parsedBalconies,
@@ -4751,6 +4754,22 @@ export function PropertyForm({
                         </select>
                       </div>
                     )}
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="prop-possession-date" className="text-slate-300">
+                        Possession Date
+                      </Label>
+                      <Input
+                        id="prop-possession-date"
+                        type="date"
+                        value={possessionDate}
+                        onChange={(e) => setPossessionDate(e.target.value)}
+                        className="bg-slate-800 border-slate-700 text-white h-9 [color-scheme:dark]"
+                      />
+                      <p className="text-[10px] text-slate-500">
+                        When the buyer gets the keys. Leave empty if it isn&apos;t committed yet.
+                      </p>
+                    </div>
 
                     {hasBedsBaths && (
                       <div className="space-y-1.5">
