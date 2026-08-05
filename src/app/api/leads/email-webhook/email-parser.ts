@@ -573,7 +573,10 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
   // ending the search, so subject-line boilerplate no longer shadows a
   // real locality further down the email.
   if (!propertyLocation) {
-    for (const m of combinedText.matchAll(/(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/gi)) {
+    // \b matters: without it the "at" inside "Chat On WhatsApp" (the
+    // portal's contact button) reads as a connector and hands back
+    // "On WhatsApp" as the locality.
+    for (const m of combinedText.matchAll(/\b(?:in|at|near|located)\s+([A-Za-z\s,]+?)(?:\s*,|\s*\n|\s*\d|\s*₹|\s*\.)/gi)) {
       if (isUsableLocation(m[1])) {
         propertyLocation = m[1].trim();
         break;

@@ -13,6 +13,7 @@ import {
   parseBudgetToINR,
   parsePortalLead,
 } from './email-parser';
+import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import { resolveHousingPhone } from './phone-resolver';
 import { writeSyncLog, assignTagsToContact } from './db-utils';
 import { sendAutoReply } from './auto-reply';
@@ -45,10 +46,23 @@ interface PropertyForMatching {
   title: string;
   type: string | null;
   location: string | null;
+  sublocality: string | null;
   bedrooms: number | null;
   area_sqft: number | null;
+  land_area: number | null;
+  land_area_unit: string | null;
   price: number | null;
   property_code: string | null;
+}
+
+/** The size an enquiry's "4200 sq. ft." should be compared against.
+ *  A house or plot records its site size in land_area (see the intake
+ *  rules in src/lib/ai/gemini.ts), leaving area_sqft null — matching on
+ *  area_sqft alone makes those listings invisible to the area signal. */
+export function matchableSqft(
+  p: Pick<PropertyForMatching, 'area_sqft' | 'land_area' | 'land_area_unit'>
+): number | null {
+  return p.area_sqft ?? toSquareFeet(p.land_area, p.land_area_unit);
 }
 
 export function normalizeLocationString(str: string): string {
@@ -542,7 +556,9 @@ export async function POST(request: Request) {
         // Fetch user's published properties.
         const { data: properties } = await supabase
           .from('properties')
-          .select('id, title, type, location, bedrooms, area_sqft, price, property_code, created_at')
+          .select(
+            'id, title, type, location, sublocality, bedrooms, area_sqft, land_area, land_area_unit, price, property_code, created_at'
+          )
           .eq('account_id', accountId)
           .eq('is_published', true);
 
@@ -581,16 +597,23 @@ export async function POST(request: Request) {
               }
             }
 
-            // Match by location (fuzzy match) — highest weight
-            if (parsed.propertyLocation && p.location) {
-              if (checkLocationMatch(parsed.propertyLocation, p.location)) {
+            // Match by location (fuzzy match) — highest weight. The
+            // locality often lives in sublocality alone: `location` is a
+            // full postal/plus-code line whose locality tokens can be
+            // spelled differently ("Bengaluru" vs the parsed "Bangalore").
+            if (parsed.propertyLocation) {
+              const matchesLocation =
+                (p.location && checkLocationMatch(parsed.propertyLocation, p.location)) ||
+                (p.sublocality && checkLocationMatch(parsed.propertyLocation, p.sublocality));
+              if (matchesLocation) {
                 matchScore += 3;
               }
             }
 
             // Match by area (within 10% tolerance)
-            if (parsed.areaSqft && p.area_sqft) {
-              const areaDiff = Math.abs(parsed.areaSqft - p.area_sqft) / p.area_sqft;
+            const propertySqft = matchableSqft(p);
+            if (parsed.areaSqft && propertySqft) {
+              const areaDiff = Math.abs(parsed.areaSqft - propertySqft) / propertySqft;
               if (areaDiff <= 0.1) {
                 matchScore += 2;
               }
