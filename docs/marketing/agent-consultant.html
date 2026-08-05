@@ -326,41 +326,93 @@
     ctx.textBaseline = 'alphabetic';
   }
 
-  // ---------- the customer ----------
+  // ---------- the customers ----------
+  const STYLES = [
+    { skin: '#c98a5b', hair: '#241a12', shirt: '#0d9488', pattern: 'floral',
+      petal: '#fb7185', petal2: '#fde68a', shorts: '#f59e0b', flip: '#e2e8f0',
+      chairStripe: '#0ea5e9', head: 'shades' },
+    { skin: '#f2cfae', hair: '#d9a441', shirt: '#e7edf5', pattern: 'stripe',
+      stripe: '#ef4444', shorts: '#2563eb', flip: '#fbbf24',
+      chairStripe: '#f97316', head: 'cap', capColor: '#ef4444' },
+    { skin: '#8d5a33', hair: '#171310', shirt: '#fb7185', pattern: 'plain',
+      shorts: '#10b981', flip: '#f5d0a9',
+      chairStripe: '#a3e635', head: 'sunhat', hatColor: '#f4d58d' },
+  ];
+
+  function torsoClip(hipX, hipY, shoX, shoY, st, alpha) {
+    const ang = Math.atan2(shoY - hipY, shoX - hipX);
+    const len = Math.hypot(shoX - hipX, shoY - hipY);
+    ctx.save();
+    ctx.translate((hipX + shoX) / 2, (hipY + shoY) / 2);
+    ctx.rotate(ang);
+    rr(-len / 2 - 13, -13, len + 26, 26, 13);
+    ctx.fillStyle = st.shirt;
+    ctx.fill();
+    ctx.clip();
+    ctx.globalAlpha = alpha;
+    if (st.pattern === 'stripe') {
+      ctx.fillStyle = st.stripe;
+      for (let k = -3; k < 5; k++) ctx.fillRect(-len / 2 - 12 + k * 13, -13, 6.5, 26);
+    } else if (st.pattern === 'floral') {
+      for (let k = 0; k < 9; k++) {
+        const fx = -len / 2 - 6 + (k % 5) * (len / 4.4);
+        const fy = -8 + Math.floor(k / 5) * 11 + (k % 2) * 4;
+        ctx.fillStyle = k % 2 ? st.petal : st.petal2;
+        for (let q = 0; q < 4; q++) {
+          ctx.beginPath();
+          ctx.arc(fx + Math.cos((q / 4) * 6.283) * 2.6, fy + Math.sin((q / 4) * 6.283) * 2.6, 1.9, 0, 6.283);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   function drawCustomer(t, g, i) {
     const arrive = i === 0 ? 1 : easeOutBack(clamp01((t - g.arrive) / 700));
     if (arrive <= 0) return;
     const attn = i === 0 ? clamp01((t - (S3 + 300)) / 900) : 1;
+    const st = STYLES[i];
     const s = g.scale * Math.min(1, arrive);
     const x = g.x;
+    const alpha = Math.min(1, arrive);
 
     ctx.save();
     ctx.translate(x, GROUND);
     ctx.scale(s, s);
     ctx.translate(-x, -GROUND);
-    ctx.globalAlpha = Math.min(1, arrive);
+    ctx.globalAlpha = alpha;
 
     shadow(x + 4, GROUND + 4, 52, 0.45);
 
     const seatY = GROUND - 40;
     const recline = 1 - attn;
 
-    // chair back
+    // deck chair with striped sling
     ctx.save();
     ctx.translate(x + 30, seatY);
     ctx.rotate(lerp(0.42, 0.16, attn));
-    ctx.fillStyle = '#26324a';
+    ctx.fillStyle = '#3b3025';
     rr(-8, -74, 26, 78, 12); ctx.fill();
-    ctx.fillStyle = '#2f3d59';
-    rr(-4, -70, 18, 70, 9); ctx.fill();
+    ctx.save();
+    rr(-4, -70, 18, 70, 9); ctx.clip();
+    ctx.fillStyle = '#e8e3d6'; ctx.fillRect(-4, -70, 18, 70);
+    ctx.fillStyle = st.chairStripe;
+    for (let k = 0; k < 6; k++) ctx.fillRect(-4, -70 + k * 13, 18, 6.5);
+    ctx.restore();
     ctx.restore();
 
-    // seat + arm + legs
-    ctx.fillStyle = '#2b3850';
+    ctx.fillStyle = '#3b3025';
     rr(x - 34, seatY - 6, 70, 20, 9); ctx.fill();
-    ctx.fillStyle = '#26324a';
+    ctx.save();
+    rr(x - 32, seatY - 4, 66, 12, 6); ctx.clip();
+    ctx.fillStyle = '#e8e3d6'; ctx.fillRect(x - 32, seatY - 4, 66, 12);
+    ctx.fillStyle = st.chairStripe;
+    for (let k = 0; k < 6; k++) ctx.fillRect(x - 32 + k * 12, seatY - 4, 6, 12);
+    ctx.restore();
+    ctx.fillStyle = '#3b3025';
     rr(x - 38, seatY - 20, 12, 32, 6); ctx.fill();
-    ctx.strokeStyle = '#1b2434';
+    ctx.strokeStyle = '#2a2119';
     ctx.lineWidth = 6;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -368,88 +420,130 @@
     ctx.moveTo(x + 28, seatY + 14); ctx.lineTo(x + 32, GROUND);
     ctx.stroke();
 
-    // body
     const hipX = x - 2, hipY = seatY - 6;
     const shoX = lerp(hipX + 26, hipX + 6, attn);
     const shoY = lerp(hipY - 34, hipY - 46, attn);
     const headX = lerp(shoX + 8, shoX - 4, attn);
     const headY = shoY - lerp(15, 19, attn);
-    const shirt = i === 0 ? '#64748b' : i === 1 ? '#5b6b8a' : '#6b7280';
-    const skin = i === 0 ? '#e8b98f' : i === 1 ? '#d9a679' : '#f0c9a8';
 
-    // legs: extended when reclining, tucked when attentive
+    // legs: shorts on the thigh, bare shin, flip-flops
     const kneeX = lerp(x - 44, x - 26, attn);
     const kneeY = lerp(seatY + 2, seatY + 10, attn);
     const footX = lerp(x - 74, x - 34, attn);
     const footY = lerp(seatY + 14, GROUND, attn);
-    limb(hipX, hipY + 2, kneeX, kneeY, footX, footY, 12, '#3f4a63');
-    ctx.fillStyle = '#1b2434';
-    rr(footX - 11, footY - 5, 20, 9, 4); ctx.fill();
-
-    // torso
-    ctx.strokeStyle = shirt;
-    ctx.lineWidth = 26;
-    ctx.lineCap = 'round';
+    limb(hipX, hipY + 3, (hipX + kneeX) / 2, (hipY + kneeY) / 2 - 2, kneeX, kneeY, 15, st.shorts);
+    limb(kneeX, kneeY, (kneeX + footX) / 2, (kneeY + footY) / 2 + 3, footX, footY, 10, st.skin);
+    ctx.fillStyle = st.flip;
+    rr(footX - 11, footY - 4, 21, 6, 3); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 1.4;
     ctx.beginPath();
-    ctx.moveTo(hipX, hipY);
-    ctx.lineTo(shoX, shoY);
+    ctx.moveTo(footX - 6, footY - 1); ctx.lineTo(footX + 1, footY - 4);
     ctx.stroke();
 
-    // arms
+    // torso
+    torsoClip(hipX, hipY, shoX, shoY, st, alpha);
+
+    // arms: bare, with a short sleeve cap
     if (attn < 0.5) {
       const a = 1 - attn * 2;
-      ctx.globalAlpha = Math.min(1, arrive) * a;
-      limb(shoX - 2, shoY + 6, x - 30, shoY + 26, x - 34, seatY - 14, 9, shirt);
-      limb(shoX + 2, shoY + 6, x + 34, shoY + 20, x + 30, seatY - 12, 9, shirt);
-      ctx.globalAlpha = Math.min(1, arrive);
+      ctx.globalAlpha = alpha * a;
+      limb(shoX - 2, shoY + 6, x - 30, shoY + 26, x - 36, seatY - 16, 8.5, st.skin);
+      limb(shoX + 2, shoY + 6, x + 34, shoY + 20, x + 30, seatY - 12, 8.5, st.skin);
+      limb(shoX - 2, shoY + 5, shoX - 8, shoY + 11, shoX - 11, shoY + 15, 13, st.shirt);
+      limb(shoX + 2, shoY + 5, shoX + 8, shoY + 11, shoX + 11, shoY + 14, 13, st.shirt);
+      if (i === 0) {
+        ctx.save();
+        ctx.translate(x - 40, seatY - 26);
+        ctx.fillStyle = 'rgba(226,232,240,0.9)';
+        ctx.beginPath();
+        ctx.moveTo(-7, -2); ctx.lineTo(7, -2); ctx.lineTo(4.5, 16); ctx.lineTo(-4.5, 16);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#fb923c';
+        ctx.beginPath();
+        ctx.moveTo(-6, 3); ctx.lineTo(6, 3); ctx.lineTo(4.2, 16); ctx.lineTo(-4.2, 16);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = '#f43f5e';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(2, -1); ctx.lineTo(9, -13);
+        ctx.stroke();
+        ctx.fillStyle = '#4ade80';
+        ctx.beginPath();
+        ctx.arc(-7, -3, 3.4, 0, 6.283);
+        ctx.fill();
+        ctx.restore();
+      }
+      ctx.globalAlpha = alpha;
     } else {
       const a = (attn - 0.5) * 2;
-      ctx.globalAlpha = Math.min(1, arrive) * a;
-      limb(shoX - 2, shoY + 6, shoX - 16, shoY + 22, headX - 7, headY + 12, 9, shirt);
-      ctx.fillStyle = skin;
-      ctx.beginPath();
-      ctx.arc(headX - 7, headY + 12, 5, 0, Math.PI * 2);
-      ctx.fill();
-      limb(shoX + 2, shoY + 8, shoX + 20, shoY + 24, x + 24, seatY - 12, 9, shirt);
-      ctx.globalAlpha = Math.min(1, arrive);
+      ctx.globalAlpha = alpha * a;
+      limb(shoX - 2, shoY + 6, shoX - 16, shoY + 22, headX - 7, headY + 12, 8.5, st.skin);
+      ctx.fillStyle = st.skin;
+      ctx.beginPath(); ctx.arc(headX - 7, headY + 12, 5, 0, 6.283); ctx.fill();
+      limb(shoX + 2, shoY + 8, shoX + 20, shoY + 24, x + 24, seatY - 12, 8.5, st.skin);
+      limb(shoX - 2, shoY + 5, shoX - 8, shoY + 11, shoX - 11, shoY + 15, 13, st.shirt);
+      limb(shoX + 2, shoY + 5, shoX + 8, shoY + 11, shoX + 11, shoY + 14, 13, st.shirt);
+      ctx.globalAlpha = alpha;
     }
 
     // head
     ctx.save();
     ctx.translate(headX, headY);
     ctx.rotate(lerp(0.3, -0.05, attn));
-    ctx.fillStyle = skin;
-    ctx.beginPath();
-    ctx.arc(0, 0, 13, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = i === 1 ? '#1f2937' : '#2b2233';
-    ctx.beginPath();
-    ctx.arc(0, -3, 13, Math.PI * 1.02, Math.PI * 1.98);
-    ctx.fill();
+    ctx.fillStyle = st.skin;
+    ctx.beginPath(); ctx.arc(0, 0, 13, 0, 6.283); ctx.fill();
+    ctx.fillStyle = st.hair;
+    ctx.beginPath(); ctx.arc(0, -3, 13, Math.PI * 1.02, Math.PI * 1.98); ctx.fill();
+    if (st.head === 'sunhat') {
+      ctx.fillStyle = st.hair;
+      ctx.beginPath(); ctx.ellipse(11, 4, 6, 9, 0.3, 0, 6.283); ctx.fill();
+    }
+
     ctx.fillStyle = '#1f2937';
-    if (attn < 0.5) {
-      ctx.strokeStyle = '#1f2937';
-      ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    ctx.arc(-5, 0, 1.8, 0, 6.283);
+    ctx.arc(5, 0, 1.8, 0, 6.283);
+    ctx.fill();
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 4, 4, Math.PI * 0.15, Math.PI * 0.85);
+    ctx.stroke();
+
+    if (st.head === 'shades') {
+      const gy = lerp(0, -11, attn);
+      ctx.fillStyle = '#111827';
+      rr(-11.5, gy - 3.6, 23, 7.4, 3.4); ctx.fill();
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.moveTo(-9, 1); ctx.lineTo(-3, 1);
-      ctx.moveTo(3, 1); ctx.lineTo(9, 1);
+      ctx.moveTo(-11.5, gy - 1); ctx.lineTo(-13.5, gy - 2.5);
+      ctx.moveTo(11.5, gy - 1); ctx.lineTo(13.5, gy - 2.5);
       ctx.stroke();
-    } else {
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(-5, 0, 1.7, 0, Math.PI * 2);
-      ctx.arc(5, 0, 1.7, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#1f2937';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(0, 4, 4, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.moveTo(-8, gy + 1.4); ctx.lineTo(-4.5, gy - 2.2);
       ctx.stroke();
+    } else if (st.head === 'cap') {
+      ctx.fillStyle = st.capColor;
+      ctx.beginPath(); ctx.arc(0, -4, 13, Math.PI, 0); ctx.fill();
+      rr(-24, -5.5, 20, 5, 2.5); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(0, -14, 2.6, 0, 6.283); ctx.fill();
+    } else if (st.head === 'sunhat') {
+      ctx.fillStyle = st.hatColor;
+      ctx.beginPath(); ctx.ellipse(0, -7, 24, 6.5, 0, 0, 6.283); ctx.fill();
+      ctx.beginPath(); ctx.arc(0, -9, 11, Math.PI, 0); ctx.fill();
+      ctx.fillStyle = '#fb7185';
+      rr(-11, -11, 22, 4, 2); ctx.fill();
     }
     ctx.restore();
     ctx.restore();
     ctx.globalAlpha = 1;
 
-    // idle props while reclining
     if (i === 0 && recline > 0.02) {
       ctx.globalAlpha = recline;
       ctx.save();
