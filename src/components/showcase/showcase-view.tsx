@@ -1783,15 +1783,23 @@ export function ShowcaseView({
 
             {/* Left Pane: Gallery — shrink-0 so the details pane below
                 can't squeeze it (or its thumbnail strip) on mobile.
-                45dvh gives portrait listing videos a usable stage. */}
-            <div className="w-full lg:w-[50%] h-[45dvh] lg:h-auto bg-slate-950 relative flex flex-col min-h-[300px] shrink-0 lg:shrink">
+                45dvh gives portrait listing videos a usable stage.
+                overflow-hidden keeps anything inside the 45dvh box: the
+                pane is positioned, so an overflowing child paints over
+                the details pane below it (the card's own overflow-hidden
+                only clips at the card edge). */}
+            <div className="w-full lg:w-[50%] h-[45dvh] lg:h-auto bg-slate-950 relative flex flex-col min-h-[300px] shrink-0 lg:shrink overflow-hidden">
               {detailMediaCount > 0 ? (
                 <>
                   {/* Main Viewer — photos first, the listing video as
                       the last slide of the same carousel. Touch swipe
-                      navigates alongside the arrow buttons. */}
+                      navigates alongside the arrow buttons.
+                      min-h-0 (and no h-full) so it yields the thumbnail
+                      strip's 64px: with an automatic minimum size the
+                      viewer refused to shrink and the strip was pushed
+                      over the title below it. */}
                   <div
-                    className="flex-1 w-full h-full relative bg-slate-950 flex items-center justify-center"
+                    className="flex-1 min-h-0 w-full relative bg-slate-950 flex items-center justify-center"
                     onTouchStart={(e) => {
                       detailTouchXRef.current = e.touches[0].clientX;
                     }}
@@ -1940,11 +1948,31 @@ export function ShowcaseView({
                       <Building className="size-3.5" />
                       {selectedProperty.type}
                     </div>
-                    {selectedProperty.property_code && (
-                      <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded select-all">
-                        {selectedProperty.property_code}
-                      </span>
-                    )}
+                    {/* lg:mr-8 clears the card's absolute close button,
+                        which sat over the tail of the code chip. */}
+                    <div className="flex items-center gap-2 shrink-0 lg:mr-8">
+                      {/* Buyers only: a co-broker gets the attributed
+                          "Get My Share Link" below instead, and an
+                          unattributed link beside it would quietly break
+                          the chain that block exists to keep. */}
+                      {!isAgentMode && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleShareListing(selectedProperty, e)}
+                          title="Share this property"
+                          aria-label="Share this property"
+                          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-300 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded-lg cursor-pointer transition-colors"
+                        >
+                          <Share2 className="size-3.5" />
+                          Share
+                        </button>
+                      )}
+                      {selectedProperty.property_code && (
+                        <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-900 border border-slate-800 px-2 py-0.5 rounded select-all">
+                          {selectedProperty.property_code}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <h2 className="text-xl font-bold text-white leading-tight">
                     {selectedProperty.title}
