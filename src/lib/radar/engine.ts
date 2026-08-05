@@ -151,6 +151,53 @@ export async function generateMatchEventForProperty(
   }
 }
 
+export interface RankedPropertyMatch {
+  property: Property;
+  score: number;
+  details: MatchDetails;
+}
+
+/**
+ * Ranks the account's live inventory against one contact's stated
+ * preferences, best first. Shared by the Radar event writer below and by
+ * the WhatsApp lead-qualification reply (src/lib/ai/buyer-qualification.ts)
+ * so both rank the same inventory the same way.
+ */
+export async function rankPropertiesForContact(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string
+): Promise<RankedPropertyMatch[]> {
+  const [{ data: contact }, { data: properties }] = await Promise.all([
+    db
+      .from('contacts')
+      .select('*, contact_notes(note_text)')
+      .eq('id', contactId)
+      .eq('account_id', accountId)
+      .maybeSingle(),
+    db
+      .from('properties')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('is_published', true)
+      .eq('status', 'Available'),
+  ]);
+
+  if (!contact || !properties || properties.length === 0) return [];
+  if (!['Buyer', 'Agent'].includes((contact as Contact).classification || '')) return [];
+
+  const matched: RankedPropertyMatch[] = [];
+  for (const property of properties as Property[]) {
+    const [result] = getMatchingContacts(property, [contact as Contact]);
+    if (result && result.score >= MIN_SCORE) {
+      matched.push({ property, score: result.score, details: result.details });
+    }
+  }
+
+  matched.sort((a, b) => b.score - a.score);
+  return matched;
+}
+
 /**
  * Buyer preferences changed → find matching inventory and record an event.
  * Only fires for Buyer/Agent contacts with at least one real match.
@@ -161,34 +208,9 @@ export async function generateMatchEventForContact(
   contactId: string
 ): Promise<void> {
   try {
-    const [{ data: contact }, { data: properties }] = await Promise.all([
-      db
-        .from('contacts')
-        .select('*, contact_notes(note_text)')
-        .eq('id', contactId)
-        .eq('account_id', accountId)
-        .maybeSingle(),
-      db
-        .from('properties')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('is_published', true)
-        .eq('status', 'Available'),
-    ]);
-
-    if (!contact || !properties || properties.length === 0) return;
-    if (!['Buyer', 'Agent'].includes((contact as Contact).classification || '')) return;
-
-    const matched: { property: Property; score: number; details: MatchDetails }[] = [];
-    for (const property of properties as Property[]) {
-      const [result] = getMatchingContacts(property, [contact as Contact]);
-      if (result && result.score >= MIN_SCORE) {
-        matched.push({ property, score: result.score, details: result.details });
-      }
-    }
+    const matched = await rankPropertiesForContact(db, accountId, contactId);
     if (matched.length === 0) return;
 
-    matched.sort((a, b) => b.score - a.score);
     const targets: MatchEventTarget[] = matched.slice(0, MAX_TARGETS).map((m) => ({
       id: m.property.id,
       name: m.property.title,
