@@ -35,6 +35,9 @@ import {
   ExternalLink,
   Search,
   UserCheck,
+  Lock,
+  MapPin,
+  FileText,
 } from 'lucide-react';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { captureJourneyItems } from '@/lib/journey/capture';
@@ -133,6 +136,20 @@ export function PropertyShareDialog({
   // text. Reset whenever any composer input changes.
   const [messageDraft, setMessageDraft] = useState<string | null>(null);
 
+  // ── Unmask this share (migration 198) ───────────────────────────
+  // Off by default: the masked link is what turns a viewer into a
+  // captured lead. Turning either switch on mints a share grant whose
+  // token rides the link as ?g= — expiring, revocable, and scoped to
+  // this one listing. Sending to a named contact re-mints it bound to
+  // them, so it can be revoked for one recipient without touching the
+  // others.
+  const [revealLocation, setRevealLocation] = useState(false);
+  const [revealDocuments, setRevealDocuments] = useState(false);
+  const [linkGrant, setLinkGrant] = useState<{ id: string; token: string } | null>(null);
+  const [grantBusy, setGrantBusy] = useState(false);
+  const linkGrantRef = useRef<{ id: string; token: string } | null>(null);
+  const contactGrantsRef = useRef<Record<string, string>>({});
+
   useEffect(() => {
     if (!metaCatalogSyncedAt) {
       setIndexingTimeLeft(0);
@@ -172,6 +189,121 @@ export function PropertyShareDialog({
     }
   }, [open, accountId, supabase]);
 
+  const propertyId = property?.id ?? null;
+
+  const propertyDocumentCount = useMemo(
+    () => (property?.documents ?? []).filter((d) => d?.trim()).length,
+    [property?.documents],
+  );
+
+  const mintGrant = useCallback(
+    async (contactId: string | null) => {
+      if (!propertyId) return null;
+      const res = await fetch(`/api/properties/${propertyId}/share-grants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contact_id: contactId,
+          reveal_location: revealLocation,
+          reveal_documents: revealDocuments,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to unmask this share');
+      return json.data as { id: string; token: string };
+    },
+    [propertyId, revealLocation, revealDocuments],
+  );
+
+  const revokeGrant = useCallback(
+    async (grantId: string) => {
+      if (!propertyId) return;
+      try {
+        await fetch(
+          `/api/properties/${propertyId}/share-grants?grant_id=${grantId}`,
+          { method: 'DELETE' },
+        );
+      } catch (err) {
+        console.error('[property-share] Grant revoke failed:', err);
+      }
+    },
+    [propertyId],
+  );
+
+  // Any change to what is revealed invalidates the previous key: the old
+  // grant is revoked so a link already copied cannot outlive the toggle
+  // that produced it.
+  useEffect(() => {
+    if (!open || !propertyId) return;
+    let cancelled = false;
+    Promise.resolve().then(async () => {
+      if (cancelled) return;
+      const previous = linkGrantRef.current;
+      linkGrantRef.current = null;
+      contactGrantsRef.current = {};
+      setLinkGrant(null);
+      if (previous) void revokeGrant(previous.id);
+      if (!revealLocation && !revealDocuments) return;
+
+      setGrantBusy(true);
+      try {
+        const grant = await mintGrant(null);
+        if (cancelled || !grant) return;
+        linkGrantRef.current = grant;
+        setLinkGrant(grant);
+      } catch (err) {
+        if (cancelled) return;
+        toast.error(err instanceof Error ? err.message : 'Failed to unmask this share');
+        setRevealLocation(false);
+        setRevealDocuments(false);
+      } finally {
+        if (!cancelled) setGrantBusy(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, propertyId, revealLocation, revealDocuments, mintGrant, revokeGrant]);
+
+  // Closing the dialog resets the switches; the grant itself stays live
+  // for the link already sent.
+  useEffect(() => {
+    if (open) return;
+    linkGrantRef.current = null;
+    contactGrantsRef.current = {};
+    Promise.resolve().then(() => {
+      setLinkGrant(null);
+      setRevealLocation(false);
+      setRevealDocuments(false);
+    });
+  }, [open]);
+
+  const grantToken = linkGrant?.token ?? null;
+
+  /** A grant bound to this recipient, minted on first send to them. */
+  const ensureContactGrant = useCallback(
+    async (contactId: string): Promise<string | null> => {
+      if (!revealLocation && !revealDocuments) return null;
+      const existing = contactGrantsRef.current[contactId];
+      if (existing) return existing;
+      try {
+        const grant = await mintGrant(contactId);
+        if (!grant) return null;
+        contactGrantsRef.current = {
+          ...contactGrantsRef.current,
+          [contactId]: grant.token,
+        };
+        return grant.token;
+      } catch (err) {
+        console.error('[property-share] Contact grant mint failed:', err);
+        // Fall back to the share-wide grant rather than sending a link
+        // that silently drops the reveal the agent asked for.
+        return grantToken;
+      }
+    },
+    [revealLocation, revealDocuments, mintGrant, grantToken],
+  );
+
   // Currency Formatter
   const formattedPrice = useMemo(() => {
     if (!property) return '';
@@ -206,10 +338,11 @@ export function PropertyShareDialog({
       typeof window !== 'undefined'
         ? showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)
         : '';
+    const grantSuffix = grantToken ? `&g=${grantToken}` : '';
     const url =
       audienceTab === 'agent'
-        ? `${origin}/?property_id=${property.id}&mode=view`
-        : `${origin}/?property_id=${property.id}`;
+        ? `${origin}/?property_id=${property.id}&mode=view${grantSuffix}`
+        : `${origin}/?property_id=${property.id}${grantSuffix}`;
     return buildPropertyShareMessage({
       property,
       url,
@@ -220,12 +353,12 @@ export function PropertyShareDialog({
       agentName: profile?.full_name || undefined,
       agentPhone: profile?.phone || undefined,
     });
-  }, [property, audienceTab, detailLevel, messageStyle, currency, profile, showcaseSubdomain]);
+  }, [property, audienceTab, detailLevel, messageStyle, currency, profile, showcaseSubdomain, grantToken]);
 
   // Any composer input change discards manual edits back to auto text.
   useEffect(() => {
     setMessageDraft(null);
-  }, [audienceTab, detailLevel, messageStyle, property?.id]);
+  }, [audienceTab, detailLevel, messageStyle, property?.id, grantToken]);
 
   const currentMessage = messageDraft ?? autoMessage;
 
@@ -284,18 +417,20 @@ export function PropertyShareDialog({
   // Get showcase URL for copying
   const showcaseUrl = useMemo(() => {
     if (!property) return '';
+    const grantSuffix = grantToken ? `&g=${grantToken}` : '';
     return typeof window !== 'undefined'
-      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}`
-      : `/?property_id=${property.id}`;
-  }, [property, showcaseSubdomain]);
+      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}${grantSuffix}`
+      : `/?property_id=${property.id}${grantSuffix}`;
+  }, [property, showcaseSubdomain, grantToken]);
 
   // Agent showcase URL — clean listing detail page (no inquiry form, no buttons)
   const agentShowcaseUrl = useMemo(() => {
     if (!property) return '';
+    const grantSuffix = grantToken ? `&g=${grantToken}` : '';
     return typeof window !== 'undefined'
-      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}&mode=view`
-      : `/?property_id=${property.id}&mode=view`;
-  }, [property, showcaseSubdomain]);
+      ? `${showcaseOriginForHost(window.location.host, window.location.protocol, showcaseSubdomain)}/?property_id=${property.id}&mode=view${grantSuffix}`
+      : `/?property_id=${property.id}&mode=view${grantSuffix}`;
+  }, [property, showcaseSubdomain, grantToken]);
 
   // ── Send personally (tracked) ────────────────────────────────
   // Same property link tagged with ?v=<contactId>, so the recipient's
@@ -313,7 +448,7 @@ export function PropertyShareDialog({
   }, [contacts, personalSearch]);
 
   const personalizedUrl = useCallback(
-    (contactId: string) => {
+    (contactId: string, contactGrantToken: string | null) => {
       if (!property) return '';
       const baseUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
       if (!baseUrl) return '';
@@ -322,15 +457,18 @@ export function PropertyShareDialog({
         typeof window !== 'undefined' ? window.location.origin : 'https://localhost',
       );
       url.searchParams.set('v', contactId);
+      // Overwrites the share-wide grant the base URL carries, so this
+      // recipient holds a key revocable on its own.
+      if (contactGrantToken) url.searchParams.set('g', contactGrantToken);
       return url.toString();
     },
     [property, audienceTab, agentShowcaseUrl, showcaseUrl],
   );
 
   const buildPersonalMessage = useCallback(
-    (contact: Contact) => {
+    (contact: Contact, contactGrantToken: string | null) => {
       const baseUrl = audienceTab === 'agent' ? agentShowcaseUrl : showcaseUrl;
-      const trackedUrl = personalizedUrl(contact.id);
+      const trackedUrl = personalizedUrl(contact.id, contactGrantToken);
       // Swap the plain link in the composed message for the tagged one;
       // if the user edited the link out, append the tagged link instead.
       let msg = currentMessage.includes(baseUrl)
@@ -344,15 +482,31 @@ export function PropertyShareDialog({
   );
 
   const handleWhatsAppPersonal = (contact: Contact) => {
-    const message = buildPersonalMessage(contact);
-    const phone = contact.phone.replace(/\D/g, '');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
-    captureSharesToJourney([contact.id]);
+    const needsGrant = revealLocation || revealDocuments;
+    // Minting is a round trip, and a window opened after an await is
+    // what popup blockers exist to stop. Claim the tab on the click,
+    // then point it at WhatsApp once the recipient's key exists.
+    const pending = needsGrant ? window.open('', '_blank') : null;
+    if (pending) pending.opener = null;
+
+    void (async () => {
+      const token = needsGrant ? await ensureContactGrant(contact.id) : null;
+      const message = buildPersonalMessage(contact, token);
+      const phone = contact.phone.replace(/\D/g, '');
+      const href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+      if (pending) pending.location.href = href;
+      else window.open(href, '_blank', 'noopener');
+      captureSharesToJourney([contact.id]);
+    })();
   };
 
   const handleCopyPersonal = async (contact: Contact) => {
     try {
-      await navigator.clipboard.writeText(buildPersonalMessage(contact));
+      const token =
+        revealLocation || revealDocuments
+          ? await ensureContactGrant(contact.id)
+          : null;
+      await navigator.clipboard.writeText(buildPersonalMessage(contact, token));
       setCopiedPersonalId(contact.id);
       toast.success(`Personal message for ${contact.name || contact.phone} copied!`);
       setTimeout(() => setCopiedPersonalId(null), 2000);
@@ -1284,6 +1438,74 @@ export function PropertyShareDialog({
                     rows={detailLevel === 'complete' ? 12 : 7}
                     className="w-full rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 resize-y focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50"
                   />
+                </div>
+
+                {/* Unmask this share */}
+                <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+                  <div className="flex items-center gap-1.5">
+                    <Lock className="size-3.5 text-amber-500" />
+                    <Label className="text-slate-300 text-[11px] font-semibold">
+                      Unmask this share
+                    </Label>
+                    {grantBusy && <Loader2 className="size-3 animate-spin text-slate-500" />}
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-slate-500">
+                    Off by default — the masked link is what turns a viewer into a
+                    captured lead. Switch either on and this link opens unmasked, with
+                    no request to approve. It expires in 7 days and you can revoke it.
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {([
+                      {
+                        key: 'location' as const,
+                        icon: MapPin,
+                        label: 'Exact location & map pin',
+                        on: revealLocation,
+                        toggle: () => setRevealLocation((v) => !v),
+                        disabledHint: null,
+                      },
+                      {
+                        key: 'documents' as const,
+                        icon: FileText,
+                        label:
+                          propertyDocumentCount > 0
+                            ? `Documents (${propertyDocumentCount})`
+                            : 'Documents',
+                        on: revealDocuments,
+                        toggle: () => setRevealDocuments((v) => !v),
+                        disabledHint:
+                          propertyDocumentCount === 0 ? 'None uploaded' : null,
+                      },
+                    ]).map((sw) => (
+                      <button
+                        key={sw.key}
+                        type="button"
+                        disabled={Boolean(sw.disabledHint) || grantBusy}
+                        onClick={sw.toggle}
+                        className={`flex items-center gap-2 rounded-lg border p-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                          sw.on
+                            ? 'border-primary/50 bg-primary/10 text-primary'
+                            : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                        }`}
+                      >
+                        {sw.on ? (
+                          <CheckSquare className="size-4 shrink-0" />
+                        ) : (
+                          <Square className="size-4 shrink-0" />
+                        )}
+                        <sw.icon className="size-3.5 shrink-0" />
+                        <span className="text-[11px] font-semibold truncate">
+                          {sw.disabledHint ? `${sw.label} — ${sw.disabledHint}` : sw.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {grantToken && (
+                    <p className="text-[10px] font-medium text-emerald-400">
+                      This link is unmasked. Sending it to a contact below gives them
+                      their own key, revocable on its own.
+                    </p>
+                  )}
                 </div>
 
                 {/* Link + copy */}

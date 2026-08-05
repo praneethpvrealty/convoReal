@@ -2,6 +2,7 @@ import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { toPublicPropertyView } from '@/lib/inventory/location-guard';
+import type { GrantedReveals } from '@/lib/inventory/share-grants';
 import type { Property, ShowcaseSettings } from '@/types';
 
 export interface ShowcaseData {
@@ -251,13 +252,19 @@ export async function cachedFetchShowcaseData(
 // The full payload is serialized into the RSC stream of every showcase
 // page (readable via view-source), so exact location, coordinates and
 // Engine internals must never survive this step. Agent mode (mode=view)
-// reveals the map only for properties whose location is not guarded —
-// see src/lib/inventory/location-guard.ts.
+// reveals the map only for properties whose location is not guarded;
+// a share grant (?g=) reveals the address, pin and documents for the
+// single listing it was minted for, guarded or not — see
+// src/lib/inventory/location-guard.ts.
 export function toPublicProperties(
   properties: Property[],
   agents: ShowcaseData['agents'],
   profiles: ShowcaseData['profiles'],
-  isAgentMode: boolean
+  isAgentMode: boolean,
+  /** Share grant from ?g=, already resolved and verified against the
+   *  property it was minted for. Widens that one listing only — every
+   *  other row in the catalog stays masked. */
+  grant?: { propertyId: string; reveals: GrantedReveals } | null
 ): Property[] {
   const userIdToAgentMap: Record<
     string,
@@ -287,8 +294,10 @@ export function toPublicProperties(
 
   return properties.map((prop) => {
     const agent = prop.user_id ? userIdToAgentMap[prop.user_id] : null;
+    const granted =
+      grant && grant.propertyId === prop.id ? grant.reveals : undefined;
     return {
-      ...toPublicPropertyView(prop, { revealExact: isAgentMode }),
+      ...toPublicPropertyView(prop, { revealExact: isAgentMode, granted }),
       agent_details: agent || null,
     };
   });

@@ -13,6 +13,11 @@ import {
   resolveSubdomainFromHost,
   toPublicProperties,
 } from '@/lib/showcase/public-data';
+import {
+  grantedReveals,
+  resolveShareGrant,
+  trackGrantView,
+} from '@/lib/inventory/share-grants';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { resolveRequestOrigin } from '@/lib/showcase/site-url';
 import { jsonLdScript, propertyJsonLd } from '@/lib/seo/jsonld';
@@ -45,6 +50,11 @@ interface PageProps {
     /** Share-instance token for generic (recipient-unknown) shares —
      *  labels which share a visit came from in Pulse. Never filters. */
     s?: string;
+    /** Share-grant token (migration 198) — unmasks the exact address,
+     *  map pin and documents for the one property it was minted for.
+     *  Expires and is revocable; verified server-side before it widens
+     *  anything. Never filters the catalog. */
+    g?: string;
     /** Tenant subdomain label, pinned into the URL by the Cloudflare
      *  Worker that fronts *.convoreal.com (see the wildcard section of
      *  docs/domain-rehosting-guide.md). The Worker re-issues the request
@@ -379,11 +389,36 @@ export default async function RootPage({ searchParams }: PageProps) {
     }
   }
 
+  // ── Share grant (?g=) ───────────────────────────────────────────
+  // Resolved against the property the link opens, so a token lifted
+  // from one share cannot widen a different listing. Uncached on
+  // purpose: revoking a grant has to take effect on the next open, not
+  // an hour later.
+  const shareGrant =
+    resolvedParams.g && targetProperty
+      ? await resolveShareGrant(
+          supabaseAdmin(),
+          resolvedParams.g,
+          targetProperty.id,
+          accountId
+        )
+      : null;
+
+  if (shareGrant) {
+    await trackGrantView(supabaseAdmin(), shareGrant);
+  }
+
   const propertiesWithAgent = toPublicProperties(
     propertiesList,
     agentContacts,
     profiles,
-    isAgentMode
+    isAgentMode,
+    shareGrant
+      ? {
+          propertyId: shareGrant.property_id,
+          reveals: grantedReveals(shareGrant),
+        }
+      : null
   );
 
   const proto = reqHeaders.get('x-forwarded-proto') || 'https';

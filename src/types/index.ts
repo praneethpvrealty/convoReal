@@ -958,6 +958,11 @@ export interface Property {
   /** Set by the masking helpers, never stored: this row was
    *  locality-substituted for the current viewer. */
   location_guarded?: boolean;
+  /** Set by the masking helpers, never stored: this viewer is holding
+   *  the exact address and map pin — either because the listing was
+   *  never guarded, or because a share grant (migration 198) unmasked
+   *  the link they arrived on. */
+  location_revealed?: boolean;
   /** Attached by the masking helpers so a viewer can see how many
    *  photos exist behind the guard without receiving their paths. */
   private_images_count?: number;
