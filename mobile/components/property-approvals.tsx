@@ -38,9 +38,11 @@ interface PendingResponse {
  */
 export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
   const { colors, fonts: f } = useTheme();
-  const { show, dialogProps } = useAppDialog();
-  const inFlight = useRef<Set<string>>(new Set());
-  const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set());
+  const { show, close, dialogProps } = useAppDialog();
+  const inFlight = useRef<Map<string, 'approve' | 'reject'>>(new Map());
+  const [deciding, setDeciding] = useState<Map<string, 'approve' | 'reject'>>(
+    new Map()
+  );
 
   const { data } = useQuery({
     queryKey: [PENDING_PROPERTIES_QUERY_KEY],
@@ -57,13 +59,22 @@ export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
 
   const rows = data?.data ?? [];
 
+  function begin(id: string, verdict: 'approve' | 'reject') {
+    inFlight.current.set(id, verdict);
+    setDeciding(new Map(inFlight.current));
+  }
+
+  function end(id: string) {
+    inFlight.current.delete(id);
+    setDeciding(new Map(inFlight.current));
+  }
+
   async function approve(property: Property) {
-    // Only the same listing twice is refused — approving the next one
+    // Only the same listing twice is refused — deciding the next one
     // while this is publishing is the point.
     if (inFlight.current.has(property.id)) return;
     haptic.tap();
-    inFlight.current.add(property.id);
-    setApprovingIds(new Set(inFlight.current));
+    begin(property.id, 'approve');
 
     try {
       const result = await apiFetch<{
@@ -90,8 +101,55 @@ export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
         message: err instanceof Error ? err.message : 'Please try again.',
       });
     } finally {
-      inFlight.current.delete(property.id);
-      setApprovingIds(new Set(inFlight.current));
+      end(property.id);
+    }
+  }
+
+  /** Rejecting hides the listing from the inventory and can't be undone
+   *  from here, so unlike approve it asks first — a mis-tap on a phone is
+   *  a different risk from a mis-click on a desktop list. */
+  function confirmReject(property: Property) {
+    if (inFlight.current.has(property.id)) return;
+    haptic.tap();
+    show({
+      title: 'Reject this listing?',
+      message: `"${property.title}" stays on record but won't be published or shared. The owner is not notified.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: close },
+        {
+          label: 'Reject',
+          variant: 'destructive',
+          onPress: () => {
+            close();
+            void reject(property);
+          },
+        },
+      ],
+    });
+  }
+
+  async function reject(property: Property) {
+    begin(property.id, 'reject');
+    try {
+      await apiFetch(`/api/properties/${property.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'Rejected' }),
+      });
+      haptic.success();
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [PENDING_PROPERTIES_QUERY_KEY],
+        }),
+        queryClient.invalidateQueries({ queryKey: ['properties'] }),
+      ]);
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Rejection failed',
+        message: err instanceof Error ? err.message : 'Please try again.',
+      });
+    } finally {
+      end(property.id);
     }
   }
 
@@ -104,7 +162,10 @@ export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
         <View style={[{ gap: spacing.sm }, style]}>
           <SectionLabel text={`Listings to review (${rows.length})`} />
           {rows.map((property) => {
-            const approving = approvingIds.has(property.id);
+            const verdict = deciding.get(property.id);
+            const approving = verdict === 'approve';
+            const rejecting = verdict === 'reject';
+            const busy = verdict !== undefined;
             const price =
               property.listing_type === 'Rent'
                 ? property.rent_per_month
@@ -168,24 +229,21 @@ export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
                 <View style={styles.actions}>
                   <Pressable
                     onPress={() => approve(property)}
-                    disabled={approving}
+                    disabled={busy}
                     accessibilityRole="button"
                     accessibilityLabel={
                       approving
                         ? `${property.title} approved, publishing`
                         : `Approve listing ${property.title}`
                     }
-                    accessibilityState={{
-                      disabled: approving,
-                      busy: approving,
-                    }}
+                    accessibilityState={{ disabled: busy, busy: approving }}
                     style={({ pressed }) => [
                       styles.button,
                       {
                         backgroundColor: approving
                           ? colors.success
                           : colors.primary,
-                        opacity: pressed && !approving ? 0.8 : 1,
+                        opacity: rejecting ? 0.4 : pressed && !busy ? 0.8 : 1,
                       },
                     ]}
                   >
@@ -202,6 +260,39 @@ export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
                     )}
                     <Text style={[styles.buttonText, { fontFamily: f.bold }]}>
                       {approving ? 'Publishing…' : 'Approve'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => confirmReject(property)}
+                    disabled={busy}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      rejecting
+                        ? `Rejecting ${property.title}`
+                        : `Reject listing ${property.title}`
+                    }
+                    accessibilityState={{ disabled: busy, busy: rejecting }}
+                    style={({ pressed }) => [
+                      styles.button,
+                      styles.rejectButton,
+                      {
+                        borderColor: colors.danger,
+                        opacity: approving ? 0.4 : pressed && !busy ? 0.8 : 1,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={rejecting ? 'close-circle' : 'close'}
+                      size={15}
+                      color={colors.danger}
+                    />
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        { fontFamily: f.bold, color: colors.danger },
+                      ]}
+                    >
+                      {rejecting ? 'Rejecting…' : 'Reject'}
                     </Text>
                   </Pressable>
                 </View>
@@ -232,6 +323,10 @@ const styles = StyleSheet.create({
     minHeight: 38,
     paddingHorizontal: spacing.md,
     borderRadius: radius.md,
+  },
+  rejectButton: {
+    backgroundColor: 'transparent',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   buttonText: { fontSize: 13, color: '#fff' },
 });
