@@ -102,6 +102,46 @@ export const SQFT_PER_AREA_UNIT: Record<string, number> = {
   Ground: 2400,
 };
 
+/**
+ * Pre-split value for residential land. 21 rows carried it when the type
+ * was split into plot vs land, and nothing in those rows says which one
+ * they are — so they keep this value, every land predicate still accepts
+ * it, and the picker offers it only to a property already stored as it.
+ * Re-classifying is a judgement call for whoever knows the deal.
+ */
+export const LEGACY_RESIDENTIAL_LAND_PLOT = 'Residential Land/ Plot';
+
+/** Ownership shapes that decide who has to sign the sale deed — the
+ *  first question on any raw-land deal. */
+export const LAND_OWNERSHIP_TYPES = [
+  'Single owner',
+  'Family owned',
+  'Multiple owners (multi-family)',
+  'Aggregator / consolidated',
+  'Trust',
+  'Company',
+  'Government / institutional',
+];
+
+/** Where the title stands today. */
+export const LAND_LEGAL_STATUSES = [
+  'Clear title',
+  'Under verification',
+  'Litigation / dispute',
+  'Encumbered / mortgaged',
+  'Inherited — partition pending',
+  'Power of Attorney held',
+];
+
+/** Whether the parcel may legally be built on, and under what order. */
+export const LAND_CONVERSION_TYPES = [
+  'Converted (DC converted)',
+  'Unconverted / agricultural',
+  'Conversion applied',
+  'Conversion not required',
+  'Part converted',
+];
+
 export interface PropertyTypeOption {
   value: string;
   /** Only set when the picker should read differently from the stored
@@ -123,7 +163,8 @@ export const PROPERTY_TYPE_GROUPS: PropertyTypeGroup[] = [
       { value: 'Residential House' },
       { value: 'Villa' },
       { value: 'Builder Floor Apartment' },
-      { value: 'Residential Land/ Plot' },
+      { value: 'Residential Plot', label: 'Residential Plot (in a layout)' },
+      { value: 'Residential Land', label: 'Residential Land (raw parcel)' },
       { value: 'Penthouse' },
       { value: 'Studio Apartment' },
       { value: 'Residential PG building' },
@@ -195,7 +236,20 @@ export const COMMERCIAL_TYPES = [
 ];
 
 const LAND_TYPES = [
-  'Residential Land/ Plot',
+  'Residential Plot',
+  'Residential Land',
+  LEGACY_RESIDENTIAL_LAND_PLOT,
+  'Commercial Land',
+  'Industrial Land',
+  'Agricultural Land',
+];
+
+/** Raw parcels — sold on title, extent and what may legally be built on
+ *  them. A plot in an approved layout has already cleared conversion and
+ *  is demarcated, so it does not carry the same paperwork. */
+const RAW_LAND_TYPES = [
+  'Residential Land',
+  LEGACY_RESIDENTIAL_LAND_PLOT,
   'Commercial Land',
   'Industrial Land',
   'Agricultural Land',
@@ -218,6 +272,31 @@ export function hasCommercialFields(type: string): boolean {
 
 export function isLandType(type: string): boolean {
   return LAND_TYPES.includes(type);
+}
+
+/** Gates the title/extent field group (ownership, land use, legal
+ *  status, conversion) shown for raw parcels but not layout plots. */
+export function isRawLandType(type: string): boolean {
+  return RAW_LAND_TYPES.includes(type);
+}
+
+/** The picker's residential options, with the pre-split value appended
+ *  only for a property still stored as it — so opening an old listing
+ *  never silently re-types it, and new listings are never offered the
+ *  ambiguous choice. */
+export function propertyTypeGroupsFor(currentType: string | null | undefined): PropertyTypeGroup[] {
+  if (currentType !== LEGACY_RESIDENTIAL_LAND_PLOT) return PROPERTY_TYPE_GROUPS;
+  return PROPERTY_TYPE_GROUPS.map((group) =>
+    group.group === 'Residential'
+      ? {
+          ...group,
+          options: [
+            ...group.options,
+            { value: LEGACY_RESIDENTIAL_LAND_PLOT, label: 'Residential Land/ Plot (legacy)' },
+          ],
+        }
+      : group
+  );
 }
 
 export function isApartmentType(type: string): boolean {

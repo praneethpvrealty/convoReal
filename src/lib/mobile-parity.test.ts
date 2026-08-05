@@ -26,7 +26,15 @@ import {
   FACING_DIRECTIONS,
   NEARBY_HIGHLIGHTS_OPTIONS,
   PROPERTY_TYPE_GROUPS,
+  LAND_OWNERSHIP_TYPES,
+  LAND_LEGAL_STATUSES,
+  LAND_CONVERSION_TYPES,
+  LEGACY_RESIDENTIAL_LAND_PLOT,
+  hasBedsBaths,
+  isLandType,
+  isRawLandType,
 } from "@/lib/inventory/property-options";
+import { PROPERTY_TYPE_VALUES } from "@/lib/property-types";
 import { priceInWords } from "@/lib/currency-utils";
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from "@/lib/whatsapp/customer-window";
 
@@ -34,14 +42,19 @@ function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), "mobile", relativePath), "utf8");
 }
 
-/** String literals inside an `export const <name> = [ ... ];` block. */
-function stringLiteralsInConst(source: string, name: string): string[] {
+/** The `[ ... ]` body of an `export const <name> = [ ... ];` block. */
+function constBody(source: string, name: string): string {
   const start = source.indexOf(`export const ${name}`);
   if (start === -1) throw new Error(`${name} not found in mobile source`);
   const open = source.indexOf("[", start);
   const end = source.indexOf("];", open);
   if (open === -1 || end === -1) throw new Error(`${name} is not an array literal`);
-  return stringLiterals(source.slice(open, end));
+  return source.slice(open, end);
+}
+
+/** String literals inside an `export const <name> = [ ... ];` block. */
+function stringLiteralsInConst(source: string, name: string): string[] {
+  return stringLiterals(constBody(source, name));
 }
 
 function stringLiterals(block: string): string[] {
@@ -142,8 +155,32 @@ describe("mobile/lib/property-options.ts mirrors the web option catalog", () => 
     ["FACING_DIRECTIONS", FACING_DIRECTIONS],
     ["AREA_UNITS", AREA_UNITS],
     ["NEARBY_HIGHLIGHTS_OPTIONS", NEARBY_HIGHLIGHTS_OPTIONS],
+    ["LAND_OWNERSHIP_TYPES", LAND_OWNERSHIP_TYPES],
+    ["LAND_LEGAL_STATUSES", LAND_LEGAL_STATUSES],
+    ["LAND_CONVERSION_TYPES", LAND_CONVERSION_TYPES],
   ])("keeps %s in sync", (name, expected) => {
     expect(stringLiteralsInConst(source, name)).toEqual(expected);
+  });
+
+  // The type predicates decide which field groups an editor renders.
+  // Mobile shipped without them, so a plot's editor asked for bedrooms
+  // and a super-built area — fields a vacant parcel cannot have.
+  // Compared by behaviour across the whole taxonomy rather than by
+  // literal, since the mobile lists reference a shared legacy const.
+  it.each([
+    ["BEDS_BATHS_TYPES", hasBedsBaths],
+    ["LAND_TYPES", isLandType],
+    ["RAW_LAND_TYPES", isRawLandType],
+  ])("classifies every property type the same way as %s", (name, webPredicate) => {
+    const body = constBody(source, name);
+    const members = new Set(stringLiterals(body));
+    if (body.includes("LEGACY_RESIDENTIAL_LAND_PLOT")) {
+      members.add(LEGACY_RESIDENTIAL_LAND_PLOT);
+    }
+
+    for (const type of PROPERTY_TYPE_VALUES) {
+      expect(members.has(type), `${name} disagrees on "${type}"`).toBe(webPredicate(type));
+    }
   });
 
   it("offers the same amenities under the same categories", () => {

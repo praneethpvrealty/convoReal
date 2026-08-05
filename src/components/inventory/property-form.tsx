@@ -89,11 +89,15 @@ import {
   FURNISHING_OPTIONS,
   AREA_UNITS,
   SQFT_PER_AREA_UNIT,
-  PROPERTY_TYPE_GROUPS,
   PROPERTY_STATUSES,
+  LAND_OWNERSHIP_TYPES,
+  LAND_LEGAL_STATUSES,
+  LAND_CONVERSION_TYPES,
+  propertyTypeGroupsFor,
   hasBedsBaths as typeHasBedsBaths,
   hasCommercialFields as typeHasCommercialFields,
   isLandType,
+  isRawLandType,
   isApartmentType,
 } from '@/lib/inventory/property-options';
 import { isGuardedType, isLocationGuarded } from '@/lib/inventory/location-guard';
@@ -207,6 +211,8 @@ export function PropertyForm({
   // Land/JV deal notes — prefill source for the "Share via Email" draft
   const [ownershipStatus, setOwnershipStatus] = useState('');
   const [landUseZoning, setLandUseZoning] = useState('');
+  const [legalStatus, setLegalStatus] = useState('');
+  const [conversionType, setConversionType] = useState('');
   const [dealRemarks, setDealRemarks] = useState('');
   const [dimensions, setDimensions] = useState('');
   const [roadWidth, setRoadWidth] = useState('');
@@ -462,7 +468,9 @@ export function PropertyForm({
   const hasBedsBaths = typeHasBedsBaths(type);
   const hasCommercialFields = typeHasCommercialFields(type);
   const isLand = isLandType(type);
+  const isRawLand = isRawLandType(type);
   const isApartment = isApartmentType(type);
+  const propertyTypeGroups = propertyTypeGroupsFor(type);
   const guardedByType = isGuardedType(type);
   const locationGuarded = isLocationGuarded({ type, location_privacy: locationPrivacy || null });
 
@@ -1379,6 +1387,8 @@ export function PropertyForm({
         setIdealFor(property.ideal_for ?? '');
         setOwnershipStatus(property.ownership_status ?? '');
         setLandUseZoning(property.land_use_zoning ?? '');
+        setLegalStatus(property.legal_status ?? '');
+        setConversionType(property.conversion_type ?? '');
         setDealRemarks(property.deal_remarks ?? '');
         const dims = property.dimensions ?? '';
         setDimensions(dims);
@@ -1531,6 +1541,8 @@ export function PropertyForm({
         setIdealFor('');
         setOwnershipStatus('');
         setLandUseZoning('');
+        setLegalStatus('');
+        setConversionType('');
         setDealRemarks('');
         setDimensions('');
         setFrontage('');
@@ -2269,6 +2281,8 @@ export function PropertyForm({
         ideal_for: idealFor.trim() || null,
         ownership_status: ownershipStatus.trim() || null,
         land_use_zoning: landUseZoning.trim() || null,
+        legal_status: isRawLand ? legalStatus.trim() || null : null,
+        conversion_type: isRawLand ? conversionType.trim() || null : null,
         deal_remarks: dealRemarks.trim() || null,
         dimensions: finalDimensions || null,
         road_width: parsedRoadWidth,
@@ -3902,7 +3916,7 @@ export function PropertyForm({
                       onChange={(e) => setType(e.target.value)}
                       className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
                     >
-                      {PROPERTY_TYPE_GROUPS.map((g) => (
+                      {propertyTypeGroups.map((g) => (
                         <optgroup key={g.group} label={`ALL ${g.group.toUpperCase()}`}>
                           {g.options.map((o) => (
                             <option key={o.value} value={o.value}>
@@ -4793,15 +4807,27 @@ export function PropertyForm({
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="prop-ownership-status" className="text-slate-300">
-                            Ownership Status
+                            Ownership
                           </Label>
-                          <Input
+                          <select
                             id="prop-ownership-status"
                             value={ownershipStatus}
                             onChange={(e) => setOwnershipStatus(e.target.value)}
-                            placeholder="e.g. Single owner / Multiple owners, aggregation in process"
-                            className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
-                          />
+                            className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                          >
+                            <option value="">Select ownership</option>
+                            {LAND_OWNERSHIP_TYPES.map((o) => (
+                              <option key={o} value={o}>
+                                {o}
+                              </option>
+                            ))}
+                            {/* Free text captured before this became a
+                                picker stays selected rather than silently
+                                resetting to blank on the next save. */}
+                            {ownershipStatus && !LAND_OWNERSHIP_TYPES.includes(ownershipStatus) && (
+                              <option value={ownershipStatus}>{ownershipStatus}</option>
+                            )}
+                          </select>
                         </div>
                         <div className="space-y-1.5">
                           <Label htmlFor="prop-land-use-zoning" className="text-slate-300">
@@ -4815,6 +4841,69 @@ export function PropertyForm({
                             className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 h-9"
                           />
                         </div>
+                        {isRawLand && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="prop-legal-status" className="text-slate-300">
+                                Legal Status
+                              </Label>
+                              <select
+                                id="prop-legal-status"
+                                value={legalStatus}
+                                onChange={(e) => setLegalStatus(e.target.value)}
+                                className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                              >
+                                <option value="">Select legal status</option>
+                                {LAND_LEGAL_STATUSES.map((o) => (
+                                  <option key={o} value={o}>
+                                    {o}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="prop-conversion-type" className="text-slate-300">
+                                Conversion
+                              </Label>
+                              <select
+                                id="prop-conversion-type"
+                                value={conversionType}
+                                onChange={(e) => setConversionType(e.target.value)}
+                                className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                              >
+                                <option value="">Select conversion</option>
+                                {LAND_CONVERSION_TYPES.map((o) => (
+                                  <option key={o} value={o}>
+                                    {o}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            {/* Commercial/industrial land already gets this
+                                control in the commercial block above. */}
+                            {!hasCommercialFields && (
+                              <div className="space-y-1.5">
+                                <Label htmlFor="prop-land-zone-res" className="text-slate-300">
+                                  Land Use
+                                </Label>
+                                <select
+                                  id="prop-land-zone-res"
+                                  value={landZone}
+                                  onChange={(e) => setLandZone(e.target.value)}
+                                  className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                                >
+                                  <option value="">Select land use</option>
+                                  <option value="Residential">Residential</option>
+                                  <option value="Commercial">Commercial</option>
+                                  <option value="Industrial">Industrial</option>
+                                  <option value="Agricultural">Agricultural</option>
+                                  <option value="Mixed Use">Mixed Use</option>
+                                  <option value="SEZ">SEZ (Special Economic Zone)</option>
+                                </select>
+                              </div>
+                            )}
+                          </>
+                        )}
                         <div className="space-y-1.5 col-span-2">
                           <Label htmlFor="prop-deal-remarks" className="text-slate-300">
                             Deal Remarks
