@@ -58,6 +58,7 @@ import {
   type SendMessageNodeConfig,
   type SendPropertyListingsNodeConfig,
   type SetTagNodeConfig,
+  type ListingInterestRouting,
   type StartNodeConfig,
   type StartPropertyIntakeNodeConfig,
   type KeywordTriggerConfig,
@@ -452,7 +453,22 @@ async function recordListingInterest(
   await db.from("flow_runs").update({ vars }).eq("id", run.id);
   run.vars = vars;
 
-  const cfg = node.config as unknown as SendButtonsNodeConfig;
+  return resolveInterestTarget(node.config as unknown as SendButtonsNodeConfig & ListingInterestRouting);
+}
+
+/**
+ * Where a listing-number reply advances to. An explicit
+ * `interest_node_key` on the node wins; otherwise fall back to whichever
+ * button reads like an agent handoff, which is what the shipped template
+ * and every flow seeded from it look like. Renaming those buttons in the
+ * builder degrades to the last button rather than to nothing.
+ *
+ * Exported for tests.
+ */
+export function resolveInterestTarget(
+  cfg: SendButtonsNodeConfig & ListingInterestRouting,
+): string | null {
+  if (cfg.interest_node_key) return cfg.interest_node_key;
   const agentButton = cfg.buttons?.find((b) => /agent|talk|contact/i.test(b.title));
   return agentButton?.next_node_key ?? cfg.buttons?.[cfg.buttons.length - 1]?.next_node_key ?? null;
 }

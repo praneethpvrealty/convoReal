@@ -605,6 +605,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
             next_node_key: "collect_email",
           },
         ],
+        interest_node_key: "collect_email",
       } as SendButtonsNodeConfig,
     },
     {

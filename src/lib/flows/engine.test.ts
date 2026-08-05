@@ -12,6 +12,7 @@ import {
   evaluateConditionPredicate,
   splitByBudget,
   matchListingSelection,
+  resolveInterestTarget,
   type ShownListing,
   type ListingRow,
 } from "./engine";
@@ -501,5 +502,38 @@ describe("matchListingSelection", () => {
 
   it("is inert when no listings were shown", () => {
     expect(matchListingSelection("2", [])).toBeNull();
+  });
+});
+
+describe("resolveInterestTarget", () => {
+  const buttons = [
+    { reply_id: "explore_more", title: "View More Categories", next_node_key: "buy_menu" },
+    { reply_id: "talk_to_agent", title: "Talk to an Agent", next_node_key: "collect_email" },
+  ];
+
+  it("uses the explicit key when the node declares one", () => {
+    expect(
+      resolveInterestTarget({ text: "x", buttons, interest_node_key: "book_visit" }),
+    ).toBe("book_visit");
+  });
+
+  it("finds the agent branch in flows seeded before the key existed", () => {
+    expect(resolveInterestTarget({ text: "x", buttons })).toBe("collect_email");
+  });
+
+  it("degrades to the last button rather than dropping the lead", () => {
+    expect(
+      resolveInterestTarget({
+        text: "x",
+        buttons: [
+          { reply_id: "a", title: "See more", next_node_key: "menu" },
+          { reply_id: "b", title: "Reach out", next_node_key: "email" },
+        ],
+      }),
+    ).toBe("email");
+  });
+
+  it("returns null when there is nowhere to go", () => {
+    expect(resolveInterestTarget({ text: "x", buttons: [] })).toBeNull();
   });
 });
