@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { CallLog } from '@/types';
+import { buildCallUpdateTemplatePayload } from '@/lib/whatsapp/call-update-template';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -191,6 +192,11 @@ export function CallAnalysisSection({
   // live here rather than in a toast the agent never comes back to.
   const [handedOff, setHandedOff] = useState(false);
   const [markingSent, setMarkingSent] = useState(false);
+  // Meta's status for this account's call_update template, learned from
+  // a refused send. Null/DRAFT means the default route isn't available
+  // yet and the account should submit it.
+  const [templateStatus, setTemplateStatus] = useState<string | null>(null);
+  const [submittingTemplate, setSubmittingTemplate] = useState(false);
 
   const hasAnalysis =
     call.summary || call.update_draft || call.transcript || call.recording_url;
@@ -266,18 +272,28 @@ export function CallAnalysisSection({
       const data = await res.json();
       if (!res.ok) {
         if (data.code === 'CUSTOMER_WINDOW_EXPIRED') {
-          // Every escape from here is manual, so name them both rather
-          // than leaving the agent to find one.
+          // The template is the route that would have worked here, so
+          // say when it is the missing piece; every remaining escape is
+          // manual, and both get named rather than left to be found.
+          setTemplateStatus(data.template_status ?? null);
           setHandedOff(canSendExternally);
           throw new Error(
-            canSendExternally
-              ? 'The 24-hour WhatsApp window is closed — send it from your own WhatsApp below, or re-engage with a template from the Inbox.'
-              : 'The 24-hour WhatsApp window is closed — open the chat in Inbox and send via a template instead.',
+            data.template_status === 'APPROVED'
+              ? 'WhatsApp refused the send and the 24-hour window is closed — send it from your own WhatsApp below.'
+              : data.template_status === 'PENDING'
+                ? 'The call update template is still awaiting Meta approval, and the 24-hour window is closed — send it from your own WhatsApp below for now.'
+                : canSendExternally
+                  ? 'The 24-hour window is closed and there is no approved call update template — set one up below, or send it from your own WhatsApp.'
+                  : 'The 24-hour window is closed and there is no approved call update template — set one up below.',
           );
         }
         throw new Error(data.error || 'Failed to send update');
       }
-      toast.success(`Update sent to ${contactName || 'contact'}`);
+      toast.success(
+        data.data?.channel === 'template'
+          ? `Update sent to ${contactName || 'contact'} as a template — line breaks are flattened into one paragraph.`
+          : `Update sent to ${contactName || 'contact'}`,
+      );
       onUpdated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send update');
@@ -306,6 +322,30 @@ export function CallAnalysisSection({
       'noopener,noreferrer',
     );
     setHandedOff(true);
+  };
+
+  /** One-click create/resubmit of the call_update template. Once Meta
+   *  approves it (minutes to a few hours) every later update goes out
+   *  through it, window or no window. */
+  const submitTemplate = async () => {
+    setSubmittingTemplate(true);
+    try {
+      const res = await fetch('/api/whatsapp/templates/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildCallUpdateTemplatePayload()),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Template submission failed');
+      setTemplateStatus('PENDING');
+      toast.success(
+        'Call update template submitted to Meta — once approved, these updates send whether or not the 24-hour window is open.',
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+    } finally {
+      setSubmittingTemplate(false);
+    }
   };
 
   const markSent = async () => {
@@ -477,6 +517,27 @@ export function CallAnalysisSection({
             {call.update_sent_at ? 'Send again' : 'Send on WhatsApp'}
           </Button>
         </div>
+        {templateStatus !== null && templateStatus !== 'APPROVED' && (
+          <div className="flex items-center justify-between gap-2 mt-1.5 rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1.5">
+            <p className="text-[11px] text-slate-400">
+              {templateStatus === 'PENDING'
+                ? 'Call update template is with Meta for approval — updates send through it automatically once it clears.'
+                : 'Set up the call update template so these send even when the 24-hour window is shut.'}
+            </p>
+            {templateStatus !== 'PENDING' && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={submittingTemplate}
+                onClick={submitTemplate}
+                className="border-slate-700 text-slate-300 hover:text-white shrink-0"
+              >
+                {submittingTemplate ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                Set up template
+              </Button>
+            )}
+          </div>
+        )}
         {handedOff && (
           <div className="flex items-center justify-end gap-2 mt-1.5 text-[11px] text-slate-400">
             <span>Sent it from your WhatsApp?</span>

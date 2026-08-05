@@ -49,6 +49,7 @@ import {
 } from '@/components/onboarding/illustrations';
 import { createClient } from '@/lib/supabase/client';
 import { buildPropertyAlertTemplatePayload } from '@/lib/whatsapp/property-alert-template';
+import { buildCallUpdateTemplatePayload } from '@/lib/whatsapp/call-update-template';
 import { buildLocationRevealTemplatePayload } from '@/lib/whatsapp/location-reveal-template';
 import {
   buildOwnerDigestTemplatePayload,
@@ -253,6 +254,7 @@ function StarterTemplates() {
       buildOwnerDigestConsentTemplatePayload(),
       buildOwnerDigestTemplatePayload(),
       buildLocationRevealTemplatePayload(window.location.origin),
+      buildCallUpdateTemplatePayload(),
     ];
     let payloads: TemplatePayload[] = builtins;
     try {
