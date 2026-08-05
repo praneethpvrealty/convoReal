@@ -158,7 +158,7 @@ export interface Contact {
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;
-  /** False parks the requirement (migrations 194/195): src/lib/matching.ts
+  /** False parks the requirement (migrations 194/197): src/lib/matching.ts
    *  skips the contact entirely, so they reach no match, Radar event,
    *  digest or co-broker share. The text is kept as the record. */
   requirement_active?: boolean;
