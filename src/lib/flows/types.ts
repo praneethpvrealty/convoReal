@@ -209,6 +209,18 @@ export interface SendPropertyListingsNodeConfig {
   next_node_key: string;
 }
 
+/** Config a send_buttons node may carry to say where a listing-number
+ *  reply should go. Read off the node the listings advance to. */
+export interface ListingInterestRouting {
+  /**
+   * Where a lead goes after replying with a listing's number. Without
+   * it the engine falls back to whichever button on this node reads
+   * like an agent handoff, which breaks silently if the buttons are
+   * renamed in the flow builder.
+   */
+  interest_node_key?: string;
+}
+
 // Terminal nodes carry no config — they just stop the run.
 export type EndNodeConfig = Record<string, never>;
 

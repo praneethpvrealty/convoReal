@@ -592,7 +592,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "post_listings",
       node_type: "send_buttons",
       config: {
-        text: "Interested in any of these? Our specialist can share more details, photos, and arrange a site visit. 👇",
+        text: "Interested in any of these? *Reply with its number* (e.g. 2) and I'll have our specialist send photos, full details and arrange a site visit. 👇",
         buttons: [
           {
             reply_id: "explore_more",
@@ -602,9 +602,10 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
           {
             reply_id: "talk_to_agent",
             title: "Talk to an Agent",
-            next_node_key: "collect_email",
+            next_node_key: "thank_you",
           },
         ],
+        interest_node_key: "thank_you",
       } as SendButtonsNodeConfig,
     },
     {
@@ -621,7 +622,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "thank_you",
       node_type: "send_message",
       config: {
-        text: "🙏 *Thank you!* We've received your details and will get back to you shortly.\n\nFor any urgent queries, feel free to call us: *{{account.contact_phone}}*\n\nWe look forward to helping you find your perfect property! 🏡",
+        text: "🙏 *Thank you!* One of our specialists is being notified right now and will call you shortly with options that fit your budget.\n\nFor anything urgent, call us on *{{account.contact_phone}}*\n\nWe look forward to helping you find your perfect property! 🏡",
         next_node_key: "handoff_onboarding",
       } as SendMessageNodeConfig,
     },
@@ -629,7 +630,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "handoff_onboarding",
       node_type: "handoff",
       config: {
-        note: "Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Captured email: {{vars.email}}.",
+        note: "Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Interested in: {{vars.interested_property}}. Captured email: {{vars.email}}.",
       } as HandoffNodeConfig,
     },
     {

@@ -119,12 +119,23 @@ interface AgendaEvent {
 interface AgendaTodo {
   title: string;
   priority: string;
+  /** Null for "do it whenever" — a voice note that named no day. Those
+   *  tasks still belong on the agenda, under their own heading, or the
+   *  card's "Reply *today* to see your day's schedule" is a lie. */
+  due_date?: string | null;
 }
+
+/** Undated tasks shown before the list is truncated — enough to be
+ *  useful, not so many that a long backlog buries the actual day. */
+const MAX_UNDATED_TODOS = 5;
 
 export function formatAgendaMessage(dateLabel: string, events: AgendaEvent[], todos: AgendaTodo[]): string {
   const lines: string[] = [`🗓 *Your schedule — ${dateLabel}*`];
 
   const active = events.filter((e) => e.status === 'scheduled');
+  const dated = todos.filter((t) => t.due_date != null);
+  const undated = todos.filter((t) => t.due_date == null);
+
   if (active.length === 0 && todos.length === 0) {
     lines.push('', 'Nothing scheduled. Enjoy the breather — or send me a voice note to line something up. 🎙');
     return lines.join('\n');
@@ -146,11 +157,20 @@ export function formatAgendaMessage(dateLabel: string, events: AgendaEvent[], to
     }
   }
 
-  if (todos.length > 0) {
+  if (dated.length > 0) {
     lines.push('', '✅ *Tasks due:*');
-    for (const t of todos) {
+    for (const t of dated) {
       lines.push(`${t.priority === 'high' ? '🔴' : '•'} ${t.title}`);
     }
+  }
+
+  if (undated.length > 0) {
+    lines.push('', '📌 *No date set:*');
+    for (const t of undated.slice(0, MAX_UNDATED_TODOS)) {
+      lines.push(`${t.priority === 'high' ? '🔴' : '•'} ${t.title}`);
+    }
+    const hidden = undated.length - MAX_UNDATED_TODOS;
+    if (hidden > 0) lines.push(`_+${hidden} more on the Calendar page._`);
   }
 
   return lines.join('\n');
@@ -477,22 +497,30 @@ export async function tryHandleOwnerScheduling(params: OwnerSchedulingParams): P
   // Free deterministic agenda command — no AI, no credits.
   if (!isAudio && text && isAgendaCommand(text)) {
     const { startIso, endIso, label } = istDayWindow();
+    const assignmentFilterId = String(userId).replace(/[\\"]/g, '\\$&');
     const [{ data: events }, { data: todos }] = await Promise.all([
       admin
         .from('appointments')
         .select('title, event_type, start_time, location, status, contact:contacts(name)')
         .eq('account_id', accountId)
-        .or(`assigned_to.eq."${String(userId).replace(/[\\"]/g, '\\$&')}",and(assigned_to.is.null,user_id.eq."${String(userId).replace(/[\\"]/g, '\\$&')}")`)
+        .or(`assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}")`)
         .gte('start_time', startIso)
         .lt('start_time', endIso)
         .order('start_time', { ascending: true }),
+      // due_date IS NULL is included on purpose: a task dictated without
+      // a day never compares true against a range, so it was invisible
+      // to this reply on every day, not just today. That widens the set
+      // enough that the same assignment scoping as appointments above is
+      // now required — otherwise "today" would list the whole account's
+      // undated backlog rather than this agent's.
       admin
         .from('todos')
-        .select('title, priority')
+        .select('title, priority, due_date')
         .eq('account_id', accountId)
         .eq('completed', false)
-        .gte('due_date', startIso)
-        .lt('due_date', endIso),
+        .or(`assigned_to.eq."${assignmentFilterId}",and(assigned_to.is.null,user_id.eq."${assignmentFilterId}")`)
+        .or(`due_date.is.null,and(due_date.gte.${startIso},due_date.lt.${endIso})`)
+        .order('due_date', { ascending: true, nullsFirst: false }),
     ]);
     const reply = formatAgendaMessage(
       label,

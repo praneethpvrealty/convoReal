@@ -33,6 +33,13 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
     defaults: { app: true, whatsapp: false },
   },
   {
+    key: 'flow_handoff',
+    group: 'Inbox',
+    label: 'Lead asks for an agent',
+    description: 'A lead in a WhatsApp flow taps through to a human.',
+    defaults: { app: true, whatsapp: true },
+  },
+  {
     key: 'appointment_booked',
     group: 'Calendar',
     label: 'Appointment booked',

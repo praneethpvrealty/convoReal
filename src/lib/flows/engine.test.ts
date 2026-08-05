@@ -10,6 +10,12 @@ import {
   isSuspending,
   isTerminal,
   evaluateConditionPredicate,
+  splitByBudget,
+  matchListingSelection,
+  resolveInterestTarget,
+  buildHandoffBrief,
+  type ShownListing,
+  type ListingRow,
 } from "./engine";
 
 describe("matchReplyId", () => {
@@ -398,5 +404,170 @@ describe("evaluateConditionPredicate", () => {
         configValue: "anything",
       }),
     ).toBe(false);
+  });
+});
+
+describe("splitByBudget", () => {
+  const row = (id: string, price: number | null): ListingRow => ({
+    id,
+    title: `Listing ${id}`,
+    location: "Bangalore",
+    type: "Commercial Shop",
+    bedrooms: null,
+    area_sqft: null,
+    price,
+    property_code: `PROP-${id}`,
+    listing_type: "Sale",
+  });
+
+  it("leads with what the lead can actually afford", () => {
+    const { withinBudget, aboveBudget } = splitByBudget(
+      [row("a", 320_000_000), row("b", 103_000_000), row("c", 18_000_000)],
+      "1-2cr",
+      5,
+    );
+    expect(withinBudget.map((p) => p.id)).toEqual(["c"]);
+    expect(aboveBudget.map((p) => p.id)).toEqual(["b", "a"]);
+  });
+
+  it("puts the nearest stretch first, not the most expensive listing in stock", () => {
+    const { aboveBudget } = splitByBudget(
+      [row("dear", 500_000_000), row("near", 25_000_000)],
+      "1-2cr",
+      5,
+    );
+    expect(aboveBudget[0].id).toBe("near");
+  });
+
+  it("never spends a slot on a stretch listing while in-budget stock remains", () => {
+    const within = [row("w1", 10_000_000), row("w2", 11_000_000), row("w3", 12_000_000)];
+    const { withinBudget, aboveBudget } = splitByBudget(
+      [...within, row("over", 900_000_000)],
+      "1-2cr",
+      3,
+    );
+    expect(withinBudget).toHaveLength(3);
+    expect(aboveBudget).toHaveLength(0);
+  });
+
+  it("keeps price-on-request listings rather than dropping them", () => {
+    const { withinBudget } = splitByBudget([row("poa", null)], "1-2cr", 5);
+    expect(withinBudget.map((p) => p.id)).toEqual(["poa"]);
+  });
+
+  it("is a no-op when no budget was collected", () => {
+    const rows = [row("a", 320_000_000), row("b", 18_000_000)];
+    const { withinBudget, aboveBudget } = splitByBudget(rows, null, 5);
+    expect(withinBudget.map((p) => p.id)).toEqual(["a", "b"]);
+    expect(aboveBudget).toHaveLength(0);
+  });
+
+  it("is a no-op when the budget text means nothing", () => {
+    const rows = [row("a", 320_000_000)];
+    expect(splitByBudget(rows, "not sure yet", 5).withinBudget).toHaveLength(1);
+  });
+});
+
+describe("matchListingSelection", () => {
+  const shown: ShownListing[] = [
+    { n: 1, id: "p1", title: "Hoodi office", code: "PROP-1091" },
+    { n: 2, id: "p2", title: "BTM corner", code: "PROP-1077" },
+    { n: 3, id: "p3", title: "Whitefield", code: null },
+  ];
+
+  it("resolves a bare number to the listing that carried it", () => {
+    expect(matchListingSelection("2", shown)?.id).toBe("p2");
+  });
+
+  it("tolerates how people actually type it", () => {
+    expect(matchListingSelection(" 3 ", shown)?.id).toBe("p3");
+    expect(matchListingSelection("no 1", shown)?.id).toBe("p1");
+    expect(matchListingSelection("#2", shown)?.id).toBe("p2");
+    expect(matchListingSelection("2.", shown)?.id).toBe("p2");
+  });
+
+  it("ignores a number nobody was shown", () => {
+    expect(matchListingSelection("7", shown)).toBeNull();
+    expect(matchListingSelection("0", shown)).toBeNull();
+  });
+
+  it("does not mistake a phone number or a price for a selection", () => {
+    expect(matchListingSelection("call me on 9880012345", shown)).toBeNull();
+    expect(matchListingSelection("1-2cr", shown)).toBeNull();
+    expect(matchListingSelection("9880012345", shown)).toBeNull();
+  });
+
+  it("leaves an ambiguous multi-pick to an agent", () => {
+    expect(matchListingSelection("2 and 3", shown)).toBeNull();
+  });
+
+  it("is inert when no listings were shown", () => {
+    expect(matchListingSelection("2", [])).toBeNull();
+  });
+});
+
+describe("resolveInterestTarget", () => {
+  const buttons = [
+    { reply_id: "explore_more", title: "View More Categories", next_node_key: "buy_menu" },
+    { reply_id: "talk_to_agent", title: "Talk to an Agent", next_node_key: "collect_email" },
+  ];
+
+  it("uses the explicit key when the node declares one", () => {
+    expect(
+      resolveInterestTarget({ text: "x", buttons, interest_node_key: "book_visit" }),
+    ).toBe("book_visit");
+  });
+
+  it("finds the agent branch in flows seeded before the key existed", () => {
+    expect(resolveInterestTarget({ text: "x", buttons })).toBe("collect_email");
+  });
+
+  it("degrades to the last button rather than dropping the lead", () => {
+    expect(
+      resolveInterestTarget({
+        text: "x",
+        buttons: [
+          { reply_id: "a", title: "See more", next_node_key: "menu" },
+          { reply_id: "b", title: "Reach out", next_node_key: "email" },
+        ],
+      }),
+    ).toBe("email");
+  });
+
+  it("returns null when there is nowhere to go", () => {
+    expect(resolveInterestTarget({ text: "x", buttons: [] })).toBeNull();
+  });
+});
+
+describe("buildHandoffBrief", () => {
+  it("gives an agent everything the funnel collected, in reading order", () => {
+    expect(
+      buildHandoffBrief({
+        budget: "1-2cr",
+        category: "Rent Yielding Buildings",
+        intent: "Buying",
+        interested_property: "BTM corner (PROP-1077)",
+      }),
+    ).toBe(
+      "Looking to: Buying · Type: Rent Yielding Buildings · Budget: 1-2cr · Interested in: BTM corner (PROP-1077)",
+    );
+  });
+
+  it("skips what the funnel never got", () => {
+    expect(buildHandoffBrief({ budget: "1-2cr" })).toBe("Budget: 1-2cr");
+  });
+
+  it("ignores engine bookkeeping and blank answers", () => {
+    expect(
+      buildHandoffBrief({
+        budget: "  ",
+        __shown_listings: [{ n: 1, id: "p1", title: "x", code: null }],
+      }),
+    ).toBe("");
+  });
+
+  it("is empty for a run that captured nothing", () => {
+    expect(buildHandoffBrief({})).toBe("");
+    expect(buildHandoffBrief(null)).toBe("");
   });
 });

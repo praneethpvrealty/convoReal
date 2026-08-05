@@ -224,7 +224,9 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
 
   const { data: todos } = await admin
     .from('todos')
-    .select('account_id, user_id, assigned_to, title, priority')
+    // Dated only, unlike the on-demand "today" reply: this one is pushed
+    // every morning, so an undated backlog would repeat in full daily.
+    .select('account_id, user_id, assigned_to, title, priority, due_date')
     .eq('completed', false)
     .gte('due_date', startIso)
     .lt('due_date', endIso);
@@ -283,7 +285,11 @@ export async function sendDailyScheduleDigests(now: Date = new Date()): Promise<
           status: e.status as string,
           contact: e.contact as unknown as { name: string | null } | null,
         })),
-        entry.todos.map((t) => ({ title: t.title as string, priority: t.priority as string }))
+        entry.todos.map((t) => ({
+          title: t.title as string,
+          priority: t.priority as string,
+          due_date: (t.due_date as string | null) ?? null,
+        }))
       );
 
     const result = await sendWhatsAppMessageAndPersist({

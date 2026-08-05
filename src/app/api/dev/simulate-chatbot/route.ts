@@ -14,6 +14,18 @@ import {
   deriveDraftStatus,
 } from '@/lib/ai/intake-core';
 import { parseEventFromInput, istLocalToUtcIso } from '@/lib/calendar/event-parse';
+import {
+  buildQualificationReply,
+  carriesRequirementSignal,
+  appendRequirement,
+  tallyAreaSuggestions,
+} from '@/lib/ai/buyer-qualification';
+import {
+  buildPreferenceSourceText,
+  extractContactPreferences,
+} from '@/lib/ai/preference-extraction';
+import { rankProperties } from '@/lib/radar/engine';
+import type { Contact, Property } from '@/types';
 
 // POST /api/dev/simulate-chatbot
 // Internal dev tool: runs the exact classify -> parse -> validate ->
@@ -35,12 +47,15 @@ export async function POST(request: Request) {
   try {
     // Any signed-in account member may use this — it's read-only
     // against their own account's AI pipeline, never another tenant's.
-    await requireRole('viewer');
+    const ctx = await requireRole('viewer');
 
     const body = (await request.json().catch(() => null)) as {
       text?: string;
       imageBase64?: string;
       mimeType?: string;
+      mode?: 'owner_intake' | 'lead_reply';
+      priorRequirements?: string;
+      contactName?: string;
     } | null;
 
     const text = (body?.text || '').trim().slice(0, MAX_TEXT_LEN);
@@ -49,6 +64,16 @@ export async function POST(request: Request) {
 
     if (!text && !imageBase64) {
       return NextResponse.json({ error: 'Provide message text and/or an image.' }, { status: 400 });
+    }
+
+    if (body?.mode === 'lead_reply') {
+      return simulateLeadReply({
+        accountId: ctx.accountId,
+        supabase: ctx.supabase,
+        text,
+        priorRequirements: (body.priorRequirements || '').trim().slice(0, MAX_TEXT_LEN),
+        contactName: (body.contactName || '').trim() || null,
+      });
     }
 
     const mediaBuffer = imageBase64 ? Buffer.from(imageBase64, 'base64') : undefined;
@@ -111,4 +136,93 @@ export async function POST(request: Request) {
   } catch (err) {
     return toErrorResponse(err);
   }
+}
+
+// Dry run of src/lib/ai/buyer-qualification.ts: the same signal gate,
+// the same extraction, the same ladder and the same reply builder the
+// live handler uses — against this account's real inventory, but with
+// nothing sent, nothing written to the contact, and no credits burned.
+//
+// `priorRequirements` stands in for what the contact already has on
+// file, which is how a mid-ladder turn is reproduced: put the earlier
+// answers there and send only the newest one as `text`.
+async function simulateLeadReply(args: {
+  accountId: string;
+  supabase: Awaited<ReturnType<typeof requireRole>>['supabase'];
+  text: string;
+  priorRequirements: string;
+  contactName: string | null;
+}): Promise<NextResponse> {
+  const { accountId, supabase, text, priorRequirements, contactName } = args;
+
+  const hasSignal = carriesRequirementSignal(text);
+  const requirements = appendRequirement(priorRequirements, text);
+  const sourceText = buildPreferenceSourceText(requirements, null);
+  const preferences = await extractContactPreferences(sourceText);
+
+  const { data: properties } = await supabase
+    .from('properties')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('is_published', true)
+    .eq('status', 'Available');
+
+  // The contact the ladder would be reasoning about, built in memory
+  // from the extraction — never inserted.
+  const simulatedContact = {
+    id: 'simulated-contact',
+    account_id: accountId,
+    name: contactName,
+    classification: 'Buyer',
+    requirement_active: true,
+    requirements,
+    pref_property_types: preferences.property_types,
+    pref_property_categories: preferences.property_categories,
+    pref_bhk_min: preferences.bhk_min,
+    pref_bhk_max: preferences.bhk_max,
+    pref_budget_min: preferences.budget_min,
+    pref_budget_max: preferences.budget_max,
+    pref_areas: preferences.areas,
+    pref_excluded_areas: preferences.excluded_areas,
+    pref_projects: preferences.projects,
+    pref_min_roi: preferences.min_roi,
+    pref_listing_types: preferences.listing_types,
+    pref_extracted_at: new Date().toISOString(),
+  } as unknown as Contact;
+
+  // strict_area_match mirrors the live handler's tighter 5km radius.
+  const matches = rankProperties(
+    { ...simulatedContact, strict_area_match: true },
+    (properties || []) as Property[]
+  );
+
+  const areaSuggestions = tallyAreaSuggestions((properties || []) as Property[]);
+
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const outcome = buildQualificationReply(
+    preferences,
+    contactName,
+    matches,
+    areaSuggestions,
+    origin,
+    'simulated-contact'
+  );
+
+  return NextResponse.json({
+    mode: 'lead_reply',
+    // False means the live handler answers only if this text arrived
+    // directly after a bot question; on its own it would be left alone.
+    carriesRequirementSignal: hasSignal,
+    requirements,
+    preferences,
+    nextQualifier: outcome.missing,
+    matchCount: matches.length,
+    matches: matches.slice(0, 3).map((m) => ({
+      title: m.property.title,
+      score: m.score,
+      location: [m.property.sublocality, m.property.city].filter(Boolean).join(', '),
+    })),
+    inventorySize: (properties || []).length,
+    previewText: outcome.reply,
+  });
 }

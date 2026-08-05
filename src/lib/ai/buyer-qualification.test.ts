@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   appendRequirement,
+  buildQualificationReply,
+  tallyAreaSuggestions,
   buildMatchesReply,
   buildNoMatchReply,
   buildQualifierQuestion,
@@ -245,6 +247,85 @@ describe('appendRequirement', () => {
     expect(appendRequirement('Land , 1.5 to 2cr', 'land , 1.5 TO 2cr')).toBe(
       'Land , 1.5 to 2cr'
     );
+  });
+});
+
+describe('tallyAreaSuggestions', () => {
+  it('offers real localities, commonest first', () => {
+    expect(
+      tallyAreaSuggestions([
+        { sublocality: 'Koramangala', city: 'Bangalore' },
+        { sublocality: 'HSR Layout', city: 'Bangalore' },
+        { sublocality: 'Koramangala', city: 'Bangalore' },
+      ])
+    ).toEqual(['Koramangala', 'HSR Layout']);
+  });
+
+  it('never offers the city as an area — that is not a choice', () => {
+    expect(
+      tallyAreaSuggestions([
+        { sublocality: null, city: 'Bangalore' },
+        { sublocality: 'Bangalore', city: 'Bangalore' },
+        { sublocality: 'BTM Layout', city: 'Bangalore' },
+      ])
+    ).toEqual(['BTM Layout']);
+  });
+
+  it('caps the list at three', () => {
+    expect(
+      tallyAreaSuggestions(
+        ['A', 'B', 'C', 'D'].map((s) => ({ sublocality: s, city: 'Bangalore' }))
+      )
+    ).toHaveLength(3);
+  });
+});
+
+describe('buildQualificationReply', () => {
+  it('asks the missing rung and reports which one', () => {
+    const out = buildQualificationReply(
+      prefs({ property_categories: ['plot'] }),
+      'Tanwi',
+      [],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(out.missing).toBe('budget');
+    expect(out.reply).toContain('budget');
+  });
+
+  it('sends listings once the ladder is answered', () => {
+    const out = buildQualificationReply(
+      prefs({
+        property_categories: ['plot'],
+        budget_max: 20_000_000,
+        areas: ['Devanahalli'],
+      }),
+      'Tanwi',
+      [match({})],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(out.missing).toBeNull();
+    expect(out.reply).toContain('Farm Land in Devanahalli');
+  });
+
+  it('promises a callback rather than sending nothing when the ladder is answered but inventory has no fit', () => {
+    const out = buildQualificationReply(
+      prefs({
+        property_categories: ['plot'],
+        budget_max: 20_000_000,
+        areas: ['Devanahalli'],
+      }),
+      'Tanwi',
+      [],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(out.missing).toBeNull();
+    expect(out.reply).toContain('call you shortly');
   });
 });
 

@@ -134,6 +134,49 @@ describe('formatAgendaMessage', () => {
     const msg = formatAgendaMessage('Tuesday, 14 Jul', [], []);
     expect(msg).toContain('Nothing scheduled');
   });
+
+  it('shows a task dictated without a day instead of dropping it', () => {
+    const msg = formatAgendaMessage(
+      'Wednesday, 5 Aug',
+      [],
+      [{ title: 'Follow up on corner properties', priority: 'medium', due_date: null }]
+    );
+    expect(msg).not.toContain('Nothing scheduled');
+    expect(msg).toContain('Follow up on corner properties');
+    expect(msg).toContain('No date set');
+  });
+
+  it('keeps dated and undated tasks in separate sections', () => {
+    const msg = formatAgendaMessage(
+      'Wednesday, 5 Aug',
+      [],
+      [
+        { title: 'Send EC to Snigdha', priority: 'high', due_date: '2026-08-05T06:00:00.000Z' },
+        { title: 'Follow up on corner properties', priority: 'medium', due_date: null },
+      ]
+    );
+    const dueIdx = msg.indexOf('Tasks due:');
+    const undatedIdx = msg.indexOf('No date set');
+    expect(dueIdx).toBeGreaterThan(-1);
+    expect(undatedIdx).toBeGreaterThan(dueIdx);
+    expect(msg.slice(dueIdx, undatedIdx)).toContain('Send EC to Snigdha');
+    expect(msg.slice(undatedIdx)).toContain('Follow up on corner properties');
+  });
+
+  it('truncates a long undated backlog so it cannot bury the day', () => {
+    const msg = formatAgendaMessage(
+      'Wednesday, 5 Aug',
+      [],
+      Array.from({ length: 8 }, (_, i) => ({
+        title: `Task ${i}`,
+        priority: 'medium',
+        due_date: null,
+      }))
+    );
+    expect(msg).toContain('Task 4');
+    expect(msg).not.toContain('Task 5');
+    expect(msg).toContain('+3 more');
+  });
 });
 
 describe('formatInboundConfirmation', () => {
