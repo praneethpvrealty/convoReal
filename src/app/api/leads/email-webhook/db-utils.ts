@@ -93,6 +93,7 @@ export async function writeSyncLog(args: {
   status: 'success' | 'failed' | 'ignored';
   errorMessage?: string;
   bodyPreview?: string;
+  ledgerId?: string | null;
 }) {
   try {
     const supabase = getAdminClient();
@@ -106,6 +107,7 @@ export async function writeSyncLog(args: {
       status: args.status,
       error_message: args.errorMessage || null,
       body_preview: args.bodyPreview || null,
+      ledger_id: args.ledgerId || null,
     });
   } catch (err) {
     console.error('[lead-webhook] Failed to write sync log:', err);

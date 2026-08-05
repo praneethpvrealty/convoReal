@@ -20,7 +20,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   Avatar,
   Banner,
@@ -183,14 +183,15 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
   const contacts = (data ?? []) as unknown as Contact[];
 
   // Batch the row decorations: tag chips + interested-property codes.
+  // Only last_inquired_property_id is a property id — property_interests
+  // holds category strings ("Flat/ Apartment"), which Postgres rejects
+  // outright when they reach an id filter.
   const ids = contacts.map((c) => c.id);
   const interestIds = Array.from(
     new Set(
-      contacts.flatMap((c) =>
-        [...(c.property_interests ?? []), c.last_inquired_property_id].filter(
-          (v): v is string => Boolean(v)
-        )
-      )
+      contacts
+        .map((c) => c.last_inquired_property_id)
+        .filter((v): v is string => Boolean(v))
     )
   ).slice(0, 100);
 
@@ -204,7 +205,7 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
       : Promise.resolve({ data: [] }),
     interestIds.length
       ? supabase.from('properties').select('id, property_code, title').in('id', interestIds)
-      : Promise.resolve({ data: [] }),
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   const tags: Record<string, string[]> = {};
@@ -212,6 +213,9 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
     const tag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
     if (!tag?.name) continue;
     (tags[row.contact_id] ??= []).push(tag.name);
+  }
+  if (propRows.error) {
+    console.error('[contacts] property decoration failed:', propRows.error);
   }
   const propertyCodes: Record<string, string> = {};
   const propertyTitles: Record<string, string> = {};
@@ -721,12 +725,16 @@ function ContactPeekCard({
   propertyCodes: Record<string, string>;
 }) {
   const { colors, fonts: f } = useTheme();
+  // property_interests are category labels, not ids — they read as-is;
+  // only last_inquired_property_id resolves to a property code.
+  const inquiredCode = contact.last_inquired_property_id
+    ? propertyCodes[contact.last_inquired_property_id]
+    : undefined;
   const interests = Array.from(
     new Set(
-      [...(contact.property_interests ?? []), contact.last_inquired_property_id]
-        .filter((v): v is string => Boolean(v))
-        .map((id) => propertyCodes[id])
-        .filter((c): c is string => Boolean(c))
+      [...(contact.property_interests ?? []), inquiredCode].filter(
+        (v): v is string => Boolean(v)
+      )
     )
   ).slice(0, 2);
   const budget = formatBudgetRange(contact.min_budget, contact.max_budget, contact.no_budget);
@@ -947,7 +955,7 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
         {result ? <Banner kind="success" text={result} /> : null}
         <TextField placeholder="Filter your phone contacts…" value={filter} onChangeText={setFilter} />
       </View>
-      <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingVertical: spacing.sm }}>
+      <ScrollView style={[sheetScrollArea, { maxHeight: 320 }]} contentContainerStyle={{ paddingVertical: spacing.sm }}>
         {rows === null && !denied ? (
           <Text style={{ textAlign: 'center', padding: spacing.lg, color: colors.textMuted }}>
             Loading phone contacts…

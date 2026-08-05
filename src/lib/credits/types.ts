@@ -112,6 +112,9 @@ export const AI_FEATURE_COSTS = {
   event_parse: 3,
   voice_event_parse: 5,
   image_event_parse: 5,
+  call_analysis: 5,
+  call_recording_analysis: 10,
+  action_item_events: 3,
   /** Auto-generated listing video: Sarvam TTS narration + ffmpeg
    *  render on the worker (src/lib/video/). Priced above raw cost
    *  (~₹1-4 TTS + worker CPU) as a premium feature. */

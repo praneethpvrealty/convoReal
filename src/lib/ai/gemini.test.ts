@@ -238,6 +238,7 @@ Referred by Suresh Babu.`;
       const initialContainer = {
         contacts: [{
           name: 'VaishaliGaur',
+          name_tag: null,
           phone: '917737932199',
           email: null,
           company: null,

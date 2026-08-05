@@ -376,7 +376,8 @@ Copy `.env.local.example` to `.env.local` and fill in the required values. The a
 | `META_ADS_APP_ID` / `META_ADS_APP_SECRET` | Meta Ads integration (feature-flagged by `META_ADS_ENABLED=true`) |
 | `NEXT_PUBLIC_META_ADS_APP_ID` | Public Meta Ads App ID (controls UI visibility) |
 | `IMAP_HOST` / `IMAP_PORT` / `IMAP_USER` / `IMAP_PASSWORD` / `IMAP_SECURE` | IMAP email lead sync |
-| `LEADS_WEBHOOK_TOKEN` | Secret for `/api/leads/email-webhook` |
+| `LEADS_WEBHOOK_TOKEN` | Secret for `/api/leads/email-webhook`; also the bearer token for the Cloudflare worker's ledger API |
+| `LEADS_WORKER_URL` | Cloudflare email worker URL, polled by `/api/cron/lead-sync-reconcile` to re-ingest leads the push path dropped |
 | `AUTOMATION_CRON_SECRET` / `CRON_SECRET` | Secret required by cron/endpoint routes |
 | `SUPABASE_SMS_HOOK_SECRET` | Secret for `/api/auth/sms-hook` (WhatsApp OTP) |
 | `TOKEN_SAFE_WEBHOOK_SECRET` | Secret for the token-safe escrow webhook |
@@ -666,6 +667,7 @@ Defined in `vercel.json`:
 - `/api/cron/deal-mode-matching` — daily 05:00 UTC
 - `/api/cron/den-bids-expiry` — daily 05:30 UTC
 - `/api/cron/buyer-match-digest` — daily 05:45 UTC
+- `/api/cron/lead-sync-reconcile` — hourly at :10
 - `/api/appointments/cron` — every 15 minutes
 
 All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.

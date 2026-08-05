@@ -321,48 +321,62 @@ export function WhatsAppSetupWizard() {
       </div>
 
       {mode === 'choose' && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => persist('guided', 0)}
-            className="group hover:border-primary/60 rounded-2xl border border-slate-700 bg-slate-900 p-5 text-left transition-all"
-          >
-            <div className="bg-primary/15 mb-3 flex size-10 items-center justify-center rounded-xl">
-              <Compass className="text-primary size-5" />
-            </div>
-            <p className="font-bold text-white">Walk me through it</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
-              A step-by-step guide with pictures of every Meta screen. About 30
-              minutes, at your pace — your progress is saved.
-            </p>
-            <p className="text-primary mt-3 inline-flex items-center gap-1 text-xs font-semibold">
-              Start the guide{' '}
-              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => persist('concierge', 0)}
-            className="group hover:border-primary/60 rounded-2xl border border-slate-700 bg-slate-900 p-5 text-left transition-all"
-          >
-            <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-emerald-500/15">
-              <HeartHandshake className="size-5 text-emerald-400" />
-            </div>
-            <p className="font-bold text-white">Do it for me</p>
-            <p className="mt-1 text-xs leading-relaxed text-slate-400">
-              Leave your details and our team sets everything up with you on a
-              WhatsApp call. Free for beta accounts.
-            </p>
-            <p className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400">
-              Request setup{' '}
-              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
-            </p>
-          </button>
-        </div>
+        <>
+          {/* Video-only slot: an overview of what the whole Meta setup
+              involves, shown before they pick a path. Renders nothing
+              until a walkthrough is registered. */}
+          <StepMedia
+            slug="wa-setup-overview"
+            title="What connecting WhatsApp involves"
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => persist('guided', 0)}
+              className="group hover:border-primary/60 rounded-2xl border border-slate-700 bg-slate-900 p-5 text-left transition-all"
+            >
+              <div className="bg-primary/15 mb-3 flex size-10 items-center justify-center rounded-xl">
+                <Compass className="text-primary size-5" />
+              </div>
+              <p className="font-bold text-white">Walk me through it</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                A step-by-step guide with pictures of every Meta screen. About
+                30 minutes, at your pace — your progress is saved.
+              </p>
+              <p className="text-primary mt-3 inline-flex items-center gap-1 text-xs font-semibold">
+                Start the guide{' '}
+                <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => persist('concierge', 0)}
+              className="group hover:border-primary/60 rounded-2xl border border-slate-700 bg-slate-900 p-5 text-left transition-all"
+            >
+              <div className="mb-3 flex size-10 items-center justify-center rounded-xl bg-emerald-500/15">
+                <HeartHandshake className="size-5 text-emerald-400" />
+              </div>
+              <p className="font-bold text-white">Do it for me</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-400">
+                Leave your details and our team sets everything up with you on a
+                WhatsApp call. Free for beta accounts.
+              </p>
+              <p className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-emerald-400">
+                Request setup{' '}
+                <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+              </p>
+            </button>
+          </div>
+        </>
       )}
 
       {mode === 'concierge' && (
         <div className="space-y-3">
+          {/* Video-only slot: what our team does on the setup call. */}
+          <StepMedia
+            slug="wa-setup-concierge"
+            title="What our team does for you"
+          />
           <WhatsAppConciergeForm />
           <button
             type="button"

@@ -69,6 +69,7 @@ function makeDraft(overrides: Partial<ParsedPropertyDraft> = {}): ParsedProperty
 function makeContact(overrides: Partial<ParsedContactDraft> = {}): ParsedContactDraft {
   return {
     name: null,
+    name_tag: null,
     phone: null,
     email: null,
     company: null,
@@ -391,6 +392,13 @@ describe('formatContactDraftsPreview', () => {
     expect(formatContactDraftsPreview('h', noRef, 'awaiting_confirmation', [])).not.toContain('*Referrer:*');
   });
 
+  it('shows the name tag line only when a tag is present', () => {
+    const withTag = makeContainer([makeContact({ name: 'Vijay Sarthi', phone: '1', name_tag: 'Advocate' })]);
+    expect(formatContactDraftsPreview('h', withTag, 'awaiting_confirmation', [])).toContain('• *Name Tag:* 🏷️ Advocate');
+    const noTag = makeContainer([makeContact({ name: 'A', phone: '1' })]);
+    expect(formatContactDraftsPreview('h', noTag, 'awaiting_confirmation', [])).not.toContain('*Name Tag:*');
+  });
+
   it('shows the requirements line only when requirements are present', () => {
     const withReq = makeContainer([makeContact({ name: 'A', phone: '1', requirements: '1 acre near Hosur Main Road, market rate' })]);
     expect(formatContactDraftsPreview('h', withReq, 'awaiting_confirmation', [])).toContain('• *Requirements:* 1 acre near Hosur Main Road, market rate');
@@ -428,6 +436,13 @@ describe('mergeContactDraft', () => {
     const base = makeContact({ name: 'A', phone: '1', classification: 'Others' });
     const add = makeContact({ classification: 'Buyer' });
     expect(mergeContactDraft(base, add).classification).toBe('Buyer');
+  });
+
+  it('keeps the existing name tag and fills it from the update when absent', () => {
+    const base = makeContact({ name: 'Vijay Sarthi', name_tag: 'Advocate' });
+    expect(mergeContactDraft(base, makeContact({ name_tag: 'CA' })).name_tag).toBe('Advocate');
+    const untagged = makeContact({ name: 'Vijay Sarthi' });
+    expect(mergeContactDraft(untagged, makeContact({ name_tag: 'Advocate' })).name_tag).toBe('Advocate');
   });
 });
 

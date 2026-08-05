@@ -2,7 +2,7 @@ import { FlexWidget, TextWidget, type WidgetRepresentation } from 'react-native-
 
 import { WIDGET_DEEP_LINKS, WIDGET_DEFS, type WidgetId } from '@/lib/home-widgets';
 import { brand } from '@/lib/theme';
-import type { WidgetSummary } from '@/lib/widget-summaries';
+import type { WidgetSummary, WidgetSummaryLine } from '@/lib/widget-summaries';
 
 /**
  * Android home-screen widget UI. Rendered by the headless widget task
@@ -38,19 +38,61 @@ export function osWidgetPalette(dark: boolean): OsWidgetPalette {
   return dark ? DARK : LIGHT;
 }
 
+/** How many summary lines fit under the header + hero number + footer
+ *  (~114dp of chrome, ~22dp per line). Sized from the launcher-reported
+ *  widget height so a small widget stays a clean stat card while a
+ *  taller one fills with the latest chats. */
+export function visibleLineCount(heightDp: number | undefined): number {
+  if (!heightDp) return 0;
+  return Math.max(0, Math.min(4, Math.floor((heightDp - 114) / 22)));
+}
+
+function OsWidgetLine({ line, palette }: { line: WidgetSummaryLine; palette: OsWidgetPalette }) {
+  return (
+    <FlexWidget
+      style={{
+        width: 'match_parent',
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+      }}
+    >
+      <TextWidget
+        text={line.title}
+        maxLines={1}
+        truncate="END"
+        style={{ fontSize: 12, fontWeight: '700', color: palette.text }}
+      />
+      <FlexWidget style={{ flex: 1, marginLeft: 6, marginRight: 6 }}>
+        <TextWidget
+          text={line.detail}
+          maxLines={1}
+          truncate="END"
+          style={{ fontSize: 12, color: palette.muted }}
+        />
+      </FlexWidget>
+      <TextWidget text={line.time} style={{ fontSize: 10, color: palette.muted }} />
+    </FlexWidget>
+  );
+}
+
 export function OsWidgetView({
   id,
   summary,
   updatedAt,
   palette,
+  height,
 }: {
   id: WidgetId;
   /** null = signed out or fetch failed — show the sign-in nudge. */
   summary: WidgetSummary | null;
   updatedAt: string;
   palette: OsWidgetPalette;
+  /** Launcher-reported widget height in dp — gates the summary lines. */
+  height?: number;
 }) {
   const def = WIDGET_DEFS[id];
+  const lines = summary?.lines?.slice(0, visibleLineCount(height)) ?? [];
   return (
     <FlexWidget
       clickAction="OPEN_URI"
@@ -93,6 +135,13 @@ export function OsWidgetView({
           style={{ fontSize: 12, color: palette.muted, marginTop: 2 }}
         />
       </FlexWidget>
+      {lines.length > 0 ? (
+        <FlexWidget style={{ width: 'match_parent', flexDirection: 'column' }}>
+          {lines.map((line, index) => (
+            <OsWidgetLine key={`${line.title}-${index}`} line={line} palette={palette} />
+          ))}
+        </FlexWidget>
+      ) : null}
       <TextWidget text={`Updated ${updatedAt}`} style={{ fontSize: 10, color: palette.muted }} />
     </FlexWidget>
   );
@@ -102,10 +151,15 @@ export function OsWidgetView({
 export function renderOsWidget(
   id: WidgetId,
   summary: WidgetSummary | null,
-  updatedAt: string
+  updatedAt: string,
+  height?: number
 ): WidgetRepresentation {
   return {
-    light: <OsWidgetView id={id} summary={summary} updatedAt={updatedAt} palette={LIGHT} />,
-    dark: <OsWidgetView id={id} summary={summary} updatedAt={updatedAt} palette={DARK} />,
+    light: (
+      <OsWidgetView id={id} summary={summary} updatedAt={updatedAt} palette={LIGHT} height={height} />
+    ),
+    dark: (
+      <OsWidgetView id={id} summary={summary} updatedAt={updatedAt} palette={DARK} height={height} />
+    ),
   };
 }

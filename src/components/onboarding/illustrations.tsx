@@ -11,8 +11,10 @@ import {
   Check,
   CheckCheck,
   FileSpreadsheet,
+  FileText,
   Mail,
   MessageCircle,
+  ShieldCheck,
   Sparkles,
   Upload,
   User,
@@ -206,6 +208,58 @@ export function EmailLeadIllustration() {
             <Check className="size-2.5" /> Contact + auto-reply sent
           </p>
         </div>
+      </div>
+    </Frame>
+  );
+}
+
+/** Template lifecycle: draft sitting in your account → Meta → approved. */
+export function TemplateApprovalIllustration() {
+  return (
+    <Frame>
+      <div className="flex items-center justify-between gap-2">
+        {[
+          {
+            icon: <FileText className="size-4 text-slate-300" />,
+            label: 'Draft in your account',
+            tone: 'border-slate-700/60 bg-slate-800/50',
+          },
+          {
+            icon: <ShieldCheck className="size-4 text-amber-400" />,
+            label: 'Meta reviews it',
+            tone: 'border-amber-700/40 bg-amber-950/30',
+          },
+          {
+            icon: <Check className="size-4 text-emerald-400" />,
+            label: 'Sends automatically',
+            tone: 'border-emerald-700/40 bg-emerald-950/40',
+          },
+        ].map((node, i) => (
+          <div key={node.label} className="flex flex-1 items-center gap-2">
+            <div
+              className={`flex flex-1 flex-col items-center gap-1.5 rounded-lg border px-2 py-2.5 text-center ${node.tone}`}
+            >
+              {node.icon}
+              <span className="text-[9px] leading-tight font-medium text-slate-300">
+                {node.label}
+              </span>
+            </div>
+            {i < 2 && (
+              <svg
+                width="16"
+                height="8"
+                viewBox="0 0 16 8"
+                className="shrink-0 text-slate-600"
+              >
+                <path
+                  d="M0 4h12m0 0l-3-2.5M12 4l-3 2.5"
+                  stroke="currentColor"
+                  fill="none"
+                />
+              </svg>
+            )}
+          </div>
+        ))}
       </div>
     </Frame>
   );

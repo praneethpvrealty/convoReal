@@ -877,7 +877,10 @@ export default function CalendarPage() {
     setSelectedTodo(todo);
     setEditTodoTitle(todo.title);
     setEditTodoDesc(todo.description || "");
-    setEditTodoDueDate(todo.due_date ? todo.due_date.substring(0, 10) : "");
+    // Slicing the stored ISO string took the UTC date, so a task due late
+    // in the evening opened on the wrong day. Read it back in local time,
+    // the same way the appointment modal does.
+    setEditTodoDueDate(todo.due_date ? formatDateTimeLocal(new Date(todo.due_date)) : "");
     setEditTodoPriority(todo.priority);
     setEditTodoCompleted(todo.completed);
     setIsTodoModalOpen(true);
@@ -1349,6 +1352,11 @@ export default function CalendarPage() {
                   </div>
                 )}
               </div>
+              <DateTimePicker
+                value={todoDueDate}
+                onChange={(val) => setTodoDueDate(val)}
+                align="left"
+              />
               <div className="flex gap-2">
                 <select
                   value={todoPriority}
@@ -1805,11 +1813,10 @@ export default function CalendarPage() {
                     <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
                       Due Date
                     </label>
-                    <input
-                      type="date"
+                    <DateTimePicker
                       value={editTodoDueDate}
-                      onChange={(e) => setEditTodoDueDate(e.target.value)}
-                      className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-sm text-white focus:border-primary focus:outline-none"
+                      onChange={(val) => setEditTodoDueDate(val)}
+                      align="left"
                     />
                   </div>
 

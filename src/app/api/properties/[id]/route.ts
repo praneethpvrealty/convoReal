@@ -153,6 +153,8 @@ export async function PUT(
       // Land/JV deal notes (internal only)
       ownership_status,
       land_use_zoning,
+      legal_status,
+      conversion_type,
       deal_remarks,
       notes,
       tags,
@@ -344,6 +346,14 @@ export async function PUT(
 
     if (land_use_zoning !== undefined) {
       updateData.land_use_zoning = typeof land_use_zoning === "string" ? land_use_zoning.trim() || null : null;
+    }
+
+    if (legal_status !== undefined) {
+      updateData.legal_status = typeof legal_status === "string" ? legal_status.trim() || null : null;
+    }
+
+    if (conversion_type !== undefined) {
+      updateData.conversion_type = typeof conversion_type === "string" ? conversion_type.trim() || null : null;
     }
 
     if (deal_remarks !== undefined) {

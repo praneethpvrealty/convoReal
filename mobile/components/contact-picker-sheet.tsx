@@ -124,7 +124,7 @@ export function ContactPickerSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
         {busy ? (
           <View style={{ paddingVertical: spacing.xl, alignItems: 'center', gap: spacing.md }}>
             <ActivityIndicator color={colors.primary} />
@@ -180,7 +180,7 @@ export function ContactPickerSheet({
               autoFocus
             />
 
-            <View style={{ minHeight: 96, maxHeight: 300 }}>
+            <View style={{ minHeight: 96, maxHeight: 300, flexShrink: 1 }}>
               {debounced.length < 2 ? (
                 <Text style={[styles.hint, { color: colors.textFaint }]}>
                   Type at least 2 characters to search your contacts.

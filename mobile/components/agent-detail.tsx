@@ -374,14 +374,14 @@ function PropertyPicker({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Assign property">
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
         <SearchBar
           value={q}
           onChangeText={setQ}
           placeholder="Search by title, code or location"
           autoFocus
         />
-        <View style={{ maxHeight: 400 }}>
+        <View style={{ maxHeight: 400, flexShrink: 1 }}>
           {isLoading ? (
             <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
               <ActivityIndicator color={colors.primary} />

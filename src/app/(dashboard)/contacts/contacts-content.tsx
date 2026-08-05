@@ -91,6 +91,9 @@ import { localCache } from '@/lib/cache-store';
 
 const PAGE_SIZE = 25;
 
+const INTEREST_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const BUDGET_OPTIONS = [
   { label: '5 Lakhs', value: '500000' },
   { label: '10 Lakhs', value: '1000000' },
@@ -529,9 +532,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // array, or it would wipe a filter restored from the URL on refresh.
   const [starredLoaded, setStarredLoaded] = useState(false);
   // Seeded from ?interest= so a refresh (or shared link) keeps the chip.
-  const [filterInterestProperty, setFilterInterestProperty] = useState<string>(
-    () => searchParams?.get('interest') || 'All'
-  );
+  // The value reaches uuid columns (property_id, last_inquired_property_id)
+  // before the unstar-guard below can clear it, so anything that is not a
+  // property id is dropped at the door rather than sent to Postgres.
+  const [filterInterestProperty, setFilterInterestProperty] = useState<string>(() => {
+    const seed = searchParams?.get('interest');
+    return seed && INTEREST_UUID_RE.test(seed) ? seed : 'All';
+  });
 
   // Single entry point for changing the interest chip: updates state and
   // mirrors it into the ?interest= URL param (history.replaceState, like

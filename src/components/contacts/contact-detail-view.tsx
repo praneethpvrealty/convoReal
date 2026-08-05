@@ -73,6 +73,7 @@ import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { PropertyShareDialog } from '@/components/inventory/property-share-dialog';
 import { LogExternalShareDialog } from '@/components/contacts/log-external-share-dialog';
+import { CallRecordingAnalyzer, CallAnalysisSection } from '@/components/contacts/call-analysis';
 import { GreetingsGeneratorDialog } from '@/components/contacts/greetings-generator-dialog';
 import { MoveToEngineDialog } from '@/components/contacts/move-to-engine-dialog';
 import { SearchablePropertySelect } from '@/components/ui/searchable-property-select';
@@ -237,6 +238,7 @@ export function ContactDetailView({
   // Calls tab
   const [calls, setCalls] = useState<CallLog[]>([]);
   const [loadingCalls, setLoadingCalls] = useState(false);
+  const callHistoryRef = useRef<HTMLDivElement | null>(null);
   const [callForm, setCallForm] = useState<{
     direction: CallDirection;
     outcome: CallOutcome;
@@ -2530,7 +2532,24 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Calls Tab */}
               <TabsContent value="calls" className="flex-1 min-h-0 h-full">
-              <div className="h-full flex flex-col px-4 py-3 min-h-0">
+              {/* The whole tab scrolls: on small screens the two form
+                  panels fill the viewport, so a nested-scroll history
+                  list would end up with zero height and the AI update
+                  draft below them would be unreachable. */}
+              <div className="h-full overflow-y-auto px-4 py-3">
+                {/* AI call analysis */}
+                {contactId && (
+                  <CallRecordingAnalyzer
+                    contactId={contactId}
+                    contactName={contact?.name || ''}
+                    onAnalyzed={() => {
+                      void fetchCalls().then(() => {
+                        callHistoryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      });
+                    }}
+                  />
+                )}
+
                 {/* Log a call form */}
                 <div className="rounded-xl border border-slate-700/60 bg-slate-800/30 p-3 mb-3 space-y-3">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Log a call</p>
@@ -2649,7 +2668,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 </div>
 
                 {/* Call history list */}
-                <div className="flex-1 overflow-y-auto space-y-2">
+                <div ref={callHistoryRef} className="space-y-2 scroll-mt-3">
                   {loadingCalls ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="size-5 animate-spin text-slate-500" />
@@ -2700,6 +2719,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                   hour: '2-digit', minute: '2-digit',
                                 })}
                               </p>
+                              {contactId && (
+                                <CallAnalysisSection
+                                  key={`${call.id}-${call.update_draft ?? ''}`}
+                                  contactId={contactId}
+                                  call={call}
+                                  contactName={contact?.name || ''}
+                                  onUpdated={fetchCalls}
+                                />
+                              )}
                             </div>
                             <button
                               onClick={async () => {
