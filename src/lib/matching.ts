@@ -117,6 +117,10 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
  * With strict_project_match set, the same list inverts into a gate:
  * nothing outside those projects matches at all.
  *
+ * A parked requirement (contacts.requirement_active = false) is skipped
+ * outright, ahead of every gate below — it reaches no Radar event, no
+ * buyer feed, no digest and no share.
+ *
  * Matching hierarchy (product rule): Property type → Location (if given) → Budget.
  *  - Type is a hard gate at the subtype level: an apartment seeker never
  *    matches an independent house, a residential buyer never matches
@@ -411,6 +415,12 @@ export function getMatchingContacts(
   const results: MatchingResult[] = [];
 
   for (const contact of contacts) {
+    // A parked requirement (migration 194) is dormant on purpose: the
+    // agent has said this brief is not live, so it stops matching as
+    // well as sharing. Absent/true keeps the contact in, so every row
+    // predating the column behaves as before.
+    if (contact.requirement_active === false) continue;
+
     const notesText = (contact.contact_notes || []).map((n) => n.note_text).join(' ');
     const combinedText = `${contact.requirements || ''} ${notesText}`.toLowerCase();
     const hasExtraction = !!contact.pref_extracted_at;

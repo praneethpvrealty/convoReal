@@ -158,9 +158,9 @@ export interface Contact {
   referrer?: string;
   referrer_contact_id?: string | null;
   requirements?: string | null;
-  /** False parks the requirement (migration 194): it stops being offered
-   *  to co-brokers via src/lib/requirements/share.ts. Matching, Radar and
-   *  the buyer digest are unaffected. */
+  /** False parks the requirement (migrations 194/197): src/lib/matching.ts
+   *  skips the contact entirely, so they reach no match, Radar event,
+   *  digest or co-broker share. The text is kept as the record. */
   requirement_active?: boolean;
   min_roi?: number | null;
   /** AI-extracted structured preferences (migration 092) — populated by

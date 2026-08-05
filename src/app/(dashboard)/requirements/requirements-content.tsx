@@ -247,7 +247,11 @@ export default function RequirementsPage() {
         prev.map((row) => (row.id === c.id ? { ...row, requirement_active: next } : row))
       )
       if (!next) setSelectedIds((prev) => prev.filter((x) => x !== c.id))
-      toast.success(next ? "Requirement is active again" : "Requirement parked")
+      toast.success(
+        next
+          ? "Requirement is live again — matching and sharing resumed"
+          : "Requirement parked — no more matches, alerts or shares"
+      )
     } catch (err) {
       console.error("[Requirements] Park toggle failed:", err)
       toast.error("Couldn't update this requirement")
@@ -654,7 +658,7 @@ export default function RequirementsPage() {
                         onChange={() => toggleSelected(c.id)}
                         title={
                           isParked
-                            ? "Parked requirements are not shared"
+                            ? "Parked requirements are not matched or shared"
                             : "Select for a co-broker share"
                         }
                         className="size-4 shrink-0 rounded border-slate-700 bg-slate-800 text-primary focus:ring-0 focus:ring-offset-0 disabled:opacity-30 cursor-pointer"
@@ -943,8 +947,8 @@ export default function RequirementsPage() {
                         className="text-slate-400 hover:text-white hover:bg-slate-900/30 h-8 w-8 rounded-xl cursor-pointer flex items-center justify-center shrink-0 border border-slate-900 bg-slate-950/20 disabled:opacity-40"
                         title={
                           isParked
-                            ? "Reactivate — start sharing this requirement again"
-                            : "Park — stop offering this requirement to co-brokers"
+                            ? "Reactivate — resume matching and sharing this requirement"
+                            : "Park — stop matching and sharing this requirement"
                         }
                       >
                         {parkingId === c.id ? (
