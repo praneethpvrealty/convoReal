@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { formatDistanceToNowStrict } from 'date-fns';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useCan } from '@/hooks/use-can';
 import { toast } from 'sonner';
 import type { Property, Contact, MessageTemplate } from '@/types';
 import { storagePublicUrl } from '@/lib/storage/url';
@@ -38,6 +40,7 @@ import {
   Lock,
   MapPin,
   FileText,
+  Ban,
 } from 'lucide-react';
 import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { captureJourneyItems } from '@/lib/journey/capture';
@@ -54,6 +57,21 @@ import {
   type ShareTone,
 } from '@/lib/share-message-builder';
 import { MessageCircle, Mail, RotateCcw, User, Handshake, Megaphone, Image as ImageIcon } from 'lucide-react';
+
+/** A live grant as the list endpoint returns it, with the recipient
+ *  joined when the grant was minted for a named contact. */
+interface ActiveGrant {
+  id: string;
+  token: string;
+  reveal_location: boolean;
+  reveal_documents: boolean;
+  reveal_private_images: boolean;
+  expires_at: string;
+  view_count: number;
+  last_viewed_at: string | null;
+  created_at: string;
+  contact: { id: string; name: string | null; phone: string } | null;
+}
 
 interface PropertyShareDialogProps {
   open: boolean;
@@ -87,6 +105,10 @@ export function PropertyShareDialog({
 }: PropertyShareDialogProps) {
   const supabase = createClient();
   const { user, accountId, profile } = useAuth();
+  // Minting and revoking are agent+ server-side (requireRole('agent')) —
+  // mirror that here so a read-only member is not offered a control that
+  // can only 403.
+  const canManageGrants = useCan('send-messages');
 
   // Dialog flow steps: 'link' | 'matches' | 'configure' | 'sending' | 'results'
   const [broadcastStep, setBroadcastStep] = useState<'link' | 'matches' | 'configure' | 'sending' | 'results'>('link');
@@ -150,6 +172,14 @@ export function PropertyShareDialog({
   const [grantBusy, setGrantBusy] = useState(false);
   const linkGrantRef = useRef<{ id: string; token: string } | null>(null);
   const contactGrantsRef = useRef<Record<string, string>>({});
+
+  // Every live grant on this listing, so an agent can see what is
+  // currently unmasked — including links minted in an earlier session —
+  // and pull any of them back. Bumping the version refetches.
+  const [activeGrants, setActiveGrants] = useState<ActiveGrant[] | null>(null);
+  const [grantsVersion, setGrantsVersion] = useState(0);
+  const [revokingGrantId, setRevokingGrantId] = useState<string | null>(null);
+  const bumpGrants = useCallback(() => setGrantsVersion((v) => v + 1), []);
 
   useEffect(() => {
     if (!metaCatalogSyncedAt) {
@@ -230,12 +260,71 @@ export function PropertyShareDialog({
           `/api/properties/${propertyId}/share-grants?grant_id=${grantId}`,
           { method: 'DELETE' },
         );
+        bumpGrants();
       } catch (err) {
         console.error('[property-share] Grant revoke failed:', err);
       }
     },
-    [propertyId],
+    [propertyId, bumpGrants],
   );
+
+  useEffect(() => {
+    if (!open || !propertyId) return;
+    let cancelled = false;
+    Promise.resolve().then(async () => {
+      if (cancelled) return;
+      try {
+        const res = await fetch(`/api/properties/${propertyId}/share-grants`);
+        const json = await res.json();
+        if (cancelled) return;
+        if (!res.ok) throw new Error(json.error || 'Failed to load links');
+        setActiveGrants(json.data as ActiveGrant[]);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[property-share] Grant list load failed:', err);
+        setActiveGrants([]);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, propertyId, grantsVersion]);
+
+  const handleRevokeGrant = async (grant: ActiveGrant) => {
+    if (!propertyId) return;
+    setRevokingGrantId(grant.id);
+    try {
+      const res = await fetch(
+        `/api/properties/${propertyId}/share-grants?grant_id=${grant.id}`,
+        { method: 'DELETE' },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Failed to revoke');
+
+      // Revoking the key this dialog is currently handing out has to
+      // reset the switches too, or the composed message would keep
+      // carrying a token that no longer opens anything.
+      if (linkGrantRef.current?.id === grant.id) {
+        linkGrantRef.current = null;
+        setLinkGrant(null);
+        setRevealLocation(false);
+        setRevealDocuments(false);
+        setRevealPrivateImages(false);
+      }
+      contactGrantsRef.current = Object.fromEntries(
+        Object.entries(contactGrantsRef.current).filter(
+          ([, token]) => token !== grant.token,
+        ),
+      );
+      toast.success('Link revoked — it now opens masked.');
+      bumpGrants();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to revoke');
+      console.error('[property-share] Revoke failed:', err);
+    } finally {
+      setRevokingGrantId(null);
+    }
+  };
 
   // Any change to what is revealed invalidates the previous key: the old
   // grant is revoked so a link already copied cannot outlive the toggle
@@ -258,6 +347,7 @@ export function PropertyShareDialog({
         if (cancelled || !grant) return;
         linkGrantRef.current = grant;
         setLinkGrant(grant);
+        bumpGrants();
       } catch (err) {
         if (cancelled) return;
         toast.error(err instanceof Error ? err.message : 'Failed to unmask this share');
@@ -279,6 +369,7 @@ export function PropertyShareDialog({
     revealPrivateImages,
     mintGrant,
     revokeGrant,
+    bumpGrants,
   ]);
 
   // Closing the dialog resets the switches; the grant itself stays live
@@ -312,6 +403,7 @@ export function PropertyShareDialog({
           ...contactGrantsRef.current,
           [contactId]: grant.token,
         };
+        bumpGrants();
         return grant.token;
       } catch (err) {
         console.error('[property-share] Contact grant mint failed:', err);
@@ -320,7 +412,14 @@ export function PropertyShareDialog({
         return grantToken;
       }
     },
-    [revealLocation, revealDocuments, revealPrivateImages, mintGrant, grantToken],
+    [
+      revealLocation,
+      revealDocuments,
+      revealPrivateImages,
+      mintGrant,
+      grantToken,
+      bumpGrants,
+    ],
   );
 
   // Currency Formatter
@@ -1511,7 +1610,9 @@ export function PropertyShareDialog({
                       <button
                         key={sw.key}
                         type="button"
-                        disabled={Boolean(sw.disabledHint) || grantBusy}
+                        disabled={
+                          Boolean(sw.disabledHint) || grantBusy || !canManageGrants
+                        }
                         onClick={sw.toggle}
                         className={`flex items-center gap-2 rounded-lg border p-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                           sw.on
@@ -1536,6 +1637,68 @@ export function PropertyShareDialog({
                       This link is unmasked. Sending it to a contact below gives them
                       their own key, revocable on its own.
                     </p>
+                  )}
+
+                  {/* Live keys on this listing — including any minted in an
+                      earlier session, so nothing stays unmasked unnoticed. */}
+                  {activeGrants && activeGrants.length > 0 && (
+                    <div className="space-y-1.5 border-t border-slate-800 pt-2.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Active unmasked links ({activeGrants.length})
+                      </p>
+                      {activeGrants.map((g) => {
+                        const reveals = [
+                          g.reveal_location && 'location',
+                          g.reveal_documents && 'documents',
+                          g.reveal_private_images && 'photos',
+                        ].filter(Boolean) as string[];
+                        const isCurrent = linkGrant?.id === g.id;
+                        return (
+                          <div
+                            key={g.id}
+                            className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-2"
+                          >
+                            <div className="min-w-0 space-y-0.5">
+                              <p className="flex items-center gap-1.5 truncate text-[11px] font-bold text-white">
+                                <span className="truncate">
+                                  {g.contact
+                                    ? g.contact.name || g.contact.phone
+                                    : 'Generic link'}
+                                </span>
+                                {isCurrent && (
+                                  <span className="shrink-0 rounded bg-emerald-500/15 px-1 py-0.5 text-[8px] font-bold text-emerald-400">
+                                    THIS SHARE
+                                  </span>
+                                )}
+                              </p>
+                              <p className="truncate text-[9px] font-medium text-slate-500">
+                                {reveals.join(' · ')} · expires{' '}
+                                {formatDistanceToNowStrict(new Date(g.expires_at), {
+                                  addSuffix: true,
+                                })}
+                                {g.view_count > 0
+                                  ? ` · ${g.view_count} open${g.view_count > 1 ? 's' : ''}`
+                                  : ' · not opened yet'}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={revokingGrantId !== null || !canManageGrants}
+                              onClick={() => void handleRevokeGrant(g)}
+                              className="h-7 shrink-0 border-rose-900/60 px-2 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 hover:text-rose-300"
+                            >
+                              {revokingGrantId === g.id ? (
+                                <Loader2 className="size-3 animate-spin" />
+                              ) : (
+                                <Ban className="size-3" />
+                              )}
+                              Revoke
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
