@@ -25,6 +25,7 @@ import {
 import { useCredits } from '@/lib/use-credits';
 
 const WORKSPACE_LINKS = [
+  { href: '/(app)/today', icon: 'sunny-outline', label: 'Today' },
   { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
   { href: '/(app)/os-widgets', icon: 'grid-outline', label: 'Home-screen widgets' },
   { href: '/(app)/notification-settings', icon: 'notifications-outline', label: 'Notifications' },
