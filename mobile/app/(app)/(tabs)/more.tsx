@@ -2,7 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Link } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
@@ -24,19 +31,75 @@ import {
 } from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
 
-const WORKSPACE_LINKS = [
-  { href: '/(app)/today', icon: 'sunny-outline', label: 'Today' },
-  { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
-  { href: '/(app)/os-widgets', icon: 'grid-outline', label: 'Home-screen widgets' },
-  { href: '/(app)/notification-settings', icon: 'notifications-outline', label: 'Notifications' },
-  { href: '/(app)/deals', icon: 'trending-up-outline', label: 'Deals & Pipelines' },
-  { href: '/(app)/credits', icon: 'flash-outline', label: 'Billing & AI Credits' },
-  { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
-  { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
-  { href: '/(app)/pulse', icon: 'analytics-outline', label: 'Showcase Pulse' },
-  { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
-  { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },
-  { href: '/(app)/connection-check', icon: 'pulse-outline', label: 'Connection check' },
+/**
+ * The More list, grouped so one twelve-row wall reads as three short
+ * ones: what you work through in a day, what you send out, and the
+ * app's own knobs. Within a group, most-opened first.
+ */
+const MENU_SECTIONS = [
+  {
+    title: 'Daily work',
+    links: [
+      { href: '/(app)/today', icon: 'sunny-outline', label: 'Today' },
+      {
+        href: '/(app)/deals',
+        icon: 'trending-up-outline',
+        label: 'Deals & pipelines',
+      },
+      { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
+      { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
+      {
+        href: '/(app)/dashboard',
+        icon: 'stats-chart-outline',
+        label: 'Overview & stats',
+      },
+    ],
+  },
+  {
+    title: 'Marketing',
+    links: [
+      {
+        href: '/(app)/broadcasts',
+        icon: 'megaphone-outline',
+        label: 'Broadcast campaigns',
+      },
+      {
+        href: '/(app)/pulse',
+        icon: 'analytics-outline',
+        label: 'Showcase Pulse',
+      },
+      {
+        href: '/(app)/automations',
+        icon: 'git-branch-outline',
+        label: 'Automations & flows',
+      },
+    ],
+  },
+  {
+    title: 'App & account',
+    links: [
+      {
+        href: '/(app)/credits',
+        icon: 'flash-outline',
+        label: 'Billing & AI credits',
+      },
+      {
+        href: '/(app)/notification-settings',
+        icon: 'notifications-outline',
+        label: 'Notification settings',
+      },
+      {
+        href: '/(app)/os-widgets',
+        icon: 'grid-outline',
+        label: 'Home-screen widgets',
+      },
+      {
+        href: '/(app)/connection-check',
+        icon: 'pulse-outline',
+        label: 'Connection check',
+      },
+    ],
+  },
 ] as const;
 
 /** Deliberately web-only (canvas editors, admin surface). */
@@ -53,16 +116,31 @@ export default function MoreScreen() {
   const credits = useCredits();
   const [editOpen, setEditOpen] = useState(false);
 
-  const displayName = resolveDisplayName(profile?.full_name, session?.user.email);
+  const displayName = resolveDisplayName(
+    profile?.full_name,
+    session?.user.email
+  );
 
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + spacing.sm }]}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + spacing.sm },
+      ]}
     >
-      <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>More</Text>
+      <Text
+        style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}
+      >
+        More
+      </Text>
 
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
         <Pressable
           style={styles.profileRow}
           onPress={() => setEditOpen(true)}
@@ -72,15 +150,29 @@ export default function MoreScreen() {
         >
           <Avatar name={displayName} size={54} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+            <Text
+              style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }}
+              numberOfLines={1}
+            >
               {displayName}
             </Text>
-            <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>
+            <Text
+              style={{ fontSize: 13, color: colors.textMuted }}
+              numberOfLines={1}
+            >
               {session?.user.email ?? '—'}
             </Text>
           </View>
-          <View style={[styles.roleChip, { backgroundColor: colors.primarySoft }]}>
-            <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
+          <View
+            style={[styles.roleChip, { backgroundColor: colors.primarySoft }]}
+          >
+            <Text
+              style={{
+                fontSize: 12,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
               {profile?.account_role ?? '—'}
             </Text>
           </View>
@@ -89,7 +181,11 @@ export default function MoreScreen() {
         <InfoRow
           icon="logo-whatsapp"
           label="WhatsApp number"
-          value={session?.user.phone ? `+${session.user.phone.replace(/^\+/, '')}` : 'Not set'}
+          value={
+            session?.user.phone
+              ? `+${session.user.phone.replace(/^\+/, '')}`
+              : 'Not set'
+          }
         />
         <InfoRow
           icon="flash-outline"
@@ -100,52 +196,115 @@ export default function MoreScreen() {
 
       <SubscriptionCard />
 
-      <SectionLabel text="Workspace" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        {WORKSPACE_LINKS.map((link) => (
-          <Link key={link.href} href={link.href} asChild>
-            <Pressable style={styles.navRow} android_ripple={{ color: colors.border }}>
-              <Ionicons name={link.icon} size={20} color={colors.primary} />
-              <Text style={[styles.navLabel, { color: colors.text }]}>{link.label}</Text>
-              <Ionicons name="chevron-forward" size={17} color={colors.textFaint} />
-            </Pressable>
-          </Link>
-        ))}
-      </View>
-
-      <SectionLabel text="Appearance" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        <AppearancePicker />
-      </View>
-
-      <SectionLabel text="Security" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        <BiometricLockRow />
-      </View>
-
-      <SectionLabel text="On the web app" style={{ marginTop: spacing.sm }} />
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        {WEB_ONLY.map((f) => (
-          <View key={f.label} style={styles.navRow}>
-            <Ionicons name={f.icon} size={19} color={colors.textMuted} />
-            <Text style={[styles.navLabel, { color: colors.textMuted }]}>{f.label}</Text>
-            <Ionicons name="globe-outline" size={15} color={colors.textFaint} />
+      {MENU_SECTIONS.map((section) => (
+        <View key={section.title} style={styles.section}>
+          <SectionLabel text={section.title} />
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
+          >
+            {section.links.map((link, i) => (
+              <Link key={link.href} href={link.href} asChild>
+                <Pressable
+                  style={[
+                    styles.navRow,
+                    i > 0 && {
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                      borderTopColor: colors.border,
+                    },
+                  ]}
+                  android_ripple={{ color: colors.border }}
+                >
+                  <Ionicons name={link.icon} size={20} color={colors.primary} />
+                  <Text style={[styles.navLabel, { color: colors.text }]}>
+                    {link.label}
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={17}
+                    color={colors.textFaint}
+                  />
+                </Pressable>
+              </Link>
+            ))}
           </View>
-        ))}
-        <Text style={[styles.cardHint, { color: colors.textFaint }]}>
-          These need a bigger screen or are deliberately web-only — open the web app to use them.
-        </Text>
+        </View>
+      ))}
+
+      <View style={styles.section}>
+        <SectionLabel text="Appearance" />
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          <AppearancePicker />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <SectionLabel text="Security" />
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          <BiometricLockRow />
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <SectionLabel text="On the web app" />
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
+          {WEB_ONLY.map((f) => (
+            <View key={f.label} style={styles.navRow}>
+              <Ionicons name={f.icon} size={19} color={colors.textMuted} />
+              <Text style={[styles.navLabel, { color: colors.textMuted }]}>
+                {f.label}
+              </Text>
+              <Ionicons
+                name="globe-outline"
+                size={15}
+                color={colors.textFaint}
+              />
+            </View>
+          ))}
+          <Text style={[styles.cardHint, { color: colors.textFaint }]}>
+            These need a bigger screen or are deliberately web-only — open the
+            web app to use them.
+          </Text>
+        </View>
       </View>
 
       <Pressable
         style={({ pressed }) => [
           styles.signOut,
-          { backgroundColor: colors.glass, borderColor: colors.glassBorder, opacity: pressed ? 0.7 : 1 },
+          {
+            backgroundColor: colors.glass,
+            borderColor: colors.glassBorder,
+            opacity: pressed ? 0.7 : 1,
+          },
         ]}
         onPress={() => signOut()}
       >
         <Ionicons name="log-out-outline" size={18} color={colors.danger} />
-        <Text style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}>Sign out</Text>
+        <Text
+          style={{ color: colors.danger, fontSize: 15.5, fontFamily: f.bold }}
+        >
+          Sign out
+        </Text>
       </Pressable>
 
       <SectionLabel text="App version" style={{ marginTop: spacing.sm }} />
@@ -176,7 +335,9 @@ function AppearancePicker() {
   const mode = useAppearance((s) => s.mode);
   const setMode = useAppearance((s) => s.setMode);
   return (
-    <View style={{ flexDirection: 'row', padding: spacing.sm, gap: spacing.sm }}>
+    <View
+      style={{ flexDirection: 'row', padding: spacing.sm, gap: spacing.sm }}
+    >
       {APPEARANCE_OPTIONS.map((opt) => {
         const active = mode === opt.value;
         return (
@@ -253,7 +414,9 @@ function BiometricLockRow() {
     <View style={styles.navRow}>
       <Ionicons name="finger-print-outline" size={20} color={colors.primary} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={[styles.navLabel, { color: colors.text }]}>Unlock with fingerprint</Text>
+        <Text style={[styles.navLabel, { color: colors.text }]}>
+          Unlock with fingerprint
+        </Text>
         <Text style={{ fontSize: 12, lineHeight: 16, color: colors.textMuted }}>
           Require your fingerprint or face each time the app opens.
         </Text>
@@ -283,15 +446,26 @@ function InfoRow({
   return (
     <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
       <Ionicons name={icon} size={18} color={colors.textMuted} />
-      <Text style={{ flex: 1, fontSize: 14.5, color: colors.textMuted }}>{label}</Text>
-      <Text style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>{value}</Text>
+      <Text style={{ flex: 1, fontSize: 14.5, color: colors.textMuted }}>
+        {label}
+      </Text>
+      <Text
+        style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}
+      >
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: TAB_BAR_CLEARANCE + spacing.sm },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: TAB_BAR_CLEARANCE + spacing.sm,
+  },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+  section: { gap: spacing.sm },
   card: {
     borderRadius: radius.lg,
     borderWidth: 1,
@@ -303,7 +477,11 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.lg,
   },
-  roleChip: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+  roleChip: {
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
