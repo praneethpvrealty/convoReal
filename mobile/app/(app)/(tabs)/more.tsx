@@ -21,6 +21,14 @@ import { Avatar, SectionLabel } from '@/components/ui';
 import { authenticate, biometricsAvailable, useAppLock } from '@/lib/app-lock';
 import { signOut, useAuthStore } from '@/lib/auth-store';
 import { resolveDisplayName } from '@/lib/display-name';
+import { useFavorites } from '@/lib/favorites-store';
+import { haptic } from '@/lib/haptics';
+import {
+  favoriteLinks,
+  MENU_LINKS,
+  MENU_SECTIONS,
+  type MenuRouteId,
+} from '@/lib/menu';
 import {
   fonts,
   radius,
@@ -30,77 +38,6 @@ import {
   type AppearanceMode,
 } from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
-
-/**
- * The More list, grouped so one twelve-row wall reads as three short
- * ones: what you work through in a day, what you send out, and the
- * app's own knobs. Within a group, most-opened first.
- */
-const MENU_SECTIONS = [
-  {
-    title: 'Daily work',
-    links: [
-      { href: '/(app)/today', icon: 'sunny-outline', label: 'Today' },
-      {
-        href: '/(app)/deals',
-        icon: 'trending-up-outline',
-        label: 'Deals & pipelines',
-      },
-      { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
-      { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
-      {
-        href: '/(app)/dashboard',
-        icon: 'stats-chart-outline',
-        label: 'Overview & stats',
-      },
-    ],
-  },
-  {
-    title: 'Marketing',
-    links: [
-      {
-        href: '/(app)/broadcasts',
-        icon: 'megaphone-outline',
-        label: 'Broadcast campaigns',
-      },
-      {
-        href: '/(app)/pulse',
-        icon: 'analytics-outline',
-        label: 'Showcase Pulse',
-      },
-      {
-        href: '/(app)/automations',
-        icon: 'git-branch-outline',
-        label: 'Automations & flows',
-      },
-    ],
-  },
-  {
-    title: 'App & account',
-    links: [
-      {
-        href: '/(app)/credits',
-        icon: 'flash-outline',
-        label: 'Billing & AI credits',
-      },
-      {
-        href: '/(app)/notification-settings',
-        icon: 'notifications-outline',
-        label: 'Notification settings',
-      },
-      {
-        href: '/(app)/os-widgets',
-        icon: 'grid-outline',
-        label: 'Home-screen widgets',
-      },
-      {
-        href: '/(app)/connection-check',
-        icon: 'pulse-outline',
-        label: 'Connection check',
-      },
-    ],
-  },
-] as const;
 
 /** Deliberately web-only (canvas editors, admin surface). */
 const WEB_ONLY = [
@@ -115,6 +52,7 @@ export default function MoreScreen() {
   const profile = useAuthStore((s) => s.profile);
   const credits = useCredits();
   const [editOpen, setEditOpen] = useState(false);
+  const favorites = favoriteLinks(useFavorites((s) => s.ids));
 
   const displayName = resolveDisplayName(
     profile?.full_name,
@@ -196,6 +134,25 @@ export default function MoreScreen() {
 
       <SubscriptionCard />
 
+      {favorites.length > 0 ? (
+        <View style={styles.section}>
+          <SectionLabel text="Favourites" />
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
+          >
+            {favorites.map((fav, i) => (
+              <MenuRow key={fav.id} id={fav.id} divided={i > 0} />
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       {MENU_SECTIONS.map((section) => (
         <View key={section.title} style={styles.section}>
           <SectionLabel text={section.title} />
@@ -208,29 +165,8 @@ export default function MoreScreen() {
               },
             ]}
           >
-            {section.links.map((link, i) => (
-              <Link key={link.href} href={link.href} asChild>
-                <Pressable
-                  style={[
-                    styles.navRow,
-                    i > 0 && {
-                      borderTopWidth: StyleSheet.hairlineWidth,
-                      borderTopColor: colors.border,
-                    },
-                  ]}
-                  android_ripple={{ color: colors.border }}
-                >
-                  <Ionicons name={link.icon} size={20} color={colors.primary} />
-                  <Text style={[styles.navLabel, { color: colors.text }]}>
-                    {link.label}
-                  </Text>
-                  <Ionicons
-                    name="chevron-forward"
-                    size={17}
-                    color={colors.textFaint}
-                  />
-                </Pressable>
-              </Link>
+            {section.ids.map((id, i) => (
+              <MenuRow key={id} id={id} divided={i > 0} />
             ))}
           </View>
         </View>
@@ -316,6 +252,64 @@ export default function MoreScreen() {
 
       <ProfileEditSheet visible={editOpen} onClose={() => setEditOpen(false)} />
     </ScrollView>
+  );
+}
+
+/**
+ * One menu destination: the row navigates, the star pins it to the
+ * Favourites card at the top. Starring lives here rather than on each
+ * screen's header (where the web puts it) because More *is* the
+ * browse surface on a phone — the sidebar the web stars into is
+ * always on screen, this list is not.
+ */
+function MenuRow({ id, divided }: { id: MenuRouteId; divided: boolean }) {
+  const { colors } = useTheme();
+  const pinned = useFavorites((s) => s.ids.includes(id));
+  const toggle = useFavorites((s) => s.toggle);
+  const link = MENU_LINKS[id];
+
+  return (
+    <View
+      style={[
+        styles.menuRow,
+        divided && {
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: colors.border,
+        },
+      ]}
+    >
+      <Link href={link.href} asChild>
+        <Pressable
+          style={styles.menuTap}
+          android_ripple={{ color: colors.border }}
+        >
+          <Ionicons name={link.icon} size={20} color={colors.primary} />
+          <Text style={[styles.navLabel, { color: colors.text }]}>
+            {link.label}
+          </Text>
+        </Pressable>
+      </Link>
+      <Pressable
+        onPress={() => {
+          haptic.tap();
+          toggle(id);
+        }}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityState={{ selected: pinned }}
+        accessibilityLabel={
+          pinned
+            ? `Unpin ${link.label} from favourites`
+            : `Pin ${link.label} to favourites`
+        }
+      >
+        <Ionicons
+          name={pinned ? 'star' : 'star-outline'}
+          size={19}
+          color={pinned ? colors.warning : colors.textFaint}
+        />
+      </Pressable>
+    </View>
   );
 }
 
@@ -498,6 +492,22 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   navLabel: { flex: 1, fontSize: 15.5, fontFamily: fonts.bold },
+  // The row splits: the left area navigates, the trailing star pins.
+  // Padding sits on the tap area, not the container, so the navigating
+  // half keeps a full-height touch target.
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: spacing.lg,
+  },
+  menuTap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+  },
   cardHint: {
     fontSize: 12,
     lineHeight: 17,
