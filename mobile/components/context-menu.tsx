@@ -1,6 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Modal, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
+import { anchoredMenuLayout } from '@/lib/anchored-menu';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
 export interface ContextMenuAction {
@@ -29,19 +39,30 @@ export function ContextMenu({
   onClose: () => void;
 }) {
   const { colors, dark, fonts: f } = useTheme();
-  const { width, height } = useWindowDimensions();
+  const windowSize = useWindowDimensions();
+  // Measure the real modal frame rather than trusting window
+  // dimensions, which misreport on foldables and split-screen — the
+  // flip decision below is only as good as the height it reads.
+  const [frame, setFrame] = useState({ width: 0, height: 0 });
   if (!anchor) return null;
 
-  const menuHeight = actions.length * ROW_HEIGHT + spacing.xs * 2;
-  const left = Math.min(Math.max(anchor.x - MENU_WIDTH / 2, 12), width - MENU_WIDTH - 12);
-  const top =
-    anchor.y + 14 + menuHeight > height ? anchor.y - menuHeight - 14 : anchor.y + 14;
+  const { left, top, maxHeight } = anchoredMenuLayout({
+    anchorX: anchor.x,
+    anchorY: anchor.y,
+    menuWidth: MENU_WIDTH,
+    contentHeight: actions.length * ROW_HEIGHT + spacing.xs * 2,
+    frameWidth: frame.width || windowSize.width,
+    frameHeight: frame.height || windowSize.height,
+  });
   const fill = dark ? 'rgba(16,42,30,0.98)' : 'rgba(255,255,255,0.98)';
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable
         style={{ flex: 1 }}
+        onLayout={(e) =>
+          setFrame({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })
+        }
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close menu"
@@ -50,27 +71,29 @@ export function ContextMenu({
           accessibilityViewIsModal
           style={[
             styles.menu,
-            { left, top, backgroundColor: fill, borderColor: colors.glassBorder },
+            { left, top, maxHeight, backgroundColor: fill, borderColor: colors.glassBorder },
           ]}
         >
-          {actions.map((a) => (
-            <Pressable
-              key={a.label}
-              onPress={() => {
-                onClose();
-                a.onPress();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={a.label}
-              android_ripple={{ color: colors.border }}
-              style={styles.row}
-            >
-              <Ionicons name={a.icon} size={18} color={colors.primary} />
-              <Text style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
-                {a.label}
-              </Text>
-            </Pressable>
-          ))}
+          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+            {actions.map((a) => (
+              <Pressable
+                key={a.label}
+                onPress={() => {
+                  onClose();
+                  a.onPress();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={a.label}
+                android_ripple={{ color: colors.border }}
+                style={styles.row}
+              >
+                <Ionicons name={a.icon} size={18} color={colors.primary} />
+                <Text style={{ fontSize: 14.5, fontFamily: f.semibold, color: colors.text }}>
+                  {a.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
         </View>
       </Pressable>
     </Modal>
@@ -85,12 +108,16 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: spacing.xs,
     overflow: 'hidden',
+    // Content-sized until maxHeight bites, then the scroll child shrinks
+    // rather than the menu overflowing its cap.
+    flexShrink: 1,
     shadowColor: '#000',
     shadowOpacity: 0.22,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     elevation: 12,
   },
+  scroll: { flexGrow: 0, flexShrink: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -272,7 +272,6 @@ export function FlyerSheet({
         }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
-        nestedScrollEnabled
       >
         <PreviewFrame
           style={[
