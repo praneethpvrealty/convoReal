@@ -340,6 +340,37 @@ export interface ListingRow {
 }
 
 /**
+ * Stable reorder putting listings in the locality the lead named first.
+ * Applied to the whole pool before the budget split, so a named area
+ * wins the slots rather than being sliced away by recency.
+ *
+ * The lead types freely ("Koramangala, HSR"), so each comma- or
+ * and-separated fragment is matched independently against the listing's
+ * sublocality, full location line and project name.
+ *
+ * Exported for tests.
+ */
+export function preferLocality<T extends { sublocality?: string | null; location?: string | null }>(
+  properties: T[],
+  localityText: string | null,
+): T[] {
+  const wanted = (localityText || "")
+    .toLowerCase()
+    .split(/[,/]|\band\b|\bor\b/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 3);
+  if (wanted.length === 0) return properties;
+
+  const hits: T[] = [];
+  const rest: T[] = [];
+  for (const p of properties) {
+    const haystack = [p.sublocality, p.location].filter(Boolean).join(" ").toLowerCase();
+    (wanted.some((w) => haystack.includes(w)) ? hits : rest).push(p);
+  }
+  return [...hits, ...rest];
+}
+
+/**
  * Orders a category's listings against the budget the funnel already
  * collected. In-budget first, newest first as before; the remaining
  * slots go to the cheapest listings above the ceiling, so what follows
@@ -526,7 +557,10 @@ async function fetchAndFormatPropertyListings(
   }
 
   const { withinBudget, aboveBudget } = splitByBudget(
-    properties as ListingRow[],
+    preferLocality(
+      properties as ListingRow[],
+      typeof run.vars?.locality === "string" ? run.vars.locality : null,
+    ),
     typeof run.vars?.budget === "string" ? run.vars.budget : null,
     limit,
   );

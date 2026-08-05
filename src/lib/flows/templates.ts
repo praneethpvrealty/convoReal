@@ -343,6 +343,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
         prompt_text:
           "Great choice! 💰 What's your budget range for the purchase? This helps us match you with the right properties.\n\n_For example: 50L–1Cr, 1–2 Cr, 5 Cr+_",
         var_key: "budget",
+        next_node_key: "ask_buy_locality",
+      } as CollectInputNodeConfig,
+    },
+    {
+      node_key: "ask_buy_locality",
+      node_type: "collect_input",
+      config: {
+        prompt_text:
+          "📍 Which area are you looking at? Tell me a locality or two and I'll show you what we have there.\n\n_For example: Koramangala, HSR Layout, Whitefield_",
+        var_key: "locality",
         next_node_key: "buy_menu",
       } as CollectInputNodeConfig,
     },
@@ -353,6 +363,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
         prompt_text:
           "💰 What's your monthly rent budget? This helps us match you with the right properties.\n\n_For example: 25K–50K, 50K–1L, 1L+_",
         var_key: "budget",
+        next_node_key: "ask_rent_locality",
+      } as CollectInputNodeConfig,
+    },
+    {
+      node_key: "ask_rent_locality",
+      node_type: "collect_input",
+      config: {
+        prompt_text:
+          "📍 Which area are you looking at? Tell me a locality or two and I'll show you what we have there.\n\n_For example: Koramangala, HSR Layout, Whitefield_",
+        var_key: "locality",
         next_node_key: "rent_menu",
       } as CollectInputNodeConfig,
     },
