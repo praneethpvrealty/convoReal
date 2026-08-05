@@ -113,6 +113,7 @@ import {
   isValidContactName,
   isUsableLocation,
   checkLocationMatch,
+  matchableSqft,
   POST
 } from './route';
 
@@ -174,6 +175,26 @@ describe('Email Webhook Lead Parsing', () => {
       expect(res.source).toBe('Housing');
       expect(res.propertyLocation).not.toBe('your property');
       expect(res.propertyLocation).toBeNull();
+    });
+
+    it('does not read the "Chat On WhatsApp" button as the locality', () => {
+      const subject = 'Housing - Lead interested in your property';
+      const body = `
+        We have received a contact request from our user:
+        Name: Veena Gupta
+        Email: Send Email
+        Contact: Call Now Chat On WhatsApp
+        who would like to talk to you regarding your independent house:
+        3 BHK Independent House
+        Koramangala
+        4200 sq. ft.
+        ₹ 14.7 Cr
+      `;
+      const res = parsePortalLead(subject, body, '');
+      expect(res.propertyLocation).not.toBe('On WhatsApp');
+      expect(res.propertyLocation).toBeNull();
+      expect(res.areaSqft).toBe(4200);
+      expect(res.propertyPrice).toBe(147000000);
     });
 
     it('should parse 99acres emails correctly', () => {
@@ -625,6 +646,33 @@ Content-Transfer-Encoding: quoted-printable
     it('should return false for unrelated locations', () => {
       expect(checkLocationMatch('HSR Layout', 'JP Nagar 2nd Phase')).toBe(false);
       expect(checkLocationMatch('Whitefield', 'Electronic City')).toBe(false);
+    });
+
+    it('matches a locality held only in sublocality', () => {
+      expect(checkLocationMatch('Koramangala', 'Koramangala 1st block')).toBe(true);
+      expect(checkLocationMatch('Koramangala', 'BTM Layout')).toBe(false);
+    });
+  });
+
+  describe('matchableSqft', () => {
+    it('falls back to land_area when a house or plot has no built-up area', () => {
+      expect(
+        matchableSqft({ area_sqft: null, land_area: 4200, land_area_unit: 'Sq.Ft.' })
+      ).toBe(4200);
+    });
+
+    it('converts non-sqft land units', () => {
+      expect(matchableSqft({ area_sqft: null, land_area: 1, land_area_unit: 'Acre' })).toBe(43560);
+    });
+
+    it('prefers the built-up area when both are recorded', () => {
+      expect(
+        matchableSqft({ area_sqft: 1800, land_area: 4200, land_area_unit: 'Sq.Ft.' })
+      ).toBe(1800);
+    });
+
+    it('is null when the listing records no size at all', () => {
+      expect(matchableSqft({ area_sqft: null, land_area: null, land_area_unit: null })).toBeNull();
     });
   });
 
