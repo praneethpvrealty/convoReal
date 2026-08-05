@@ -36,14 +36,13 @@ export interface ApproveOutcome {
 export async function buildInquiryDraft(
   propertyId: string
 ): Promise<{ property: Property; message: string } | null> {
-  const { data } = await supabase
-    .from('properties')
-    .select('*')
-    .eq('id', propertyId)
-    .maybeSingle();
+  // The listing and the showcase base don't depend on each other.
+  const [{ data }, base] = await Promise.all([
+    supabase.from('properties').select('*').eq('id', propertyId).maybeSingle(),
+    getShowcaseUrl(),
+  ]);
   if (!data) return null;
   const property = data as Property;
-  const base = await getShowcaseUrl();
   return {
     property,
     message: buildInquiryDetailsMessage({
@@ -54,31 +53,42 @@ export async function buildInquiryDraft(
 }
 
 export async function approveAndSendDetails(contact: Contact): Promise<ApproveOutcome> {
-  const { error: updateError } = await supabase
+  // Lazy: a Supabase builder only runs once something awaits it.
+  const setActive = supabase
     .from('contacts')
     .update({ status: 'active', updated_at: new Date().toISOString() })
     .eq('id', contact.id);
+
+  if (!contact.last_inquired_property_id) {
+    const { error } = await setActive;
+    return error
+      ? { ok: false, sent: false, error: error.message }
+      : { ok: true, sent: false };
+  }
+
+  // The status flip, the drafted details and the contact's conversation
+  // are independent of one another. Awaiting them in turn put four
+  // round-trips in front of the send, which is most of the wait between
+  // the tap and the confirmation.
+  const [{ error: updateError }, draft, { data: existingConv }] = await Promise.all([
+    setActive,
+    buildInquiryDraft(contact.last_inquired_property_id),
+    supabase
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', contact.id)
+      .order('last_message_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
   if (updateError) {
     return { ok: false, sent: false, error: updateError.message };
   }
-
-  if (!contact.last_inquired_property_id) {
-    return { ok: true, sent: false };
-  }
-
-  const draft = await buildInquiryDraft(contact.last_inquired_property_id);
   if (!draft) {
     return { ok: true, sent: false };
   }
   const { property, message: detailsMessage } = draft;
-
-  const { data: existingConv } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('contact_id', contact.id)
-    .order('last_message_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
 
   let convId = existingConv?.id as string | undefined;
   if (!convId) {
@@ -100,19 +110,22 @@ export async function approveAndSendDetails(contact: Contact): Promise<ApproveOu
     convId = newConv.id;
   }
 
-  // The lead is being handled now — clear the chatbot's "Talk to an
-  // Agent" handoff flag so the thread stops reading as pending.
-  await supabase
-    .from('conversations')
-    .update({ status: 'open', updated_at: new Date().toISOString() })
-    .eq('id', convId)
-    .eq('status', 'pending');
-
   // Template-first, server-side: an open window sends the composed
   // details as free text, a closed one sends the approved property-alert
   // template. Only when neither is possible does the caller fall back to
   // manual template selection on the thread.
-  const outcome = await sendPropertyViaEngine(contact, property, detailsMessage);
+  //
+  // Clearing the chatbot's "Talk to an Agent" handoff flag rides along
+  // with the send rather than delaying it — the lead is being handled
+  // either way, and both writes set the same status.
+  const [outcome] = await Promise.all([
+    sendPropertyViaEngine(contact, property, detailsMessage),
+    supabase
+      .from('conversations')
+      .update({ status: 'open', updated_at: new Date().toISOString() })
+      .eq('id', convId)
+      .eq('status', 'pending'),
+  ]);
   if (outcome.error && !isReengagementError(outcome.error)) {
     return { ok: true, sent: false, property, detailsMessage, error: outcome.error };
   }

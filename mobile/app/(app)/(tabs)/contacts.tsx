@@ -275,7 +275,17 @@ export default function ContactsScreen() {
   const [importing, setImporting] = useState(false);
   const [peekId, setPeekId] = useState<string | null>(null);
   const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
-  const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
+  // Approving flips the contact, drafts the details and sends them over
+  // WhatsApp — several round-trips. The row confirms the tap straight
+  // away and the send finishes in the background, so a queue of leads can
+  // be worked through without waiting on each one.
+  const [approvingIds, setApprovingIds] = useState<Set<string>>(new Set());
+  const inFlight = useRef<Set<string>>(new Set());
+  // Completed approvals waiting for their follow-up funnel. Held back
+  // while anything is still sending: a sheet appearing mid-tap would
+  // land on the row the user was aiming at.
+  const [celebrations, setCelebrations] = useState<ApproveCelebrationState[]>([]);
+  const celebration = approvingIds.size === 0 ? (celebrations[0] ?? null) : null;
   const { show, dialogProps } = useAppDialog();
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
@@ -293,17 +303,31 @@ export default function ContactsScreen() {
    *  celebrate with the follow-up funnel (falling back to the thread's
    *  template picker outside the 24-hour window). */
   async function handleApprove(contact: Contact) {
+    // Only the same lead twice is refused — approving the next one while
+    // this is still sending is the point.
+    if (inFlight.current.has(contact.id)) return;
     haptic.tap();
-    const result = await approveAndSendDetails(contact);
+    inFlight.current.add(contact.id);
+    setApprovingIds(new Set(inFlight.current));
+
+    let result;
+    try {
+      result = await approveAndSendDetails(contact);
+    } finally {
+      inFlight.current.delete(contact.id);
+      setApprovingIds(new Set(inFlight.current));
+    }
+
     if (!result.ok) {
       haptic.warn();
       show({ title: 'Could not approve', message: friendlyError(result.error ?? 'Try again.') });
       return;
     }
+    haptic.success();
     queryClient.invalidateQueries({ queryKey: ['contacts'] });
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
-    setCelebration({ contact, outcome: result });
+    setCelebrations((queue) => [...queue, { contact, outcome: result }]);
   }
 
   return (
@@ -415,6 +439,7 @@ export default function ContactsScreen() {
                 }
                 tags={data?.tags[item.id] ?? []}
                 onApprove={() => handleApprove(item)}
+                approving={approvingIds.has(item.id)}
                 onPeekStart={() => setPeekId(item.id)}
                 onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
@@ -433,7 +458,10 @@ export default function ContactsScreen() {
 
       <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
       <DeviceImportSheet visible={importing} onClose={() => setImporting(false)} />
-      <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
+      <ApproveCelebration
+        celebration={celebration}
+        onClose={() => setCelebrations((queue) => queue.slice(1))}
+      />
       <ContextMenu
         anchor={waMenu ? { x: waMenu.x, y: waMenu.y } : null}
         onClose={() => setWaMenu(null)}
@@ -596,6 +624,7 @@ function ContactRow({
   tags,
   contactedProperty,
   onApprove,
+  approving,
   onPeekStart,
   onPeekEnd,
   onWhatsAppMenu,
@@ -605,6 +634,7 @@ function ContactRow({
   tags: string[];
   contactedProperty?: string;
   onApprove: () => void;
+  approving?: boolean;
   onPeekStart: () => void;
   onPeekEnd: () => void;
   onWhatsAppMenu: (at: { x: number; y: number }) => void;
@@ -676,15 +706,31 @@ function ContactRow({
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {contact.status === 'pending_review' ? (
-            <PulseRing size={38} color={colors.warning}>
+            // Approved reads as done the instant it is tapped: the amber
+            // "needs review" pulse becomes a green tick with the send
+            // still running behind it, and the next lead stays tappable.
+            <PulseRing size={38} color={approving ? colors.success : colors.warning}>
               <Pressable
                 hitSlop={8}
                 onPress={onApprove}
+                disabled={approving}
                 accessibilityRole="button"
-                accessibilityLabel={`Approve ${name}`}
-                style={[styles.action, { backgroundColor: colors.warningSoft }]}
+                accessibilityLabel={
+                  approving ? `${name} approved, sending details` : `Approve ${name}`
+                }
+                accessibilityState={{ disabled: approving, busy: approving }}
+                style={[
+                  styles.action,
+                  { backgroundColor: approving ? colors.successSoft : colors.warningSoft },
+                ]}
               >
-                <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
+                {approving ? (
+                  <Animated.View entering={FadeIn.duration(180)}>
+                    <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+                  </Animated.View>
+                ) : (
+                  <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
+                )}
               </Pressable>
             </PulseRing>
           ) : null}
