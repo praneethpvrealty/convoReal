@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PressScale } from '@/components/motion';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SectionLabel } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { useHomeWidgets } from '@/lib/home-widget-store';
@@ -149,7 +149,7 @@ function CustomizeSheet({ visible, onClose }: { visible: boolean; onClose: () =>
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Customize widgets">
-      <ScrollView contentContainerStyle={styles.sheetBody}>
+      <ScrollView style={sheetScrollArea} contentContainerStyle={styles.sheetBody}>
         <Text style={{ fontSize: 13, lineHeight: 18, color: colors.textMuted }}>
           Pick the screens you want a live summary of on your Overview. Reorder with the
           arrows — the top widget shows first.

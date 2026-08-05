@@ -20,7 +20,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
   Avatar,
   Banner,
@@ -947,7 +947,7 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
         {result ? <Banner kind="success" text={result} /> : null}
         <TextField placeholder="Filter your phone contacts…" value={filter} onChangeText={setFilter} />
       </View>
-      <ScrollView style={{ maxHeight: 320 }} contentContainerStyle={{ paddingVertical: spacing.sm }}>
+      <ScrollView style={[sheetScrollArea, { maxHeight: 320 }]} contentContainerStyle={{ paddingVertical: spacing.sm }}>
         {rows === null && !denied ? (
           <Text style={{ textAlign: 'center', padding: spacing.lg, color: colors.textMuted }}>
             Loading phone contacts…

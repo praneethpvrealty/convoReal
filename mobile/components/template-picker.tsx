@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -136,7 +136,7 @@ export function TemplatePicker({
           {isLoading ? (
             <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 32 }} />
           ) : !selected ? (
-            <ScrollView style={{ maxHeight: 420 }} contentContainerStyle={{ paddingVertical: spacing.sm }}>
+            <ScrollView style={[sheetScrollArea, { maxHeight: 420 }]} contentContainerStyle={{ paddingVertical: spacing.sm }}>
               {(templates ?? []).length === 0 ? (
                 <View style={{ padding: spacing.lg }}>
                   <Banner
@@ -169,7 +169,7 @@ export function TemplatePicker({
             </ScrollView>
           ) : (
             <ScrollView
-              style={{ maxHeight: 420 }}
+              style={[sheetScrollArea, { maxHeight: 420 }]}
               contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"

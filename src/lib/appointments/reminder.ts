@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client'
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
+import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
+import { decrypt } from '@/lib/whatsapp/encryption'
 import { istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -60,6 +62,9 @@ interface ReminderAppointment {
   contact_ids: string[] | null
   reminder_morning_sent: boolean
   reminder_1h_sent: boolean
+  remind_liaison: boolean
+  liaison_id: string | null
+  liaison: { id: string; name: string | null; phone: string | null } | null
   property: { id: string; title: string | null } | null
   account: { name: string } | null
 }
@@ -224,6 +229,119 @@ async function sendToAllRecipients(
   return allCovered
 }
 
+// ── Liaison reminders (opt-in per event) ─────────────────────────
+// A liaison (lawyer, surveyor, khata agent) is deliberately not a
+// contact, so their reminder bypasses the dispatcher — a raw template
+// send to liaisons.phone with no contact or conversation row created.
+// Claims use the same appointment_reminder_log keyed on liaison_id.
+
+interface LiaisonWaConfig {
+  phoneNumberId: string
+  accessToken: string
+}
+
+/** Per-tick cache: account_id → send credentials, or null when the
+ *  account is unconfigured/sandbox (sandbox numbers can only message
+ *  registered testers, so liaison sends are skipped there). */
+async function loadLiaisonWaConfig(
+  admin: SupabaseClient,
+  accountId: string,
+  cache: Map<string, LiaisonWaConfig | null>
+): Promise<LiaisonWaConfig | null> {
+  if (cache.has(accountId)) return cache.get(accountId) ?? null
+  let out: LiaisonWaConfig | null = null
+  const { data: config } = await admin
+    .from('whatsapp_config')
+    .select('phone_number_id, access_token, integration_type')
+    .eq('account_id', accountId)
+    .maybeSingle()
+  if (
+    config &&
+    config.integration_type !== 'sandbox' &&
+    config.phone_number_id &&
+    config.access_token
+  ) {
+    try {
+      out = { phoneNumberId: config.phone_number_id, accessToken: decrypt(config.access_token) }
+    } catch (err) {
+      console.error('[Reminder Cron] liaison config decrypt failed:', err)
+    }
+  }
+  cache.set(accountId, out)
+  return out
+}
+
+/**
+ * Same claim/release contract as sendToAllRecipients: returns true
+ * when the liaison is covered (sent now, sent earlier, or genuinely
+ * unreachable), false when the send failed and should retry next tick.
+ */
+async function sendLiaisonReminder(
+  admin: SupabaseClient,
+  appt: ReminderAppointment,
+  reminderType: ReminderType,
+  isSiteVisit: boolean,
+  waCache: Map<string, LiaisonWaConfig | null>
+): Promise<boolean> {
+  if (!appt.remind_liaison || !appt.liaison_id || !appt.liaison) return true
+
+  const phone = appt.liaison.phone ? sanitizePhoneForMeta(appt.liaison.phone) : ''
+  if (!phone || !isValidE164(phone)) {
+    console.warn(`[Reminder Cron] Liaison ${appt.liaison_id} has no valid phone for appt ${appt.id}`)
+    return true // nothing to retry
+  }
+
+  const wa = await loadLiaisonWaConfig(admin, appt.account_id, waCache)
+  if (!wa) {
+    console.warn(`[Reminder Cron] No liaison-capable WhatsApp config for account ${appt.account_id}`)
+    return true
+  }
+
+  const { error: claimErr } = await admin.from('appointment_reminder_log').insert({
+    account_id: appt.account_id,
+    appointment_id: appt.id,
+    liaison_id: appt.liaison_id,
+    reminder_type: reminderType,
+  })
+  if (claimErr) {
+    if (claimErr.code !== '23505') {
+      console.error('[Reminder Cron] liaison claim insert failed:', claimErr)
+      return false
+    }
+    return true // already delivered on an earlier tick
+  }
+
+  const templateName = isSiteVisit ? BASE_TEMPLATE_NAME : GENERIC_TEMPLATE_NAME
+  const visitTitle = appt.property?.title || appt.title || (isSiteVisit ? 'Property visit' : 'Appointment')
+  try {
+    await sendTemplateMessage({
+      phoneNumberId: wa.phoneNumberId,
+      accessToken: wa.accessToken,
+      to: phone,
+      templateName,
+      language: 'en_US',
+      params: [
+        appt.liaison.name || 'Partner',
+        visitTitle,
+        formatIstTime(appt.start_time),
+        appt.location || 'Scheduled Location',
+        appt.account?.name || 'our team',
+      ],
+    })
+    console.log(`[Reminder Cron] Sent ${reminderType} reminder for appt ${appt.id} to liaison ${appt.liaison_id}`)
+    return true
+  } catch (err) {
+    console.error(`[Reminder Cron] Failed ${reminderType} liaison reminder for appt ${appt.id}:`, err)
+    await admin
+      .from('appointment_reminder_log')
+      .delete()
+      .eq('appointment_id', appt.id)
+      .eq('liaison_id', appt.liaison_id)
+      .eq('reminder_type', reminderType)
+    return false
+  }
+}
+
 export async function checkAndSendAppointmentReminders(now: Date = new Date()): Promise<void> {
   const admin = supabaseAdmin()
   const oneHourOut = new Date(now.getTime() + HOUR_MS)
@@ -238,7 +356,7 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, property:properties(id, title), account:accounts(name)'
+      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title), account:accounts(name)'
     )
     .eq('status', 'scheduled')
     .neq('event_type', 'call')
@@ -255,6 +373,7 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
   const rows = appointments as unknown as ReminderAppointment[]
   const contacts = await loadContacts(admin, [...new Set(rows.flatMap(recipientIds))])
   if (!contacts) return // transient failure — retry the whole tick later
+  const liaisonWaCache = new Map<string, LiaisonWaConfig | null>()
 
   // Accounts whose agenda-carrying template variant Meta has approved
   // get the agenda in client reminders; everyone else stays on the
@@ -300,8 +419,9 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
       : genericAgendaAccounts.has(appt.account_id)
 
     if (isDue1h) {
-      const covered = await sendToAllRecipients(admin, appt, contacts, '1h', isSiteVisit, useAgendaTemplate)
-      if (covered) {
+      const contactsCovered = await sendToAllRecipients(admin, appt, contacts, '1h', isSiteVisit, useAgendaTemplate)
+      const liaisonCovered = await sendLiaisonReminder(admin, appt, '1h', isSiteVisit, liaisonWaCache)
+      if (contactsCovered && liaisonCovered) {
         // An event that got its 1h reminder no longer needs the
         // morning one — mark both so it drops out of the scan.
         await admin
@@ -310,8 +430,9 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
           .eq('id', appt.id)
       }
     } else if (isDueMorning) {
-      const covered = await sendToAllRecipients(admin, appt, contacts, 'morning', isSiteVisit, useAgendaTemplate)
-      if (covered) {
+      const contactsCovered = await sendToAllRecipients(admin, appt, contacts, 'morning', isSiteVisit, useAgendaTemplate)
+      const liaisonCovered = await sendLiaisonReminder(admin, appt, 'morning', isSiteVisit, liaisonWaCache)
+      if (contactsCovered && liaisonCovered) {
         await admin.from('appointments').update({ reminder_morning_sent: true }).eq('id', appt.id)
       }
     }

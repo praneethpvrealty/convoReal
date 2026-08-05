@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { Banner, PrimaryButton, TextField } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
@@ -100,7 +100,11 @@ export function ProfileEditSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Edit profile">
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.sm }}>
+      <ScrollView
+        style={sheetScrollArea}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.lg, paddingTop: spacing.sm }}
+      >
         {error ? <Banner kind="error" text={error} /> : null}
         <TextField
           label="Display name"
@@ -129,7 +133,7 @@ export function ProfileEditSheet({
           </View>
         ) : null}
         <PrimaryButton label="Save changes" onPress={save} busy={saving} />
-      </View>
+      </ScrollView>
     </BottomSheet>
   );
 }

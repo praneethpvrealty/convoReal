@@ -1564,7 +1564,7 @@ export async function processOwnerChatbotMessage(
             account_id: accountId,
             user_id: userId,
             name: nameSplit?.name ?? draft.name!.trim(),
-            name_tag: nameSplit?.nameTag ?? null,
+            name_tag: draft.name_tag?.trim() || nameSplit?.nameTag || null,
             phone: normalized || draft.phone!.trim(),
             email: draft.email || null,
             company: draft.company || '',

@@ -8,12 +8,13 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
 import { AppDialog, type DialogAction } from '@/components/app-dialog';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea, useSheetFrame } from '@/components/sheet';
 import { FilterChip, PrimaryButton, SectionLabel, TextField } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -77,15 +78,6 @@ export function FlyerSheet({
   onClose: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  // Definite cap so the scroll area renders and scrolls inside the sheet;
-  // a percentage/flex height collapses against the maxHeight-only sheet.
-  // The Save footer sits OUTSIDE this scroll area so it is always
-  // reachable, so the cap leaves room for it.
-  const { height: winH } = useWindowDimensions();
-  const scrollMax = Math.round(winH * 0.58);
-  // On tall/large screens a full-width square preview swallows the whole
-  // sheet — cap its size so the controls stay in view.
-  const previewSize = Math.round(winH * 0.38);
   const session = useAuthStore((s) => s.session);
   const config = useAppConfig();
   const brandDefault = config?.branding.name ?? 'ConvoReal';
@@ -272,7 +264,7 @@ export function FlyerSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Flyer creator">
       <ScrollView
-        style={{ maxHeight: scrollMax }}
+        style={sheetScrollArea}
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           gap: spacing.md,
@@ -282,10 +274,10 @@ export function FlyerSheet({
         keyboardDismissMode="on-drag"
         nestedScrollEnabled
       >
-        <View
+        <PreviewFrame
           style={[
             styles.preview,
-            { maxWidth: previewSize, backgroundColor: colors.surfaceSunken, borderColor: colors.glassBorder },
+            { backgroundColor: colors.surfaceSunken, borderColor: colors.glassBorder },
           ]}
         >
           {previewUri ? (
@@ -305,7 +297,7 @@ export function FlyerSheet({
               ) : null}
             </View>
           ) : null}
-        </View>
+        </PreviewFrame>
         {previewError ? (
           <Text style={{ fontSize: 12.5, color: colors.danger, textAlign: 'center' }}>
             {previewError}
@@ -428,6 +420,22 @@ export function FlyerSheet({
       />
     </BottomSheet>
   );
+}
+
+/** On tall/large screens a full-width square preview swallows the whole
+ *  sheet — cap its size so the controls stay in view. Sized from the
+ *  sheet's measured frame, not the window, which foldables misreport.
+ *  Lives inside the sheet's tree so `useSheetFrame` sees the measured
+ *  value; the parent component renders above the provider. */
+function PreviewFrame({
+  style,
+  children,
+}: {
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+}) {
+  const frameHeight = useSheetFrame();
+  return <View style={[style, { maxWidth: Math.round(frameHeight * 0.38) }]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({

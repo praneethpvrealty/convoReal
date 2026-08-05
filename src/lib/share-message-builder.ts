@@ -223,6 +223,26 @@ export function buildPropertyShareMessage(input: ShareMessageInput): string {
     .join('\n\n');
 }
 
+/**
+ * Origin for public showcase links. When the account has a showcase
+ * subdomain, links must carry it (`aryavartaventures.convoreal.com`)
+ * instead of whatever host the dashboard tab happens to be on —
+ * otherwise shared links land on the bare marketing domain.
+ */
+export function showcaseOriginForHost(
+  host: string,
+  protocol: string,
+  subdomain?: string | null,
+): string {
+  if (!subdomain) return `${protocol}//${host}`;
+  const parts = host.split('.');
+  const base =
+    parts.length <= 2 || host.includes('localhost') || /^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(host)
+      ? host
+      : parts.slice(1).join('.');
+  return `${protocol}//${subdomain}.${base}`;
+}
+
 /** Append `property_id` to the account's showcase base, preserving any
  *  query params (`?ref=` when there's no subdomain). */
 export function propertyShowcaseUrl(baseUrl: string, property: Property): string {

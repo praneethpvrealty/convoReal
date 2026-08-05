@@ -1,16 +1,25 @@
-import { bubbleTime, formatInr } from '@/lib/format';
+import { bubbleTime, chatListTime, formatInr } from '@/lib/format';
 import type { WidgetId } from '@/lib/home-widgets';
 import { supabase } from '@/lib/supabase';
 
 /** One glanceable line pair per widget — shared by the in-app dashboard
  *  cards and the Android home-screen widgets so both always agree. */
+export interface WidgetSummaryLine {
+  title: string;
+  detail: string;
+  time: string;
+}
+
 export interface WidgetSummary {
   value: string;
   sub: string;
+  /** Latest items behind the number — currently only the inbox widget
+   *  fills this (most recent chats, newest first). */
+  lines?: WidgetSummaryLine[];
 }
 
 async function inboxSummary(): Promise<WidgetSummary> {
-  const [unread, open] = await Promise.all([
+  const [unread, open, recent] = await Promise.all([
     supabase
       .from('conversations')
       .select('id', { count: 'exact', head: true })
@@ -21,10 +30,27 @@ async function inboxSummary(): Promise<WidgetSummary> {
       .select('id', { count: 'exact', head: true })
       .eq('status', 'open')
       .eq('is_archived', false),
+    supabase
+      .from('conversations')
+      .select('last_message_text, last_message_at, contact:contacts(name, phone)')
+      .eq('is_archived', false)
+      .not('last_message_at', 'is', null)
+      .order('last_message_at', { ascending: false })
+      .limit(4),
   ]);
+  const chats = (recent.data ?? []) as unknown as {
+    last_message_text: string | null;
+    last_message_at: string;
+    contact: { name: string | null; phone: string | null } | null;
+  }[];
   return {
     value: String(unread.count ?? 0),
     sub: `unread · ${open.count ?? 0} open chats`,
+    lines: chats.map((c) => ({
+      title: c.contact?.name || c.contact?.phone || 'Unknown',
+      detail: c.last_message_text ?? '',
+      time: chatListTime(c.last_message_at),
+    })),
   };
 }
 

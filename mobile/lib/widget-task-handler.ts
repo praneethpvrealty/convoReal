@@ -23,7 +23,9 @@ export async function widgetTaskHandler(props: WidgetTaskHandlerProps): Promise<
       const summary = (await hasSession())
         ? await fetchWidgetSummary(id).catch(() => null)
         : null;
-      props.renderWidget(renderOsWidget(id, summary, bubbleTime(new Date().toISOString())));
+      props.renderWidget(
+        renderOsWidget(id, summary, bubbleTime(new Date().toISOString()), props.widgetInfo.height)
+      );
       break;
     }
     default:

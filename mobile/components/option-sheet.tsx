@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { PrimaryButton } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -44,7 +44,7 @@ export function OptionSheet({
   return (
     <BottomSheet visible={visible} onClose={onClose} title={title}>
       <ScrollView
-        style={{ maxHeight: 440 }}
+        style={[sheetScrollArea, { maxHeight: 440 }]}
         contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.sm }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"

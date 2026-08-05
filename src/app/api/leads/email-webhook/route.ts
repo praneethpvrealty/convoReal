@@ -157,6 +157,7 @@ export async function POST(request: Request) {
   let subject = '';
   let bodyText = '';
   let htmlContent = '';
+  let ledgerId: string | null = null;
 
   try {
     const { searchParams } = new URL(request.url);
@@ -191,6 +192,7 @@ export async function POST(request: Request) {
     
     sender = payload.from || payload.sender || '';
     subject = payload.subject || '';
+    ledgerId = typeof payload.ledger_id === 'string' ? payload.ledger_id : null;
     
     // Determine if the payload text/html contains raw MIME email headers
     const rawText = payload.text || payload.html || '';
@@ -286,6 +288,7 @@ export async function POST(request: Request) {
 
         await writeSyncLog({
           accountId,
+          ledgerId,
           sender,
           subject,
           status: 'ignored',
@@ -310,6 +313,7 @@ export async function POST(request: Request) {
       if (accountId) {
         await writeSyncLog({
           accountId,
+          ledgerId,
           sender,
           subject,
           status: 'ignored',
@@ -366,6 +370,7 @@ export async function POST(request: Request) {
     if (!parsed.phone) {
       await writeSyncLog({
         accountId,
+        ledgerId,
         sender,
         subject,
         extractedName: parsed.name,
@@ -381,6 +386,7 @@ export async function POST(request: Request) {
     if (!normalizedPhoneNum) {
       await writeSyncLog({
         accountId,
+        ledgerId,
         sender,
         subject,
         extractedName: parsed.name,
@@ -403,6 +409,7 @@ export async function POST(request: Request) {
     if (syncConfig && !syncConfig.is_active) {
       await writeSyncLog({
         accountId,
+        ledgerId,
         sender,
         subject,
         extractedName: parsed.name,
@@ -697,6 +704,7 @@ export async function POST(request: Request) {
     if (!profile) {
       await writeSyncLog({
         accountId,
+        ledgerId,
         sender,
         subject,
         extractedName: parsed.name,
@@ -830,6 +838,7 @@ export async function POST(request: Request) {
 
       await writeSyncLog({
         accountId,
+        ledgerId,
         sender,
         subject,
         extractedName: existingContact.name,
@@ -898,6 +907,7 @@ export async function POST(request: Request) {
       console.error('[lead-webhook] Error inserting contact:', insertErr);
       await writeSyncLog({
         accountId,
+        ledgerId,
         sender,
         subject,
         extractedName: parsed.name,
@@ -977,6 +987,7 @@ export async function POST(request: Request) {
 
     await writeSyncLog({
       accountId,
+      ledgerId,
       sender,
       subject,
       extractedName: newContact.name,
@@ -1024,6 +1035,7 @@ export async function POST(request: Request) {
     if (accountId) {
       await writeSyncLog({
         accountId,
+        ledgerId,
         sender: sender || '',
         subject: subject || '',
         status: 'failed',

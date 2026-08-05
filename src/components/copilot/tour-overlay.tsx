@@ -3,9 +3,14 @@
 // ============================================================
 // Spotlight overlay for guided tours. Renders only while a step is
 // "showing": a dimmed screen with a cutout around the target (the
-// box-shadow trick — the cutout div itself is pointer-events:none so
-// the real element stays clickable through the hole), four blocker
-// rects that swallow clicks outside the target, and a tooltip card.
+// box-shadow trick), four blocker rects that swallow clicks outside
+// the target, and a tooltip card.
+//
+// Pointer events are opt-in, not opt-out. The root spans the viewport,
+// so leaving it clickable covered the cutout too and every click landed
+// here instead of on the target — a click-target step could never
+// advance. The root is pointer-events:none; the blockers and the card
+// re-enable it, and the cutout stays off so the hole is really a hole.
 //
 // The app scrolls inside <main class="overflow-y-auto">, not the
 // window — so rect tracking uses a capture-phase scroll listener to
@@ -92,7 +97,7 @@ export function TourOverlay() {
   const cardLeft = Math.min(Math.max(rect.left, 12), Math.max(12, vw - CARD_W - 12));
 
   return (
-    <div className="fixed inset-0 z-[70]" aria-hidden={false}>
+    <div className="fixed inset-0 z-[70] pointer-events-none" aria-hidden={false}>
       {/* Click blockers around the cutout — everything except the
           target swallows clicks. */}
       {[
@@ -113,7 +118,7 @@ export function TourOverlay() {
       ].map((r, i) => (
         <div
           key={i}
-          className="absolute"
+          className="absolute pointer-events-auto"
           style={{ top: r.top, left: r.left, width: r.width, height: r.height }}
         />
       ))}
@@ -136,7 +141,7 @@ export function TourOverlay() {
         role="dialog"
         aria-label={`Tour step ${stepIndex + 1} of ${activeTour.steps.length}: ${step.title}`}
         tabIndex={-1}
-        className="absolute rounded-2xl border border-slate-700 bg-slate-950/95 backdrop-blur-xl p-4 shadow-2xl shadow-black/50 outline-none"
+        className="pointer-events-auto absolute rounded-2xl border border-slate-700 bg-slate-950/95 backdrop-blur-xl p-4 shadow-2xl shadow-black/50 outline-none"
         style={
           mobile
             ? { left: 12, right: 12, bottom: 16 }
