@@ -1,8 +1,13 @@
 // ============================================================
-// GET /api/beta-invites/[token]/peek
+// GET /api/beta-invites/[id]/peek
 //
 // Anonymous. Backs the /i/<token> landing page: who invited you,
 // how many seats are left, when the link dies.
+//
+// The dynamic segment is named [id] only because Next.js requires a
+// single param name per path level and the sibling DELETE route owns
+// [id]; the value carried here is the plaintext invite token, so the
+// handler rebinds it as `token` immediately.
 //
 // Mirrors peek_invitation (019) — a uniform `{ ok, reason? }`
 // envelope so the page never has to interpret a Postgres error, and
@@ -32,7 +37,7 @@ function getClientIp(request: Request): string {
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ token: string }> },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const limit = checkRateLimit(
     `beta-peek:${getClientIp(request)}`,
@@ -40,7 +45,7 @@ export async function GET(
   );
   if (!limit.success) return rateLimitResponse(limit);
 
-  const { token } = await params;
+  const { id: token } = await params;
   if (!token || typeof token !== "string") {
     return NextResponse.json({ ok: false, reason: "not_found" });
   }
@@ -55,7 +60,7 @@ export async function GET(
   });
 
   if (error) {
-    console.error("[GET /api/beta-invites/peek] RPC error:", error);
+    console.error("[GET /api/beta-invites/[id]/peek] RPC error:", error);
     return NextResponse.json({ ok: false, reason: "server_error" });
   }
 
