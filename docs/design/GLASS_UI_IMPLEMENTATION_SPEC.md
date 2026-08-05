@@ -1,5 +1,16 @@
 # Glass UI Implementation Spec — ConvoReal Mobile
 
+> **Colour update — brand alignment.** The palettes below were originally
+> sampled from WhatsApp (`#075E54` primary, `#25D366` accents, lime
+> `#C6F68D` on a `#0A1F16` forest ground). Chrome is now Convo Violet so
+> mobile matches the web app and `public/brand/`; the chat thread keeps
+> its WhatsApp-native bubbles and blue read ticks because that
+> familiarity is functional. Where this document still prints a green
+> hex for a *chrome* surface, `mobile/lib/theme.ts` is the source of
+> truth. Rule of thumb: violet for chrome, green only for the thread and
+> for live/delivered states.
+
+
 > **Handoff document.** Everything needed to restyle the ConvoReal Expo app
 > with the locked design pairing. Self-contained: no conversation context
 > required. Values were extracted from the approved interactive mockups and
@@ -11,8 +22,8 @@
 
 | Mode | Direction | Mockup section |
 |------|-----------|----------------|
-| **Light theme** | **Option 7 — "WhatsApp Native on Glass"**: soft daylight aurora, frosted white glass cards, WhatsApp deep-green `#075E54` primary, bright-green `#25D366` accents, Inter | `.t7` in `docs/design/ui-directions.html` |
-| **Dark theme** | **Option 4 — "Liquid Glass"**: deep forest aurora, frosted dark glass, lime `#C6F68D` primary, Plus Jakarta Sans ExtraBold display type | `.t4` in same file |
+| **Light theme** | **Option 7 — "Native on Glass"**: soft daylight aurora, frosted white glass cards, Convo Violet `#7C3AED` primary, `#25D366` reserved for live/delivered, Inter | `.t7` in `docs/design/ui-directions.html` |
+| **Dark theme** | **Option 4 — "Liquid Glass"**: violet aurora over Ink `#0B1020`, frosted dark glass, `#A78BFA` primary, Plus Jakarta Sans ExtraBold display type | `.t4` in same file |
 
 Theme switching stays exactly as it is today: the existing
 `useAppearance` store (`light | dark | system`, persisted as `appearance`,
@@ -51,7 +62,7 @@ simply the new light/dark skins of the single app theme.
 ### Assets already generated (in this repo, ready to use)
 
 - `mobile/assets/images/aurora-light.png` — 512×640, base `#EAF4EE → #F4F8F5 (46%) → #E6F0F4` (160°), glows: `rgba(37,211,102,.20)` top-right, `rgba(7,94,84,.13)` left, `rgba(83,189,235,.18)` bottom.
-- `mobile/assets/images/aurora-dark.png` — 512×640, base `#0A1F16 → #0E2E22 (42%) → #0B2233` (158°), glows: `rgba(198,246,141,.22)` top-right, `rgba(123,227,176,.16)` left, `rgba(46,160,190,.22)` bottom.
+- `mobile/assets/images/aurora-dark.png` — 720×1280, base Ink `#0B1020` with violet glows. Regenerate with `node mobile/scripts/generate-icons.js`, which also rebuilds the icon set from the brand mark.
 
 These are pre-baked renderings of the mockups' `linear-gradient + 3 radial
 glows` backgrounds. RN can't do radial gradients without extra deps, so the
@@ -744,11 +755,11 @@ the mockup wins.
 
 | Element | Light (Opt 7) | Dark (Opt 4) |
 |---|---|---|
-| Primary / accent | `#075E54` / `#25D366` | `#C6F68D` (on-dark text `#10220F`) |
+| Primary / accent | `#7C3AED` / `#F5C044` | `#A78BFA` (on-dark text `#1B1033`) |
 | Text / muted / faint | `#111B21` / `#5D6E66` / `#8AA39A` | `#F2FBF4` / `rgba(235,250,240,.62)` / `.38` |
 | Glass fill / border | `rgba(255,255,255,.55)` / `.9` | `rgba(255,255,255,.09)` / `.16` |
 | Tab bar | `rgba(255,255,255,.6)` | `rgba(20,40,32,.45)` |
-| Active tab | green tint pill | white `.92` pill, `#0E2E22` icon |
+| Active tab | violet tint pill | white `.92` pill, Ink `#0B1020` icon |
 | List row radius | 18 | 22 (→ use `radius.lg` = 20 for both) |
 | Hot ring | 2.5px `#25D366` | 1.5px lime `.55` + lime glow |
 | Outgoing bubble | `#D9FDD3` | `#1F5B49` |

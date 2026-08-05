@@ -508,7 +508,7 @@ function NearMeChip({
  * never opens for a query the search parser owns rather than Places.
  */
 function LocalitySearchBox() {
-  const { colors, fonts: f, dark } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const { search, setSearch, setNear } = usePropertySearch();
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
@@ -576,7 +576,7 @@ function LocalitySearchBox() {
             {
               // Solid panel: the dropdown floats OVER chips and cards,
               // so a translucent glass fill lets them read through it.
-              backgroundColor: dark ? '#12281E' : '#FFFFFF',
+              backgroundColor: colors.surfaceWell,
               borderColor: colors.glassBorder,
             },
           ]}
@@ -663,7 +663,7 @@ function PropertyCard({ property }: { property: Property }) {
           ) : null}
           {property.is_starred ? (
             <View style={styles.starBadge}>
-              <Ionicons name="star" size={13} color="#F5C33B" />
+              <Ionicons name="star" size={13} color={colors.rating} />
             </View>
           ) : null}
         </View>

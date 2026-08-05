@@ -385,7 +385,7 @@ function ReviewBanner({
               justifyContent: 'center',
             }}
           >
-            <Ionicons name="hourglass-outline" size={14} color="#FFFFFF" />
+            <Ionicons name="hourglass-outline" size={14} color={colors.onWarning} />
           </View>
         </PulseRing>
         <View style={{ flex: 1, gap: 2 }}>
@@ -405,11 +405,11 @@ function ReviewBanner({
           style={[styles.approveButton, { backgroundColor: colors.warning, opacity: busy ? 0.6 : 1 }]}
         >
           {busy ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={colors.onWarning} />
           ) : (
             <>
-              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-              <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: '#FFFFFF' }}>Approve</Text>
+              <Ionicons name="checkmark" size={16} color={colors.onWarning} />
+              <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.onWarning }}>Approve</Text>
             </>
           )}
         </Pressable>

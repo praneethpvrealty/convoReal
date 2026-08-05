@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { haptic } from '@/lib/haptics';
+import { confettiColors } from '@/lib/theme';
 
 /**
  * Press physics: content scales to ~0.97 with a spring while pressed.
@@ -202,7 +203,7 @@ export function AnimatedCounter({
 // ------------------------------------------------------------------
 
 // Glass-brand celebration palette: WhatsApp greens + lime + warm accents.
-const CONFETTI_COLORS = ['#075E54', '#25D366', '#C6F68D', '#FFC24B', '#FF7A6B'];
+const CONFETTI_COLORS = confettiColors;
 const PIECES = 26;
 
 function ConfettiPiece({ seed }: { seed: number }) {

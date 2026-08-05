@@ -28,7 +28,7 @@ export function AreasOfInterestInput({
   geo: AreaOfInterestGeo[];
   onChange: (areas: string[], geo: AreaOfInterestGeo[]) => void;
 }) {
-  const { colors, fonts: f, dark } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const [input, setInput] = useState('');
   const [focused, setFocused] = useState(false);
   const session = useRef(sessionToken());
@@ -162,7 +162,7 @@ export function AreasOfInterestInput({
           <View
             style={[
               styles.suggestions,
-              { backgroundColor: dark ? '#12281E' : '#FFFFFF', borderColor: colors.glassBorder },
+              { backgroundColor: colors.surfaceWell, borderColor: colors.glassBorder },
             ]}
           >
             {suggestions.map((s, i) => (
