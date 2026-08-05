@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ConvoReal">
+  <rect width="64" height="64" rx="14" fill="#7C3AED"/>
+  <g transform="translate(32 33) scale(0.78) translate(-32 -33)">
+    <path fill="#FFFFFF" d="M 34.6 7.2
+    L 55.2 23.6 Q 57 25.1 57 27.6
+    L 57 43 Q 57 52 48 52
+    L 20 52 L 8.6 60.8 Q 7 62 7 59.6
+    L 7 27.6 Q 7 25.1 8.8 23.6
+    L 29.4 7.2 Q 32 5 34.6 7.2 Z"/>
+    <path fill="#7C3AED" d="M 19 27.5 L 39 27.5 A 3.75 3.75 0 0 1 39 35 L 19 35 A 3.75 3.75 0 0 1 19 27.5 Z"/>
+    <path fill="#F5C044" d="M 27 40 L 45 40 A 3.75 3.75 0 0 1 45 47.5 L 27 47.5 A 3.75 3.75 0 0 1 27 40 Z"/>
+  </g>
+</svg>

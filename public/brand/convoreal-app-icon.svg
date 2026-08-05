@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ConvoReal">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8B5CF6"/><stop offset="1" stop-color="#4C2A9E"/>
+    </linearGradient>
+    <radialGradient id="sheen" cx="0.3" cy="0.16" r="0.85">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#tile)"/>
+  <rect width="512" height="512" fill="url(#sheen)"/>
+  <g transform="translate(76 76) scale(5.625)">
+    <path fill="#FFFFFF" d="M 34.6 7.2
+    L 55.2 23.6 Q 57 25.1 57 27.6
+    L 57 43 Q 57 52 48 52
+    L 20 52 L 8.6 60.8 Q 7 62 7 59.6
+    L 7 27.6 Q 7 25.1 8.8 23.6
+    L 29.4 7.2 Q 32 5 34.6 7.2 Z"/>
+    <path fill="#6D28D9" d="M 19.5 28.5 L 38.5 28.5 A 3 3 0 0 1 38.5 34.5 L 19.5 34.5 A 3 3 0 0 1 19.5 28.5 Z"/>
+    <path fill="#F5C044" d="M 28.5 39 L 44.5 39 A 3 3 0 0 1 44.5 45 L 28.5 45 A 3 3 0 0 1 28.5 39 Z"/>
+  </g>
+</svg>
