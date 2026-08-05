@@ -40,42 +40,95 @@ export interface OnboardingMedia {
 const NONE: OnboardingMedia = { videoUrl: null, caption: null };
 
 /**
- * Every slot, with what its video should cover — this doubles as the
- * shot list. A slot whose surface has no illustration behind it renders
- * nothing at all until a URL lands here, so an unrecorded video is
- * invisible rather than a broken frame.
+ * One entry per slot. Captions are written ahead of the recordings, so
+ * publishing a video is replacing a single `null` with its URL — and
+ * doubles as the brief for what that video should cover.
  *
- *   engine-welcome           What ConvoReal is, end to end (the 2-min pitch)
- *   engine-connect-whatsapp  Why a Business number, and the two paths to one
- *   engine-templates         Draft → submit → approved, and what that unlocks
- *   engine-add-property      Forwarding a listing and confirming the AI draft
- *   engine-import-buyers     Exporting contacts and running the CSV import
- *   engine-email-leads       Setting the Gmail rule and the verification catch
- *   engine-share-seats       What a beta seat is and how to hand one over
- *   wa-setup-overview        What the whole Meta setup involves, before starting
- *   wa-setup-concierge       What our team does for you on the setup call
- *   wa-setup-*               One per Meta console screen, click by click
- *   den-welcome              What the owner Portfolio shows, and why it's safe
- *   buyer-welcome            How buyer preferences turn into matches
+ * Note the caption only appears under a player: a slot with no video
+ * yet shows its illustration alone (or nothing, where the surface has
+ * no illustration), never a caption on its own.
  */
 export const ONBOARDING_MEDIA: Record<OnboardingMediaSlug, OnboardingMedia> = {
-  'engine-welcome': NONE,
-  'engine-connect-whatsapp': NONE,
-  'engine-templates': NONE,
-  'engine-add-property': NONE,
-  'engine-import-buyers': NONE,
-  'engine-email-leads': NONE,
-  'engine-share-seats': NONE,
-  'wa-setup-overview': NONE,
-  'wa-setup-concierge': NONE,
-  'wa-setup-portfolio': NONE,
-  'wa-setup-app': NONE,
-  'wa-setup-number': NONE,
-  'wa-setup-token': NONE,
-  'wa-setup-credentials': NONE,
-  'wa-setup-webhook': NONE,
-  'den-welcome': NONE,
-  'buyer-welcome': NONE,
+  'engine-welcome': {
+    videoUrl: null,
+    caption:
+      'How enquiries, listings and follow-ups all run through one WhatsApp number.',
+  },
+  'engine-connect-whatsapp': {
+    videoUrl: null,
+    caption:
+      'Why WhatsApp needs a Business number, and the two ways to get one connected.',
+  },
+  'engine-templates': {
+    videoUrl: null,
+    caption:
+      'Why Meta reviews your templates, and what sending opens up once they are approved.',
+  },
+  'engine-add-property': {
+    videoUrl: null,
+    caption:
+      'Forwarding a listing to your number and confirming the draft the AI builds from it.',
+  },
+  'engine-import-buyers': {
+    videoUrl: null,
+    caption:
+      'Exporting your contacts from a phone or Excel sheet, and running the import.',
+  },
+  'engine-email-leads': {
+    videoUrl: null,
+    caption:
+      'Setting the forwarding rule in Gmail, including the confirmation code step.',
+  },
+  'engine-share-seats': {
+    videoUrl: null,
+    caption:
+      'What a beta seat gives another consultant, and how to hand one over.',
+  },
+  'wa-setup-overview': {
+    videoUrl: null,
+    caption:
+      'What the whole Meta setup involves, so you know what you are starting.',
+  },
+  'wa-setup-concierge': {
+    videoUrl: null,
+    caption: 'What our team sets up for you, and what we need from you first.',
+  },
+  'wa-setup-portfolio': {
+    videoUrl: null,
+    caption: 'Creating your Meta Business Portfolio, screen by screen.',
+  },
+  'wa-setup-app': {
+    videoUrl: null,
+    caption: 'Creating the Meta app and adding WhatsApp to it.',
+  },
+  'wa-setup-number': {
+    videoUrl: null,
+    caption:
+      'Adding your number, verifying it, and setting the two-step PIN you will need later.',
+  },
+  'wa-setup-token': {
+    videoUrl: null,
+    caption:
+      'Creating a system user and generating a token that does not expire.',
+  },
+  'wa-setup-credentials': {
+    videoUrl: null,
+    caption: 'Where each value sits in Meta, and which box it belongs in here.',
+  },
+  'wa-setup-webhook': {
+    videoUrl: null,
+    caption:
+      'Checking that Meta is really delivering messages, and what to do if it is not.',
+  },
+  'den-welcome': {
+    videoUrl: null,
+    caption:
+      'What you can see about your property here, and what stays private.',
+  },
+  'buyer-welcome': {
+    videoUrl: null,
+    caption: 'Setting your preferences so matching properties come to you.',
+  },
 };
 
 export function getOnboardingMedia(slug: OnboardingMediaSlug): OnboardingMedia {
