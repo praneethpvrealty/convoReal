@@ -30,7 +30,14 @@ import {
   FACING_DIRECTIONS,
   LISTING_TYPES,
   NEARBY_HIGHLIGHTS_OPTIONS,
-  PROPERTY_TYPE_GROUPS,
+  LAND_OWNERSHIP_TYPES,
+  LAND_LEGAL_STATUSES,
+  LAND_CONVERSION_TYPES,
+  LAND_USE_ZONES,
+  hasBedsBaths,
+  isLandType,
+  isRawLandType,
+  propertyTypeGroupsFor,
 } from '@/lib/property-options';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
@@ -145,6 +152,10 @@ function EditForm({ property }: { property: Property }) {
   const [superBuilt, setSuperBuilt] = useState(
     property.super_built_area ? String(property.super_built_area) : ''
   );
+  const [ownershipStatus, setOwnershipStatus] = useState(property.ownership_status ?? '');
+  const [landZone, setLandZone] = useState(property.land_zone ?? '');
+  const [legalStatus, setLegalStatus] = useState(property.legal_status ?? '');
+  const [conversionType, setConversionType] = useState(property.conversion_type ?? '');
   const [dimensions, setDimensions] = useState(property.dimensions ?? '');
   const [facing, setFacing] = useState(property.facing_direction ?? '');
   const [location, setLocation] = useState(property.location ?? '');
@@ -182,6 +193,9 @@ function EditForm({ property }: { property: Property }) {
 
   const isRent = listingType === 'Rent' || listingType === 'Built to Suit';
   const isCommercial = COMMERCIAL_TYPES.includes(type);
+  const isLand = isLandType(type);
+  const isRawLand = isRawLandType(type);
+  const showBedsBaths = hasBedsBaths(type);
 
   useEffect(() => {
     setError(null);
@@ -213,12 +227,19 @@ function EditForm({ property }: { property: Property }) {
       listing_type: listingType,
       description: description.trim() || null,
       is_published: published,
-      bedrooms: num(bedrooms),
-      bathrooms: num(bathrooms),
-      area_sqft: num(area),
+      // Land carries no rooms and nothing built: send nulls so a type
+      // changed from house to plot clears stale values rather than
+      // leaving them behind, invisible in the editor that hides them.
+      bedrooms: showBedsBaths ? num(bedrooms) : null,
+      bathrooms: showBedsBaths ? num(bathrooms) : null,
+      area_sqft: showBedsBaths ? num(area) : null,
       land_area: num(landArea),
       land_area_unit: landAreaUnit,
-      super_built_area: num(superBuilt),
+      super_built_area: isLand ? null : num(superBuilt),
+      ownership_status: isLand ? ownershipStatus || null : null,
+      land_zone: isRawLand ? landZone || null : property.land_zone ?? null,
+      legal_status: isRawLand ? legalStatus || null : null,
+      conversion_type: isRawLand ? conversionType || null : null,
       dimensions: dimensions.trim() || null,
       facing_direction: facing || null,
       location: location.trim() || null,
@@ -369,26 +390,32 @@ function EditForm({ property }: { property: Property }) {
           </View>
         ) : null}
 
-        <View style={styles.row}>
-          <View style={{ flex: 1 }}>
-            <TextField label="Bedrooms" value={bedrooms} onChangeText={setBedrooms} keyboardType="numeric" />
+        {/* A vacant plot or a raw parcel has no rooms and nothing built
+            on it — web has hidden these for land all along. */}
+        {showBedsBaths ? (
+          <View style={styles.row}>
+            <View style={{ flex: 1 }}>
+              <TextField label="Bedrooms" value={bedrooms} onChangeText={setBedrooms} keyboardType="numeric" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <TextField label="Bathrooms" value={bathrooms} onChangeText={setBathrooms} keyboardType="numeric" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <TextField label={`Area (${areaUnit})`} value={area} onChangeText={setArea} keyboardType="numeric" />
+            </View>
           </View>
-          <View style={{ flex: 1 }}>
-            <TextField label="Bathrooms" value={bathrooms} onChangeText={setBathrooms} keyboardType="numeric" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <TextField label={`Area (${areaUnit})`} value={area} onChangeText={setArea} keyboardType="numeric" />
-          </View>
-        </View>
+        ) : null}
 
         <SectionLabel text="Land & dimensions" />
         <View style={styles.row}>
           <View style={{ flex: 1 }}>
             <TextField label="Land area" value={landArea} onChangeText={setLandArea} keyboardType="numeric" />
           </View>
-          <View style={{ flex: 1 }}>
-            <TextField label="Super built (sqft)" value={superBuilt} onChangeText={setSuperBuilt} keyboardType="numeric" />
-          </View>
+          {!isLand ? (
+            <View style={{ flex: 1 }}>
+              <TextField label="Super built (sqft)" value={superBuilt} onChangeText={setSuperBuilt} keyboardType="numeric" />
+            </View>
+          ) : null}
         </View>
         <View style={styles.chips}>
           {AREA_UNITS.map((u) => (
@@ -396,6 +423,44 @@ function EditForm({ property }: { property: Property }) {
           ))}
         </View>
         <TextField label="Dimensions (e.g. 80x50)" value={dimensions} onChangeText={setDimensions} />
+
+        {isLand ? (
+          <>
+            <SectionLabel text="Title & extent" />
+            <ChipRow
+              label="Ownership"
+              options={LAND_OWNERSHIP_TYPES}
+              value={ownershipStatus}
+              onSelect={setOwnershipStatus}
+            />
+            {isRawLand ? (
+              <>
+                <ChipRow
+                  label="Land use"
+                  options={LAND_USE_ZONES}
+                  value={landZone}
+                  onSelect={setLandZone}
+                />
+                <ChipRow
+                  label="Legal status"
+                  options={LAND_LEGAL_STATUSES}
+                  value={legalStatus}
+                  onSelect={setLegalStatus}
+                />
+                <ChipRow
+                  label="Conversion"
+                  options={LAND_CONVERSION_TYPES}
+                  value={conversionType}
+                  onSelect={setConversionType}
+                />
+              </>
+            ) : null}
+            <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
+              Internal — never shown on the public showcase.
+            </Text>
+          </>
+        ) : null}
+
         <SectionLabel text="Facing" />
         <View style={styles.chips}>
           {FACING_DIRECTIONS.map((d) => (
@@ -642,7 +707,7 @@ function EditForm({ property }: { property: Property }) {
         visible={sheet === 'type'}
         onClose={() => setSheet(null)}
         title="Property type"
-        groups={PROPERTY_TYPE_GROUPS}
+        groups={propertyTypeGroupsFor(type)}
         selected={type ? [type] : []}
         onChange={(v) => setType(v[0] ?? '')}
       />
@@ -686,6 +751,37 @@ function EditForm({ property }: { property: Property }) {
         }
       />
     </KeyboardAvoidingView>
+  );
+}
+
+/** Single-select chip row. Tapping the active chip clears it, so a
+ *  value set by mistake can be undone without a "none" option. */
+function ChipRow({
+  label,
+  options,
+  value,
+  onSelect,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onSelect: (value: string) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ gap: 6 }}>
+      <SectionLabel text={label} style={{ color: colors.textMuted }} />
+      <View style={styles.chips}>
+        {options.map((o) => (
+          <FilterChip
+            key={o}
+            label={o}
+            active={value === o}
+            onPress={() => onSelect(value === o ? '' : o)}
+          />
+        ))}
+      </View>
+    </View>
   );
 }
 

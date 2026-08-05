@@ -526,6 +526,8 @@ export async function POST(request: Request) {
       // Land/JV deal notes (internal only)
       ownership_status,
       land_use_zoning,
+      legal_status,
+      conversion_type,
       deal_remarks,
       notes,
       tags,
@@ -609,6 +611,8 @@ export async function POST(request: Request) {
       ideal_for: typeof ideal_for === "string" ? ideal_for.trim() : null,
       ownership_status: typeof ownership_status === "string" ? ownership_status.trim() || null : null,
       land_use_zoning: typeof land_use_zoning === "string" ? land_use_zoning.trim() || null : null,
+      legal_status: typeof legal_status === "string" ? legal_status.trim() || null : null,
+      conversion_type: typeof conversion_type === "string" ? conversion_type.trim() || null : null,
       deal_remarks: typeof deal_remarks === "string" ? deal_remarks.trim() || null : null,
       dimensions: typeof dimensions === "string" ? dimensions.trim() : null,
       road_width: typeof road_width === "number" ? road_width : null,

@@ -25,7 +25,8 @@ export const PROPERTY_TYPE_GROUPS: { group: string; options: string[] }[] = [
       'Residential House',
       'Villa',
       'Builder Floor Apartment',
-      'Residential Land/ Plot',
+      'Residential Plot',
+      'Residential Land',
       'Penthouse',
       'Studio Apartment',
       'Residential PG building',
@@ -38,6 +39,101 @@ export const PROPERTY_TYPE_GROUPS: { group: string; options: string[] }[] = [
   },
   { group: 'Agricultural', options: ['Agricultural Land', 'Farm House'] },
 ];
+
+// Mirrors of the web predicates in
+// src/lib/inventory/property-options.ts — @/lib/mobile-parity.test.ts
+// fails when they drift.
+
+/** Pre-split value for residential land; still valid, no longer offered. */
+export const LEGACY_RESIDENTIAL_LAND_PLOT = 'Residential Land/ Plot';
+
+export const BEDS_BATHS_TYPES = [
+  'Flat/ Apartment',
+  'Residential House',
+  'Villa',
+  'Builder Floor Apartment',
+  'Penthouse',
+  'Studio Apartment',
+  'Farm House',
+];
+
+export const LAND_TYPES = [
+  'Residential Plot',
+  'Residential Land',
+  LEGACY_RESIDENTIAL_LAND_PLOT,
+  'Commercial Land',
+  'Industrial Land',
+  'Agricultural Land',
+];
+
+export const RAW_LAND_TYPES = [
+  'Residential Land',
+  LEGACY_RESIDENTIAL_LAND_PLOT,
+  'Commercial Land',
+  'Industrial Land',
+  'Agricultural Land',
+];
+
+export const LAND_OWNERSHIP_TYPES = [
+  'Single owner',
+  'Family owned',
+  'Multiple owners (multi-family)',
+  'Aggregator / consolidated',
+  'Trust',
+  'Company',
+  'Government / institutional',
+];
+
+export const LAND_LEGAL_STATUSES = [
+  'Clear title',
+  'Under verification',
+  'Litigation / dispute',
+  'Encumbered / mortgaged',
+  'Inherited — partition pending',
+  'Power of Attorney held',
+];
+
+export const LAND_CONVERSION_TYPES = [
+  'Converted (DC converted)',
+  'Unconverted / agricultural',
+  'Conversion applied',
+  'Conversion not required',
+  'Part converted',
+];
+
+export const LAND_USE_ZONES = [
+  'Residential',
+  'Commercial',
+  'Industrial',
+  'Agricultural',
+  'Mixed Use',
+  'SEZ',
+];
+
+export function hasBedsBaths(type: string): boolean {
+  return BEDS_BATHS_TYPES.includes(type);
+}
+
+export function isLandType(type: string): boolean {
+  return LAND_TYPES.includes(type);
+}
+
+export function isRawLandType(type: string): boolean {
+  return RAW_LAND_TYPES.includes(type);
+}
+
+/** Adds the pre-split value to the picker only for a property already
+ *  stored as it, so opening an old listing never re-types it. */
+export function propertyTypeGroupsFor(
+  currentType: string | null | undefined
+): { group: string; options: string[] }[] {
+  if (currentType !== LEGACY_RESIDENTIAL_LAND_PLOT) return PROPERTY_TYPE_GROUPS;
+  return PROPERTY_TYPE_GROUPS.map((g) =>
+    g.group === 'Residential'
+      ? { ...g, options: [...g.options, LEGACY_RESIDENTIAL_LAND_PLOT] }
+      : g
+  );
+}
 
 export const LISTING_TYPES: { value: string; label: string }[] = [
   { value: 'Sale', label: 'For Sale' },

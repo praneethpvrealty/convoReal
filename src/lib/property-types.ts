@@ -6,6 +6,7 @@
 
 export const PROPERTY_TYPE_VALUES = [
   "Flat/ Apartment", "Residential House", "Villa", "Builder Floor Apartment",
+  "Residential Plot", "Residential Land",
   "Residential Land/ Plot", "Penthouse", "Studio Apartment", "Residential PG building",
   "PG/ Hostel", "Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop",
   "Commercial Showroom", "Commercial Building", "Commercial Land", "Warehouse/ Godown",
@@ -60,7 +61,13 @@ export function normalizePropertyType(raw: string | null | undefined): string | 
   if (lower.includes("showroom")) return "Commercial Showroom";
   if (lower.includes("shop")) return "Commercial Shop";
   if (lower.includes("commercial") && lower.includes("land")) return "Commercial Land";
-  if (lower.includes("plot") || (lower.includes("land") && !/industrial|commercial|agricultural/.test(lower))) return "Residential Land/ Plot";
+  // Plot before land: a demarcated parcel in an approved layout is a
+  // plot even when the text also says "land" ("residential land plot").
+  // "Residential Land/ Plot" itself is matched exactly above and kept
+  // as a legacy value — rows created before the split are genuinely
+  // ambiguous, and guessing would invent information nobody recorded.
+  if (lower.includes("plot") || lower.includes("site")) return "Residential Plot";
+  if (lower.includes("land") && !/industrial|commercial|agricultural/.test(lower)) return "Residential Land";
   if (lower.includes("flat") || lower.includes("apartment")) return "Flat/ Apartment";
   if (lower.includes("house") || lower.includes("bungalow") || lower.includes("independent")) return "Residential House";
   // Preserve whatever was said rather than silently discarding it — an

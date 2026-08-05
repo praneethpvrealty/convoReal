@@ -915,6 +915,9 @@ export interface Property {
   ownership_status?: string | null;
   land_use_zoning?: string | null;
   deal_remarks?: string | null;
+  /** Title/extent of a raw land parcel (migration 195). */
+  legal_status?: string | null;
+  conversion_type?: string | null;
   bedrooms?: number;
   bathrooms?: number;
   /** Unit details for portal posting (migration 179). */
