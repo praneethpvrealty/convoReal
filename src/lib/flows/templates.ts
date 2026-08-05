@@ -592,7 +592,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "post_listings",
       node_type: "send_buttons",
       config: {
-        text: "Interested in any of these? Our specialist can share more details, photos, and arrange a site visit. 👇",
+        text: "Interested in any of these? *Reply with its number* (e.g. 2) and I'll have our specialist send photos, full details and arrange a site visit. 👇",
         buttons: [
           {
             reply_id: "explore_more",
@@ -629,7 +629,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_key: "handoff_onboarding",
       node_type: "handoff",
       config: {
-        note: "Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Captured email: {{vars.email}}.",
+        note: "Real Estate Buyer/Tenant Lead! Budget: {{vars.budget}}. Interested in: {{vars.interested_property}}. Captured email: {{vars.email}}.",
       } as HandoffNodeConfig,
     },
     {

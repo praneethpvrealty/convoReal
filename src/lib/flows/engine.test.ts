@@ -11,6 +11,8 @@ import {
   isTerminal,
   evaluateConditionPredicate,
   splitByBudget,
+  matchListingSelection,
+  type ShownListing,
   type ListingRow,
 } from "./engine";
 
@@ -461,5 +463,43 @@ describe("splitByBudget", () => {
   it("is a no-op when the budget text means nothing", () => {
     const rows = [row("a", 320_000_000)];
     expect(splitByBudget(rows, "not sure yet", 5).withinBudget).toHaveLength(1);
+  });
+});
+
+describe("matchListingSelection", () => {
+  const shown: ShownListing[] = [
+    { n: 1, id: "p1", title: "Hoodi office", code: "PROP-1091" },
+    { n: 2, id: "p2", title: "BTM corner", code: "PROP-1077" },
+    { n: 3, id: "p3", title: "Whitefield", code: null },
+  ];
+
+  it("resolves a bare number to the listing that carried it", () => {
+    expect(matchListingSelection("2", shown)?.id).toBe("p2");
+  });
+
+  it("tolerates how people actually type it", () => {
+    expect(matchListingSelection(" 3 ", shown)?.id).toBe("p3");
+    expect(matchListingSelection("no 1", shown)?.id).toBe("p1");
+    expect(matchListingSelection("#2", shown)?.id).toBe("p2");
+    expect(matchListingSelection("2.", shown)?.id).toBe("p2");
+  });
+
+  it("ignores a number nobody was shown", () => {
+    expect(matchListingSelection("7", shown)).toBeNull();
+    expect(matchListingSelection("0", shown)).toBeNull();
+  });
+
+  it("does not mistake a phone number or a price for a selection", () => {
+    expect(matchListingSelection("call me on 9880012345", shown)).toBeNull();
+    expect(matchListingSelection("1-2cr", shown)).toBeNull();
+    expect(matchListingSelection("9880012345", shown)).toBeNull();
+  });
+
+  it("leaves an ambiguous multi-pick to an agent", () => {
+    expect(matchListingSelection("2 and 3", shown)).toBeNull();
+  });
+
+  it("is inert when no listings were shown", () => {
+    expect(matchListingSelection("2", [])).toBeNull();
   });
 });

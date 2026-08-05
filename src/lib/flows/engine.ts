@@ -371,6 +371,92 @@ export function splitByBudget(
   };
 }
 
+/** What the run remembers about the listings it last put in the chat,
+ *  so a reply of "2" can be resolved back to a property. */
+export interface ShownListing {
+  n: number;
+  id: string;
+  title: string;
+  code: string | null;
+}
+
+/** Run var holding the last listing set. Underscored: engine
+ *  bookkeeping, not a customer-captured answer. */
+export const SHOWN_LISTINGS_VAR = "__shown_listings";
+
+/**
+ * Resolves a reply like "2", "no 2" or "#2" against the listings last
+ * shown. Anything that isn't a single in-range number returns null, so
+ * ordinary chat falls through to the existing fallback policy rather
+ * than being mistaken for a selection.
+ *
+ * Exported for tests.
+ */
+export function matchListingSelection(
+  text: string,
+  shown: ShownListing[],
+): ShownListing | null {
+  if (!shown || shown.length === 0) return null;
+  const cleaned = (text || "").trim().toLowerCase().replace(/^(no\.?|number|#|option)\s*/, "");
+  // One number and nothing else — "2 and 4" is a conversation for an
+  // agent, and "call me on 9880012345" is certainly not a selection.
+  if (!/^\d{1,2}[.)]?$/.test(cleaned)) return null;
+  const n = parseInt(cleaned, 10);
+  return shown.find((s) => s.n === n) ?? null;
+}
+
+/**
+ * Files a numbered pick as a real inquiry against that property, so it
+ * shows on the listing and in Pulse rather than living only in the chat
+ * transcript. Then routes the run to whichever branch on the current
+ * node leads to an agent, since a named property is the strongest buying
+ * signal this funnel can collect.
+ *
+ * Returns the next node key, or null to let the fallback policy run
+ * (the node has no agent branch — nothing sensible to advance to).
+ */
+async function recordListingInterest(
+  db: AdminClient,
+  run: FlowRunRow,
+  node: FlowNodeRow,
+  pick: ShownListing,
+): Promise<string | null> {
+  if (run.contact_id) {
+    const { error } = await db.from("contact_property_inquiries").upsert(
+      {
+        contact_id: run.contact_id,
+        property_id: pick.id,
+        inquiry_source: "WhatsApp Flow",
+        notes: `Replied "${pick.n}" to the listings sent in chat.`,
+      },
+      { onConflict: "contact_id,property_id", ignoreDuplicates: true },
+    );
+    if (error) {
+      // A failed write must not swallow the customer's reply — they
+      // still get routed to an agent below.
+      console.error("[flows] listing interest upsert failed:", error.message);
+    }
+  }
+
+  await logEvent(db, run.id, "reply_received", node.node_key, {
+    reason: "listing_interest",
+    property_id: pick.id,
+    property_code: pick.code,
+    selection: pick.n,
+  });
+
+  const vars = {
+    ...run.vars,
+    interested_property: pick.code ? `${pick.title} (${pick.code})` : pick.title,
+  };
+  await db.from("flow_runs").update({ vars }).eq("id", run.id);
+  run.vars = vars;
+
+  const cfg = node.config as unknown as SendButtonsNodeConfig;
+  const agentButton = cfg.buttons?.find((b) => /agent|talk|contact/i.test(b.title));
+  return agentButton?.next_node_key ?? cfg.buttons?.[cfg.buttons.length - 1]?.next_node_key ?? null;
+}
+
 /**
  * Query the account's published properties and format them into a
  * WhatsApp-friendly text message.  Respects the node's optional
@@ -380,7 +466,7 @@ async function fetchAndFormatPropertyListings(
   db: AdminClient,
   run: FlowRunRow,
   cfg: SendPropertyListingsNodeConfig,
-): Promise<string> {
+): Promise<{ text: string; shown: ShownListing[] }> {
   const limit = Math.max(1, Math.min(cfg.limit ?? 5, 10));
   // Over-fetch so the budget the lead already gave can pick which of
   // these fill the slots, rather than whichever happen to be newest.
@@ -414,10 +500,10 @@ async function fetchAndFormatPropertyListings(
     : "🏡 *Available Properties*\n";
 
   if (!properties || properties.length === 0) {
-    return (
+    return { text: (
       cfg.empty_text ??
       `${intro}\n\nSorry, no matching properties are currently available. Our team will reach out when something suitable is listed.`
-    );
+    ), shown: [] };
   }
 
   const { withinBudget, aboveBudget } = splitByBudget(
@@ -469,7 +555,15 @@ async function fetchAndFormatPropertyListings(
     lines.push("");
   }
 
-  return lines.filter((l): l is string => l !== null).join("\n").slice(0, 4000);
+  return {
+    text: lines.filter((l): l is string => l !== null).join("\n").slice(0, 4000),
+    shown: shown.map((p, i) => ({
+      n: i + 1,
+      id: p.id,
+      title: p.title,
+      code: p.property_code ?? null,
+    })),
+  };
 }
 
 async function logEvent(
@@ -1060,7 +1154,7 @@ async function advanceFromNodeKey(
     if (node.node_type === "send_property_listings") {
       const cfg = node.config as unknown as import("./types").SendPropertyListingsNodeConfig;
       try {
-        const listingsText = await fetchAndFormatPropertyListings(db, run, cfg);
+        const { text: listingsText, shown } = await fetchAndFormatPropertyListings(db, run, cfg);
         const { whatsapp_message_id } = await engineSendText({
           accountId: run.account_id,
           userId: run.user_id,
@@ -1068,6 +1162,11 @@ async function advanceFromNodeKey(
           contactId: run.contact_id!,
           text: listingsText,
         });
+        // Remember what was numbered, so the next reply of "2" resolves
+        // to a property instead of being reprompted as unrecognised.
+        const withListings = { ...run.vars, [SHOWN_LISTINGS_VAR]: shown };
+        await db.from("flow_runs").update({ vars: withListings }).eq("id", run.id);
+        run.vars = withListings;
         await logEvent(db, run.id, "message_sent", node.node_key, {
           node_type: "send_property_listings",
           whatsapp_message_id,
@@ -1396,6 +1495,23 @@ async function handleReplyForActiveRun(
       currentNode.node_type === "send_list")
   ) {
     matched = matchReplyId(currentNode, message.reply_id);
+  } else if (
+    message.kind === "text" &&
+    currentNode.node_type === "send_buttons" &&
+    matchListingSelection(
+      message.text,
+      (run.vars?.[SHOWN_LISTINGS_VAR] as ShownListing[] | undefined) ?? [],
+    )
+  ) {
+    // The listings we just sent were numbered and the customer answered
+    // with one of those numbers. That is a stated interest in a specific
+    // property — record it against the listing and hand to an agent,
+    // rather than reprompting them to tap a button instead.
+    const pick = matchListingSelection(
+      message.text,
+      (run.vars?.[SHOWN_LISTINGS_VAR] as ShownListing[] | undefined) ?? [],
+    )!;
+    matched = await recordListingInterest(db, run, currentNode, pick);
   } else if (
     message.kind === "text" &&
     currentNode.node_type === "collect_input"
