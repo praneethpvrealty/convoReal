@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   SHARE_GRANT_TTL_MS,
+  SHARE_GRANT_TTL_CHOICES,
+  DEFAULT_SHARE_GRANT_TTL_KEY,
+  ttlMsForKey,
   mintShareGrantToken,
   isGrantLive,
   grantedReveals,
@@ -34,7 +37,43 @@ function stubAdmin(row: ShareGrant | null, error: unknown = null) {
   return { client: { from } as unknown as SupabaseClient, from, eq };
 }
 
+describe('ttlMsForKey', () => {
+  it('resolves each offered choice', () => {
+    expect(ttlMsForKey('24h')).toBe(24 * 60 * 60 * 1000);
+    expect(ttlMsForKey('7d')).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(ttlMsForKey('30d')).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+
+  it('falls back to the default for anything unrecognised', () => {
+    for (const bad of ['', 'forever', '365d', null, undefined, '7D']) {
+      expect(ttlMsForKey(bad), String(bad)).toBe(SHARE_GRANT_TTL_MS);
+    }
+  });
+
+  it('never resolves to longer than the longest offered choice', () => {
+    const ceiling = Math.max(...SHARE_GRANT_TTL_CHOICES.map((c) => c.ms));
+    for (const bad of ['forever', '999d', '-1']) {
+      expect(ttlMsForKey(bad)).toBeLessThanOrEqual(ceiling);
+    }
+  });
+
+  it('keeps the default among the offered choices', () => {
+    expect(
+      SHARE_GRANT_TTL_CHOICES.some((c) => c.key === DEFAULT_SHARE_GRANT_TTL_KEY)
+    ).toBe(true);
+    expect(ttlMsForKey(DEFAULT_SHARE_GRANT_TTL_KEY)).toBe(SHARE_GRANT_TTL_MS);
+  });
+});
+
 describe('mintShareGrantToken', () => {
+  it('honours a caller-supplied TTL', () => {
+    const before = Date.now();
+    const { expiresAt } = mintShareGrantToken(ttlMsForKey('24h'));
+    const ttl = new Date(expiresAt).getTime() - before;
+    expect(ttl).toBeGreaterThan(24 * 60 * 60 * 1000 - 5_000);
+    expect(ttl).toBeLessThanOrEqual(24 * 60 * 60 * 1000 + 5_000);
+  });
+
   it('mints a 48-char token with the configured TTL', () => {
     const before = Date.now();
     const { token, expiresAt } = mintShareGrantToken();

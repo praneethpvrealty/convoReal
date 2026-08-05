@@ -46,6 +46,11 @@ import { getMatchingContacts, type MatchDetails } from '@/lib/matching';
 import { captureJourneyItems } from '@/lib/journey/capture';
 import { recordPropertyShares } from '@/lib/inventory/share-log';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
+import {
+  DEFAULT_SHARE_GRANT_TTL_KEY,
+  SHARE_GRANT_TTL_CHOICES,
+  type ShareGrantTtlKey,
+} from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import {
@@ -168,6 +173,9 @@ export function PropertyShareDialog({
   const [revealLocation, setRevealLocation] = useState(false);
   const [revealDocuments, setRevealDocuments] = useState(false);
   const [revealPrivateImages, setRevealPrivateImages] = useState(false);
+  const [grantTtl, setGrantTtl] = useState<ShareGrantTtlKey>(
+    DEFAULT_SHARE_GRANT_TTL_KEY,
+  );
   const [linkGrant, setLinkGrant] = useState<{ id: string; token: string } | null>(null);
   const [grantBusy, setGrantBusy] = useState(false);
   const linkGrantRef = useRef<{ id: string; token: string } | null>(null);
@@ -243,13 +251,14 @@ export function PropertyShareDialog({
           reveal_location: revealLocation,
           reveal_documents: revealDocuments,
           reveal_private_images: revealPrivateImages,
+          expires_in: grantTtl,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to unmask this share');
       return json.data as { id: string; token: string };
     },
-    [propertyId, revealLocation, revealDocuments, revealPrivateImages],
+    [propertyId, revealLocation, revealDocuments, revealPrivateImages, grantTtl],
   );
 
   const revokeGrant = useCallback(
@@ -383,6 +392,7 @@ export function PropertyShareDialog({
       setRevealLocation(false);
       setRevealDocuments(false);
       setRevealPrivateImages(false);
+      setGrantTtl(DEFAULT_SHARE_GRANT_TTL_KEY);
     });
   }, [open]);
 
@@ -1569,8 +1579,9 @@ export function PropertyShareDialog({
                   </div>
                   <p className="text-[10px] leading-relaxed text-slate-500">
                     Off by default — the masked link is what turns a viewer into a
-                    captured lead. Switch either on and this link opens unmasked, with
-                    no request to approve. It expires in 7 days and you can revoke it.
+                    captured lead. Switch any on and this link opens unmasked, with
+                    no request to approve. It expires on its own and you can revoke
+                    it at any time.
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {([
@@ -1632,6 +1643,31 @@ export function PropertyShareDialog({
                       </button>
                     ))}
                   </div>
+                  {/* Expiry — chosen before the key is minted; changing it
+                      revokes the old key and issues a fresh one. */}
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <span className="text-[10px] font-semibold text-slate-400 shrink-0">
+                      Expires after
+                    </span>
+                    <div className="flex gap-1">
+                      {SHARE_GRANT_TTL_CHOICES.map((choice) => (
+                        <button
+                          key={choice.key}
+                          type="button"
+                          disabled={grantBusy || !canManageGrants}
+                          onClick={() => setGrantTtl(choice.key)}
+                          className={`rounded-md border px-2 py-1 text-[10px] font-bold transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                            grantTtl === choice.key
+                              ? 'border-primary/50 bg-primary/10 text-primary'
+                              : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                          }`}
+                        >
+                          {choice.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {grantToken && (
                     <p className="text-[10px] font-medium text-emerald-400">
                       This link is unmasked. Sending it to a contact below gives them

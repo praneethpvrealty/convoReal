@@ -20,7 +20,36 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const SHARE_GRANT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * How long a grant may live, chosen per share. A closed set rather than
+ * a free-form duration: it keeps the API validation trivial, and there
+ * is no honest reason to mint a key that outlives a deal cycle. The
+ * longest option is the ceiling — a grant that never expires would make
+ * revocation the only bound, which is exactly the failure this feature
+ * is meant to avoid.
+ */
+export const SHARE_GRANT_TTL_CHOICES = [
+  { key: '24h', label: '24 hours', ms: DAY_MS },
+  { key: '7d', label: '7 days', ms: 7 * DAY_MS },
+  { key: '30d', label: '30 days', ms: 30 * DAY_MS },
+] as const;
+
+export type ShareGrantTtlKey = (typeof SHARE_GRANT_TTL_CHOICES)[number]['key'];
+
+export const DEFAULT_SHARE_GRANT_TTL_KEY: ShareGrantTtlKey = '7d';
+
+export const SHARE_GRANT_TTL_MS = 7 * DAY_MS;
+
+/** Resolves a caller-supplied choice, falling back to the default for
+ *  anything unrecognised — an unknown key must not mint a longer-lived
+ *  key than the agent asked for. */
+export function ttlMsForKey(key: string | null | undefined): number {
+  const choice = SHARE_GRANT_TTL_CHOICES.find((c) => c.key === key);
+  return choice ? choice.ms : SHARE_GRANT_TTL_MS;
+}
 
 export interface ShareGrant {
   id: string;
@@ -46,13 +75,16 @@ export interface GrantedReveals {
   privateImages: boolean;
 }
 
-export function mintShareGrantToken(): { token: string; expiresAt: string } {
+export function mintShareGrantToken(ttlMs: number = SHARE_GRANT_TTL_MS): {
+  token: string;
+  expiresAt: string;
+} {
   const raw =
     crypto.randomUUID().replace(/-/g, '') +
     crypto.randomUUID().replace(/-/g, '');
   return {
     token: raw.substring(0, 48),
-    expiresAt: new Date(Date.now() + SHARE_GRANT_TTL_MS).toISOString(),
+    expiresAt: new Date(Date.now() + ttlMs).toISOString(),
   };
 }
 
