@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ElementType } from 'react';
+import { useRef, useState, ElementType } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Property } from '@/types';
 import { totalMonthlyRent } from '@/lib/inventory/floor-tenancies';
@@ -104,25 +104,28 @@ export function PropertyList({
   currency = 'INR',
 }: PropertyListProps) {
   const router = useRouter();
-  const [decidingId, setDecidingId] = useState<string | null>(null);
+  // Keyed by listing, not a single id: approving publishes the listing,
+  // syncs the catalog and notifies the owner, so a reviewer works down
+  // the queue while the first one is still running. A single decidingId
+  // dropped the indicator off whichever card was decided first, and the
+  // one that finished first re-enabled the other mid-flight.
+  const inFlight = useRef<Map<string, 'approve' | 'reject'>>(new Map());
+  const [deciding, setDeciding] = useState<Map<string, 'approve' | 'reject'>>(
+    new Map()
+  );
 
-  async function handleApprove(property: Property) {
-    if (!onApprove) return;
-    setDecidingId(property.id);
+  async function decide(property: Property, verdict: 'approve' | 'reject') {
+    const run = verdict === 'approve' ? onApprove : onReject;
+    // Only the same listing twice is refused — deciding the next one
+    // while this is running is the point.
+    if (!run || inFlight.current.has(property.id)) return;
+    inFlight.current.set(property.id, verdict);
+    setDeciding(new Map(inFlight.current));
     try {
-      await onApprove(property);
+      await run(property);
     } finally {
-      setDecidingId(null);
-    }
-  }
-
-  async function handleReject(property: Property) {
-    if (!onReject) return;
-    setDecidingId(property.id);
-    try {
-      await onReject(property);
-    } finally {
-      setDecidingId(null);
+      inFlight.current.delete(property.id);
+      setDeciding(new Map(inFlight.current));
     }
   }
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -220,6 +223,7 @@ export function PropertyList({
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {properties.map((property) => {
         const TypeIcon = getTypeIcon(property.type);
+        const verdict = deciding.get(property.id);
         const hasImages = property.images && property.images.length > 0;
         const mainImage = hasImages ? storagePublicUrl(property.images[0]) : null;
         const isLand = [
@@ -730,11 +734,11 @@ export function PropertyList({
                   <Button
                     type="button"
                     size="sm"
-                    disabled={decidingId === property.id}
-                    onClick={() => handleApprove(property)}
+                    disabled={verdict !== undefined}
+                    onClick={() => decide(property, 'approve')}
                     className="h-8 bg-green-600 hover:bg-green-700 text-white font-medium"
                   >
-                    {decidingId === property.id && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
+                    {verdict === 'approve' && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
                     Approve
                   </Button>
                 )}
@@ -743,10 +747,11 @@ export function PropertyList({
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={decidingId === property.id}
-                    onClick={() => handleReject(property)}
+                    disabled={verdict !== undefined}
+                    onClick={() => decide(property, 'reject')}
                     className="h-8 border-red-900/50 hover:bg-red-950/20 hover:text-red-400 text-red-400"
                   >
+                    {verdict === 'reject' && <Loader2 className="size-3.5 animate-spin mr-1.5" />}
                     Reject
                   </Button>
                 )}
