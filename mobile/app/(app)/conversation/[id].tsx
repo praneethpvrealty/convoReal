@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import * as Linking from 'expo-linking';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -31,6 +32,7 @@ import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
 import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
 import { buildInquiryDraft } from '@/lib/approve-contact';
+import { isReengagementError } from '@/lib/customer-window';
 import { haptic } from '@/lib/haptics';
 import type { MessageTemplate , Conversation, Message, MessageStatus } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
@@ -197,6 +199,7 @@ export default function ConversationScreen() {
       <Composer
         conversationId={id}
         contactName={conversation?.contact?.name || undefined}
+        contactPhone={conversation?.contact?.phone || undefined}
         seedDraft={seedDraft}
       />
 
@@ -414,16 +417,22 @@ function MessageBubble({ message }: { message: Message }) {
 function Composer({
   conversationId,
   contactName,
+  contactPhone,
   seedDraft,
 }: {
   conversationId: string;
   contactName?: string;
+  contactPhone?: string;
   seedDraft?: string;
 }) {
   const { colors, dark } = useTheme();
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The text Meta refused under its 24-hour rule. A retry will never
+  // work, so the error bar offers the one route that needs no template —
+  // and it has to carry the exact message that was blocked.
+  const [blockedText, setBlockedText] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -471,6 +480,7 @@ function Composer({
     if (!trimmed || sending) return false;
     setSending(true);
     setError(null);
+    setBlockedText(null);
     try {
       await sendTextMessage(conversationId, trimmed);
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
@@ -479,11 +489,35 @@ function Composer({
       haptic.warn();
       // Outside WhatsApp's 24h service window the API rejects free-form
       // text — surface its message rather than silently retrying.
-      setError(err instanceof ApiError ? err.message : 'Failed to send — try again.');
+      const closed = isReengagementError(err instanceof ApiError ? err.message : err);
+      // Hold the exact text that was refused: this path also carries the
+      // property shortlist sheet's message, which never reaches `draft`.
+      setBlockedText(closed && contactPhone ? trimmed : null);
+      setError(
+        closed
+          ? contactPhone
+            ? 'Past the 24-hour window — send it from your own WhatsApp, or pick a template.'
+            : 'Past the 24-hour window — pick a template to re-engage.'
+          : err instanceof ApiError
+            ? err.message
+            : 'Failed to send — try again.'
+      );
       return false;
     } finally {
       setSending(false);
     }
+  }
+
+  /** Hands the composed text to the agent's own WhatsApp: no template,
+   *  no window, and the line breaks survive. It leaves from a personal
+   *  number, so the Engine never records it — the draft stays put so
+   *  nothing is lost if the agent backs out. */
+  function sendFromOwnWhatsApp() {
+    if (!blockedText || !contactPhone) return;
+    haptic.tap();
+    void Linking.openURL(
+      `https://wa.me/${contactPhone.replace(/\D/g, '')}?text=${encodeURIComponent(blockedText)}`
+    );
   }
 
   async function send() {
@@ -573,8 +607,25 @@ function Composer({
         <View style={[styles.errorBar, { backgroundColor: colors.dangerSoft }]}>
           <Ionicons name="warning-outline" size={14} color={colors.danger} />
           <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>{error}</Text>
+          {blockedText ? (
+            <Pressable
+              onPress={sendFromOwnWhatsApp}
+              hitSlop={8}
+              style={[styles.errorAction, { borderColor: colors.success }]}
+              accessibilityRole="button"
+              accessibilityLabel="Send this message from your own WhatsApp"
+            >
+              <Ionicons name="logo-whatsapp" size={13} color={colors.success} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.success }}>
+                My WhatsApp
+              </Text>
+            </Pressable>
+          ) : null}
           <Pressable
-            onPress={() => setError(null)}
+            onPress={() => {
+              setError(null);
+              setBlockedText(null);
+            }}
             hitSlop={10}
             accessibilityRole="button"
             accessibilityLabel="Dismiss error"
@@ -681,6 +732,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
+  },
+  errorAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
   suggestionRow: {
     flexDirection: 'row',

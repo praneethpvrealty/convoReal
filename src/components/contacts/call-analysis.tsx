@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import type { CallLog } from '@/types';
+import { buildCallUpdateTemplatePayload } from '@/lib/whatsapp/call-update-template';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +17,7 @@ import {
   Loader2,
   Save,
   Send,
+  Smartphone,
   Sparkles,
 } from 'lucide-react';
 
@@ -169,21 +171,39 @@ interface CallAnalysisSectionProps {
   contactId: string;
   call: CallLog;
   contactName: string;
+  contactPhone: string;
   onUpdated: () => void;
 }
 
-export function CallAnalysisSection({ contactId, call, contactName, onUpdated }: CallAnalysisSectionProps) {
+export function CallAnalysisSection({
+  contactId,
+  call,
+  contactName,
+  contactPhone,
+  onUpdated,
+}: CallAnalysisSectionProps) {
   const [draft, setDraft] = useState(call.update_draft ?? '');
   const [showTranscript, setShowTranscript] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [creatingEvents, setCreatingEvents] = useState(false);
+  // Set once the agent has been handed off to their own WhatsApp. The
+  // deep link can't report back, so the "mark as sent" prompt has to
+  // live here rather than in a toast the agent never comes back to.
+  const [handedOff, setHandedOff] = useState(false);
+  const [markingSent, setMarkingSent] = useState(false);
+  // Meta's status for this account's call_update template, learned from
+  // a refused send. Null/DRAFT means the default route isn't available
+  // yet and the account should submit it.
+  const [templateStatus, setTemplateStatus] = useState<string | null>(null);
+  const [submittingTemplate, setSubmittingTemplate] = useState(false);
 
   const hasAnalysis =
     call.summary || call.update_draft || call.transcript || call.recording_url;
   if (!hasAnalysis) return null;
 
   const dirty = draft.trim() !== (call.update_draft ?? '').trim();
+  const canSendExternally = contactPhone.replace(/\D/g, '').length > 0;
 
   const saveDraft = async () => {
     setSaving(true);
@@ -252,18 +272,100 @@ export function CallAnalysisSection({ contactId, call, contactName, onUpdated }:
       const data = await res.json();
       if (!res.ok) {
         if (data.code === 'CUSTOMER_WINDOW_EXPIRED') {
+          // The template is the route that would have worked here, so
+          // say when it is the missing piece; every remaining escape is
+          // manual, and both get named rather than left to be found.
+          setTemplateStatus(data.template_status ?? null);
+          setHandedOff(canSendExternally);
           throw new Error(
-            'The 24-hour WhatsApp window is closed — open the chat in Inbox and send via a template instead.',
+            data.template_status === 'APPROVED'
+              ? 'WhatsApp refused the send and the 24-hour window is closed — send it from your own WhatsApp below.'
+              : data.template_status === 'PENDING'
+                ? 'The call update template is still awaiting Meta approval, and the 24-hour window is closed — send it from your own WhatsApp below for now.'
+                : canSendExternally
+                  ? 'The 24-hour window is closed and there is no approved call update template — set one up below, or send it from your own WhatsApp.'
+                  : 'The 24-hour window is closed and there is no approved call update template — set one up below.',
           );
         }
         throw new Error(data.error || 'Failed to send update');
       }
-      toast.success(`Update sent to ${contactName || 'contact'}`);
+      toast.success(
+        data.data?.channel === 'template'
+          ? `Update sent to ${contactName || 'contact'} as a template — line breaks are flattened into one paragraph.`
+          : `Update sent to ${contactName || 'contact'}`,
+      );
       onUpdated();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to send update');
     } finally {
       setSending(false);
+    }
+  };
+
+  /**
+   * The way out of the 24-hour window: hand the same text to the agent's
+   * own WhatsApp. No template, no approval, no window — and the line
+   * breaks survive, which a template parameter would not allow. The cost
+   * is that it leaves from the agent's personal number, so the Engine
+   * never sees it and can't confirm it went; hence the manual mark
+   * below rather than stamping the row on the way out.
+   */
+  const sendFromOwnWhatsApp = () => {
+    const text = draft.trim();
+    if (!text) {
+      toast.error('The update draft is empty');
+      return;
+    }
+    window.open(
+      `https://wa.me/${contactPhone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`,
+      '_blank',
+      'noopener,noreferrer',
+    );
+    setHandedOff(true);
+  };
+
+  /** One-click create/resubmit of the call_update template. Once Meta
+   *  approves it (minutes to a few hours) every later update goes out
+   *  through it, window or no window. */
+  const submitTemplate = async () => {
+    setSubmittingTemplate(true);
+    try {
+      const res = await fetch('/api/whatsapp/templates/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildCallUpdateTemplatePayload()),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Template submission failed');
+      setTemplateStatus('PENDING');
+      toast.success(
+        'Call update template submitted to Meta — once approved, these updates send whether or not the 24-hour window is open.',
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+    } finally {
+      setSubmittingTemplate(false);
+    }
+  };
+
+  const markSent = async () => {
+    setMarkingSent(true);
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/calls/${call.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mark_sent: true, update_draft: draft }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to mark as sent');
+      }
+      setHandedOff(false);
+      onUpdated();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to mark as sent');
+    } finally {
+      setMarkingSent(false);
     }
   };
 
@@ -379,7 +481,7 @@ export function CallAnalysisSection({ contactId, call, contactName, onUpdated }:
           placeholder="No update draft — edit here to compose one"
           className="bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 min-h-[80px] text-sm resize-none"
         />
-        <div className="flex items-center justify-end gap-2 mt-1.5">
+        <div className="flex items-center justify-end gap-2 mt-1.5 flex-wrap">
           {dirty && (
             <Button
               size="sm"
@@ -392,6 +494,19 @@ export function CallAnalysisSection({ contactId, call, contactName, onUpdated }:
               Save draft
             </Button>
           )}
+          {canSendExternally && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!draft.trim()}
+              onClick={sendFromOwnWhatsApp}
+              title="Opens WhatsApp on your own number with this text ready to send"
+              className="border-green-900/60 text-green-400 hover:bg-green-950/25 hover:text-green-300"
+            >
+              <Smartphone className="size-3.5" />
+              My WhatsApp
+            </Button>
+          )}
           <Button
             size="sm"
             disabled={sending || !draft.trim()}
@@ -402,6 +517,47 @@ export function CallAnalysisSection({ contactId, call, contactName, onUpdated }:
             {call.update_sent_at ? 'Send again' : 'Send on WhatsApp'}
           </Button>
         </div>
+        {templateStatus !== null && templateStatus !== 'APPROVED' && (
+          <div className="flex items-center justify-between gap-2 mt-1.5 rounded-lg border border-slate-700/60 bg-slate-800/40 px-2.5 py-1.5">
+            <p className="text-[11px] text-slate-400">
+              {templateStatus === 'PENDING'
+                ? 'Call update template is with Meta for approval — updates send through it automatically once it clears.'
+                : 'Set up the call update template so these send even when the 24-hour window is shut.'}
+            </p>
+            {templateStatus !== 'PENDING' && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={submittingTemplate}
+                onClick={submitTemplate}
+                className="border-slate-700 text-slate-300 hover:text-white shrink-0"
+              >
+                {submittingTemplate ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                Set up template
+              </Button>
+            )}
+          </div>
+        )}
+        {handedOff && (
+          <div className="flex items-center justify-end gap-2 mt-1.5 text-[11px] text-slate-400">
+            <span>Sent it from your WhatsApp?</span>
+            <button
+              type="button"
+              disabled={markingSent}
+              onClick={markSent}
+              className="font-semibold text-primary hover:text-primary/80 cursor-pointer disabled:opacity-60"
+            >
+              {markingSent ? 'Marking…' : 'Mark as sent'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setHandedOff(false)}
+              className="text-slate-500 hover:text-slate-300 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

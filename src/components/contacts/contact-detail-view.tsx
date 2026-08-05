@@ -2725,6 +2725,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                                   contactId={contactId}
                                   call={call}
                                   contactName={contact?.name || ''}
+                                  contactPhone={contact?.phone || ''}
                                   onUpdated={fetchCalls}
                                 />
                               )}
