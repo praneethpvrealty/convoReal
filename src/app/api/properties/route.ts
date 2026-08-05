@@ -13,6 +13,7 @@ import {
 import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { isoDateOrNull } from "@/lib/inventory/iso-date";
 import { maskPropertyForViewer } from "@/lib/inventory/location-guard";
 import { SQFT_PER_AREA_UNIT } from "@/lib/inventory/property-options";
 import type { Property } from "@/types";
@@ -476,6 +477,7 @@ export async function POST(request: Request) {
       location,
       type,
       status,
+      possession_date,
       bedrooms,
       bathrooms,
       furnishing,
@@ -595,6 +597,7 @@ export async function POST(request: Request) {
       bedrooms: typeof bedrooms === "number" ? bedrooms : null,
       bathrooms: typeof bathrooms === "number" ? bathrooms : null,
       furnishing: typeof furnishing === "string" ? furnishing.trim() || null : null,
+      possession_date: isoDateOrNull(possession_date),
       floor_number: typeof floor_number === "number" ? floor_number : null,
       total_floors: typeof total_floors === "number" ? total_floors : null,
       balconies: typeof balconies === "number" ? balconies : null,

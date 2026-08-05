@@ -18,13 +18,23 @@ import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { InlineDateTimePicker } from '@/components/datetime-field';
 import { ConvoRealLoader } from '@/components/loader';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { EmptyState } from '@/components/ui';
+import { EmptyState, FilterChip } from '@/components/ui';
 import { apiFetch, ApiError } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme , fonts } from '@/lib/theme';
 import { eventTypeFields, type EventFieldKey } from '@/lib/event-fields';
+import {
+  addTodo,
+  deleteTodo,
+  fetchTodos,
+  setTodoCompleted,
+  sortTodos,
+  type Todo,
+  type TodoPriority,
+} from '@/lib/todos';
 import type { Appointment, AppointmentType } from '@/lib/types';
 
 const TYPE_META: Record<AppointmentType, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
@@ -80,6 +90,7 @@ export default function CalendarScreen() {
     queryKey: ['appointments', month.getFullYear(), month.getMonth()],
     queryFn: () => fetchMonth(month),
   });
+  const todosQuery = useQuery({ queryKey: ['todos'], queryFn: fetchTodos });
 
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();
@@ -136,7 +147,14 @@ export default function CalendarScreen() {
           paddingBottom: TAB_BAR_CLEARANCE,
         }}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={isFetching || todosQuery.isFetching}
+            onRefresh={() => {
+              refetch();
+              todosQuery.refetch();
+            }}
+            tintColor={colors.primary}
+          />
         }
       >
         {/* Month header */}
@@ -260,6 +278,24 @@ export default function CalendarScreen() {
             <AppointmentCard key={appt.id} appointment={appt} onPress={() => setDetail(appt)} />
           ))
         )}
+
+        {/* To-dos (web parity: the calendar's task panel). Not tied to
+            the selected day — a flat list under the agenda, open tasks
+            first. Contact/property mentions stay a web smart-add
+            feature; rows created there still show their links here. */}
+        <Text style={[styles.dayLabel, { color: colors.textFaint }]}>To-dos</Text>
+        <TodoQuickAdd />
+        {todosQuery.isLoading ? (
+          <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
+        ) : (todosQuery.data ?? []).length === 0 ? (
+          <Text style={{ fontSize: 13, color: colors.textMuted }}>
+            No tasks yet. Add one above — tasks sync with the web calendar.
+          </Text>
+        ) : (
+          sortTodos(todosQuery.data ?? []).map((todo) => (
+            <TodoRow key={todo.id} todo={todo} now={today} />
+          ))
+        )}
       </ScrollView>
 
       {/* Keyed so the notes draft belongs to one event: without it the
@@ -269,6 +305,251 @@ export default function CalendarScreen() {
         appointment={detail}
         onClose={() => setDetail(null)}
       />
+    </View>
+  );
+}
+
+const PRIORITIES: TodoPriority[] = ['low', 'medium', 'high'];
+
+function priorityColor(priority: TodoPriority, colors: ReturnType<typeof useTheme>['colors']) {
+  return priority === 'high'
+    ? colors.danger
+    : priority === 'medium'
+      ? colors.warning
+      : colors.textFaint;
+}
+
+function TodoQuickAdd() {
+  const { colors, fonts: f } = useTheme();
+  const accountId = useAuthStore((s) => s.profile?.account_id);
+  const [title, setTitle] = useState('');
+  const [priority, setPriority] = useState<TodoPriority>('medium');
+  const [dueDate, setDueDate] = useState<Date | null>(null);
+  const [picker, setPicker] = useState<'date' | 'time' | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    const trimmed = title.trim();
+    if (!trimmed || !accountId) return;
+    haptic.tap();
+    setBusy(true);
+    setError(null);
+    try {
+      await addTodo({ accountId, title: trimmed, priority, dueDate });
+      haptic.success();
+      setTitle('');
+      setPriority('medium');
+      setDueDate(null);
+      setPicker(null);
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    } catch {
+      haptic.warn();
+      setError('Could not add this task. Check your connection and try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <View style={styles.todoAddRow}>
+        <TextInput
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Add a task…"
+          placeholderTextColor={colors.textFaint}
+          accessibilityLabel="New task title"
+          returnKeyType="done"
+          onSubmitEditing={save}
+          style={[
+            styles.todoInput,
+            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          ]}
+        />
+        {busy ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <Pressable
+            onPress={save}
+            hitSlop={8}
+            disabled={!title.trim()}
+            accessibilityRole="button"
+            accessibilityLabel="Add task"
+          >
+            <Ionicons
+              name="add-circle"
+              size={30}
+              color={title.trim() ? colors.primary : colors.textFaint}
+            />
+          </Pressable>
+        )}
+      </View>
+      {title.trim() ? (
+        <View style={{ gap: spacing.sm }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            {PRIORITIES.map((p) => (
+              <FilterChip
+                key={p}
+                label={p === 'low' ? 'Low' : p === 'medium' ? 'Medium' : 'High'}
+                active={priority === p}
+                onPress={() => {
+                  haptic.tap();
+                  setPriority(p);
+                }}
+              />
+            ))}
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                setPicker(picker ? null : 'date');
+                if (!dueDate) {
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  tomorrow.setHours(9, 0, 0, 0);
+                  setDueDate(tomorrow);
+                }
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={dueDate ? 'Change due date' : 'Add due date'}
+              style={[styles.todoDueChip, { borderColor: colors.border }]}
+            >
+              <Ionicons name="calendar-outline" size={14} color={colors.primary} />
+              <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.text }}>
+                {dueDate
+                  ? `${dueDate.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : 'Due date'}
+              </Text>
+              {dueDate ? (
+                <Pressable
+                  onPress={() => {
+                    setDueDate(null);
+                    setPicker(null);
+                  }}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear due date"
+                >
+                  <Ionicons name="close-circle" size={15} color={colors.textFaint} />
+                </Pressable>
+              ) : null}
+            </Pressable>
+          </View>
+          {picker && dueDate ? (
+            <View style={{ gap: spacing.sm }}>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <FilterChip label="Day" active={picker === 'date'} onPress={() => setPicker('date')} />
+                <FilterChip label="Time" active={picker === 'time'} onPress={() => setPicker('time')} />
+              </View>
+              <InlineDateTimePicker
+                value={dueDate}
+                mode={picker}
+                onChange={setDueDate}
+                onClose={() => setPicker(null)}
+              />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+      {error ? <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text> : null}
+    </View>
+  );
+}
+
+function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
+  const { colors, fonts: f } = useTheme();
+  const [busy, setBusy] = useState(false);
+  const due = todo.due_date ? new Date(todo.due_date) : null;
+  const overdue = due !== null && !todo.completed && due.getTime() < now.getTime();
+
+  async function toggle() {
+    haptic.tap();
+    setBusy(true);
+    try {
+      await setTodoCompleted(todo.id, !todo.completed);
+      if (!todo.completed) haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    } catch {
+      haptic.warn();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    haptic.warn();
+    setBusy(true);
+    try {
+      await deleteTodo(todo.id);
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+    } catch {
+      setBusy(false);
+    }
+  }
+
+  const meta = [
+    due
+      ? `${due.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${due.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+      : null,
+    todo.contact ? todo.contact.name || todo.contact.phone : null,
+    todo.property?.title ?? null,
+  ].filter(Boolean);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        todo.completed && { opacity: 0.55 },
+      ]}
+    >
+      <Pressable
+        onPress={toggle}
+        disabled={busy}
+        hitSlop={8}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: todo.completed }}
+        accessibilityLabel={todo.title}
+      >
+        {busy ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <Ionicons
+            name={todo.completed ? 'checkmark-circle' : 'ellipse-outline'}
+            size={24}
+            color={todo.completed ? colors.success : priorityColor(todo.priority, colors)}
+          />
+        )}
+      </Pressable>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text
+          style={[
+            { fontSize: 14.5, fontFamily: f.semibold, color: colors.text },
+            todo.completed && { textDecorationLine: 'line-through' },
+          ]}
+          numberOfLines={2}
+        >
+          {todo.title}
+        </Text>
+        {meta.length > 0 ? (
+          <Text
+            style={{ fontSize: 12, color: overdue ? colors.danger : colors.textMuted }}
+            numberOfLines={1}
+          >
+            {overdue ? 'Overdue · ' : ''}
+            {meta.join(' · ')}
+          </Text>
+        ) : null}
+      </View>
+      <Pressable
+        onPress={remove}
+        disabled={busy}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel="Delete task"
+      >
+        <Ionicons name="trash-outline" size={17} color={colors.textFaint} />
+      </Pressable>
     </View>
   );
 }
@@ -843,5 +1124,24 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radius.md,
     paddingVertical: 10,
+  },
+  todoAddRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  todoInput: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontFamily: fonts.regular,
+  },
+  todoDueChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: radius.full,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
   },
 });

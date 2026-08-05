@@ -10,6 +10,7 @@ import {
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
+import { processBuyerQualificationMessage } from '@/lib/ai/buyer-qualification'
 import {
   applyPreferenceFlowResponse,
   sendPreferenceFlowToContact,
@@ -1254,6 +1255,23 @@ async function processMessage(
       if (handled) {
         return
       }
+    }
+
+    // A lead answering "what are your requirements and budget?" — the
+    // question the lead-sync auto-reply ends with. Files the answer on
+    // the contact and replies with the next missing qualifier or the
+    // matching listings. No-op for accounts with auto_qualify_leads off,
+    // for non-buyers, and for messages that carry no requirement.
+    if (message.type === 'text') {
+      const qualified = await processBuyerQualificationMessage(
+        contentText,
+        contactRecord,
+        conversation,
+        accountId,
+        accessToken,
+        phoneNumberId
+      )
+      if (qualified) return
     }
   }
 

@@ -1,0 +1,271 @@
+import { describe, expect, it } from 'vitest';
+import {
+  appendRequirement,
+  buildMatchesReply,
+  buildNoMatchReply,
+  buildQualifierQuestion,
+  carriesRequirementSignal,
+  nextQualifier,
+  preferenceSignature,
+} from './buyer-qualification';
+import {
+  EMPTY_PREFERENCES,
+  type ExtractedPreferences,
+} from './preference-extraction';
+import type { RankedPropertyMatch } from '@/lib/radar/engine';
+import type { Property } from '@/types';
+
+function prefs(
+  overrides: Partial<ExtractedPreferences> = {}
+): ExtractedPreferences {
+  return { ...EMPTY_PREFERENCES, ...overrides };
+}
+
+function match(overrides: Partial<Property>): RankedPropertyMatch {
+  return {
+    property: {
+      id: 'prop-1',
+      account_id: 'acc',
+      title: 'Farm Land in Devanahalli',
+      price: 17_500_000,
+      location: 'Devanahalli',
+      sublocality: 'Devanahalli',
+      city: 'Bangalore',
+      type: 'Agricultural Land',
+      status: 'Available',
+      listing_type: 'Sale',
+      ...overrides,
+    } as Property,
+    score: 85,
+    details: {
+      type: 'match',
+      location: 'match',
+      budget: 'match',
+      bhk: 'unknown',
+      roi: 'unknown',
+    },
+  };
+}
+
+describe('carriesRequirementSignal', () => {
+  it('reads the real MagicBricks lead reply', () => {
+    expect(carriesRequirementSignal('Land , 1.5 to 2cr')).toBe(true);
+  });
+
+  it('accepts a type or a budget on its own', () => {
+    expect(carriesRequirementSignal('3 BHK apartment')).toBe(true);
+    expect(carriesRequirementSignal('budget around 80 lakhs')).toBe(true);
+    expect(carriesRequirementSignal('commercial')).toBe(true);
+    expect(carriesRequirementSignal('under 90L')).toBe(true);
+  });
+
+  it('rejects chatter, so an agent keeps the thread', () => {
+    expect(carriesRequirementSignal('ok thanks')).toBe(false);
+    expect(carriesRequirementSignal('please call me')).toBe(false);
+    expect(carriesRequirementSignal('')).toBe(false);
+    expect(carriesRequirementSignal(null)).toBe(false);
+  });
+
+  it('rejects a bare locality — that only reads as an answer in context', () => {
+    expect(carriesRequirementSignal('Devanahalli')).toBe(false);
+  });
+});
+
+describe('nextQualifier', () => {
+  it('walks type → budget → location', () => {
+    expect(nextQualifier(prefs())).toBe('type');
+    expect(nextQualifier(prefs({ property_categories: ['plot'] }))).toBe(
+      'budget'
+    );
+    expect(
+      nextQualifier(
+        prefs({ property_categories: ['plot'], budget_max: 20_000_000 })
+      )
+    ).toBe('location');
+  });
+
+  it('is satisfied by a broad category, not only a specific type', () => {
+    expect(nextQualifier(prefs({ property_categories: ['commercial'] }))).toBe(
+      'budget'
+    );
+  });
+
+  it('returns null once all three rungs are answered', () => {
+    expect(
+      nextQualifier(
+        prefs({
+          property_types: ['Agricultural Land'],
+          budget_min: 15_000_000,
+          budget_max: 20_000_000,
+          areas: ['Devanahalli'],
+        })
+      )
+    ).toBeNull();
+  });
+
+  it('counts a named project as a location', () => {
+    expect(
+      nextQualifier(
+        prefs({
+          property_categories: ['residential'],
+          budget_max: 9_000_000,
+          projects: ['Purva Vantage'],
+        })
+      )
+    ).toBeNull();
+  });
+});
+
+describe('buildQualifierQuestion', () => {
+  it('asks for the type first with no assumptions', () => {
+    const q = buildQualifierQuestion('type', prefs());
+    expect(q).toContain('What kind of property');
+  });
+
+  it('reflects the stated type back when asking for budget', () => {
+    const q = buildQualifierQuestion(
+      'budget',
+      prefs({ property_types: ['Agricultural Land'] })
+    );
+    expect(q).toContain('agricultural land');
+    expect(q).toContain('budget');
+  });
+
+  it('reflects type and budget when asking for location', () => {
+    const q = buildQualifierQuestion(
+      'location',
+      prefs({
+        property_categories: ['plot'],
+        budget_min: 15_000_000,
+        budget_max: 20_000_000,
+      })
+    );
+    expect(q).toContain('₹1.5 Cr–₹2 Cr');
+    expect(q).toContain('Which area');
+  });
+
+  it('offers localities we actually have inventory in', () => {
+    const q = buildQualifierQuestion(
+      'location',
+      prefs({ property_categories: ['plot'], budget_max: 20_000_000 }),
+      ['Devanahalli', 'Sarjapur', 'Kanakapura']
+    );
+    expect(q).toContain('Devanahalli, Sarjapur, Kanakapura');
+  });
+
+  it('drops the locality hint when there is no live inventory to name', () => {
+    const q = buildQualifierQuestion(
+      'location',
+      prefs({ property_categories: ['plot'] }),
+      []
+    );
+    expect(q).not.toContain('We have options in');
+  });
+});
+
+describe('buildMatchesReply', () => {
+  it('numbers the shortlist and links each listing to the contact', () => {
+    const reply = buildMatchesReply(
+      'Tanwi Farheen',
+      [
+        match({}),
+        match({
+          id: 'prop-2',
+          title: 'Plot in Sarjapur',
+          sublocality: 'Sarjapur',
+        }),
+      ],
+      'https://convoreal.com/',
+      'contact-9'
+    );
+    expect(reply).toContain('Tanwi');
+    expect(reply).toContain('*1. Farm Land in Devanahalli*');
+    expect(reply).toContain('*2. Plot in Sarjapur*');
+    expect(reply).toContain(
+      'https://convoreal.com/?property_id=prop-1&v=contact-9'
+    );
+    expect(reply).toContain('₹1.75 Cr');
+  });
+
+  it('caps the shortlist at three so a reply never reads as a dump', () => {
+    const many = Array.from({ length: 7 }, (_, i) =>
+      match({ id: `p-${i}`, title: `Listing ${i}` })
+    );
+    const reply = buildMatchesReply(
+      'Tanwi',
+      many,
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(reply).toContain('*3. Listing 2*');
+    expect(reply).not.toContain('*4.');
+  });
+
+  it('reads naturally for a single match', () => {
+    const reply = buildMatchesReply(
+      'Tanwi',
+      [match({})],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(reply).toContain("here's one that fits");
+  });
+});
+
+describe('buildNoMatchReply', () => {
+  it('repeats the brief back so the lead knows it was heard', () => {
+    const reply = buildNoMatchReply(
+      'Tanwi',
+      prefs({
+        property_categories: ['plot'],
+        budget_max: 20_000_000,
+        areas: ['Devanahalli'],
+      })
+    );
+    expect(reply).toContain('Tanwi');
+    expect(reply).toContain('Devanahalli');
+    expect(reply).toContain('up to ₹2 Cr');
+  });
+});
+
+describe('appendRequirement', () => {
+  it('starts the brief from an empty contact', () => {
+    expect(appendRequirement(null, 'Land , 1.5 to 2cr')).toBe(
+      'Land , 1.5 to 2cr'
+    );
+  });
+
+  it('appends the next answer on its own line', () => {
+    expect(appendRequirement('Land , 1.5 to 2cr', 'Devanahalli')).toBe(
+      'Land , 1.5 to 2cr\nDevanahalli'
+    );
+  });
+
+  it('does not stack a repeated answer', () => {
+    expect(appendRequirement('Land , 1.5 to 2cr', 'land , 1.5 TO 2cr')).toBe(
+      'Land , 1.5 to 2cr'
+    );
+  });
+});
+
+describe('preferenceSignature', () => {
+  it('is stable across ordering and case', () => {
+    expect(
+      preferenceSignature(prefs({ areas: ['Devanahalli', 'Sarjapur'] }))
+    ).toBe(preferenceSignature(prefs({ areas: ['sarjapur', 'devanahalli'] })));
+  });
+
+  it('changes when the lead adds something new', () => {
+    expect(preferenceSignature(prefs({ budget_max: 20_000_000 }))).not.toBe(
+      preferenceSignature(
+        prefs({ budget_max: 20_000_000, areas: ['Devanahalli'] })
+      )
+    );
+  });
+
+  it('ignores suggested tags, which never change what we ask or match', () => {
+    expect(preferenceSignature(prefs({ suggested_tags: ['Investor'] }))).toBe(
+      preferenceSignature(prefs())
+    );
+  });
+});

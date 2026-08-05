@@ -42,6 +42,8 @@ export function redirectSystemPath({ path }: { path: string; initial: boolean })
     if (p === '/contacts') return '/contacts';
     if (p === '/calendar') return '/calendar';
     if (p === '/journey') return '/journey';
+    if (p === '/today') return '/today';
+    if (p === '/radar') return '/radar';
     if (p === '/broadcasts') return '/broadcasts';
     if (p === '/settings') return '/more';
     if (p === '' || p === '/' || p === '/dashboard') return '/';

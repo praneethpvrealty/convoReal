@@ -6,6 +6,7 @@ import { geocodeAddress, hasGoogleMapsKey } from "@/lib/maps/google-places";
 import { resolveCoordinatesFromMapLink } from "@/lib/maps/resolve-location";
 import { STARRED_PROPERTY_CAP } from "@/lib/starred-properties";
 import { sanitizeFloorTenancies } from "@/lib/inventory/floor-tenancies";
+import { isoDateOrNull } from "@/lib/inventory/iso-date";
 import {
   canViewExactLocation,
   maskPropertyForViewer,
@@ -102,6 +103,7 @@ export async function PUT(
       location,
       type,
       status,
+      possession_date,
       bedrooms,
       bathrooms,
       furnishing,
@@ -378,6 +380,10 @@ export async function PUT(
 
     if (furnishing !== undefined) {
       updateData.furnishing = typeof furnishing === "string" ? furnishing.trim() || null : null;
+    }
+
+    if (possession_date !== undefined) {
+      updateData.possession_date = isoDateOrNull(possession_date);
     }
 
     if (floor_number !== undefined) {

@@ -25,12 +25,14 @@ import {
 import { useCredits } from '@/lib/use-credits';
 
 const WORKSPACE_LINKS = [
+  { href: '/(app)/today', icon: 'sunny-outline', label: 'Today' },
   { href: '/(app)/dashboard', icon: 'stats-chart-outline', label: 'Overview & Stats' },
   { href: '/(app)/os-widgets', icon: 'grid-outline', label: 'Home-screen widgets' },
   { href: '/(app)/notification-settings', icon: 'notifications-outline', label: 'Notifications' },
   { href: '/(app)/deals', icon: 'trending-up-outline', label: 'Deals & Pipelines' },
   { href: '/(app)/credits', icon: 'flash-outline', label: 'Billing & AI Credits' },
   { href: '/(app)/journey', icon: 'map-outline', label: 'Journeys' },
+  { href: '/(app)/radar', icon: 'radio-outline', label: 'Match Radar' },
   { href: '/(app)/pulse', icon: 'analytics-outline', label: 'Showcase Pulse' },
   { href: '/(app)/broadcasts', icon: 'megaphone-outline', label: 'Broadcast Campaigns' },
   { href: '/(app)/automations', icon: 'git-branch-outline', label: 'Automations & Flows' },

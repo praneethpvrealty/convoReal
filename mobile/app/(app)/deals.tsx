@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Link, Stack } from 'expo-router';
+import { Link, Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   FlatList,
@@ -118,7 +118,31 @@ export default function DealsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ headerShown: true, title: 'Deals' }} />
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          title: 'Deals',
+          headerRight: () =>
+            activePipeline ? (
+              <Pressable
+                onPress={() =>
+                  router.push({
+                    pathname: '/(app)/deal-new',
+                    params: {
+                      pipelineId: activePipeline,
+                      ...(activeStage ? { stageId: activeStage } : {}),
+                    },
+                  })
+                }
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="New deal"
+              >
+                <Ionicons name="add-circle" size={28} color={colors.primary} />
+              </Pressable>
+            ) : null,
+        }}
+      />
 
       {pipelines && pipelines.length > 1 ? (
         <View style={styles.header}>

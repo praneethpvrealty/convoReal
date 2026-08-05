@@ -29,6 +29,7 @@ const ALLOWED_DIRECT_SENDERS = [
   // Replies to an inbound WhatsApp message — the window is open by
   // construction, since the inbound message is what invoked these.
   "src/lib/ai/chatbot-engine.ts",
+  "src/lib/ai/buyer-qualification.ts",
   "src/lib/whatsapp/webhook-handler.ts",
   "src/lib/calendar/whatsapp-scheduler.ts",
   // Template-first paths that keep a text fallback.

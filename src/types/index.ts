@@ -926,6 +926,9 @@ export interface Property {
   /** Title/extent of a raw land parcel (migration 195). */
   legal_status?: string | null;
   conversion_type?: string | null;
+  /** Possession / handover date (migration 198). Day granularity —
+   *  stored and carried as 'YYYY-MM-DD', never parsed through Date. */
+  possession_date?: string | null;
   bedrooms?: number;
   bathrooms?: number;
   /** Unit details for portal posting (migration 179). */
