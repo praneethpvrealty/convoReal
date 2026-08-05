@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SectionLabel } from '@/components/ui';
 import { setConversationArchived, setConversationStatus } from '@/lib/conversation-actions';
 import { haptic } from '@/lib/haptics';
@@ -55,7 +55,10 @@ export function ConversationMenu({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Manage chat">
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm }}>
+      <ScrollView
+        style={sheetScrollArea}
+        contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.sm }}
+      >
         <SectionLabel text="Status" />
         {STATUS_OPTIONS.map((opt) => {
           const active = status === opt.value;
@@ -112,7 +115,7 @@ export function ConversationMenu({
         <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center', marginTop: spacing.xs }}>
           Archiving hides the chat from the inbox but keeps its history. Chats can’t be deleted.
         </Text>
-      </View>
+      </ScrollView>
       <AppDialog {...dialogProps} />
     </BottomSheet>
   );

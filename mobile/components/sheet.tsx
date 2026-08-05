@@ -1,9 +1,37 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
-import { Keyboard, Modal, Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { createContext, useContext, useEffect, useState } from 'react';
+import {
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, useTheme } from '@/lib/theme';
+
+const SheetFrameContext = createContext(0);
+
+/** Height available to the open sheet: its modal frame minus the
+ *  keyboard, measured from layout — window dimensions misreport on
+ *  foldables, split-screen and freeform windows. Window height stands
+ *  in until the first layout pass. */
+export function useSheetFrame(): number {
+  const measured = useContext(SheetFrameContext);
+  const windowHeight = useWindowDimensions().height;
+  return measured > 0 ? measured : windowHeight;
+}
+
+/** Scroll areas inside a sheet: content-sized until the sheet hits its
+ *  height cap, then shrunk so they scroll instead of pushing content
+ *  and footers past the cap. Any View between the sheet and the scroll
+ *  area needs flexShrink: 1 of its own, or it blocks the shrink. */
+export const sheetScrollArea: ViewStyle = { flexGrow: 0, flexShrink: 1 };
 
 /** Track the on-screen keyboard height so a bottom-anchored sheet can
  *  lift its content above it (RN Modals don't resize for the keyboard,
@@ -52,6 +80,8 @@ export function BottomSheet({
   const { colors, dark, type } = useTheme();
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardHeight(visible);
+  const [frameHeight, setFrameHeight] = useState(0);
+  const available = Math.max(0, frameHeight - keyboardHeight);
   // Near-opaque on purpose: the sheet floats over arbitrary screen
   // content, and a translucent glass fill lets the list underneath
   // read straight through the sheet (same rule as dropdowns and
@@ -67,6 +97,7 @@ export function BottomSheet({
     >
       <Pressable
         style={[styles.backdrop, { backgroundColor: colors.backdrop, paddingBottom: keyboardHeight }]}
+        onLayout={(e) => setFrameHeight(e.nativeEvent.layout.height)}
         onPress={onClose}
         accessibilityRole="button"
         accessibilityLabel="Close"
@@ -84,6 +115,7 @@ export function BottomSheet({
                   ? spacing.md
                   : Math.max(insets.bottom, spacing.md) + spacing.md,
             },
+            available > 0 ? { maxHeight: Math.round(available * 0.88) } : null,
             contentStyle,
           ]}
         >
@@ -102,7 +134,7 @@ export function BottomSheet({
               </Pressable>
             </View>
           ) : null}
-          {children}
+          <SheetFrameContext.Provider value={available}>{children}</SheetFrameContext.Provider>
         </Pressable>
       </Pressable>
     </Modal>

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { Avatar } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { openContactChat } from '@/lib/open-chat';
@@ -38,7 +38,7 @@ export function PropertyViewersSheet({
 
   return (
     <BottomSheet visible={Boolean(propertyId)} onClose={onClose} title="Identified viewers">
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
         <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={2}>
           {propertyTitle}
         </Text>
@@ -60,7 +60,7 @@ export function PropertyViewersSheet({
           </View>
         ) : (
           <>
-            <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ gap: spacing.sm }}>
+            <ScrollView style={[sheetScrollArea, { maxHeight: 380 }]} contentContainerStyle={{ gap: spacing.sm }}>
               {viewers.map((v) => {
                 const label = v.name || v.phone || 'Unknown';
                 return (

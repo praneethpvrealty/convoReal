@@ -14,7 +14,7 @@ import {
   View,
 } from 'react-native';
 
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { SectionLabel } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { buildEngineInvite, type EngineNumber } from '@/lib/engine-invite';
@@ -105,7 +105,11 @@ export function MoveToEngineSheet({
           </Text>
         </View>
       ) : (
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.md }}>
+        <ScrollView
+          style={sheetScrollArea}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: spacing.md }}
+        >
           <Text style={{ fontSize: 12.5, color: colors.textMuted, lineHeight: 18 }}>
             Send this from wherever you already message {contact.name || 'them'}. One tap opens
             their chat on the Engine number and switches on property alerts.

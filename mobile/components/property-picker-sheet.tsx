@@ -121,14 +121,14 @@ export function PropertyPickerSheet({
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Share properties to chat">
-      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md }}>
+      <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, flexShrink: 1 }}>
         <SearchBar
           value={search}
           onChangeText={setSearch}
           placeholder='Search inventory — area, type, "2bhk under 80L"'
         />
 
-        <View style={{ maxHeight: 240 }}>
+        <View style={{ maxHeight: 240, flexShrink: 1 }}>
           {isLoading ? (
             <View style={{ paddingVertical: spacing.xl, alignItems: 'center' }}>
               <ActivityIndicator color={colors.primary} />
