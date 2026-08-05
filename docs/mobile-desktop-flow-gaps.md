@@ -25,16 +25,16 @@ Audit of the Expo app (`mobile/`, 27 route files) against the Next.js dashboard 
 
 ## Partial on mobile
 
-| Feature           | Mobile has                                                      | Missing vs web                             |
-| ----------------- | --------------------------------------------------------------- | ------------------------------------------ |
-| Deals / pipelines | View stages, counts, value totals; move stage                   | Deal create/edit/delete; pipeline creation |
-| Property editing  | Full common-field editor (`property-edit.tsx`, requires `?id=`) | Property creation; documents; deal terms   |
-| Automations       | On/off toggle                                                   | Builder, logs, create                      |
-| Flows             | Status list                                                     | Builder, runs, detail                      |
-| Journey           | Read-only stage list per contact                                | Mind-map canvas; advance/drop actions      |
-| Owners Den        | Dashboard, bids, settings                                       | Owner property list/new/detail; deal rooms |
-| Broadcasts        | List, detail, compose                                           | Template submission                        |
-| Settings          | Profile, appearance, biometrics, notification prefs             | Everything workspace-level                 |
+| Feature           | Mobile has                                                      | Missing vs web                                                                 |
+| ----------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Deals / pipelines | View stages, counts, value totals; move stage; create deals     | Deal edit/delete; assignment, brokerage, non-INR currencies; pipeline creation |
+| Property editing  | Full common-field editor (`property-edit.tsx`, requires `?id=`) | Property creation; documents; deal terms                                       |
+| Automations       | On/off toggle                                                   | Builder, logs, create                                                          |
+| Flows             | Status list                                                     | Builder, runs, detail                                                          |
+| Journey           | Read-only stage list per contact                                | Mind-map canvas; advance/drop actions                                          |
+| Owners Den        | Dashboard, bids, settings                                       | Owner property list/new/detail; deal rooms                                     |
+| Broadcasts        | List, detail, compose                                           | Template submission                                                            |
+| Settings          | Profile, appearance, biometrics, notification prefs             | Everything workspace-level                                                     |
 
 ## At parity (or better) on mobile
 
@@ -53,6 +53,7 @@ Mobile-only extras: device-contact import, "near me" GPS search, Android/iOS hom
 - **Match Radar** — `mobile/app/(app)/radar.tsx` (More → Match Radar): event feed, target selection, one-tap send via `/api/radar/send`, dismiss, masked direct-owner cards. Template setup and the deal-mode unlock stay on the web.
 - **Todos** — `mobile/lib/todos.ts` + a To-dos section on the Calendar tab: quick-add with priority and due date/time, complete/delete, linked contact/property display. Contact/property mentions stay a web smart-add feature.
 - **Today** — `mobile/app/(app)/today.tsx` (More → Today): daily numbers, WhatsApp windows about to close, hot leads going quiet, today's appointments and due to-dos with inline complete. Streak flame and custom date ranges stay web-only.
+- **Deal creation** — `mobile/app/(app)/deal-new.tsx` (+ button on Deals): title, value, contact and property search, stage, expected close date, notes, via `POST /api/deals` (which syncs the linked property's status). Edit/delete, assignment, brokerage and non-INR currencies stay on the web form.
 
 ## Suggested closing order
 
