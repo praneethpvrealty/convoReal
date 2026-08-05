@@ -24,6 +24,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { fonts, spacing, useTheme } from '@/lib/theme';
 import type { Contact } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /** Side-by-side panes need this much width; below it the directory
  *  behaves like every other phone list and pushes the contact screen. */
@@ -61,7 +62,8 @@ async function fetchAgents(): Promise<AgentsData> {
       .select('owner_contact_id')
       .in('owner_contact_id', ids);
     for (const row of (rows ?? []) as { owner_contact_id: string }[]) {
-      propertyCounts[row.owner_contact_id] = (propertyCounts[row.owner_contact_id] ?? 0) + 1;
+      propertyCounts[row.owner_contact_id] =
+        (propertyCounts[row.owner_contact_id] ?? 0) + 1;
     }
   }
 
@@ -75,10 +77,11 @@ export default function AgentsScreen() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['agents-directory'],
     queryFn: fetchAgents,
   });
+  const pull = usePullRefresh(refetch);
 
   const q = search.trim().toLowerCase();
   const shown = (data?.agents ?? []).filter(
@@ -116,7 +119,11 @@ export default function AgentsScreen() {
           keyExtractor={(a) => a.id}
           contentContainerStyle={{ paddingBottom: spacing.xl }}
           refreshControl={
-            <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
           }
           ListEmptyComponent={
             <EmptyState
@@ -163,7 +170,10 @@ export default function AgentsScreen() {
           </View>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xl }}
+            contentContainerStyle={{
+              padding: spacing.lg,
+              paddingBottom: spacing.xl,
+            }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
@@ -216,7 +226,10 @@ function AgentRow({
       <View style={{ flex: 1, gap: 3 }}>
         <View style={styles.nameRow}>
           <Text
-            style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}
+            style={[
+              styles.name,
+              { color: colors.text, fontFamily: f.extrabold },
+            ]}
             numberOfLines={1}
           >
             {name}
@@ -227,19 +240,34 @@ function AgentRow({
             </View>
           ) : null}
         </View>
-        <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
+        <Text
+          style={{ fontSize: 12.5, color: colors.textMuted }}
+          numberOfLines={1}
+        >
           {[agent.company, agent.phone].filter(Boolean).join(' · ')}
         </Text>
       </View>
       {propertyCount > 0 ? (
-        <Tag label={`${propertyCount} ${propertyCount === 1 ? 'property' : 'properties'}`} color={colors.primary} />
+        <Tag
+          label={`${propertyCount} ${propertyCount === 1 ? 'property' : 'properties'}`}
+          color={colors.primary}
+        />
       ) : null}
     </PressScale>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md },
+  header: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+  },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
+  name: {
+    fontSize: 16.5,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
 });

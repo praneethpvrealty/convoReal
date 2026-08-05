@@ -24,6 +24,7 @@ import {
   fetchTodaysAgenda,
 } from '@/lib/today';
 import { setTodoCompleted, type Todo } from '@/lib/todos';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /**
  * Web parity: the "Today" command-center tab. One screen for the day's
@@ -60,17 +61,14 @@ export default function TodayScreen() {
     sessions.isLoading ||
     quiet.isLoading ||
     agenda.isLoading;
-  const refreshing =
-    insights.isFetching ||
-    sessions.isFetching ||
-    quiet.isFetching ||
-    agenda.isFetching;
-  const refetchAll = () => {
-    insights.refetch();
-    sessions.refetch();
-    quiet.refetch();
-    agenda.refetch();
-  };
+  const pull = usePullRefresh(() =>
+    Promise.all([
+      insights.refetch(),
+      sessions.refetch(),
+      quiet.refetch(),
+      agenda.refetch(),
+    ])
+  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -81,8 +79,8 @@ export default function TodayScreen() {
         contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refetchAll}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={colors.primary}
           />
         }

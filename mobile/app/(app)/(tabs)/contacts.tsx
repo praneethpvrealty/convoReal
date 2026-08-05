@@ -4,6 +4,7 @@ import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -13,11 +14,18 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+} from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
-import { ApproveCelebration, type ApproveCelebrationState } from '@/components/approve-celebration';
+import {
+  ApproveCelebration,
+  type ApproveCelebrationState,
+} from '@/components/approve-celebration';
 import { EnterRow, PressScale, PulseRing } from '@/components/motion';
 import { ContextMenu } from '@/components/context-menu';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
@@ -43,10 +51,21 @@ import { haptic } from '@/lib/haptics';
 import { openContactChat } from '@/lib/open-chat';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { classificationColors, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import {
+  classificationColors,
+  radius,
+  spacing,
+  useTheme,
+  fonts,
+} from '@/lib/theme';
 import { useDebounced } from '@/lib/use-debounced';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
-import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types';
+import {
+  CLASSIFICATIONS,
+  type Classification,
+  type Contact,
+} from '@/lib/types';
 
 /** Web parity quick filters (contacts-content.tsx). */
 const SEGMENTS = [
@@ -86,11 +105,18 @@ async function staffPhoneFilter(): Promise<string | null> {
     queryKey: ['staff-phone-filter'],
     staleTime: 10 * 60_000,
     queryFn: async () => {
-      const { data } = await supabase.from('profiles').select('phone').not('phone', 'is', null);
+      const { data } = await supabase
+        .from('profiles')
+        .select('phone')
+        .not('phone', 'is', null);
       const digits = Array.from(
         new Set(
           (data ?? [])
-            .map((p: { phone: string | null }) => String(p.phone ?? '').replace(/\D/g, '').slice(-10))
+            .map((p: { phone: string | null }) =>
+              String(p.phone ?? '')
+                .replace(/\D/g, '')
+                .slice(-10)
+            )
             .filter((d) => d.length === 10)
         )
       );
@@ -101,7 +127,10 @@ async function staffPhoneFilter(): Promise<string | null> {
   });
 }
 
-async function fetchContacts(search: string, segment: SegmentKey): Promise<ContactsPage> {
+async function fetchContacts(
+  search: string,
+  segment: SegmentKey
+): Promise<ContactsPage> {
   const q = search.trim();
   const staffFilter = await staffPhoneFilter();
   let query = supabase
@@ -131,11 +160,21 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
         .from('deals')
         .select('contact_id')
         .eq('status', 'won');
-      const ids = Array.from(new Set((wonDeals ?? []).map((d) => d.contact_id).filter(Boolean)));
-      if (ids.length === 0) return { contacts: [], tags: {}, propertyCodes: {}, propertyTitles: {} };
+      const ids = Array.from(
+        new Set((wonDeals ?? []).map((d) => d.contact_id).filter(Boolean))
+      );
+      if (ids.length === 0)
+        return {
+          contacts: [],
+          tags: {},
+          propertyCodes: {},
+          propertyTitles: {},
+        };
       query = query.in('id', ids);
     } else if (segment === 'market_active') {
-      query = query.or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
+      query = query.or(
+        'lead_temp.eq.HOT,last_inquired_property_id.not.is.null'
+      );
     }
   }
 
@@ -159,13 +198,17 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
         .select('contact_id')
         .in('tag_id', tagIds)
         .limit(150);
-      tagContactIds = (taggedRows ?? []).map((r: { contact_id: string }) => r.contact_id);
+      tagContactIds = (taggedRows ?? []).map(
+        (r: { contact_id: string }) => r.contact_id
+      );
     }
     const noteContactIds = (noteResult.data ?? []).map(
       (r: { contact_id: string }) => r.contact_id
     );
 
-    const matchedIds = Array.from(new Set([...tagContactIds, ...noteContactIds])).slice(0, 150);
+    const matchedIds = Array.from(
+      new Set([...tagContactIds, ...noteContactIds])
+    ).slice(0, 150);
 
     let orFilter =
       `name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},` +
@@ -209,12 +252,18 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
           .limit(600)
       : Promise.resolve({ data: [] }),
     interestIds.length
-      ? supabase.from('properties').select('id, property_code, title').in('id', interestIds)
+      ? supabase
+          .from('properties')
+          .select('id, property_code, title')
+          .in('id', interestIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
   const tags: Record<string, string[]> = {};
-  for (const row of (tagRows.data ?? []) as { contact_id: string; tag: { name: string } | { name: string }[] | null }[]) {
+  for (const row of (tagRows.data ?? []) as {
+    contact_id: string;
+    tag: { name: string } | { name: string }[] | null;
+  }[]) {
     const tag = Array.isArray(row.tag) ? row.tag[0] : row.tag;
     if (!tag?.name) continue;
     (tags[row.contact_id] ??= []).push(tag.name);
@@ -243,7 +292,10 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
     staffFilter ? q.not('phone', 'in', staffFilter) : q;
   const [active, review, favorites, market, wonDeals] = await Promise.all([
     excludeStaff(
-      supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('status', 'active')
+      supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
     ),
     excludeStaff(
       supabase
@@ -303,18 +355,28 @@ export default function ContactsScreen() {
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['contacts', debounced, segment],
     queryFn: () => fetchContacts(debounced, segment),
     // Don't wipe the list to skeletons on every keystroke.
     placeholderData: keepPreviousData,
   });
-  const counts = useQuery({ queryKey: ['contact-counts'], queryFn: fetchSegmentCounts });
+  const counts = useQuery({
+    queryKey: ['contact-counts'],
+    queryFn: fetchSegmentCounts,
+  });
+  const pull = usePullRefresh(() => Promise.all([refetch(), counts.refetch()]));
 
   /** Desktop-parity approve: no confirmation dialog — flip active and
    *  auto-send the inquired property's details via WhatsApp, then
    *  celebrate with the follow-up funnel (falling back to the thread's
-   *  template picker outside the 24-hour window). */
+   *  template picker outside the 24-hour window).
+   *
+   *  The row stays in a loading state for the whole trip. It is not a
+   *  local flag flip: the contact update, the draft build, the
+   *  conversation lookup and the Meta send are four round trips, so
+   *  without it the button sits there looking untapped for seconds and
+   *  invites a second press that would send the details twice. */
   async function handleApprove(contact: Contact) {
     // Only the same lead twice is refused — approving the next one while
     // this is still sending is the point.
@@ -377,7 +439,14 @@ export default function ContactsScreen() {
     <View style={{ flex: 1 }}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.titleRow}>
-          <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Contacts</Text>
+          <Text
+            style={[
+              styles.title,
+              { color: colors.text, fontFamily: f.extrabold },
+            ]}
+          >
+            Contacts
+          </Text>
           <View style={{ flexDirection: 'row', gap: spacing.xs }}>
             {/* User-picked hybrid: the person-with-tie glyph with a tiny
                 "Ag" caption — reads as Agents without a full text label. */}
@@ -388,7 +457,11 @@ export default function ContactsScreen() {
               accessibilityLabel="Agents directory"
               style={styles.agentsButton}
             >
-              <MaterialCommunityIcons name="account-tie-outline" size={18} color={colors.primary} />
+              <MaterialCommunityIcons
+                name="account-tie-outline"
+                size={18}
+                color={colors.primary}
+              />
               <Text
                 style={{
                   fontSize: 9,
@@ -453,9 +526,16 @@ export default function ContactsScreen() {
           style={{ flex: 1 }}
           data={data?.contacts ?? []}
           keyExtractor={(c) => c.id}
-          contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: TAB_BAR_CLEARANCE }}
+          contentContainerStyle={{
+            paddingTop: spacing.xs,
+            paddingBottom: TAB_BAR_CLEARANCE,
+          }}
           refreshControl={
-            <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
           }
           ListEmptyComponent={
             <EmptyState
@@ -476,17 +556,21 @@ export default function ContactsScreen() {
                 contact={item}
                 dark={dark}
                 contactedProperty={
-                  item.status === 'pending_review' && item.last_inquired_property_id
+                  item.status === 'pending_review' &&
+                  item.last_inquired_property_id
                     ? data?.propertyTitles?.[item.last_inquired_property_id]
                     : undefined
                 }
                 tags={data?.tags[item.id] ?? []}
+                approving={approvingId === item.id}
                 onApprove={() => handleApprove(item)}
                 approving={approvingIds.has(item.id)}
                 onToggleFavorite={() => handleToggleFavorite(item)}
                 favoriting={favoritingIds.has(item.id)}
                 onPeekStart={() => setPeekId(item.id)}
-                onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
+                onPeekEnd={() =>
+                  setPeekId((cur) => (cur === item.id ? null : cur))
+                }
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
               />
               {peekId === item.id ? (
@@ -517,7 +601,9 @@ export default function ContactsScreen() {
                   icon: 'logo-whatsapp',
                   label: 'Blank WhatsApp chat',
                   onPress: () =>
-                    Linking.openURL(`https://wa.me/${waMenu.contact.phone.replace(/\D/g, '')}`),
+                    Linking.openURL(
+                      `https://wa.me/${waMenu.contact.phone.replace(/\D/g, '')}`
+                    ),
                 },
                 {
                   icon: 'chatbubbles-outline',
@@ -525,7 +611,10 @@ export default function ContactsScreen() {
                   onPress: async () => {
                     const outcome = await openContactChat(waMenu.contact);
                     if (!outcome.ok && outcome.error) {
-                      show({ title: 'Could not open thread', message: outcome.error });
+                      show({
+                        title: 'Could not open thread',
+                        message: outcome.error,
+                      });
                     }
                   },
                 },
@@ -543,7 +632,13 @@ export default function ContactsScreen() {
  * Uses POST /api/contacts — the same transactional route the web
  * form calls, so plan limits, rate limits and RLS all apply.
  */
-function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function QuickAddContact({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
   const { colors, dark, fonts: f } = useTheme();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -582,7 +677,11 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
       router.push(`/(app)/contact/${id}`);
     } catch (e) {
       haptic.warn();
-      setError(friendlyError(e instanceof ApiError ? e.message : 'Could not add the contact'));
+      setError(
+        friendlyError(
+          e instanceof ApiError ? e.message : 'Could not add the contact'
+        )
+      );
     } finally {
       setSaving(false);
     }
@@ -597,7 +696,9 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
       }}
       contentStyle={{ paddingHorizontal: spacing.lg, gap: spacing.md }}
     >
-      <Text style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}>
+      <Text
+        style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}
+      >
         New contact
       </Text>
       {error ? <Banner kind="error" text={error} /> : null}
@@ -615,8 +716,13 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
         onChangeText={setPhone}
       />
       <View style={{ gap: spacing.sm }}>
-        <SectionLabel text="Classification" style={{ color: colors.textMuted }} />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        <SectionLabel
+          text="Classification"
+          style={{ color: colors.textMuted }}
+        />
+        <View
+          style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+        >
           {CLASSIFICATIONS.map((c) => {
             const active = classification === c;
             const hue = classificationColors[c]?.[dark ? 'dark' : 'light'];
@@ -656,7 +762,9 @@ function QuickAddContact({ visible, onClose }: { visible: boolean; onClose: () =
         disabled={!phone.trim()}
         onPress={save}
       />
-      <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
+      <Text
+        style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}
+      >
         Budgets, notes, tags and more can be added from the contact card.
       </Text>
     </BottomSheet>
@@ -668,6 +776,7 @@ function ContactRow({
   dark,
   tags,
   contactedProperty,
+  approving,
   onApprove,
   approving,
   onToggleFavorite,
@@ -680,6 +789,7 @@ function ContactRow({
   dark: boolean;
   tags: string[];
   contactedProperty?: string;
+  approving: boolean;
   onApprove: () => void;
   approving?: boolean;
   onToggleFavorite: () => void;
@@ -709,48 +819,43 @@ function ContactRow({
       contentStyle={StyleSheet.flatten([
         listCard,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        // The whole row recedes while its approval is in flight, so the
+        // busy one is obvious in a list of otherwise identical rows.
+        approving ? { opacity: 0.6 } : null,
       ])}
     >
-        <Avatar name={name} size={42} />
-        <View style={styles.rowBody}>
-          <View style={styles.nameRow}>
-            <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]} numberOfLines={1}>
-              {name}
-            </Text>
-            {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
-            <Pressable
-              hitSlop={10}
-              onPress={() => Linking.openURL(`tel:${contact.phone}`)}
-              accessibilityRole="button"
-              accessibilityLabel={`Call ${name}`}
-              style={[styles.inlineCall, { backgroundColor: colors.primarySoft }]}
+      <Avatar name={name} size={42} />
+      <View style={styles.rowBody}>
+        <View style={styles.nameRow}>
+          <Text
+            style={[
+              styles.name,
+              { color: colors.text, fontFamily: f.extrabold },
+            ]}
+            numberOfLines={1}
+          >
+            {name}
+          </Text>
+          {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
+          <Pressable
+            hitSlop={10}
+            onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`Call ${name}`}
+            style={[styles.inlineCall, { backgroundColor: colors.primarySoft }]}
+          >
+            <Ionicons name="call" size={13} color={colors.primary} />
+          </Pressable>
+          {contact.last_contacted_at ? (
+            <Text
+              style={{
+                fontSize: 11,
+                color: colors.textFaint,
+                marginLeft: 'auto',
+              }}
             >
-              <Ionicons name="call" size={13} color={colors.primary} />
-            </Pressable>
-            {contact.last_contacted_at ? (
-              <Text style={{ fontSize: 11, color: colors.textFaint, marginLeft: 'auto' }}>
-                {chatListTime(contact.last_contacted_at)}
-              </Text>
-            ) : null}
-          </View>
-          <View style={styles.metaRow}>
-            {contact.classification ? (
-              <Tag label={contact.classification} color={clsColor} />
-            ) : null}
-            {tags.slice(0, 2).map((t) => (
-              <Tag key={t} label={t} />
-            ))}
-            {contact.name ? (
-              <Text style={{ fontSize: 12.5, color: colors.textFaint }}>{contact.phone}</Text>
-            ) : null}
-          </View>
-          {contactedProperty ? (
-            <View style={styles.contactedRow}>
-              <Ionicons name="home" size={11} color={colors.warning} />
-              <Text style={{ flex: 1, fontSize: 11.5, color: colors.textMuted }} numberOfLines={1}>
-                Contacted about {contactedProperty}
-              </Text>
-            </View>
+              {chatListTime(contact.last_contacted_at)}
+            </Text>
           ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -804,24 +909,25 @@ function ContactRow({
                 )}
               </Pressable>
             </PulseRing>
-          ) : null}
-          <Pressable
-            hitSlop={8}
-            onPress={() => {
-              haptic.tap();
-              openWelcomeWhatsApp(contact);
-            }}
-            onLongPress={(e) => {
-              haptic.tap();
-              onWhatsAppMenu({ x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`WhatsApp ${name} — long press for more send options`}
-            style={[styles.action, { backgroundColor: colors.successSoft }]}
-          >
-            <Ionicons name="logo-whatsapp" size={18} color={colors.success} />
-          </Pressable>
-        </View>
+          )
+        ) : null}
+        <Pressable
+          hitSlop={8}
+          onPress={() => {
+            haptic.tap();
+            openWelcomeWhatsApp(contact);
+          }}
+          onLongPress={(e) => {
+            haptic.tap();
+            onWhatsAppMenu({ x: e.nativeEvent.pageX, y: e.nativeEvent.pageY });
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`WhatsApp ${name} — long press for more send options`}
+          style={[styles.action, { backgroundColor: colors.successSoft }]}
+        >
+          <Ionicons name="logo-whatsapp" size={18} color={colors.success} />
+        </Pressable>
+      </View>
     </PressScale>
   );
 }
@@ -854,7 +960,11 @@ function ContactPeekCard({
       )
     )
   ).slice(0, 2);
-  const budget = formatBudgetRange(contact.min_budget, contact.max_budget, contact.no_budget);
+  const budget = formatBudgetRange(
+    contact.min_budget,
+    contact.max_budget,
+    contact.no_budget
+  );
 
   const headline =
     [budget ? `Budget ${budget}` : null, contact.company, contact.email]
@@ -862,10 +972,14 @@ function ContactPeekCard({
       .slice(0, 2)
       .join(' · ') || 'No preferences captured yet';
   const detail = [
-    contact.areas_of_interest?.length ? contact.areas_of_interest.slice(0, 2).join(', ') : null,
+    contact.areas_of_interest?.length
+      ? contact.areas_of_interest.slice(0, 2).join(', ')
+      : null,
     ...tags.slice(0, 2),
     ...interests.map((code) => `★ ${code}`),
-    contact.last_contacted_at ? `Last ${chatListTime(contact.last_contacted_at)}` : null,
+    contact.last_contacted_at
+      ? `Last ${chatListTime(contact.last_contacted_at)}`
+      : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -888,11 +1002,17 @@ function ContactPeekCard({
         <Ionicons name="flash" size={16} color={colors.primary} />
       </View>
       <View style={{ flex: 1, gap: 2 }}>
-        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+        <Text
+          style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}
+          numberOfLines={1}
+        >
           {headline}
         </Text>
         {detail ? (
-          <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+          <Text
+            style={{ fontSize: 12, color: colors.textMuted }}
+            numberOfLines={1}
+          >
             {detail}
           </Text>
         ) : null}
@@ -906,9 +1026,17 @@ function ContactPeekCard({
  * create them through POST /api/contacts — the same gated route as
  * the web import, so plan limits and RLS apply per contact.
  */
-function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+function DeviceImportSheet({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
   const { colors, fonts: f } = useTheme();
-  const [rows, setRows] = useState<{ key: string; name: string; phone: string }[] | null>(null);
+  const [rows, setRows] = useState<
+    { key: string; name: string; phone: string }[] | null
+  >(null);
   const [denied, setDenied] = useState(false);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -931,7 +1059,9 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
       try {
         DeviceContacts = await import('expo-contacts/legacy');
       } catch {
-        setResult('Importing from your phone needs the latest ConvoReal build. Install the newest version to use it.');
+        setResult(
+          'Importing from your phone needs the latest ConvoReal build. Install the newest version to use it.'
+        );
         return;
       }
       const { status } = await DeviceContacts.requestPermissionsAsync();
@@ -1070,11 +1200,24 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
           />
         ) : null}
         {result ? <Banner kind="success" text={result} /> : null}
-        <TextField placeholder="Filter your phone contacts…" value={filter} onChangeText={setFilter} />
+        <TextField
+          placeholder="Filter your phone contacts…"
+          value={filter}
+          onChangeText={setFilter}
+        />
       </View>
-      <ScrollView style={[sheetScrollArea, { maxHeight: 320 }]} contentContainerStyle={{ paddingVertical: spacing.sm }}>
+      <ScrollView
+        style={[sheetScrollArea, { maxHeight: 320 }]}
+        contentContainerStyle={{ paddingVertical: spacing.sm }}
+      >
         {rows === null && !denied ? (
-          <Text style={{ textAlign: 'center', padding: spacing.lg, color: colors.textMuted }}>
+          <Text
+            style={{
+              textAlign: 'center',
+              padding: spacing.lg,
+              color: colors.textMuted,
+            }}
+          >
             Loading phone contacts…
           </Text>
         ) : (
@@ -1087,7 +1230,10 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: isSel }}
                 accessibilityLabel={r.name || r.phone}
-                style={[styles.importRow, { borderTopColor: colors.glassBorder }]}
+                style={[
+                  styles.importRow,
+                  { borderTopColor: colors.glassBorder },
+                ]}
               >
                 <Ionicons
                   name={isSel ? 'checkbox' : 'square-outline'}
@@ -1095,11 +1241,20 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
                   color={isSel ? colors.primary : colors.textFaint}
                 />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }} numberOfLines={1}>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                    numberOfLines={1}
+                  >
                     {r.name || r.phone}
                   </Text>
                   {r.name ? (
-                    <Text style={{ fontSize: 12, color: colors.textFaint }}>{r.phone}</Text>
+                    <Text style={{ fontSize: 12, color: colors.textFaint }}>
+                      {r.phone}
+                    </Text>
                   ) : null}
                 </View>
               </Pressable>
@@ -1107,14 +1262,30 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
           })
         )}
       </ScrollView>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.sm,
+          gap: spacing.sm,
+        }}
+      >
         {busy ? (
-          <Text style={{ textAlign: 'center', fontSize: 12, color: colors.textMuted }}>
+          <Text
+            style={{
+              textAlign: 'center',
+              fontSize: 12,
+              color: colors.textMuted,
+            }}
+          >
             Importing {Math.min(done + 1, selected.size)} of {selected.size}…
           </Text>
         ) : null}
         <PrimaryButton
-          label={selected.size > 0 ? `Import ${selected.size} selected` : 'Select contacts to import'}
+          label={
+            selected.size > 0
+              ? `Import ${selected.size} selected`
+              : 'Select contacts to import'
+          }
           busy={busy}
           disabled={selected.size === 0}
           onPress={importSelected}
@@ -1126,7 +1297,13 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
             accessibilityLabel="Cancel import"
             style={{ alignItems: 'center', paddingVertical: spacing.sm }}
           >
-            <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.textMuted }}>
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.semibold,
+                color: colors.textMuted,
+              }}
+            >
               Cancel
             </Text>
           </Pressable>
@@ -1137,8 +1314,16 @@ function DeviceImportSheet({ visible, onClose }: { visible: boolean; onClose: ()
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: spacing.lg, gap: spacing.md, paddingBottom: spacing.md },
-  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: {
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.md,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   title: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
   agentsButton: {
     minWidth: 36,
@@ -1148,7 +1333,12 @@ const styles = StyleSheet.create({
   },
   rowBody: { flex: 1, gap: 3 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
+  name: {
+    fontSize: 16.5,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   contactedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   inlineCall: {
