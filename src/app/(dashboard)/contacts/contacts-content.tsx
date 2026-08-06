@@ -69,6 +69,7 @@ import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
+import { LogCallPrompt, type PendingDial } from '@/components/contacts/log-call-prompt';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { CalendarDays } from 'lucide-react';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
@@ -475,6 +476,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   };
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
+  const [pendingDial, setPendingDial] = useState<PendingDial | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(initialSearch);
   // `search` drives the controlled input for instant typing feedback;
@@ -2216,6 +2218,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         href={`tel:${contact.phone}`}
                         className="hover:text-primary hover:underline"
                         title="Call number"
+                        onClick={() =>
+                          setPendingDial({
+                            contactId: contact.id,
+                            name: contact.name,
+                            phone: contact.phone,
+                            dialedAt: new Date().toISOString(),
+                          })
+                        }
                       >
                         {contact.phone}
                       </a>
@@ -2418,6 +2428,25 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           </div>
         </div>
       )}
+
+      {/* Log-on-dial prompt: the browser gets nothing back from the
+          phone app, so the outcome comes from the agent in one tap. */}
+      <LogCallPrompt
+        dial={pendingDial}
+        onOpenChange={(open) => {
+          if (!open) setPendingDial(null);
+        }}
+        onLogged={(contactId, calledAt) => {
+          setContacts((prev) =>
+            prev.map((c) =>
+              c.id === contactId &&
+              (!c.last_contacted_at || new Date(calledAt) > new Date(c.last_contacted_at))
+                ? { ...c, last_contacted_at: calledAt }
+                : c
+            )
+          );
+        }}
+      />
 
       {/* Contact Form Dialog */}
       <ContactForm

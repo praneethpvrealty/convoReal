@@ -12,6 +12,7 @@ import { AreasOfInterestInput } from '@/components/contacts/areas-of-interest-in
 import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 import { ProjectsOfInterestInput } from '@/components/contacts/projects-of-interest-input';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { LogCallPrompt, type PendingDial } from '@/components/contacts/log-call-prompt';
 import { contactFullName } from '@/lib/contacts/full-name';
 import { pruneAreasGeo } from '@/lib/contacts/area-geo';
 import {
@@ -239,6 +240,7 @@ export function ContactDetailView({
 
   // Calls tab
   const [calls, setCalls] = useState<CallLog[]>([]);
+  const [pendingDial, setPendingDial] = useState<PendingDial | null>(null);
   const [loadingCalls, setLoadingCalls] = useState(false);
   const callHistoryRef = useRef<HTMLDivElement | null>(null);
   const [callForm, setCallForm] = useState<{
@@ -1329,6 +1331,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     <a
                       href={`tel:${contact.phone}`}
                       className="flex items-center gap-1 hover:text-primary transition-colors cursor-pointer text-slate-300"
+                      onClick={() =>
+                        setPendingDial({
+                          contactId: contact.id,
+                          name: contact.name,
+                          phone: contact.phone,
+                          dialedAt: new Date().toISOString(),
+                        })
+                      }
                     >
                       <Phone className="size-3" />
                       {contact.phone}
@@ -2847,6 +2857,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 }}
               />
             )}
+            {/* Log-on-dial prompt */}
+            <LogCallPrompt
+              dial={pendingDial}
+              onOpenChange={(next) => {
+                if (!next) setPendingDial(null);
+              }}
+              onLogged={() => {
+                fetchCalls();
+                fetchContact();
+                onUpdated();
+              }}
+            />
             {/* Move to Engine WhatsApp Dialog */}
             {contact && (
               <MoveToEngineDialog

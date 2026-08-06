@@ -217,9 +217,9 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [favoriting, setFavoriting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const {
-    show: showFavoriteError,
+    show: showDialog,
     close: closeDialog,
-    dialogProps: favoriteDialogProps,
+    dialogProps: screenDialogProps,
   } = useAppDialog();
   const name = contact.name || contact.phone;
   // Mirrors the contacts_delete RLS policy (migration 205): a manager may
@@ -262,7 +262,7 @@ function ContactCard({ contact }: { contact: Contact }) {
       queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
     } catch (err) {
       haptic.warn();
-      showFavoriteError({
+      showDialog({
         title: 'Could not update favourite',
         message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
       });
@@ -270,9 +270,52 @@ function ContactCard({ contact }: { contact: Contact }) {
       setFavoriting(false);
     }
   }
+  // The OS gives the app nothing back from the dialer — no connected
+  // flag, no duration — so the outcome comes from the agent: the prompt
+  // is raised at dial time and waits for their return to the app.
+  // Logging server-side also bumps Last Contacted.
+  function dialAndPromptLog() {
+    const dialedAt = new Date().toISOString();
+    haptic.tap();
+    Linking.openURL(`tel:${contact.phone}`);
+    showDialog({
+      title: 'Log this call?',
+      message: `${name} · ${contact.phone}`,
+      actions: [
+        {
+          label: 'Connected',
+          variant: 'primary',
+          onPress: () => saveCallLog('connected', dialedAt),
+        },
+        { label: 'No answer', onPress: () => saveCallLog('no_answer', dialedAt) },
+        { label: 'Busy', onPress: () => saveCallLog('busy', dialedAt) },
+        { label: 'Skip', variant: 'muted', onPress: closeDialog },
+      ],
+    });
+  }
+
+  async function saveCallLog(outcome: 'connected' | 'no_answer' | 'busy', calledAt: string) {
+    closeDialog();
+    try {
+      await apiFetch(`/api/contacts/${contact.id}/calls`, {
+        method: 'POST',
+        body: JSON.stringify({ direction: 'outbound', outcome, called_at: calledAt }),
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    } catch (err) {
+      haptic.warn();
+      showDialog({
+        title: 'Could not log call',
+        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+      });
+    }
+  }
+
   function explainCannotDelete() {
     haptic.tap();
-    showFavoriteError({
+    showDialog({
       title: 'This one is not yours to delete',
       message: savedBy
         ? `${savedBy} saved ${name}, so it stays on their list. Ask them or your manager to remove it — everything else here is still yours to edit.`
@@ -281,7 +324,7 @@ function ContactCard({ contact }: { contact: Contact }) {
   }
 
   function confirmDelete() {
-    showFavoriteError({
+    showDialog({
       title: `Delete ${name}?`,
       message:
         'This permanently removes the contact, their tags, notes and interest links. Past broadcasts and deals are kept but lose their link to this contact. This cannot be undone.',
@@ -312,7 +355,7 @@ function ContactCard({ contact }: { contact: Contact }) {
     } catch (err) {
       haptic.warn();
       setDeleting(false);
-      showFavoriteError({
+      showDialog({
         title: 'Could not delete',
         message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
       });
@@ -376,11 +419,7 @@ function ContactCard({ contact }: { contact: Contact }) {
       </View>
 
       <View style={styles.actions}>
-        <ActionButton
-          icon="call"
-          label="Call"
-          onPress={() => Linking.openURL(`tel:${contact.phone}`)}
-        />
+        <ActionButton icon="call" label="Call" onPress={dialAndPromptLog} />
         <ActionButton
           icon="logo-whatsapp"
           label="WhatsApp"
@@ -505,7 +544,7 @@ function ContactCard({ contact }: { contact: Contact }) {
       onClose={() => setMoveToEngineOpen(false)}
       contact={contact}
     />
-    <AppDialog {...favoriteDialogProps} />
+    <AppDialog {...screenDialogProps} />
     </KeyboardAvoidingView>
   );
 }
