@@ -1,5 +1,5 @@
 -- ============================================================
--- 208_realtime_publication_status_rpc.sql
+-- 209_realtime_publication_status_rpc.sql
 -- Read supabase_realtime's membership from the application.
 --
 -- Migration 207 restored the publication after the ap-south-1 rehost

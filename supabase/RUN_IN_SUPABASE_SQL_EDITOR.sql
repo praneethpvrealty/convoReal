@@ -2835,7 +2835,7 @@ BEGIN
 END $$;
 
 -- ============================================================
--- 208_realtime_publication_status_rpc.sql
+-- 209_realtime_publication_status_rpc.sql
 -- Lets the app read supabase_realtime's membership (PostgREST cannot
 -- select from a system catalog), so the realtime-publication-check
 -- cron can tell when replication has silently gone missing.

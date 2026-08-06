@@ -161,7 +161,7 @@ where pubname = 'supabase_realtime' order by tablename;
 `/api/cron/realtime-publication-check` runs this same comparison daily
 and fails (500) when a table is missing, so a future restore that skips
 this step surfaces as a failing cron instead of a quiet Inbox. It needs
-`realtime_publication_tables()` from migration `208`, so apply that
+`realtime_publication_tables()` from migration `209`, so apply that
 here too.
 
 If a later migration adds a table that some client subscribes to, add
