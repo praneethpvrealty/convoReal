@@ -158,9 +158,16 @@ select tablename from pg_publication_tables
 where pubname = 'supabase_realtime' order by tablename;
 ```
 
-If a later migration adds a table that some client subscribes to,
-add it to the array above as well as to that migration. The canonical
-list is what the code subscribes to:
+`/api/cron/realtime-publication-check` runs this same comparison daily
+and fails (500) when a table is missing, so a future restore that skips
+this step surfaces as a failing cron instead of a quiet Inbox. It needs
+`realtime_publication_tables()` from migration `209`, so apply that
+here too.
+
+If a later migration adds a table that some client subscribes to, add
+it to the array above, to that migration, and to `REALTIME_TABLES` in
+`src/lib/realtime/publication-health.ts` — a test holds the last two
+together. The canonical list is what the code subscribes to:
 
 ```bash
 grep -rn "postgres_changes" src/ mobile/ --include=*.ts --include=*.tsx -A3 \
