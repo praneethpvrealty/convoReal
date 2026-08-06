@@ -503,6 +503,19 @@
     return [floor, `${floor}${suffix}`];
   }
 
+  /** flooring must already be normalizedText()ed. The portals split our
+   *  plain tile names across their own longer labels. */
+  function flooringSynonyms(flooring) {
+    const first = flooring.split(/[/,]/)[0].trim();
+    const options = [flooring];
+    if (first && first !== flooring) options.push(first);
+    if (/vitrified/.test(flooring)) options.push('vitrified tiles');
+    if (/ceramic/.test(flooring)) options.push('ceramic tiles');
+    if (/wood/.test(flooring)) options.push('wooden', 'wood');
+    if (/normal|kotah/.test(flooring)) options.push('normal tiles / kotah stone', 'normal tiles', 'kotah stone');
+    return options;
+  }
+
   /** type must already be normalizedText()ed. */
   function typeSynonyms(type) {
     const sub = [];
@@ -556,6 +569,10 @@
     if (balconies) targets.push({ label: 'Balconies', synonyms: [balconies], scope: /balcon/ });
     const ownership = normalizedText(get('Ownership'));
     if (ownership) targets.push({ label: 'Ownership', synonyms: [ownership], scope: /ownership/ });
+    const flooring = normalizedText(get('Flooring'));
+    if (flooring) targets.push({ label: 'Flooring', synonyms: flooringSynonyms(flooring), scope: /floor/ });
+    const powerBackup = normalizedText(get('Power Backup'));
+    if (powerBackup) targets.push({ label: 'Power Backup', synonyms: [powerBackup], scope: /power/ });
 
     // Housing mandatory chips (also match 99acres/MB wording where the
     // same question exists).
@@ -787,6 +804,12 @@
     if (balconies) jobs.push({ label: 'Balconies', hints: ['balcon'], synonyms: [balconies] });
     const ownership = normalizedText(get('Ownership'));
     if (ownership) jobs.push({ label: 'Ownership', hints: ['ownership'], synonyms: [ownership] });
+    // 99acres renders flooring as a real <select> ("Type of flooring"),
+    // before the floor-number jobs claim anything with 'floor' in it.
+    const flooring = normalizedText(get('Flooring'));
+    if (flooring) jobs.push({ label: 'Flooring', hints: ['flooring'], synonyms: flooringSynonyms(flooring) });
+    const powerBackup = normalizedText(get('Power Backup'));
+    if (powerBackup) jobs.push({ label: 'Power Backup', hints: ['power back'], synonyms: [powerBackup] });
     // Total Floors first: its select claims the 'total' one, so the
     // floor-no job can't land on it via a bare "floor" mention.
     const totalFloors = get('Total Floors');

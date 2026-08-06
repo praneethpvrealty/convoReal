@@ -82,6 +82,19 @@ export const FURNISHING_OPTIONS = [
   'Unfurnished',
 ];
 
+export const FLOORING_OPTIONS = [
+  'Marble',
+  'Granite',
+  'Vitrified',
+  'Ceramic',
+  'Wooden',
+  'Mosaic',
+  'Cement',
+  'Normal Tiles / Kotah Stone',
+];
+
+export const POWER_BACKUP_OPTIONS = ['None', 'Partial', 'Full'];
+
 export const AREA_UNITS = [
   'Sq.Ft.',
   'Sq.Mtr.',
@@ -284,7 +297,9 @@ export function isRawLandType(type: string): boolean {
  *  only for a property still stored as it — so opening an old listing
  *  never silently re-types it, and new listings are never offered the
  *  ambiguous choice. */
-export function propertyTypeGroupsFor(currentType: string | null | undefined): PropertyTypeGroup[] {
+export function propertyTypeGroupsFor(
+  currentType: string | null | undefined
+): PropertyTypeGroup[] {
   if (currentType !== LEGACY_RESIDENTIAL_LAND_PLOT) return PROPERTY_TYPE_GROUPS;
   return PROPERTY_TYPE_GROUPS.map((group) =>
     group.group === 'Residential'
@@ -292,7 +307,10 @@ export function propertyTypeGroupsFor(currentType: string | null | undefined): P
           ...group,
           options: [
             ...group.options,
-            { value: LEGACY_RESIDENTIAL_LAND_PLOT, label: 'Residential Land/ Plot (legacy)' },
+            {
+              value: LEGACY_RESIDENTIAL_LAND_PLOT,
+              label: 'Residential Land/ Plot (legacy)',
+            },
           ],
         }
       : group

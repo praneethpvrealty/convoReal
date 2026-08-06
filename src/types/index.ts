@@ -1,4 +1,4 @@
-import type { AccountRole, OrgRole } from "@/lib/auth/roles";
+import type { AccountRole, OrgRole } from '@/lib/auth/roles';
 
 export interface Profile {
   id: string;
@@ -98,7 +98,7 @@ export interface AccountInvitation {
   id: string;
   account_id: string;
   /** Roles offered via invite — owner is never offered. */
-  role: Exclude<AccountRole, "owner">;
+  role: Exclude<AccountRole, 'owner'>;
   created_by_user_id: string | null;
   label: string | null;
   created_at: string;
@@ -131,7 +131,14 @@ export interface Contact {
   name_tag?: string | null;
   email?: string;
   company?: string;
-  classification?: 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | 'Owner & Buyer' | 'Others';
+  classification?:
+    | 'Owner'
+    | 'Seller'
+    | 'Buyer'
+    | 'Agent'
+    | 'Developer'
+    | 'Owner & Buyer'
+    | 'Others';
   avatar_url?: string;
   min_budget?: number;
   max_budget?: number;
@@ -400,7 +407,12 @@ export type ContentType =
   | 'template'
   /** Customer tapped a reply button or list row on a message we sent. */
   | 'interactive';
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus =
+  | 'sending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed';
 
 export interface Message {
   id: string;
@@ -668,8 +680,20 @@ export interface JourneyEvent {
   created_at: string;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed' | 'rate_limited';
+export type BroadcastStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed';
+export type RecipientStatus =
+  | 'pending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'replied'
+  | 'failed'
+  | 'rate_limited';
 
 export interface Broadcast {
   id: string;
@@ -939,6 +963,9 @@ export interface Property {
   floor_number?: number | null;
   total_floors?: number | null;
   balconies?: number | null;
+  /** Amenities-step details for portal posting (migration 206). */
+  flooring?: string | null;
+  power_backup?: 'None' | 'Partial' | 'Full' | null;
   area_sqft?: number;
   area_unit?: string;
   land_area?: number;
@@ -1026,7 +1053,9 @@ export interface Property {
   /** Floor-wise rent roll for pre-leased commercial buildings
    *  (migration 130) — Engine-only, never shown on the public showcase.
    *  Shape: src/lib/inventory/floor-tenancies.ts FloorTenancy[]. */
-  floor_tenancies?: import('@/lib/inventory/floor-tenancies').FloorTenancy[] | null;
+  floor_tenancies?:
+    | import('@/lib/inventory/floor-tenancies').FloorTenancy[]
+    | null;
   listing_source?: 'owner' | 'agent' | 'whatsapp_lister' | 'web_lister';
   /** Upstream property this listing was imported from via a co-broker
    *  share (migration 154) — cross-account lineage for indirect-reach
@@ -1094,8 +1123,6 @@ export interface EmailSyncConfig {
   created_at: string;
   updated_at: string;
 }
-
-
 
 // ============================================================
 // Liaisoning People Directory (147_liaisons.sql)

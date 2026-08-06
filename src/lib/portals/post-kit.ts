@@ -200,6 +200,12 @@ function portalExtras(
     ...(!land && property.total_floors != null
       ? [{ label: 'Total Floors', value: String(property.total_floors) }]
       : []),
+    ...(!land && property.flooring
+      ? [{ label: 'Flooring', value: property.flooring }]
+      : []),
+    ...(!land && property.power_backup
+      ? [{ label: 'Power Backup', value: property.power_backup }]
+      : []),
   ];
   switch (portal) {
     case '99acres':
