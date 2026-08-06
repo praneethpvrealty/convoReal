@@ -14,13 +14,19 @@ import {
 
 import { Confetti, EnterRow } from '@/components/motion';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
-import { Avatar, ConversationSkeleton, EmptyState, FilterChip } from '@/components/ui';
+import {
+  Avatar,
+  ConversationSkeleton,
+  EmptyState,
+  FilterChip,
+} from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import type { Deal, Pipeline, PipelineStage } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /** Same status derivation the web kanban applies on stage move. */
 function statusForStage(stageName: string): Deal['status'] {
@@ -49,7 +55,10 @@ export default function DealsScreen() {
   const { data: pipelines } = useQuery({
     queryKey: ['pipelines'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('pipelines').select('id, name').order('created_at');
+      const { data, error } = await supabase
+        .from('pipelines')
+        .select('id, name')
+        .order('created_at');
       if (error) throw error;
       return (data ?? []) as Pipeline[];
     },
@@ -70,19 +79,26 @@ export default function DealsScreen() {
     },
   });
 
-  const { data: deals, isLoading, isFetching, refetch } = useQuery({
+  const {
+    data: deals,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['deals', activePipeline],
     enabled: Boolean(activePipeline),
     queryFn: async () => {
       const { data, error } = await supabase
         .from('deals')
-        .select('*, contact:contacts(id, name, phone), property:properties(id, title)')
+        .select(
+          '*, contact:contacts(id, name, phone), property:properties(id, title)'
+        )
         .eq('pipeline_id', activePipeline!)
         .order('created_at', { ascending: false });
       if (error) throw error;
       return (data ?? []) as Deal[];
     },
   });
+  const pull = usePullRefresh(refetch);
 
   const activeStage = stageId ?? stages?.[0]?.id ?? null;
   const stageDeals = useMemo(
@@ -127,7 +143,7 @@ export default function DealsScreen() {
               <Pressable
                 onPress={() =>
                   router.push({
-                    pathname: '/(app)/deal-new',
+                    pathname: '/(app)/deal-edit',
                     params: {
                       pipelineId: activePipeline,
                       ...(activeStage ? { stageId: activeStage } : {}),
@@ -172,7 +188,9 @@ export default function DealsScreen() {
           contentContainerStyle={styles.filters}
         >
           {(stages ?? []).map((s) => {
-            const count = (deals ?? []).filter((d) => d.stage_id === s.id).length;
+            const count = (deals ?? []).filter(
+              (d) => d.stage_id === s.id
+            ).length;
             return (
               <FilterChip
                 key={s.id}
@@ -187,7 +205,8 @@ export default function DealsScreen() {
 
       {stageDeals.length > 0 ? (
         <Text style={[styles.stageSummary, { color: colors.textMuted }]}>
-          {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} · {formatInr(stageValue)}
+          {stageDeals.length} deal{stageDeals.length === 1 ? '' : 's'} ·{' '}
+          {formatInr(stageValue)}
         </Text>
       ) : null}
 
@@ -210,7 +229,11 @@ export default function DealsScreen() {
           keyExtractor={(d) => d.id}
           contentContainerStyle={{ paddingBottom: spacing.xxl }}
           refreshControl={
-            <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
           }
           ListEmptyComponent={
             <EmptyState
@@ -221,7 +244,16 @@ export default function DealsScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <DealCard deal={item} onMove={() => setMovingDeal(item)} />
+              <DealCard
+                deal={item}
+                onMove={() => setMovingDeal(item)}
+                onEdit={() =>
+                  router.push({
+                    pathname: '/(app)/deal-edit',
+                    params: { id: item.id },
+                  })
+                }
+              />
             </EnterRow>
           )}
         />
@@ -230,72 +262,113 @@ export default function DealsScreen() {
       {celebrating ? <Confetti onDone={() => setCelebrating(false)} /> : null}
 
       {/* Stage picker for the deal being moved. */}
-      <BottomSheet visible={Boolean(movingDeal)} onClose={() => setMovingDeal(null)}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={1}>
-                Move “{movingDeal?.title}” to…
-              </Text>
-              <Pressable
-                onPress={() => setMovingDeal(null)}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-              >
-                <Ionicons name="close" size={20} color={colors.textMuted} />
-              </Pressable>
-            </View>
+      <BottomSheet
+        visible={Boolean(movingDeal)}
+        onClose={() => setMovingDeal(null)}
+      >
+        <View style={styles.modalHeader}>
+          <Text
+            style={[styles.modalTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            Move “{movingDeal?.title}” to…
+          </Text>
+          <Pressable
+            onPress={() => setMovingDeal(null)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Ionicons name="close" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
         <ScrollView style={sheetScrollArea}>
-            {(stages ?? [])
-              .filter((s) => s.id !== movingDeal?.stage_id)
-              .map((s) => (
-                <Pressable
-                  key={s.id}
-                  style={[styles.modalRow, { borderTopColor: colors.border }]}
-                  onPress={() => movingDeal && moveDeal(movingDeal, s)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Move to ${s.name}`}
+          {(stages ?? [])
+            .filter((s) => s.id !== movingDeal?.stage_id)
+            .map((s) => (
+              <Pressable
+                key={s.id}
+                style={[styles.modalRow, { borderTopColor: colors.border }]}
+                onPress={() => movingDeal && moveDeal(movingDeal, s)}
+                accessibilityRole="button"
+                accessibilityLabel={`Move to ${s.name}`}
+              >
+                <View
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: s.color || colors.primary,
+                  }}
+                />
+                <Text
+                  style={{
+                    fontSize: 15,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
                 >
-                  <View
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 5,
-                      backgroundColor: s.color || colors.primary,
-                    }}
-                  />
-                  <Text style={{ fontSize: 15, fontFamily: f.semibold, color: colors.text }}>
-                    {s.name}
-                  </Text>
-                </Pressable>
-              ))}
+                  {s.name}
+                </Text>
+              </Pressable>
+            ))}
         </ScrollView>
       </BottomSheet>
     </View>
   );
 }
 
-function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
+function DealCard({
+  deal,
+  onMove,
+  onEdit,
+}: {
+  deal: Deal;
+  onMove: () => void;
+  onEdit: () => void;
+}) {
   const { colors, fonts: f } = useTheme();
   const contactName = deal.contact?.name || deal.contact?.phone;
 
   return (
     <View
-      style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+      style={[
+        styles.card,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
     >
-      <View style={styles.cardTop}>
-        <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+      <Pressable
+        style={styles.cardTop}
+        onPress={onEdit}
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${deal.title}`}
+      >
+        <Text
+          style={[styles.cardTitle, { color: colors.text }]}
+          numberOfLines={1}
+        >
           {deal.title}
         </Text>
-        <Text style={{ fontSize: 15, fontFamily: f.extrabold, color: colors.primary }}>
+        <Text
+          style={{
+            fontSize: 15,
+            fontFamily: f.extrabold,
+            color: colors.primary,
+          }}
+        >
           {formatInr(deal.value)}
         </Text>
-      </View>
+        <Ionicons name="chevron-forward" size={15} color={colors.textFaint} />
+      </Pressable>
 
       {contactName ? (
         <Link href={`/(app)/contact/${deal.contact_id}`} asChild>
           <Pressable style={styles.linkRow}>
             <Avatar name={contactName} size={22} />
-            <Text style={{ fontSize: 13.5, color: colors.textMuted }} numberOfLines={1}>
+            <Text
+              style={{ fontSize: 13.5, color: colors.textMuted }}
+              numberOfLines={1}
+            >
               {contactName}
             </Text>
           </Pressable>
@@ -305,7 +378,10 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
         <Link href={`/(app)/property/${deal.property_id}`} asChild>
           <Pressable style={styles.linkRow}>
             <Ionicons name="home-outline" size={15} color={colors.textMuted} />
-            <Text style={{ fontSize: 13.5, color: colors.textMuted }} numberOfLines={1}>
+            <Text
+              style={{ fontSize: 13.5, color: colors.textMuted }}
+              numberOfLines={1}
+            >
               {deal.property.title}
             </Text>
           </Pressable>
@@ -335,7 +411,13 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
           style={[styles.moveButton, { backgroundColor: colors.primarySoft }]}
         >
           <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
-          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+          <Text
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.primary,
+            }}
+          >
             Move stage
           </Text>
         </Pressable>
@@ -347,7 +429,11 @@ function DealCard({ deal, onMove }: { deal: Deal; onMove: () => void }) {
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   filtersRow: { height: 52, justifyContent: 'center' },
-  filters: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: 'center' },
+  filters: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+  },
   stageSummary: {
     fontSize: 12.5,
     paddingHorizontal: spacing.lg,

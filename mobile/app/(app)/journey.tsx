@@ -15,6 +15,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { JourneyItem, JourneyStage } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /**
  * Read-only journey list: each contact with the properties on their
@@ -43,7 +44,11 @@ export default function JourneyScreen() {
     },
   });
 
-  const { data: items, isLoading, isFetching, refetch } = useQuery({
+  const {
+    data: items,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ['journey-items'],
     enabled: Boolean(accountId),
     queryFn: async () => {
@@ -61,6 +66,7 @@ export default function JourneyScreen() {
       return data as unknown as JourneyItem[];
     },
   });
+  const pull = usePullRefresh(refetch);
 
   const stageById = useMemo(
     () => new Map((stages ?? []).map((s) => [s.id, s])),
@@ -68,7 +74,10 @@ export default function JourneyScreen() {
   );
 
   const groups = useMemo(() => {
-    const byContact = new Map<string, { contact: JourneyItem['contact']; items: JourneyItem[] }>();
+    const byContact = new Map<
+      string,
+      { contact: JourneyItem['contact']; items: JourneyItem[] }
+    >();
     for (const item of items ?? []) {
       if (contactId && item.contact_id !== contactId) continue;
       const key = item.contact_id;
@@ -85,7 +94,11 @@ export default function JourneyScreen() {
       style={{ flex: 1 }}
       contentContainerStyle={styles.container}
       refreshControl={
-        <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+        <RefreshControl
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
+          tintColor={colors.primary}
+        />
       }
     >
       <Stack.Screen
@@ -96,8 +109,8 @@ export default function JourneyScreen() {
       />
 
       <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-        Where every buyer stands, per property. Advancing, dropping and the full mind-map canvas
-        live on the web's Journey page.
+        Where every buyer stands, per property. Advancing, dropping and the full
+        mind-map canvas live on the web's Journey page.
       </Text>
 
       {!isLoading && groups.length === 0 ? (
@@ -116,16 +129,33 @@ export default function JourneyScreen() {
           return (
             <View
               key={group.items[0].id}
-              style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
             >
-              <Link href={`/(app)/contact/${group.items[0].contact_id}`} asChild>
+              <Link
+                href={`/(app)/contact/${group.items[0].contact_id}`}
+                asChild
+              >
                 <Pressable style={styles.cardHeader}>
                   <Avatar name={name} size={36} />
-                  <Text style={{ flex: 1, fontSize: 15.5, fontFamily: f.bold, color: colors.text }}>
+                  <Text
+                    style={{
+                      flex: 1,
+                      fontSize: 15.5,
+                      fontFamily: f.bold,
+                      color: colors.text,
+                    }}
+                  >
                     {name}
                   </Text>
                   <Text style={{ fontSize: 12, color: colors.textFaint }}>
-                    {group.items.length} propert{group.items.length === 1 ? 'y' : 'ies'}
+                    {group.items.length} propert
+                    {group.items.length === 1 ? 'y' : 'ies'}
                   </Text>
                 </Pressable>
               </Link>
@@ -133,13 +163,18 @@ export default function JourneyScreen() {
                 const stage = stageById.get(item.stage_id);
                 const dropped = item.status === 'dropped';
                 return (
-                  <View key={item.id} style={[styles.itemRow, { borderTopColor: colors.border }]}>
+                  <View
+                    key={item.id}
+                    style={[styles.itemRow, { borderTopColor: colors.border }]}
+                  >
                     <View
                       style={{
                         width: 8,
                         height: 8,
                         borderRadius: 4,
-                        backgroundColor: dropped ? colors.danger : stage?.color || colors.primary,
+                        backgroundColor: dropped
+                          ? colors.danger
+                          : stage?.color || colors.primary,
                       }}
                     />
                     <Text
@@ -157,10 +192,14 @@ export default function JourneyScreen() {
                       style={{
                         fontSize: 11.5,
                         fontFamily: f.bold,
-                        color: dropped ? colors.danger : (stage?.color ?? colors.textMuted),
+                        color: dropped
+                          ? colors.danger
+                          : (stage?.color ?? colors.textMuted),
                       }}
                     >
-                      {dropped ? (item.drop_reason || 'Dropped') : (stage?.name ?? '—')}
+                      {dropped
+                        ? item.drop_reason || 'Dropped'
+                        : (stage?.name ?? '—')}
                     </Text>
                   </View>
                 );
@@ -174,7 +213,11 @@ export default function JourneyScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   card: {
     borderWidth: 1,
     borderRadius: radius.lg,

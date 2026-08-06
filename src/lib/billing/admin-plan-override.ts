@@ -12,24 +12,28 @@
 //
 // Everything here is pure and unit-testable without a database: the
 // routes fetch the challenge row and pass it in; this module decides
-// whether it's valid.
+// whether it's valid. The lifecycle/admin/code half of that decision is
+// shared with every other OTP-gated admin action and lives in
+// ./admin-otp; what remains here is the plan-specific binding.
 // ============================================================
 
-import { timingSafeEqual } from "node:crypto";
-import { hashInviteToken } from "@/lib/auth/invitations";
+import {
+  evaluateOtpChallenge,
+  hashOtpCode,
+  MAX_OTP_ATTEMPTS,
+  OTP_TTL_MS,
+  type CoreFailureReason,
+} from "./admin-otp";
 import { PLAN_ORDER, isUpgrade as isUpgradePlan } from "./plan-config";
 import type { Plan } from "./types";
+
+export { hashOtpCode, MAX_OTP_ATTEMPTS, OTP_TTL_MS };
 
 export const PLAN_VALUES: readonly Plan[] = PLAN_ORDER;
 
 export function isValidPlan(value: string): value is Plan {
   return (PLAN_ORDER as readonly string[]).includes(value);
 }
-
-/** Max verification attempts per challenge before it's permanently rejected. */
-export const MAX_OTP_ATTEMPTS = 5;
-/** Challenge lifetime — must match the copy sent over WhatsApp. */
-export const OTP_TTL_MS = 10 * 60 * 1000;
 
 export interface OtpChallengeRow {
   id: string;
@@ -52,68 +56,31 @@ export interface ChallengeCheckInput {
 }
 
 export type ChallengeFailureReason =
-  | "not_found"
-  | "used"
-  | "expired"
-  | "too_many_attempts"
-  | "admin_mismatch"
+  | CoreFailureReason
   | "account_mismatch"
-  | "plan_mismatch"
-  | "wrong_code";
+  | "plan_mismatch";
 
 export type ChallengeResult =
   | { ok: true }
   | { ok: false; reason: ChallengeFailureReason; incrementAttempts: boolean };
-
-/** SHA-256 hex digest of a 6-digit OTP code. Same primitive as
- *  hashInviteToken (src/lib/auth/invitations.ts) — reused rather than
- *  duplicated, aliased here for readability at call sites. */
-export const hashOtpCode = hashInviteToken;
-
-function hashesEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a, "hex");
-  const bufB = Buffer.from(b, "hex");
-  // Length check first: timingSafeEqual throws on mismatched lengths,
-  // and the check itself leaks nothing sensitive (both are SHA-256 hex
-  // so a length mismatch only ever means "not a real hash").
-  if (bufA.length !== bufB.length) return false;
-  return timingSafeEqual(bufA, bufB);
-}
 
 /**
  * Validates a submitted OTP against its stored challenge. Pure and
  * side-effect-free — the caller persists the attempt increment /
  * used_at marker based on the returned result.
  *
- * Binding checks (admin/account/plan) run before the code comparison
- * so a challenge issued for one change can never authorize a
- * different one, even with the correct code.
+ * The account/plan bindings are handed to the shared evaluator, which
+ * checks them before the code comparison so a challenge issued for one
+ * change can never authorize a different one, even with the right code.
  */
 export function evaluateChallenge(
   challenge: OtpChallengeRow | null,
   input: ChallengeCheckInput,
 ): ChallengeResult {
-  if (!challenge) return { ok: false, reason: "not_found", incrementAttempts: false };
-  if (challenge.used_at) return { ok: false, reason: "used", incrementAttempts: false };
-  if (new Date(challenge.expires_at).getTime() <= input.nowMs) {
-    return { ok: false, reason: "expired", incrementAttempts: false };
-  }
-  if (challenge.attempts >= MAX_OTP_ATTEMPTS) {
-    return { ok: false, reason: "too_many_attempts", incrementAttempts: false };
-  }
-  if (challenge.admin_user_id !== input.adminUserId) {
-    return { ok: false, reason: "admin_mismatch", incrementAttempts: true };
-  }
-  if (challenge.account_id !== input.accountId) {
-    return { ok: false, reason: "account_mismatch", incrementAttempts: true };
-  }
-  if (challenge.to_plan !== input.plan) {
-    return { ok: false, reason: "plan_mismatch", incrementAttempts: true };
-  }
-  if (!hashesEqual(hashOtpCode(input.code), challenge.code_hash)) {
-    return { ok: false, reason: "wrong_code", incrementAttempts: true };
-  }
-  return { ok: true };
+  return evaluateOtpChallenge(challenge, input, [
+    { reason: "account_mismatch" as const, matches: challenge?.account_id === input.accountId },
+    { reason: "plan_mismatch" as const, matches: challenge?.to_plan === input.plan },
+  ]);
 }
 
 /** True when `toPlan` ranks higher than `fromPlan`. Invalid plan

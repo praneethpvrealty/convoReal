@@ -18,6 +18,7 @@ import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AutomationRow, FlowRow } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 export default function AutomationsScreen() {
   const { colors, fonts: f } = useTheme();
@@ -27,11 +28,13 @@ export default function AutomationsScreen() {
   const automationsQuery = useQuery({
     queryKey: ['automations'],
     queryFn: async () =>
-      (await apiFetch<{ automations: AutomationRow[] }>('/api/automations')).automations,
+      (await apiFetch<{ automations: AutomationRow[] }>('/api/automations'))
+        .automations,
   });
   const flowsQuery = useQuery({
     queryKey: ['flows'],
-    queryFn: async () => (await apiFetch<{ flows: FlowRow[] }>('/api/flows')).flows,
+    queryFn: async () =>
+      (await apiFetch<{ flows: FlowRow[] }>('/api/flows')).flows,
   });
 
   async function toggle(automation: AutomationRow, next: boolean) {
@@ -47,13 +50,17 @@ export default function AutomationsScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ['automations'] });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update automation.');
+      setError(
+        err instanceof ApiError ? err.message : 'Could not update automation.'
+      );
     } finally {
       setTogglingId(null);
     }
   }
 
-  const refreshing = automationsQuery.isFetching || flowsQuery.isFetching;
+  const pull = usePullRefresh(() =>
+    Promise.all([automationsQuery.refetch(), flowsQuery.refetch()])
+  );
 
   return (
     <ScrollView
@@ -61,11 +68,8 @@ export default function AutomationsScreen() {
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            automationsQuery.refetch();
-            flowsQuery.refetch();
-          }}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={colors.primary}
         />
       }
@@ -81,7 +85,8 @@ export default function AutomationsScreen() {
 
       <SectionLabel text="Automations" />
       <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
-        Toggle automations you created on or off. Building and editing them happens on the web.
+        Toggle automations you created on or off. Building and editing them
+        happens on the web.
       </Text>
       {automationsQuery.isLoading ? (
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
@@ -95,13 +100,25 @@ export default function AutomationsScreen() {
         (automationsQuery.data ?? []).map((a) => (
           <View
             key={a.id}
-            style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
           >
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}>{a.name}</Text>
+              <Text
+                style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
+              >
+                {a.name}
+              </Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
                 {a.trigger_type.replace(/_/g, ' ')}
-                {typeof a.execution_count === 'number' ? ` · ran ${a.execution_count}×` : ''}
+                {typeof a.execution_count === 'number'
+                  ? ` · ran ${a.execution_count}×`
+                  : ''}
               </Text>
             </View>
             {togglingId === a.id ? (
@@ -123,19 +140,34 @@ export default function AutomationsScreen() {
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
       ) : (flowsQuery.data ?? []).length === 0 ? (
         <Text style={{ fontSize: 13, color: colors.textMuted }}>
-          No interactive flows. Build WhatsApp menu trees in the web app's Flow Builder.
+          No interactive flows. Build WhatsApp menu trees in the web app's Flow
+          Builder.
         </Text>
       ) : (
         (flowsQuery.data ?? []).map((flow) => (
           <View
             key={flow.id}
-            style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
           >
             <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}>{flow.name}</Text>
+              <Text
+                style={{ fontSize: 15, fontFamily: f.bold, color: colors.text }}
+              >
+                {flow.name}
+              </Text>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                {flow.trigger_type ? `${flow.trigger_type.replace(/_/g, ' ')} · ` : ''}
-                {typeof flow.execution_count === 'number' ? `ran ${flow.execution_count}×` : ''}
+                {flow.trigger_type
+                  ? `${flow.trigger_type.replace(/_/g, ' ')} · `
+                  : ''}
+                {typeof flow.execution_count === 'number'
+                  ? `ran ${flow.execution_count}×`
+                  : ''}
               </Text>
             </View>
             <Text
@@ -157,8 +189,11 @@ export default function AutomationsScreen() {
         ))
       )}
 
-      <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
-        Flow activation involves canvas validation — manage flow status on the web.
+      <Text
+        style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
+      >
+        Flow activation involves canvas validation — manage flow status on the
+        web.
       </Text>
     </ScrollView>
   );
@@ -183,7 +218,11 @@ function SectionLabel({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   card: {
     borderWidth: 1,
     flexDirection: 'row',

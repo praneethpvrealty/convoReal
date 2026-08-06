@@ -21,8 +21,15 @@ import { AnimatedCounter } from '@/components/motion';
 import { EmptyState } from '@/components/ui';
 import { chatListTime } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors , fonts } from '@/lib/theme';
+import {
+  radius,
+  spacing,
+  useTheme,
+  type ThemeColors,
+  fonts,
+} from '@/lib/theme';
 import type { Broadcast } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
   switch (status) {
@@ -40,7 +47,7 @@ function statusColor(status: Broadcast['status'], colors: ThemeColors): string {
 
 export default function BroadcastsScreen() {
   const { colors } = useTheme();
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['broadcasts'],
     queryFn: async () => {
       // Same direct read as the web list; counts are trigger-maintained
@@ -57,6 +64,7 @@ export default function BroadcastsScreen() {
     refetchInterval: (query) =>
       query.state.data?.some((b) => b.status === 'sending') ? 5000 : false,
   });
+  const pull = usePullRefresh(refetch);
 
   return (
     <View style={{ flex: 1 }}>
@@ -82,7 +90,11 @@ export default function BroadcastsScreen() {
         data={data ?? []}
         keyExtractor={(b) => b.id}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
+            tintColor={colors.primary}
+          />
         }
         ListHeaderComponent={
           <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
@@ -107,7 +119,8 @@ export default function BroadcastsScreen() {
 
 function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
   const { colors, fonts: f } = useTheme();
-  const delivered = broadcast.delivered_count + broadcast.read_count + broadcast.replied_count;
+  const delivered =
+    broadcast.delivered_count + broadcast.read_count + broadcast.replied_count;
   const progress =
     broadcast.total_recipients > 0
       ? Math.min(1, broadcast.sent_count / broadcast.total_recipients)
@@ -123,7 +136,10 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
         android_ripple={{ color: colors.border }}
       >
         <View style={styles.cardTop}>
-          <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
+          <Text
+            style={[styles.cardTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
             {broadcast.name}
           </Text>
           <Text
@@ -137,8 +153,13 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
             {broadcast.status}
           </Text>
         </View>
-        <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
-          {broadcast.template_name ? `Template: ${broadcast.template_name} · ` : ''}
+        <Text
+          style={{ fontSize: 12.5, color: colors.textMuted }}
+          numberOfLines={1}
+        >
+          {broadcast.template_name
+            ? `Template: ${broadcast.template_name} · `
+            : ''}
           {chatListTime(broadcast.scheduled_at ?? broadcast.created_at)}
         </Text>
 
@@ -149,7 +170,11 @@ function BroadcastCard({ broadcast }: { broadcast: Broadcast }) {
           <Stat label="Sent" value={broadcast.sent_count} />
           <Stat label="Delivered" value={delivered} />
           <Stat label="Read" value={broadcast.read_count} />
-          <Stat label="Failed" value={broadcast.failed_count} danger={broadcast.failed_count > 0} />
+          <Stat
+            label="Failed"
+            value={broadcast.failed_count}
+            danger={broadcast.failed_count > 0}
+          />
         </View>
       </Pressable>
     </Link>
@@ -177,12 +202,22 @@ function ProgressBar({ progress }: { progress: number }) {
       style={[styles.progressTrack, { backgroundColor: colors.border }]}
       onLayout={(e) => setTrack(e.nativeEvent.layout.width)}
     >
-      <Animated.View style={[styles.progressFill, { backgroundColor: colors.primary }, fill]} />
+      <Animated.View
+        style={[styles.progressFill, { backgroundColor: colors.primary }, fill]}
+      />
     </View>
   );
 }
 
-function Stat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
+function Stat({
+  label,
+  value,
+  danger,
+}: {
+  label: string;
+  value: number;
+  danger?: boolean;
+}) {
   const { colors, fonts: f } = useTheme();
   return (
     <View style={{ alignItems: 'center', gap: 1 }}>

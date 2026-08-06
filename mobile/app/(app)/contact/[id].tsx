@@ -29,6 +29,7 @@ import { ConvoRealLoader } from '@/components/loader';
 import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
+import { apiFetch } from '@/lib/api';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -80,7 +81,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
-        'property_interests, last_inquired_property_id'
+        'property_interests, last_inquired_property_id, is_favorite'
     )
     .eq('id', id)
     .maybeSingle();
@@ -196,7 +197,36 @@ function ContactCard({ contact }: { contact: Contact }) {
   const { colors, dark, fonts: f } = useTheme();
   const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
+  const { show: showFavoriteError, dialogProps: favoriteDialogProps } = useAppDialog();
   const name = contact.name || contact.phone;
+
+  // Web parity: the star also sits on the contacts list row, but the
+  // detail screen is where an agent decides a contact matters.
+  async function toggleFavorite() {
+    if (favoriting) return;
+    const next = !contact.is_favorite;
+    haptic.tap();
+    setFavoriting(true);
+    try {
+      await apiFetch(`/api/contacts/${contact.id}/favorite`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_favorite: next }),
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+    } catch (err) {
+      haptic.warn();
+      showFavoriteError({
+        title: 'Could not update favourite',
+        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+      });
+    } finally {
+      setFavoriting(false);
+    }
+  }
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
@@ -218,7 +248,27 @@ function ContactCard({ contact }: { contact: Contact }) {
       ) : null}
       <View style={styles.identity}>
         <Avatar name={name} size={72} />
-        <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}>{name}</Text>
+        <View style={styles.nameRow}>
+          <Text style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}>{name}</Text>
+          <Pressable
+            hitSlop={10}
+            onPress={toggleFavorite}
+            disabled={favoriting}
+            accessibilityRole="button"
+            accessibilityLabel={
+              contact.is_favorite
+                ? `Remove ${name} from favourites`
+                : `Add ${name} to favourites`
+            }
+            accessibilityState={{ disabled: favoriting, busy: favoriting }}
+          >
+            <Ionicons
+              name={contact.is_favorite ? 'star' : 'star-outline'}
+              size={22}
+              color={contact.is_favorite ? colors.warning : colors.textFaint}
+            />
+          </Pressable>
+        </View>
         <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
           {contact.classification ? (
             <Tag label={contact.classification} color={clsColor} />
@@ -330,6 +380,7 @@ function ContactCard({ contact }: { contact: Contact }) {
       onClose={() => setMoveToEngineOpen(false)}
       contact={contact}
     />
+    <AppDialog {...favoriteDialogProps} />
     </KeyboardAvoidingView>
   );
 }
@@ -905,7 +956,8 @@ function InfoRow({
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg },
   identity: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
-  name: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center' },
+  name: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center', flexShrink: 1 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, justifyContent: 'center' },
   actionButton: {
     alignItems: 'center',

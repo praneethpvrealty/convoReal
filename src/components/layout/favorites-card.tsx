@@ -92,7 +92,7 @@ export function FavoritesCard() {
       <div className="mx-3 my-2 rounded-xl border border-slate-900/60 bg-slate-950/20 p-3 backdrop-blur-md">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
           <Star className="h-3.5 w-3.5 text-amber-500/80" />
-          <span>Favorites</span>
+          <span>Favourites</span>
         </div>
         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-600">
           Star pages to pin them here for 1-click access.
@@ -128,7 +128,7 @@ export function FavoritesCard() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-bold text-white">
           <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.4)]" />
-          <span>Favorites</span>
+          <span>Favourites</span>
           <span className="text-[10px] text-slate-500 font-semibold px-1.5 py-0.5 rounded-full bg-slate-900/55 border border-slate-800/40">
             {favorites.length}
           </span>

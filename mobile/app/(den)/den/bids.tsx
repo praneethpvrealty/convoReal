@@ -2,7 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { useEffect, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -18,10 +26,11 @@ import { ApiError } from '@/lib/api';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { fetchDenBids, respondToBid, type DenBid } from '@/lib/den-api';
 import { friendlyError } from '@/lib/errors';
-import { chatListTime , formatInr } from '@/lib/format';
+import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 function statusColor(status: string, colors: ThemeColors): string {
   switch (status) {
@@ -44,10 +53,11 @@ function statusColor(status: string, colors: ThemeColors): string {
  */
 export default function DenBidsScreen() {
   const { colors, fonts: f } = useTheme();
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['den-bids'],
     queryFn: fetchDenBids,
   });
+  const pull = usePullRefresh(refetch);
 
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const { show, close, dialogProps } = useAppDialog();
@@ -64,7 +74,9 @@ export default function DenBidsScreen() {
       haptic.warn();
       show({
         title: 'Could not respond',
-        message: friendlyError(e instanceof ApiError ? e.message : 'Try again.'),
+        message: friendlyError(
+          e instanceof ApiError ? e.message : 'Try again.'
+        ),
       });
     },
   });
@@ -97,7 +109,11 @@ export default function DenBidsScreen() {
       style={{ flex: 1 }}
       contentContainerStyle={styles.container}
       refreshControl={
-        <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+        <RefreshControl
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
+          tintColor={colors.primary}
+        />
       }
     >
       {isLoading ? null : bids.length === 0 ? (
@@ -112,26 +128,60 @@ export default function DenBidsScreen() {
           return (
             <View
               key={bid.id}
-              style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: colors.glass,
+                  borderColor: colors.glassBorder,
+                },
+              ]}
             >
-              <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'center' }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  gap: spacing.md,
+                  alignItems: 'center',
+                }}
+              >
                 {bid.property_image ? (
-                  <Image source={{ uri: storagePublicUrl(bid.property_image) }} style={styles.cover} resizeMode="cover" />
+                  <Image
+                    source={{ uri: storagePublicUrl(bid.property_image) }}
+                    style={styles.cover}
+                    resizeMode="cover"
+                  />
                 ) : (
                   <View
                     style={[
                       styles.cover,
-                      { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
+                      {
+                        backgroundColor: colors.primarySoft,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      },
                     ]}
                   >
-                    <Ionicons name="home-outline" size={20} color={colors.primary} />
+                    <Ionicons
+                      name="home-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
                   </View>
                 )}
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+                  <Text
+                    style={{
+                      fontSize: 14.5,
+                      fontFamily: f.bold,
+                      color: colors.text,
+                    }}
+                    numberOfLines={1}
+                  >
                     {bid.property_title}
                   </Text>
-                  <Text style={{ fontSize: 12, color: colors.textMuted }} numberOfLines={1}>
+                  <Text
+                    style={{ fontSize: 12, color: colors.textMuted }}
+                    numberOfLines={1}
+                  >
                     {bid.bidder_agency} · {chatListTime(bid.created_at)}
                   </Text>
                 </View>
@@ -147,17 +197,35 @@ export default function DenBidsScreen() {
                 </Text>
               </View>
 
-              <Text style={{ fontSize: 22, fontFamily: f.extrabold, color: colors.primary }}>
+              <Text
+                style={{
+                  fontSize: 22,
+                  fontFamily: f.extrabold,
+                  color: colors.primary,
+                }}
+              >
                 {bid.amount ? formatInr(bid.amount) : '—'}
                 {bid.bid_type ? (
-                  <Text style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}>
+                  <Text
+                    style={{
+                      fontSize: 12.5,
+                      fontFamily: f.medium,
+                      color: colors.textMuted,
+                    }}
+                  >
                     {'  '}
                     {bid.bid_type}
                   </Text>
                 ) : null}
               </Text>
               {bid.message ? (
-                <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textMuted }}>
+                <Text
+                  style={{
+                    fontSize: 13,
+                    lineHeight: 19,
+                    color: colors.textMuted,
+                  }}
+                >
                   “{bid.message}”
                 </Text>
               ) : null}
@@ -174,7 +242,11 @@ export default function DenBidsScreen() {
                   <View style={{ flex: 1 }}>
                     <PrimaryButton
                       label="Accept"
-                      busy={respond.isPending && respond.variables?.id === bid.id && respond.variables.action === 'accept'}
+                      busy={
+                        respond.isPending &&
+                        respond.variables?.id === bid.id &&
+                        respond.variables.action === 'accept'
+                      }
                       disabled={respond.isPending}
                       onPress={() => confirm(bid, 'accept')}
                     />
@@ -184,9 +256,21 @@ export default function DenBidsScreen() {
                     disabled={respond.isPending}
                     accessibilityRole="button"
                     accessibilityLabel="Decline offer"
-                    style={[styles.declineButton, { borderColor: colors.danger, opacity: respond.isPending ? 0.5 : 1 }]}
+                    style={[
+                      styles.declineButton,
+                      {
+                        borderColor: colors.danger,
+                        opacity: respond.isPending ? 0.5 : 1,
+                      },
+                    ]}
                   >
-                    <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.danger }}>
+                    <Text
+                      style={{
+                        fontSize: 14.5,
+                        fontFamily: f.bold,
+                        color: colors.danger,
+                      }}
+                    >
                       Decline
                     </Text>
                   </Pressable>
@@ -218,7 +302,7 @@ export default function DenBidsScreen() {
  * scales into clarity. Old accepted bids render instantly revealed.
  */
 function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const progress = useSharedValue(unlock ? 0 : 1);
 
   useEffect(() => {
@@ -250,13 +334,23 @@ function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
     <View
       style={[
         styles.revealRow,
-        { backgroundColor: colors.successSoft, borderColor: colors.success, overflow: 'hidden' },
+        {
+          backgroundColor: colors.successSoft,
+          borderColor: colors.success,
+          overflow: 'hidden',
+        },
       ]}
     >
       <Animated.View style={[styles.revealContent, content]}>
-        <Ionicons name="person-circle-outline" size={20} color={colors.success} />
+        <Ionicons
+          name="person-circle-outline"
+          size={20}
+          color={colors.success}
+        />
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}>
+          <Text
+            style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.text }}
+          >
             {bid.bidder_contact!.name || 'Buyer contact'}
           </Text>
           {bid.bidder_contact!.phone ? (
@@ -268,7 +362,9 @@ function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
         {bid.bidder_contact!.phone ? (
           <Pressable
             onPress={() =>
-              Linking.openURL(`https://wa.me/${bid.bidder_contact!.phone!.replace(/\D/g, '')}`)
+              Linking.openURL(
+                `https://wa.me/${bid.bidder_contact!.phone!.replace(/\D/g, '')}`
+              )
             }
             hitSlop={8}
             accessibilityRole="button"
@@ -284,7 +380,7 @@ function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
           style={[
             StyleSheet.absoluteFill,
             styles.revealShroud,
-            { backgroundColor: dark ? 'rgba(16,42,30,0.97)' : 'rgba(255,255,255,0.97)' },
+            { backgroundColor: colors.surfaceWell },
             shroud,
           ]}
         >
@@ -298,7 +394,11 @@ function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   card: {
     borderRadius: radius.lg,
     borderWidth: 1,

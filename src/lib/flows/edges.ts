@@ -46,8 +46,42 @@ export function deriveCanvasEdges(nodes: BuilderNode[]): CanvasEdge[] {
     switch (node.node_type) {
       case "start":
       case "send_message":
-      case "send_media":
-      case "send_property_listings":
+      case "send_media": {
+        const next = (cfg as { next_node_key?: string }).next_node_key;
+        if (next && knownKeys.has(next)) {
+          edges.push({
+            id: `${node.node_key}--next--${next}`,
+            source: node.node_key,
+            target: next,
+            sourceHandle: "next",
+            label: "Next",
+          });
+        }
+        break;
+      }
+      case "send_property_listings": {
+        const next = (cfg as { next_node_key?: string }).next_node_key;
+        if (next && knownKeys.has(next)) {
+          edges.push({
+            id: `${node.node_key}--next--${next}`,
+            source: node.node_key,
+            target: next,
+            sourceHandle: "next",
+            label: "Next",
+          });
+        }
+        const empty = (cfg as { empty_next_node_key?: string }).empty_next_node_key;
+        if (empty && knownKeys.has(empty)) {
+          edges.push({
+            id: `${node.node_key}--empty--${empty}`,
+            source: node.node_key,
+            target: empty,
+            sourceHandle: "empty",
+            label: "No matches",
+          });
+        }
+        break;
+      }
       case "collect_input":
       case "set_tag": {
         const next = (cfg as { next_node_key?: string }).next_node_key;
@@ -179,7 +213,14 @@ export function outgoingSlots(node: BuilderNode): OutgoingSlot[] {
     case "start":
     case "send_message":
     case "send_media":
+      return [{ id: "next", label: "Next" }];
+
     case "send_property_listings":
+      return [
+        { id: "next", label: "Next" },
+        { id: "empty", label: "No matches" },
+      ];
+
     case "collect_input":
     case "set_tag":
       return [{ id: "next", label: "Next" }];
@@ -256,6 +297,10 @@ export function applyEdgeConnection(
     case "send_message":
     case "send_media":
     case "send_property_listings":
+      if (sourceHandle === "next") return { next_node_key: targetKey };
+      if (sourceHandle === "empty") return { empty_next_node_key: targetKey };
+      return null;
+
     case "collect_input":
     case "set_tag":
       if (sourceHandle === "next") return { next_node_key: targetKey };
@@ -352,7 +397,18 @@ function patchedConfigWithoutKey(
     case "start":
     case "send_message":
     case "send_media":
-    case "send_property_listings":
+    case "send_property_listings": {
+      const c = cfg as { next_node_key?: string; empty_next_node_key?: string };
+      if (c.next_node_key !== deletedKey && c.empty_next_node_key !== deletedKey) {
+        return null;
+      }
+      return {
+        ...cfg,
+        ...(c.next_node_key === deletedKey ? { next_node_key: "" } : {}),
+        ...(c.empty_next_node_key === deletedKey ? { empty_next_node_key: "" } : {}),
+      };
+    }
+
     case "collect_input":
     case "set_tag": {
       const next = (cfg as { next_node_key?: string }).next_node_key;

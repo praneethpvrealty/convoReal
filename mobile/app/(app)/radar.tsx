@@ -31,6 +31,7 @@ import {
   sendMatchAlert,
 } from '@/lib/radar';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 import type { MatchEvent } from '@shared/types';
 
 /**
@@ -57,6 +58,7 @@ export default function RadarScreen() {
     queryKey: ['radar-events'],
     queryFn: fetchMatchEvents,
   });
+  const pull = usePullRefresh(events.refetch);
 
   // No entry in `checked` means "all targets selected" — the default —
   // so fresh events need no state sync when the query refetches.
@@ -152,8 +154,8 @@ export default function RadarScreen() {
         contentContainerStyle={styles.container}
         refreshControl={
           <RefreshControl
-            refreshing={events.isFetching}
-            onRefresh={() => events.refetch()}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={colors.primary}
           />
         }

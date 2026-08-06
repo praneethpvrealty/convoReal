@@ -589,3 +589,31 @@ describe("unlinkNodeReferences", () => {
     expect(after[1]).toBe(nodes[1]);
   });
 });
+
+describe('send_property_listings empty branch', () => {
+  const nodes = [
+    {
+      node_key: 'apartments_showcase',
+      node_type: 'send_property_listings',
+      config: { next_node_key: 'post_listings', empty_next_node_key: 'no_match_followup' },
+    },
+    { node_key: 'post_listings', node_type: 'send_buttons', config: { text: 'x', buttons: [] } },
+    { node_key: 'no_match_followup', node_type: 'send_buttons', config: { text: 'x', buttons: [] } },
+  ] as unknown as Parameters<typeof deriveCanvasEdges>[0];
+
+  it('draws the no-match arrow, so the target is not an orphan on the canvas', () => {
+    const empty = deriveCanvasEdges(nodes).find((e) => e.sourceHandle === 'empty');
+    expect(empty?.target).toBe('no_match_followup');
+    expect(empty?.label).toBe('No matches');
+  });
+
+  it('still draws the ordinary next arrow beside it', () => {
+    const next = deriveCanvasEdges(nodes).find((e) => e.sourceHandle === 'next');
+    expect(next?.target).toBe('post_listings');
+  });
+
+  it('offers both handles on a listings node and only one elsewhere', () => {
+    expect(outgoingSlots(nodes[0]).map((s) => s.id)).toEqual(['next', 'empty']);
+    expect(outgoingSlots(nodes[1]).some((s) => s.id === 'empty')).toBe(false);
+  });
+});

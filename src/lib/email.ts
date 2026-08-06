@@ -113,6 +113,76 @@ export function buildTrialExpiredEmail(params: {
   })
 }
 
+export function buildSubscriptionExtensionEmail(params: {
+  recipientName: string
+  tone: 'apology' | 'goodwill'
+  whatHappened: string
+  days: number
+  newPeriodEnd: string
+  billingUrl: string
+}): { subject: string; html: string; text: string } {
+  const { recipientName, tone, whatHappened, days, newPeriodEnd, billingUrl } = params
+  const dayLabel = `${days} ${days === 1 ? 'day' : 'days'}`
+  const isApology = tone === 'apology'
+
+  const subject = isApology
+    ? `We're sorry — we've added ${dayLabel} to your ${appName} subscription`
+    : `We've added ${dayLabel} to your ${appName} subscription`
+
+  const heading = isApology ? 'We owe you an apology' : `A ${dayLabel} thank-you`
+
+  const ownership = isApology
+    ? `That was our fault, not anything you did, and we know it got in the way of your work.`
+    : `Nothing went wrong on your side — we simply wanted to do right by you.`
+
+  const html = `
+    <div style="font-family: system-ui, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; color: #1a1a1a;">
+      <h2 style="color: #7c3aed; margin-bottom: 16px;">${heading}</h2>
+      <p>Hi ${recipientName},</p>
+      <p>${whatHappened}</p>
+      <p>${ownership}</p>
+      <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <p style="margin: 0; font-size: 15px;">
+          We've added <strong>${dayLabel}</strong> to your subscription at no charge.<br/>
+          Your access now runs to <strong>${newPeriodEnd}</strong>.
+        </p>
+      </div>
+      <p style="font-size: 14px;">
+        There's nothing you need to do and nothing to pay. The extra time is already
+        on your account.
+      </p>
+      <a href="${billingUrl}" style="display: inline-block; background: #7c3aed; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: 600; margin: 16px 0;">
+        View your billing
+      </a>
+      <p style="font-size: 12px; color: #6b7280; margin-top: 24px;">
+        ${isApology
+          ? 'If this caused you real trouble, reply to this email — a person will read it.'
+          : 'Reply to this email any time if you need a hand with anything.'}
+      </p>
+    </div>
+  `
+
+  const text = [
+    `Hi ${recipientName},`,
+    '',
+    whatHappened,
+    '',
+    ownership,
+    '',
+    `We've added ${dayLabel} to your subscription at no charge. Your access now runs to ${newPeriodEnd}.`,
+    '',
+    `There's nothing you need to do and nothing to pay.`,
+    '',
+    `View your billing: ${billingUrl}`,
+    '',
+    isApology
+      ? 'If this caused you real trouble, reply to this email — a person will read it.'
+      : 'Reply to this email any time if you need a hand with anything.',
+  ].join('\n')
+
+  return { subject, html, text }
+}
+
 export function buildImageCleanupWarningEmail(params: {
   tenantName: string
   properties: { title: string }[]

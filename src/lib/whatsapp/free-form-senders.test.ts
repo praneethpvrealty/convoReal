@@ -36,6 +36,13 @@ const ALLOWED_DIRECT_SENDERS = [
   "src/app/api/auth/sms-hook/route.ts",
   "src/app/api/leads/email-webhook/auto-reply.ts",
   "src/lib/whatsapp/admin-otp-sender.ts",
+  // Operator-to-customer sends from the PLATFORM number (OTP codes,
+  // subscription-extension notices). Always tries the approved Utility
+  // template first; the text fallback only lands when a window happens
+  // to be open, and a failure there is recorded rather than retried.
+  // The dispatcher is not usable here: it persists to the tenant's own
+  // conversation and bills their WABA, which is the wrong sender.
+  "src/lib/whatsapp/platform-sender.ts",
   // The dispatcher itself — where the guard lives.
   "src/lib/whatsapp/meta-api-dispatcher.ts",
 ].sort();

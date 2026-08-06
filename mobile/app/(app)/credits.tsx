@@ -16,13 +16,19 @@ import {
 import { ConvoRealLoader } from '@/components/loader';
 import { AnimatedCounter } from '@/components/motion';
 import { SuccessSheet } from '@/components/success-sheet';
-import { FilterChip, GradientHero, PrimaryButton, SectionLabel } from '@/components/ui';
+import {
+  FilterChip,
+  GradientHero,
+  PrimaryButton,
+  SectionLabel,
+} from '@/components/ui';
 import { apiFetch } from '@/lib/api';
 import { ENV } from '@/lib/env';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useTheme, fonts } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 interface WalletRow {
   total_credits: number;
@@ -74,7 +80,9 @@ const SUBSCRIPTION_TYPES = ['subscription_grant', 'commitment_bonus'];
 export default function CreditsScreen() {
   const { colors, fonts: f } = useTheme();
   const [filter, setFilter] = useState<TxFilter>('All');
-  const [celebration, setCelebration] = useState<'subscription' | 'purchase' | null>(null);
+  const [celebration, setCelebration] = useState<
+    'subscription' | 'purchase' | null
+  >(null);
 
   const wallet = useQuery({
     queryKey: ['wallet'],
@@ -95,7 +103,15 @@ export default function CreditsScreen() {
         `/api/billing/credits/history?page=${pageParam}&filter=${filter.toLowerCase()}`
       ),
     initialPageParam: 1,
-    getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
+    getNextPageParam: (last) =>
+      last.page < last.totalPages ? last.page + 1 : undefined,
+  });
+  const pull = usePullRefresh(async () => {
+    await Promise.all([
+      wallet.refetch(),
+      history.refetch(),
+      queryClient.invalidateQueries({ queryKey: ['credits'] }),
+    ]);
   });
 
   const transactions = history.data?.pages.flatMap((p) => p.transactions) ?? [];
@@ -108,7 +124,9 @@ export default function CreditsScreen() {
   async function openCheckout() {
     let before: Set<string> | null = null;
     try {
-      const snap = await apiFetch<HistoryPage>('/api/billing/credits/history?page=1&filter=all');
+      const snap = await apiFetch<HistoryPage>(
+        '/api/billing/credits/history?page=1&filter=all'
+      );
       before = new Set(snap.transactions.map((t) => t.id));
     } catch {
       before = null;
@@ -120,8 +138,12 @@ export default function CreditsScreen() {
     if (!before) return;
     const seen = before;
     try {
-      const fresh = await apiFetch<HistoryPage>('/api/billing/credits/history?page=1&filter=all');
-      const landed = fresh.transactions.filter((t) => !seen.has(t.id) && t.amount > 0);
+      const fresh = await apiFetch<HistoryPage>(
+        '/api/billing/credits/history?page=1&filter=all'
+      );
+      const landed = fresh.transactions.filter(
+        (t) => !seen.has(t.id) && t.amount > 0
+      );
       if (landed.some((t) => SUBSCRIPTION_TYPES.includes(t.type))) {
         setCelebration('subscription');
       } else if (landed.some((t) => t.type === 'purchase')) {
@@ -138,12 +160,8 @@ export default function CreditsScreen() {
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl
-          refreshing={wallet.isFetching}
-          onRefresh={() => {
-            wallet.refetch();
-            history.refetch();
-            queryClient.invalidateQueries({ queryKey: ['credits'] });
-          }}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={colors.primary}
         />
       }
@@ -157,7 +175,10 @@ export default function CreditsScreen() {
 
       <GradientHero style={{ gap: 4 }}>
         <Text style={styles.heroLabel}>AI CREDITS</Text>
-        <AnimatedCounter value={w?.total_credits ?? 0} style={styles.heroValue} />
+        <AnimatedCounter
+          value={w?.total_credits ?? 0}
+          style={styles.heroValue}
+        />
         {w?.monthly_reset_at ? (
           <Text style={styles.heroSub}>
             Monthly credits refresh {chatListTime(w.monthly_reset_at)}
@@ -165,12 +186,37 @@ export default function CreditsScreen() {
         ) : null}
       </GradientHero>
 
-      <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
-        <BreakdownRow icon="refresh-circle-outline" label="Monthly plan" value={w?.monthly_credits} />
-        <BreakdownRow icon="card-outline" label="Purchased" value={w?.purchased_credits} />
-        <BreakdownRow icon="gift-outline" label="Bonus" value={w?.bonus_credits} />
-        <BreakdownRow icon="people-outline" label="Referral" value={w?.referral_credits} />
-        <BreakdownRow icon="pricetag-outline" label="Promo" value={w?.promo_credits} />
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+        ]}
+      >
+        <BreakdownRow
+          icon="refresh-circle-outline"
+          label="Monthly plan"
+          value={w?.monthly_credits}
+        />
+        <BreakdownRow
+          icon="card-outline"
+          label="Purchased"
+          value={w?.purchased_credits}
+        />
+        <BreakdownRow
+          icon="gift-outline"
+          label="Bonus"
+          value={w?.bonus_credits}
+        />
+        <BreakdownRow
+          icon="people-outline"
+          label="Referral"
+          value={w?.referral_credits}
+        />
+        <BreakdownRow
+          icon="pricetag-outline"
+          label="Promo"
+          value={w?.promo_credits}
+        />
         {w?.pending_referral_credits ? (
           <BreakdownRow
             icon="hourglass-outline"
@@ -188,28 +234,57 @@ export default function CreditsScreen() {
         // instead of dumping the user in the system browser.
         onPress={openCheckout}
       />
-      <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center', marginTop: -4 }}>
+      <Text
+        style={{
+          fontSize: 11.5,
+          color: colors.textFaint,
+          textAlign: 'center',
+          marginTop: -4,
+        }}
+      >
         Checkout opens in your browser — purchases land here instantly.
       </Text>
 
       <SectionLabel text="History" style={{ marginTop: spacing.sm }} />
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {TX_FILTERS.map((f) => (
-          <FilterChip key={f} label={f} active={filter === f} onPress={() => setFilter(f)} />
+          <FilterChip
+            key={f}
+            label={f}
+            active={filter === f}
+            onPress={() => setFilter(f)}
+          />
         ))}
       </View>
 
       {history.isLoading ? (
         <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 24 }} />
       ) : transactions.length === 0 ? (
-        <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', paddingVertical: 16 }}>
+        <Text
+          style={{
+            fontSize: 13,
+            color: colors.textMuted,
+            textAlign: 'center',
+            paddingVertical: 16,
+          }}
+        >
           No transactions yet.
         </Text>
       ) : (
-        <View style={[styles.card, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
           {transactions.map((tx) => (
-            <View key={tx.id} style={[styles.txRow, { borderTopColor: colors.border }]}>
-              <View style={[styles.txIcon, { backgroundColor: colors.primarySoft }]}>
+            <View
+              key={tx.id}
+              style={[styles.txRow, { borderTopColor: colors.border }]}
+            >
+              <View
+                style={[styles.txIcon, { backgroundColor: colors.primarySoft }]}
+              >
                 <Ionicons
                   name={TX_ICONS[tx.type] ?? 'ellipse-outline'}
                   size={15}
@@ -217,7 +292,14 @@ export default function CreditsScreen() {
                 />
               </View>
               <View style={{ flex: 1, gap: 1 }}>
-                <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }} numberOfLines={1}>
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                  numberOfLines={1}
+                >
                   {tx.description || tx.type.replace(/_/g, ' ')}
                 </Text>
                 <Text style={{ fontSize: 11.5, color: colors.textFaint }}>
@@ -244,7 +326,13 @@ export default function CreditsScreen() {
               {history.isFetchingNextPage ? (
                 <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: colors.primary }}>
+                <Text
+                  style={{
+                    fontSize: 13.5,
+                    fontFamily: f.bold,
+                    color: colors.primary,
+                  }}
+                >
                   Load more
                 </Text>
               )}
@@ -256,7 +344,11 @@ export default function CreditsScreen() {
       <SuccessSheet
         visible={celebration !== null}
         onClose={() => setCelebration(null)}
-        title={celebration === 'subscription' ? 'Congratulations — welcome aboard!' : 'Credits added'}
+        title={
+          celebration === 'subscription'
+            ? 'Congratulations — welcome aboard!'
+            : 'Credits added'
+        }
         message={
           celebration === 'subscription'
             ? 'You’ve made the best decision to serve your customers professionally and with transparent service. We’re sure you’ll close more deals and build a loyal customer base in the real estate market.'
@@ -265,7 +357,8 @@ export default function CreditsScreen() {
         actions={[
           {
             icon: 'sparkles',
-            label: celebration === 'subscription' ? 'Start closing deals' : 'Great',
+            label:
+              celebration === 'subscription' ? 'Start closing deals' : 'Great',
             onPress: () => setCelebration(null),
           },
         ]}
@@ -288,8 +381,18 @@ function BreakdownRow({
   const { colors, fonts: f } = useTheme();
   return (
     <View style={[styles.breakRow, { borderTopColor: colors.border }]}>
-      <Ionicons name={icon} size={17} color={muted ? colors.textFaint : colors.textMuted} />
-      <Text style={{ flex: 1, fontSize: 14, color: muted ? colors.textFaint : colors.textMuted }}>
+      <Ionicons
+        name={icon}
+        size={17}
+        color={muted ? colors.textFaint : colors.textMuted}
+      />
+      <Text
+        style={{
+          flex: 1,
+          fontSize: 14,
+          color: muted ? colors.textFaint : colors.textMuted,
+        }}
+      >
         {label}
       </Text>
       <Text
@@ -306,14 +409,23 @@ function BreakdownRow({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   heroLabel: {
     color: onGradient.faint,
     fontSize: 11.5,
     fontFamily: fonts.extrabold,
     letterSpacing: 1.2,
   },
-  heroValue: { color: onGradient.text, fontSize: 40, fontFamily: fonts.extrabold, letterSpacing: -1 },
+  heroValue: {
+    color: onGradient.text,
+    fontSize: 40,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -1,
+  },
   heroSub: { color: onGradient.faint, fontSize: 12.5 },
   card: {
     borderWidth: 1,

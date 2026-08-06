@@ -24,7 +24,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { radius, spacing, useTheme, fonts } from '@/lib/theme';
 import { eventTypeFields, type EventFieldKey } from '@/lib/event-fields';
 import {
   addTodo,
@@ -36,8 +36,12 @@ import {
   type TodoPriority,
 } from '@/lib/todos';
 import type { Appointment, AppointmentType } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
-const TYPE_META: Record<AppointmentType, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
+const TYPE_META: Record<
+  AppointmentType,
+  { icon: keyof typeof Ionicons.glyphMap; label: string }
+> = {
   site_visit: { icon: 'location', label: 'Site visit' },
   call: { icon: 'call', label: 'Call' },
   follow_up: { icon: 'repeat', label: 'Follow-up' },
@@ -86,11 +90,14 @@ export default function CalendarScreen() {
   const [selected, setSelected] = useState<Date>(today);
   const [detail, setDetail] = useState<Appointment | null>(null);
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['appointments', month.getFullYear(), month.getMonth()],
     queryFn: () => fetchMonth(month),
   });
   const todosQuery = useQuery({ queryKey: ['todos'], queryFn: fetchTodos });
+  const pull = usePullRefresh(() =>
+    Promise.all([refetch(), todosQuery.refetch()])
+  );
 
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();
@@ -105,7 +112,11 @@ export default function CalendarScreen() {
   // Build the visible grid: leading blanks (Monday-first) + days.
   const cells = useMemo(() => {
     const first = monthStart(month);
-    const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+    const daysInMonth = new Date(
+      month.getFullYear(),
+      month.getMonth() + 1,
+      0
+    ).getDate();
     const lead = (first.getDay() + 6) % 7; // Monday = 0
     const out: (Date | null)[] = Array(lead).fill(null);
     for (let d = 1; d <= daysInMonth; d++) {
@@ -124,8 +135,15 @@ export default function CalendarScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.screenHeader, { paddingTop: insets.top + spacing.sm }]}>
-        <Text style={[styles.screenTitle, { color: colors.text, fontFamily: f.extrabold }]}>
+      <View
+        style={[styles.screenHeader, { paddingTop: insets.top + spacing.sm }]}
+      >
+        <Text
+          style={[
+            styles.screenTitle,
+            { color: colors.text, fontFamily: f.extrabold },
+          ]}
+        >
           Calendar
         </Text>
         <Link href="/(app)/appointment-new" asChild>
@@ -148,11 +166,8 @@ export default function CalendarScreen() {
         }}
         refreshControl={
           <RefreshControl
-            refreshing={isFetching || todosQuery.isFetching}
-            onRefresh={() => {
-              refetch();
-              todosQuery.refetch();
-            }}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={colors.primary}
           />
         }
@@ -167,7 +182,13 @@ export default function CalendarScreen() {
           >
             <Ionicons name="chevron-back" size={20} color={colors.textMuted} />
           </Pressable>
-          <Text style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}>
+          <Text
+            style={{
+              fontSize: 17,
+              fontFamily: f.extrabold,
+              color: colors.text,
+            }}
+          >
             {month.toLocaleDateString([], { month: 'long', year: 'numeric' })}
           </Text>
           <Pressable
@@ -176,7 +197,11 @@ export default function CalendarScreen() {
             accessibilityRole="button"
             accessibilityLabel="Next month"
           >
-            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.textMuted}
+            />
           </Pressable>
           <View style={{ flex: 1 }} />
           <Pressable
@@ -190,15 +215,31 @@ export default function CalendarScreen() {
             accessibilityLabel="Jump to today"
             style={{ paddingVertical: 8, paddingHorizontal: 4 }}
           >
-            <Text style={{ fontSize: 13, fontFamily: f.bold, color: colors.primary }}>Today</Text>
+            <Text
+              style={{
+                fontSize: 13,
+                fontFamily: f.bold,
+                color: colors.primary,
+              }}
+            >
+              Today
+            </Text>
           </Pressable>
         </View>
 
         {/* Grid */}
-        <View style={[styles.grid, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+        <View
+          style={[
+            styles.grid,
+            { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+          ]}
+        >
           <View style={styles.weekRow}>
             {WEEKDAYS.map((w, i) => (
-              <Text key={i} style={[styles.weekday, { color: colors.textFaint }]}>
+              <Text
+                key={i}
+                style={[styles.weekday, { color: colors.textFaint }]}
+              >
                 {w}
               </Text>
             ))}
@@ -223,13 +264,20 @@ export default function CalendarScreen() {
                       style={[
                         styles.dayInner,
                         isSelected && { backgroundColor: colors.primary },
-                        !isSelected && isToday && { borderWidth: 1.5, borderColor: colors.primary },
+                        !isSelected &&
+                          isToday && {
+                            borderWidth: 1.5,
+                            borderColor: colors.primary,
+                          },
                       ]}
                     >
                       <Text
                         style={{
                           fontSize: 14,
-                          fontFamily: isSelected || isToday ? fonts.extrabold : fonts.medium,
+                          fontFamily:
+                            isSelected || isToday
+                              ? fonts.extrabold
+                              : fonts.medium,
                           color: isSelected ? colors.onPrimary : colors.text,
                         }}
                       >
@@ -263,10 +311,16 @@ export default function CalendarScreen() {
 
         {/* Selected-day agenda */}
         <Text style={[styles.dayLabel, { color: colors.textFaint }]}>
-          {selected.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })}
+          {selected.toLocaleDateString([], {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+          })}
         </Text>
         {isLoading ? (
-          <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
+          <ConvoRealLoader
+            style={{ alignSelf: 'center', paddingVertical: 20 }}
+          />
         ) : dayAppointments.length === 0 ? (
           <EmptyState
             icon="calendar-outline"
@@ -275,7 +329,11 @@ export default function CalendarScreen() {
           />
         ) : (
           dayAppointments.map((appt) => (
-            <AppointmentCard key={appt.id} appointment={appt} onPress={() => setDetail(appt)} />
+            <AppointmentCard
+              key={appt.id}
+              appointment={appt}
+              onPress={() => setDetail(appt)}
+            />
           ))
         )}
 
@@ -283,10 +341,14 @@ export default function CalendarScreen() {
             the selected day — a flat list under the agenda, open tasks
             first. Contact/property mentions stay a web smart-add
             feature; rows created there still show their links here. */}
-        <Text style={[styles.dayLabel, { color: colors.textFaint }]}>To-dos</Text>
+        <Text style={[styles.dayLabel, { color: colors.textFaint }]}>
+          To-dos
+        </Text>
         <TodoQuickAdd />
         {todosQuery.isLoading ? (
-          <ConvoRealLoader style={{ alignSelf: 'center', paddingVertical: 20 }} />
+          <ConvoRealLoader
+            style={{ alignSelf: 'center', paddingVertical: 20 }}
+          />
         ) : (todosQuery.data ?? []).length === 0 ? (
           <Text style={{ fontSize: 13, color: colors.textMuted }}>
             No tasks yet. Add one above — tasks sync with the web calendar.
@@ -311,7 +373,10 @@ export default function CalendarScreen() {
 
 const PRIORITIES: TodoPriority[] = ['low', 'medium', 'high'];
 
-function priorityColor(priority: TodoPriority, colors: ReturnType<typeof useTheme>['colors']) {
+function priorityColor(
+  priority: TodoPriority,
+  colors: ReturnType<typeof useTheme>['colors']
+) {
   return priority === 'high'
     ? colors.danger
     : priority === 'medium'
@@ -364,7 +429,11 @@ function TodoQuickAdd() {
           onSubmitEditing={save}
           style={[
             styles.todoInput,
-            { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              color: colors.text,
+            },
           ]}
         />
         {busy ? (
@@ -387,7 +456,9 @@ function TodoQuickAdd() {
       </View>
       {title.trim() ? (
         <View style={{ gap: spacing.sm }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <View
+            style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
+          >
             {PRIORITIES.map((p) => (
               <FilterChip
                 key={p}
@@ -414,8 +485,18 @@ function TodoQuickAdd() {
               accessibilityLabel={dueDate ? 'Change due date' : 'Add due date'}
               style={[styles.todoDueChip, { borderColor: colors.border }]}
             >
-              <Ionicons name="calendar-outline" size={14} color={colors.primary} />
-              <Text style={{ fontSize: 13, fontFamily: f.semibold, color: colors.text }}>
+              <Ionicons
+                name="calendar-outline"
+                size={14}
+                color={colors.primary}
+              />
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontFamily: f.semibold,
+                  color: colors.text,
+                }}
+              >
                 {dueDate
                   ? `${dueDate.toLocaleDateString([], { day: 'numeric', month: 'short' })} · ${dueDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                   : 'Due date'}
@@ -430,7 +511,11 @@ function TodoQuickAdd() {
                   accessibilityRole="button"
                   accessibilityLabel="Clear due date"
                 >
-                  <Ionicons name="close-circle" size={15} color={colors.textFaint} />
+                  <Ionicons
+                    name="close-circle"
+                    size={15}
+                    color={colors.textFaint}
+                  />
                 </Pressable>
               ) : null}
             </Pressable>
@@ -438,8 +523,16 @@ function TodoQuickAdd() {
           {picker && dueDate ? (
             <View style={{ gap: spacing.sm }}>
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <FilterChip label="Day" active={picker === 'date'} onPress={() => setPicker('date')} />
-                <FilterChip label="Time" active={picker === 'time'} onPress={() => setPicker('time')} />
+                <FilterChip
+                  label="Day"
+                  active={picker === 'date'}
+                  onPress={() => setPicker('date')}
+                />
+                <FilterChip
+                  label="Time"
+                  active={picker === 'time'}
+                  onPress={() => setPicker('time')}
+                />
               </View>
               <InlineDateTimePicker
                 value={dueDate}
@@ -451,7 +544,9 @@ function TodoQuickAdd() {
           ) : null}
         </View>
       ) : null}
-      {error ? <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text> : null}
+      {error ? (
+        <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
+      ) : null}
     </View>
   );
 }
@@ -460,7 +555,8 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
   const due = todo.due_date ? new Date(todo.due_date) : null;
-  const overdue = due !== null && !todo.completed && due.getTime() < now.getTime();
+  const overdue =
+    due !== null && !todo.completed && due.getTime() < now.getTime();
 
   async function toggle() {
     haptic.tap();
@@ -517,7 +613,11 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
           <Ionicons
             name={todo.completed ? 'checkmark-circle' : 'ellipse-outline'}
             size={24}
-            color={todo.completed ? colors.success : priorityColor(todo.priority, colors)}
+            color={
+              todo.completed
+                ? colors.success
+                : priorityColor(todo.priority, colors)
+            }
           />
         )}
       </Pressable>
@@ -533,7 +633,10 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
         </Text>
         {meta.length > 0 ? (
           <Text
-            style={{ fontSize: 12, color: overdue ? colors.danger : colors.textMuted }}
+            style={{
+              fontSize: 12,
+              color: overdue ? colors.danger : colors.textMuted,
+            }}
             numberOfLines={1}
           >
             {overdue ? 'Overdue · ' : ''}
@@ -586,18 +689,29 @@ function AppointmentCard({
           style={[
             styles.cardTitle,
             { color: colors.text },
-            appointment.status === 'cancelled' && { textDecorationLine: 'line-through' },
+            appointment.status === 'cancelled' && {
+              textDecorationLine: 'line-through',
+            },
           ]}
           numberOfLines={1}
         >
           {appointment.title}
         </Text>
-        <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
+        <Text
+          style={{ fontSize: 12.5, color: colors.textMuted }}
+          numberOfLines={1}
+        >
           {time} · {meta.label}
           {appointment.location ? ` · ${appointment.location}` : ''}
         </Text>
         {appointment.contact ? (
-          <Text style={{ fontSize: 12.5, color: colors.primary, fontFamily: f.semibold }}>
+          <Text
+            style={{
+              fontSize: 12.5,
+              color: colors.primary,
+              fontFamily: f.semibold,
+            }}
+          >
             {appointment.contact.name || appointment.contact.phone}
           </Text>
         ) : null}
@@ -608,7 +722,10 @@ function AppointmentCard({
             fontSize: 11,
             fontFamily: f.bold,
             textTransform: 'uppercase',
-            color: appointment.status === 'completed' ? colors.success : colors.danger,
+            color:
+              appointment.status === 'completed'
+                ? colors.success
+                : colors.danger,
           }}
         >
           {appointment.status}
@@ -627,7 +744,9 @@ function AppointmentCard({
  * than a generic "Add notes" that hides which of the three applies.
  */
 function postFieldLabel(eventType: Appointment['event_type']): string {
-  const post = eventTypeFields(eventType).find((field) => field.phase === 'post');
+  const post = eventTypeFields(eventType).find(
+    (field) => field.phase === 'post'
+  );
   return post ? `Add ${post.label.toLowerCase()}` : 'Add notes';
 }
 
@@ -683,7 +802,9 @@ function AppointmentDetail({
 
     if (updateError || !data?.length) {
       haptic.warn();
-      setError('Could not update this event. Check your connection and try again.');
+      setError(
+        'Could not update this event. Check your connection and try again.'
+      );
       return;
     }
 
@@ -713,7 +834,9 @@ function AppointmentDetail({
 
     if (updateError || !data?.length) {
       haptic.warn();
-      setError('Could not save these notes. Check your connection and try again.');
+      setError(
+        'Could not save these notes. Check your connection and try again.'
+      );
       return;
     }
 
@@ -763,222 +886,319 @@ function AppointmentDetail({
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: spacing.md }}
       >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-            <View style={[styles.typeBadge, { backgroundColor: colors.primarySoft }]}>
-              <Ionicons name={meta.icon} size={17} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 17, fontFamily: f.extrabold, color: colors.text }}>
-                {appointment.title}
-              </Text>
-              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
-                {meta.label} ·{' '}
-                {effectiveStart.toLocaleDateString([], {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                })}{' '}
-                · {effectiveStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+          }}
+        >
+          <View
+            style={[styles.typeBadge, { backgroundColor: colors.primarySoft }]}
+          >
+            <Ionicons name={meta.icon} size={17} color={colors.primary} />
           </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 17,
+                fontFamily: f.extrabold,
+                color: colors.text,
+              }}
+            >
+              {appointment.title}
+            </Text>
+            <Text style={{ fontSize: 12.5, color: colors.textMuted }}>
+              {meta.label} ·{' '}
+              {effectiveStart.toLocaleDateString([], {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+              })}{' '}
+              ·{' '}
+              {effectiveStart.toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+          </View>
+        </View>
 
-          {appointment.location ? (
-            <DetailRow icon="location-outline" text={appointment.location} />
-          ) : null}
-          {appointment.description ? (
-            <DetailRow icon="text-outline" text={appointment.description} />
-          ) : null}
-          {/* Type-specific notes (migration 128): agenda before the
+        {appointment.location ? (
+          <DetailRow icon="location-outline" text={appointment.location} />
+        ) : null}
+        {appointment.description ? (
+          <DetailRow icon="text-outline" text={appointment.description} />
+        ) : null}
+        {/* Type-specific notes (migration 128): agenda before the
               event, minutes / outcome after it. Editable here because
               the post-event ones exist to be filled in once the event
               is done, which is when this sheet is open. */}
-          {editingNotes ? (
-            <View style={{ gap: spacing.md }}>
-              {eventTypeFields(appointment.event_type).map((field) => (
-                <View key={field.key} style={{ gap: 6 }}>
-                  <Text style={{ fontSize: 11.5, fontFamily: f.bold, color: colors.textMuted }}>
-                    {field.label.toUpperCase()}
-                    <Text style={{ fontFamily: fonts.regular, color: colors.textFaint }}>
-                      {field.phase === 'pre'
-                        ? '  — sent in the pre-event reminder'
-                        : '  — fill in after the event'}
-                    </Text>
+        {editingNotes ? (
+          <View style={{ gap: spacing.md }}>
+            {eventTypeFields(appointment.event_type).map((field) => (
+              <View key={field.key} style={{ gap: 6 }}>
+                <Text
+                  style={{
+                    fontSize: 11.5,
+                    fontFamily: f.bold,
+                    color: colors.textMuted,
+                  }}
+                >
+                  {field.label.toUpperCase()}
+                  <Text
+                    style={{
+                      fontFamily: fonts.regular,
+                      color: colors.textFaint,
+                    }}
+                  >
+                    {field.phase === 'pre'
+                      ? '  — sent in the pre-event reminder'
+                      : '  — fill in after the event'}
                   </Text>
-                  <TextInput
-                    multiline
-                    value={notes[field.key]}
-                    onChangeText={(next) =>
-                      setNotes((prev) => ({ ...prev, [field.key]: next }))
-                    }
-                    placeholder={field.placeholder}
-                    placeholderTextColor={colors.textFaint}
-                    accessibilityLabel={field.label}
-                    style={[
-                      styles.notesInput,
-                      {
-                        backgroundColor: colors.surface,
-                        borderColor: colors.border,
-                        color: colors.text,
-                      },
-                    ]}
-                  />
-                </View>
+                </Text>
+                <TextInput
+                  multiline
+                  value={notes[field.key]}
+                  onChangeText={(next) =>
+                    setNotes((prev) => ({ ...prev, [field.key]: next }))
+                  }
+                  placeholder={field.placeholder}
+                  placeholderTextColor={colors.textFaint}
+                  accessibilityLabel={field.label}
+                  style={[
+                    styles.notesInput,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                />
+              </View>
+            ))}
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <SheetButton
+                label="Save notes"
+                color={colors.primary}
+                textColor={colors.onPrimary}
+                disabled={busy}
+                busy={busy}
+                onPress={saveNotes}
+              />
+              <SheetButton
+                label="Cancel"
+                color={colors.surface}
+                textColor={colors.textMuted}
+                onPress={() => {
+                  setNotes({
+                    agenda: appointment.agenda ?? '',
+                    minutes: appointment.minutes ?? '',
+                    outcome: appointment.outcome ?? '',
+                  });
+                  setEditingNotes(false);
+                }}
+              />
+            </View>
+          </View>
+        ) : (
+          <>
+            {eventTypeFields(appointment.event_type)
+              .filter(
+                (field) => (appointment[field.key] ?? '').trim().length > 0
+              )
+              .map((field) => (
+                <DetailRow
+                  key={field.key}
+                  icon={
+                    field.phase === 'pre' ? 'list-outline' : 'create-outline'
+                  }
+                  text={`${field.label}: ${appointment[field.key]}`}
+                />
               ))}
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                setEditingNotes(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Add or edit notes for this event"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md,
+              }}
+            >
+              <Ionicons
+                name="create-outline"
+                size={16}
+                color={colors.primary}
+              />
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontFamily: f.semibold,
+                  color: colors.primary,
+                }}
+              >
+                {eventTypeFields(appointment.event_type).some(
+                  (field) => (appointment[field.key] ?? '').trim().length > 0
+                )
+                  ? 'Edit notes'
+                  : postFieldLabel(appointment.event_type)}
+              </Text>
+            </Pressable>
+          </>
+        )}
+        {appointment.contact ? (
+          <Link href={`/(app)/contact/${appointment.contact.id}`} asChild>
+            <Pressable onPress={onClose}>
+              <DetailRow
+                icon="person-outline"
+                text={
+                  appointment.contact.name || appointment.contact.phone || ''
+                }
+                accent
+              />
+            </Pressable>
+          </Link>
+        ) : null}
+        {appointment.property ? (
+          <Link href={`/(app)/property/${appointment.property.id}`} asChild>
+            <Pressable onPress={onClose}>
+              <DetailRow
+                icon="home-outline"
+                text={appointment.property.title}
+                accent
+              />
+            </Pressable>
+          </Link>
+        ) : null}
+
+        {error ? (
+          <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
+        ) : null}
+
+        {appointment.status === 'scheduled' ? (
+          rescheduling ? (
+            <View style={{ gap: spacing.sm }}>
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                <Pressable
+                  style={[
+                    styles.pickerButton,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={() => setPicker('date')}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={15}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 13.5,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                  >
+                    {effectiveStart.toLocaleDateString([], {
+                      day: 'numeric',
+                      month: 'short',
+                    })}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.pickerButton,
+                    {
+                      backgroundColor: colors.surface,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                  onPress={() => setPicker('time')}
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={15}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={{
+                      fontSize: 13.5,
+                      fontFamily: f.semibold,
+                      color: colors.text,
+                    }}
+                  >
+                    {effectiveStart.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                </Pressable>
+              </View>
+              {picker ? (
+                <InlineDateTimePicker
+                  value={effectiveStart}
+                  mode={picker}
+                  onChange={setNewStart}
+                  onClose={() => setPicker(null)}
+                />
+              ) : null}
               <View style={{ flexDirection: 'row', gap: spacing.sm }}>
                 <SheetButton
-                  label="Save notes"
+                  label="Save new time"
                   color={colors.primary}
                   textColor={colors.onPrimary}
-                  disabled={busy}
+                  disabled={!newStart || busy}
                   busy={busy}
-                  onPress={saveNotes}
+                  onPress={saveReschedule}
                 />
                 <SheetButton
-                  label="Cancel"
+                  label="Back"
                   color={colors.surface}
                   textColor={colors.textMuted}
-                  onPress={() => {
-                    setNotes({
-                      agenda: appointment.agenda ?? '',
-                      minutes: appointment.minutes ?? '',
-                      outcome: appointment.outcome ?? '',
-                    });
-                    setEditingNotes(false);
-                  }}
+                  onPress={() => setRescheduling(false)}
                 />
               </View>
+              <Text
+                style={{
+                  fontSize: 11.5,
+                  color: colors.textFaint,
+                  textAlign: 'center',
+                }}
+              >
+                Rescheduling re-arms the WhatsApp reminders for the new time.
+              </Text>
             </View>
           ) : (
-            <>
-              {eventTypeFields(appointment.event_type)
-                .filter((field) => (appointment[field.key] ?? '').trim().length > 0)
-                .map((field) => (
-                  <DetailRow
-                    key={field.key}
-                    icon={field.phase === 'pre' ? 'list-outline' : 'create-outline'}
-                    text={`${field.label}: ${appointment[field.key]}`}
-                  />
-                ))}
-              <Pressable
-                onPress={() => {
-                  haptic.tap();
-                  setEditingNotes(true);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Add or edit notes for this event"
-                style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}
-              >
-                <Ionicons name="create-outline" size={16} color={colors.primary} />
-                <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.primary }}>
-                  {eventTypeFields(appointment.event_type).some(
-                    (field) => (appointment[field.key] ?? '').trim().length > 0
-                  )
-                    ? 'Edit notes'
-                    : postFieldLabel(appointment.event_type)}
-                </Text>
-              </Pressable>
-            </>
-          )}
-          {appointment.contact ? (
-            <Link href={`/(app)/contact/${appointment.contact.id}`} asChild>
-              <Pressable onPress={onClose}>
-                <DetailRow
-                  icon="person-outline"
-                  text={appointment.contact.name || appointment.contact.phone || ''}
-                  accent
-                />
-              </Pressable>
-            </Link>
-          ) : null}
-          {appointment.property ? (
-            <Link href={`/(app)/property/${appointment.property.id}`} asChild>
-              <Pressable onPress={onClose}>
-                <DetailRow icon="home-outline" text={appointment.property.title} accent />
-              </Pressable>
-            </Link>
-          ) : null}
-
-          {error ? (
-            <Text style={{ fontSize: 12.5, color: colors.danger }}>{error}</Text>
-          ) : null}
-
-          {appointment.status === 'scheduled' ? (
-            rescheduling ? (
-              <View style={{ gap: spacing.sm }}>
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                  <Pressable
-                    style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                    onPress={() => setPicker('date')}
-                  >
-                    <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-                    <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
-                      {effectiveStart.toLocaleDateString([], { day: 'numeric', month: 'short' })}
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.pickerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
-                    onPress={() => setPicker('time')}
-                  >
-                    <Ionicons name="time-outline" size={15} color={colors.primary} />
-                    <Text style={{ fontSize: 13.5, fontFamily: f.semibold, color: colors.text }}>
-                      {effectiveStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                  </Pressable>
-                </View>
-                {picker ? (
-                  <InlineDateTimePicker
-                    value={effectiveStart}
-                    mode={picker}
-                    onChange={setNewStart}
-                    onClose={() => setPicker(null)}
-                  />
-                ) : null}
-                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                  <SheetButton
-                    label="Save new time"
-                    color={colors.primary}
-                    textColor={colors.onPrimary}
-                    disabled={!newStart || busy}
-                    busy={busy}
-                    onPress={saveReschedule}
-                  />
-                  <SheetButton
-                    label="Back"
-                    color={colors.surface}
-                    textColor={colors.textMuted}
-                    onPress={() => setRescheduling(false)}
-                  />
-                </View>
-                <Text style={{ fontSize: 11.5, color: colors.textFaint, textAlign: 'center' }}>
-                  Rescheduling re-arms the WhatsApp reminders for the new time.
-                </Text>
-              </View>
-            ) : (
-              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-                <SheetButton
-                  label="Reschedule"
-                  color={colors.primarySoft}
-                  textColor={colors.primary}
-                  onPress={() => setRescheduling(true)}
-                />
-                <SheetButton
-                  label="Complete"
-                  color={colors.successSoft}
-                  textColor={colors.success}
-                  disabled={busy}
-                  onPress={() => setStatus('completed')}
-                />
-                <SheetButton
-                  label="Cancel it"
-                  color={colors.dangerSoft}
-                  textColor={colors.danger}
-                  disabled={busy}
-                  onPress={() => setStatus('cancelled')}
-                />
-              </View>
-            )
-          ) : null}
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <SheetButton
+                label="Reschedule"
+                color={colors.primarySoft}
+                textColor={colors.primary}
+                onPress={() => setRescheduling(true)}
+              />
+              <SheetButton
+                label="Complete"
+                color={colors.successSoft}
+                textColor={colors.success}
+                disabled={busy}
+                onPress={() => setStatus('completed')}
+              />
+              <SheetButton
+                label="Cancel it"
+                color={colors.dangerSoft}
+                textColor={colors.danger}
+                disabled={busy}
+                onPress={() => setStatus('cancelled')}
+              />
+            </View>
+          )
+        ) : null}
       </ScrollView>
     </BottomSheet>
   );
@@ -995,8 +1215,18 @@ function DetailRow({
 }) {
   const { colors } = useTheme();
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md }}>
-      <Ionicons name={icon} size={16} color={accent ? colors.primary : colors.textMuted} />
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: spacing.md,
+      }}
+    >
+      <Ionicons
+        name={icon}
+        size={16}
+        color={accent ? colors.primary : colors.textMuted}
+      />
       <Text
         style={{
           flex: 1,
@@ -1044,7 +1274,9 @@ function SheetButton({
       {busy ? (
         <ActivityIndicator size="small" color={textColor} />
       ) : (
-        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: textColor }}>{label}</Text>
+        <Text style={{ fontSize: 13.5, fontFamily: f.bold, color: textColor }}>
+          {label}
+        </Text>
       )}
     </Pressable>
   );
@@ -1057,7 +1289,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
   },
-  screenTitle: { fontSize: 30, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+  screenTitle: {
+    fontSize: 30,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.5,
+  },
   monthHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   grid: {
     borderRadius: radius.lg,
@@ -1066,7 +1302,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   weekRow: { flexDirection: 'row' },
-  weekday: { flex: 1, textAlign: 'center', fontSize: 11, fontFamily: fonts.bold, paddingVertical: 4 },
+  weekday: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 11,
+    fontFamily: fonts.bold,
+    paddingVertical: 4,
+  },
   dayCell: { flex: 1, alignItems: 'center', paddingVertical: 3 },
   dayInner: {
     width: 32,

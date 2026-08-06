@@ -18,6 +18,7 @@ import { fetchDenBids, fetchDenDashboard, fetchDenMe } from '@/lib/den-api';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { formatInr } from '@/lib/format';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /**
  * Owners Den home — the owner's activity overview: interest totals
@@ -35,34 +36,49 @@ export default function DenHomeScreen() {
     queryFn: () => fetchDenDashboard(days),
   });
   const bids = useQuery({ queryKey: ['den-bids'], queryFn: fetchDenBids });
+  const pull = usePullRefresh(() =>
+    Promise.all([me.refetch(), dashboard.refetch(), bids.refetch()])
+  );
 
-  const pendingBids = (bids.data?.bids ?? []).filter((b) => b.status === 'pending').length;
+  const pendingBids = (bids.data?.bids ?? []).filter(
+    (b) => b.status === 'pending'
+  ).length;
   const totals = dashboard.data?.totals;
   const properties = dashboard.data?.properties ?? [];
 
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={[styles.container, { paddingTop: insets.top + spacing.sm }]}
+      contentContainerStyle={[
+        styles.container,
+        { paddingTop: insets.top + spacing.sm },
+      ]}
       refreshControl={
         <RefreshControl
-          refreshing={dashboard.isFetching}
-          onRefresh={() => {
-            me.refetch();
-            dashboard.refetch();
-            bids.refetch();
-          }}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={colors.primary}
         />
       }
     >
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 26, fontFamily: f.extrabold, color: colors.text }}>
+          <Text
+            style={{
+              fontSize: 26,
+              fontFamily: f.extrabold,
+              color: colors.text,
+            }}
+          >
             Portfolio
           </Text>
-          <Text style={{ fontSize: 13, color: colors.textMuted }} numberOfLines={1}>
-            {me.data?.display_name || me.data?.phone || 'Your properties, tracked'}
+          <Text
+            style={{ fontSize: 13, color: colors.textMuted }}
+            numberOfLines={1}
+          >
+            {me.data?.display_name ||
+              me.data?.phone ||
+              'Your properties, tracked'}
           </Text>
         </View>
         <Link href="/(den)/den/settings" asChild>
@@ -70,7 +86,13 @@ export default function DenHomeScreen() {
             hitSlop={8}
             accessibilityRole="button"
             accessibilityLabel="Den settings"
-            style={[styles.iconPill, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+            style={[
+              styles.iconPill,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
           >
             <Ionicons name="settings-outline" size={19} color={colors.text} />
           </Pressable>
@@ -82,12 +104,17 @@ export default function DenHomeScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={
-            pendingBids > 0 ? `${pendingBids} offers awaiting your response` : 'View offers'
+            pendingBids > 0
+              ? `${pendingBids} offers awaiting your response`
+              : 'View offers'
           }
           style={StyleSheet.flatten([
             styles.bidsCard,
-            { backgroundColor: pendingBids > 0 ? colors.primary : colors.glass,
-              borderColor: pendingBids > 0 ? colors.primary : colors.glassBorder },
+            {
+              backgroundColor: pendingBids > 0 ? colors.primary : colors.glass,
+              borderColor:
+                pendingBids > 0 ? colors.primary : colors.glassBorder,
+            },
           ])}
         >
           <Ionicons
@@ -117,18 +144,47 @@ export default function DenHomeScreen() {
 
       {/* Window toggle + totals */}
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        <FilterChip label="Last 7 days" active={days === 7} onPress={() => setDays(7)} />
-        <FilterChip label="Last 30 days" active={days === 30} onPress={() => setDays(30)} />
+        <FilterChip
+          label="Last 7 days"
+          active={days === 7}
+          onPress={() => setDays(7)}
+        />
+        <FilterChip
+          label="Last 30 days"
+          active={days === 30}
+          onPress={() => setDays(30)}
+        />
       </View>
       <View style={styles.grid}>
-        <StatTile icon="eye-outline" label="Showcase views" value={totals?.views} />
-        <StatTile icon="chatbubbles-outline" label="Enquiries" value={totals?.inquiries} />
-        <StatTile icon="heart-outline" label="Shortlisted" value={totals?.shortlisted} />
-        <StatTile icon="walk-outline" label="Site visits" value={totals?.visits} />
+        <StatTile
+          icon="eye-outline"
+          label="Showcase views"
+          value={totals?.views}
+        />
+        <StatTile
+          icon="chatbubbles-outline"
+          label="Enquiries"
+          value={totals?.inquiries}
+        />
+        <StatTile
+          icon="heart-outline"
+          label="Shortlisted"
+          value={totals?.shortlisted}
+        />
+        <StatTile
+          icon="walk-outline"
+          label="Site visits"
+          value={totals?.visits}
+        />
       </View>
 
       {/* Properties */}
-      <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: f.bold }]}>
+      <Text
+        style={[
+          styles.sectionTitle,
+          { color: colors.text, fontFamily: f.bold },
+        ]}
+      >
         Your properties
       </Text>
       {dashboard.isLoading ? null : properties.length === 0 ? (
@@ -141,17 +197,47 @@ export default function DenHomeScreen() {
         properties.map((p) => (
           <View
             key={`${p.property_id}-${p.agency_name ?? ''}`}
-            style={[styles.propCard, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}
+            style={[
+              styles.propCard,
+              {
+                backgroundColor: colors.glass,
+                borderColor: colors.glassBorder,
+              },
+            ]}
           >
             {p.cover_image ? (
-              <Image source={{ uri: storagePublicUrl(p.cover_image) }} style={styles.cover} resizeMode="cover" />
+              <Image
+                source={{ uri: storagePublicUrl(p.cover_image) }}
+                style={styles.cover}
+                resizeMode="cover"
+              />
             ) : (
-              <View style={[styles.cover, { backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }]}>
-                <Ionicons name="home-outline" size={26} color={colors.primary} />
+              <View
+                style={[
+                  styles.cover,
+                  {
+                    backgroundColor: colors.primarySoft,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  },
+                ]}
+              >
+                <Ionicons
+                  name="home-outline"
+                  size={26}
+                  color={colors.primary}
+                />
               </View>
             )}
             <View style={{ flex: 1, gap: 4 }}>
-              <Text style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
+              <Text
+                style={{
+                  fontSize: 14.5,
+                  fontFamily: f.bold,
+                  color: colors.text,
+                }}
+                numberOfLines={1}
+              >
                 {(p as { title?: string | null }).title || 'Your property'}
               </Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
@@ -163,7 +249,11 @@ export default function DenHomeScreen() {
               </View>
               <Text style={{ fontSize: 12, color: colors.textMuted }}>
                 {[
-                  p.price ? formatInr(p.price) : p.rent_per_month ? `${formatInr(p.rent_per_month)}/mo` : null,
+                  p.price
+                    ? formatInr(p.price)
+                    : p.rent_per_month
+                      ? `${formatInr(p.rent_per_month)}/mo`
+                      : null,
                   `${p.views} views`,
                   `${p.inquiries} enquiries`,
                   p.visits ? `${p.visits} visits` : null,
@@ -176,7 +266,14 @@ export default function DenHomeScreen() {
         ))
       )}
 
-      <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center', marginTop: spacing.sm }}>
+      <Text
+        style={{
+          fontSize: 12,
+          color: colors.textFaint,
+          textAlign: 'center',
+          marginTop: spacing.sm,
+        }}
+      >
         Deal rooms and Token Safe live on the web Den for now.
       </Text>
     </ScrollView>
@@ -194,9 +291,16 @@ function StatTile({
 }) {
   const { colors, fonts: f } = useTheme();
   return (
-    <View style={[styles.tile, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+    <View
+      style={[
+        styles.tile,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
+    >
       <Ionicons name={icon} size={17} color={colors.primary} />
-      <Text style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text }}>
+      <Text
+        style={{ fontSize: 20, fontFamily: f.extrabold, color: colors.text }}
+      >
         {value ?? '…'}
       </Text>
       <Text style={{ fontSize: 11.5, color: colors.textMuted }}>{label}</Text>
@@ -205,7 +309,11 @@ function StatTile({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   iconPill: {
     width: 40,

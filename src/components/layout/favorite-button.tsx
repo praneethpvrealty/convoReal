@@ -34,12 +34,12 @@ export function FavoriteButton({ label, href, icon }: FavoriteButtonProps) {
       // Remove from favorites
       favorites = favorites.filter((item) => item.href !== href);
       setIsFavorite(false);
-      toast.success(`Removed "${label}" from Favorites`);
+      toast.success(`Removed "${label}" from Favourites`);
     } else {
       // Add to favorites
       favorites.push({ label, href, icon });
       setIsFavorite(true);
-      toast.success(`Added "${label}" to Favorites`);
+      toast.success(`Added "${label}" to Favourites`);
     }
 
     writeFavorites(favorites);
@@ -50,7 +50,7 @@ export function FavoriteButton({ label, href, icon }: FavoriteButtonProps) {
   return (
     <button
       onClick={toggleFavorite}
-      title={isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+      title={isFavorite ? "Remove from Favourites" : "Add to Favourites"}
       className="flex items-center justify-center h-8 w-8 rounded-md bg-slate-900/60 border border-slate-800/80 cursor-pointer focus:outline-none transition-all active:scale-95"
     >
       <Star

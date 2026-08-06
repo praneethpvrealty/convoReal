@@ -44,6 +44,41 @@ const FLOOR_WORDS =
   /\b(above|over|more than|min|minimum|at least|starting)\b|\+\s*$/i;
 const OPEN_BUDGET = /\b(flexible|any|not sure|no idea|depends|open)\b/i;
 
+/**
+ * What a bare number means depends entirely on what is being bought.
+ * "35 to 40" from someone looking to rent is ₹35k–₹40k a month; the same
+ * words from a buyer are ₹35–40 lakh, and "1 to 2" from a buyer is
+ * crores. Without this the parser read all of them as rupees — a budget
+ * of ₹35 excludes every listing ever built.
+ */
+export type BudgetContext = 'rent' | 'sale';
+
+/** Highest bare sale figure still read as crores. Above it the same
+ *  number means lakh — "80" is eighty lakh, not eighty crore. */
+const SALE_CRORE_CEILING = 60;
+
+/**
+ * Multiplier for figures the visitor left unqualified, by the
+ * conventions people actually type in.
+ *
+ * Decided ONCE for the whole expression from the largest bare figure,
+ * not per token. Choosing per token splits a range across the boundary:
+ * "55 to 65" would read as 55 Cr to 65 L, a band spanning two orders of
+ * magnitude that the visitor plainly did not mean.
+ *
+ * Rent: monthly figures are quoted in thousands ("35" = ₹35k). Four
+ * digits or more is already a rupee amount ("18000").
+ *
+ * Sale: figures up to SALE_CRORE_CEILING are crores ("1 to 2" = ₹1–2
+ * Cr, "60" = ₹60 Cr); past it they are lakh ("80" = ₹80 L). Anything
+ * four digits or more is taken as written.
+ */
+function bareUnitFactor(largestBare: number, context: BudgetContext): number {
+  if (context === 'rent') return largestBare < 1_000 ? 1_000 : 1;
+  if (largestBare <= SALE_CRORE_CEILING) return 10_000_000;
+  return largestBare < 1_000 ? 100_000 : 1;
+}
+
 function unitFactor(unit: string | undefined): number | null {
   if (!unit) return null;
   const match = UNIT_MULTIPLIERS.find((u) => u.pattern.test(unit));
@@ -56,7 +91,10 @@ function unitFactor(unit: string | undefined): number | null {
  * Bare numbers inherit the unit of the next qualified token, so "1 – 2Cr"
  * reads as 1Cr–2Cr rather than ₹1.
  */
-export function parseBudgetText(text: string): BudgetRange {
+export function parseBudgetText(
+  text: string,
+  context?: BudgetContext,
+): BudgetRange {
   const raw = (text || '').trim();
   if (!raw || OPEN_BUDGET.test(raw)) return { min: null, max: null };
 
@@ -74,8 +112,17 @@ export function parseBudgetText(text: string): BudgetRange {
     else tokens[i].factor = trailingFactor;
   }
 
+  // Figures the visitor left unqualified all take the same multiplier,
+  // chosen from the largest of them. Without a context the old literal
+  // reading stands, so every existing caller behaves as before.
+  const bareValues = tokens.filter((t) => !t.factor).map((t) => t.value);
+  const bareFactor =
+    context && bareValues.length > 0
+      ? bareUnitFactor(Math.max(...bareValues), context)
+      : 1;
+
   const amounts = tokens
-    .map((t) => t.value * (t.factor ?? 1))
+    .map((t) => t.value * (t.factor ?? bareFactor))
     .sort((a, b) => a - b);
 
   if (amounts.length >= 2) {
