@@ -14,7 +14,11 @@ import {
 import { Swipeable } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppDialog, useAppDialog, type DialogSpec } from '@/components/app-dialog';
+import {
+  AppDialog,
+  useAppDialog,
+  type DialogSpec,
+} from '@/components/app-dialog';
 import { EnterRow, PressScale } from '@/components/motion';
 import { NotificationBell } from '@/components/notification-bell';
 import {
@@ -32,14 +36,33 @@ import { useAuthStore } from '@/lib/auth-store';
 import { setConversationArchived } from '@/lib/conversation-actions';
 import { resolveGreetingName } from '@/lib/display-name';
 import { haptic } from '@/lib/haptics';
-import type { Contact , Conversation, MessageStatus, SenderType } from '@/lib/types';
+import type {
+  Contact,
+  Conversation,
+  MessageStatus,
+  SenderType,
+} from '@/lib/types';
 import { chatListTime } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts, type ThemeColors } from '@/lib/theme';
+import {
+  radius,
+  spacing,
+  useTheme,
+  fonts,
+  type ThemeColors,
+} from '@/lib/theme';
 import { useCredits } from '@/lib/use-credits';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
-const FILTERS = ['All', 'Unread', 'Open', 'Pending', 'Closed', 'Archived'] as const;
+const FILTERS = [
+  'All',
+  'Unread',
+  'Open',
+  'Pending',
+  'Closed',
+  'Archived',
+] as const;
 type Filter = (typeof FILTERS)[number];
 
 async function fetchConversations(archived: boolean): Promise<Conversation[]> {
@@ -66,10 +89,11 @@ export default function InboxScreen() {
   const archived = filter === 'Archived';
   const { show, dialogProps } = useAppDialog();
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['conversations', archived],
     queryFn: () => fetchConversations(archived),
   });
+  const pull = usePullRefresh(refetch);
 
   useEffect(() => {
     if (!accountId || !userId) return;
@@ -117,7 +141,12 @@ export default function InboxScreen() {
           contentContainerStyle={styles.filters}
         >
           {FILTERS.map((f) => (
-            <FilterChip key={f} label={f} active={filter === f} onPress={() => setFilter(f)} />
+            <FilterChip
+              key={f}
+              label={f}
+              active={filter === f}
+              onPress={() => setFilter(f)}
+            />
           ))}
         </ScrollView>
       </View>
@@ -133,11 +162,14 @@ export default function InboxScreen() {
           style={{ flex: 1 }}
           data={filtered}
           keyExtractor={(c) => c.id}
-          contentContainerStyle={{ paddingTop: spacing.xs, paddingBottom: TAB_BAR_CLEARANCE }}
+          contentContainerStyle={{
+            paddingTop: spacing.xs,
+            paddingBottom: TAB_BAR_CLEARANCE,
+          }}
           refreshControl={
             <RefreshControl
-              refreshing={isFetching}
-              onRefresh={refetch}
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
               tintColor={colors.primary}
             />
           }
@@ -158,7 +190,11 @@ export default function InboxScreen() {
           }
           renderItem={({ item, index }) => (
             <EnterRow index={index}>
-              <ConversationRow conversation={item} archived={archived} showDialog={show} />
+              <ConversationRow
+                conversation={item}
+                archived={archived}
+                showDialog={show}
+              />
             </EnterRow>
           )}
         />
@@ -201,7 +237,11 @@ function HotLeadsStrip() {
             <Pressable style={{ alignItems: 'center', gap: 4, width: 62 }}>
               <Avatar name={name} size={50} ring />
               <Text
-                style={{ fontSize: 11, fontFamily: f.semibold, color: colors.textMuted }}
+                style={{
+                  fontSize: 11,
+                  fontFamily: f.semibold,
+                  color: colors.textMuted,
+                }}
                 numberOfLines={1}
               >
                 {name.split(/\s+/)[0]}
@@ -226,17 +266,22 @@ function InboxHeader({
   const credits = useCredits();
   const session = useAuthStore((s) => s.session);
   const profile = useAuthStore((s) => s.profile);
-  const displayName = resolveGreetingName(profile?.full_name, session?.user.email);
+  const displayName = resolveGreetingName(
+    profile?.full_name,
+    session?.user.email
+  );
 
   return (
-    <View
-      style={[
-        styles.header,
-        { paddingTop: insets.top + spacing.sm },
-      ]}
-    >
+    <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.headerRow}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: spacing.md,
+            flex: 1,
+          }}
+        >
           <Avatar name={displayName} size={42} />
           {/* Without flex the greeting kept its natural width and ran
               under the bell; flex lets it shrink and ellipsize instead. */}
@@ -244,13 +289,20 @@ function InboxHeader({
             <Text
               numberOfLines={1}
               ellipsizeMode="tail"
-              style={[styles.headerTitle, { color: colors.text, fontFamily: f.extrabold }]}
+              style={[
+                styles.headerTitle,
+                { color: colors.text, fontFamily: f.extrabold },
+              ]}
             >
               Hi, {displayName}
             </Text>
             <Text
               numberOfLines={1}
-              style={{ fontSize: 12.5, fontFamily: f.medium, color: colors.textMuted }}
+              style={{
+                fontSize: 12.5,
+                fontFamily: f.medium,
+                color: colors.textMuted,
+              }}
             >
               Your WhatsApp inbox
             </Text>
@@ -261,7 +313,8 @@ function InboxHeader({
           style={[
             styles.creditsChip,
             {
-              backgroundColor: credits.total === 0 ? colors.dangerSoft : colors.mint,
+              backgroundColor:
+                credits.total === 0 ? colors.dangerSoft : colors.mint,
             },
           ]}
         >
@@ -291,12 +344,32 @@ function InboxHeader({
 }
 
 /** WhatsApp-style delivery ticks for the last outgoing message. */
-function MessageTicks({ status, colors }: { status: MessageStatus; colors: ThemeColors }) {
+function MessageTicks({
+  status,
+  colors,
+}: {
+  status: MessageStatus;
+  colors: ThemeColors;
+}) {
   if (status === 'sending') {
-    return <Ionicons name="time-outline" size={14} color={colors.textFaint} style={styles.tick} />;
+    return (
+      <Ionicons
+        name="time-outline"
+        size={14}
+        color={colors.textFaint}
+        style={styles.tick}
+      />
+    );
   }
   if (status === 'failed') {
-    return <Ionicons name="alert-circle" size={14} color={colors.danger} style={styles.tick} />;
+    return (
+      <Ionicons
+        name="alert-circle"
+        size={14}
+        color={colors.danger}
+        style={styles.tick}
+      />
+    );
   }
   const read = status === 'read';
   const double = read || status === 'delivered';
@@ -321,7 +394,8 @@ function ConversationRow({
   showDialog: (spec: DialogSpec) => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  const name = conversation.contact?.name || conversation.contact?.phone || 'Unknown';
+  const name =
+    conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
   const swipeRef = useRef<Swipeable>(null);
 
@@ -330,7 +404,11 @@ function ConversationRow({
   // conversations row carries no status, so the latest message's meta is
   // fetched per visible row (FlatList only mounts what's on screen).
   const { data: lastMsg } = useQuery({
-    queryKey: ['last-msg-status', conversation.id, conversation.last_message_at],
+    queryKey: [
+      'last-msg-status',
+      conversation.id,
+      conversation.last_message_at,
+    ],
     enabled: Boolean(conversation.last_message_at),
     staleTime: 60_000,
     queryFn: async () => {
@@ -341,7 +419,10 @@ function ConversationRow({
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      return (data ?? null) as { sender_type: SenderType; status: MessageStatus } | null;
+      return (data ?? null) as {
+        sender_type: SenderType;
+        status: MessageStatus;
+      } | null;
     },
   });
   const outgoingTicks =
@@ -369,14 +450,22 @@ function ConversationRow({
         <Pressable
           onPress={toggleArchive}
           accessibilityRole="button"
-          accessibilityLabel={archived ? 'Unarchive conversation' : 'Archive conversation'}
+          accessibilityLabel={
+            archived ? 'Unarchive conversation' : 'Archive conversation'
+          }
           style={[
             styles.swipeAction,
             { backgroundColor: archived ? colors.primary : colors.warning },
           ]}
         >
-          <Ionicons name={archived ? 'arrow-undo' : 'archive'} size={20} color="#fff" />
-          <Text style={styles.swipeActionText}>{archived ? 'Unarchive' : 'Archive'}</Text>
+          <Ionicons
+            name={archived ? 'arrow-undo' : 'archive'}
+            size={20}
+            color="#fff"
+          />
+          <Text style={styles.swipeActionText}>
+            {archived ? 'Unarchive' : 'Archive'}
+          </Text>
         </Pressable>
       )}
     >
@@ -396,7 +485,10 @@ function ConversationRow({
           <View style={styles.rowTop}>
             <View style={styles.nameWrap}>
               <Text
-                style={[styles.name, { color: colors.text, fontFamily: f.extrabold }]}
+                style={[
+                  styles.name,
+                  { color: colors.text, fontFamily: f.extrabold },
+                ]}
                 numberOfLines={1}
               >
                 {name}
@@ -417,7 +509,9 @@ function ConversationRow({
           </View>
           <View style={styles.rowTop}>
             <View style={styles.previewWrap}>
-              {outgoingTicks ? <MessageTicks status={outgoingTicks} colors={colors} /> : null}
+              {outgoingTicks ? (
+                <MessageTicks status={outgoingTicks} colors={colors} />
+              ) : null}
               <Text
                 style={{
                   flex: 1,
@@ -440,8 +534,17 @@ function ConversationRow({
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: spacing.lg, gap: spacing.md },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  headerTitle: { fontSize: 23, fontFamily: fonts.extrabold, letterSpacing: -0.5 },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  headerTitle: {
+    fontSize: 23,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.5,
+  },
   creditsChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -466,7 +569,12 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   nameWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  name: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.2, flexShrink: 1 },
+  name: {
+    fontSize: 16.5,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.2,
+    flexShrink: 1,
+  },
   previewWrap: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   tick: { marginRight: 3 },
   swipeAction: {

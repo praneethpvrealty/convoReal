@@ -1,5 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Link, router } from 'expo-router';
@@ -50,10 +54,25 @@ import {
   type ListingFilter,
   type NearAnchor,
 } from '@/lib/property-search-store';
-import { mapPin, onGradient, radius, spacing, useBrandGradient, useTheme , fonts } from '@/lib/theme';
+import {
+  mapPin,
+  onGradient,
+  radius,
+  spacing,
+  useBrandGradient,
+  useTheme,
+  fonts,
+} from '@/lib/theme';
 import type { Contact, PropertiesResponse, Property } from '@/lib/types';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
-const LISTING_FILTERS: ListingFilter[] = ['All', 'Sale', 'Rent', 'JV/JD', 'Built to Suit'];
+const LISTING_FILTERS: ListingFilter[] = [
+  'All',
+  'Sale',
+  'Rent',
+  'JV/JD',
+  'Built to Suit',
+];
 const RADIUS_OPTIONS = [2, 5, 10, 25];
 const PAGE_SIZE = 20;
 
@@ -127,32 +146,40 @@ export default function PropertiesScreen() {
   const {
     data,
     isLoading,
-    isFetching,
     isPlaceholderData,
     error,
     refetch,
     fetchNextPage,
     hasNextPage,
   } = useInfiniteQuery({
-      queryKey: ['properties', debounced, listing, near, includeUnavailable],
-      queryFn: ({ pageParam }) =>
-        fetchPropertyPage(pageParam, debounced, listing, near, includeUnavailable),
-      // The properties API is 0-INDEXED (`from = page * limit` in
-      // route.ts) — page 1 means "skip the first 20 rows".
-      initialPageParam: 0,
-      getNextPageParam: (last) => {
-        const next = last.pagination.page + 1;
-        return next < last.pagination.totalPages ? next : undefined;
-      },
-      // Keep showing the previous results while a new search loads —
-      // otherwise every keystroke wipes the list to skeletons.
-      placeholderData: keepPreviousData,
-    });
+    queryKey: ['properties', debounced, listing, near, includeUnavailable],
+    queryFn: ({ pageParam }) =>
+      fetchPropertyPage(
+        pageParam,
+        debounced,
+        listing,
+        near,
+        includeUnavailable
+      ),
+    // The properties API is 0-INDEXED (`from = page * limit` in
+    // route.ts) — page 1 means "skip the first 20 rows".
+    initialPageParam: 0,
+    getNextPageParam: (last) => {
+      const next = last.pagination.page + 1;
+      return next < last.pagination.totalPages ? next : undefined;
+    },
+    // Keep showing the previous results while a new search loads —
+    // otherwise every keystroke wipes the list to skeletons.
+    placeholderData: keepPreviousData,
+  });
+  const pull = usePullRefresh(refetch);
 
   const properties = data?.pages.flatMap((p) => p.data) ?? [];
   // While a new search resolves, `data` is the PREVIOUS result — don't
   // present its total as if it belonged to the current filters.
-  const total = isPlaceholderData ? undefined : data?.pages[0]?.pagination.total;
+  const total = isPlaceholderData
+    ? undefined
+    : data?.pages[0]?.pagination.total;
 
   function showcaseMessage(url: string) {
     return `Browse our verified property listings — photos, prices and full details:\n${url}`;
@@ -192,7 +219,9 @@ export default function PropertiesScreen() {
           onPress: async () => {
             close();
             const url = await contactShowcaseShareUrl(contact);
-            const outcome = await openContactChat(contact, { draftText: showcaseMessage(url) });
+            const outcome = await openContactChat(contact, {
+              draftText: showcaseMessage(url),
+            });
             if (!outcome.ok && outcome.error) {
               show({ title: 'Could not open thread', message: outcome.error });
             }
@@ -233,7 +262,9 @@ export default function PropertiesScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        setGeoError('Location permission denied — enable it in system settings to search near you.');
+        setGeoError(
+          'Location permission denied — enable it in system settings to search near you.'
+        );
         return;
       }
       const pos = await Location.getCurrentPositionAsync({
@@ -257,10 +288,25 @@ export default function PropertiesScreen() {
     <View style={{ flex: 1 }}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <View style={styles.headerRow}>
-          <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>Properties</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+          <Text
+            style={[
+              styles.title,
+              { color: colors.text, fontFamily: f.extrabold },
+            ]}
+          >
+            Properties
+          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: spacing.md,
+            }}
+          >
             {typeof total === 'number' ? (
-              <Text style={{ fontSize: 13, color: colors.textMuted }}>{total} listings</Text>
+              <Text style={{ fontSize: 13, color: colors.textMuted }}>
+                {total} listings
+              </Text>
             ) : null}
             <Pressable
               hitSlop={8}
@@ -270,16 +316,26 @@ export default function PropertiesScreen() {
                 haptic.tap();
                 setSharePicker(true);
               }}
-              style={StyleSheet.flatten([styles.mapButton, { backgroundColor: colors.primarySoft }])}
+              style={StyleSheet.flatten([
+                styles.mapButton,
+                { backgroundColor: colors.primarySoft },
+              ])}
             >
-              <Ionicons name="share-social-outline" size={17} color={colors.primary} />
+              <Ionicons
+                name="share-social-outline"
+                size={17}
+                color={colors.primary}
+              />
             </Pressable>
             <Link href="/(app)/properties-map" asChild>
               <Pressable
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="View results on map"
-                style={StyleSheet.flatten([styles.mapButton, { backgroundColor: colors.primarySoft }])}
+                style={StyleSheet.flatten([
+                  styles.mapButton,
+                  { backgroundColor: colors.primarySoft },
+                ])}
               >
                 <Ionicons name="map" size={17} color={colors.primary} />
               </Pressable>
@@ -296,9 +352,18 @@ export default function PropertiesScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filters}
         >
-          <NearMeChip active={Boolean(near && !near.place_id)} locating={locating} onPress={nearMe} />
+          <NearMeChip
+            active={Boolean(near && !near.place_id)}
+            locating={locating}
+            onPress={nearMe}
+          />
           {LISTING_FILTERS.map((f) => (
-            <FilterChip key={f} label={f} active={listing === f} onPress={() => setListing(f)} />
+            <FilterChip
+              key={f}
+              label={f}
+              active={listing === f}
+              onPress={() => setListing(f)}
+            />
           ))}
           <FilterChip
             label="Include unavailable"
@@ -314,10 +379,18 @@ export default function PropertiesScreen() {
       {near ? (
         <View style={styles.nearBar}>
           <Ionicons name="location" size={13} color={colors.primary} />
-          <Text style={{ fontSize: 12.5, fontFamily: f.bold, color: colors.primary }}>
+          <Text
+            style={{
+              fontSize: 12.5,
+              fontFamily: f.bold,
+              color: colors.primary,
+            }}
+          >
             {near.label}
           </Text>
-          <View style={{ flexDirection: 'row', gap: 4, marginLeft: spacing.xs }}>
+          <View
+            style={{ flexDirection: 'row', gap: 4, marginLeft: spacing.xs }}
+          >
             {RADIUS_OPTIONS.map((km) => (
               <Pressable
                 key={km}
@@ -332,8 +405,10 @@ export default function PropertiesScreen() {
                   style={{
                     fontSize: 12,
                     fontFamily: f.bold,
-                    color: near.radiusKm === km ? colors.primary : colors.textFaint,
-                    textDecorationLine: near.radiusKm === km ? 'underline' : 'none',
+                    color:
+                      near.radiusKm === km ? colors.primary : colors.textFaint,
+                    textDecorationLine:
+                      near.radiusKm === km ? 'underline' : 'none',
                   }}
                 >
                   {km}km
@@ -353,12 +428,26 @@ export default function PropertiesScreen() {
         </View>
       ) : null}
       {geoError ? (
-        <Text style={{ fontSize: 12, color: colors.danger, paddingHorizontal: spacing.lg, paddingBottom: 4 }}>
+        <Text
+          style={{
+            fontSize: 12,
+            color: colors.danger,
+            paddingHorizontal: spacing.lg,
+            paddingBottom: 4,
+          }}
+        >
           {geoError}
         </Text>
       ) : null}
       {error ? (
-        <Text style={{ fontSize: 12, color: colors.danger, paddingHorizontal: spacing.lg, paddingBottom: 4 }}>
+        <Text
+          style={{
+            fontSize: 12,
+            color: colors.danger,
+            paddingHorizontal: spacing.lg,
+            paddingBottom: 4,
+          }}
+        >
           Search failed: {error instanceof Error ? error.message : 'try again'}
         </Text>
       ) : null}
@@ -388,12 +477,20 @@ export default function PropertiesScreen() {
           onEndReached={() => hasNextPage && fetchNextPage()}
           onEndReachedThreshold={0.4}
           refreshControl={
-            <RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={colors.primary} />
+            <RefreshControl
+              refreshing={pull.refreshing}
+              onRefresh={pull.onRefresh}
+              tintColor={colors.primary}
+            />
           }
           ListEmptyComponent={
             <EmptyState
               icon="home-outline"
-              title={debounced || listing !== 'All' || near ? 'No matches' : 'No properties yet'}
+              title={
+                debounced || listing !== 'All' || near
+                  ? 'No matches'
+                  : 'No properties yet'
+              }
               subtitle={
                 near
                   ? `None of your listings are within ${near.radiusKm} km of ${near.label}.`
@@ -413,7 +510,13 @@ export default function PropertiesScreen() {
                       paddingVertical: 11,
                     }}
                   >
-                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: f.bold }}>
+                    <Text
+                      style={{
+                        color: colors.onPrimary,
+                        fontSize: 13.5,
+                        fontFamily: f.bold,
+                      }}
+                    >
                       Search within 25 km
                     </Text>
                   </Pressable>
@@ -431,7 +534,13 @@ export default function PropertiesScreen() {
                       paddingVertical: 11,
                     }}
                   >
-                    <Text style={{ color: colors.onPrimary, fontSize: 13.5, fontFamily: f.bold }}>
+                    <Text
+                      style={{
+                        color: colors.onPrimary,
+                        fontSize: 13.5,
+                        fontFamily: f.bold,
+                      }}
+                    >
                       Include unavailable
                     </Text>
                   </Pressable>
@@ -524,11 +633,14 @@ function LocalitySearchBox() {
   const session = useRef(sessionToken());
 
   useEffect(() => {
-    const sub = Keyboard.addListener('keyboardDidHide', () => setFocused(false));
+    const sub = Keyboard.addListener('keyboardDidHide', () =>
+      setFocused(false)
+    );
     return () => sub.remove();
   }, []);
 
-  const enabled = focused && search.trim().length >= 2 && !isStructuredQuery(search);
+  const enabled =
+    focused && search.trim().length >= 2 && !isStructuredQuery(search);
   const { data: suggestions } = useQuery({
     queryKey: ['locality-suggest', search.trim()],
     enabled,
@@ -597,18 +709,35 @@ function LocalitySearchBox() {
               style={[styles.suggestionRow, { borderTopColor: colors.border }]}
               onPress={() => pick(s)}
             >
-              <Ionicons name="location-outline" size={15} color={colors.primary} />
+              <Ionicons
+                name="location-outline"
+                size={15}
+                color={colors.primary}
+              />
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    fontFamily: f.semibold,
+                    color: colors.text,
+                  }}
+                >
                   {s.main_text}
                 </Text>
                 {s.secondary_text ? (
-                  <Text style={{ fontSize: 11.5, color: colors.textFaint }} numberOfLines={1}>
+                  <Text
+                    style={{ fontSize: 11.5, color: colors.textFaint }}
+                    numberOfLines={1}
+                  >
                     {s.secondary_text}
                   </Text>
                 ) : null}
               </View>
-              <Ionicons name="locate-outline" size={14} color={colors.textFaint} />
+              <Ionicons
+                name="locate-outline"
+                size={14}
+                color={colors.textFaint}
+              />
             </Pressable>
           ))}
         </View>
@@ -634,7 +763,9 @@ function PropertyCard({ property }: { property: Property }) {
       : property.price
         ? formatInr(property.price)
         : null;
-  const place = [property.sublocality, property.city].filter(Boolean).join(', ');
+  const place = [property.sublocality, property.city]
+    .filter(Boolean)
+    .join(', ');
 
   return (
     <PressScale
@@ -646,63 +777,77 @@ function PropertyCard({ property }: { property: Property }) {
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
       ])}
     >
-        <View style={styles.coverWrap}>
-          {cover ? (
-            <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
-          ) : (
-            <LinearGradient
-              colors={gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[StyleSheet.absoluteFill, styles.coverEmpty]}
-            >
-              <Ionicons name="home-outline" size={38} color={onGradient.faint} />
-            </LinearGradient>
-          )}
-          {property.listing_type || typeof property.distance_km === 'number' ? (
-            <View style={[styles.statusChip, { backgroundColor: mapPin.bg }]}>
-              <View style={[styles.statusDot, { backgroundColor: mapPin.dot }]} />
-              <Text style={[styles.statusText, { color: mapPin.text }]}>
-                {typeof property.distance_km === 'number'
-                  ? property.location_tier === 'exact'
-                    ? 'In area'
-                    : `${property.distance_km} km`
-                  : property.listing_type}
-              </Text>
-            </View>
-          ) : null}
-          {property.is_starred ? (
-            <View style={styles.starBadge}>
-              <Ionicons name="star" size={13} color={colors.rating} />
-            </View>
-          ) : null}
-        </View>
+      <View style={styles.coverWrap}>
+        {cover ? (
+          <Image
+            source={{ uri: cover }}
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
+          />
+        ) : (
+          <LinearGradient
+            colors={gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[StyleSheet.absoluteFill, styles.coverEmpty]}
+          >
+            <Ionicons name="home-outline" size={38} color={onGradient.faint} />
+          </LinearGradient>
+        )}
+        {property.listing_type || typeof property.distance_km === 'number' ? (
+          <View style={[styles.statusChip, { backgroundColor: mapPin.bg }]}>
+            <View style={[styles.statusDot, { backgroundColor: mapPin.dot }]} />
+            <Text style={[styles.statusText, { color: mapPin.text }]}>
+              {typeof property.distance_km === 'number'
+                ? property.location_tier === 'exact'
+                  ? 'In area'
+                  : `${property.distance_km} km`
+                : property.listing_type}
+            </Text>
+          </View>
+        ) : null}
+        {property.is_starred ? (
+          <View style={styles.starBadge}>
+            <Ionicons name="star" size={13} color={colors.rating} />
+          </View>
+        ) : null}
+      </View>
 
-        <View style={styles.cardBody}>
-          <View style={styles.titleRow}>
-            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
-              {property.title}
-            </Text>
-            <Text style={[styles.cardPrice, { color: colors.primary }]}>{price ?? '—'}</Text>
-          </View>
-          {place ? (
-            <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={1}>
-              {place}
-            </Text>
-          ) : null}
-          <View style={styles.specRow}>
-            {property.bedrooms ? (
-              <SpecPill icon="bed-outline" label={`${property.bedrooms} Beds`} />
-            ) : null}
-            {property.area_sqft ? (
-              <SpecPill
-                icon="resize-outline"
-                label={`${property.area_sqft} ${property.area_unit || 'Sqft'}`}
-              />
-            ) : null}
-            {property.type ? <SpecPill icon="business-outline" label={property.type} /> : null}
-          </View>
+      <View style={styles.cardBody}>
+        <View style={styles.titleRow}>
+          <Text
+            style={[styles.cardTitle, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            {property.title}
+          </Text>
+          <Text style={[styles.cardPrice, { color: colors.primary }]}>
+            {price ?? '—'}
+          </Text>
         </View>
+        {place ? (
+          <Text
+            style={{ fontSize: 12.5, color: colors.textMuted }}
+            numberOfLines={1}
+          >
+            {place}
+          </Text>
+        ) : null}
+        <View style={styles.specRow}>
+          {property.bedrooms ? (
+            <SpecPill icon="bed-outline" label={`${property.bedrooms} Beds`} />
+          ) : null}
+          {property.area_sqft ? (
+            <SpecPill
+              icon="resize-outline"
+              label={`${property.area_sqft} ${property.area_unit || 'Sqft'}`}
+            />
+          ) : null}
+          {property.type ? (
+            <SpecPill icon="business-outline" label={property.type} />
+          ) : null}
+        </View>
+      </View>
     </PressScale>
   );
 }
@@ -719,7 +864,14 @@ function SpecPill({
   return (
     <View style={[styles.specPill, { backgroundColor: colors.surfaceSunken }]}>
       <Ionicons name={icon} size={13} color={colors.textMuted} />
-      <Text style={{ fontSize: 12, fontFamily: f.semibold, color: colors.textMuted }} numberOfLines={1}>
+      <Text
+        style={{
+          fontSize: 12,
+          fontFamily: f.semibold,
+          color: colors.textMuted,
+        }}
+        numberOfLines={1}
+      >
         {label}
       </Text>
     </View>
@@ -766,7 +918,11 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
   },
   filtersRow: { height: 52, justifyContent: 'center' },
-  filters: { gap: spacing.sm, paddingHorizontal: spacing.lg, alignItems: 'center' },
+  filters: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+  },
   nearBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -811,8 +967,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
   },
-  cardTitle: { flex: 1, fontSize: 16, fontFamily: fonts.extrabold, letterSpacing: -0.2 },
-  cardPrice: { fontSize: 16.5, fontFamily: fonts.extrabold, letterSpacing: -0.3 },
+  cardTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.2,
+  },
+  cardPrice: {
+    fontSize: 16.5,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -0.3,
+  },
   specRow: { flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' },
   specPill: {
     flexDirection: 'row',

@@ -17,7 +17,8 @@ import { GradientHero, SectionLabel } from '@/components/ui';
 import { formatInr } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { onGradient, radius, spacing, useTheme , fonts } from '@/lib/theme';
+import { onGradient, radius, spacing, useTheme, fonts } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 interface Overview {
   openConversations: number;
@@ -71,7 +72,10 @@ async function fetchOverview(): Promise<Overview> {
       .select('id', { count: 'exact', head: true })
       .eq('lead_temp', 'HOT'),
     supabase.from('deals').select('value').eq('status', 'open'),
-    supabase.from('deals').select('id', { count: 'exact', head: true }).eq('status', 'won'),
+    supabase
+      .from('deals')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'won'),
     supabase
       .from('appointments')
       .select('id', { count: 'exact', head: true })
@@ -101,9 +105,18 @@ async function fetchOverview(): Promise<Overview> {
 
 export default function DashboardScreen() {
   const { colors } = useTheme();
-  const { data, isFetching, refetch } = useQuery({
+  const { data, refetch } = useQuery({
     queryKey: ['overview'],
     queryFn: fetchOverview,
+  });
+  const pull = usePullRefresh(async () => {
+    await Promise.all([
+      refetch(),
+      queryClient.invalidateQueries({ queryKey: [HOME_WIDGET_QUERY_KEY] }),
+      queryClient.invalidateQueries({
+        queryKey: [LOCATION_APPROVALS_QUERY_KEY],
+      }),
+    ]);
   });
 
   return (
@@ -112,12 +125,8 @@ export default function DashboardScreen() {
       contentContainerStyle={styles.container}
       refreshControl={
         <RefreshControl
-          refreshing={isFetching}
-          onRefresh={() => {
-            queryClient.invalidateQueries({ queryKey: [HOME_WIDGET_QUERY_KEY] });
-            queryClient.invalidateQueries({ queryKey: [LOCATION_APPROVALS_QUERY_KEY] });
-            refetch();
-          }}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={colors.primary}
         />
       }
@@ -186,7 +195,9 @@ export default function DashboardScreen() {
         />
       </View>
 
-      <Text style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}>
+      <Text
+        style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
+      >
         Response-time analytics live on the web dashboard.
       </Text>
     </ScrollView>
@@ -205,7 +216,11 @@ function HeroCard({
   return (
     <GradientHero>
       <Text style={styles.heroLabel}>PIPELINE VALUE</Text>
-      <AnimatedCounter value={value} format={formatInr} style={styles.heroValue} />
+      <AnimatedCounter
+        value={value}
+        format={formatInr}
+        style={styles.heroValue}
+      />
       <View style={styles.heroRow}>
         <View style={styles.heroPill}>
           <Ionicons name="trending-up" size={13} color={onGradient.text} />
@@ -242,22 +257,39 @@ function StatCard({
         wide && { flexBasis: '100%' },
       ]}
     >
-      <Ionicons name={icon} size={18} color={accent ? colors.danger : colors.primary} />
-      <Text style={{ fontSize: 21, fontFamily: f.extrabold, color: colors.text }}>{value}</Text>
+      <Ionicons
+        name={icon}
+        size={18}
+        color={accent ? colors.danger : colors.primary}
+      />
+      <Text
+        style={{ fontSize: 21, fontFamily: f.extrabold, color: colors.text }}
+      >
+        {value}
+      </Text>
       <Text style={{ fontSize: 12, color: colors.textMuted }}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  container: {
+    padding: spacing.lg,
+    gap: spacing.md,
+    paddingBottom: spacing.xxl,
+  },
   heroLabel: {
     color: onGradient.faint,
     fontSize: 11.5,
     fontFamily: fonts.extrabold,
     letterSpacing: 1.2,
   },
-  heroValue: { color: onGradient.text, fontSize: 38, fontFamily: fonts.extrabold, letterSpacing: -1 },
+  heroValue: {
+    color: onGradient.text,
+    fontSize: 38,
+    fontFamily: fonts.extrabold,
+    letterSpacing: -1,
+  },
   heroRow: { flexDirection: 'row', gap: spacing.sm, marginTop: 2 },
   heroPill: {
     flexDirection: 'row',
@@ -268,7 +300,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  heroPillText: { color: onGradient.text, fontSize: 12.5, fontFamily: fonts.bold },
+  heroPillText: {
+    color: onGradient.text,
+    fontSize: 12.5,
+    fontFamily: fonts.bold,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   card: {
     borderWidth: 1,

@@ -1,15 +1,19 @@
-// Port of the web's approveContact + sendPropertyDetailsHelper
-// (contact-detail-view.tsx): flip the contact active, then send the
-// inquired property's complete details + showcase link through the
-// Engine WhatsApp number. Meta only allows free text inside the 24-hour
-// customer window — outside it the caller gets the drafted message
-// (wa.me deep link) and the conversation for a template.
+// Approve a pending lead: flip them active and send the details of the
+// property they inquired about over WhatsApp.
+//
+// One call to POST /api/contacts/[id]/approve. This used to be six
+// sequential round trips from the phone — contact update, property
+// load, showcase settings, conversation lookup, handoff clear, then the
+// send — each paying mobile latency on top of the work. The route now
+// does all of it in one hop and returns everything the celebration
+// sheet needs.
 
-import { useAuthStore } from '@/lib/auth-store';
-import { isReengagementError } from '@/lib/customer-window';
-import { sendPropertyViaEngine } from '@/lib/property-share-actions';
-import { buildInquiryDetailsMessage, propertyShowcaseUrl } from '@/lib/share-message';
+import { ApiError, apiFetch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import {
+  buildInquiryDetailsMessage,
+  propertyShowcaseUrl,
+} from '@/lib/share-message';
 import { getShowcaseUrl } from '@/lib/welcome-message';
 import type { Contact, Property } from '@/lib/types';
 
@@ -26,13 +30,27 @@ export interface ApproveOutcome {
   /** The drafted details message (complete specs + showcase link) —
    *  what went out on send, or what wa.me should carry on re-engage. */
   detailsMessage?: string;
-  /** Session >24h — send a template from this conversation instead. */
+  /** Session >24h with no approved template — send one from this
+   *  conversation instead. */
   reengageConversationId?: string;
   error?: string;
 }
 
-/** Complete details + showcase link for a property id — the message
- *  the approve flow sends and the conversation seed draft pre-fills. */
+interface ApproveResponse {
+  data: {
+    approved: boolean;
+    sent: boolean;
+    channel?: 'freeform' | 'template';
+    property?: Property;
+    details_message?: string;
+    conversation_id?: string | null;
+    template_status?: string;
+    send_error?: string;
+  };
+}
+
+/** Complete details + showcase link for a property id — used by the
+ *  conversation seed draft, which composes without approving. */
 export async function buildInquiryDraft(
   propertyId: string
 ): Promise<{ property: Property; message: string } | null> {
@@ -52,86 +70,39 @@ export async function buildInquiryDraft(
   };
 }
 
-export async function approveAndSendDetails(contact: Contact): Promise<ApproveOutcome> {
-  // Lazy: a Supabase builder only runs once something awaits it.
-  const setActive = supabase
-    .from('contacts')
-    .update({ status: 'active', updated_at: new Date().toISOString() })
-    .eq('id', contact.id);
+export async function approveAndSendDetails(
+  contact: Contact
+): Promise<ApproveOutcome> {
+  try {
+    const res = await apiFetch<ApproveResponse>(
+      `/api/contacts/${contact.id}/approve`,
+      { method: 'POST' }
+    );
+    const d = res.data;
 
-  if (!contact.last_inquired_property_id) {
-    const { error } = await setActive;
-    return error
-      ? { ok: false, sent: false, error: error.message }
-      : { ok: true, sent: false };
+    return {
+      ok: true,
+      sent: d.sent,
+      channel: d.channel,
+      property: d.property,
+      detailsMessage: d.details_message,
+      // Nothing went out and the window is shut: the celebration offers
+      // the thread's template picker for this conversation.
+      ...(!d.sent && d.conversation_id
+        ? { reengageConversationId: d.conversation_id }
+        : {}),
+      ...(d.send_error ? { error: d.send_error } : {}),
+    };
+  } catch (err) {
+    // The approval itself did not land — the row is untouched, so the
+    // caller can safely offer a retry.
+    return {
+      ok: false,
+      sent: false,
+      error:
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to approve this contact',
+    };
   }
-
-  // The status flip, the drafted details and the contact's conversation
-  // are independent of one another. Awaiting them in turn put four
-  // round-trips in front of the send, which is most of the wait between
-  // the tap and the confirmation.
-  const [{ error: updateError }, draft, { data: existingConv }] = await Promise.all([
-    setActive,
-    buildInquiryDraft(contact.last_inquired_property_id),
-    supabase
-      .from('conversations')
-      .select('id')
-      .eq('contact_id', contact.id)
-      .order('last_message_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
-
-  if (updateError) {
-    return { ok: false, sent: false, error: updateError.message };
-  }
-  if (!draft) {
-    return { ok: true, sent: false };
-  }
-  const { property, message: detailsMessage } = draft;
-
-  let convId = existingConv?.id as string | undefined;
-  if (!convId) {
-    const { profile, session } = useAuthStore.getState();
-    if (!profile?.account_id) return { ok: true, sent: false };
-    const { data: newConv, error: convError } = await supabase
-      .from('conversations')
-      .insert({
-        account_id: profile.account_id,
-        user_id: session?.user.id,
-        contact_id: contact.id,
-        status: 'open',
-      })
-      .select('id')
-      .single();
-    if (convError) {
-      return { ok: true, sent: false, error: convError.message };
-    }
-    convId = newConv.id;
-  }
-
-  // Template-first, server-side: an open window sends the composed
-  // details as free text, a closed one sends the approved property-alert
-  // template. Only when neither is possible does the caller fall back to
-  // manual template selection on the thread.
-  //
-  // Clearing the chatbot's "Talk to an Agent" handoff flag rides along
-  // with the send rather than delaying it — the lead is being handled
-  // either way, and both writes set the same status.
-  const [outcome] = await Promise.all([
-    sendPropertyViaEngine(contact, property, detailsMessage),
-    supabase
-      .from('conversations')
-      .update({ status: 'open', updated_at: new Date().toISOString() })
-      .eq('id', convId)
-      .eq('status', 'pending'),
-  ]);
-  if (outcome.error && !isReengagementError(outcome.error)) {
-    return { ok: true, sent: false, property, detailsMessage, error: outcome.error };
-  }
-  if (!outcome.sent) {
-    return { ok: true, sent: false, property, detailsMessage, reengageConversationId: convId };
-  }
-
-  return { ok: true, sent: true, property, detailsMessage, channel: outcome.channel };
 }

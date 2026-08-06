@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,7 +13,9 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { InlineDateTimePicker } from '@/components/datetime-field';
+import { ConvoRealLoader } from '@/components/loader';
 import {
   Avatar,
   Banner,
@@ -31,10 +34,14 @@ import type { Contact, Deal, PipelineStage } from '@/lib/types';
 import { useDebounced } from '@/lib/use-debounced';
 
 /**
- * Web parity: the deal form's create path (deal-form.tsx →
- * POST /api/deals, which also syncs the linked property's status off
- * the stage name). Assignment, brokerage and non-INR currencies stay
- * on the web's fuller form.
+ * Web parity: the deal form (deal-form.tsx). Creating posts to
+ * /api/deals, editing PUTs /api/deals/[id], deleting DELETEs it —
+ * all three sync the linked property's status server-side off the
+ * stage name. Assignment, brokerage and non-INR currencies stay on
+ * the web's fuller form.
+ *
+ * With `?id=`, the deal loads before the form mounts so every field
+ * starts at its stored value — no prop-to-state effect to keep in sync.
  */
 
 /** Same status derivation the web form applies on save. */
@@ -59,25 +66,86 @@ interface PropertyOption {
   sublocality: string | null;
 }
 
-export default function NewDealScreen() {
-  const { colors, fonts: f } = useTheme();
+interface DealRow extends Deal {
+  notes?: string | null;
+}
+
+export default function DealFormScreen() {
   const params = useLocalSearchParams<{
+    id?: string;
     pipelineId?: string;
     stageId?: string;
   }>();
-  const pipelineId = params.pipelineId ?? null;
+  const dealId = params.id ?? null;
 
-  const [title, setTitle] = useState('');
-  const [value, setValue] = useState('');
-  const [stageId, setStageId] = useState<string | null>(params.stageId ?? null);
-  const [contact, setContact] = useState<Contact | null>(null);
+  const existing = useQuery({
+    queryKey: ['deal', dealId],
+    enabled: Boolean(dealId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('deals')
+        .select(
+          '*, contact:contacts(id, name, phone, name_tag), property:properties(id, title, property_code, location, sublocality)'
+        )
+        .eq('id', dealId!)
+        .single();
+      if (error) throw error;
+      return data as DealRow;
+    },
+  });
+
+  if (dealId && !existing.data) {
+    return (
+      <View style={{ flex: 1 }}>
+        <Stack.Screen options={{ headerShown: true, title: 'Edit deal' }} />
+        {existing.isError ? (
+          <View style={styles.container}>
+            <Banner kind="error" text="Could not load this deal." />
+          </View>
+        ) : (
+          <ConvoRealLoader style={{ alignSelf: 'center', marginTop: 60 }} />
+        )}
+      </View>
+    );
+  }
+
+  return (
+    <DealForm
+      deal={existing.data ?? null}
+      pipelineId={existing.data?.pipeline_id ?? params.pipelineId ?? null}
+      defaultStageId={existing.data?.stage_id ?? params.stageId ?? null}
+    />
+  );
+}
+
+function DealForm({
+  deal,
+  pipelineId,
+  defaultStageId,
+}: {
+  deal: DealRow | null;
+  pipelineId: string | null;
+  defaultStageId: string | null;
+}) {
+  const { colors, fonts: f } = useTheme();
+  const dialog = useAppDialog();
+
+  const [title, setTitle] = useState(deal?.title ?? '');
+  const [value, setValue] = useState(deal?.value ? String(deal.value) : '');
+  const [stageId, setStageId] = useState<string | null>(defaultStageId);
+  const [contact, setContact] = useState<Contact | null>(deal?.contact ?? null);
   const [contactSearch, setContactSearch] = useState('');
-  const [property, setProperty] = useState<PropertyOption | null>(null);
+  const [property, setProperty] = useState<PropertyOption | null>(
+    (deal?.property as PropertyOption | undefined) ?? null
+  );
   const [propertySearch, setPropertySearch] = useState('');
-  const [closeDate, setCloseDate] = useState<Date | null>(null);
+  const [closeDate, setCloseDate] = useState<Date | null>(
+    deal?.expected_close_date ? new Date(deal.expected_close_date) : null
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(deal?.notes ?? '');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const debouncedContactSearch = useDebounced(contactSearch);
@@ -135,12 +203,12 @@ export default function NewDealScreen() {
     setSaving(true);
     setError(null);
     try {
-      await apiFetch('/api/deals', {
-        method: 'POST',
+      await apiFetch(deal ? `/api/deals/${deal.id}` : '/api/deals', {
+        method: deal ? 'PUT' : 'POST',
         body: JSON.stringify({
           title: title.trim(),
           value: parseFloat(value) || 0,
-          currency: 'INR',
+          currency: deal?.currency || 'INR',
           contact_id: contact.id,
           pipeline_id: pipelineId,
           stage_id: selectedStage.id,
@@ -153,14 +221,56 @@ export default function NewDealScreen() {
       });
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['deals'] });
+      if (deal) queryClient.invalidateQueries({ queryKey: ['deal', deal.id] });
       router.back();
     } catch (err) {
       haptic.warn();
       setError(
-        err instanceof ApiError ? err.message : 'Could not create the deal.'
+        err instanceof ApiError
+          ? err.message
+          : deal
+            ? 'Could not save this deal.'
+            : 'Could not create the deal.'
       );
       setSaving(false);
     }
+  }
+
+  async function remove() {
+    if (!deal) return;
+    haptic.warn();
+    setDeleting(true);
+    setError(null);
+    try {
+      // The route also resets a linked property back to Available.
+      await apiFetch(`/api/deals/${deal.id}`, { method: 'DELETE' });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      router.back();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Could not delete this deal.'
+      );
+      setDeleting(false);
+    }
+  }
+
+  function confirmDelete() {
+    dialog.show({
+      title: 'Delete this deal?',
+      message: `“${deal?.title}” will be removed for everyone. A linked property goes back to Available.`,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: dialog.close },
+        {
+          label: 'Delete',
+          variant: 'destructive',
+          onPress: () => {
+            dialog.close();
+            void remove();
+          },
+        },
+      ],
+    });
   }
 
   return (
@@ -168,7 +278,9 @@ export default function NewDealScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <Stack.Screen options={{ headerShown: true, title: 'New deal' }} />
+      <Stack.Screen
+        options={{ headerShown: true, title: deal ? 'Edit deal' : 'New deal' }}
+      />
       <ScrollView
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
@@ -381,12 +493,33 @@ export default function NewDealScreen() {
 
         <View style={{ marginTop: spacing.sm }}>
           <PrimaryButton
-            label="Create deal"
+            label={deal ? 'Save changes' : 'Create deal'}
             busy={saving}
-            disabled={!title.trim() || !contact || !activeStageId}
+            disabled={!title.trim() || !contact || !activeStageId || deleting}
             onPress={save}
           />
         </View>
+
+        {deal ? (
+          <Pressable
+            onPress={confirmDelete}
+            disabled={saving || deleting}
+            accessibilityRole="button"
+            accessibilityLabel="Delete this deal"
+            style={styles.deleteRow}
+          >
+            {deleting ? (
+              <ActivityIndicator size="small" color={colors.danger} />
+            ) : (
+              <Ionicons name="trash-outline" size={15} color={colors.danger} />
+            )}
+            <Text
+              style={{ fontSize: 13, fontFamily: f.bold, color: colors.danger }}
+            >
+              {deleting ? 'Deleting…' : 'Delete deal'}
+            </Text>
+          </Pressable>
+        ) : null}
 
         <Text
           style={{ fontSize: 12, color: colors.textFaint, textAlign: 'center' }}
@@ -395,6 +528,7 @@ export default function NewDealScreen() {
           form.
         </Text>
       </ScrollView>
+      <AppDialog {...dialog.dialogProps} />
     </KeyboardAvoidingView>
   );
 }
@@ -480,5 +614,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 12,
+  },
+  deleteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: spacing.md,
   },
 });

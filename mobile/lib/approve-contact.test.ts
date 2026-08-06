@@ -1,74 +1,41 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * The approve flow's control flow, after the independent steps were
- * moved onto one Promise.all — the status flip, the drafted details and
- * the conversation lookup used to wait for each other, which was most of
- * the gap between the tap and the confirmation sheet.
+ * The approve flow's contract with POST /api/contacts/[id]/approve.
  *
- * Supabase, the auth store and the send path are mocked so the module
- * loads under the plain Node runner.
+ * The orchestration this used to cover — the status flip, the drafted
+ * details, the conversation lookup — moved into the route, so what is
+ * worth pinning here is the mapping: which server fields become which
+ * outcome, and which failures the caller may safely retry.
+ *
+ * `api` is mocked so the module loads under the plain Node runner
+ * (importing it for real reaches for EXPO_PUBLIC_* config).
  */
 
-interface Recorded {
-  table: string;
-  op: string;
+let response: unknown;
+let thrown: Error | null;
+let calls: { path: string; init?: { method?: string } }[];
+
+class FakeApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string
+  ) {
+    super(message);
+  }
 }
 
-let recorded: Recorded[];
-let updateError: { message: string } | null;
-let existingConversation: { id: string } | null;
-let propertyRow: Record<string, unknown> | null;
-let sendOutcome: { sent: boolean; channel?: 'freeform' | 'template'; error?: string };
-
-function builder(table: string) {
-  const b: Record<string, unknown> = {
-    select: () => b,
-    eq: () => b,
-    order: () => b,
-    limit: () => b,
-    insert: () => {
-      recorded.push({ table, op: 'insert' });
-      return b;
-    },
-    update: () => {
-      recorded.push({ table, op: 'update' });
-      return b;
-    },
-    maybeSingle: () => {
-      recorded.push({ table, op: 'read' });
-      if (table === 'properties') return Promise.resolve({ data: propertyRow, error: null });
-      return Promise.resolve({ data: existingConversation, error: null });
-    },
-    single: () => Promise.resolve({ data: { id: 'conv-new' }, error: null }),
-    then: (resolve: (v: unknown) => unknown) =>
-      Promise.resolve({
-        data: null,
-        error: table === 'contacts' ? updateError : null,
-      }).then(resolve),
-  };
-  return b;
-}
-
-vi.mock('./supabase', () => ({
-  supabase: {
-    from: (table: string) => builder(table),
+vi.mock('./api', () => ({
+  ApiError: FakeApiError,
+  apiFetch: async (path: string, init?: { method?: string }) => {
+    calls.push({ path, init });
+    if (thrown) throw thrown;
+    return response;
   },
 }));
 
-vi.mock('./auth-store', () => ({
-  useAuthStore: {
-    getState: () => ({ profile: { account_id: 'acc-1' }, session: { user: { id: 'user-1' } } }),
-  },
-}));
-
-vi.mock('./property-share-actions', () => ({
-  sendPropertyViaEngine: async () => sendOutcome,
-}));
-
-vi.mock('./welcome-message', () => ({
-  getShowcaseUrl: async () => 'https://showcase.test',
-}));
+vi.mock('./supabase', () => ({ supabase: { from: () => ({}) } }));
+vi.mock('./welcome-message', () => ({ getShowcaseUrl: async () => 'https://showcase.test' }));
 
 import type { Contact } from './types';
 
@@ -81,40 +48,63 @@ const CONTACT: Contact = {
   last_inquired_property_id: 'prop-1',
 } as Contact;
 
+const PROPERTY = { id: 'prop-1', title: '50x80 Residential Plot in BTM Layout' };
+
 beforeEach(() => {
-  recorded = [];
-  updateError = null;
-  existingConversation = { id: 'conv-1' };
-  propertyRow = { id: 'prop-1', title: '50x80 Residential Plot in BTM Layout' };
-  sendOutcome = { sent: true, channel: 'freeform' };
+  calls = [];
+  thrown = null;
+  response = {
+    data: {
+      approved: true,
+      sent: true,
+      channel: 'freeform',
+      property: PROPERTY,
+      details_message: 'Here are the complete details for the property "50x80 Residential Plot in BTM Layout"',
+      conversation_id: 'conv-1',
+    },
+  };
 });
 
 describe('approveAndSendDetails', () => {
-  it('flips the contact and reports how the details went out', async () => {
+  it('approves in a single POST and reports how the details went out', async () => {
     const result = await approveAndSendDetails(CONTACT);
 
+    expect(calls).toHaveLength(1);
+    expect(calls[0].path).toBe('/api/contacts/contact-1/approve');
+    expect(calls[0].init?.method).toBe('POST');
     expect(result).toMatchObject({ ok: true, sent: true, channel: 'freeform' });
-    expect(recorded.some((r) => r.table === 'contacts' && r.op === 'update')).toBe(true);
   });
 
-  it('surfaces a failed status flip instead of sending anyway', async () => {
-    updateError = { message: 'row level security' };
+  it('surfaces a failed approval as retryable, having sent nothing', async () => {
+    thrown = new FakeApiError(500, 'row level security');
 
     const result = await approveAndSendDetails(CONTACT);
 
     expect(result.ok).toBe(false);
+    expect(result.sent).toBe(false);
     expect(result.error).toBe('row level security');
   });
 
-  it('still activates a contact that inquired about nothing, and touches no conversation', async () => {
-    const result = await approveAndSendDetails({ ...CONTACT, last_inquired_property_id: null });
+  it('still activates a contact that inquired about nothing', async () => {
+    response = { data: { approved: true, sent: false } };
+
+    const result = await approveAndSendDetails(CONTACT);
 
     expect(result).toMatchObject({ ok: true, sent: false });
-    expect(recorded.some((r) => r.table === 'conversations')).toBe(false);
+    expect(result.reengageConversationId).toBeUndefined();
   });
 
   it('hands back the conversation for a template when the window has closed', async () => {
-    sendOutcome = { sent: false, error: 'Re-engagement message: 24 hours' };
+    response = {
+      data: {
+        approved: true,
+        sent: false,
+        property: PROPERTY,
+        details_message: 'details for 50x80 Residential Plot in BTM Layout',
+        conversation_id: 'conv-1',
+        template_status: 'NONE',
+      },
+    };
 
     const result = await approveAndSendDetails(CONTACT);
 
@@ -122,20 +112,28 @@ describe('approveAndSendDetails', () => {
     expect(result.detailsMessage).toContain('50x80 Residential Plot in BTM Layout');
   });
 
-  it('reports a real send failure as an error, not a re-engagement fallback', async () => {
-    sendOutcome = { sent: false, error: 'Contact phone invalid format' };
-
+  it('does not offer a re-engage thread when the details actually went out', async () => {
     const result = await approveAndSendDetails(CONTACT);
 
-    expect(result.error).toBe('Contact phone invalid format');
+    expect(result.sent).toBe(true);
     expect(result.reengageConversationId).toBeUndefined();
   });
 
-  it('creates a conversation when the contact has none', async () => {
-    existingConversation = null;
+  it('reports a send failure without failing the approval, so no retry re-sends', async () => {
+    response = {
+      data: {
+        approved: true,
+        sent: false,
+        property: PROPERTY,
+        conversation_id: null,
+        send_error: 'Contact phone invalid format',
+      },
+    };
 
-    await approveAndSendDetails(CONTACT);
+    const result = await approveAndSendDetails(CONTACT);
 
-    expect(recorded.some((r) => r.table === 'conversations' && r.op === 'insert')).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.error).toBe('Contact phone invalid format');
+    expect(result.reengageConversationId).toBeUndefined();
   });
 });

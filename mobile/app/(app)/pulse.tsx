@@ -2,11 +2,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { EnterRow, PressScale } from '@/components/motion';
 import { PropertyViewersSheet } from '@/components/property-viewers-sheet';
-import { Avatar, EmptyState, FilterChip, SectionLabel, Tag } from '@/components/ui';
+import {
+  Avatar,
+  EmptyState,
+  FilterChip,
+  SectionLabel,
+  Tag,
+} from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
 import {
@@ -22,6 +35,7 @@ import {
   type DedupedPulseEvent,
 } from '@/lib/pulse-feed';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 /**
  * Web parity: the Showcase Pulse page. Live visitor analytics for the
@@ -48,7 +62,10 @@ export default function PulseScreen() {
   const { colors, fonts: f } = useTheme();
   const accountId = useAuthStore((s) => s.profile?.account_id);
   const [filter, setFilter] = useState<FeedFilter>('all');
-  const [viewersFor, setViewersFor] = useState<{ id: string; title: string } | null>(null);
+  const [viewersFor, setViewersFor] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
 
   const stats = useQuery({
     queryKey: ['pulse-stats'],
@@ -78,14 +95,12 @@ export default function PulseScreen() {
   const total = feed.data?.length ?? 0;
   const anonymous = (feed.data ?? []).filter((evt) => !evt.contact).length;
   const showNudge =
-    total >= ANONYMOUS_NUDGE_MIN_EVENTS && anonymous / total >= ANONYMOUS_NUDGE_THRESHOLD;
+    total >= ANONYMOUS_NUDGE_MIN_EVENTS &&
+    anonymous / total >= ANONYMOUS_NUDGE_THRESHOLD;
 
-  const refreshing = stats.isFetching || top.isFetching || feed.isFetching;
-  const refetchAll = () => {
-    stats.refetch();
-    top.refetch();
-    feed.refetch();
-  };
+  const pull = usePullRefresh(() =>
+    Promise.all([stats.refetch(), top.refetch(), feed.refetch()])
+  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -96,13 +111,19 @@ export default function PulseScreen() {
         keyExtractor={(evt) => evt.id}
         contentContainerStyle={styles.container}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refetchAll} tintColor={colors.primary} />
+          <RefreshControl
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
+            tintColor={colors.primary}
+          />
         }
         ListHeaderComponent={
           <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
-            <Text style={{ fontSize: 13, lineHeight: 19, color: colors.textMuted }}>
-              Live visitor analytics for the showcase links you share over WhatsApp — opens, image
-              swipes, map taps and dwell times.
+            <Text
+              style={{ fontSize: 13, lineHeight: 19, color: colors.textMuted }}
+            >
+              Live visitor analytics for the showcase links you share over
+              WhatsApp — opens, image swipes, map taps and dwell times.
             </Text>
 
             <View style={styles.grid}>
@@ -125,7 +146,12 @@ export default function PulseScreen() {
 
             <SectionLabel text="Top listings" />
             {top.isLoading ? null : !top.data || top.data.length === 0 ? (
-              <Text style={[styles.quiet, { color: colors.textFaint, borderColor: colors.border }]}>
+              <Text
+                style={[
+                  styles.quiet,
+                  { color: colors.textFaint, borderColor: colors.border },
+                ]}
+              >
                 No properties viewed yet.
               </Text>
             ) : (
@@ -134,13 +160,18 @@ export default function PulseScreen() {
                   <TopListingCard
                     key={p.propertyId}
                     listing={p}
-                    onPress={() => setViewersFor({ id: p.propertyId, title: p.title })}
+                    onPress={() =>
+                      setViewersFor({ id: p.propertyId, title: p.title })
+                    }
                   />
                 ))}
               </View>
             )}
 
-            <SectionLabel text="Live event timeline" style={{ marginTop: spacing.sm }} />
+            <SectionLabel
+              text="Live event timeline"
+              style={{ marginTop: spacing.sm }}
+            />
             <View style={styles.filters}>
               {FEED_FILTERS.map((opt) => (
                 <FilterChip
@@ -157,15 +188,38 @@ export default function PulseScreen() {
                 onPress={() => router.push('/(app)/(tabs)/properties')}
                 accessibilityRole="button"
                 accessibilityLabel="Share tracked links from Properties"
-                style={[styles.nudge, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}
+                style={[
+                  styles.nudge,
+                  {
+                    backgroundColor: colors.primarySoft,
+                    borderColor: colors.primary,
+                  },
+                ]}
               >
-                <Ionicons name="person-add-outline" size={17} color={colors.primary} />
-                <Text style={{ flex: 1, fontSize: 12.5, lineHeight: 18, color: colors.text }}>
+                <Ionicons
+                  name="person-add-outline"
+                  size={17}
+                  color={colors.primary}
+                />
+                <Text
+                  style={{
+                    flex: 1,
+                    fontSize: 12.5,
+                    lineHeight: 18,
+                    color: colors.text,
+                  }}
+                >
                   Most of this activity is anonymous. Share a property with{' '}
-                  <Text style={{ fontFamily: f.bold }}>Send personally (tracked)</Text> to see
-                  visitors by name here.
+                  <Text style={{ fontFamily: f.bold }}>
+                    Send personally (tracked)
+                  </Text>{' '}
+                  to see visitors by name here.
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.primary} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={16}
+                  color={colors.primary}
+                />
               </Pressable>
             ) : null}
           </View>
@@ -174,7 +228,11 @@ export default function PulseScreen() {
           feed.isLoading ? null : (
             <EmptyState
               icon="pulse-outline"
-              title={total === 0 ? 'No engagement yet' : 'No events match this filter'}
+              title={
+                total === 0
+                  ? 'No engagement yet'
+                  : 'No events match this filter'
+              }
               subtitle={
                 total === 0
                   ? 'Share a showcase link over WhatsApp and every open, swipe and map tap lands here.'
@@ -210,9 +268,18 @@ function StatCard({
 }) {
   const { colors, fonts: f } = useTheme();
   return (
-    <View style={[styles.stat, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+    <View
+      style={[
+        styles.stat,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
+    >
       <Ionicons name={icon} size={18} color={colors.primary} />
-      <Text style={{ fontSize: 21, fontFamily: f.extrabold, color: colors.text }}>{value}</Text>
+      <Text
+        style={{ fontSize: 21, fontFamily: f.extrabold, color: colors.text }}
+      >
+        {value}
+      </Text>
       <Text style={{ fontSize: 12, color: colors.textMuted }}>{label}</Text>
     </View>
   );
@@ -248,16 +315,23 @@ function TopListingCard({
             {listing.propertyCode ?? 'No code'}
           </Text>
         </View>
-        <Text style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}>
+        <Text
+          style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text }}
+        >
           {formatInr(listing.price)}
         </Text>
       </View>
       <View style={[styles.listingFoot, { borderTopColor: colors.border }]}>
         <Text style={{ fontSize: 12, color: colors.textMuted }}>
-          {listing.uniqueViewsCount} unique visitor{listing.uniqueViewsCount === 1 ? '' : 's'} ·{' '}
-          {listing.viewsCount} view{listing.viewsCount === 1 ? '' : 's'}
+          {listing.uniqueViewsCount} unique visitor
+          {listing.uniqueViewsCount === 1 ? '' : 's'} · {listing.viewsCount}{' '}
+          view{listing.viewsCount === 1 ? '' : 's'}
         </Text>
-        <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>See viewers</Text>
+        <Text
+          style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}
+        >
+          See viewers
+        </Text>
       </View>
     </PressScale>
   );
@@ -272,26 +346,48 @@ function EventRow({ event }: { event: DedupedPulseEvent }) {
       ? `Guest · via link shared ${formatTimeAgo(event.share.created_at)}`
       : 'Anonymous guest');
   const what = event.property?.title ?? 'a property';
-  const dwell = event.event_type === 'view_property' ? formatDwellTime(event.metadata.duration_ms) : '';
+  const dwell =
+    event.event_type === 'view_property'
+      ? formatDwellTime(event.metadata.duration_ms)
+      : '';
 
   const { icon, tint, action } = describe(event.event_type, colors);
 
   return (
-    <View style={[styles.event, { backgroundColor: colors.glass, borderColor: colors.glassBorder }]}>
+    <View
+      style={[
+        styles.event,
+        { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+      ]}
+    >
       <Avatar name={who} size={38} />
       <View style={{ flex: 1, gap: 3 }}>
         <View style={styles.eventHead}>
           <Text
-            style={{ fontSize: 14, fontFamily: f.semibold, color: colors.text, flexShrink: 1 }}
+            style={{
+              fontSize: 14,
+              fontFamily: f.semibold,
+              color: colors.text,
+              flexShrink: 1,
+            }}
             numberOfLines={1}
           >
             {who}
           </Text>
-          {event.contact?.name_tag ? <Tag label={event.contact.name_tag} /> : null}
+          {event.contact?.name_tag ? (
+            <Tag label={event.contact.name_tag} />
+          ) : null}
         </View>
         <View style={styles.eventLine}>
           <Ionicons name={icon} size={13} color={tint} />
-          <Text style={{ flex: 1, fontSize: 12.5, lineHeight: 17, color: colors.textMuted }}>
+          <Text
+            style={{
+              flex: 1,
+              fontSize: 12.5,
+              lineHeight: 17,
+              color: colors.textMuted,
+            }}
+          >
             {action}
             {event.event_type === 'open' ? '' : ` ${what}`}
             {dwell ? ` · ${dwell}` : ''}
@@ -309,23 +405,47 @@ function EventRow({ event }: { event: DedupedPulseEvent }) {
 function describe(
   type: DedupedPulseEvent['event_type'],
   colors: ReturnType<typeof useTheme>['colors']
-): { icon: React.ComponentProps<typeof Ionicons>['name']; tint: string; action: string } {
+): {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  tint: string;
+  action: string;
+} {
   switch (type) {
     case 'open':
-      return { icon: 'open-outline', tint: colors.primary, action: 'Opened the showcase catalog' };
+      return {
+        icon: 'open-outline',
+        tint: colors.primary,
+        action: 'Opened the showcase catalog',
+      };
     case 'view_property':
       return { icon: 'eye-outline', tint: colors.success, action: 'Viewed' };
     case 'gallery':
-      return { icon: 'images-outline', tint: colors.mintText, action: 'Opened the photo gallery for' };
+      return {
+        icon: 'images-outline',
+        tint: colors.mintText,
+        action: 'Opened the photo gallery for',
+      };
     case 'map_click':
-      return { icon: 'location-outline', tint: colors.warning, action: 'Tapped the map pin for' };
+      return {
+        icon: 'location-outline',
+        tint: colors.warning,
+        action: 'Tapped the map pin for',
+      };
     default:
-      return { icon: 'hand-left-outline', tint: colors.textMuted, action: 'Interacted with' };
+      return {
+        icon: 'hand-left-outline',
+        tint: colors.textMuted,
+        action: 'Interacted with',
+      };
   }
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.sm },
+  container: {
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.sm,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   stat: {
     borderWidth: 1,
@@ -349,7 +469,11 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     gap: spacing.sm,
   },
-  listingHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  listingHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.md,
+  },
   listingFoot: {
     flexDirection: 'row',
     alignItems: 'center',
