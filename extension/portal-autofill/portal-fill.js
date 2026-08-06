@@ -781,7 +781,7 @@
     return null;
   }
 
-  function fillSelects(fields, report) {
+  function selectJobs(fields) {
     const get = (label) => fields.find((f) => f.label === label)?.value || '';
     const jobs = [];
 
@@ -847,6 +847,10 @@
     const floorNo = get('Floor No.');
     if (floorNo) jobs.push({ label: 'Floor No.', hints: ['floor no', 'property on floor', 'your floor', 'which floor'], synonyms: floorSynonyms(floorNo) });
 
+    return jobs;
+  }
+
+  function fillSelects(jobs, report) {
     const selects = [...document.querySelectorAll('select')].filter((el) => {
       if (el.disabled || el.closest(`#${PANEL_ID}`)) return false;
       const r = el.getBoundingClientRect();
@@ -875,6 +879,77 @@
         }
         break;
       }
+    }
+    return filled;
+  }
+
+  // ── Custom comboboxes ─────────────────────────────────────────
+  // Housing renders Area Unit (and a few others) as its own dropdown
+  // rather than a <select>: the options don't exist in the DOM until
+  // the trigger is clicked, so neither the select filler nor the chip
+  // clicker can reach them. Leaving the unit unpicked makes Housing
+  // reject the area itself ("Saleable area should be between 0 and 0"),
+  // so an unfilled unit costs us the area too.
+
+  function comboTrigger(hints) {
+    const candidates = [...document.querySelectorAll('[role="combobox"], [role="button"], button, div, span, input')]
+      .filter((el) => {
+        if (el.closest(`#${PANEL_ID}, nav, header, footer`)) return false;
+        if (el.childElementCount > 3) return false;
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 60 || rect.height < 16 || rect.height > 80) return false;
+        const own = normalizedText(el.tagName === 'INPUT' ? el.value || el.placeholder : el.textContent);
+        // Only an unset control — never one already showing a choice.
+        return own === '' || /^(select|choose)\b/.test(own);
+      });
+    return candidates.find((el) => hints.some((h) => contextText(el).includes(h)))
+      || candidates.find((el) => {
+        let node = el.parentElement;
+        for (let depth = 0; node && depth < 4; depth++, node = node.parentElement) {
+          const text = normalizedText(node.textContent).slice(0, 160);
+          if (hints.some((h) => text.includes(h))) return true;
+        }
+        return false;
+      });
+  }
+
+  function openOptions(avoid) {
+    return [...document.querySelectorAll('[role="option"], li, div, span, p')]
+      .filter((el) => {
+        if (el.closest(`#${PANEL_ID}`) || el.childElementCount > 1) return false;
+        const rect = el.getBoundingClientRect();
+        if (rect.width < 30 || rect.height < 12 || rect.height > 70) return false;
+        const text = normalizedText(el.textContent);
+        return text.length > 0 && text.length < 40 && (!avoid || !avoid.test(text));
+      });
+  }
+
+  async function fillComboboxes(jobs, report) {
+    let filled = 0;
+    for (const job of jobs) {
+      if (job.label && report?.satisfied.has(job.label)) continue;
+      const trigger = comboTrigger(job.hints);
+      if (!trigger) continue;
+      simulateClick(trigger);
+      await sleep(320);
+      const options = openOptions(job.avoid);
+      const squash = (t) => t.replace(/[^a-z0-9]/g, '');
+      let hit = null;
+      for (const syn of job.synonyms) {
+        hit = options.find((el) => normalizedText(el.textContent) === syn)
+          || options.find((el) => squash(normalizedText(el.textContent)) === squash(syn));
+        if (hit) break;
+      }
+      if (!hit) {
+        // Close it again so the open list doesn't swallow the next click.
+        simulateClick(trigger);
+        continue;
+      }
+      simulateClick(hit);
+      await sleep(250);
+      flashOutline(trigger);
+      filled++;
+      if (job.label) report?.satisfied.add(job.label);
     }
     return filled;
   }
@@ -930,8 +1005,9 @@
     const handled = new Set();
     const report = { satisfied: new Set(), failed: new Set() };
     await revealBuiltUpArea(fields);
+    const jobs = selectJobs(fields);
     let done = await fillTextFields(fields, handled, report);
-    done += fillSelects(fields, report);
+    done += fillSelects(jobs, report);
     // Chips first-to-last: each click can reveal the next section, so
     // pause briefly and re-scan between clicks, then sweep selects and
     // text fields again over whatever the selections revealed.
@@ -942,7 +1018,10 @@
         await sleep(450);
       }
     }
-    done += fillSelects(fields, report);
+    done += fillSelects(jobs, report);
+    // Custom dropdowns last: everything a <select> or a chip could
+    // satisfy is already marked, so this only opens what's still unset.
+    done += await fillComboboxes(jobs, report);
     done += await fillTextFields(fields, handled, report);
     if (clickAmenities(fields) > 0) {
       done++;
