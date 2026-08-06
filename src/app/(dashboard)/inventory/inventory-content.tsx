@@ -69,6 +69,9 @@ const EMPTY_STATS = {
   available: 0,
   soldOrContract: 0,
   pendingReview: 0,
+  activeTotal: 0,
+  direct: 0,
+  agentReferred: 0,
 };
 
 export default function InventoryPage() {
@@ -180,6 +183,9 @@ export default function InventoryPage() {
           available: number;
           sold_or_contract: number;
           pending_review: number;
+          active_total: number;
+          direct: number;
+          agent_referred: number;
         }>();
       if (error) throw error;
       return {
@@ -188,6 +194,9 @@ export default function InventoryPage() {
         available: data?.available ?? 0,
         soldOrContract: data?.sold_or_contract ?? 0,
         pendingReview: data?.pending_review ?? 0,
+        activeTotal: data?.active_total ?? 0,
+        direct: data?.direct ?? 0,
+        agentReferred: data?.agent_referred ?? 0,
       };
     },
     enabled: Boolean(accountId),
@@ -653,6 +662,17 @@ export default function InventoryPage() {
   // current page slice. Aliased for minimal JSX diff below.
   const stats = globalStats;
 
+  // The listing-party pills, rendered twice (tab row on sm+, own row on
+  // mobile). Counts are the RPC's non-archived splits — the same rows
+  // each pill yields on the All Listings tab — and are held back until
+  // the stats load so the labels don't flash "(0)".
+  const statsReady = Boolean(globalStatsQuery.data);
+  const sourcePills = [
+    { value: 'All', label: 'All', count: stats.activeTotal },
+    { value: 'Owner', label: 'Direct', count: stats.direct },
+    { value: 'Agent', label: 'Agent referred', count: stats.agentReferred },
+  ] as const;
+
   return (
     <div className="flex flex-col flex-1 p-6 space-y-6">
       {/* Page Header */}
@@ -815,12 +835,8 @@ export default function InventoryPage() {
             API groups under 'owner' only when stored that way);
             'Agent' is co-broked stock referred by an outside agent
             (owner_contact_id holds the referring agent's card). */}
-        <div className="ml-auto hidden items-center gap-1 pb-1.5 sm:flex">
-          {([
-            ['All', 'All'],
-            ['Owner', 'Own stock'],
-            ['Agent', 'Agent referred'],
-          ] as const).map(([value, label]) => (
+        <div className="ml-4 hidden items-center gap-1 pb-1.5 sm:flex">
+          {sourcePills.map(({ value, label, count }) => (
             <button
               key={value}
               type="button"
@@ -832,6 +848,7 @@ export default function InventoryPage() {
               }`}
             >
               {label}
+              {statsReady ? ` (${count})` : ''}
             </button>
           ))}
         </div>
@@ -900,11 +917,7 @@ export default function InventoryPage() {
       {/* Mobile: the listing-party pills live on their own row — the
           tab bar has no horizontal room for them at 360px. */}
       <div className="flex items-center gap-1 sm:hidden">
-        {([
-          ['All', 'All'],
-          ['Owner', 'Own stock'],
-          ['Agent', 'Agent referred'],
-        ] as const).map(([value, label]) => (
+        {sourcePills.map(({ value, label, count }) => (
           <button
             key={value}
             type="button"
@@ -916,6 +929,7 @@ export default function InventoryPage() {
             }`}
           >
             {label}
+            {statsReady ? ` (${count})` : ''}
           </button>
         ))}
       </div>
