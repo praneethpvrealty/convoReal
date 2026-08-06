@@ -54,7 +54,7 @@ export function buildInventoryUpdateTemplatePayload(origin: string): TemplatePay
       // Quick replies first (Meta: QR block cannot follow CTA buttons).
       // A tap opens the 24h service window → the full digest / copilot
       // conversation continues free-form inside ConvoReal.
-      { type: 'QUICK_REPLY', text: 'Send full list 📋' },
+      { type: 'QUICK_REPLY', text: 'Send full list' },
       { type: 'QUICK_REPLY', text: 'Book a site visit' },
       {
         type: 'URL',
