@@ -57,8 +57,13 @@ describe('buildPortalDescription', () => {
 
 describe('buildPortalFields', () => {
   it('orders core fields and clamps the title to the portal limit', () => {
-    const fields = buildPortalFields(saleProperty, '99acres');
+    const fields = buildPortalFields(
+      { ...saleProperty, flooring: 'Marble', power_backup: 'Full' } as Property,
+      '99acres'
+    );
     const labels = fields.map((f) => f.label);
+    expect(labels.includes('Flooring')).toBe(false);
+    expect(labels.includes('Power Backup')).toBe(false);
     expect(labels.slice(0, 5)).toEqual([
       'Listing For',
       'Property Type',
@@ -101,6 +106,70 @@ describe('buildPortalFields', () => {
     expect(fields.find((f) => f.label === 'Built-up Area')!.value).toBe(
       '1850 Sq.Ft.'
     );
+  });
+
+  it('sends the plot area alongside the built-up area for a villa', () => {
+    const villa = {
+      ...saleProperty,
+      type: 'Independent House / Villa',
+      bedrooms: 3,
+      area_sqft: 3200,
+      area_unit: 'Sq.Ft.',
+      land_area: 4800,
+      land_area_unit: 'Sq.Ft.',
+    } as unknown as Property;
+    const fields = buildPortalFields(villa, '99acres');
+    const labels = fields.map((f) => f.label);
+    expect(fields.find((f) => f.label === 'Plot Area')!.value).toBe(
+      '4800 Sq.Ft.'
+    );
+    expect(fields.find((f) => f.label === 'Built-up Area')!.value).toBe(
+      '3200 Sq.Ft.'
+    );
+    expect(labels.indexOf('Plot Area')).toBeLessThan(
+      labels.indexOf('Built-up Area')
+    );
+  });
+
+  it('omits the plot area for a built property with no plot recorded', () => {
+    const flat = {
+      ...saleProperty,
+      type: '3 BHK Apartment',
+      area_sqft: 1850,
+      area_unit: 'Sq.Ft.',
+      land_area: null,
+    } as unknown as Property;
+    const fields = buildPortalFields(flat, '99acres');
+    expect(fields.some((f) => f.label === 'Plot Area')).toBe(false);
+    expect(fields.find((f) => f.label === 'Built-up Area')!.value).toBe(
+      '1850 Sq.Ft.'
+    );
+  });
+
+  it('sends amenities and road width for a built property too', () => {
+    const villa = {
+      ...saleProperty,
+      type: 'Independent House / Villa',
+      bedrooms: 3,
+      area_sqft: 3200,
+      area_unit: 'Sq.Ft.',
+      land_area: 4800,
+      land_area_unit: 'Sq.Ft.',
+      road_width: 40,
+      road_width_unit: 'ft',
+      features: ['Gated community', 'Swimming Pool', 'Vastu compliant'],
+      flooring: 'Vitrified',
+      power_backup: 'Full',
+    } as unknown as Property;
+    const fields = buildPortalFields(villa, '99acres');
+    const get = (label: string) => fields.find((f) => f.label === label)?.value;
+    expect(get('Flooring')).toBe('Vitrified');
+    expect(get('Power Backup')).toBe('Full');
+    expect(get('Amenities')).toBe(
+      'Gated community, Swimming Pool, Vastu compliant'
+    );
+    expect(get('Width of Facing Road')).toBe('40');
+    expect(fields.some((f) => f.label === 'Boundary Wall')).toBe(false);
   });
 
   it('drops fields with no value', () => {

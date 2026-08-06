@@ -85,6 +85,24 @@ function areaValue(property: Property): string {
   return val ? `${val} ${unit}` : '';
 }
 
+function plotAreaValue(property: Property): string {
+  if (!property.land_area) return '';
+  return `${property.land_area} ${property.land_area_unit || 'sqft'}`;
+}
+
+/** Villas and independent houses sit on a plot, and every portal makes
+ *  Plot Area mandatory for them — send it alongside the built-up area
+ *  whenever the Engine has one, not only for pure land listings. */
+function areaFields(property: Property): PortalField[] {
+  if (isLand(property)) {
+    return [{ label: 'Plot Area', value: areaValue(property) }];
+  }
+  return [
+    { label: 'Plot Area', value: plotAreaValue(property) },
+    { label: 'Built-up Area', value: areaValue(property) },
+  ];
+}
+
 /** "100x150", "100 x 150 ft", "40X60" → plot length/width. */
 export function parseDimensions(
   dimensions?: string | null
@@ -127,6 +145,13 @@ function brokerageFields(property: Property, currency: string): PortalField[] {
   ];
 }
 
+/** Every portal's amenities step asks for the width of the facing road,
+ *  for built property as much as for bare plots. */
+function roadWidthField(property: Property): PortalField[] {
+  if (!property.road_width) return [];
+  return [{ label: 'Width of Facing Road', value: roadWidthFeet(property) }];
+}
+
 /** Plot extras every portal's land form asks: dimensions/road width
  *  where the Engine has real data, review-and-fix defaults for the rest. */
 function landExtras(property: Property): PortalField[] {
@@ -138,9 +163,6 @@ function landExtras(property: Property): PortalField[] {
           { label: 'Length', value: dims.length },
           { label: 'Width', value: dims.width },
         ]
-      : []),
-    ...(property.road_width
-      ? [{ label: 'Width of Facing Road', value: roadWidthFeet(property) }]
       : []),
     { label: 'Boundary Wall', value: 'Yes' },
     { label: 'Open Sides', value: '1' },
@@ -178,6 +200,12 @@ function portalExtras(
     ...(!land && property.total_floors != null
       ? [{ label: 'Total Floors', value: String(property.total_floors) }]
       : []),
+    ...(!land && property.flooring
+      ? [{ label: 'Flooring', value: property.flooring }]
+      : []),
+    ...(!land && property.power_backup
+      ? [{ label: 'Power Backup', value: property.power_backup }]
+      : []),
   ];
   switch (portal) {
     case '99acres':
@@ -188,6 +216,7 @@ function portalExtras(
         { label: 'Ownership', value: 'Freehold' },
         areaUnitField(property),
         ...brokerageFields(property, currency),
+        ...roadWidthField(property),
         ...landExtras(property),
       ];
     case 'magicbricks':
@@ -198,6 +227,7 @@ function portalExtras(
         ...unitExtras,
         areaUnitField(property),
         ...brokerageFields(property, currency),
+        ...roadWidthField(property),
         ...landExtras(property),
       ];
     case 'housing':
@@ -208,6 +238,7 @@ function portalExtras(
         ...unitExtras,
         areaUnitField(property),
         ...brokerageFields(property, currency),
+        ...roadWidthField(property),
         ...landExtras(property),
       ];
   }
@@ -304,10 +335,7 @@ export function buildPortalFields(
     ...(property.bathrooms
       ? [{ label: 'Bathrooms', value: String(property.bathrooms) }]
       : []),
-    {
-      label: isLand(property) ? 'Plot Area' : 'Built-up Area',
-      value: areaValue(property),
-    },
+    ...areaFields(property),
     ...(property.facing_direction
       ? [{ label: 'Facing', value: property.facing_direction }]
       : []),
@@ -336,6 +364,10 @@ export function buildPortalFields(
         ]
       : []),
     ...portalExtras(property, portal, currency),
+    // The amenities step is multi-select: send the listing's features as
+    // one comma-separated field and let the filler tick every chip it can
+    // match on that portal.
+    { label: 'Amenities', value: (property.features || []).join(', ') },
     { label: 'Description', value: buildPortalDescription(property, portal) },
   ];
 
