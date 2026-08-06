@@ -7,7 +7,6 @@ import ContactsContent from "./contacts-content";
 import RequirementsPage from "../requirements/requirements-content";
 import AgentsPage from "../agents/agents-content";
 import SourcesContent from "./sources-content";
-import { FavoriteButton } from "@/components/layout/favorite-button";
 
 type TabId = "list" | "requirements" | "agents" | "sources";
 
@@ -18,17 +17,6 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "sources", label: "Sources" },
 ];
 
-/** Mirrors the quick-filter tabs in contacts-content.tsx (All Contacts is
- *  the default and has no `filter` param). Used so the page-level
- *  Favorite button captures the exact filtered view — e.g. "Needs
- *  Review" — instead of always favoriting the unfiltered list. */
-const QUICK_FILTER_LABELS: Record<string, string> = {
-  pending_review: "Needs Review",
-  favorites: "Favourites",
-  transacted: "Transacted",
-  market_active: "Active Buyers",
-};
-
 export default function ContactsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -38,45 +26,21 @@ export default function ContactsPage() {
     return TABS.some((t) => t.id === tab) ? tab : "list";
   }, [searchParams]);
 
-  const quickFilter = searchParams.get("filter");
-
-  const tabMeta = useMemo(() => {
-    switch (activeTab) {
-      case "requirements":
-        return { label: "Requirements", href: "/contacts?tab=requirements", icon: "ClipboardList" };
-      case "agents":
-        return { label: "Agents", href: "/contacts?tab=agents", icon: "UsersRound" };
-      case "sources":
-        return { label: "Lead Sources", href: "/contacts?tab=sources", icon: "Funnel" };
-      case "list":
-      default: {
-        const filterLabel = quickFilter ? QUICK_FILTER_LABELS[quickFilter] : undefined;
-        return {
-          label: filterLabel ? `Contacts — ${filterLabel}` : "Contacts",
-          href: quickFilter ? `/contacts?filter=${quickFilter}` : "/contacts",
-          icon: "Users",
-        };
-      }
-    }
-  }, [activeTab, quickFilter]);
-
   const handleTabChange = (tab: TabId) => {
     pushUrl(router, `/contacts?tab=${tab}`);
   };
 
   return (
     <div className="space-y-6 relative overflow-hidden">
-      {/* Header */}
-      <div className="relative z-10 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
-            Contacts
-          </h1>
-          <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
-            Manage buyers, assign agents, verify leads, and track stated requirements.
-          </p>
-        </div>
-        <FavoriteButton label={tabMeta.label} href={tabMeta.href} icon={tabMeta.icon} />
+      {/* Header — no page-level Favorite button: Contacts is already a
+          main sidebar entry, so pinning it there is a no-op for the user. */}
+      <div className="relative z-10">
+        <h1 className="text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+          Contacts
+        </h1>
+        <p className="mt-1.5 text-xs sm:text-sm text-slate-400 font-medium leading-relaxed">
+          Manage buyers, assign agents, verify leads, and track stated requirements.
+        </p>
       </div>
 
       {/* Sleek Tab Bar */}

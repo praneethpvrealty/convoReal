@@ -34,6 +34,7 @@ import {
   Building2,
   Copy,
   Check,
+  Star,
   Loader2,
   Plus,
   Trash2,
@@ -118,6 +119,7 @@ export function ContactDetailView({
     setActiveTab('details');
   }, [contactId]);
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [favoriting, setFavoriting] = useState(false);
   // Controlled so the active tab survives re-renders and refetches
   const [activeTab, setActiveTab] = useState('details');
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -779,6 +781,33 @@ export function ContactDetailView({
     setTimeout(() => setCopiedPhone(false), 2000);
   }
 
+  // Same star as the Contacts table row, mirrored here because the
+  // detail panel covers that column while it is open.
+  async function toggleFavorite() {
+    if (!contact || favoriting) return;
+    const next = !contact.is_favorite;
+    setFavoriting(true);
+    setContact((prev) => (prev ? { ...prev, is_favorite: next } : prev));
+    try {
+      const res = await fetch(`/api/contacts/${contact.id}/favorite`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_favorite: next }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update favourite');
+      }
+      toast.success(next ? 'Added to Favourites' : 'Removed from Favourites');
+      onUpdated();
+    } catch (err) {
+      setContact((prev) => (prev ? { ...prev, is_favorite: !next } : prev));
+      toast.error(err instanceof Error ? err.message : 'Failed to update favourite');
+    } finally {
+      setFavoriting(false);
+    }
+  }
+
   async function handleWhatsAppClick() {
     if (!contact || !accountId) {
       toast.error('Account not loaded or contact not loaded');
@@ -1262,8 +1291,28 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <SheetTitle className="text-white truncate">
-                    {contactFullName(contact) || 'Unknown'}
+                  <SheetTitle className="text-white truncate flex items-center gap-2">
+                    <button
+                      onClick={toggleFavorite}
+                      disabled={favoriting}
+                      className={`shrink-0 transition-colors cursor-pointer disabled:opacity-50 ${
+                        contact.is_favorite
+                          ? 'text-amber-400 hover:text-amber-300'
+                          : 'text-slate-500 hover:text-amber-400'
+                      }`}
+                      title={
+                        contact.is_favorite
+                          ? 'Remove from Favourites'
+                          : 'Add to Favourites'
+                      }
+                    >
+                      <Star
+                        className={`size-4 ${contact.is_favorite ? 'fill-amber-400' : ''}`}
+                      />
+                    </button>
+                    <span className="truncate">
+                      {contactFullName(contact) || 'Unknown'}
+                    </span>
                     {contact.name_tag && (
                       <span
                         className="ml-2 inline-flex items-center align-middle bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
