@@ -245,6 +245,12 @@ async function sendPropertyDraftPreview(
 // write and yields — the user gets ONE final card, not one per photo.
 const DRAFT_PREVIEW_DEBOUNCE_MS = 8000;
 
+// How long a draft stays answerable after the last message on it. The
+// confirmation card is often read long after it lands, so Confirm,
+// Cancel and plain-language corrections all keep working for an hour
+// before the draft is discarded.
+export const DRAFT_SESSION_TIMEOUT_MS = 60 * 60 * 1000;
+
 /** Lightweight per-media ack: a reaction on the user's own message
  *  (⏳ while uploading, ✅ when attached) instead of a chat bubble.
  *  Best-effort — a failed reaction never blocks the upload. */
@@ -563,13 +569,12 @@ export async function processOwnerChatbotMessage(
     }
   }
 
-  // 1.5. Session Expiry Timeout (15 minutes of inactivity)
-  const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+  // 1.5. Session Expiry Timeout (an hour of inactivity)
   const now = Date.now();
 
   if (propSession) {
     const updatedAt = new Date(propSession.updated_at).getTime();
-    if (now - updatedAt > SESSION_TIMEOUT_MS) {
+    if (now - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
       console.log(`[chatbot-engine] Expiring inactive property draft session ${propSession.id}`);
       await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
       propSession = null;
@@ -578,7 +583,7 @@ export async function processOwnerChatbotMessage(
 
   if (contactSession) {
     const updatedAt = new Date(contactSession.updated_at).getTime();
-    if (now - updatedAt > SESSION_TIMEOUT_MS) {
+    if (now - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
       console.log(`[chatbot-engine] Expiring inactive contact draft session ${contactSession.id}`);
       await supabaseAdmin().from('contact_draft_sessions').delete().eq('id', contactSession.id);
       contactSession = null;
@@ -2321,10 +2326,9 @@ export async function processExternalListingMessage(
   const propSession = propSessionData;
   if (!propSession) return false;
 
-  // Session Expiry Timeout (15 minutes of inactivity) — mirrors the owner flow.
-  const SESSION_TIMEOUT_MS = 15 * 60 * 1000;
+  // Session Expiry Timeout (an hour of inactivity) — mirrors the owner flow.
   const updatedAt = new Date(propSession.updated_at).getTime();
-  if (Date.now() - updatedAt > SESSION_TIMEOUT_MS) {
+  if (Date.now() - updatedAt > DRAFT_SESSION_TIMEOUT_MS) {
     console.log(`[chatbot-engine] Expiring inactive external listing session ${propSession.id}`);
     await supabaseAdmin().from('property_draft_sessions').delete().eq('id', propSession.id);
     const reply = "⌛ *Your listing draft expired due to inactivity.* Please tap \"List My Property\" again to start a new one.";

@@ -88,7 +88,7 @@ export function buildOwnerHelpMessage(): string {
     '• Send photos or a video to attach them to the listing',
     '• Correct anything in plain language — "price is 1.8 Cr", "name is Suresh"',
     '• Tap *Confirm* to save, *Cancel* to discard',
-    '• An untouched draft expires on its own after 15 minutes',
+    '• An untouched draft expires on its own after 1 hour',
   ];
   if (dash) {
     lines.push('', `Full dashboard: ${dash}`);
