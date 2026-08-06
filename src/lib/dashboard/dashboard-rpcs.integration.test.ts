@@ -160,14 +160,14 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY)(
         'properties',
         (
           [
-            ['Available', true],
-            ['Available', true],
-            ['Available', false],
-            ['Sold', false],
-            ['Under Contract', false],
-            ['Pending Review', false],
+            ['Available', true, 'owner'],
+            ['Available', true, 'owner'],
+            ['Available', false, 'owner'],
+            ['Sold', false, 'agent'],
+            ['Under Contract', false, 'owner'],
+            ['Pending Review', false, 'owner'],
           ] as const
-        ).map(([status, is_published], i) => ({
+        ).map(([status, is_published, listing_source], i) => ({
           account_id: accountId,
           title: `RPC test property ${i}`,
           price: 1_000_000 + i,
@@ -175,6 +175,7 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY)(
           type: 'Apartment',
           status,
           is_published,
+          listing_source,
         }))
       );
 
@@ -407,7 +408,7 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY)(
     // inventory_stats (migration 168)
     // ------------------------------------------------------------
     describe('inventory_stats', () => {
-      it('returns the five counters from one pass over the account', async () => {
+      it('returns the eight counters from one pass over the account', async () => {
         const { data, error } = await authed
           .rpc('inventory_stats', { p_account_id: accountId })
           .maybeSingle<{
@@ -416,6 +417,9 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY)(
             available: number;
             sold_or_contract: number;
             pending_review: number;
+            active_total: number;
+            direct: number;
+            agent_referred: number;
           }>();
         expect(error).toBeNull();
 
@@ -425,6 +429,9 @@ describe.skipIf(!SUPABASE_URL || !SERVICE_ROLE_KEY || !ANON_KEY)(
           available: 3,
           sold_or_contract: 2,
           pending_review: 1,
+          active_total: 6,
+          direct: 5,
+          agent_referred: 1,
         });
       });
     });
