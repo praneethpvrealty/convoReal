@@ -270,7 +270,7 @@ export function useBrandGradient(): readonly [string, string] {
 
 /**
  * Text/glass tints for content sitting ON the brand gradient. Static
- * (not per-theme): the gradient is always deep green, so white ink
+ * (not per-theme): the gradient is always deep violet, so white ink
  * works in both appearances.
  */
 export const onGradient = {
@@ -287,12 +287,12 @@ export const onGradient = {
  */
 export const mapPin = {
   bg: brand.violet,
-  bgMuted: '#E7E4DB',
+  bgMuted: brand.border,
   text: brand.white,
-  textMuted: '#3d453f',
+  textMuted: brand.textDim,
   dot: brand.gold,
-  dotMuted: '#69766F',
-  border: '#FFFFFF',
+  dotMuted: brand.textDim,
+  border: brand.white,
 } as const;
 
 /**

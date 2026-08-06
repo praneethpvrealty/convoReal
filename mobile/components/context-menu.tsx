@@ -38,7 +38,7 @@ export function ContextMenu({
   actions: ContextMenuAction[];
   onClose: () => void;
 }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const windowSize = useWindowDimensions();
   // Measure the real modal frame rather than trusting window
   // dimensions, which misreport on foldables and split-screen — the
@@ -54,7 +54,6 @@ export function ContextMenu({
     frameWidth: frame.width || windowSize.width,
     frameHeight: frame.height || windowSize.height,
   });
-  const fill = dark ? 'rgba(16,42,30,0.98)' : 'rgba(255,255,255,0.98)';
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -71,7 +70,13 @@ export function ContextMenu({
           accessibilityViewIsModal
           style={[
             styles.menu,
-            { left, top, maxHeight, backgroundColor: fill, borderColor: colors.glassBorder },
+            {
+              left,
+              top,
+              maxHeight,
+              backgroundColor: colors.surfaceWell,
+              borderColor: colors.glassBorder,
+            },
           ]}
         >
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>

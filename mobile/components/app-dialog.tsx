@@ -59,9 +59,8 @@ export function AppDialog({
   message?: string;
   actions?: DialogAction[];
 }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const insets = useSafeAreaInsets();
-  const cardFill = dark ? 'rgba(13,36,26,0.98)' : 'rgba(255,255,255,0.99)';
   const resolvedActions: DialogAction[] = actions?.length
     ? actions
     : [{ label: 'OK', variant: 'primary', onPress: onClose }];
@@ -77,7 +76,10 @@ export function AppDialog({
         <Pressable
           onPress={() => {}}
           accessibilityViewIsModal
-          style={[styles.card, { backgroundColor: cardFill, borderColor: colors.glassBorder }]}
+          style={[
+            styles.card,
+            { backgroundColor: colors.surfaceWell, borderColor: colors.glassBorder },
+          ]}
         >
           <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }}>{title}</Text>
           {message ? (
