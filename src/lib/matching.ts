@@ -126,7 +126,8 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
  *    matches an independent house, a residential buyer never matches
  *    commercial/industrial stock.
  *  - Location refines the rank when the contact has stated areas; a stated
- *    area that doesn't cover the property excludes the contact.
+ *    area that doesn't cover the property excludes the contact, unless one
+ *    of the stated areas is a placeholder ("any location") that opens it.
  *  - Budget is applied last: a price outside the contact's stated budget
  *    (beyond tolerance) excludes them, but budget alone never qualifies a
  *    contact — "only budget matches" is not a match.
@@ -371,7 +372,17 @@ function mapLegacyInterest(interest: string): { groups: SubtypeGroup[]; categori
   return { groups: [], categories: [] };
 }
 
-const AREA_PLACEHOLDERS = ['not specific', 'any', ''];
+/**
+ * Entries agents type into an area field that name no locality —
+ * "any", "anywhere", "any commercial location", "not specific". They
+ * state the absence of a location constraint, so they are never matched
+ * as a place; see the location gate, where one of them opens it.
+ */
+const AREA_PLACEHOLDER_PATTERN = /^(any|anywhere|all|not specific|no preference|flexible)\b/;
+
+function isPlaceholderArea(area: string): boolean {
+  return !!area && AREA_PLACEHOLDER_PATTERN.test(area);
+}
 
 function cleanArea(area: string): string {
   return area.toLowerCase().replace(/\./g, '').trim();
@@ -553,9 +564,17 @@ export function getMatchingContacts(
     if (roiVerdict === 'mismatch') continue;
 
     // ── 3. Location ───────────────────────────────────────────────
+    // A placeholder among the stated areas ("any commercial location")
+    // is the agent saying location is open. The real localities beside it
+    // still rank a hit; they just stop excluding everything else.
+    const anyAreaAccepted = [
+      ...(contact.areas_of_interest || []),
+      ...(contact.pref_areas || []),
+    ].some((a) => isPlaceholderArea(cleanArea(a)));
+
     const explicitAreas = (contact.areas_of_interest || [])
       .map(cleanArea)
-      .filter((a) => !AREA_PLACEHOLDERS.includes(a));
+      .filter((a) => a && !isPlaceholderArea(a));
 
     // Google-resolved coordinates saved with the contact take precedence over
     // the static locality table, so areas outside it still radius-match.
@@ -565,7 +584,9 @@ export function getMatchingContacts(
         contactAreaCoords[cleanArea(g.name)] = { lat: g.lat, lng: g.lng };
       }
     }
-    const aiAreas = (contact.pref_areas || []).map(cleanArea).filter(Boolean);
+    const aiAreas = (contact.pref_areas || [])
+      .map(cleanArea)
+      .filter((a) => a && !isPlaceholderArea(a));
     const wantedAreas = [...new Set([...explicitAreas, ...aiAreas])].filter(
       (a) => !isNegated(combinedText, a)
     );
@@ -652,7 +673,7 @@ export function getMatchingContacts(
         combinedText.includes('location agnostic') ||
         combinedText.includes('yield focused') ||
         combinedText.includes('roi focused');
-      if (yieldBypass || textBypass) {
+      if (yieldBypass || textBypass || anyAreaAccepted) {
         locationVerdict = 'unknown';
       } else {
         continue;

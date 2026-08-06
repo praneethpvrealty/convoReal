@@ -205,6 +205,15 @@ export function PropertyForm({
   const [city, setCity] = useState('');
   const [stateVal, setStateVal] = useState('');
   const [address, setAddress] = useState('');
+  // Coordinates of the picked place. Declared with the rest of the
+  // location fields because the match preview reads them too, well
+  // above the autocomplete handlers that set them.
+  const [geoPick, setGeoPick] = useState<{
+    latitude: number;
+    longitude: number;
+    place_id: string;
+    canonical: string;
+  } | null>(null);
   const [project, setProject] = useState('');
   const [landZone, setLandZone] = useState('');
   const [idealFor, setIdealFor] = useState('');
@@ -831,11 +840,20 @@ export function PropertyForm({
       bedrooms: bedrooms ? Number(bedrooms) : undefined,
       features,
       nearby_highlights: nearbyHighlights,
+      // Without these the matcher can only compare locality strings and
+      // assumes a Sale price, so this tab ranked listings differently
+      // from Radar and the inventory card counts, which pass the row.
+      latitude: geoPick?.latitude ?? undefined,
+      longitude: geoPick?.longitude ?? undefined,
+      listing_type: listingType,
+      rent_per_month: rentPerMonth ? Number(rentPerMonth) : undefined,
+      rental_income: rentalIncome ? Number(rentalIncome) : undefined,
+      roi: roiValue ?? undefined,
     };
     // Only match agents and Buyers
     const targetContacts = contacts.filter((c) => c.classification === 'Buyer' || c.classification === 'Agent');
     return getMatchingContacts(currentProp, targetContacts);
-  }, [contacts, title, description, price, address, type, sublocality, city, stateVal, project, bedrooms, features, nearbyHighlights]);
+  }, [contacts, title, description, price, address, type, sublocality, city, stateVal, project, bedrooms, features, nearbyHighlights, geoPick, listingType, rentPerMonth, rentalIncome, roiValue]);
 
   const displayedMatches = useMemo(() => {
     return matchedContacts.filter(({ contact: c }) => {
@@ -1200,12 +1218,6 @@ export function PropertyForm({
   const [googleSuggestions, setGoogleSuggestions] = useState<
     { place_id: string; main_text: string; secondary_text: string }[]
   >([]);
-  const [geoPick, setGeoPick] = useState<{
-    latitude: number;
-    longitude: number;
-    place_id: string;
-    canonical: string;
-  } | null>(null);
   // The pasted pin and the picked locality should describe the same
   // place. When they don't, one of them is wrong — usually a same-named
   // locality the address geocoder picked in the wrong part of town — and
