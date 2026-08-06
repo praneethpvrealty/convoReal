@@ -32,10 +32,12 @@ import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
 import { formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
+import { matchChips, scoreTone, type MatchChipTone } from '@/lib/match-chips';
+import { fetchPropertyMatches } from '@/lib/property-matches';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { radius, spacing, useTheme , fonts } from '@/lib/theme';
-import type { Property } from '@/lib/types';
+import { radius, spacing, useTheme , fonts, type ThemeColors } from '@/lib/theme';
+import type { Contact, Property } from '@/lib/types';
 
 /** Scroll clearance so content ends above the sticky price bar. */
 const BOTTOM_BAR_CLEARANCE = 110;
@@ -530,6 +532,8 @@ export default function PropertyDetailScreen() {
           </Section>
         ) : null}
 
+        <MatchesSection property={property} />
+
         {typeof property.latitude === 'number' && typeof property.longitude === 'number' ? (
           <Section title="Location">
             {!nativeMapsAvailable ? (
@@ -844,6 +848,135 @@ function ActionRail({ property }: { property: Property }) {
   );
 }
 
+function chipColor(tone: MatchChipTone, colors: ThemeColors): string {
+  if (tone === 'type') return colors.primary;
+  if (tone === 'location') return colors.readTick;
+  if (tone === 'positive') return colors.success;
+  if (tone === 'warn') return colors.warning;
+  if (tone === 'negative') return colors.danger;
+  return colors.textFaint;
+}
+
+/**
+ * Web parity: the Matching Contacts tab of the property dialog. Buyers
+ * are always listed and agents sit behind a toggle, ranked by the same
+ * server-side engine, so a listing scores identically on both surfaces.
+ */
+function MatchesSection({ property }: { property: Property }) {
+  const { colors, fonts: f } = useTheme();
+  const [showAgents, setShowAgents] = useState(false);
+  const [shareTo, setShareTo] = useState<Contact | null>(null);
+
+  const matches = useQuery({
+    queryKey: ['property-matches', property.id],
+    queryFn: () => fetchPropertyMatches(property.id),
+    staleTime: 60_000,
+  });
+
+  const all = matches.data ?? [];
+  const agentCount = all.filter((m) => m.contact.classification === 'Agent').length;
+  const rows = showAgents ? all : all.filter((m) => m.contact.classification !== 'Agent');
+
+  return (
+    <Section title="Matching Contacts">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <Text style={{ flex: 1, fontSize: 12.5, color: colors.textMuted }}>
+          {matches.isLoading
+            ? 'Scoring your contacts…'
+            : matches.isError
+              ? 'Could not load matches — pull to refresh.'
+              : rows.length === 0
+                ? 'No matching contacts'
+                : `Found ${rows.length} matching contact${rows.length === 1 ? '' : 's'}`}
+        </Text>
+        {agentCount > 0 ? (
+          <Pressable onPress={() => setShowAgents((v) => !v)} hitSlop={8} accessibilityRole="button">
+            <Text style={{ fontSize: 12, fontFamily: f.bold, color: colors.primary }}>
+              {showAgents ? 'Hide agents' : `Show agents (${agentCount})`}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      {matches.isLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+
+      {rows.map((m) => {
+        const tone = scoreTone(m.score);
+        const scoreFg =
+          tone === 'strong' ? colors.success : tone === 'fair' ? colors.warning : colors.textFaint;
+        const scoreBg =
+          tone === 'strong'
+            ? colors.successSoft
+            : tone === 'fair'
+              ? colors.warningSoft
+              : colors.glass;
+        return (
+          <Pressable
+            key={m.contact.id}
+            onPress={() => router.push(`/(app)/contact/${m.contact.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`${m.contact.name || m.contact.phone}, ${m.score} percent match`}
+            style={[
+              styles.matchRow,
+              { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+            ]}
+          >
+            <View style={{ flex: 1, gap: 4 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text
+                  numberOfLines={1}
+                  style={{ fontSize: 14.5, fontFamily: f.bold, color: colors.text, flexShrink: 1 }}
+                >
+                  {m.contact.name || m.contact.phone}
+                </Text>
+                {m.contact.name_tag ? <Tag label={m.contact.name_tag} /> : null}
+                {m.contact.classification ? (
+                  <Tag
+                    label={m.contact.classification}
+                    color={m.contact.classification === 'Agent' ? colors.readTick : colors.success}
+                  />
+                ) : null}
+              </View>
+              <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{m.contact.phone}</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+                {matchChips(m.details).map((chip) => (
+                  <Tag key={chip.label} label={chip.label} color={chipColor(chip.tone, colors)} />
+                ))}
+              </View>
+            </View>
+
+            <View style={{ alignItems: 'flex-end', gap: spacing.sm }}>
+              <View style={[styles.scoreBadge, { backgroundColor: scoreBg, borderColor: scoreFg }]}>
+                <Text style={{ fontSize: 11.5, fontFamily: f.extrabold, color: scoreFg }}>
+                  {m.score}%
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  haptic.tap();
+                  setShareTo(m.contact);
+                }}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel={`Share this property with ${m.contact.name || m.contact.phone}`}
+              >
+                <Ionicons name="paper-plane-outline" size={18} color={colors.primary} />
+              </Pressable>
+            </View>
+          </Pressable>
+        );
+      })}
+
+      <PropertyShareSheet
+        property={property}
+        contact={shareTo}
+        visible={shareTo !== null}
+        onClose={() => setShareTo(null)}
+      />
+    </Section>
+  );
+}
+
 /**
  * Full-screen photo viewer: paged, pinch-to-zoom on iOS (ScrollView
  * zoom props are iOS-only; Android gets full-screen contain), photo
@@ -1090,6 +1223,19 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: StyleSheet.hairlineWidth,
     padding: spacing.md,
+  },
+  matchRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+  },
+  scoreBadge: {
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
   thumbMore: {
     alignItems: 'center',

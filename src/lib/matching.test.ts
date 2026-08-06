@@ -276,6 +276,52 @@ describe('getMatchingContacts', () => {
       expect(results.length).toBe(1);
       expect(results[0].details.location).toBe('match');
     });
+
+    it('treats an "any …" entry among the stated areas as no location constraint', () => {
+      const contact = createTestContact({
+        property_interests: ['Vacant plot'],
+        areas_of_interest: ['JP Nagar', 'Indiranagar', 'any commercial location'],
+      });
+      const faraway = createTestProperty({
+        type: 'Commercial Land',
+        location: 'Bychapura, Karnataka',
+        sublocality: 'Bychapura',
+        city: 'Bychapura',
+        latitude: 13.2334113,
+        longitude: 77.7072594,
+      });
+
+      const results = getMatchingContacts(faraway, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.location).toBe('unknown');
+    });
+
+    it('still ranks a real area hit beside a placeholder as a location match', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        areas_of_interest: ['HSR Layout', 'Anywhere'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({ type: 'Flat/ Apartment', sublocality: 'HSR Layout' });
+
+      const results = getMatchingContacts(property, [contact]);
+      expect(results.length).toBe(1);
+      expect(results[0].details.location).toBe('match');
+    });
+
+    it('does not read a locality that merely starts like a placeholder as one', () => {
+      const contact = createTestContact({
+        pref_property_types: ['Flat/ Apartment'],
+        areas_of_interest: ['Anekal'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+      const property = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'Whitefield, Bangalore',
+        sublocality: 'Whitefield',
+      });
+      expect(getMatchingContacts(property, [contact]).length).toBe(0);
+    });
   });
 
   describe('Budget applied last', () => {
