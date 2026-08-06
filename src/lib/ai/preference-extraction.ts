@@ -144,6 +144,7 @@ export async function extractContactPreferences(sourceText: string): Promise<Ext
     'Rules:\n' +
     "1. Convert Indian number formats: 'Crore'/'Cr' = 10000000, 'Lakh'/'L' = 100000, 'k' = 1000. '1.2cr' -> 12000000, '80L' -> 8000000, '₹90 lakh' -> 9000000.\n" +
     "2. A single budget figure with no qualifier (e.g. 'budget 1 Cr') means budget_max, leave budget_min null. '±'/'around'/'approx' also maps to budget_max.\n" +
+    "2b. A bare number with NO unit means different things for rent and for purchase, and you must use the surrounding context to decide. For a RENTAL (monthly rent, 'rent', 'lease', 'to let'): a bare figure under 1000 is thousands per month — 'Budget 35 to 40' -> budget_min 35000, budget_max 40000; 'rent 18000' is already rupees -> 18000. For a PURCHASE: a bare figure up to about 25 means crores — '1-2' -> 10000000 to 20000000; a bare figure between 25 and 999 means lakh — 'budget 80' -> 8000000. Never read a bare number as literal rupees when it is plainly a budget: nobody is buying a house for 35 rupees.\n" +
     "3. 'X BHK' means bhk_min = bhk_max = X unless a range is given.\n" +
     "4. Only extract what the CONTACT wants. Ignore details about properties they already own or sold, meeting logistics, or agent chatter.\n" +
     "5. Distinguish wanted vs rejected: 'not interested in commercial' must NOT add 'commercial' to property_categories; 'avoid Whitefield' goes to excluded_areas.\n" +

@@ -611,3 +611,26 @@ describe("preferLocality", () => {
     expect(preferLocality(rows, "any")).toEqual(rows);
   });
 });
+
+describe('splitByBudget in a rental context', () => {
+  const row = (id: string, price: number): ListingRow => ({
+    id, title: `Listing ${id}`, location: 'Bangalore', type: 'Flat/ Apartment',
+    bedrooms: 3, area_sqft: null, price, property_code: null, listing_type: 'Rent',
+  });
+
+  it('reads "35 to 45" as a monthly rent band, not rupees', () => {
+    const { withinBudget, aboveBudget } = splitByBudget(
+      [row('cheap', 40_000), row('dear', 620_000)],
+      '35 to 45',
+      5,
+      'rent',
+    );
+    expect(withinBudget.map((p) => p.id)).toEqual(['cheap']);
+    expect(aboveBudget.map((p) => p.id)).toEqual(['dear']);
+  });
+
+  it('without the context every listing is above a Rs 45 ceiling', () => {
+    const { withinBudget } = splitByBudget([row('cheap', 40_000)], '35 to 45', 5);
+    expect(withinBudget).toHaveLength(0);
+  });
+});

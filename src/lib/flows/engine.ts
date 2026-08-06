@@ -41,7 +41,7 @@ import {
   engineSendText,
 } from "./meta-send";
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
-import { parseBudgetText } from "@/lib/bot/catalog-match";
+import { parseBudgetText, type BudgetContext } from "@/lib/bot/catalog-match";
 import { appendRequirement } from "@/lib/ai/buyer-qualification";
 import { syncContactPreferences } from "@/lib/contacts/preference-sync";
 import { generateMatchEventForContact } from "@/lib/radar/engine";
@@ -387,8 +387,11 @@ export function splitByBudget(
   properties: ListingRow[],
   budgetText: string | null,
   limit: number,
+  /** Decides what an unqualified figure means — "35 to 40" is thousands
+   *  a month to a renter and lakh to a buyer. */
+  context?: BudgetContext,
 ): { withinBudget: ListingRow[]; aboveBudget: ListingRow[] } {
-  const { max } = budgetText ? parseBudgetText(budgetText) : { max: null };
+  const { max } = budgetText ? parseBudgetText(budgetText, context) : { max: null };
   if (max == null) {
     return { withinBudget: properties.slice(0, limit), aboveBudget: [] };
   }
@@ -594,6 +597,7 @@ async function fetchAndFormatPropertyListings(
     ),
     budgetText,
     limit,
+    cfg.filter_listing_type === "Rent" ? "rent" : "sale",
   );
   const shown = [...withinBudget, ...aboveBudget];
 
