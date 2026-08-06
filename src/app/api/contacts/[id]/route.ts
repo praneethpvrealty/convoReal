@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireOrgRole, requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
 
@@ -183,23 +183,65 @@ export async function PUT(
   }
 }
 
-// DELETE /api/contacts/[id] — hard-delete a contact. Manager-only, matching
-// the contacts_delete RLS policy (migration 082). Dependent rows follow the
-// FK rules set in migration 004: operational children cascade, while history
-// (broadcast_recipients, deals) survives with a NULL contact_id.
+// DELETE /api/contacts/[id] — hard-delete a contact. A manager may delete
+// any contact in the account; everyone else only the ones they saved,
+// matching the contacts_delete RLS policy (migration 205). Dependent rows
+// follow the FK rules set in migration 004: operational children cascade,
+// while history (broadcast_recipients, deals) survives with a NULL
+// contact_id.
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const ctx = await requireOrgRole('org_manager');
+    const ctx = await requireRole('agent');
     const { id: contactId } = await params;
 
     const limit = checkRateLimit(
-      `manager:deleteContact:${ctx.userId}`,
+      `agent:deleteContact:${ctx.userId}`,
       RATE_LIMITS.adminAction,
     );
     if (!limit.success) return rateLimitResponse(limit);
+
+    // Resolve ownership first so a refusal can name who saved the contact.
+    // RLS would otherwise turn it into an indistinguishable empty result.
+    const { data: existing, error: loadErr } = await ctx.supabase
+      .from('contacts')
+      .select('id, user_id')
+      .eq('id', contactId)
+      .eq('account_id', ctx.accountId)
+      .maybeSingle();
+
+    if (loadErr) {
+      console.error('[DELETE /api/contacts/[id]] Load error:', loadErr);
+      return NextResponse.json(
+        { error: loadErr.message ?? 'Failed to delete contact' },
+        { status: 500 },
+      );
+    }
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+    }
+
+    if (ctx.orgRole !== 'org_manager' && existing.user_id !== ctx.userId) {
+      const { data: owner } = await ctx.supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', existing.user_id)
+        .maybeSingle();
+
+      return NextResponse.json(
+        {
+          error: owner?.full_name
+            ? `${owner.full_name} saved this contact, so it stays on their list. Ask them or your manager to remove it.`
+            : 'A teammate saved this contact, so it stays on their list. Ask them or your manager to remove it.',
+          code: 'NOT_CONTACT_OWNER',
+          savedBy: owner?.full_name ?? null,
+        },
+        { status: 403 },
+      );
+    }
 
     // `.select()` so a row blocked by RLS or belonging to another account
     // comes back as 404 rather than a silent success on zero rows.

@@ -214,6 +214,24 @@ describe("preferenceFormToContactUpdate", () => {
     expect("min_budget" in update).toBe(false);
     expect("min_roi" in update).toBe(false);
   });
+
+  it("keeps in-app interests the Flow cannot render", () => {
+    // 'Penthouse' is offered in-app but not in the Flow's CheckboxGroup,
+    // so an unchecked box must not be read as "no longer wanted".
+    const update = preferenceFormToContactUpdate({ property_types: ["Villa"] }, [
+      "Penthouse",
+      "Villa",
+    ]);
+    expect(update.property_interests).toEqual(["Villa", "Penthouse"]);
+  });
+
+  it("still drops Flow-vocabulary interests the buyer unchecked", () => {
+    const update = preferenceFormToContactUpdate({ property_types: ["Villa"] }, [
+      "Villa",
+      "Vacant plot",
+    ]);
+    expect(update.property_interests).toEqual(["Villa"]);
+  });
 });
 
 describe("summarizePreferenceUpdate", () => {

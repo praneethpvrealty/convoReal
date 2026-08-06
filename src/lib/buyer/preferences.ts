@@ -11,10 +11,17 @@
 // Pure module (no I/O) so it can be unit tested.
 // ============================================================
 
-import { PROPERTY_INTEREST_FLOW_OPTIONS } from '@/lib/whatsapp/preference-flow';
+import { PROPERTY_INTEREST_OPTIONS } from '@/lib/property-interests';
 
-export const BUYER_PROPERTY_INTEREST_OPTIONS =
-  PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id);
+/**
+ * The portal is a web form, not a Meta CheckboxGroup, so it is not
+ * bound by the Flow's item cap and offers the full in-app vocabulary.
+ * Keeping it to the Flow subset would silently drop any interest an
+ * agent recorded outside that subset the first time a buyer saved.
+ */
+export const BUYER_PROPERTY_INTEREST_OPTIONS: string[] = [
+  ...PROPERTY_INTEREST_OPTIONS,
+];
 
 export interface BuyerPreferenceUpdate {
   min_budget?: number | null;
@@ -45,7 +52,12 @@ function parseStringArray(
     .map((v) => v.trim())
     .filter((v) => v.length > 0 && v.length <= 120)
     .filter((v) => !allowed || allowed.has(v));
-  return cleaned.slice(0, 25);
+  // The flat cap guards the free-text fields. An allow-listed field is
+  // already bounded by its own vocabulary once deduped, and that
+  // vocabulary is now longer than the cap — slicing it here would drop
+  // valid selections off the end of the list.
+  if (!allowed) return cleaned.slice(0, 25);
+  return Array.from(new Set(cleaned));
 }
 
 /**

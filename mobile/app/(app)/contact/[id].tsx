@@ -64,6 +64,22 @@ const PROPERTY_INTEREST_OPTIONS = [
   'Vacant building',
   'Rental building with some ROI',
   'Old building selling at site rate',
+  'Builder Floor Apartment',
+  'Penthouse',
+  'Studio Apartment',
+  'Residential Plot',
+  'Residential Land',
+  'Residential PG building',
+  'PG/ Hostel',
+  'Farm House',
+  'Office in IT Park/ SEZ',
+  'Commercial Showroom',
+  'Commercial Building',
+  'Commercial Land',
+  'Warehouse/ Godown',
+  'Industrial Land',
+  'Industrial Building',
+  'Industrial Shed',
 ];
 
 /** Who gets the budget/areas/interests block. An agent's own brief is
@@ -82,7 +98,7 @@ async function fetchContact(id: string): Promise<Contact | null> {
       'id, phone, secondary_phones, name, name_tag, email, company, classification, ' +
         'avatar_url, min_budget, max_budget, no_budget, areas_of_interest, areas_of_interest_geo, ' +
         'strict_area_match, min_roi, requirements, lead_temp, status, referrer, source, ' +
-        'property_interests, last_inquired_property_id, is_favorite'
+        'property_interests, last_inquired_property_id, is_favorite, user_id'
     )
     .eq('id', id)
     .maybeSingle();
@@ -206,9 +222,27 @@ function ContactCard({ contact }: { contact: Contact }) {
     dialogProps: favoriteDialogProps,
   } = useAppDialog();
   const name = contact.name || contact.phone;
-  // Hard delete is manager-only — mirrors the contacts_delete RLS policy
-  // so agents are not shown a button the server will refuse.
-  const canDelete = useAuthStore((s) => s.profile?.org_role) === 'org_manager';
+  // Mirrors the contacts_delete RLS policy (migration 205): a manager may
+  // delete anything in the account, everyone else only what they saved.
+  const isManager = useAuthStore((s) => s.profile?.org_role) === 'org_manager';
+  const myUserId = useAuthStore((s) => s.session?.user.id);
+  const canDelete = isManager || (!!myUserId && contact.user_id === myUserId);
+
+  // Only needed to name the colleague in the refusal, so it stays off
+  // until we already know this contact is not the caller's to delete.
+  const { data: savedBy } = useQuery({
+    queryKey: ['contact-owner', contact.user_id],
+    enabled: !canDelete && Boolean(contact.user_id),
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('user_id', contact.user_id)
+        .maybeSingle();
+      return (data?.full_name as string | null) ?? null;
+    },
+  });
 
   // Web parity: the star also sits on the contacts list row, but the
   // detail screen is where an agent decides a contact matters.
@@ -236,6 +270,16 @@ function ContactCard({ contact }: { contact: Contact }) {
       setFavoriting(false);
     }
   }
+  function explainCannotDelete() {
+    haptic.tap();
+    showFavoriteError({
+      title: 'This one is not yours to delete',
+      message: savedBy
+        ? `${savedBy} saved ${name}, so it stays on their list. Ask them or your manager to remove it — everything else here is still yours to edit.`
+        : `A teammate saved ${name}, so it stays on their list. Ask them or your manager to remove it — everything else here is still yours to edit.`,
+    });
+  }
+
   function confirmDelete() {
     showFavoriteError({
       title: `Delete ${name}?`,
@@ -422,28 +466,38 @@ function ContactCard({ contact }: { contact: Contact }) {
           : 'Tap Edit above to update budget, areas and buyer preferences.'}
       </Text>
 
-      {canDelete ? (
-        <Pressable
-          onPress={confirmDelete}
-          disabled={deleting}
-          accessibilityRole="button"
-          accessibilityLabel={`Delete ${name}`}
-          accessibilityState={{ disabled: deleting, busy: deleting }}
-          style={({ pressed }) => [
-            styles.deleteContact,
-            {
-              backgroundColor: colors.dangerSoft,
-              borderColor: colors.danger,
-              opacity: deleting ? 0.55 : pressed ? 0.85 : 1,
-            },
-          ]}
+      <Pressable
+        onPress={canDelete ? confirmDelete : explainCannotDelete}
+        disabled={deleting}
+        accessibilityRole="button"
+        accessibilityLabel={
+          canDelete ? `Delete ${name}` : `Why ${name} cannot be deleted`
+        }
+        accessibilityState={{ disabled: deleting, busy: deleting }}
+        style={({ pressed }) => [
+          styles.deleteContact,
+          {
+            backgroundColor: canDelete ? colors.dangerSoft : colors.glass,
+            borderColor: canDelete ? colors.danger : colors.glassBorder,
+            opacity: deleting ? 0.55 : pressed ? 0.85 : 1,
+          },
+        ]}
+      >
+        <Ionicons
+          name="trash-outline"
+          size={16}
+          color={canDelete ? colors.danger : colors.textFaint}
+        />
+        <Text
+          style={{
+            fontSize: 14,
+            fontFamily: f.bold,
+            color: canDelete ? colors.danger : colors.textFaint,
+          }}
         >
-          <Ionicons name="trash-outline" size={16} color={colors.danger} />
-          <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.danger }}>
-            {deleting ? 'Deleting…' : 'Delete contact'}
-          </Text>
-        </Pressable>
-      ) : null}
+          {deleting ? 'Deleting…' : 'Delete contact'}
+        </Text>
+      </Pressable>
     </ScrollView>
     <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
     <MoveToEngineSheet

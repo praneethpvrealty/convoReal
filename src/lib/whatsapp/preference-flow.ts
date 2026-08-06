@@ -17,7 +17,7 @@
  */
 
 import {
-  PROPERTY_INTEREST_OPTIONS,
+  PROPERTY_INTEREST_FLOW_IDS,
   PROPERTY_INTEREST_SHORT_TITLES,
 } from '@/lib/property-interests'
 
@@ -39,7 +39,7 @@ export const PREFERENCE_FLOW_DATA_API_VERSION = '3.0'
  * stay within Meta's 30-char CheckboxGroup item limit.
  */
 export const PROPERTY_INTEREST_FLOW_OPTIONS: Array<{ id: string; title: string }> =
-  PROPERTY_INTEREST_OPTIONS.map((id) => ({
+  PROPERTY_INTEREST_FLOW_IDS.map((id) => ({
     id,
     title: PROPERTY_INTEREST_SHORT_TITLES[id] ?? id,
   }))
@@ -271,7 +271,8 @@ function parseNumericField(value: string | undefined): number | null | undefined
  * field means "clear this preference"; a missing key means "leave as is".
  */
 export function preferenceFormToContactUpdate(
-  values: PreferenceFormValues
+  values: PreferenceFormValues,
+  existingInterests: string[] = []
 ): ContactPreferenceUpdate {
   const update: ContactPreferenceUpdate = {}
 
@@ -291,7 +292,13 @@ export function preferenceFormToContactUpdate(
 
   if (values.property_types !== undefined) {
     const knownIds = new Set(PROPERTY_INTEREST_FLOW_OPTIONS.map((o) => o.id))
-    update.property_interests = values.property_types.filter((t) => knownIds.has(t))
+    // The Flow can only render its own vocabulary, so an unchecked box
+    // means "not offered", not "no longer wanted". Interests recorded
+    // in-app outside that vocabulary are carried through untouched.
+    update.property_interests = [
+      ...values.property_types.filter((t) => knownIds.has(t)),
+      ...existingInterests.filter((t) => !knownIds.has(t)),
+    ]
   }
 
   return update
