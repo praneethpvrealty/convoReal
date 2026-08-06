@@ -252,13 +252,21 @@ export function PropertyApprovals({ style }: { style?: ViewStyle } = {}) {
                         <Ionicons
                           name="checkmark-circle"
                           size={15}
-                          color="#fff"
+                          color={colors.onSuccess}
                         />
                       </Animated.View>
                     ) : (
-                      <Ionicons name="checkmark" size={15} color="#fff" />
+                      <Ionicons name="checkmark" size={15} color={colors.onPrimary} />
                     )}
-                    <Text style={[styles.buttonText, { fontFamily: f.bold }]}>
+                    <Text
+                      style={[
+                        styles.buttonText,
+                        {
+                          fontFamily: f.bold,
+                          color: approving ? colors.onSuccess : colors.onPrimary,
+                        },
+                      ]}
+                    >
                       {approving ? 'Publishing…' : 'Approve'}
                     </Text>
                   </Pressable>
@@ -328,5 +336,5 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderWidth: StyleSheet.hairlineWidth,
   },
-  buttonText: { fontSize: 13, color: '#fff' },
+  buttonText: { fontSize: 13 },
 });

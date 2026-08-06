@@ -461,9 +461,14 @@ function ConversationRow({
           <Ionicons
             name={archived ? 'arrow-undo' : 'archive'}
             size={20}
-            color="#fff"
+            color={archived ? colors.onPrimary : colors.onWarning}
           />
-          <Text style={styles.swipeActionText}>
+          <Text
+            style={[
+              styles.swipeActionText,
+              { color: archived ? colors.onPrimary : colors.onWarning },
+            ]}
+          >
             {archived ? 'Unarchive' : 'Archive'}
           </Text>
         </Pressable>
@@ -586,5 +591,5 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md - 2,
     borderRadius: radius.lg,
   },
-  swipeActionText: { color: '#fff', fontSize: 12, fontFamily: fonts.bold },
+  swipeActionText: { fontSize: 12, fontFamily: fonts.bold },
 });
