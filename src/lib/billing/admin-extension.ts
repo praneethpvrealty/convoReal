@@ -365,9 +365,13 @@ export function computeExtendedUntil(
 
 /**
  * What the account's access actually runs to once live credit is
- * layered on the gateway's own period end. Mirrors the
- * GREATEST(...) in the account_plan_limits view so the API can preview
- * a grant before it is written.
+ * layered on the gateway's own period end. Mirrors the GREATEST(...) in
+ * the account_plan_limits view so the API can preview a grant before it
+ * is written.
+ *
+ * The view additionally ignores deadlines already in the past; this does
+ * not, because every caller passes a deadline it has just computed for a
+ * grant being made now. Do not reuse it to render a historical row.
  */
 export function effectivePeriodEnd(
   currentPeriodEnd: string | null | undefined,

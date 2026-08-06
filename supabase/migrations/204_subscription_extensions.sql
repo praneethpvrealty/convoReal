@@ -163,6 +163,14 @@ END $$;
 -- GREATEST ignores NULLs in PostgreSQL, so a starter account with no
 -- current_period_end and no extensions still yields NULL, and an
 -- extension on such an account still surfaces its own deadline.
+--
+-- BOTH subqueries filter on `extended_until > NOW()` — only credit still
+-- in force may move anything. Filtering just the SUM would leave an
+-- expired grant contributing to the MAX, and on an account with no
+-- gateway period at all (GREATEST(NULL, ...) collapses to the credit
+-- deadline) that would surface a date in the PAST as the account's
+-- renewal date. Verified against production, where every subscription
+-- currently has a NULL current_period_end.
 -- ============================================================
 CREATE OR REPLACE VIEW account_plan_limits AS
 SELECT
@@ -233,7 +241,8 @@ SELECT
     (SELECT MAX(e.extended_until)
        FROM subscription_extensions e
       WHERE e.account_id = a.id
-        AND e.revoked_at IS NULL)
+        AND e.revoked_at IS NULL
+        AND e.extended_until > NOW())
   ) AS effective_period_end
 
 FROM accounts a
