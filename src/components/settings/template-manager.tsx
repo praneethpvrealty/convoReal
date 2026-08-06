@@ -15,6 +15,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { missingEngineTemplates } from '@/lib/whatsapp/engine-templates';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -148,6 +149,7 @@ export function TemplateManager() {
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [submittingEngineTemplate, setSubmittingEngineTemplate] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -535,6 +537,31 @@ export function TemplateManager() {
   const headerNeedsMedia =
     form.header_format !== 'none' && form.header_format !== 'text';
 
+  // Engine templates with no row at all. These are sent by the product
+  // itself, so a missing one fails a send rather than a person noticing.
+  const missingEngine = missingEngineTemplates(templates.map((t) => t.name));
+
+  const handleCreateEngineTemplate = async (name: string) => {
+    const def = missingEngine.find((t) => t.name === name);
+    if (!def || submittingEngineTemplate) return;
+    setSubmittingEngineTemplate(name);
+    try {
+      const res = await fetch('/api/whatsapp/templates/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(def.build(window.location.origin)),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Template submission failed');
+      toast.success(`${def.label} submitted to Meta — approval usually takes minutes to a few hours.`);
+      if (accountId) await fetchTemplates(accountId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Template submission failed');
+    } finally {
+      setSubmittingEngineTemplate(null);
+    }
+  };
+
   return (
     <div className="mt-4 space-y-4" data-tour="template-manager">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -575,6 +602,47 @@ export function TemplateManager() {
           </p>
         )}
       </div>
+
+      {isOrgManager && missingEngine.length > 0 && (
+        <Card className="border-amber-900/50 bg-amber-950/20 ring-0 ring-transparent">
+          <CardContent className="space-y-3 py-4">
+            <p className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+              <AlertCircle className="size-4 shrink-0" />
+              {missingEngine.length === 1
+                ? 'One template the Engine sends is missing'
+                : `${missingEngine.length} templates the Engine sends are missing`}
+            </p>
+            {missingEngine.map((t) => (
+              <div
+                key={t.name}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/40 p-3"
+              >
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <p className="text-sm font-semibold text-white">
+                    {t.label}{' '}
+                    <code className="rounded bg-slate-950 px-1 py-0.5 text-[11px] text-slate-400">
+                      {t.name}
+                    </code>
+                  </p>
+                  <p className="text-xs leading-normal text-slate-400">{t.whyItMatters}</p>
+                </div>
+                <Button
+                  onClick={() => handleCreateEngineTemplate(t.name)}
+                  disabled={submittingEngineTemplate !== null}
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  {submittingEngineTemplate === t.name ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Send className="size-4" />
+                  )}
+                  Create &amp; submit
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {templates.length === 0 ? (
         <Card className="border-slate-700 bg-slate-900 ring-0 ring-transparent">
