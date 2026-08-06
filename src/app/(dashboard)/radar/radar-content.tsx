@@ -16,7 +16,10 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { loadMatchEvents } from "@/lib/radar/queries";
-import { buildPropertyAlertTemplatePayload } from "@/lib/whatsapp/property-alert-template";
+import {
+  buildPropertyAlertTemplatePayload,
+  PROPERTY_ALERT_TEMPLATE_NAME,
+} from "@/lib/whatsapp/property-alert-template";
 import type { MatchEvent, Property } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
@@ -40,7 +43,7 @@ export default function RadarPage() {
   const [checkedTargets, setCheckedTargets] = useState<CheckedState>({});
 
   // Recipients that couldn't be reached because they're outside the 24h
-  // window AND the new_property_alert template isn't approved yet —
+  // window AND the property-details template isn't approved yet —
   // sending is template-first, so this only appears until the one-time
   // template setup is done.
   const [templateMissingTargets, setTemplateMissingTargets] = useState<{
@@ -197,7 +200,7 @@ export default function RadarPage() {
     }
   };
 
-  // One-click create/resubmit of the new_property_alert template. After
+  // One-click create/resubmit of the property-details template. After
   // Meta approves it (minutes to a few hours), Send Match Alert reaches
   // out-of-window contacts automatically — no manual fallback.
   const handleSubmitAlertTemplate = async () => {
@@ -463,7 +466,7 @@ export default function RadarPage() {
                     </div>
 
                     {/* One-time template setup — only shows when out-of-window
-                        contacts couldn't be reached because new_property_alert
+                        contacts couldn't be reached because the property-details template
                         isn't approved yet. Once it is, sends are automatic. */}
                     {templateMissingTargets[evt.id] && templateMissingTargets[evt.id].length > 0 && (
                       <div className="bg-amber-950/20 border border-amber-900/50 rounded-xl p-3.5 space-y-2 animate-fade-in">
@@ -473,7 +476,7 @@ export default function RadarPage() {
                             {templateMissingTargets[evt.id].map((t) => t.name).join(", ")}{" "}
                             {templateMissingTargets[evt.id].length === 1 ? "is" : "are"} outside the
                             24-hour WhatsApp window. Alerts to them go out via the pre-approved{" "}
-                            <code className="bg-slate-950 px-1 py-0.5 rounded">new_property_alert</code>{" "}
+                            <code className="bg-slate-950 px-1 py-0.5 rounded">{PROPERTY_ALERT_TEMPLATE_NAME}</code>{" "}
                             template —{" "}
                             {alertTemplateStatus === "PENDING"
                               ? "yours is waiting for Meta approval. Hit Send Match Alert again once it's approved."

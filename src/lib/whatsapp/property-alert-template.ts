@@ -11,25 +11,38 @@ import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 
-export const PROPERTY_ALERT_TEMPLATE_NAME = 'new_property_alert';
+/** Bumped from `new_property_alert` when the category moved to Utility:
+ *  Meta will not re-categorise an already-approved template in place, so
+ *  the new category needs a new name to go through review. Accounts still
+ *  holding the approved Marketing original keep it until they run the
+ *  one-click setup again. */
+export const PROPERTY_ALERT_TEMPLATE_NAME = 'property_enquiry_details';
 
 export function buildPropertyAlertTemplatePayload(origin: string): TemplatePayload {
   return {
     name: PROPERTY_ALERT_TEMPLATE_NAME,
-    category: 'Marketing',
+    // Utility, not Marketing. This answers a person who asked about a
+    // property — on a portal, on the showcase, or by giving an agent
+    // their brief — rather than broadcasting to a list. Marketing
+    // templates are also subject to Meta's per-user frequency cap, which
+    // silently drops them with error 131049 for anyone at their limit;
+    // Utility is exempt. Same reasoning as location_reveal.
+    category: 'Utility',
     language: 'en_US',
+    // Worded as a reply to a request, because that is what Meta's
+    // reviewers categorise on. Promotional framing ("just came up",
+    // "don't miss out") reads as Marketing however the category is set.
     body_text: [
-      '🏠 *New Property Match*',
+      '🏠 *Property details you asked for*',
       '',
-      'Hi {{1}}! A listing that fits what you were looking for just came up:',
+      'Hi {{1}}, here are the details of the property matching your enquiry:',
       '',
       '*{{2}}*',
       '{{3}}',
       '📍 {{4}}',
       '',
-      'Want photos, the exact location, or a site visit? Just reply to this message — I answer personally on this number.',
+      'Reply to this message for photos, the exact location, or to arrange a site visit — I answer personally on this number.',
     ].join('\n'),
-    footer_text: 'Reply STOP to unsubscribe',
     buttons: [
       // Quick replies first (Meta rule). A tap opens the 24h window, so
       // the follow-up conversation continues free-form in the Engine Inbox.
