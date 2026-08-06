@@ -115,9 +115,17 @@ function formatBudget(prefs: ExtractedPreferences): string {
 }
 
 /** Human label for what the contact said they want. */
+/**
+ * Human label for what the contact said they want.
+ *
+ * Taxonomy values are written for a dropdown, not for a sentence:
+ * "Residential Land/ Plot" lowercased lands in a reply as "noted:
+ * residential land/ plot", stray space and all. Tidy the separator so
+ * the text reads like something a person typed.
+ */
 function typeLabel(prefs: ExtractedPreferences): string {
   const specific = prefs.property_types[0];
-  if (specific) return specific.toLowerCase();
+  if (specific) return specific.toLowerCase().replace(/\s*\/\s*/g, '/');
   const category = prefs.property_categories[0];
   return category ? `${category} property` : 'property';
 }

@@ -124,6 +124,17 @@ describe('buildQualifierQuestion', () => {
     expect(q).toContain('What kind of property');
   });
 
+  it('tidies a dropdown taxonomy value into something readable', () => {
+    // Live Gemini returns the canonical "Residential Land/ Plot"; the
+    // stray space around the slash is visible to the lead otherwise.
+    const q = buildQualifierQuestion(
+      'budget',
+      prefs({ property_types: ['Residential Land/ Plot'] })
+    );
+    expect(q).toContain('residential land/plot');
+    expect(q).not.toContain('land/ plot');
+  });
+
   it('reflects the stated type back when asking for budget', () => {
     const q = buildQualifierQuestion(
       'budget',
