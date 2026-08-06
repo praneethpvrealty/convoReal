@@ -217,6 +217,30 @@
     await sleep(300);
   }
 
+  /** Some boxes (99acres' Plot/Built-up Area) belong to a component that
+   *  re-renders from its own state right after mount and throws away a
+   *  value that was only set through the native setter. Set it, read it
+   *  back, and fall back to real keystrokes before giving up. A portal
+   *  that reformats what we typed (₹ grouping) still counts — only an
+   *  empty box, or one missing our digits, is a failure. */
+  function valueStuck(el, value) {
+    if (!document.contains(el)) return false;
+    const current = normalizedText(el.value);
+    if (!current) return false;
+    const digits = value.replace(/\D/g, '');
+    return digits ? current.replace(/\D/g, '') === digits : true;
+  }
+
+  async function writeAndVerify(el, value) {
+    nativeSet(el, value);
+    await sleep(120);
+    if (valueStuck(el, value)) return true;
+    await typeLikeUser(el, value);
+    el.dispatchEvent(new Event('blur', { bubbles: true }));
+    await sleep(120);
+    return valueStuck(el, value);
+  }
+
   /** All suggestion rows for a typeahead, deduped. Starts from
    *  elements in the visible zone under the input, then widens to the
    *  full list container — locality lists run hundreds of rows deep
@@ -444,11 +468,17 @@
               report?.failed.add(field.label);
             }
           } else {
-            nativeSet(best, value);
             used.add(best);
-            flashOutline(best);
-            filled++;
-            report?.satisfied.add(field.label);
+            if (await writeAndVerify(best, value)) {
+              flashOutline(best);
+              filled++;
+              report?.satisfied.add(field.label);
+            } else {
+              // The write didn't stick (99acres' area boxes re-render and
+              // drop a value that arrived without keystrokes) — flag it red
+              // instead of reporting a fill the agent can't see.
+              report?.failed.add(field.label);
+            }
           }
         } catch {
           // Portal blocked the write — the copy button still covers it.
