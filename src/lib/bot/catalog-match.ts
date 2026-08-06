@@ -53,21 +53,30 @@ const OPEN_BUDGET = /\b(flexible|any|not sure|no idea|depends|open)\b/i;
  */
 export type BudgetContext = 'rent' | 'sale';
 
+/** Highest bare sale figure still read as crores. Above it the same
+ *  number means lakh — "80" is eighty lakh, not eighty crore. */
+const SALE_CRORE_CEILING = 60;
+
 /**
- * Default multiplier for a figure the visitor left unqualified, by the
+ * Multiplier for figures the visitor left unqualified, by the
  * conventions people actually type in.
+ *
+ * Decided ONCE for the whole expression from the largest bare figure,
+ * not per token. Choosing per token splits a range across the boundary:
+ * "55 to 65" would read as 55 Cr to 65 L, a band spanning two orders of
+ * magnitude that the visitor plainly did not mean.
  *
  * Rent: monthly figures are quoted in thousands ("35" = ₹35k). Four
  * digits or more is already a rupee amount ("18000").
  *
- * Sale: small figures are crores ("1 to 2" = ₹1–2 Cr); once past the
- * low twenties nobody means crores, they mean lakh ("80" = ₹80 L).
- * Anything four digits or more is taken as written.
+ * Sale: figures up to SALE_CRORE_CEILING are crores ("1 to 2" = ₹1–2
+ * Cr, "60" = ₹60 Cr); past it they are lakh ("80" = ₹80 L). Anything
+ * four digits or more is taken as written.
  */
-function bareUnitFactor(value: number, context: BudgetContext): number {
-  if (context === 'rent') return value < 1_000 ? 1_000 : 1;
-  if (value <= 25) return 10_000_000;
-  return value < 1_000 ? 100_000 : 1;
+function bareUnitFactor(largestBare: number, context: BudgetContext): number {
+  if (context === 'rent') return largestBare < 1_000 ? 1_000 : 1;
+  if (largestBare <= SALE_CRORE_CEILING) return 10_000_000;
+  return largestBare < 1_000 ? 100_000 : 1;
 }
 
 function unitFactor(unit: string | undefined): number | null {
@@ -103,11 +112,17 @@ export function parseBudgetText(
     else tokens[i].factor = trailingFactor;
   }
 
-  // No token carried a unit at all, so the context decides. Without a
-  // context the old literal reading stands, which keeps every existing
-  // caller behaving exactly as before.
+  // Figures the visitor left unqualified all take the same multiplier,
+  // chosen from the largest of them. Without a context the old literal
+  // reading stands, so every existing caller behaves as before.
+  const bareValues = tokens.filter((t) => !t.factor).map((t) => t.value);
+  const bareFactor =
+    context && bareValues.length > 0
+      ? bareUnitFactor(Math.max(...bareValues), context)
+      : 1;
+
   const amounts = tokens
-    .map((t) => t.value * (t.factor ?? (context ? bareUnitFactor(t.value, context) : 1)))
+    .map((t) => t.value * (t.factor ?? bareFactor))
     .sort((a, b) => a - b);
 
   if (amounts.length >= 2) {

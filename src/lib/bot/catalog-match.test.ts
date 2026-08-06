@@ -306,6 +306,23 @@ describe('parseBudgetText with a rent/sale context', () => {
     expect(parseBudgetText('50 to 80', 'sale')).toEqual({ min: 5_000_000, max: 8_000_000 });
   });
 
+  it('treats 60 as the top of the crore range', () => {
+    expect(parseBudgetText('60', 'sale').max).toBeCloseTo(600_000_000 * 1.1, 0);
+    expect(parseBudgetText('40 to 60', 'sale')).toEqual({
+      min: 400_000_000,
+      max: 600_000_000,
+    });
+  });
+
+  it('picks one unit for a range that straddles the boundary', () => {
+    // Per-token would read this as 55 Cr to 65 L — a band spanning two
+    // orders of magnitude, in the wrong direction.
+    expect(parseBudgetText('55 to 65', 'sale')).toEqual({
+      min: 5_500_000,
+      max: 6_500_000,
+    });
+  });
+
   it('never lets the context override a unit the visitor typed', () => {
     expect(parseBudgetText('35k to 45k', 'rent')).toEqual({ min: 35_000, max: 45_000 });
     expect(parseBudgetText('1.5 cr', 'sale').max).toBeCloseTo(15_000_000 * 1.1, 0);
