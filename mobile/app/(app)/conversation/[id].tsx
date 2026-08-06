@@ -24,17 +24,34 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { ContactPickerSheet } from '@/components/contact-picker-sheet';
+import { ContextMenu } from '@/components/context-menu';
 import { ConversationMenu } from '@/components/conversation-menu';
 import { ConvoRealLoader } from '@/components/loader';
 import { MediaImage } from '@/components/media-image';
 import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
-import { ApiError, sendTemplateMessage, sendTextMessage, suggestReplies } from '@/lib/api';
+import {
+  ApiError,
+  forwardMessage,
+  sendTemplateMessage,
+  sendTextMessage,
+  suggestReplies,
+} from '@/lib/api';
 import { buildInquiryDraft } from '@/lib/approve-contact';
 import { isReengagementError } from '@/lib/customer-window';
 import { haptic } from '@/lib/haptics';
-import type { MessageTemplate , Conversation, Message, MessageStatus } from '@/lib/types';
+import {
+  canForward,
+  canResend,
+  forwardSummary,
+  forwardableText,
+  messageAuthorLabel,
+  messagePreview,
+} from '@/lib/message-actions';
+import type { Contact, MessageTemplate , Conversation, Message, MessageStatus } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
@@ -82,6 +99,15 @@ export default function ConversationScreen() {
   }>();
   const headerHeight = useHeaderHeight();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Long-press target, with the press point the floating menu anchors to.
+  const [actionsFor, setActionsFor] = useState<{ message: Message; x: number; y: number } | null>(
+    null
+  );
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [resend, setResend] = useState<Message | null>(null);
+  const [forwardFor, setForwardFor] = useState<Message | null>(null);
+  const [forwarding, setForwarding] = useState(false);
+  const { show, dialogProps } = useAppDialog();
 
   const { data: conversation } = useQuery({
     queryKey: ['conversation', id],
@@ -146,7 +172,48 @@ export default function ConversationScreen() {
     return out;
   }, [messages]);
 
+  // Quoted parents are resolved from the page already on screen; a reply
+  // to something older than the window renders as a plain message rather
+  // than costing the thread a second query.
+  const messagesById = useMemo(() => {
+    const map = new Map<string, Message>();
+    for (const m of messages ?? []) map.set(m.id, m);
+    return map;
+  }, [messages]);
+
   const title = conversation?.contact?.name || conversation?.contact?.phone || 'Conversation';
+  const contactName = conversation?.contact?.name || undefined;
+
+  async function forwardTo(contacts: Contact[]) {
+    const message = forwardFor;
+    if (!message || contacts.length === 0) return;
+    setForwarding(true);
+    haptic.send();
+    try {
+      const { data } = await forwardMessage(
+        message.id,
+        contacts.map((c) => c.id)
+      );
+      const summary = forwardSummary(data.results);
+      setForwardFor(null);
+      if (summary) {
+        haptic.warn();
+        show(summary);
+      } else {
+        haptic.success();
+      }
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    } catch (err) {
+      haptic.warn();
+      setForwardFor(null);
+      show({
+        title: 'Could not forward',
+        message: err instanceof ApiError ? err.message : 'Something went wrong — try again.',
+      });
+    } finally {
+      setForwarding(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -190,7 +257,19 @@ export default function ConversationScreen() {
             item.kind === 'day' ? (
               <DaySeparator label={item.label} />
             ) : (
-              <MessageBubble message={item.message} />
+              <MessageBubble
+                message={item.message}
+                parent={
+                  item.message.reply_to_message_id
+                    ? messagesById.get(item.message.reply_to_message_id)
+                    : undefined
+                }
+                contactName={contactName}
+                onLongPress={(message, x, y) => {
+                  haptic.tap();
+                  setActionsFor({ message, x, y });
+                }}
+              />
             )
           }
         />
@@ -198,9 +277,59 @@ export default function ConversationScreen() {
 
       <Composer
         conversationId={id}
-        contactName={conversation?.contact?.name || undefined}
+        contactName={contactName}
         contactPhone={conversation?.contact?.phone || undefined}
         seedDraft={seedDraft}
+        replyTo={replyTo}
+        onClearReply={() => setReplyTo(null)}
+        resend={resend}
+        onResendHandled={() => setResend(null)}
+      />
+
+      <ContextMenu
+        anchor={actionsFor ? { x: actionsFor.x, y: actionsFor.y } : null}
+        onClose={() => setActionsFor(null)}
+        actions={
+          actionsFor
+            ? [
+                {
+                  icon: 'return-down-back-outline',
+                  label: 'Reply',
+                  onPress: () => setReplyTo(actionsFor.message),
+                },
+                ...(canResend(actionsFor.message)
+                  ? [
+                      {
+                        icon: 'refresh-outline' as const,
+                        label: 'Send again',
+                        onPress: () => setResend(actionsFor.message),
+                      },
+                    ]
+                  : []),
+                ...(canForward(actionsFor.message)
+                  ? [
+                      {
+                        icon: 'arrow-redo-outline' as const,
+                        label: 'Forward',
+                        onPress: () => setForwardFor(actionsFor.message),
+                      },
+                    ]
+                  : []),
+              ]
+            : []
+        }
+      />
+
+      <ContactPickerSheet
+        visible={forwardFor !== null}
+        onClose={() => setForwardFor(null)}
+        multiSelect
+        confirmLabel="Forward"
+        onSelectMany={forwardTo}
+        title="Forward to"
+        hint="Pick who should receive this message from your business number. It lands in their own chat thread — a contact who hasn’t written in 24 hours needs a template instead."
+        busy={forwarding}
+        busyLabel="Forwarding…"
       />
 
       <ConversationMenu
@@ -210,6 +339,7 @@ export default function ConversationScreen() {
         status={conversation?.status}
         isArchived={conversation?.is_archived}
       />
+      <AppDialog {...dialogProps} />
     </KeyboardAvoidingView>
   );
 }
@@ -337,13 +467,61 @@ const MEDIA_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   interactive: 'return-down-back-outline',
 };
 
-function MessageBubble({ message }: { message: Message }) {
+/** The quoted parent, rendered inside a reply's own bubble and above the
+ *  composer while a reply is being written. */
+function QuotedMessage({
+  message,
+  contactName,
+  onDismiss,
+}: {
+  message: Message;
+  contactName?: string;
+  onDismiss?: () => void;
+}) {
+  const { colors, fonts: f } = useTheme();
+  return (
+    <View style={[styles.quote, { borderLeftColor: colors.primary, backgroundColor: colors.glass }]}>
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text style={{ fontSize: 11, fontFamily: f.bold, color: colors.primary }} numberOfLines={1}>
+          {messageAuthorLabel(message, contactName)}
+        </Text>
+        <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={2}>
+          {messagePreview(message)}
+        </Text>
+      </View>
+      {onDismiss ? (
+        <Pressable
+          onPress={onDismiss}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel reply"
+        >
+          <Ionicons name="close" size={16} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function MessageBubble({
+  message,
+  parent,
+  contactName,
+  onLongPress,
+}: {
+  message: Message;
+  parent?: Message;
+  contactName?: string;
+  onLongPress: (message: Message, x: number, y: number) => void;
+}) {
   const { colors, fonts: f } = useTheme();
   const outgoing = message.sender_type !== 'customer';
   const isBot = message.sender_type === 'bot';
 
   return (
-    <View
+    <Pressable
+      onLongPress={(e) => onLongPress(message, e.nativeEvent.pageX, e.nativeEvent.pageY)}
+      accessibilityHint="Hold for reply, send again and forward"
       style={[
         styles.bubble,
         outgoing
@@ -356,6 +534,8 @@ function MessageBubble({ message }: { message: Message }) {
           🤖 Bot
         </Text>
       ) : null}
+
+      {parent ? <QuotedMessage message={parent} contactName={contactName} /> : null}
 
       {message.content_type === 'image' && message.media_url ? (
         <MediaImage relativeUrl={message.media_url} />
@@ -410,7 +590,7 @@ function MessageBubble({ message }: { message: Message }) {
           {message.error_info}
         </Text>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
@@ -419,11 +599,22 @@ function Composer({
   contactName,
   contactPhone,
   seedDraft,
+  replyTo,
+  onClearReply,
+  resend,
+  onResendHandled,
 }: {
   conversationId: string;
   contactName?: string;
   contactPhone?: string;
   seedDraft?: string;
+  /** Message being quoted, or null. Cleared once the reply is sent. */
+  replyTo: Message | null;
+  onClearReply: () => void;
+  /** Message to put back on the wire. Sending lives here so a resend
+   *  gets the composer's spinner and its 24-hour-window error bar. */
+  resend: Message | null;
+  onResendHandled: () => void;
 }) {
   const { colors, dark } = useTheme();
   const [draft, setDraft] = useState('');
@@ -473,16 +664,17 @@ function Composer({
     setSuggestions([]);
   }
 
-  // Shared send path for the composer draft and the property shortlist
-  // sheet. Returns whether it went out so callers can clear/close.
-  async function sendText(text: string): Promise<boolean> {
+  // Shared send path for the composer draft, the property shortlist
+  // sheet and a resend. Returns whether it went out so callers can
+  // clear/close.
+  async function sendText(text: string, replyToMessageId?: string): Promise<boolean> {
     const trimmed = text.trim();
     if (!trimmed || sending) return false;
     setSending(true);
     setError(null);
     setBlockedText(null);
     try {
-      await sendTextMessage(conversationId, trimmed);
+      await sendTextMessage(conversationId, trimmed, replyToMessageId);
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
       return true;
     } catch (err) {
@@ -522,9 +714,28 @@ function Composer({
 
   async function send() {
     haptic.send();
-    const ok = await sendText(draft);
-    if (ok) setDraft('');
+    const ok = await sendText(draft, replyTo?.id);
+    if (ok) {
+      setDraft('');
+      onClearReply();
+    }
   }
+
+  // A resend is the same send, with the original text. Guarded by id so
+  // a re-render never fires it twice; the tap is reported back either
+  // way, so tapping the same message again resends it again.
+  const resentRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!resend || resentRef.current === resend.id) return;
+    resentRef.current = resend.id;
+    void (async () => {
+      haptic.send();
+      await sendText(forwardableText(resend));
+      resentRef.current = null;
+      onResendHandled();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resend]);
 
   async function sendTemplate(
     template: MessageTemplate,
@@ -634,6 +845,11 @@ function Composer({
           </Pressable>
         </View>
       ) : null}
+      {replyTo ? (
+        <View style={styles.replyBar}>
+          <QuotedMessage message={replyTo} contactName={contactName} onDismiss={onClearReply} />
+        </View>
+      ) : null}
       {/* Floating glass composer — real blur (content scrolls behind). */}
       <View style={[styles.composer, { backgroundColor: colors.tabBar, borderTopColor: colors.glassBorder }]}>
         <BlurView
@@ -725,6 +941,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     alignSelf: 'flex-end',
+  },
+  quote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderLeftWidth: 2,
+    borderRadius: radius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginBottom: 2,
+  },
+  replyBar: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
   },
   errorBar: {
     flexDirection: 'row',

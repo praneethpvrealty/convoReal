@@ -158,6 +158,7 @@ export async function POST(request: Request) {
     // parent must belong to this same conversation — otherwise a caller
     // could quote messages they can't see by guessing UUIDs.
     let contextMessageId: string | undefined
+    let replyToMessageId: string | undefined
     if (reply_to_message_id) {
       const { data: parent, error: parentError } = await supabase
         .from('messages')
@@ -172,6 +173,9 @@ export async function POST(request: Request) {
           { status: 400 }
         )
       }
+      // The local link is kept either way, so the thread still renders
+      // the quote even when WhatsApp itself cannot.
+      replyToMessageId = reply_to_message_id
       if (!parent.message_id) {
         // Parent never reached Meta (still in 'sending' or 'failed') — we
         // can't quote it on WhatsApp. Send without context rather than
@@ -334,6 +338,7 @@ export async function POST(request: Request) {
       productCatalogId: product_catalog_id || config.catalog_id,
       productRetailerId: product_retailer_id,
       contextMessageId,
+      replyToMessageId,
       customDbClient: supabase,
     })
 

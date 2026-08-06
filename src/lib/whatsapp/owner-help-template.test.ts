@@ -46,7 +46,7 @@ describe('buildOwnerHelpMessage', () => {
     expect(msg).toContain('Site visit with Varun tomorrow 4pm');
     expect(msg).toContain('Remind me to call Deepak on Friday');
     expect(msg).toContain('price is 1.8 Cr');
-    expect(msg).toContain('15 minutes');
+    expect(msg).toContain('1 hour');
   });
 
   it('uses WhatsApp bold, never Markdown double asterisks', () => {

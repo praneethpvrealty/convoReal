@@ -85,7 +85,12 @@ export interface SendWhatsAppAndPersistArgs {
   footerText?: string | null
   productCatalogId?: string | null
   productRetailerId?: string | null
+  /** Meta's wamid of the quoted message — goes on the outgoing payload. */
   contextMessageId?: string | null
+  /** Our `messages.id` for that same quoted message. Persisted as the
+   *  row's `reply_to_message_id`, which is a UUID self-FK: writing a
+   *  wamid there fails the insert after Meta has already sent. */
+  replyToMessageId?: string | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customDbClient?: any
 }
@@ -214,7 +219,8 @@ export async function sendWhatsAppMessageAndPersist(
     // template went out in the last few seconds, treat this call as
     // already-sent rather than firing a duplicate. Keyed on the rendered
     // body (`text`) so genuinely different sends (e.g. two properties) are
-    // never collapsed.
+    // never collapsed, and blind to failed rows — a message Meta refused
+    // was never delivered, so a deliberate resend of it is not a duplicate.
     if (args.kind === 'template' && args.templateName) {
       let dupQuery = db
         .from('messages')
@@ -223,6 +229,7 @@ export async function sendWhatsAppMessageAndPersist(
         .eq('sender_type', args.senderType)
         .eq('content_type', 'template')
         .eq('template_name', args.templateName)
+        .neq('status', 'failed')
         .gte('created_at', new Date(Date.now() - DUPLICATE_TEMPLATE_WINDOW_MS).toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
@@ -253,6 +260,7 @@ export async function sendWhatsAppMessageAndPersist(
         .eq('sender_type', args.senderType)
         .eq('content_type', 'text')
         .eq('content_text', args.text)
+        .neq('status', 'failed')
         .gte('created_at', new Date(Date.now() - DUPLICATE_TEMPLATE_WINDOW_MS).toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
@@ -501,7 +509,7 @@ export async function sendWhatsAppMessageAndPersist(
         template_name,
         message_id: waMessageId,
         status: 'sent',
-        reply_to_message_id: args.contextMessageId || null,
+        reply_to_message_id: args.replyToMessageId || null,
       })
       .select()
       .single()
