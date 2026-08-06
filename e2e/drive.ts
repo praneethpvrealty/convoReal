@@ -143,6 +143,8 @@ async function main() {
       ['05-radar', '/radar'],
       ['06-inbox', '/inbox'],
       ['07-pipelines', '/pipelines'],
+      ['08-calendar', '/calendar'],
+      ['09-broadcasts', '/broadcasts'],
     ] as const) {
       console.log(`visiting ${path}`);
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
