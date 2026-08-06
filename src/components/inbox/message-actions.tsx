@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, SmilePlus } from "lucide-react";
+import { CornerUpLeft, Copy, Forward, RotateCw, SmilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -9,6 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { stripDeliveryFailure } from "@/lib/whatsapp/delivery-failure";
 import type { Message } from "@/types";
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
@@ -19,7 +20,31 @@ interface MessageActionsProps {
   message: Message;
   onReply: () => void;
   onReact: (emoji: string) => void;
+  /** Send this message again as a new one. Offered only for our own
+   *  messages that still have text — see `canResend`. */
+  onResend: () => void;
+  /** Send this message's text on to other contacts. */
+  onForward: () => void;
   children: ReactNode;
+}
+
+/** The message as it was composed, minus the delivery-failure note the
+ *  status webhook appends to a failed row's body. Resending or
+ *  forwarding that note would send our own error report to a customer. */
+export function actionableText(message: Message): string {
+  return stripDeliveryFailure(message.content_text);
+}
+
+/** Only our own messages can be sent again — "resending" something the
+ *  contact wrote would put their words in our voice. Media has no text
+ *  to put back on the wire. */
+export function canResend(message: Message): boolean {
+  return message.sender_type !== "customer" && actionableText(message) !== "";
+}
+
+/** Anything with text can be forwarded, from either side of the thread. */
+export function canForward(message: Message): boolean {
+  return actionableText(message) !== "";
 }
 
 /**
@@ -31,6 +56,8 @@ export function MessageActions({
   message,
   onReply,
   onReact,
+  onResend,
+  onForward,
   children,
 }: MessageActionsProps) {
   // Touch devices have no hover. Long-press fires `contextmenu`; we capture
@@ -70,6 +97,16 @@ export function MessageActions({
 
   const handleReply = () => {
     onReply();
+    setTouchOpen(false);
+  };
+
+  const handleResend = () => {
+    onResend();
+    setTouchOpen(false);
+  };
+
+  const handleForward = () => {
+    onForward();
     setTouchOpen(false);
   };
 
@@ -133,6 +170,26 @@ export function MessageActions({
         >
           <CornerUpLeft className="h-3.5 w-3.5" />
         </button>
+        {canResend(message) && (
+          <button
+            type="button"
+            onClick={handleResend}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
+            aria-label="Send again"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {canForward(message) && (
+          <button
+            type="button"
+            onClick={handleForward}
+            className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
+            aria-label="Forward"
+          >
+            <Forward className="h-3.5 w-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={handleCopy}

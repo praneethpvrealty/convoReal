@@ -36,7 +36,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MessageBubble } from "./message-bubble";
-import { MessageActions } from "./message-actions";
+import { MessageActions, actionableText } from "./message-actions";
+import { ForwardMessageDialog } from "./forward-message-dialog";
 import { MessageComposer } from "./message-composer";
 import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
@@ -217,6 +218,7 @@ export function MessageThread({
     });
   }, [conversation, onArchive]);
   const [replyTo, setReplyTo] = useState<ReplyDraft | null>(null);
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
 
   // Profiles are bounded by RLS to rows the current user is allowed to
   // see — today that's just the current user, but the dropdown keeps the
@@ -442,6 +444,7 @@ export function MessageThread({
   // a quote pulled from conversation A shouldn't bleed into conversation B.
   useEffect(() => {
     setReplyTo(null);
+    setForwardMessage(null);
   }, [conversationId]);
 
   // Reset the server-side unread_count to 0 whenever an unread count
@@ -557,6 +560,21 @@ export function MessageThread({
       }
     },
     [conversation, onNewMessage, onUpdateMessage]
+  );
+
+  // Send a message again as a new one — the same path a typed message
+  // takes, so a closed 24-hour window opens the template picker exactly
+  // as it would for anything else.
+  const handleResend = useCallback(
+    (msg: Message) => {
+      const text = actionableText(msg);
+      if (!text) {
+        toast.error("Nothing to send again");
+        return;
+      }
+      void handleSend(text);
+    },
+    [handleSend],
   );
 
   const handleStatusChange = useCallback(
@@ -1066,6 +1084,8 @@ export function MessageThread({
                         onReact={(emoji) => {
                           if (emoji) void postReaction(msg.id, emoji);
                         }}
+                        onResend={() => handleResend(msg)}
+                        onForward={() => setForwardMessage(msg)}
                       >
                         <MessageBubble
                           message={msg}
@@ -1098,6 +1118,13 @@ export function MessageThread({
         open={templateModalOpen}
         onOpenChange={setTemplateModalOpen}
         onSelect={handleSendTemplate}
+      />
+
+      <ForwardMessageDialog
+        message={forwardMessage}
+        onOpenChange={(open) => {
+          if (!open) setForwardMessage(null);
+        }}
       />
     </div>
   );
