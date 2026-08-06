@@ -473,11 +473,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🏡 *Luxury Villas & Independent Houses*\n\nHere are our current listings:",
-        empty_text: "🏡 *Luxury Villas*\n\nSorry, no villa listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Villa", "Residential House"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -485,11 +490,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🏢 *Premium Apartments & Flats*\n\nHere are our current listings:",
-        empty_text: "🏢 *Premium Apartments*\n\nSorry, no apartment listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Flat/ Apartment", "Builder Floor Apartment", "Penthouse", "Studio Apartment"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -497,11 +507,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🌾 *Residential Plots & Land*\n\nHere are our current listings:",
-        empty_text: "🌾 *Residential Plots*\n\nSorry, no plot listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Residential Land/ Plot"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -509,10 +524,15 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🏠 *PGs & Hostels*\n\nHere are our current listings:",
-        empty_text: "🏠 *PGs & Hostels*\n\nSorry, no PG/hostel listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Residential PG building", "PG/ Hostel"],
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -520,11 +540,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "📐 *Residential Vacant Plots*\n\nHere are our current listings:",
-        empty_text: "📐 *Residential Vacant Plots*\n\nSorry, no vacant plot listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Residential Land/ Plot"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -532,11 +557,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🏗️ *Commercial Vacant Plots*\n\nHere are our current listings:",
-        empty_text: "🏗️ *Commercial Vacant Plots*\n\nSorry, no commercial plot listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Commercial Land"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -544,11 +574,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🌱 *Farm Land*\n\nHere are our current listings:",
-        empty_text: "🌱 *Farm Land*\n\nSorry, no farm land listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Agricultural Land", "Farm House"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -556,11 +591,16 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🏦 *Rent Yielding Buildings*\n\nHere are our current listings:",
-        empty_text: "🏦 *Rent Yielding Buildings*\n\nSorry, no rent yielding building listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop", "Commercial Showroom", "Commercial Building", "Warehouse/ Godown"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
@@ -568,45 +608,101 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "send_property_listings",
       config: {
         intro_text: "🏭 *Industry Lands*\n\nHere are our current listings:",
-        empty_text: "🏭 *Industry Lands*\n\nSorry, no industrial land listings are currently available. Our team will reach out when something suitable is listed.",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
         filter_types: ["Industrial Land", "Industrial Building", "Industrial Shed"],
         filter_listing_type: "Sale",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "rent_2bhk_info",
       node_type: "send_property_listings",
       config: {
-        intro_text: "🔑 *Properties for Rent*\n\nHere are our current rental listings:",
-        empty_text: "🔑 *Properties for Rent*\n\nSorry, no rental properties are currently available. Our team will reach out when something suitable is listed.",
+        intro_text: "🔑 *2 BHK Homes for Rent*\n\nHere are our current listings:",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
+        filter_types: ["Flat/ Apartment", "Builder Floor Apartment", "Studio Apartment", "Residential House"],
         filter_listing_type: "Rent",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "rent_3bhk_info",
       node_type: "send_property_listings",
       config: {
-        intro_text: "🔑 *Properties for Rent*\n\nHere are our current rental listings:",
-        empty_text: "🔑 *Properties for Rent*\n\nSorry, no rental properties are currently available. Our team will reach out when something suitable is listed.",
+        intro_text: "🔑 *3 BHK & Penthouses for Rent*\n\nHere are our current listings:",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
+        filter_types: ["Flat/ Apartment", "Builder Floor Apartment", "Penthouse", "Villa", "Residential House"],
         filter_listing_type: "Rent",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
     },
     {
       node_key: "rent_commercial_info",
       node_type: "send_property_listings",
       config: {
-        intro_text: "🏢 *Properties for Rent*\n\nHere are our current rental listings:",
-        empty_text: "🏢 *Properties for Rent*\n\nSorry, no rental properties are currently available. Our team will reach out when something suitable is listed.",
+        intro_text: "🏢 *Commercial Space for Rent*\n\nHere are our current listings:",
+        empty_text:
+          "🔍 *Nothing matching that in our live listings right now.*\n\n" +
+          "Don't lose hope — this is where the engine earns its keep. It keeps " +
+          "hunting as new properties come in, and the moment one fits what " +
+          "you've told me, you'll hear about it here.",
         limit: 5,
+        filter_types: ["Commercial Office Space", "Office in IT Park/ SEZ", "Commercial Shop", "Commercial Showroom", "Commercial Building", "Warehouse/ Godown"],
         filter_listing_type: "Rent",
         next_node_key: "post_listings",
+        empty_next_node_key: "no_match_followup",
       } as SendPropertyListingsNodeConfig,
+    },
+    {
+      node_key: "no_match_followup",
+      node_type: "send_buttons",
+      config: {
+        text: "Shall I keep you posted the moment something matches? 🔔",
+        buttons: [
+          {
+            reply_id: "subscribe_matches",
+            title: "Yes, keep me posted",
+            next_node_key: "match_subscribed",
+          },
+          {
+            reply_id: "browse_other",
+            title: "See other options",
+            next_node_key: "buy_menu",
+          },
+          {
+            reply_id: "talk_to_agent_nomatch",
+            title: "Talk to an Agent",
+            next_node_key: "thank_you",
+          },
+        ],
+        interest_node_key: "thank_you",
+      } as SendButtonsNodeConfig,
+    },
+    {
+      node_key: "match_subscribed",
+      node_type: "send_message",
+      config: {
+        text: "✅ *You're on the list.*\n\nI've saved what you're after — type, budget and area — and the engine now watches every new listing against it. The moment one matches, you'll get a message here. No need to check back.",
+        next_node_key: "handoff_onboarding",
+      } as SendMessageNodeConfig,
     },
     {
       node_key: "post_listings",

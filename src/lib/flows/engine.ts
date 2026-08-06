@@ -43,6 +43,8 @@ import {
 import { decideFallback, resolveFallbackPolicy } from "./fallback";
 import { parseBudgetText } from "@/lib/bot/catalog-match";
 import { appendRequirement } from "@/lib/ai/buyer-qualification";
+import { syncContactPreferences } from "@/lib/contacts/preference-sync";
+import { generateMatchEventForContact } from "@/lib/radar/engine";
 import { createNotification } from "@/lib/notifications/create";
 import { BRIDGE_REPLY_HINT } from "@/lib/whatsapp/reply-bridge";
 import { checkAccountPropertyLimit } from "@/lib/billing/gates";
@@ -406,6 +408,27 @@ export function splitByBudget(
   };
 }
 
+/**
+ * The contact's extracted budget ceiling, rendered as text splitByBudget
+ * can parse. Null when nothing has been extracted, which keeps the
+ * previous unfiltered behaviour rather than inventing a limit.
+ */
+async function contactBudgetText(
+  db: AdminClient,
+  run: FlowRunRow,
+): Promise<string | null> {
+  if (!run.contact_id) return null;
+  const { data } = await db
+    .from("contacts")
+    .select("pref_budget_min, pref_budget_max")
+    .eq("id", run.contact_id)
+    .maybeSingle();
+  const max = data?.pref_budget_max as number | null | undefined;
+  if (max == null || max <= 0) return null;
+  const min = data?.pref_budget_min as number | null | undefined;
+  return min && min > 0 ? `${min} to ${max}` : `up to ${max}`;
+}
+
 /** What the run remembers about the listings it last put in the chat,
  *  so a reply of "2" can be resolved back to a property. */
 export interface ShownListing {
@@ -556,12 +579,20 @@ async function fetchAndFormatPropertyListings(
     ), shown: [] };
   }
 
+  // A lead who typed their budget at a buttons step instead of the
+  // question never sets vars.budget — that text lands on the contact as
+  // an unmatched reply. Falling back to the extracted pref_budget_max
+  // means the answer still counts, wherever they happened to give it.
+  const budgetText =
+    (typeof run.vars?.budget === "string" && run.vars.budget) ||
+    (await contactBudgetText(db, run));
+
   const { withinBudget, aboveBudget } = splitByBudget(
     preferLocality(
       properties as ListingRow[],
       typeof run.vars?.locality === "string" ? run.vars.locality : null,
     ),
-    typeof run.vars?.budget === "string" ? run.vars.budget : null,
+    budgetText,
     limit,
   );
   const shown = [...withinBudget, ...aboveBudget];
@@ -1304,6 +1335,7 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_property_listings") {
       const cfg = node.config as unknown as import("./types").SendPropertyListingsNodeConfig;
+      let shownCount = 0;
       try {
         const { text: listingsText, shown } = await fetchAndFormatPropertyListings(db, run, cfg);
         const { whatsapp_message_id } = await engineSendText({
@@ -1315,6 +1347,7 @@ async function advanceFromNodeKey(
         });
         // Remember what was numbered, so the next reply of "2" resolves
         // to a property instead of being reprompted as unrecognised.
+        shownCount = shown.length;
         const withListings = { ...run.vars, [SHOWN_LISTINGS_VAR]: shown };
         await db.from("flow_runs").update({ vars: withListings }).eq("id", run.id);
         run.vars = withListings;
@@ -1330,7 +1363,13 @@ async function advanceFromNodeKey(
         await endRun(db, run.id, "failed", "send_property_listings_failed");
         return { outcome: "completed" };
       }
-      currentKey = cfg.next_node_key;
+      // Nothing was shown, so the usual follow-up ("Interested in any of
+      // these? Reply with its number") would be asking about an empty
+      // list. Branch instead when the node names somewhere to go.
+      currentKey =
+        shownCount === 0 && cfg.empty_next_node_key
+          ? cfg.empty_next_node_key
+          : cfg.next_node_key;
       continue;
     }
     if (node.node_type === "collect_input") {
@@ -1719,7 +1758,12 @@ async function handleReplyForActiveRun(
   // into flow_run_events — see the privacy note at the top of this
   // function; contact.requirements is agent-facing by design.)
   if (!matched && message.kind === "text" && run.contact_id) {
-    await captureUnmatchedTextOnContact(db, run.contact_id, message.text);
+    await captureUnmatchedTextOnContact(
+      db,
+      run.account_id,
+      run.contact_id,
+      message.text,
+    );
   }
 
   if (matched) {
@@ -1819,6 +1863,7 @@ async function handleReplyForActiveRun(
  */
 async function captureUnmatchedTextOnContact(
   db: AdminClient,
+  accountId: string,
   contactId: string,
   rawText: string,
 ): Promise<void> {
@@ -1837,6 +1882,19 @@ async function captureUnmatchedTextOnContact(
       .from("contacts")
       .update({ requirements: merged, updated_at: new Date().toISOString() })
       .eq("id", contactId);
+
+    // Storing the text is not the same as understanding it. Matching,
+    // Radar and the buyer digest all read pref_*, never requirements —
+    // so without this the lead who typed a budget and six localities
+    // stays unmatchable, and the listing that suits them arrives to
+    // silence. Fire-and-forget: the message is already handled.
+    void syncContactPreferences(db, accountId, contactId)
+      .then((r) => {
+        if (r.status === 'updated') {
+          void generateMatchEventForContact(db, accountId, contactId).catch(() => {});
+        }
+      })
+      .catch(() => {});
   } catch (err) {
     console.error(
       "[flows] captureUnmatchedTextOnContact failed:",

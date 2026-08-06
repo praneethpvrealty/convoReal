@@ -207,6 +207,13 @@ export interface SendPropertyListingsNodeConfig {
   filter_listing_type?: "Sale" | "Rent" | "JV/JD" | "Built to Suit";
   /** Auto-advance target after the message lands at Meta. */
   next_node_key: string;
+  /**
+   * Where to go when the query returned nothing. Without it the run
+   * advances to `next_node_key` regardless, which is how a lead who was
+   * shown no listings ended up being asked "Interested in any of these?
+   * Reply with its number".
+   */
+  empty_next_node_key?: string;
 }
 
 /** Config a send_buttons node may carry to say where a listing-number
