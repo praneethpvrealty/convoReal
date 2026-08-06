@@ -131,6 +131,13 @@ export async function resolvePlatformSender(
 export interface PlatformTemplateSend {
   toPhone: string;
   templateName: string;
+  /** MUST match the language the template was REGISTERED under, not the
+   *  language it happens to be written in. Meta treats (name, language)
+   *  as the key and rejects a mismatch with 132001 "Template name does
+   *  not exist in the translation" — which here would silently demote
+   *  every send to the free-form fallback. Defaults to en_US, the same
+   *  default meta-api-dispatcher.ts uses. */
+  language?: string;
   params: string[];
   /** Free-form body used only if the template send fails — typically
    *  because the template is not approved on the platform WABA yet. It
@@ -159,7 +166,7 @@ export async function sendPlatformTemplate(
       accessToken: sender.accessToken,
       to,
       templateName: args.templateName,
-      language: 'en',
+      language: args.language ?? 'en_US',
       params: args.params,
     });
     return { sent: true, via: 'template' };

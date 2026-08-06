@@ -29,7 +29,7 @@ import {
   buildExtensionTemplateParams,
   formatAccessDate,
   sentenceForReason,
-  templateNameForTone,
+  templateForTone,
   toneForReason,
 } from '@/lib/whatsapp/subscription-extension-template';
 
@@ -128,9 +128,11 @@ async function sendWhatsApp(
   if (!isValidE164(phone)) return null;
 
   try {
+    const template = templateForTone(tone);
     const result = await sendPlatformTemplate(admin, {
       toPhone: phone,
-      templateName: templateNameForTone(tone),
+      templateName: template.name,
+      language: template.language,
       params: buildExtensionTemplateParams(messageInput),
       fallbackText: buildExtensionFallbackText(messageInput),
     });

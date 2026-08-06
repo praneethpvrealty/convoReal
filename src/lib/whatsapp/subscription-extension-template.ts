@@ -46,6 +46,27 @@ export function templateNameForTone(tone: ExtensionTone): string {
     : EXTENSION_GOODWILL_TEMPLATE_NAME;
 }
 
+/**
+ * The (name, language) pair a send must address.
+ *
+ * Read off the payload builder rather than restated, because Meta keys a
+ * template on BOTH and rejects a mismatch with 132001 — which fails the
+ * template send and silently demotes the notice to the free-form
+ * fallback, reaching nobody outside an open 24-hour window. Deriving it
+ * from the builder means changing the registered language in one place
+ * cannot leave the send path addressing the old one.
+ */
+export function templateForTone(tone: ExtensionTone): {
+  name: string;
+  language: string;
+} {
+  const payload =
+    tone === 'apology'
+      ? buildExtensionApologyTemplatePayload()
+      : buildExtensionGoodwillTemplatePayload();
+  return { name: payload.name, language: payload.language };
+}
+
 export function buildExtensionApologyTemplatePayload(): TemplatePayload {
   return {
     name: EXTENSION_APOLOGY_TEMPLATE_NAME,

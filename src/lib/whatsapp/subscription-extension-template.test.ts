@@ -11,6 +11,7 @@ import {
   formatAccessDate,
   REASON_SENTENCES,
   sentenceForReason,
+  templateForTone,
   templateNameForTone,
   toneForReason,
 } from './subscription-extension-template';
@@ -46,6 +47,23 @@ describe('toneForReason', () => {
       EXTENSION_GOODWILL_TEMPLATE_NAME
     );
   });
+
+  // Meta keys a template on (name, language) and rejects a mismatch with
+  // 132001, which fails the send and silently demotes the notice to the
+  // free-form fallback. The send path must address the language the
+  // template was actually REGISTERED under.
+  it.each([
+    ['apology', buildExtensionApologyTemplatePayload()],
+    ['goodwill', buildExtensionGoodwillTemplatePayload()],
+  ] as const)(
+    '%s addresses the same name and language it is registered under',
+    (tone, payload) => {
+      expect(templateForTone(tone)).toEqual({
+        name: payload.name,
+        language: payload.language,
+      });
+    }
+  );
 });
 
 describe('template payloads', () => {
