@@ -3,6 +3,10 @@
   "buildCommand": "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD) next build",
   "crons": [
     {
+      "path": "/api/cron/realtime-publication-check",
+      "schedule": "40 2 * * *"
+    },
+    {
       "path": "/api/cron/cleanup-images",
       "schedule": "0 3 * * *"
     },

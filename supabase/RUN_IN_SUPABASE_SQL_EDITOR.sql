@@ -2824,3 +2824,27 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ============================================================
+-- 208_realtime_publication_status_rpc.sql
+-- Lets the app read supabase_realtime's membership (PostgREST cannot
+-- select from a system catalog), so the realtime-publication-check
+-- cron can tell when replication has silently gone missing.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION public.realtime_publication_tables()
+RETURNS TEXT[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT COALESCE(array_agg(tablename ORDER BY tablename), ARRAY[]::TEXT[])
+  FROM pg_publication_tables
+  WHERE pubname = 'supabase_realtime'
+    AND schemaname = 'public';
+$$;
+
+REVOKE ALL ON FUNCTION public.realtime_publication_tables() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.realtime_publication_tables() FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.realtime_publication_tables() TO service_role;
