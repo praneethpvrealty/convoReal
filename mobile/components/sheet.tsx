@@ -77,16 +77,11 @@ export function BottomSheet({
   animation?: 'slide' | 'fade';
   contentStyle?: ViewStyle;
 }) {
-  const { colors, dark, type } = useTheme();
+  const { colors, type } = useTheme();
   const insets = useSafeAreaInsets();
   const keyboardHeight = useKeyboardHeight(visible);
   const [frameHeight, setFrameHeight] = useState(0);
   const available = Math.max(0, frameHeight - keyboardHeight);
-  // Near-opaque on purpose: the sheet floats over arbitrary screen
-  // content, and a translucent glass fill lets the list underneath
-  // read straight through the sheet (same rule as dropdowns and
-  // sticky bars — glass is for surfaces over the aurora only).
-  const sheetFill = dark ? 'rgba(13,36,26,0.98)' : 'rgba(255,255,255,0.98)';
   return (
     <Modal
       visible={visible}
@@ -108,7 +103,7 @@ export function BottomSheet({
           style={[
             styles.sheet,
             {
-              backgroundColor: sheetFill,
+              backgroundColor: colors.surfaceWell,
               borderColor: colors.glassBorder,
               paddingBottom:
                 keyboardHeight > 0

@@ -302,7 +302,7 @@ export default function DenBidsScreen() {
  * scales into clarity. Old accepted bids render instantly revealed.
  */
 function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
-  const { colors, dark, fonts: f } = useTheme();
+  const { colors, fonts: f } = useTheme();
   const progress = useSharedValue(unlock ? 0 : 1);
 
   useEffect(() => {
@@ -380,11 +380,7 @@ function BuyerReveal({ bid, unlock }: { bid: DenBid; unlock: boolean }) {
           style={[
             StyleSheet.absoluteFill,
             styles.revealShroud,
-            {
-              backgroundColor: dark
-                ? 'rgba(16,42,30,0.97)'
-                : 'rgba(255,255,255,0.97)',
-            },
+            { backgroundColor: colors.surfaceWell },
             shroud,
           ]}
         >

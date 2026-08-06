@@ -618,9 +618,7 @@ export default function PropertyDetailScreen() {
       style={[
         styles.bottomBar,
         {
-          // Near-opaque: content scrolling beneath must not read
-          // through the bar (Android's experimental blur is weak here).
-          backgroundColor: dark ? 'rgba(10,31,22,0.94)' : 'rgba(255,255,255,0.94)',
+          backgroundColor: colors.surfaceWell,
           borderColor: colors.glassBorder,
           paddingBottom: Math.max(insets.bottom, spacing.md) + spacing.sm,
         },
