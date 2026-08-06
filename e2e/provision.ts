@@ -7,6 +7,7 @@ const admin = createClient(URL, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const anon = createClient(URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 const EMAIL = 'claude-e2e-harness@convoreal.com';
+const PHONE = '+919000000001';
 const PASSWORD = `Test-${randomBytes(12).toString('base64url')}`;
 const INVITE = `e2e-${randomBytes(9).toString('base64url')}`;
 
@@ -37,14 +38,22 @@ async function main() {
   // createUser fires the same handle_new_user trigger an ordinary signup
   // does, so the invite gate is genuinely exercised — but it sends no
   // confirmation mail to a mailbox that does not exist.
+  // The dashboard shell bounces anyone without a confirmed phone to
+  // /verify-phone, which is a WhatsApp OTP round trip no test can make.
+  // Confirming it here is what puts the harness inside the app at all.
   const { data: created, error: suErr } = await admin.auth.admin.createUser({
     email: EMAIL,
     password: PASSWORD,
     email_confirm: true,
+    phone: PHONE,
+    phone_confirm: true,
     user_metadata: { beta_invite: INVITE, full_name: 'Claude E2E' },
   });
   if (suErr) throw suErr;
   const userId = created.user!.id;
+  if (!created.user!.phone_confirmed_at) {
+    throw new Error('phone did not confirm; the shell will redirect to /verify-phone');
+  }
   console.log('created', userId);
 
   // profiles.id is its own key; the auth user is in profiles.user_id.

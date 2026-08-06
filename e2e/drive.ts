@@ -33,17 +33,24 @@ async function shot(page: Page, name: string) {
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
   const env = creds();
-  // Deliberately NOT routed through HTTPS_PROXY. Chromium does not carry
-  // the proxy's CA, and tunnelling Supabase through it fails the handshake
-  // with ERR_CONNECTION_RESET. Direct egress to Supabase works from this
-  // container, so the browser goes straight out.
+  // Chromium picks up HTTPS_PROXY from the environment and gets
+  // ERR_CONNECTION_RESET on Supabase, so send it straight out instead.
+  // Direct egress is transparently TLS-intercepted and Chromium does not
+  // carry that CA, which is what ignoreHTTPSErrors below is for.
   const browser = await chromium.launch({
     executablePath: '/opt/pw-browsers/chromium',
+    args: ['--no-proxy-server'],
   });
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
     ignoreHTTPSErrors: true,
   });
+  // A fresh owner account opens the setup wizard over every screen, so
+  // without this every screenshot is a picture of the wizard. Dismiss it
+  // the same way the UI does rather than clicking through it each run.
+  await page.addInitScript((accountId) => {
+    localStorage.setItem(`onboarding_dismissed_${accountId}`, 'true');
+  }, env.E2E_ACCOUNT_ID);
   page.on('requestfailed', (r) => {
     const url = r.url();
     if (/google|vercel-scripts|gstatic/.test(url)) return; // browser telemetry
