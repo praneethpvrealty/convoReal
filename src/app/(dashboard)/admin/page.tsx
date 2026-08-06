@@ -53,6 +53,15 @@ const BillingTab = dynamic(() => import('./billing-tab'), {
     </div>
   ),
 });
+
+const ExtensionsTab = dynamic(() => import('./extensions-tab'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-96 items-center justify-center">
+      <ConvoRealLoader size={26} label="Loading Extensions" />
+    </div>
+  ),
+});
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface WhatsappConfig {
@@ -79,7 +88,7 @@ interface Organization {
 
 export default function AdminDashboardPage() {
   const { user, profileLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'bugs'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'settings' | 'sandbox' | 'analytics' | 'organizations' | 'marketplace' | 'billing' | 'extensions' | 'bugs'>('overview');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -585,6 +594,16 @@ export default function AdminDashboardPage() {
           }`}
         >
           Organizations
+        </button>
+        <button
+          onClick={() => setActiveTab('extensions')}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all ${
+            activeTab === 'extensions'
+              ? 'border-primary text-white bg-primary/5'
+              : 'border-transparent text-slate-400 hover:text-white'
+          }`}
+        >
+          Extensions
         </button>
         <button
           onClick={() => setActiveTab('marketplace')}
@@ -1462,6 +1481,8 @@ export default function AdminDashboardPage() {
           )}
         </>
       )}
+
+      {activeTab === 'extensions' && <ExtensionsTab />}
 
       {activeTab === 'marketplace' && <MarketplaceTab />}
 

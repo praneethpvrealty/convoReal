@@ -11,6 +11,35 @@ and polish.
 
 ## [Unreleased]
 
+### Added
+
+- **Service credit: extend a customer's subscription when we let them
+  down.** After an outage, a slow patch or a billing mistake on our
+  side, a super-admin can now add paid days to affected accounts from
+  Admin → Extensions — one account, or a whole incident at once under a
+  shared incident reference that can later be revoked as a unit. The
+  credit is confirmed with a WhatsApp code sent to the acting admin's
+  own number, the same step-up the plan override uses, and the code is
+  bound to a hash of the exact request: a code issued for "3 days to one
+  account" cannot be replayed to apply "90 days to everyone".
+  Extensions live in their own ledger rather than overwriting the
+  billing period, so the next gateway renewal can't silently erase
+  them, and a one-off credit can never turn into free days on every
+  future cycle. Owners see the extra time on their own billing screen.
+  **Migration required:** `204_subscription_extensions.sql`.
+- **Affected customers are told, in words that own it.** Granting an
+  extension sends the account owner a message on WhatsApp, by email and
+  to their in-app bell — from ConvoReal's own number, not the tenant's.
+  When the reason is our fault (outage, degraded service, billing
+  error) the message leads with an apology and says so plainly; when the
+  days are a goodwill gesture it stays warm without inventing a fault
+  that didn't happen. WhatsApp delivery goes through two new Utility
+  templates so it reaches customers who haven't messaged us recently;
+  the admin can create them in one click from the same screen, preview
+  the exact wording before approving, and replace the default line with
+  their own. Per-channel delivery is recorded against each grant, so an
+  apology that failed to send is visible rather than silently lost.
+
 ### Fixed
 
 - **A booking with a real date now reaches the calendar.** "Meet lawyer

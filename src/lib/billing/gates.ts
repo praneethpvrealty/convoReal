@@ -33,6 +33,8 @@ export async function getPlanLimits(ctx: AccountContext): Promise<PlanLimits> {
       status: 'active',
       billing_cycle: null,
       current_period_end: null,
+      extension_days: 0,
+      effective_period_end: null,
       pending_plan: null,
       pending_plan_effective_at: null,
       max_users: 1,

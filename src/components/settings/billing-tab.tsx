@@ -305,11 +305,17 @@ export function BillingTab() {
                   {subscription?.status === 'past_due' ? 'Payment due' : 'Active'}
                 </Badge>
               </CardTitle>
-              {subscription?.current_period_end && (
+              {(limits?.effective_period_end ?? subscription?.current_period_end) && (
                 <CardDescription>
-                  {subscription.status === 'canceled'
-                    ? `Access until ${new Date(subscription.current_period_end).toLocaleDateString('en-IN')}`
-                    : `Renews ${new Date(subscription.current_period_end).toLocaleDateString('en-IN')}`}
+                  {subscription?.status === 'canceled'
+                    ? `Access until ${new Date(limits?.effective_period_end ?? subscription!.current_period_end!).toLocaleDateString('en-IN')}`
+                    : `Renews ${new Date(limits?.effective_period_end ?? subscription!.current_period_end!).toLocaleDateString('en-IN')}`}
+                  {(limits?.extension_days ?? 0) > 0 && (
+                    <span className="ml-1 text-emerald-600 dark:text-emerald-400">
+                      · includes {limits!.extension_days} day
+                      {limits!.extension_days === 1 ? '' : 's'} of service credit
+                    </span>
+                  )}
                 </CardDescription>
               )}
             </div>
