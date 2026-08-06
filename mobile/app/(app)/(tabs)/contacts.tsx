@@ -505,9 +505,10 @@ export default function ContactsScreen() {
         />
         <ScrollView
           horizontal
-          showsHorizontalScrollIndicator={false}
+          showsHorizontalScrollIndicator
+          indicatorStyle={dark ? 'white' : 'black'}
           style={{ flexGrow: 0 }}
-          contentContainerStyle={{ gap: spacing.sm }}
+          contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.xs }}
         >
           {SEGMENTS.map((seg) => {
             const n = counts.data?.[seg.key];
