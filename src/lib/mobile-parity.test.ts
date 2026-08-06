@@ -36,6 +36,11 @@ import {
 } from "@/lib/inventory/property-options";
 import { PROPERTY_TYPE_VALUES } from "@/lib/property-types";
 import { priceInWords } from "@/lib/currency-utils";
+import {
+  PROPERTY_INTEREST_FLOW_IDS,
+  PROPERTY_INTEREST_OPTIONS,
+  PROPERTY_INTEREST_SHORT_TITLES,
+} from "@/lib/property-interests";
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from "@/lib/whatsapp/customer-window";
 import { DELIVERY_FAILURE_MARKER } from "@/lib/whatsapp/delivery-failure";
 
@@ -279,5 +284,40 @@ describe("mobile/lib/format.ts mirrors priceInWords", () => {
     expect(priceInWords(8500000)).toBe("₹85 Lakhs");
     expect(priceInWords(45000)).toBe("₹45,000");
     expect(priceInWords("")).toBe("");
+  });
+});
+
+describe("mobile contact screen mirrors the property-interest vocabulary", () => {
+  const source = mobileSource("app/(app)/contact/[id].tsx");
+
+  it("offers exactly the web's in-app interest options, in the same order", () => {
+    // Declared as a plain `const` inside the screen, so it is sliced here
+    // rather than through constBody's `export const` lookup.
+    const start = source.indexOf("const PROPERTY_INTEREST_OPTIONS");
+    expect(start).toBeGreaterThan(-1);
+    const open = source.indexOf("[", start);
+    const end = source.indexOf("];", open);
+
+    expect(stringLiterals(source.slice(open, end))).toEqual([
+      ...PROPERTY_INTEREST_OPTIONS,
+    ]);
+  });
+});
+
+describe("property-interest vocabulary split", () => {
+  it("keeps every Flow id inside the in-app option list", () => {
+    // The Flow subset is what Meta renders; anything in it that the
+    // in-app pickers do not offer would be unreachable for an agent.
+    const inApp = new Set<string>(PROPERTY_INTEREST_OPTIONS);
+    for (const id of PROPERTY_INTEREST_FLOW_IDS) {
+      expect(inApp.has(id)).toBe(true);
+    }
+  });
+
+  it("stays within Meta's 30-char CheckboxGroup item limit", () => {
+    for (const id of PROPERTY_INTEREST_FLOW_IDS) {
+      const title = PROPERTY_INTEREST_SHORT_TITLES[id] ?? id;
+      expect(title.length).toBeLessThanOrEqual(30);
+    }
   });
 });

@@ -641,7 +641,18 @@ export async function applyPreferenceFlowResponse(args: {
   }
 
   const values = parsePreferenceFormValues(args.values as Record<string, unknown>)
-  const update = preferenceFormToContactUpdate(values)
+
+  const { data: currentPrefs } = await db
+    .from('contacts')
+    .select('property_interests')
+    .eq('id', sess.contact_id)
+    .eq('account_id', sess.account_id)
+    .maybeSingle()
+
+  const update = preferenceFormToContactUpdate(
+    values,
+    (currentPrefs?.property_interests as string[] | null) ?? []
+  )
 
   if (Object.keys(update).length > 0) {
     const { error: contactErr } = await db

@@ -12,7 +12,14 @@
  * prose that AI extraction had to catch.
  */
 
-export const PROPERTY_INTEREST_OPTIONS = [
+/**
+ * The subset offered inside the WhatsApp preference Flow. Meta caps how
+ * many items a CheckboxGroup data-source may carry, so this list stays
+ * at the eleven it has always shipped rather than growing with the
+ * in-app vocabulary below. Changing it means republishing the Flow to
+ * Meta for every account; adding an in-app option does not.
+ */
+export const PROPERTY_INTEREST_FLOW_IDS = [
   'Flat/ Apartment',
   'Villa',
   'Residential House',
@@ -24,6 +31,33 @@ export const PROPERTY_INTEREST_OPTIONS = [
   'Vacant building',
   'Rental building with some ROI',
   'Old building selling at site rate',
+] as const;
+
+/**
+ * Everything the in-app pickers offer: the Flow vocabulary above plus
+ * the remaining canonical property types from PROPERTY_TYPE_VALUES, so
+ * an agent can record interest in any type the inventory can hold.
+ * These are canonical strings, so mapLegacyInterest() resolves them
+ * through normalizePropertyType() rather than its phrase heuristics.
+ */
+export const PROPERTY_INTEREST_OPTIONS = [
+  ...PROPERTY_INTEREST_FLOW_IDS,
+  'Builder Floor Apartment',
+  'Penthouse',
+  'Studio Apartment',
+  'Residential Plot',
+  'Residential Land',
+  'Residential PG building',
+  'PG/ Hostel',
+  'Farm House',
+  'Office in IT Park/ SEZ',
+  'Commercial Showroom',
+  'Commercial Building',
+  'Commercial Land',
+  'Warehouse/ Godown',
+  'Industrial Land',
+  'Industrial Building',
+  'Industrial Shed',
 ] as const;
 
 /** Labels that exceed Meta's 30-char CheckboxGroup item limit, shortened. */
