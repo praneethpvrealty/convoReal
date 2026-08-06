@@ -30,6 +30,7 @@ import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { PulseRing } from '@/components/motion';
 import { Avatar, Banner, PrimaryButton, SectionLabel, Tag, TextField } from '@/components/ui';
 import { apiFetch } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { approveAndSendDetails, type ApproveOutcome } from '@/lib/approve-contact';
 import { contactFullName } from '@/lib/contact-name';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -198,8 +199,16 @@ function ContactCard({ contact }: { contact: Contact }) {
   const [celebration, setCelebration] = useState<ApproveCelebrationState | null>(null);
   const [moveToEngineOpen, setMoveToEngineOpen] = useState(false);
   const [favoriting, setFavoriting] = useState(false);
-  const { show: showFavoriteError, dialogProps: favoriteDialogProps } = useAppDialog();
+  const [deleting, setDeleting] = useState(false);
+  const {
+    show: showFavoriteError,
+    close: closeDialog,
+    dialogProps: favoriteDialogProps,
+  } = useAppDialog();
   const name = contact.name || contact.phone;
+  // Hard delete is manager-only — mirrors the contacts_delete RLS policy
+  // so agents are not shown a button the server will refuse.
+  const canDelete = useAuthStore((s) => s.profile?.org_role) === 'org_manager';
 
   // Web parity: the star also sits on the contacts list row, but the
   // detail screen is where an agent decides a contact matters.
@@ -227,6 +236,45 @@ function ContactCard({ contact }: { contact: Contact }) {
       setFavoriting(false);
     }
   }
+  function confirmDelete() {
+    showFavoriteError({
+      title: `Delete ${name}?`,
+      message:
+        'This permanently removes the contact, their tags, notes and interest links. Past broadcasts and deals are kept but lose their link to this contact. This cannot be undone.',
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: closeDialog },
+        {
+          label: 'Delete',
+          variant: 'destructive',
+          onPress: () => {
+            closeDialog();
+            doDelete();
+          },
+        },
+      ],
+    });
+  }
+
+  async function doDelete() {
+    if (deleting) return;
+    setDeleting(true);
+    try {
+      await apiFetch(`/api/contacts/${contact.id}`, { method: 'DELETE' });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+      queryClient.removeQueries({ queryKey: ['contact', contact.id] });
+      router.back();
+    } catch (err) {
+      haptic.warn();
+      setDeleting(false);
+      showFavoriteError({
+        title: 'Could not delete',
+        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+      });
+    }
+  }
+
   const clsColor = contact.classification
     ? classificationColors[contact.classification]?.[dark ? 'dark' : 'light']
     : undefined;
@@ -373,6 +421,29 @@ function ContactCard({ contact }: { contact: Contact }) {
           ? 'Tap Edit above to update their details and requirements.'
           : 'Tap Edit above to update budget, areas and buyer preferences.'}
       </Text>
+
+      {canDelete ? (
+        <Pressable
+          onPress={confirmDelete}
+          disabled={deleting}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${name}`}
+          accessibilityState={{ disabled: deleting, busy: deleting }}
+          style={({ pressed }) => [
+            styles.deleteContact,
+            {
+              backgroundColor: colors.dangerSoft,
+              borderColor: colors.danger,
+              opacity: deleting ? 0.55 : pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="trash-outline" size={16} color={colors.danger} />
+          <Text style={{ fontSize: 14, fontFamily: f.bold, color: colors.danger }}>
+            {deleting ? 'Deleting…' : 'Delete contact'}
+          </Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
     <ApproveCelebration celebration={celebration} onClose={() => setCelebration(null)} />
     <MoveToEngineSheet
@@ -955,6 +1026,15 @@ function InfoRow({
 
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg },
+  deleteContact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    paddingVertical: 12,
+  },
   identity: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm },
   name: { fontSize: 22, fontFamily: fonts.extrabold, textAlign: 'center', flexShrink: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
