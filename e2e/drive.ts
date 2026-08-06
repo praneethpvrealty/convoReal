@@ -30,20 +30,65 @@ async function shot(page: Page, name: string) {
   console.log(`  ▸ ${SHOTS}/${name}.png`);
 }
 
+// A cold dev server compiles each route on first visit, and a fixed pause
+// photographs the "Compiling..." blank instead of the page. Waiting for
+// content to exist returns as soon as it does; networkidle is useless here
+// because realtime and HMR keep a connection open for the whole session.
+async function settle(page: Page) {
+  await page
+    .waitForFunction(
+      () => ((document.querySelector('main') ?? document.body) as HTMLElement).innerText.trim().length > 40,
+      undefined,
+      { timeout: 60_000, polling: 250 },
+    )
+    .catch(() => {});
+  // Content existing is not the same as content being final: the pipelines
+  // board renders "No pipelines yet" for a beat before its board arrives.
+  await page.waitForTimeout(2500);
+}
+
+// A blank page is the failure this harness is least able to notice: it
+// screenshots happily and every assertion about absent things still holds.
+// Scoped to <main>, not body: the sidebar and header alone clear any
+// sensible threshold, so measuring the whole document passes a page whose
+// content area never rendered — which is exactly the case being caught.
+async function assertRendered(page: Page, label: string, problems: string[]) {
+  const text = (await page.locator('main').first().innerText().catch(() => '')).trim();
+  if (text.length < 40) {
+    problems.push(`${label} rendered blank (${text.length} chars in <main>)`);
+  }
+}
+
+// The top bar read "Dashboard" on half the screens and nothing noticed,
+// because a screenshot only fails a review someone actually looks at.
+async function assertHeader(page: Page, expected: string, problems: string[]) {
+  const actual = (await page.locator('header h1').first().innerText().catch(() => '')).trim();
+  if (actual !== expected) {
+    problems.push(`top bar reads "${actual}" on ${expected} screen`);
+  }
+}
+
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
   const env = creds();
-  // Deliberately NOT routed through HTTPS_PROXY. Chromium does not carry
-  // the proxy's CA, and tunnelling Supabase through it fails the handshake
-  // with ERR_CONNECTION_RESET. Direct egress to Supabase works from this
-  // container, so the browser goes straight out.
+  // Chromium picks up HTTPS_PROXY from the environment and gets
+  // ERR_CONNECTION_RESET on Supabase, so send it straight out instead.
+  // Direct egress is transparently TLS-intercepted and Chromium does not
+  // carry that CA, which is what ignoreHTTPSErrors below is for.
   const browser = await chromium.launch({
     executablePath: '/opt/pw-browsers/chromium',
+    args: ['--no-proxy-server'],
   });
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
     ignoreHTTPSErrors: true,
   });
+  // A fresh owner account opens the setup wizard over every screen, so
+  // without this every screenshot is a picture of the wizard. Dismiss it
+  // the same way the UI does rather than clicking through it each run.
+  await page.addInitScript((accountId) => {
+    localStorage.setItem(`onboarding_dismissed_${accountId}`, 'true');
+  }, env.E2E_ACCOUNT_ID);
   page.on('requestfailed', (r) => {
     const url = r.url();
     if (/google|vercel-scripts|gstatic/.test(url)) return; // browser telemetry
@@ -81,11 +126,17 @@ async function main() {
       throw new Error(`login did not navigate. on-page messages: ${JSON.stringify(err)}`);
     }
     console.log(`  landed on ${new URL(page.url()).pathname}`);
+    // waitForURL fires the moment the route changes, which is before the
+    // profile and the stat tiles resolve — shooting now photographs
+    // skeletons and a placeholder user name.
+    await settle(page);
+    await assertRendered(page, '/dashboard', problems);
     await shot(page, '01-after-login');
 
     console.log('settings → whatsapp templates');
     await page.goto(`${BASE}/settings?tab=whatsapp&sub=templates`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(3000);
+    await settle(page);
+    await assertRendered(page, '/settings templates', problems);
     await shot(page, '02-templates');
 
     // The banner this harness was built to verify.
@@ -98,14 +149,50 @@ async function main() {
       problems.push('engine-template banner not rendered on the templates tab');
     }
 
-    for (const [name, path] of [
-      ['03-inventory', '/inventory'],
-      ['04-contacts', '/contacts'],
-      ['05-radar', '/radar'],
+    for (const [name, path, header] of [
+      ['03-inventory', '/inventory', 'Inventory'],
+      ['04-contacts', '/contacts', 'Contacts'],
+      ['05-inbox', '/inbox', 'Inbox'],
+      ['06-calendar', '/calendar', 'Calendar'],
+      ['07-broadcasts', '/broadcasts', 'Broadcasts'],
+      ['08-journey', '/journey', 'Journey'],
+      ['09-liaisons', '/liaisons', 'Liaisons'],
+      ['10-settings', '/settings', 'Settings'],
     ] as const) {
       console.log(`visiting ${path}`);
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(2500);
+      await settle(page);
+      await assertRendered(page, path, problems);
+      await assertHeader(page, header, problems);
+      await shot(page, name);
+    }
+
+    // These eight paths hold nothing of their own — each replaces itself
+    // with a tab of another section. The URL asked for is therefore not the
+    // URL that must end up in the bar, and a shim that quietly stops
+    // redirecting would still render a fine-looking page.
+    for (const [name, path, lands, header] of [
+      ['11-shim-radar', '/radar', '/dashboard?tab=radar', 'Dashboard'],
+      ['12-shim-today', '/today', '/dashboard?tab=today', 'Dashboard'],
+      ['13-shim-pulse', '/pulse', '/dashboard?tab=pulse', 'Dashboard'],
+      ['14-shim-agents', '/agents', '/contacts?tab=agents', 'Contacts'],
+      ['15-shim-requirements', '/requirements', '/contacts?tab=requirements', 'Contacts'],
+      ['16-shim-pipelines', '/pipelines', '/automations?tab=pipelines', 'Automations'],
+      ['17-shim-flows', '/flows', '/automations?tab=flows', 'Automations'],
+      // Only the redirect is covered here: the Ads Campaigns tab is gated on
+      // NEXT_PUBLIC_META_ADS_APP_ID, which this environment does not set, so
+      // Inventory legitimately falls back to its listing tab.
+      ['18-shim-ads', '/ads', '/inventory?tab=ads', 'Inventory'],
+    ] as const) {
+      console.log(`visiting ${path} → ${lands}`);
+      await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
+      await settle(page);
+      const landed = page.url().replace(BASE, '');
+      if (landed !== lands) {
+        problems.push(`${path} landed on ${landed}, expected ${lands}`);
+      }
+      await assertRendered(page, path, problems);
+      await assertHeader(page, header, problems);
       await shot(page, name);
     }
   } finally {
