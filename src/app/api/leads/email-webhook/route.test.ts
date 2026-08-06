@@ -112,6 +112,7 @@ import {
   isInquiryAboutOwnListing,
   isValidContactName,
   isUsableLocation,
+  areaLabelFromListing,
   checkLocationMatch,
   matchableSqft,
   POST
@@ -624,6 +625,41 @@ Content-Transfer-Encoding: quoted-printable
       expect(isUsableLocation('Bommasandra')).toBe(true);
       expect(isUsableLocation('Sector 6 HSR Layout')).toBe(true);
       expect(isUsableLocation('Landmark Colony')).toBe(true);
+    });
+  });
+
+  describe('areaLabelFromListing', () => {
+    it('prefers the agent-entered sublocality', () => {
+      expect(
+        areaLabelFromListing({
+          location: 'WJGP+87H Classic Property Developers, 1st Block Koramangala, Bengaluru',
+          sublocality: 'Koramangala 1st block',
+        }),
+      ).toBe('Koramangala 1st block');
+    });
+
+    it('skips a plus-code segment instead of filing it as an area', () => {
+      expect(
+        areaLabelFromListing({
+          location:
+            'WJGP+87H Classic Property Developers, 1st Block Koramangala, HSR Layout 5th Sector, Bengaluru, Karnataka 560034',
+          sublocality: null,
+        }),
+      ).toBe('1st Block Koramangala');
+    });
+
+    it('keeps a plain address line working', () => {
+      expect(
+        areaLabelFromListing({
+          location: 'Kudlu, SJR Blue waters, Bangalore, Karnataka',
+          sublocality: null,
+        }),
+      ).toBe('Kudlu');
+    });
+
+    it('returns null when nothing usable remains', () => {
+      expect(areaLabelFromListing({ location: null, sublocality: null })).toBeNull();
+      expect(areaLabelFromListing({ location: 'WJGP+87H', sublocality: '  ' })).toBeNull();
     });
   });
 

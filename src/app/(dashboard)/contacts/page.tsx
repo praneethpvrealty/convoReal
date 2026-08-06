@@ -24,6 +24,7 @@ const TABS: { id: TabId; label: string }[] = [
  *  Review" — instead of always favoriting the unfiltered list. */
 const QUICK_FILTER_LABELS: Record<string, string> = {
   pending_review: "Needs Review",
+  favorites: "Favourites",
   transacted: "Transacted",
   market_active: "Active Buyers",
 };

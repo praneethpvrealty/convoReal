@@ -149,6 +149,9 @@ export interface Contact {
    *  regardless of type, area or budget fit. */
   strict_project_match?: boolean;
   property_interests?: string[];
+  /** Agent bookmark (migration 203) — drives the Favourites tab on the
+   *  Contacts page. Uncapped, and independent of `status`. */
+  is_favorite?: boolean;
   status?: 'active' | 'pending_review';
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
   dob?: string | null;

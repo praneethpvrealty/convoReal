@@ -12,6 +12,7 @@ import {
   classifyPortalLead,
   parseBudgetToINR,
   parsePortalLead,
+  areaLabelFromListing,
 } from './email-parser';
 import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import { resolveHousingPhone } from './phone-resolver';
@@ -31,6 +32,7 @@ export {
   isInquiryAboutOwnListing,
   isValidContactName,
   isUsableLocation,
+  areaLabelFromListing,
   parsePortalLead,
 } from './email-parser';
 
@@ -670,20 +672,17 @@ export async function POST(request: Request) {
 
               // Add areas from best matched property locations
               bestMatchedProperties.forEach((p: PropertyForMatching) => {
-                if (p.location) {
-                  // Extract main area from location (e.g., "Kudlu, SJR Blue waters, Bangalore, Karnataka" -> "Kudlu")
-                  const mainArea = p.location.split(',')[0]?.trim();
-                  if (mainArea) {
-                    const areaLower = mainArea.toLowerCase();
-                    let formattedArea = mainArea;
-                    if (areaLower === 'hsr' || areaLower === 'jp nagar') {
-                      formattedArea = mainArea.toUpperCase();
-                    } else {
-                      formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
-                    }
-                    if (!areasOfInterest.includes(formattedArea)) {
-                      areasOfInterest.push(formattedArea);
-                    }
+                const mainArea = areaLabelFromListing(p);
+                if (mainArea) {
+                  const areaLower = mainArea.toLowerCase();
+                  let formattedArea = mainArea;
+                  if (areaLower === 'hsr' || areaLower === 'jp nagar') {
+                    formattedArea = mainArea.toUpperCase();
+                  } else {
+                    formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
+                  }
+                  if (!areasOfInterest.includes(formattedArea)) {
+                    areasOfInterest.push(formattedArea);
                   }
                 }
               });

@@ -52,6 +52,7 @@ import { CLASSIFICATIONS, type Classification, type Contact } from '@/lib/types'
 const SEGMENTS = [
   { key: 'active', label: 'All' },
   { key: 'pending_review', label: 'Needs Review' },
+  { key: 'favorites', label: 'Favourites' },
   { key: 'transacted', label: 'Transacted' },
   { key: 'market_active', label: 'Active Buyers' },
 ] as const;
@@ -108,7 +109,7 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
     .select(
       'id, phone, name, name_tag, email, company, classification, avatar_url, lead_temp, ' +
         'status, last_contacted_at, last_inquired_property_id, property_interests, ' +
-        'areas_of_interest, min_budget, max_budget, no_budget'
+        'areas_of_interest, min_budget, max_budget, no_budget, is_favorite'
     )
     .order('created_at', { ascending: false })
     .limit(150);
@@ -119,6 +120,10 @@ async function fetchContacts(search: string, segment: SegmentKey): Promise<Conta
 
   if (segment === 'active' || segment === 'pending_review') {
     query = query.eq('status', segment);
+  } else if (segment === 'favorites') {
+    // Unscoped by status, matching the web tab — a starred contact in
+    // pending_review is the main thing this segment exists to hold.
+    query = query.eq('is_favorite', true);
   } else {
     query = query.eq('status', 'active');
     if (segment === 'transacted') {
@@ -236,7 +241,7 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
   const staffFilter = await staffPhoneFilter();
   const excludeStaff = <T extends { not: (c: string, op: string, v: string) => T }>(q: T): T =>
     staffFilter ? q.not('phone', 'in', staffFilter) : q;
-  const [active, review, market, wonDeals] = await Promise.all([
+  const [active, review, favorites, market, wonDeals] = await Promise.all([
     excludeStaff(
       supabase.from('contacts').select('id', { count: 'exact', head: true }).eq('status', 'active')
     ),
@@ -245,6 +250,12 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending_review')
+    ),
+    excludeStaff(
+      supabase
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_favorite', true)
     ),
     excludeStaff(
       supabase
@@ -261,6 +272,7 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
   return {
     active: active.count ?? 0,
     pending_review: review.count ?? 0,
+    favorites: favorites.count ?? 0,
     transacted,
     market_active: market.count ?? 0,
   };
@@ -272,6 +284,7 @@ export default function ContactsScreen() {
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState<SegmentKey>('active');
   const [adding, setAdding] = useState(false);
+  const [favoritingIds, setFavoritingIds] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [peekId, setPeekId] = useState<string | null>(null);
   const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
@@ -328,6 +341,36 @@ export default function ContactsScreen() {
     queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
     queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
     setCelebrations((queue) => [...queue, { contact, outcome: result }]);
+  }
+
+  async function handleToggleFavorite(contact: Contact) {
+    if (favoritingIds.has(contact.id)) return;
+    const next = !contact.is_favorite;
+    haptic.tap();
+    setFavoritingIds((prev) => new Set(prev).add(contact.id));
+
+    try {
+      await apiFetch(`/api/contacts/${contact.id}/favorite`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_favorite: next }),
+      });
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['contact', contact.id] });
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Could not update favourite',
+        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+      });
+    } finally {
+      setFavoritingIds((prev) => {
+        const nextSet = new Set(prev);
+        nextSet.delete(contact.id);
+        return nextSet;
+      });
+    }
   }
 
   return (
@@ -440,6 +483,8 @@ export default function ContactsScreen() {
                 tags={data?.tags[item.id] ?? []}
                 onApprove={() => handleApprove(item)}
                 approving={approvingIds.has(item.id)}
+                onToggleFavorite={() => handleToggleFavorite(item)}
+                favoriting={favoritingIds.has(item.id)}
                 onPeekStart={() => setPeekId(item.id)}
                 onPeekEnd={() => setPeekId((cur) => (cur === item.id ? null : cur))}
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
@@ -625,6 +670,8 @@ function ContactRow({
   contactedProperty,
   onApprove,
   approving,
+  onToggleFavorite,
+  favoriting,
   onPeekStart,
   onPeekEnd,
   onWhatsAppMenu,
@@ -635,6 +682,8 @@ function ContactRow({
   contactedProperty?: string;
   onApprove: () => void;
   approving?: boolean;
+  onToggleFavorite: () => void;
+  favoriting?: boolean;
   onPeekStart: () => void;
   onPeekEnd: () => void;
   onWhatsAppMenu: (at: { x: number; y: number }) => void;
@@ -705,6 +754,28 @@ function ContactRow({
           ) : null}
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Pressable
+            hitSlop={8}
+            onPress={onToggleFavorite}
+            disabled={favoriting}
+            accessibilityRole="button"
+            accessibilityLabel={
+              contact.is_favorite
+                ? `Remove ${name} from favourites`
+                : `Add ${name} to favourites`
+            }
+            accessibilityState={{ disabled: favoriting, busy: favoriting }}
+            style={[
+              styles.action,
+              { backgroundColor: contact.is_favorite ? colors.warningSoft : 'transparent' },
+            ]}
+          >
+            <Ionicons
+              name={contact.is_favorite ? 'star' : 'star-outline'}
+              size={18}
+              color={contact.is_favorite ? colors.warning : colors.textFaint}
+            />
+          </Pressable>
           {contact.status === 'pending_review' ? (
             // Approved reads as done the instant it is tapped: the amber
             // "needs review" pulse becomes a green tick with the send

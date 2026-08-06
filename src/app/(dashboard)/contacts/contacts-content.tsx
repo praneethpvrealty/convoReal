@@ -488,10 +488,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // True when the last contacts load errored or timed out — renders an
   // inline retry card instead of an eternal spinner / empty state.
   const [fetchFailed, setFetchFailed] = useState(false);
-  type QuickFilterTab = 'active' | 'pending_review' | 'transacted' | 'market_active';
+  type QuickFilterTab = 'active' | 'pending_review' | 'favorites' | 'transacted' | 'market_active';
   const [activeTab, setActiveTab] = useState<QuickFilterTab>('active');
 
-  /** Keeps the quick-filter tab (All/Needs Review/Transacted/Active Buyers)
+  /** Keeps the quick-filter tab (All/Needs Review/Favourites/Transacted/Active Buyers)
    *  in the URL — so it survives a refresh, can be shared, and so the
    *  page-level Favorite button (contacts/page.tsx) can capture exactly
    *  this view instead of always favoriting the default "All Contacts". */
@@ -512,6 +512,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // while counts load reads as broken data.
   const [activeCount, setActiveCount] = useState<number | null>(null);
   const [reviewCount, setReviewCount] = useState<number | null>(null);
+  const [favoritesCount, setFavoritesCount] = useState<number | null>(null);
   const [transactedCount, setTransactedCount] = useState<number | null>(null);
   const [marketActiveCount, setMarketActiveCount] = useState<number | null>(null);
 
@@ -583,6 +584,49 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   };
 
+  // Favourites star on a contact row. Optimistic, and on the Favourites
+  // tab the row leaves the list immediately — a row showing an empty
+  // star inside the Favourites tab reads as a failed write.
+  const [favoritingId, setFavoritingId] = useState<string | null>(null);
+
+  const handleToggleFavorite = async (contact: ContactWithTags) => {
+    const next = !contact.is_favorite;
+    const previousContacts = contacts;
+    const previousCount = favoritesCount;
+
+    setFavoritingId(contact.id);
+    setContacts((prev) =>
+      activeTab === 'favorites' && !next
+        ? prev.filter((c) => c.id !== contact.id)
+        : prev.map((c) => (c.id === contact.id ? { ...c, is_favorite: next } : c)),
+    );
+    setFavoritesCount((prev) => (prev === null ? prev : Math.max(0, prev + (next ? 1 : -1))));
+
+    try {
+      const response = await fetch(`/api/contacts/${contact.id}/favorite`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_favorite: next }),
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update favourite');
+      }
+      localCache.clear();
+      toast.success(
+        next
+          ? `Added ${contact.name || contact.phone} to Favourites`
+          : `Removed ${contact.name || contact.phone} from Favourites`,
+      );
+    } catch (err: unknown) {
+      setContacts(previousContacts);
+      setFavoritesCount(previousCount);
+      toast.error(err instanceof Error ? err.message : 'Failed to update favourite');
+    } finally {
+      setFavoritingId(null);
+    }
+  };
+
   // Touch equivalent of the chip's hover-expand: long-press (~450ms)
   // reveals the full property title for 3s. A completed long-press
   // must NOT also toggle the filter, so the click that follows it is
@@ -640,6 +684,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     if (
       filterParam === 'active' ||
       filterParam === 'pending_review' ||
+      filterParam === 'favorites' ||
       filterParam === 'transacted' ||
       filterParam === 'market_active'
     ) {
@@ -757,13 +802,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const to = from + PAGE_SIZE - 1;
 
     const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${filterInterestProperty}-${debouncedSearch}`;
-    const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number; transactedCount: number; marketActiveCount: number }>(cacheKey);
+    const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number; favoritesCount: number; transactedCount: number; marketActiveCount: number }>(cacheKey);
 
     if (cached) {
       setContacts(cached.enriched || []);
       setTotalCount(cached.totalCount || 0);
       setActiveCount(cached.activeCount || 0);
       setReviewCount(cached.reviewCount || 0);
+      setFavoritesCount(cached.favoritesCount || 0);
       setTransactedCount(cached.transactedCount || 0);
       setMarketActiveCount(cached.marketActiveCount || 0);
       setLoading(false);
@@ -811,7 +857,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       let query = supabaseClient
         .from('contacts')
         .select(
-          'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, min_roi, source, status, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
+          'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
           { count: 'exact' },
         )
         .eq('account_id', accountId);
@@ -822,6 +868,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
       if (activeTab === 'active' || activeTab === 'pending_review') {
         query = query.eq('status', activeTab);
+      } else if (activeTab === 'favorites') {
+        // Intentionally unscoped by status — a contact parked in
+        // pending_review is exactly the kind an agent stars to return to.
+        query = query.eq('is_favorite', true);
       } else {
         // transacted and market_active are active contacts
         query = query.eq('status', 'active');
@@ -1128,6 +1178,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .eq('account_id', accountId)
         .eq('status', 'pending_review');
 
+      let favoritesQuery = supabaseClient
+        .from('contacts')
+        .select('id', { count: 'exact', head: true })
+        .eq('account_id', accountId)
+        .eq('is_favorite', true);
+
       let transactedQuery = supabaseClient
         .from('contacts')
         .select('id', { count: 'exact', head: true })
@@ -1146,19 +1202,22 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         const notInString = `(${internalContactIds.join(',')})`;
         actQuery = actQuery.not('id', 'in', notInString);
         revQuery = revQuery.not('id', 'in', notInString);
+        favoritesQuery = favoritesQuery.not('id', 'in', notInString);
         transactedQuery = transactedQuery.not('id', 'in', notInString);
         marketActiveQuery = marketActiveQuery.not('id', 'in', notInString);
       }
 
-      const [actCountRes, revCountRes, transactedCountRes, marketActiveCountRes] = await Promise.all([
+      const [actCountRes, revCountRes, favoritesCountRes, transactedCountRes, marketActiveCountRes] = await Promise.all([
         actQuery,
         revQuery,
+        favoritesQuery,
         transactedQuery,
         marketActiveQuery,
       ]);
 
       setActiveCount(actCountRes.count ?? 0);
       setReviewCount(revCountRes.count ?? 0);
+      setFavoritesCount(favoritesCountRes.count ?? 0);
       setTransactedCount(transactedCountRes.count ?? 0);
       setMarketActiveCount(marketActiveCountRes.count ?? 0);
 
@@ -1193,6 +1252,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         totalCount: count ?? 0,
         activeCount: actCountRes.count ?? 0,
         reviewCount: revCountRes.count ?? 0,
+        favoritesCount: favoritesCountRes.count ?? 0,
         transactedCount: transactedCountRes.count ?? 0,
         marketActiveCount: marketActiveCountRes.count ?? 0,
       });
@@ -1913,6 +1973,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             )}
           </button>
           <button
+            onClick={() => setActiveTabAndSync('favorites')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+              activeTab === 'favorites'
+                ? 'bg-slate-800 text-amber-400 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Star
+              className={`size-3 ${activeTab === 'favorites' ? 'fill-amber-400' : ''}`}
+            />
+            Favourites{countSuffix(favoritesCount)}
+          </button>
+          <button
             onClick={() => setActiveTabAndSync('transacted')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
               activeTab === 'transacted'
@@ -2008,6 +2081,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 ? 'No contacts match your search.'
                 : activeTab === 'pending_review'
                 ? 'No contacts pending review.'
+                : activeTab === 'favorites'
+                ? 'No favourites yet — star a contact to keep it here.'
                 : activeTab === 'transacted'
                 ? 'No transacted contacts found.'
                 : activeTab === 'market_active'
@@ -2201,6 +2276,23 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   </TableCell>
                   <TableCell className="py-3">
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={favoritingId === contact.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleFavorite(contact);
+                        }}
+                        className={
+                          contact.is_favorite
+                            ? 'text-amber-400 hover:text-amber-300'
+                            : 'text-slate-400 hover:text-amber-400'
+                        }
+                        title={contact.is_favorite ? 'Remove from Favourites' : 'Add to Favourites'}
+                      >
+                        <Star className={`size-4 ${contact.is_favorite ? 'fill-amber-400' : ''}`} />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon-sm"

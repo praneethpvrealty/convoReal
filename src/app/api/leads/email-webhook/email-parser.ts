@@ -294,6 +294,42 @@ export function isUsableLocation(candidate: string): boolean {
   return true;
 }
 
+/**
+ * Open Location Code (Google "plus code") at the head of a segment —
+ * "WJGP+87H", the prefix Google puts on a formatted address when the
+ * place has no street number.
+ */
+const PLUS_CODE_HEAD = /^[23456789CFGHJMPQRVWX]{4,}\+[23456789CFGHJMPQRVWX]{2,}\b/i;
+
+/**
+ * The area label to file a lead under, given the listing it enquired
+ * about. `sublocality` is the curated field an agent typed and wins
+ * whenever it is set.
+ *
+ * `location` is a full Google formatted address, so its first comma
+ * segment is NOT reliably the locality: for a pin dropped on a place
+ * with no street number Google leads with a plus code and the nearest
+ * business — "WJGP+87H Classic Property Developers, 1st Block
+ * Koramangala, …". Taking segment [0] blindly filed buyers under
+ * "WJGP+87H Classic Property Developers" as an area of interest.
+ * Segments led by a plus code are skipped, as is portal boilerplate.
+ */
+export function areaLabelFromListing(p: {
+  location?: string | null;
+  sublocality?: string | null;
+}): string | null {
+  const sub = p.sublocality?.trim();
+  if (sub) return sub;
+
+  for (const segment of (p.location ?? '').split(',')) {
+    const candidate = segment.trim();
+    if (!candidate || PLUS_CODE_HEAD.test(candidate)) continue;
+    if (!isUsableLocation(candidate)) continue;
+    return candidate;
+  }
+  return null;
+}
+
 // Extractor rules for different portals
 export function parsePortalLead(subject: string, bodyText: string, html: string) {
   // If the body text contains HTML tags, convert it to clean plain text first
