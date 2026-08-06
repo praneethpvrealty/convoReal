@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import { File, Paths } from 'expo-file-system';
 import * as Linking from 'expo-linking';
@@ -29,6 +30,7 @@ import {
   logExternalShare,
   sendPropertyViaEngine,
 } from '@/lib/property-share-actions';
+import { propertyShareUrl } from '@/lib/property-share-link';
 import {
   addRecipientGreeting,
   buildPropertyShareMessage,
@@ -37,6 +39,7 @@ import {
   type ShareDetailLevel,
   type ShareTone,
 } from '@/lib/share-message';
+import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { Contact, Property } from '@/lib/types';
 
@@ -87,9 +90,27 @@ export function PropertyShareSheet({
   const [sharingPhoto, setSharingPhoto] = useState(false);
   const [dialog, setDialog] = useState<{ title: string; message?: string; actions: DialogAction[] } | null>(null);
 
+  // The account's showcase subdomain, so a link shared from a phone
+  // lands on the agency's own showcase like the web dialog's does.
+  // Until it resolves, the link falls back to `?ref=<account>` on the
+  // shared domain, which still scopes the catalog to this account.
+  const accountId = useAuthStore((s) => s.profile?.account_id) ?? null;
+  const subdomain = useQuery({
+    queryKey: ['showcase-subdomain', accountId],
+    queryFn: () => fetchShowcaseSubdomain(accountId),
+    enabled: Boolean(accountId),
+    staleTime: 5 * 60_000,
+  });
+
   // Client link opens the showcase (inquiry form); co-broker gets the
   // clean view-only page — same URLs the web dialog builds.
-  const url = `${ENV.apiBaseUrl}/?property_id=${property.id}${audience === 'agent' ? '&mode=view' : ''}`;
+  const url = propertyShareUrl({
+    siteUrl: ENV.apiBaseUrl,
+    subdomain: subdomain.data ?? null,
+    accountId,
+    property,
+    audience,
+  });
 
   // Sign the message with the account's own name (Settings → profile),
   // reactive via the auth store, and fall back to the email handle only
