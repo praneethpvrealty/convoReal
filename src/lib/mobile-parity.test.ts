@@ -37,6 +37,7 @@ import {
 import { PROPERTY_TYPE_VALUES } from "@/lib/property-types";
 import { priceInWords } from "@/lib/currency-utils";
 import {
+  FLOW_CHECKBOX_MAX_ITEMS,
   PROPERTY_INTEREST_FLOW_IDS,
   PROPERTY_INTEREST_OPTIONS,
   PROPERTY_INTEREST_SHORT_TITLES,
@@ -319,5 +320,18 @@ describe("property-interest vocabulary split", () => {
       const title = PROPERTY_INTEREST_SHORT_TITLES[id] ?? id;
       expect(title.length).toBeLessThanOrEqual(30);
     }
+  });
+
+  it("stays within Meta's CheckboxGroup item count", () => {
+    // The options arrive as dynamic data, so overshooting this shows up
+    // in a buyer's WhatsApp client rather than at publish time. Fail
+    // here instead. The in-app list is free to exceed it — that is the
+    // whole reason the two lists are separate.
+    expect(PROPERTY_INTEREST_FLOW_IDS.length).toBeLessThanOrEqual(
+      FLOW_CHECKBOX_MAX_ITEMS
+    );
+    expect(PROPERTY_INTEREST_OPTIONS.length).toBeGreaterThan(
+      FLOW_CHECKBOX_MAX_ITEMS
+    );
   });
 });

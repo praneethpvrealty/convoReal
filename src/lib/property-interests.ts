@@ -12,12 +12,17 @@
  * prose that AI extraction had to catch.
  */
 
+/** Meta's ceiling on CheckboxGroup data-source items. */
+export const FLOW_CHECKBOX_MAX_ITEMS = 20;
+
 /**
- * The subset offered inside the WhatsApp preference Flow. Meta caps how
- * many items a CheckboxGroup data-source may carry, so this list stays
- * at the eleven it has always shipped rather than growing with the
- * in-app vocabulary below. Changing it means republishing the Flow to
- * Meta for every account; adding an in-app option does not.
+ * The subset offered inside the WhatsApp preference Flow, capped by
+ * FLOW_CHECKBOX_MAX_ITEMS — which is why it does not simply track the
+ * in-app vocabulary below, now 27 long. The options reach the client as
+ * dynamic data (`${data.property_type_options}`), so an over-long list
+ * risks failing in the buyer's WhatsApp client rather than at publish
+ * time. Changing this list means republishing the Flow to Meta for
+ * every account; adding an in-app option does not.
  */
 export const PROPERTY_INTEREST_FLOW_IDS = [
   'Flat/ Apartment',
