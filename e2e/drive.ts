@@ -56,6 +56,15 @@ async function assertRendered(page: Page, label: string, problems: string[]) {
   }
 }
 
+// The top bar read "Dashboard" on half the screens and nothing noticed,
+// because a screenshot only fails a review someone actually looks at.
+async function assertHeader(page: Page, expected: string, problems: string[]) {
+  const actual = (await page.locator('header h1').first().innerText().catch(() => '')).trim();
+  if (actual !== expected) {
+    problems.push(`top bar reads "${actual}" on ${expected} screen`);
+  }
+}
+
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
   const env = creds();
@@ -137,19 +146,22 @@ async function main() {
       problems.push('engine-template banner not rendered on the templates tab');
     }
 
-    for (const [name, path] of [
-      ['03-inventory', '/inventory'],
-      ['04-contacts', '/contacts'],
-      ['05-radar', '/radar'],
-      ['06-inbox', '/inbox'],
-      ['07-pipelines', '/pipelines'],
-      ['08-calendar', '/calendar'],
-      ['09-broadcasts', '/broadcasts'],
+    // /pipelines and /radar are redirect shims onto a tab of another
+    // section, so the top bar names the destination, not the path asked for.
+    for (const [name, path, header] of [
+      ['03-inventory', '/inventory', 'Inventory'],
+      ['04-contacts', '/contacts', 'Contacts'],
+      ['05-radar', '/radar', 'Dashboard'],
+      ['06-inbox', '/inbox', 'Inbox'],
+      ['07-pipelines', '/pipelines', 'Automations'],
+      ['08-calendar', '/calendar', 'Calendar'],
+      ['09-broadcasts', '/broadcasts', 'Broadcasts'],
     ] as const) {
       console.log(`visiting ${path}`);
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
       await settle(page);
       await assertRendered(page, path, problems);
+      await assertHeader(page, header, problems);
       await shot(page, name);
     }
   } finally {

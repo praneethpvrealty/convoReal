@@ -29,22 +29,26 @@ import { CreditMeter } from "@/components/layout/CreditMeter";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 
-const pageTitles: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/inbox": "Inbox",
-  "/contacts": "Contacts",
-  "/pipelines": "Pipelines",
-  "/broadcasts": "Broadcasts",
-  "/automations": "Automations",
-  "/settings": "Settings",
+// Only sections whose name differs from their slug need an entry. The rest
+// are derived, so a screen added tomorrow is titled correctly instead of
+// silently reading "Dashboard" the way /inventory and /calendar did.
+// /radar, /pulse, /today, /flows, /pipelines, /ads, /agents and
+// /requirements are redirect-only shims onto a tab of another section, so
+// they are deliberately absent — the title comes from where you land.
+const pageTitleOverrides: Record<string, string> = {
+  "/admin": "Admin Panel",
 };
 
-function getPageTitle(pathname: string): string {
-  if (pageTitles[pathname]) return pageTitles[pathname];
-  const match = Object.entries(pageTitles).find(([path]) =>
-    pathname.startsWith(path),
+export function getPageTitle(pathname: string): string {
+  const [section] = pathname.split("/").filter(Boolean);
+  if (!section) return "Dashboard";
+  return (
+    pageTitleOverrides[`/${section}`] ??
+    section
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ")
   );
-  return match ? match[1] : "Dashboard";
 }
 
 interface HeaderProps {
