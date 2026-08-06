@@ -2778,3 +2778,38 @@ ALTER TABLE properties ADD COLUMN IF NOT EXISTS furnishing TEXT;
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS floor_number INTEGER;
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS total_floors INTEGER;
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS balconies INTEGER;
+
+-- ============================================================
+-- 206_restore_realtime_publication.sql
+-- Realtime publication membership. This file is the setup path for
+-- a fresh project and never carried these ADD TABLE statements
+-- (they live in 001 / 009 / 010 / 090, which predate this file), so
+-- a database built from it alone came up with an empty
+-- supabase_realtime and no live inbox, credit or flow updates.
+-- ============================================================
+
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'messages',
+    'conversations',
+    'message_reactions',
+    'flow_runs',
+    'credit_wallets',
+    'notifications'
+  ] LOOP
+    IF EXISTS (
+      SELECT 1 FROM pg_tables
+      WHERE schemaname = 'public' AND tablename = t
+    ) AND NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public'
+        AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    END IF;
+  END LOOP;
+END $$;
