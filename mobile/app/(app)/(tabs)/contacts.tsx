@@ -858,6 +858,7 @@ function ContactRow({
                 fontSize: 11,
                 color: colors.textFaint,
                 marginLeft: 'auto',
+                flexShrink: 0,
               }}
             >
               {chatListTime(contact.last_contacted_at)}
@@ -872,7 +873,10 @@ function ContactRow({
             <Tag key={t} label={t} />
           ))}
           {contact.name ? (
-            <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
+            <Text
+              style={{ fontSize: 12.5, color: colors.textFaint, flexShrink: 1 }}
+              numberOfLines={1}
+            >
               {contact.phone}
             </Text>
           ) : null}
@@ -1382,7 +1386,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowBody: { flex: 1, gap: 3 },
+  // Clipped: a row that still runs long after its children have shrunk
+  // must not paint over the favourite/approve/WhatsApp cluster beside it.
+  rowBody: { flex: 1, gap: 3, overflow: 'hidden' },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   name: {
     fontSize: 16.5,
@@ -1390,7 +1396,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     flexShrink: 1,
   },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  // Wraps like the other chip rows (properties specRow,
+  // contact-picker metaRow): a classification plus two tags plus the
+  // phone does not fit one line, and flex children default to
+  // flexShrink: 0 in React Native, so without this they keep their full
+  // width and spill over the actions beside them.
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
   contactedRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   inlineCall: {
     width: 26,
