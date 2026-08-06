@@ -37,6 +37,7 @@ import {
 import { PROPERTY_TYPE_VALUES } from "@/lib/property-types";
 import { priceInWords } from "@/lib/currency-utils";
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from "@/lib/whatsapp/customer-window";
+import { DELIVERY_FAILURE_MARKER } from "@/lib/whatsapp/delivery-failure";
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), "mobile", relativePath), "utf8");
@@ -213,6 +214,15 @@ describe("mobile/lib/customer-window.ts mirrors customer-window", () => {
 
   it("throws the same pre-flight message", () => {
     expect(source).toContain(CUSTOMER_WINDOW_EXPIRED_MESSAGE);
+  });
+});
+
+describe("mobile/lib/message-actions.ts mirrors delivery-failure", () => {
+  // The marker is what a resend or forward cuts the failure note off at.
+  // If the webhook's wording changes and the mobile copy doesn't, the
+  // agent's own error report goes back out to the customer.
+  it("cuts at the same marker", () => {
+    expect(mobileSource("lib/message-actions.ts")).toContain(DELIVERY_FAILURE_MARKER);
   });
 });
 

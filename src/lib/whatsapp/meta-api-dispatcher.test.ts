@@ -39,10 +39,15 @@ function makeDb(
 
   function builder(table: string) {
     const filters: Record<string, unknown> = {};
+    const excluded: Record<string, unknown> = {};
     const b: Record<string, unknown> = {
       select: () => b,
       eq: (column: string, value: unknown) => {
         filters[column] = value;
+        return b;
+      },
+      neq: (column: string, value: unknown) => {
+        excluded[column] = value;
         return b;
       },
       like: () => b,
@@ -83,7 +88,11 @@ function makeDb(
               error: null,
             });
           }
-          return Promise.resolve({ data: overrides.duplicateMessage ?? null, error: null });
+          const candidate = overrides.duplicateMessage ?? null;
+          const filteredOut =
+            candidate !== null &&
+            Object.entries(excluded).some(([column, value]) => candidate[column] === value);
+          return Promise.resolve({ data: filteredOut ? null : candidate, error: null });
         }
         return Promise.resolve({ data: null, error: null });
       },
@@ -228,6 +237,50 @@ describe("sendWhatsAppMessageAndPersist", () => {
     // No new message row and no Meta call — it was collapsed as a duplicate.
     expect(db._inserts.messages).toHaveLength(0);
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("resends text that failed — a message Meta refused is not a duplicate", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({
+      existingConversation: { id: "conv-existing" },
+      duplicateMessage: { id: "dup-1", message_id: "wamid.dup", status: "failed" },
+    });
+    const longText = "Here are the complete details for the property ".repeat(4);
+
+    const result = await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: longText,
+      customDbClient: db,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.messageId).toBe("msg-new");
+    expect(db._inserts.messages).toHaveLength(1);
+  });
+
+  it("persists the quoted row id, not Meta's wamid", async () => {
+    const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+    const db = makeDb({ existingConversation: { id: "conv-existing" } });
+
+    await sendWhatsAppMessageAndPersist({
+      accountId: ACCOUNT_ID,
+      contactId: CONTACT_ID,
+      kind: "text",
+      senderType: "agent",
+      text: "answering that",
+      contextMessageId: "wamid.parent",
+      replyToMessageId: "11111111-2222-3333-4444-555555555555",
+      customDbClient: db,
+    });
+
+    // reply_to_message_id is a UUID self-FK — a wamid there fails the
+    // insert once Meta has already delivered the message.
+    expect(db._inserts.messages[0].reply_to_message_id).toBe(
+      "11111111-2222-3333-4444-555555555555",
+    );
   });
 
   it("does not dedupe short repeated messages (only substantial text)", async () => {

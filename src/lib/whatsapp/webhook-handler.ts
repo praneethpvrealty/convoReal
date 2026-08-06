@@ -1,4 +1,5 @@
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
 import { BRANDING } from '@/config/branding'
@@ -542,8 +543,9 @@ async function handleStatusUpdate(status: {
 
       if (existingMsg) {
         const originalText = existingMsg.content_text || ''
-        if (!originalText.includes('❌ Delivery Failed:')) {
-          updatePayload.content_text = `${originalText}\n\n❌ Delivery Failed:\n${errorDetails}`.trim()
+        if (!originalText.includes(DELIVERY_FAILURE_MARKER)) {
+          updatePayload.content_text =
+            `${originalText}\n\n${DELIVERY_FAILURE_MARKER}\n${errorDetails}`.trim()
         }
       }
     } catch (err) {

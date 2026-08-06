@@ -273,15 +273,45 @@ export function suggestReplies(conversationId: string) {
   })
 }
 
-/** Contract of POST /api/whatsapp/send (src/app/api/whatsapp/send/route.ts). */
-export function sendTextMessage(conversationId: string, text: string) {
+/** Contract of POST /api/whatsapp/send (src/app/api/whatsapp/send/route.ts).
+ *  `replyToMessageId` quotes an earlier message in the same thread — the
+ *  server resolves it to Meta's wamid so WhatsApp renders the quote. */
+export function sendTextMessage(
+  conversationId: string,
+  text: string,
+  replyToMessageId?: string
+) {
   return apiFetch<{ message?: unknown; error?: string }>('/api/whatsapp/send', {
     method: 'POST',
     body: JSON.stringify({
       conversation_id: conversationId,
       message_type: 'text',
       content_text: text,
+      ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
     }),
+  });
+}
+
+/**
+ * Send one message's text on to other contacts — POST
+ * /api/whatsapp/forward. Each recipient gets it in their own thread from
+ * the business number; the per-contact outcome comes back in `results`
+ * so a closed 24-hour window reads differently from a failed send.
+ */
+export function forwardMessage(messageId: string, contactIds: string[]) {
+  return apiFetch<{
+    data: {
+      results: {
+        contact_id: string;
+        name: string;
+        sent: boolean;
+        window_closed?: boolean;
+        error?: string;
+      }[];
+    };
+  }>('/api/whatsapp/forward', {
+    method: 'POST',
+    body: JSON.stringify({ message_id: messageId, contact_ids: contactIds }),
   });
 }
 

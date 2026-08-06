@@ -172,6 +172,53 @@ describe('POST /api/whatsapp/send — customer window', () => {
     expect(dispatcherCalls[0].kind).toBe('text');
   });
 
+  it('quotes with Meta\'s wamid but persists our own row id', async () => {
+    queues = {
+      conversations: [CONVERSATION],
+      whatsapp_config: [config('meta_cloud')],
+      messages: [
+        // The reply target, then the window lookup.
+        { data: { message_id: 'wamid.parent', conversation_id: 'conv-1' }, error: null },
+        { data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() }, error: null },
+      ],
+    };
+
+    const res = await post({
+      conversation_id: 'conv-1',
+      message_type: 'text',
+      content_text: 'answering that',
+      reply_to_message_id: '11111111-2222-3333-4444-555555555555',
+    });
+
+    expect(res.status).toBe(200);
+    // reply_to_message_id is a UUID self-FK: handing it the wamid failed
+    // the insert after Meta had already delivered the message.
+    expect(dispatcherCalls[0].contextMessageId).toBe('wamid.parent');
+    expect(dispatcherCalls[0].replyToMessageId).toBe('11111111-2222-3333-4444-555555555555');
+  });
+
+  it('keeps the local reply link when the parent never reached Meta', async () => {
+    queues = {
+      conversations: [CONVERSATION],
+      whatsapp_config: [config('meta_cloud')],
+      messages: [
+        { data: { message_id: null, conversation_id: 'conv-1' }, error: null },
+        { data: { created_at: new Date(Date.now() - 2 * HOURS).toISOString() }, error: null },
+      ],
+    };
+
+    const res = await post({
+      conversation_id: 'conv-1',
+      message_type: 'text',
+      content_text: 'answering that',
+      reply_to_message_id: '11111111-2222-3333-4444-555555555555',
+    });
+
+    expect(res.status).toBe(200);
+    expect(dispatcherCalls[0].contextMessageId).toBeUndefined();
+    expect(dispatcherCalls[0].replyToMessageId).toBe('11111111-2222-3333-4444-555555555555');
+  });
+
   it('lets a template through a closed window — that is what reopens it', async () => {
     queues = {
       conversations: [CONVERSATION],
