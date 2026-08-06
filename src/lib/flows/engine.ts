@@ -1335,6 +1335,7 @@ async function advanceFromNodeKey(
     }
     if (node.node_type === "send_property_listings") {
       const cfg = node.config as unknown as import("./types").SendPropertyListingsNodeConfig;
+      let shownCount = 0;
       try {
         const { text: listingsText, shown } = await fetchAndFormatPropertyListings(db, run, cfg);
         const { whatsapp_message_id } = await engineSendText({
@@ -1346,6 +1347,7 @@ async function advanceFromNodeKey(
         });
         // Remember what was numbered, so the next reply of "2" resolves
         // to a property instead of being reprompted as unrecognised.
+        shownCount = shown.length;
         const withListings = { ...run.vars, [SHOWN_LISTINGS_VAR]: shown };
         await db.from("flow_runs").update({ vars: withListings }).eq("id", run.id);
         run.vars = withListings;
@@ -1361,7 +1363,13 @@ async function advanceFromNodeKey(
         await endRun(db, run.id, "failed", "send_property_listings_failed");
         return { outcome: "completed" };
       }
-      currentKey = cfg.next_node_key;
+      // Nothing was shown, so the usual follow-up ("Interested in any of
+      // these? Reply with its number") would be asking about an empty
+      // list. Branch instead when the node names somewhere to go.
+      currentKey =
+        shownCount === 0 && cfg.empty_next_node_key
+          ? cfg.empty_next_node_key
+          : cfg.next_node_key;
       continue;
     }
     if (node.node_type === "collect_input") {
