@@ -358,3 +358,32 @@ describe('validateTemplatePayload — integration', () => {
     ).toThrow(/cannot end with|Consecutive variable|too many variables for its length/);
   });
 });
+
+describe('button label rules Meta enforces at submit time', () => {
+  const withButton = (text: string) => ({
+    name: 'x',
+    category: 'Utility' as const,
+    language: 'en_US',
+    body_text: 'Hi {{1}}, your update is ready.',
+    buttons: [{ type: 'QUICK_REPLY' as const, text }],
+    sample_values: { body: ['A'] },
+  });
+
+  it('rejects an emoji, which Meta returns as "Button format is incorrect"', () => {
+    expect(() => validateTemplatePayload(withButton('Send full list 📋'))).toThrow(/emoji/i);
+  });
+
+  it('rejects a variable in a button label', () => {
+    expect(() => validateTemplatePayload(withButton('Call {{1}}'))).toThrow(/variables/i);
+  });
+
+  it('rejects formatting markers and newlines', () => {
+    expect(() => validateTemplatePayload(withButton('*Bold*'))).toThrow(/formatting/i);
+    expect(() => validateTemplatePayload(withButton('Two\nlines'))).toThrow(/newlines/i);
+  });
+
+  it('accepts an ordinary label', () => {
+    expect(() => validateTemplatePayload(withButton('Send full list'))).not.toThrow();
+    expect(() => validateTemplatePayload(withButton('Send photos & details'))).not.toThrow();
+  });
+});

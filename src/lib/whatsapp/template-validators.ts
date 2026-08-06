@@ -166,6 +166,14 @@ export function validateHeader(
   return { variableCount: 0 };
 }
 
+/**
+ * Meta's button-label rule, which it enforces only at submit time:
+ * no {{variables}}, no newlines, no emoji, no *bold* / _italic_ /
+ * ~strike~ / ```code``` markers.
+ */
+const BUTTON_FORBIDDEN_TEXT =
+  /\{\{|\}\}|[\n\r]|[*_~`]|[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{2190}-\u{21FF}\u{2B00}-\u{2BFF}]/u;
+
 function countButtonsByType(
   buttons: TemplateButton[],
 ): Record<TemplateButton['type'], number> {
@@ -228,6 +236,15 @@ export function validateButtons(buttons: TemplateButton[] | undefined): void {
     if (b.text.length > TEMPLATE_LIMITS.buttonTextMaxLength) {
       throw new Error(
         `Button #${i + 1} text exceeds ${TEMPLATE_LIMITS.buttonTextMaxLength} chars.`,
+      );
+    }
+    // Meta rejects these at submit time with "Buttons can't have any
+    // variables, newlines, emojis or formatting characters", which
+    // surfaces as a Draft the account owner has to decipher. Catching it
+    // here names the offending button instead.
+    if (BUTTON_FORBIDDEN_TEXT.test(b.text)) {
+      throw new Error(
+        `Button #${i + 1} text cannot contain variables, newlines, emojis or formatting characters (Meta rule). Got: ${JSON.stringify(b.text)}`,
       );
     }
     switch (b.type) {
