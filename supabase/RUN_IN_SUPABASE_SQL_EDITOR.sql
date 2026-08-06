@@ -2440,21 +2440,27 @@ CREATE POLICY notification_preferences_write ON notification_preferences
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS price_per_sqft NUMERIC;
 
 -- ============================================================
--- 168_inventory_stats_rpc.sql
+-- 168_inventory_stats_rpc.sql + 208_inventory_stats_listing_party.sql
 -- One scan for the inventory summary panel instead of five
--- count=exact round trips. See the migration for the rationale.
+-- count=exact round trips, plus the listing-party pill counts.
+-- See the migrations for the rationale.
 -- ============================================================
 
 CREATE INDEX IF NOT EXISTS idx_properties_account_stats
   ON properties(account_id) INCLUDE (status, is_published);
 
-CREATE OR REPLACE FUNCTION public.inventory_stats(p_account_id UUID)
+DROP FUNCTION IF EXISTS public.inventory_stats(UUID);
+
+CREATE FUNCTION public.inventory_stats(p_account_id UUID)
 RETURNS TABLE (
   total BIGINT,
   published BIGINT,
   available BIGINT,
   sold_or_contract BIGINT,
-  pending_review BIGINT
+  pending_review BIGINT,
+  active_total BIGINT,
+  direct BIGINT,
+  agent_referred BIGINT
 )
 LANGUAGE sql
 STABLE
@@ -2466,7 +2472,10 @@ AS $$
     count(*) FILTER (WHERE p.is_published),
     count(*) FILTER (WHERE p.status = 'Available'),
     count(*) FILTER (WHERE p.status IN ('Sold', 'Under Contract')),
-    count(*) FILTER (WHERE p.status = 'Pending Review')
+    count(*) FILTER (WHERE p.status = 'Pending Review'),
+    count(*) FILTER (WHERE p.status <> 'Archived'),
+    count(*) FILTER (WHERE p.status <> 'Archived' AND p.listing_source = 'owner'),
+    count(*) FILTER (WHERE p.status <> 'Archived' AND p.listing_source = 'agent')
   FROM properties p
   WHERE p.account_id = p_account_id
     AND is_account_member(p_account_id);
