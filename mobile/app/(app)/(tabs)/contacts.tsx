@@ -4,7 +4,6 @@ import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
@@ -288,8 +287,11 @@ async function fetchContacts(
 /** Segment counts, same head-count technique as the web tabs. */
 async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
   const staffFilter = await staffPhoneFilter();
-  const excludeStaff = <T extends { not: (c: string, op: string, v: string) => T }>(q: T): T =>
-    staffFilter ? q.not('phone', 'in', staffFilter) : q;
+  const excludeStaff = <
+    T extends { not: (c: string, op: string, v: string) => T },
+  >(
+    q: T
+  ): T => (staffFilter ? q.not('phone', 'in', staffFilter) : q);
   const [active, review, favorites, market, wonDeals] = await Promise.all([
     excludeStaff(
       supabase
@@ -339,7 +341,11 @@ export default function ContactsScreen() {
   const [favoritingIds, setFavoritingIds] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
   const [peekId, setPeekId] = useState<string | null>(null);
-  const [waMenu, setWaMenu] = useState<{ contact: Contact; x: number; y: number } | null>(null);
+  const [waMenu, setWaMenu] = useState<{
+    contact: Contact;
+    x: number;
+    y: number;
+  } | null>(null);
   // Approving flips the contact, drafts the details and sends them over
   // WhatsApp — several round-trips. The row confirms the tap straight
   // away and the send finishes in the background, so a queue of leads can
@@ -349,8 +355,11 @@ export default function ContactsScreen() {
   // Completed approvals waiting for their follow-up funnel. Held back
   // while anything is still sending: a sheet appearing mid-tap would
   // land on the row the user was aiming at.
-  const [celebrations, setCelebrations] = useState<ApproveCelebrationState[]>([]);
-  const celebration = approvingIds.size === 0 ? (celebrations[0] ?? null) : null;
+  const [celebrations, setCelebrations] = useState<ApproveCelebrationState[]>(
+    []
+  );
+  const celebration =
+    approvingIds.size === 0 ? (celebrations[0] ?? null) : null;
   const { show, dialogProps } = useAppDialog();
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
@@ -370,13 +379,7 @@ export default function ContactsScreen() {
   /** Desktop-parity approve: no confirmation dialog — flip active and
    *  auto-send the inquired property's details via WhatsApp, then
    *  celebrate with the follow-up funnel (falling back to the thread's
-   *  template picker outside the 24-hour window).
-   *
-   *  The row stays in a loading state for the whole trip. It is not a
-   *  local flag flip: the contact update, the draft build, the
-   *  conversation lookup and the Meta send are four round trips, so
-   *  without it the button sits there looking untapped for seconds and
-   *  invites a second press that would send the details twice. */
+   *  template picker outside the 24-hour window). */
   async function handleApprove(contact: Contact) {
     // Only the same lead twice is refused — approving the next one while
     // this is still sending is the point.
@@ -395,7 +398,10 @@ export default function ContactsScreen() {
 
     if (!result.ok) {
       haptic.warn();
-      show({ title: 'Could not approve', message: friendlyError(result.error ?? 'Try again.') });
+      show({
+        title: 'Could not approve',
+        message: friendlyError(result.error ?? 'Try again.'),
+      });
       return;
     }
     haptic.success();
@@ -424,7 +430,9 @@ export default function ContactsScreen() {
       haptic.warn();
       show({
         title: 'Could not update favourite',
-        message: friendlyError(err instanceof Error ? err.message : 'Try again.'),
+        message: friendlyError(
+          err instanceof Error ? err.message : 'Try again.'
+        ),
       });
     } finally {
       setFavoritingIds((prev) => {
@@ -562,7 +570,6 @@ export default function ContactsScreen() {
                     : undefined
                 }
                 tags={data?.tags[item.id] ?? []}
-                approving={approvingId === item.id}
                 onApprove={() => handleApprove(item)}
                 approving={approvingIds.has(item.id)}
                 onToggleFavorite={() => handleToggleFavorite(item)}
@@ -586,7 +593,10 @@ export default function ContactsScreen() {
       )}
 
       <QuickAddContact visible={adding} onClose={() => setAdding(false)} />
-      <DeviceImportSheet visible={importing} onClose={() => setImporting(false)} />
+      <DeviceImportSheet
+        visible={importing}
+        onClose={() => setImporting(false)}
+      />
       <ApproveCelebration
         celebration={celebration}
         onClose={() => setCelebrations((queue) => queue.slice(1))}
@@ -776,7 +786,6 @@ function ContactRow({
   dark,
   tags,
   contactedProperty,
-  approving,
   onApprove,
   approving,
   onToggleFavorite,
@@ -789,7 +798,6 @@ function ContactRow({
   dark: boolean;
   tags: string[];
   contactedProperty?: string;
-  approving: boolean;
   onApprove: () => void;
   approving?: boolean;
   onToggleFavorite: () => void;
@@ -819,9 +827,6 @@ function ContactRow({
       contentStyle={StyleSheet.flatten([
         listCard,
         { backgroundColor: colors.glass, borderColor: colors.glassBorder },
-        // The whole row recedes while its approval is in flight, so the
-        // busy one is obvious in a list of otherwise identical rows.
-        approving ? { opacity: 0.6 } : null,
       ])}
     >
       <Avatar name={name} size={42} />
@@ -858,58 +863,103 @@ function ContactRow({
             </Text>
           ) : null}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Pressable
-            hitSlop={8}
-            onPress={onToggleFavorite}
-            disabled={favoriting}
-            accessibilityRole="button"
-            accessibilityLabel={
-              contact.is_favorite
-                ? `Remove ${name} from favourites`
-                : `Add ${name} to favourites`
-            }
-            accessibilityState={{ disabled: favoriting, busy: favoriting }}
-            style={[
-              styles.action,
-              { backgroundColor: contact.is_favorite ? colors.warningSoft : 'transparent' },
-            ]}
+        <View style={styles.metaRow}>
+          {contact.classification ? (
+            <Tag label={contact.classification} color={clsColor} />
+          ) : null}
+          {tags.slice(0, 2).map((t) => (
+            <Tag key={t} label={t} />
+          ))}
+          {contact.name ? (
+            <Text style={{ fontSize: 12.5, color: colors.textFaint }}>
+              {contact.phone}
+            </Text>
+          ) : null}
+        </View>
+        {contactedProperty ? (
+          <View style={styles.contactedRow}>
+            <Ionicons name="home" size={11} color={colors.warning} />
+            <Text
+              style={{ flex: 1, fontSize: 11.5, color: colors.textMuted }}
+              numberOfLines={1}
+            >
+              Contacted about {contactedProperty}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Pressable
+          hitSlop={8}
+          onPress={onToggleFavorite}
+          disabled={favoriting}
+          accessibilityRole="button"
+          accessibilityLabel={
+            contact.is_favorite
+              ? `Remove ${name} from favourites`
+              : `Add ${name} to favourites`
+          }
+          accessibilityState={{ disabled: favoriting, busy: favoriting }}
+          style={[
+            styles.action,
+            {
+              backgroundColor: contact.is_favorite
+                ? colors.warningSoft
+                : 'transparent',
+            },
+          ]}
+        >
+          <Ionicons
+            name={contact.is_favorite ? 'star' : 'star-outline'}
+            size={18}
+            color={contact.is_favorite ? colors.warning : colors.textFaint}
+          />
+        </Pressable>
+        {contact.status === 'pending_review' ? (
+          // Approved reads as done the instant it is tapped: the amber
+          // "needs review" pulse becomes a green tick with the send
+          // still running behind it, and the next lead stays tappable.
+          <PulseRing
+            size={38}
+            color={approving ? colors.success : colors.warning}
           >
-            <Ionicons
-              name={contact.is_favorite ? 'star' : 'star-outline'}
-              size={18}
-              color={contact.is_favorite ? colors.warning : colors.textFaint}
-            />
-          </Pressable>
-          {contact.status === 'pending_review' ? (
-            // Approved reads as done the instant it is tapped: the amber
-            // "needs review" pulse becomes a green tick with the send
-            // still running behind it, and the next lead stays tappable.
-            <PulseRing size={38} color={approving ? colors.success : colors.warning}>
-              <Pressable
-                hitSlop={8}
-                onPress={onApprove}
-                disabled={approving}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  approving ? `${name} approved, sending details` : `Approve ${name}`
-                }
-                accessibilityState={{ disabled: approving, busy: approving }}
-                style={[
-                  styles.action,
-                  { backgroundColor: approving ? colors.successSoft : colors.warningSoft },
-                ]}
-              >
-                {approving ? (
-                  <Animated.View entering={FadeIn.duration(180)}>
-                    <Ionicons name="checkmark-circle" size={18} color={colors.success} />
-                  </Animated.View>
-                ) : (
-                  <Ionicons name="checkmark-circle" size={18} color={colors.warning} />
-                )}
-              </Pressable>
-            </PulseRing>
-          )
+            <Pressable
+              hitSlop={8}
+              onPress={onApprove}
+              disabled={approving}
+              accessibilityRole="button"
+              accessibilityLabel={
+                approving
+                  ? `${name} approved, sending details`
+                  : `Approve ${name}`
+              }
+              accessibilityState={{ disabled: approving, busy: approving }}
+              style={[
+                styles.action,
+                {
+                  backgroundColor: approving
+                    ? colors.successSoft
+                    : colors.warningSoft,
+                },
+              ]}
+            >
+              {approving ? (
+                <Animated.View entering={FadeIn.duration(180)}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={18}
+                    color={colors.success}
+                  />
+                </Animated.View>
+              ) : (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color={colors.warning}
+                />
+              )}
+            </Pressable>
+          </PulseRing>
         ) : null}
         <Pressable
           hitSlop={8}
