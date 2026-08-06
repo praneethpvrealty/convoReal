@@ -9,8 +9,8 @@ import * as Linking from 'expo-linking';
 
 import { useAuthStore } from '@/lib/auth-store';
 import { ENV } from '@/lib/env';
-import { queryClient } from '@/lib/query';
 import { showcaseBaseUrl } from '@/lib/share-message';
+import { fetchShowcaseSubdomain } from '@/lib/showcase-settings';
 import { supabase } from '@/lib/supabase';
 import type { Contact, Property } from '@/lib/types';
 
@@ -118,30 +118,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
-async function fetchShowcaseSettings(
-  accountId: string | null
-): Promise<{ subdomain: string | null } | null> {
-  if (!accountId) return null;
-  return queryClient.fetchQuery({
-    queryKey: ['showcase-settings', accountId],
-    staleTime: 5 * 60_000,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('showcase_settings')
-        .select('subdomain')
-        .eq('account_id', accountId)
-        .maybeSingle();
-      return (data ?? null) as { subdomain: string | null } | null;
-    },
-  });
-}
-
 /** The account's public showcase URL (subdomain-aware, ref fallback) —
  *  what the web's showcase share dialog links to. */
 export async function getShowcaseUrl(): Promise<string> {
   const accountId = useAuthStore.getState().profile?.account_id ?? null;
-  const settings = await fetchShowcaseSettings(accountId);
-  return showcaseBase(settings?.subdomain ?? null, accountId).toString();
+  const subdomain = await fetchShowcaseSubdomain(accountId);
+  return showcaseBase(subdomain, accountId).toString();
 }
 
 /**
@@ -151,7 +133,7 @@ export async function getShowcaseUrl(): Promise<string> {
 export async function openWelcomeWhatsApp(contact: Contact): Promise<void> {
   const profile = useAuthStore.getState().profile;
   const accountId = profile?.account_id ?? null;
-  const settings = await fetchShowcaseSettings(accountId);
+  const subdomain = await fetchShowcaseSubdomain(accountId);
 
   let propDetails: Property | null = null;
   if (contact.last_inquired_property_id) {
@@ -168,7 +150,7 @@ export async function openWelcomeWhatsApp(contact: Contact): Promise<void> {
     propDetails,
     agentName: profile?.full_name?.trim() ?? '',
     accountId,
-    subdomain: settings?.subdomain ?? null,
+    subdomain,
   });
   if (link) await Linking.openURL(link);
 }
