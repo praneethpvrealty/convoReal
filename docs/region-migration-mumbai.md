@@ -114,6 +114,59 @@ select count(*) from auth.users;        -- matches old project
 select count(*) from message_templates; -- matches old project
 ```
 
+**Then re-add every table to the `supabase_realtime` publication.**
+This does NOT travel in the dump and its absence is silent — skipping
+it is what broke the live Inbox after the Sydney → Mumbai move.
+
+A publication is a database-level object, not a schema-scoped one, so
+`-n public -n auth -n extensions` in step 2 filters it out of the dump
+entirely; the new project provisions its own, empty. Nothing errors.
+Every client still subscribes successfully and reports connected — it
+just never receives an event, because Postgres is not replicating
+those tables. The Inbox looks fine until you notice new messages only
+appear on tab refocus or a manual refresh.
+
+Run migration `206_restore_realtime_publication.sql`, or paste it:
+
+```sql
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY[
+    'messages', 'conversations', 'message_reactions',
+    'flow_runs', 'credit_wallets', 'notifications'
+  ] LOOP
+    IF EXISTS (
+      SELECT 1 FROM pg_tables
+      WHERE schemaname = 'public' AND tablename = t
+    ) AND NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime'
+        AND schemaname = 'public' AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    END IF;
+  END LOOP;
+END $$;
+```
+
+Verify — this must return all six rows, not zero:
+
+```sql
+select tablename from pg_publication_tables
+where pubname = 'supabase_realtime' order by tablename;
+```
+
+If a later migration adds a table that some client subscribes to,
+add it to the array above as well as to that migration. The canonical
+list is what the code subscribes to:
+
+```bash
+grep -rn "postgres_changes" src/ mobile/ --include=*.ts --include=*.tsx -A3 \
+  | grep -oE 'table: .[a-z_]+.' | sort -u
+```
+
 ### 4. Copy storage files
 
 Bucket definitions + files live in Supabase Storage, not in the SQL
@@ -185,7 +238,14 @@ Then:
 
 - Log in on a phone on mobile data: profile name appears, Contacts
   loads fast, counts real.
-- Send a WhatsApp message to the business number → appears in Inbox.
+- Send a WhatsApp message to the business number → appears in Inbox
+  **without touching the page**. Leave the Inbox open and focused in
+  the foreground while the message arrives, and do not switch tabs or
+  hit refresh: focusing the tab and the refresh button both trigger a
+  resync fetch that hides a dead realtime channel. If the message only
+  lands after a refocus, the publication step in §3 did not take.
+- With the Inbox still open, confirm the notification bell increments
+  and the conversation's unread badge updates on their own.
 - Send a template from Settings (dry-run flag off) → submits.
 - Upload a property image → renders.
 
