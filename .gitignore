@@ -60,3 +60,6 @@ ROADMAP.md
 # local design references
 /mockups/
 e2e/shots/
+
+# packaged Chrome extension (npm run ext:zip)
+/extension/portal-autofill.zip

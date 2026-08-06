@@ -15,6 +15,12 @@ If your Engine runs on a domain other than `convoreal.com` / `localhost:3000`,
 add it to the first `matches` list in `manifest.json` and click ↻ on the
 extension card.
 
+To hand the extension to someone who isn't working from the repo, run
+`npm run ext:zip` from the project root — it packages this folder as
+`extension/portal-autofill.zip` (unzip, then Load unpacked as above). Bump
+`version` in `manifest.json` and the `CONVOREAL_PORTAL_EXT_PONG` replies in
+`engine-bridge.js` together before repackaging.
+
 ## Use
 
 1. In ConvoReal → Inventory → **Post Ad** on a property → **Send to Extension**
