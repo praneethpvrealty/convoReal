@@ -156,6 +156,9 @@ async function main() {
       ['07-pipelines', '/pipelines', 'Automations'],
       ['08-calendar', '/calendar', 'Calendar'],
       ['09-broadcasts', '/broadcasts', 'Broadcasts'],
+      ['10-journey', '/journey', 'Journey'],
+      ['11-liaisons', '/liaisons', 'Liaisons'],
+      ['12-settings', '/settings', 'Settings'],
     ] as const) {
       console.log(`visiting ${path}`);
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
