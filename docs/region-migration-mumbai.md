@@ -126,7 +126,7 @@ just never receives an event, because Postgres is not replicating
 those tables. The Inbox looks fine until you notice new messages only
 appear on tab refocus or a manual refresh.
 
-Run migration `206_restore_realtime_publication.sql`, or paste it:
+Run migration `207_restore_realtime_publication.sql`, or paste it:
 
 ```sql
 DO $$

@@ -61,7 +61,7 @@ export async function POST(
     // Verify contact belongs to account
     const { data: contact } = await ctx.supabase
       .from('contacts')
-      .select('id')
+      .select('id, last_contacted_at')
       .eq('id', contactId)
       .eq('account_id', ctx.accountId)
       .single();
@@ -70,13 +70,15 @@ export async function POST(
       return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
     }
 
+    const calledAt = body.called_at ?? new Date().toISOString();
+
     const { data, error } = await ctx.supabase
       .from('contact_call_logs')
       .insert({
         account_id: ctx.accountId,
         contact_id: contactId,
         user_id: ctx.userId,
-        called_at: body.called_at ?? new Date().toISOString(),
+        called_at: calledAt,
         direction,
         duration_seconds: body.duration_seconds ?? null,
         outcome,
@@ -86,6 +88,19 @@ export async function POST(
       .single();
 
     if (error) throw error;
+
+    // A phone call is a contact touch like a share or a document view:
+    // it moves Last Contacted. Only forward — back-logging an old call
+    // must not rewind a fresher touch. Best-effort: the log is already
+    // saved, so a failed bump doesn't fail the request.
+    if (!contact.last_contacted_at || new Date(calledAt) > new Date(contact.last_contacted_at)) {
+      await ctx.supabase
+        .from('contacts')
+        .update({ last_contacted_at: calledAt })
+        .eq('id', contactId)
+        .eq('account_id', ctx.accountId);
+    }
+
     return NextResponse.json({ call: data }, { status: 201 });
   } catch (err) {
     return toErrorResponse(err);

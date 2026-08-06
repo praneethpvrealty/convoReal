@@ -87,6 +87,8 @@ import {
   NEARBY_HIGHLIGHTS_OPTIONS,
   FACING_DIRECTIONS,
   FURNISHING_OPTIONS,
+  FLOORING_OPTIONS,
+  POWER_BACKUP_OPTIONS,
   AREA_UNITS,
   SQFT_PER_AREA_UNIT,
   PROPERTY_STATUSES,
@@ -232,6 +234,8 @@ export function PropertyForm({
   const [floorNumber, setFloorNumber] = useState('');
   const [totalFloors, setTotalFloors] = useState('');
   const [balconies, setBalconies] = useState('');
+  const [flooring, setFlooring] = useState('');
+  const [powerBackup, setPowerBackup] = useState('');
   const [isPublished, setIsPublished] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
   const [nearbyHighlights, setNearbyHighlights] = useState<string[]>([]);
@@ -1426,6 +1430,8 @@ export function PropertyForm({
         setFloorNumber(property.floor_number !== null && property.floor_number !== undefined ? String(property.floor_number) : '');
         setTotalFloors(property.total_floors !== null && property.total_floors !== undefined ? String(property.total_floors) : '');
         setBalconies(property.balconies !== null && property.balconies !== undefined ? String(property.balconies) : '');
+        setFlooring(property.flooring ?? '');
+        setPowerBackup(property.power_backup ?? '');
         setIsPublished(property.is_published);
         setFeatures(property.features || []);
         setNearbyHighlights(property.nearby_highlights || []);
@@ -2283,6 +2289,8 @@ export function PropertyForm({
         floor_number: parsedFloorNumber,
         total_floors: parsedTotalFloors,
         balconies: parsedBalconies,
+        flooring: !isLand && flooring ? flooring : null,
+        power_backup: !isLand && powerBackup ? powerBackup : null,
         area_sqft: parsedAreaSqft,
         area_unit: areaUnit,
         land_area: parsedLandArea,
@@ -4782,6 +4790,44 @@ export function PropertyForm({
                         When the buyer gets the keys. Leave empty if it isn&apos;t committed yet.
                       </p>
                     </div>
+
+                    {!isLand && (
+                      <>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-flooring" className="text-slate-300">
+                            Flooring
+                          </Label>
+                          <select
+                            id="prop-flooring"
+                            value={flooring}
+                            onChange={(e) => setFlooring(e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                          >
+                            <option value="">Select Flooring</option>
+                            {FLOORING_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-power-backup" className="text-slate-300">
+                            Power Backup
+                          </Label>
+                          <select
+                            id="prop-power-backup"
+                            value={powerBackup}
+                            onChange={(e) => setPowerBackup(e.target.value)}
+                            className="flex h-9 w-full rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-950 font-medium"
+                          >
+                            <option value="">Select Power Backup</option>
+                            {POWER_BACKUP_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </>
+                    )}
 
                     {hasBedsBaths && (
                       <div className="space-y-1.5">

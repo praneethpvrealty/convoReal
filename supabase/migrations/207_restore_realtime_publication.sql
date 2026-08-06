@@ -1,5 +1,5 @@
 -- ============================================================
--- 206_restore_realtime_publication.sql
+-- 207_restore_realtime_publication.sql
 -- Re-assert supabase_realtime publication membership.
 --
 -- The publication is a database object, not a table property, so a

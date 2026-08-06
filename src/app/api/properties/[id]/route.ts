@@ -110,6 +110,8 @@ export async function PUT(
       floor_number,
       total_floors,
       balconies,
+      flooring,
+      power_backup,
       area_sqft,
       area_unit,
       land_area,
@@ -396,6 +398,14 @@ export async function PUT(
 
     if (balconies !== undefined) {
       updateData.balconies = typeof balconies === "number" ? balconies : null;
+    }
+
+    if (flooring !== undefined) {
+      updateData.flooring = typeof flooring === "string" ? flooring.trim() || null : null;
+    }
+
+    if (power_backup !== undefined) {
+      updateData.power_backup = typeof power_backup === "string" ? power_backup.trim() || null : null;
     }
 
     if (nearby_highlights !== undefined) {
