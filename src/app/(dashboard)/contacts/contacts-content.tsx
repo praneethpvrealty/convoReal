@@ -1490,16 +1490,24 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     if (!deleteTarget) return;
     setDeleting(true);
 
-    const { error } = await supabase
-      .from('contacts')
-      .delete()
-      .eq('id', deleteTarget.id);
-
-    if (error) {
-      toast.error('Failed to delete contact');
-    } else {
+    // Routed through the API rather than deleting straight from the
+    // browser: a delete the RLS policy refuses removes zero rows and
+    // reports no error, so the client cannot tell success from refusal
+    // and used to claim the contact was deleted either way. The route
+    // resolves ownership first and answers 403/404.
+    try {
+      const response = await fetch(`/api/contacts/${deleteTarget.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to delete contact');
+      }
       toast.success('Contact deleted');
+      localCache.clear();
       fetchContactsWithInvalidate();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete contact');
     }
 
     setDeleting(false);
