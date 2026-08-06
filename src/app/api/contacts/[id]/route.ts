@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole, toErrorResponse } from '@/lib/auth/account';
+import { requireOrgRole, requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sanitizeAreasGeo } from '@/lib/contacts/area-geo';
 
@@ -176,6 +176,52 @@ export async function PUT(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contactIds: [contactId] }),
     }).catch(() => {});
+
+    return NextResponse.json({ id: contactId });
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+}
+
+// DELETE /api/contacts/[id] — hard-delete a contact. Manager-only, matching
+// the contacts_delete RLS policy (migration 082). Dependent rows follow the
+// FK rules set in migration 004: operational children cascade, while history
+// (broadcast_recipients, deals) survives with a NULL contact_id.
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const ctx = await requireOrgRole('org_manager');
+    const { id: contactId } = await params;
+
+    const limit = checkRateLimit(
+      `manager:deleteContact:${ctx.userId}`,
+      RATE_LIMITS.adminAction,
+    );
+    if (!limit.success) return rateLimitResponse(limit);
+
+    // `.select()` so a row blocked by RLS or belonging to another account
+    // comes back as 404 rather than a silent success on zero rows.
+    const { data, error } = await ctx.supabase
+      .from('contacts')
+      .delete()
+      .eq('id', contactId)
+      .eq('account_id', ctx.accountId)
+      .select('id')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[DELETE /api/contacts/[id]] Delete error:', error);
+      return NextResponse.json(
+        { error: error.message ?? 'Failed to delete contact' },
+        { status: 500 },
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+    }
 
     return NextResponse.json({ id: contactId });
   } catch (err) {

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { placeDetails, placesAutocomplete, sessionToken } from '@/lib/api';
+import { ApiError, placeDetails, placesAutocomplete, sessionToken } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
 import type { AreaOfInterestGeo } from '@/lib/types';
@@ -35,7 +35,11 @@ export function AreasOfInterestInput({
   const debounced = useDebounced(input.trim());
 
   const enabled = focused && debounced.length >= 2;
-  const { data: suggestions, isFetching } = useQuery({
+  const {
+    data: suggestions,
+    isFetching,
+    isError,
+  } = useQuery({
     queryKey: ['area-suggest', debounced],
     enabled,
     staleTime: 60_000,
@@ -43,9 +47,13 @@ export function AreasOfInterestInput({
       try {
         const res = await placesAutocomplete(debounced, session.current);
         return res.suggestions.slice(0, 5);
-      } catch {
-        // 501 = no Google key configured; degrade to plain text add.
-        return [];
+      } catch (err) {
+        // 501 = no Google key configured: a permanent, expected state, so
+        // degrade to plain text add. Everything else (timeout, 429, network
+        // drop) has to rethrow — swallowing it caches an empty list as a
+        // successful "no matches" and the retry never runs.
+        if (err instanceof ApiError && err.status === 501) return [];
+        throw err;
       }
     },
   });
@@ -157,6 +165,12 @@ export function AreasOfInterestInput({
             <Ionicons name="add" size={20} color={colors.primary} />
           </Pressable>
         </View>
+
+        {enabled && isError ? (
+          <Text style={{ fontSize: 12, color: colors.textMuted, paddingTop: spacing.xs }}>
+            Couldn&rsquo;t load suggestions. Tap + to add &ldquo;{debounced}&rdquo; anyway.
+          </Text>
+        ) : null}
 
         {enabled && suggestions && suggestions.length > 0 ? (
           <View
