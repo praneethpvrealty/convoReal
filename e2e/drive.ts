@@ -30,6 +30,32 @@ async function shot(page: Page, name: string) {
   console.log(`  ▸ ${SHOTS}/${name}.png`);
 }
 
+// A cold dev server compiles each route on first visit, and a fixed pause
+// photographs the "Compiling..." blank instead of the page. Waiting for
+// content to exist returns as soon as it does; networkidle is useless here
+// because realtime and HMR keep a connection open for the whole session.
+async function settle(page: Page) {
+  await page
+    .waitForFunction(
+      () => ((document.querySelector('main') ?? document.body) as HTMLElement).innerText.trim().length > 40,
+      undefined,
+      { timeout: 60_000, polling: 250 },
+    )
+    .catch(() => {});
+  // Content existing is not the same as content being final: the pipelines
+  // board renders "No pipelines yet" for a beat before its board arrives.
+  await page.waitForTimeout(2500);
+}
+
+// A blank page is the failure this harness is least able to notice: it
+// screenshots happily and every assertion about absent things still holds.
+async function assertRendered(page: Page, label: string, problems: string[]) {
+  const text = (await page.locator('main, body').first().innerText().catch(() => '')).trim();
+  if (text.length < 40) {
+    problems.push(`${label} rendered blank (${text.length} chars of text)`);
+  }
+}
+
 async function main() {
   mkdirSync(SHOTS, { recursive: true });
   const env = creds();
@@ -91,12 +117,14 @@ async function main() {
     // waitForURL fires the moment the route changes, which is before the
     // profile and the stat tiles resolve — shooting now photographs
     // skeletons and a placeholder user name.
-    await page.waitForTimeout(3000);
+    await settle(page);
+    await assertRendered(page, '/dashboard', problems);
     await shot(page, '01-after-login');
 
     console.log('settings → whatsapp templates');
     await page.goto(`${BASE}/settings?tab=whatsapp&sub=templates`, { waitUntil: 'domcontentloaded' });
-    await page.waitForTimeout(3000);
+    await settle(page);
+    await assertRendered(page, '/settings templates', problems);
     await shot(page, '02-templates');
 
     // The banner this harness was built to verify.
@@ -113,10 +141,13 @@ async function main() {
       ['03-inventory', '/inventory'],
       ['04-contacts', '/contacts'],
       ['05-radar', '/radar'],
+      ['06-inbox', '/inbox'],
+      ['07-pipelines', '/pipelines'],
     ] as const) {
       console.log(`visiting ${path}`);
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
-      await page.waitForTimeout(2500);
+      await settle(page);
+      await assertRendered(page, path, problems);
       await shot(page, name);
     }
   } finally {
