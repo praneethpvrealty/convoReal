@@ -60,6 +60,24 @@
     'Floor No.': ['total'],
   };
 
+  // A villa carries both a plot area and a built-up area, and the generic
+  // 'area' hint makes either one match the other's input. When the payload
+  // has both, each must stay off the other's box; when it has only one,
+  // that field may still fall back to the portal's lone area input rather
+  // than leave the step's mandatory area empty.
+  const AREA_ANTIHINTS = {
+    'Built-up Area': ['plot area', 'land area'],
+    'Plot Area': ['built-up', 'built up', 'super area', 'carpet'],
+  };
+
+  function antihintsFor(label, fields) {
+    const base = FIELD_ANTIHINTS[label] || [];
+    if (!AREA_ANTIHINTS[label]) return base;
+    const both = fields.some((f) => f.label === 'Plot Area')
+      && fields.some((f) => f.label === 'Built-up Area');
+    return both ? [...base, ...AREA_ANTIHINTS[label]] : base;
+  }
+
   const NUMERIC_FIELDS = new Set([
     'Expected Price', 'Monthly Rent', 'Maintenance', 'Security Deposit / Advance',
     'Built-up Area', 'Plot Area', 'Bedrooms', 'Bathrooms',
@@ -384,8 +402,8 @@
           if (used.has(el) || (el.value === value && !isTypeahead)) continue;
           const ctx = contextText(el);
           if (!ctx) continue;
-          const antihints = FIELD_ANTIHINTS[field.label];
-          if (antihints && antihints.some((h) => ctx.includes(h))) continue;
+          const antihints = antihintsFor(field.label, fields);
+          if (antihints.some((h) => ctx.includes(h))) continue;
           let score = 0;
           hints.forEach((hint, idx) => {
             if (ctx.includes(hint)) score = Math.max(score, hints.length - idx + (hint.length > 6 ? 1 : 0));
@@ -627,6 +645,73 @@
     return false;
   }
 
+  // ── Amenity / feature chips ───────────────────────────────────
+  // The amenities step is multi-select: every listed feature that has a
+  // chip gets ticked. Chip labels read "+ Gated Society" until selected
+  // and "✓ Gated Society" after, so an already-on chip is left alone —
+  // clicking it again would turn it off.
+
+  function normalizeAmenity(text) {
+    return normalizedText(text).replace(/^[+✓]\s*/, '').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  }
+
+  // Engine feature wording → the portals' chip wording where they differ.
+  const AMENITY_ALIASES = {
+    'gated community': 'gated society',
+    gym: 'gymnasium',
+    security: 'security guard',
+    'security cabin': 'security guard',
+    cctv: 'security guard',
+    lift: 'private lift',
+    vastu: 'vaastu compliant',
+    'vastu compliant': 'vaastu compliant',
+    'corner plot': 'corner property',
+    'kids play area': 'childrens play area',
+    'play area': 'childrens play area',
+    clubhouse: 'club house',
+    'rainwater harvesting': 'rain water harvesting',
+    'borewell': 'water storage',
+  };
+
+  function clickAmenities(fields) {
+    const raw = fields.find((f) => f.label === 'Amenities')?.value || '';
+    const wants = raw.split(',').map(normalizeAmenity).filter(Boolean)
+      .map((a) => AMENITY_ALIASES[a] || a);
+    if (wants.length === 0) return 0;
+
+    const chips = [...document.querySelectorAll('button, label, li, span, div, [role="checkbox"], [role="button"]')]
+      .filter((el) => {
+        if (el.closest(`#${PANEL_ID}, a[href], nav, header, footer`)) return false;
+        if (el.childElementCount > 2) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 20 && rect.height > 14 && rect.width < 420 && rect.height < 90;
+      });
+
+    const used = new Set();
+    let clicked = 0;
+    for (const want of wants) {
+      const hit = chips.find((el) => {
+        if (used.has(el)) return false;
+        const text = normalizeAmenity(el.textContent);
+        if (!text) return false;
+        return text === want
+          || (want.length > 5 && text.includes(want))
+          || (text.length > 5 && want.includes(text));
+      });
+      if (!hit) continue;
+      used.add(hit);
+      const input = choiceInput(hit);
+      if (input ? input.checked : normalizedText(hit.textContent).startsWith('✓')) continue;
+      try {
+        clickChoiceElement(hit);
+        clicked++;
+      } catch {
+        // Next feature — amenities are optional everywhere.
+      }
+    }
+    return clicked;
+  }
+
   // ── Native <select> dropdowns ─────────────────────────────────
   // MagicBricks renders Property Type (and bedroom/bathroom counts on
   // some steps) as real <select> elements, which neither the chip
@@ -771,9 +856,27 @@
     return true;
   }
 
+  /** 99acres' area step shows the plot box and hides the rest behind a
+   *  "+ Built-up Area" toggle — click it when we have that value so the
+   *  fill pass has both inputs. Carpet area is left alone: not the same
+   *  number. */
+  async function revealBuiltUpArea(fields) {
+    if (!fields.some((f) => f.label === 'Built-up Area')) return;
+    const inputs = [...document.querySelectorAll('input')].filter(isFillable);
+    if (inputs.some((el) => /built.?up|super area/.test(contextText(el)))) return;
+    const toggle = [...document.querySelectorAll('a, button, span, div')].find((el) => {
+      if (el.closest(`#${PANEL_ID}`) || el.children.length > 0) return false;
+      return /^\+\s*built[- ]?up area$/.test(normalizedText(el.textContent));
+    });
+    if (!toggle) return;
+    simulateClick(toggle);
+    await sleep(350);
+  }
+
   async function autofill(fields) {
     const handled = new Set();
     const report = { satisfied: new Set(), failed: new Set() };
+    await revealBuiltUpArea(fields);
     let done = await fillTextFields(fields, handled, report);
     done += fillSelects(fields, report);
     // Chips first-to-last: each click can reveal the next section, so
@@ -788,6 +891,10 @@
     }
     done += fillSelects(fields, report);
     done += await fillTextFields(fields, handled, report);
+    if (clickAmenities(fields) > 0) {
+      done++;
+      report.satisfied.add('Amenities');
+    }
     // A field handled by any pass is not a failure (e.g. a typeahead
     // that failed once then committed on a later sweep).
     for (const label of report.satisfied) report.failed.delete(label);
