@@ -17,7 +17,7 @@ import type { MessageTemplate, Property } from '@/types';
 // One property share to one contact through the account's WhatsApp
 // Business number, template-first like /api/radar/send: an open 24-hour
 // service window sends the caller-composed free-form message; a closed
-// window sends the pre-approved `new_property_alert` template instead
+// window sends the pre-approved property-details template instead
 // of dead-ending. Only when the window is closed AND the template isn't
 // approved does the share come back unsent, with the template's status
 // so the client can say "pending approval" vs "never set up".

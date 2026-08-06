@@ -22,7 +22,7 @@ import type { MatchEvent, MessageTemplate, Property } from '@/types';
 // Channel selection per recipient (template-first strategy): radar
 // targets almost never have an open 24-hour service window — they're
 // matched buyers, not active chats — so the pre-approved
-// `new_property_alert` template is the default delivery path. An open
+// property-details template is the default delivery path. An open
 // window upgrades the send to the richer free-form message (photo +
 // full details). Only when the window is closed AND the template isn't
 // approved yet does a recipient come back unsent (`templateMissing`),

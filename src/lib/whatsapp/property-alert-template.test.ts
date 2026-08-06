@@ -31,6 +31,24 @@ describe('buildPropertyAlertTemplatePayload', () => {
     expect(payload.name).toBe(PROPERTY_ALERT_TEMPLATE_NAME);
   });
 
+  it('is Utility, because Marketing is what Meta frequency-caps', () => {
+    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
+    // Marketing templates are dropped with error 131049 for any recipient
+    // at their per-user cap. Flipping this back silently loses sends.
+    expect(payload.category).toBe('Utility');
+  });
+
+  it('carries no opt-out footer, which would read as promotional', () => {
+    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
+    expect(payload.footer_text ?? '').not.toMatch(/stop|unsubscribe/i);
+  });
+
+  it('is worded as a reply to a request, not as a broadcast', () => {
+    const body = buildPropertyAlertTemplatePayload('https://www.convoreal.com').body_text;
+    expect(body).toMatch(/enquiry/i);
+    expect(body).not.toMatch(/just came up|new property match|don't miss/i);
+  });
+
   it('orders quick replies before the dynamic URL button', () => {
     const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com/');
     const types = (payload.buttons ?? []).map((b) => b.type);
