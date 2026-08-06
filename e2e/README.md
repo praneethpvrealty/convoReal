@@ -38,3 +38,14 @@ what `ignoreHTTPSErrors` covers.
 
 A run that ends in `ERR_ABORTED` lines is normal — those are in-flight
 requests cancelled by the next `page.goto`, not failures.
+
+The walk covers the eight sections that own a screen, then the eight paths
+that do not: `/radar`, `/today`, `/pulse`, `/agents`, `/requirements`,
+`/pipelines`, `/flows` and `/ads` each replace themselves with a tab of
+another section. Those are checked against the URL they land on, so a shim
+that quietly stops redirecting fails rather than screenshotting a page that
+looks fine.
+
+Every screen is checked for a non-blank `<main>` and for a top bar naming
+the right section — the two failures a screenshot harness otherwise records
+without noticing.

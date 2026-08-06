@@ -49,10 +49,13 @@ async function settle(page: Page) {
 
 // A blank page is the failure this harness is least able to notice: it
 // screenshots happily and every assertion about absent things still holds.
+// Scoped to <main>, not body: the sidebar and header alone clear any
+// sensible threshold, so measuring the whole document passes a page whose
+// content area never rendered — which is exactly the case being caught.
 async function assertRendered(page: Page, label: string, problems: string[]) {
-  const text = (await page.locator('main, body').first().innerText().catch(() => '')).trim();
+  const text = (await page.locator('main').first().innerText().catch(() => '')).trim();
   if (text.length < 40) {
-    problems.push(`${label} rendered blank (${text.length} chars of text)`);
+    problems.push(`${label} rendered blank (${text.length} chars in <main>)`);
   }
 }
 
@@ -146,23 +149,48 @@ async function main() {
       problems.push('engine-template banner not rendered on the templates tab');
     }
 
-    // /pipelines and /radar are redirect shims onto a tab of another
-    // section, so the top bar names the destination, not the path asked for.
     for (const [name, path, header] of [
       ['03-inventory', '/inventory', 'Inventory'],
       ['04-contacts', '/contacts', 'Contacts'],
-      ['05-radar', '/radar', 'Dashboard'],
-      ['06-inbox', '/inbox', 'Inbox'],
-      ['07-pipelines', '/pipelines', 'Automations'],
-      ['08-calendar', '/calendar', 'Calendar'],
-      ['09-broadcasts', '/broadcasts', 'Broadcasts'],
-      ['10-journey', '/journey', 'Journey'],
-      ['11-liaisons', '/liaisons', 'Liaisons'],
-      ['12-settings', '/settings', 'Settings'],
+      ['05-inbox', '/inbox', 'Inbox'],
+      ['06-calendar', '/calendar', 'Calendar'],
+      ['07-broadcasts', '/broadcasts', 'Broadcasts'],
+      ['08-journey', '/journey', 'Journey'],
+      ['09-liaisons', '/liaisons', 'Liaisons'],
+      ['10-settings', '/settings', 'Settings'],
     ] as const) {
       console.log(`visiting ${path}`);
       await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
       await settle(page);
+      await assertRendered(page, path, problems);
+      await assertHeader(page, header, problems);
+      await shot(page, name);
+    }
+
+    // These eight paths hold nothing of their own — each replaces itself
+    // with a tab of another section. The URL asked for is therefore not the
+    // URL that must end up in the bar, and a shim that quietly stops
+    // redirecting would still render a fine-looking page.
+    for (const [name, path, lands, header] of [
+      ['11-shim-radar', '/radar', '/dashboard?tab=radar', 'Dashboard'],
+      ['12-shim-today', '/today', '/dashboard?tab=today', 'Dashboard'],
+      ['13-shim-pulse', '/pulse', '/dashboard?tab=pulse', 'Dashboard'],
+      ['14-shim-agents', '/agents', '/contacts?tab=agents', 'Contacts'],
+      ['15-shim-requirements', '/requirements', '/contacts?tab=requirements', 'Contacts'],
+      ['16-shim-pipelines', '/pipelines', '/automations?tab=pipelines', 'Automations'],
+      ['17-shim-flows', '/flows', '/automations?tab=flows', 'Automations'],
+      // Only the redirect is covered here: the Ads Campaigns tab is gated on
+      // NEXT_PUBLIC_META_ADS_APP_ID, which this environment does not set, so
+      // Inventory legitimately falls back to its listing tab.
+      ['18-shim-ads', '/ads', '/inventory?tab=ads', 'Inventory'],
+    ] as const) {
+      console.log(`visiting ${path} → ${lands}`);
+      await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
+      await settle(page);
+      const landed = page.url().replace(BASE, '');
+      if (landed !== lands) {
+        problems.push(`${path} landed on ${landed}, expected ${lands}`);
+      }
       await assertRendered(page, path, problems);
       await assertHeader(page, header, problems);
       await shot(page, name);
