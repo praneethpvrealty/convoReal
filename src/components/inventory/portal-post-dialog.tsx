@@ -36,6 +36,7 @@ import {
   missingRequiredFields,
   type PortalKey,
 } from '@/lib/portals/post-kit';
+import { parseListingIdFromUrl } from '@/lib/portals/listing-identity';
 
 interface PortalListingRow {
   id: string;
@@ -208,6 +209,7 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
           user_id: user?.id || null,
           portal: activePortal,
           listing_url: formUrl.trim() || null,
+          portal_listing_id: parseListingIdFromUrl(activePortal, formUrl),
           expires_on: formExpiry || null,
           status: 'active',
           expiry_reminder_sent: false,

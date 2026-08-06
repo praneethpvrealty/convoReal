@@ -18,6 +18,7 @@ import { toSquareFeet } from '@/lib/ai/listing-derivations';
 import { resolveHousingPhone } from './phone-resolver';
 import { writeSyncLog, assignTagsToContact } from './db-utils';
 import { sendAutoReply } from './auto-reply';
+import { portalKeyFromSource } from '@/lib/portals/listing-identity';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 
 // Re-export for route.test.ts and backward compatibility
@@ -171,6 +172,11 @@ const LEAD_WEBHOOK_LIMIT = { limit: 60, windowMs: 60_000 };
  *  At 200 the preview held only the HTML doctype header, so a
  *  mis-matched lead could not be re-checked without the mailbox. */
 const BODY_PREVIEW_CHARS = 4000;
+
+/** Logged as the match score when the portal's own ad id resolved the
+ *  property — well above anything the heuristic scorer can reach, so an
+ *  exact attribution is recognisable in email_sync_logs. */
+const EXACT_PORTAL_MATCH_SCORE = 100;
 
 export async function POST(request: Request) {
   let accountId = '';
@@ -561,7 +567,34 @@ export async function POST(request: Request) {
     // Score the winner took, logged so a coincidental match (a low score
     // with no parsed locality) is recognisable afterwards.
     let topMatchScore: number | null = null;
-    if (parsed.propertyType || parsed.propertyLocation || parsed.housingPropertyId) {
+
+    // Exact attribution first: when the portal quotes its own ad id and
+    // that id is on a property_portal_listings row, the lead belongs to
+    // that property and no scoring is needed. Falls back to the listing
+    // URL, which the same row carries.
+    const leadPortal = portalKeyFromSource(parsed.source);
+    if (leadPortal && parsed.portalListingId) {
+      try {
+        const { data: link } = await supabase
+          .from('property_portal_listings')
+          .select('property_id')
+          .eq('account_id', accountId)
+          .eq('portal', leadPortal)
+          .eq('portal_listing_id', parsed.portalListingId)
+          .maybeSingle();
+        if (link?.property_id) {
+          matchedPropertyIds = [link.property_id];
+          topMatchScore = EXACT_PORTAL_MATCH_SCORE;
+          console.log(
+            `[lead-webhook] Exact portal match: ${leadPortal} listing ${parsed.portalListingId} -> property ${link.property_id}`
+          );
+        }
+      } catch (err) {
+        console.error('[lead-webhook] Portal listing lookup failed:', err);
+      }
+    }
+
+    if (matchedPropertyIds.length === 0 && (parsed.propertyType || parsed.propertyLocation || parsed.housingPropertyId)) {
       try {
         // Fetch user's published properties.
         const { data: properties } = await supabase

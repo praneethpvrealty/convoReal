@@ -1,4 +1,8 @@
 import { extractHousingUrls } from './phone-resolver';
+import {
+  parseListingIdFromLead,
+  portalKeyFromSource,
+} from '@/lib/portals/listing-identity';
 
 // Decodes Quoted-Printable (QP) strings commonly found in email bodies/headers
 export function decodeQuotedPrintable(str: string): string {
@@ -676,6 +680,12 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
     areaSqft,
     propertyPrice,
     housingPropertyId: housingPropertyId || null,
+    // The portal's own ad id, when its email quotes one. An exact link
+    // back to property_portal_listings beats every heuristic below.
+    portalListingId:
+      parseListingIdFromLead(portalKeyFromSource(source), combined) ||
+      housingPropertyId ||
+      null,
   };
 }
 
