@@ -88,6 +88,10 @@ async function main() {
       throw new Error(`login did not navigate. on-page messages: ${JSON.stringify(err)}`);
     }
     console.log(`  landed on ${new URL(page.url()).pathname}`);
+    // waitForURL fires the moment the route changes, which is before the
+    // profile and the stat tiles resolve — shooting now photographs
+    // skeletons and a placeholder user name.
+    await page.waitForTimeout(3000);
     await shot(page, '01-after-login');
 
     console.log('settings → whatsapp templates');
