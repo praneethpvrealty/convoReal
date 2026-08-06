@@ -91,6 +91,9 @@ export interface Message {
 export interface Profile {
   account_id: string;
   account_role: string;
+  /** Org-hierarchy role (migration 082) — source of truth for the
+   *  manager-only capabilities, e.g. hard-deleting a contact. */
+  org_role?: string | null;
   full_name?: string | null;
 }
 

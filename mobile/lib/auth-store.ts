@@ -53,7 +53,7 @@ export function useAuthListener() {
     let cancelled = false;
     supabase
       .from('profiles')
-      .select('account_id, account_role, full_name')
+      .select('account_id, account_role, org_role, full_name')
       .eq('user_id', userId)
       .maybeSingle()
       .then(({ data }) => {
