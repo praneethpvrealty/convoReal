@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { normalisePhone } from '@/lib/contacts/find-or-create';
+import {
+  phoneMatchKey,
+  emailMatchKey,
+  nameMatchKey,
+  namesAreSimilar,
+} from '@/lib/contacts/duplicate-key';
 
 // GET /api/contacts/duplicates
-// Returns groups of contacts that share a normalised phone or email.
-// Each group has a `reason` ('phone' | 'email') and ≥2 contacts.
+// Returns groups of contacts that share a phone, an email, or a name,
+// compared on the match keys in @/lib/contacts/duplicate-key rather than
+// the stored text. Each group has a `reason` ('phone' | 'email' | 'name')
+// and ≥2 contacts. Name groups are the weakest signal and are only
+// reported for contacts no stronger signal already covers.
 // Only non-merged contacts are considered.
 
 export interface DuplicateContact {
@@ -20,8 +28,8 @@ export interface DuplicateContact {
 }
 
 export interface DuplicateGroup {
-  reason: 'phone' | 'email';
-  key: string;   // normalised phone or email
+  reason: 'phone' | 'email' | 'name';
+  key: string;   // match key, or the representative name for a name group
   contacts: DuplicateContact[];
 }
 
@@ -48,17 +56,17 @@ export async function GET() {
     const emailMap = new Map<string, typeof contacts>();
 
     for (const c of contacts) {
-      const norm = normalisePhone(c.phone);
-      if (norm.length >= 7) {
-        const existing = phoneMap.get(norm) ?? [];
+      const phoneKey = phoneMatchKey(c.phone);
+      if (phoneKey) {
+        const existing = phoneMap.get(phoneKey) ?? [];
         existing.push(c);
-        phoneMap.set(norm, existing);
+        phoneMap.set(phoneKey, existing);
       }
-      if (c.email) {
-        const normEmail = c.email.trim().toLowerCase();
-        const existing = emailMap.get(normEmail) ?? [];
+      const emailKey = emailMatchKey(c.email);
+      if (emailKey) {
+        const existing = emailMap.get(emailKey) ?? [];
         existing.push(c);
-        emailMap.set(normEmail, existing);
+        emailMap.set(emailKey, existing);
       }
     }
 
@@ -86,15 +94,64 @@ export async function GET() {
       });
     }
 
+    const surfaced = new Set(inPhoneGroup);
+
     for (const [key, rows] of emailMap.entries()) {
       if (rows.length < 2) continue;
       // Skip if all contacts are already surfaced in a phone group
       const newRows = rows.filter((r) => !inPhoneGroup.has(r.id));
       if (newRows.length < 2) continue;
+      newRows.forEach((r) => surfaced.add(r.id));
       groups.push({
         reason: 'email',
         key,
         contacts: newRows.map((r) => ({
+          id: r.id,
+          name: r.name,
+          phone: r.phone,
+          email: r.email,
+          source: r.source,
+          classification: r.classification,
+          created_at: r.created_at,
+          conversation_count: 0,
+          name_tag: r.name_tag,
+        })),
+      });
+    }
+
+    // Same person, different number. Only for contacts no stronger signal
+    // has already accounted for — a pair that shares a phone is a better
+    // find, and listing it twice would just cost the reader a second look.
+    const nameMap = new Map<string, typeof contacts>();
+    for (const c of contacts) {
+      if (surfaced.has(c.id)) continue;
+      const key = nameMatchKey(c.name);
+      if (!key) continue;
+      const existing = nameMap.get(key) ?? [];
+      existing.push(c);
+      nameMap.set(key, existing);
+    }
+
+    // Fold near-identical keys together so a typo does not split a pair.
+    // Clustering the distinct keys rather than the contacts keeps this off
+    // the quadratic path an account with thousands of contacts would feel.
+    const clusters: { keys: string[]; rows: typeof contacts }[] = [];
+    for (const [key, rows] of nameMap.entries()) {
+      const match = clusters.find((cl) => cl.keys.some((k) => namesAreSimilar(k, key)));
+      if (match) {
+        match.keys.push(key);
+        match.rows.push(...rows);
+      } else {
+        clusters.push({ keys: [key], rows: [...rows] });
+      }
+    }
+
+    for (const cluster of clusters) {
+      if (cluster.rows.length < 2) continue;
+      groups.push({
+        reason: 'name',
+        key: cluster.rows[0].name ?? cluster.keys[0],
+        contacts: cluster.rows.map((r) => ({
           id: r.id,
           name: r.name,
           phone: r.phone,

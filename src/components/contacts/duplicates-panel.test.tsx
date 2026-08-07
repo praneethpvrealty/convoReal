@@ -15,13 +15,7 @@
 // ============================================================
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import {
-  render,
-  cleanup,
-  screen,
-  waitFor,
-  fireEvent,
-} from '@testing-library/react';
+import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
 
@@ -96,14 +90,25 @@ describe('duplicates panel', () => {
     expect(screen.getByText('1 extra')).toBeTruthy();
   });
 
-  it('stays out of the way when the account has no duplicates', async () => {
+  // Rendering nothing was indistinguishable from the feature being gone,
+  // which is exactly how it was reported: an account that had merged its
+  // duplicates away looked like an account whose panel had been deleted.
+  it('says so when the account has no duplicates', async () => {
     mockGroups({ groups: [] });
-    const { container } = renderPanel();
+    renderPanel();
 
-    await waitFor(() =>
-      expect(container.textContent).not.toMatch(/Checking for duplicates/)
-    );
-    expect(container.textContent).toBe('');
+    expect(await screen.findByText(/No duplicate contacts found/)).toBeTruthy();
+  });
+
+  it('offers a re-check when it found nothing', async () => {
+    const fetchMock = mockGroups({ groups: [] }, { groups: [GROUP] });
+    renderPanel();
+
+    await screen.findByText(/No duplicate contacts found/);
+    fireEvent.click(screen.getByTitle('Re-check for duplicates'));
+
+    expect(await screen.findByText(/1 duplicate group detected/)).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('never lets an earlier empty result suppress the check', async () => {
@@ -128,6 +133,30 @@ describe('duplicates panel', () => {
     expect(screen.getByText(/Same phone/)).toBeTruthy();
     expect(screen.getByText('Chetan kumar')).toBeTruthy();
     expect(screen.getByText('C Kumar')).toBeTruthy();
+  });
+
+  // A name group is a guess, not a finding — two people really can share
+  // one. It has to read differently from a shared phone number, or someone
+  // merges two strangers on the same trust they gave an exact match.
+  it('marks a name group as the weaker signal it is', async () => {
+    mockGroups({
+      groups: [
+        {
+          reason: 'name',
+          key: 'Anita Desai',
+          contacts: [
+            { ...GROUP.contacts[0], id: 'n1', name: 'Anita Desai', phone: '+919111111111' },
+            { ...GROUP.contacts[1], id: 'n2', name: 'Anita Desai', phone: '+919222222222' },
+          ],
+        },
+      ],
+    });
+    renderPanel();
+
+    fireEvent.click(await screen.findByText(/1 duplicate group detected/));
+
+    expect(screen.getByText(/Similar name/)).toBeTruthy();
+    expect(screen.getByText(/check before merging/)).toBeTruthy();
   });
 
   it('re-checks on demand without a remount', async () => {
