@@ -13,6 +13,25 @@ and polish.
 
 ### Added
 
+- **Shared requirements can now be answered, not just read.** Passing a
+  client brief to another brokerage used to be copy-pasted text: the
+  broker read it on their personal WhatsApp and, if they had something
+  matching, forwarded it back as a message you had to qualify and type
+  into inventory yourself. The share dialog now attaches a link to each
+  brief. The broker opens it, sees the requirement — masked by default,
+  so the budget and locality travel under a code like `REQ-A3F2` while
+  the client's name, your tags and your notes stay behind — and sends a
+  matching property straight from that page. If they would rather use
+  WhatsApp, the same page hands them your Engine number with the code
+  filled in; texting it starts the guided listing bot, so a broker who
+  only ever forwards photos gets walked through a proper listing. Both
+  routes land the property in Inventory under **Review** with the
+  requirement reference on the confirmation and a note on the client's
+  card recording who answered, and the sender is filed as an Agent
+  rather than an owner lead, so responding to a brief builds out your
+  co-broker network. Links carry an expiry and can be revoked; a dead
+  one reveals nothing.
+  **Migration required:** `210_requirement_share_links.sql`.
 - **Service credit: extend a customer's subscription when we let them
   down.** After an outage, a slow patch or a billing mistake on our
   side, a super-admin can now add paid days to affected accounts from

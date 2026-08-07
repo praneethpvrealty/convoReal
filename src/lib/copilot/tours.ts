@@ -322,6 +322,61 @@ export const TOURS: Tour[] = [
       },
     ],
   },
+  {
+    id: 'share-requirement',
+    title: 'Share a requirement with another broker',
+    description:
+      'Send a client’s requirement to other agents and collect matching listings back',
+    triggers: [
+      /share.{0,25}(requirement|brief|demand)/i,
+      /(requirement|brief|demand).{0,25}(share|send|bhejo|bhejna|kaise|kese)/i,
+      /co.?broker/i,
+      /(other|another|fellow).{0,15}(agent|broker).{0,30}(requirement|listing|inventory)/i,
+    ],
+    steps: [
+      {
+        ...ANYWHERE,
+        target: 'nav-contacts',
+        title: 'Open Contacts',
+        body: 'Client requirements live under **Contacts**. Click it in the menu.',
+        advanceOn: 'click-target',
+        skipIfNextRouteActive: true,
+        requiresSidebar: true,
+      },
+      {
+        route: '/contacts',
+        target: 'contacts-tab-requirements',
+        title: 'Go to Requirements',
+        body: 'Click the **Requirements** tab to see every client brief.',
+        advanceOn: 'click-target',
+        skipIfNextRouteActive: true,
+      },
+      {
+        route: '/contacts',
+        query: { tab: 'requirements' },
+        target: 'share-requirement',
+        title: 'Share the brief',
+        body: 'Click the **share** icon on any requirement card. To send several at once, tick the cards first and use **Share with brokers** at the top.',
+        advanceOn: 'click-target',
+      },
+      {
+        route: '/contacts',
+        query: { tab: 'requirements' },
+        target: 'share-requirement',
+        title: 'Masked or full detail?',
+        body: '**Masked** is the safe default — the other broker sees the budget and locality under a code like REQ-A3F2, never your client’s name or your notes. Pick **Full detail** only for someone inside your own firm.',
+        advanceOn: 'next',
+      },
+      {
+        route: '/contacts',
+        query: { tab: 'requirements' },
+        target: 'share-requirement',
+        title: 'Send it and collect listings',
+        body: 'Keep **Interactive response links** on, then press **Send on WhatsApp**. The broker gets a link where they can send you a matching property — it arrives in Inventory under **Review** for you to approve. \u{1F91D}',
+        advanceOn: 'next',
+      },
+    ],
+  },
 ];
 
 export function getTour(id: string): Tour | undefined {

@@ -24,6 +24,7 @@
 - **Real-time dashboard** — Response times, daily volume, pipeline value, activity feed.
 - **Team collaboration** — Multi-tenant accounts with role-based access (owner/admin/agent/viewer). Invitation-based onboarding.
 - **Property sharing** — Interactive WhatsApp share with "Show More Properties" and "Browse All". Co-broker sharing with agent-mode links.
+- **Requirement sharing** — Send a client brief to another brokerage, masked under a `REQ-` code. The link opens a page where they submit a matching listing, or they reply on WhatsApp quoting the code and the intake bot walks them through it. Either route lands a Pending Review property tied back to the requirement.
 - **WhatsApp update sessions** — Contacts can update property or contact info by texting "update property PROP-1018" directly on WhatsApp.
 - **Gated document sharing** — Secure token-based document access with approval workflow and 48h expiry.
 - **Calendar & appointments** — Site visit scheduling with automated WhatsApp reminders (24h + 2h).
