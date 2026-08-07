@@ -68,13 +68,19 @@ export function AgentProperties({
           variant: 'destructive',
           onPress: async () => {
             close();
-            const { error } = await supabase
+            const { data: unlinked, error } = await supabase
               .from('properties')
               .update({ owner_contact_id: null })
-              .eq('id', p.id);
-            if (error) {
+              .eq('id', p.id)
+              .select('id');
+            if (error || !unlinked?.length) {
               haptic.warn();
-              show({ title: 'Could not unlink', message: friendlyError(error.message) });
+              show({
+                title: 'Could not unlink',
+                message: error
+                  ? friendlyError(error.message)
+                  : 'That property is no longer there.',
+              });
               return;
             }
             haptic.success();
@@ -182,10 +188,14 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
   });
 
   async function assign(propertyId: string) {
-    const { error: updateError } = await supabase
+    const { data: assigned, error: assignError } = await supabase
       .from('contacts')
       .update({ last_inquired_property_id: propertyId })
-      .eq('id', contact.id);
+      .eq('id', contact.id)
+      .select('id');
+    const updateError =
+      assignError ??
+      (assigned?.length ? null : { message: 'That contact is no longer there.' });
     const { error: inqError } = await supabase
       .from('contact_property_inquiries')
       .upsert(
@@ -234,6 +244,9 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
             if (contact.last_inquired_property_id === p.id) {
               await supabase
                 .from('contacts')
+                // Detaching the headline interest after its link was
+                // already removed above; that removal is what is reported.
+                // eslint-disable-next-line convoreal/supabase-write-guard
                 .update({ last_inquired_property_id: null })
                 .eq('id', contact.id);
             }
@@ -826,14 +839,20 @@ export function AgentRequirements({ agent }: { agent: Contact }) {
 
   async function save() {
     setSaving(true);
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from('contacts')
       .update({ requirements: text.trim() || null, updated_at: new Date().toISOString() })
-      .eq('id', agent.id);
+      .eq('id', agent.id)
+      .select('id');
     setSaving(false);
-    if (error) {
+    if (error || !saved?.length) {
       haptic.warn();
-      show({ title: 'Could not save', message: friendlyError(error.message) });
+      show({
+        title: 'Could not save',
+        message: error
+          ? friendlyError(error.message)
+          : 'That agent is no longer there.',
+      });
       return;
     }
     haptic.success();

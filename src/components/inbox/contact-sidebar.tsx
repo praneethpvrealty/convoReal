@@ -149,11 +149,12 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
       prev.map((n) => (n.id === note.id ? { ...n, is_completed: newVal } : n))
     );
     const supabase = createClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("contact_notes")
       .update({ is_completed: newVal })
-      .eq("id", note.id);
-    if (error) {
+      .eq("id", note.id)
+      .select("id");
+    if (error || !data?.length) {
       // Revert on failure
       setNotes((prev) =>
         prev.map((n) => (n.id === note.id ? { ...n, is_completed: !newVal } : n))
@@ -184,11 +185,12 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
       setEditingText("");
 
       const supabase = createClient();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("contact_notes")
         .update({ note_text: trimmed })
-        .eq("id", noteId);
-      if (error) {
+        .eq("id", noteId)
+        .select("id");
+      if (error || !data?.length) {
         toast.error("Failed to save note");
         // Refetch to restore true state
         fetchContactData();

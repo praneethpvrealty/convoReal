@@ -73,12 +73,16 @@ async function linkItemsToProperty(ctx: AccountContext, items: StagedItem[], pro
   );
   if (linkError) throw linkError;
 
-  const { error: itemError } = await ctx.supabase
+  const { data: marked, error: itemError } = await ctx.supabase
     .from('portal_import_items')
     .update({ match_status: 'imported', matched_property_id: propertyId })
     .in('id', items.map((i) => i.id))
-    .eq('account_id', ctx.accountId);
+    .eq('account_id', ctx.accountId)
+    .select('id');
   if (itemError) throw itemError;
+  if (marked?.length !== items.length) {
+    throw new Error('Could not mark every imported row — reload and retry.');
+  }
 }
 
 export async function POST(request: Request) {
@@ -111,13 +115,17 @@ export async function POST(request: Request) {
     }
 
     if (action === 'ignore') {
-      const { error } = await ctx.supabase
+      const { data: ignored, error } = await ctx.supabase
         .from('portal_import_items')
         .update({ match_status: 'ignored' })
         .in('id', items.map((i) => i.id))
         .eq('account_id', ctx.accountId)
-        .is('matched_property_id', null);
+        .is('matched_property_id', null)
+        .select('id');
       if (error) throw error;
+      if (!ignored?.length) {
+        throw new Error('Nothing was ignored — reload and try again.');
+      }
       return NextResponse.json({ data: { ignored: items.length } });
     }
 

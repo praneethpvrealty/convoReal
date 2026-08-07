@@ -479,12 +479,14 @@ export function ContactDetailView({
 
   async function handleUnlinkProperty(propertyId: string) {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('properties')
         .update({ owner_contact_id: null })
-        .eq('id', propertyId);
+        .eq('id', propertyId)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('That property is no longer there.');
       toast.success('Property unlinked successfully');
       fetchAssociatedProperties();
       onUpdated();
@@ -497,12 +499,14 @@ export function ContactDetailView({
   async function handleLinkExistingProperty(propertyId: string | null) {
     if (!propertyId || !contactId) return;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('properties')
         .update({ owner_contact_id: contactId })
-        .eq('id', propertyId);
+        .eq('id', propertyId)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('That property is no longer there.');
       toast.success('Property linked to contact');
       setLinkExistingOpen(false);
       fetchAssociatedProperties();
@@ -515,12 +519,14 @@ export function ContactDetailView({
 
   const handleLinkInterestProperty = useCallback(async (propertyId: string | null) => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('contacts')
         .update({ last_inquired_property_id: propertyId })
-        .eq('id', contactId);
+        .eq('id', contactId)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('That contact is no longer there.');
 
       // Also add to junction table if linking a property
       if (propertyId) {
@@ -575,10 +581,14 @@ export function ContactDetailView({
       
       // If this was the last_inquired_property_id, clear it too
       if (editLastInquiredPropertyId === propertyId) {
-        await supabase
+        const { data: cleared } = await supabase
           .from('contacts')
           .update({ last_inquired_property_id: null })
-          .eq('id', contactId);
+          .eq('id', contactId)
+          .select('id');
+        if (!cleared?.length) {
+          throw new Error('Could not clear the linked interest.');
+        }
         setEditLastInquiredPropertyId(null);
         setInquiredProperty(null);
       }
@@ -1024,7 +1034,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       .map((p) => normalizePhoneWithCountryCode(p.trim(), defaultCc))
       .filter(Boolean);
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('contacts')
       .update({
         name: editName.trim() || null,
@@ -1045,11 +1055,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         feedback_status: editFeedbackStatus,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', contactId);
+      .eq('id', contactId)
+      .select('id');
 
-    if (error) {
+    if (error || !data?.length) {
       toast.error(
-        error.code === '23505'
+        error?.code === '23505'
           ? `A contact named "${editName.trim()} ${editSecondName.trim()}" already exists. Use a different second name to tell them apart.`
           : 'Failed to update contact'
       );
@@ -1138,15 +1149,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     if (!contactId) return;
     setApproving(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('contacts')
         .update({
           status: 'active',
           updated_at: new Date().toISOString()
         })
-        .eq('id', contactId);
+        .eq('id', contactId)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) {
+        throw new Error('You do not have permission to approve this contact.');
+      }
 
       if (sendDetailsOnApprove && inquiredProperty) {
         try {
@@ -1182,7 +1197,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     // Coordinates for areas removed from the list are dropped with them
     const prunedAreasGeo = pruneAreasGeo(editAreasGeo, editAreasOfInterest);
 
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from('contacts')
       .update({
         min_budget: editMinBudget ? Number(editMinBudget) : null,
@@ -1197,9 +1212,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         min_roi: editMinRoi ? Number(editMinRoi) : null,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', contactId);
+      .eq('id', contactId)
+      .select('id');
 
-    if (error) {
+    if (error || !saved?.length) {
       toast.error('Failed to update preferences');
     } else {
       toast.success('Real estate preferences updated');

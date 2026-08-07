@@ -72,11 +72,13 @@ export function ProfileEditSheet({
     setError(null);
     try {
       if (nextName !== (profile.full_name ?? '')) {
-        const { error: updateError } = await supabase
+        const { data: saved, error: updateError } = await supabase
           .from('profiles')
           .update({ full_name: nextName })
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .select('user_id');
         if (updateError) throw new Error(updateError.message);
+        if (!saved?.length) throw new Error('Your profile could not be updated.');
         setProfile({ ...profile, full_name: nextName });
       }
       if (renameAccount) {

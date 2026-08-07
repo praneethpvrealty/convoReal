@@ -75,6 +75,10 @@ export async function DELETE(request: NextRequest) {
     for (const [a, b] of pairsWithin(ids)) {
       const { error } = await ctx.supabase
         .from('contact_duplicate_dismissals')
+        // Restoring a pair that was never dismissed deletes nothing,
+        // which is the normal path across a set of ids rather than a
+        // refusal — the end state is what the caller asked for.
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .delete()
         .eq('account_id', ctx.accountId)
         .eq('contact_a_id', a)

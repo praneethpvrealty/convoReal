@@ -87,10 +87,22 @@ export async function POST(request: Request) {
     });
 
     // Update the order status in our database
-    await supabase
+    // The payment is captured and the credit already granted; if this
+    // audit row does not move, say so in the log rather than telling the
+    // buyer their paid top-up failed.
+    const { data: markedPaid } = await supabase
       .from('razorpay_orders')
       .update({ status: 'paid', payment_id: capturedPayment.id })
-      .eq('id', order.id);
+      .eq('id', order.id)
+      .select('id');
+
+    if (!markedPaid?.length) {
+      console.warn(
+        '[verify-razorpay] Order not marked paid:',
+        order.id,
+        capturedPayment.id,
+      );
+    }
 
     if (result.credited) {
       return NextResponse.json({

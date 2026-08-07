@@ -76,6 +76,8 @@ export async function POST(
       // Update db row
       await ctx.supabase
         .from('properties')
+        // Audit timestamp for a sync Meta has already accepted.
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update({
           meta_catalog_synced_at: new Date().toISOString(),
           meta_catalog_error: null,
@@ -89,6 +91,9 @@ export async function POST(
       // Update db error
       await ctx.supabase
         .from('properties')
+        // Recording why the Meta sync failed, on a path already
+        // returning that error to the caller.
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update({
           meta_catalog_error: errMsg,
         })

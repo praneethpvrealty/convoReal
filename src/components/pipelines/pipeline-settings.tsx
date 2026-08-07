@@ -120,13 +120,14 @@ export function PipelineSettings({
       supabase
         .from("pipelines")
         .update({ name: name.trim() })
-        .eq("id", pipeline.id),
+        .eq("id", pipeline.id)
+        .select("id"),
       supabase.from("pipeline_stages").upsert(stageRows, { onConflict: "id" }),
     ]);
 
     setSaving(false);
 
-    if (renameRes.error || stagesRes.error) {
+    if (renameRes.error || stagesRes.error || !renameRes.data?.length) {
       toast.error("Failed to save pipeline");
       return;
     }

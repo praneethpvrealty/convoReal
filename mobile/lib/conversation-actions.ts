@@ -17,16 +17,23 @@ export async function setConversationStatus(
   id: string,
   status: ConversationStatus
 ): Promise<void> {
-  const { error } = await supabase.from('conversations').update({ status }).eq('id', id);
+  const { data, error } = await supabase
+    .from('conversations')
+    .update({ status })
+    .eq('id', id)
+    .select('id');
   if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('That conversation is no longer there.');
   refresh(id);
 }
 
 export async function setConversationArchived(id: string, archived: boolean): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('conversations')
     .update({ is_archived: archived })
-    .eq('id', id);
+    .eq('id', id)
+    .select('id');
   if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('That conversation is no longer there.');
   refresh(id);
 }

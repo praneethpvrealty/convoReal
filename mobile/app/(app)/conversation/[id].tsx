@@ -152,6 +152,9 @@ export default function ConversationScreen() {
     if (!id) return;
     supabase
       .from('conversations')
+      // Read-receipt bookkeeping on open; the thread renders from
+      // messages either way and the next query reconciles the badge.
+      // eslint-disable-next-line convoreal/supabase-write-guard
       .update({ unread_count: 0 })
       .eq('id', id)
       .then(() => queryClient.invalidateQueries({ queryKey: ['conversations'] }));

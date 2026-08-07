@@ -141,6 +141,9 @@ export async function POST(request: Request) {
     if (isLegacyFormat(config.access_token)) {
       void supabase
         .from('whatsapp_config')
+        // Opportunistic re-encryption, declared last-write-wins above;
+        // the send does not depend on it.
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update({ access_token: encrypt(accessToken) })
         .eq('id', config.id)
         .then(({ error }) => {

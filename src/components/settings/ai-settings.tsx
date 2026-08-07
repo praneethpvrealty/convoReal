@@ -67,12 +67,16 @@ export function AiSettingsPanel() {
       };
 
       if (hasSettingsRecord) {
-        const { error } = await supabase
+        const { data: saved, error } = await supabase
           .from('showcase_settings')
           .update(payload)
-          .eq('account_id', accountId);
+          .eq('account_id', accountId)
+          .select('account_id');
 
         if (error) throw error;
+        if (!saved?.length) {
+          throw new Error('Your settings could not be saved.');
+        }
       } else {
         const { error } = await supabase
           .from('showcase_settings')

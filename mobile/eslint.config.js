@@ -11,10 +11,9 @@ module.exports = defineConfig([
   },
   {
     plugins: { convoreal: { rules: { 'supabase-write-guard': supabaseWriteGuard } } },
-    // Every .delete() here is clean; the 9 that remain are all .update(),
-    // left at 'warn' for the same reason as the rules below — visible
-    // rather than blocking. Clear them file by file, do not add new ones.
-    rules: { 'convoreal/supabase-write-guard': 'warn' },
+    // 'error' now that the backlog is clear — unlike the React Compiler
+    // rules below, this one has nothing left to grandfather.
+    rules: { 'convoreal/supabase-write-guard': 'error' },
   },
   {
     rules: {

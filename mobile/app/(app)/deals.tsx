@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { Confetti, EnterRow } from '@/components/motion';
 import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import {
@@ -99,6 +100,7 @@ export default function DealsScreen() {
     },
   });
   const pull = usePullRefresh(refetch);
+  const { show, dialogProps } = useAppDialog();
 
   const activeStage = stageId ?? stages?.[0]?.id ?? null;
   const stageDeals = useMemo(
@@ -116,17 +118,32 @@ export default function DealsScreen() {
     } else {
       haptic.tap();
     }
-    const { error } = await supabase
+    const { data: moved, error } = await supabase
       .from('deals')
       .update({ stage_id: stage.id, status })
-      .eq('id', deal.id);
+      .eq('id', deal.id)
+      .select('id');
+    if (!error && !moved?.length) {
+      haptic.warn();
+      show({
+        title: 'Could not move deal',
+        message: 'That deal is no longer there. Pull to refresh and try again.',
+      });
+      return;
+    }
     if (!error && deal.property_id) {
       const propertyStatus = propertyStatusForStage(stage.name);
       if (propertyStatus) {
-        await supabase
+        const { data: synced } = await supabase
           .from('properties')
           .update({ status: propertyStatus })
-          .eq('id', deal.property_id);
+          .eq('id', deal.property_id)
+          .select('id');
+        // The deal has already moved; a listing that did not follow is
+        // worth a log line, not a second dialog on top of the move.
+        if (!synced?.length) {
+          console.warn('[deals] Property status not synced:', deal.property_id);
+        }
       }
     }
     queryClient.invalidateQueries({ queryKey: ['deals', activePipeline] });
@@ -134,6 +151,7 @@ export default function DealsScreen() {
 
   return (
     <View style={{ flex: 1 }}>
+      <AppDialog {...dialogProps} />
       <Stack.Screen
         options={{
           headerShown: true,
