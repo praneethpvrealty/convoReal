@@ -554,6 +554,7 @@ function TodoQuickAdd() {
 function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   const { colors, fonts: f } = useTheme();
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const due = todo.due_date ? new Date(todo.due_date) : null;
   const overdue =
     due !== null && !todo.completed && due.getTime() < now.getTime();
@@ -561,12 +562,14 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   async function toggle() {
     haptic.tap();
     setBusy(true);
+    setError(null);
     try {
       await setTodoCompleted(todo.id, !todo.completed);
       if (!todo.completed) haptic.success();
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     } catch {
       haptic.warn();
+      setError('Could not update this task. Check your connection and try again.');
     } finally {
       setBusy(false);
     }
@@ -575,10 +578,13 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
   async function remove() {
     haptic.warn();
     setBusy(true);
+    setError(null);
     try {
       await deleteTodo(todo.id);
       queryClient.invalidateQueries({ queryKey: ['todos'] });
     } catch {
+      haptic.warn();
+      setError('Could not delete this task. Check your connection and try again.');
       setBusy(false);
     }
   }
@@ -642,6 +648,9 @@ function TodoRow({ todo, now }: { todo: Todo; now: Date }) {
             {overdue ? 'Overdue · ' : ''}
             {meta.join(' · ')}
           </Text>
+        ) : null}
+        {error ? (
+          <Text style={{ fontSize: 11.5, color: colors.danger }}>{error}</Text>
         ) : null}
       </View>
       <Pressable
