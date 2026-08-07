@@ -1843,7 +1843,12 @@ async function processMessage(
     looksLikeQuestion(inboundText)
   ) {
     const admin = supabaseAdmin()
-    const subject = await questionSubjectProperty(admin, accountId, contactRecord.id)
+    const subject = await questionSubjectProperty(
+      admin,
+      accountId,
+      contactRecord.id,
+      conversation.id,
+    )
     const { data: qaConfig } = await admin
       .from('whatsapp_config')
       .select('share_seller_final_price')

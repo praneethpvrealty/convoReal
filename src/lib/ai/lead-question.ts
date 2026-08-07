@@ -30,6 +30,10 @@ import {
   type PortalListingFigures,
   type ReconcilableProperty,
 } from '@/lib/portals/listing-reconcile';
+import {
+  resolveSubjectShift,
+  type SubjectCandidate,
+} from '@/lib/ai/question-subject';
 import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
@@ -176,15 +180,32 @@ export function looksLikeQuestion(text: string | null | undefined): boolean {
   );
 }
 
+/** Agent messages read back when deciding what the question is about.
+ *  Far enough to catch a project pitched a few turns ago, short enough
+ *  that a listing named yesterday does not outrank today's. */
+const SUBJECT_LOOKBACK_MESSAGES = 8;
+
 /**
- * The listing a question is about: the one most recently shared with
- * this contact. Same source of truth the template quick replies use, so
- * "more details" and "is it north facing?" resolve to the same property.
+ * The listing a question is about.
+ *
+ * The share ledger answers it most of the time — the last listing sent
+ * to this contact is the one they are reading. But an agent who types
+ * "Have some inventories in Jade Gardens Devanahalli" has moved the
+ * conversation without touching the ledger, and property_shares does
+ * not even bump: recordPropertyShares upserts with ignoreDuplicates, so
+ * created_at is the FIRST share. Left alone, the next question is
+ * answered from a listing nobody is discussing any more.
+ *
+ * Returns null when the thread has moved somewhere we cannot pin to one
+ * listing. The caller reads that as a handover, which is the honest
+ * outcome: a buyer told "let me check and come back" loses nothing,
+ * where a buyer told the wrong listing's facts cannot tell.
  */
 export async function questionSubjectProperty(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
+  conversationId?: string | null,
 ): Promise<(QaProperty & SellerPriceFields & { id: string }) | null> {
   const { data: share } = await db
     .from('property_shares')
@@ -194,7 +215,37 @@ export async function questionSubjectProperty(
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  const propertyId = share?.property_id as string | undefined;
+  const sharedId = (share?.property_id as string | undefined) ?? null;
+
+  let propertyId = sharedId;
+
+  if (conversationId) {
+    const { data: agentMessages } = await db
+      .from('messages')
+      .select('content_text')
+      .eq('conversation_id', conversationId)
+      .eq('sender_type', 'agent')
+      .not('content_text', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(SUBJECT_LOOKBACK_MESSAGES);
+
+    if (agentMessages?.length) {
+      const { data: candidates } = await db
+        .from('properties')
+        .select('id, project, title')
+        .eq('account_id', accountId)
+        .eq('status', 'Available');
+
+      const verdict = resolveSubjectShift(
+        agentMessages.map((m) => (m.content_text as string) || ''),
+        (candidates ?? []) as SubjectCandidate[],
+        sharedId,
+      );
+      if (verdict.kind === 'ambiguous') return null;
+      if (verdict.kind === 'moved') propertyId = verdict.propertyId;
+    }
+  }
+
   if (!propertyId) return null;
 
   const { data: property } = await db
