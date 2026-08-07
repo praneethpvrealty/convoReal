@@ -4,6 +4,7 @@ import {
   reachTotals,
   buildAgentReachSummaryLine,
   buildAgentInventoryDigestMessage,
+  buildAgentDigestNextStepLine,
   buildSignupInviteLine,
   buildDashboardPointerLine,
   type AgentInventoryDigest,
@@ -67,6 +68,18 @@ describe('reachTotals / buildAgentReachSummaryLine', () => {
       digest([stats({ directBuyers: 4, indirectBuyers: 2 })])
     )
     expect(line).toBe('4 direct / 2 indirect buyers so far')
+  })
+})
+
+describe('buildAgentDigestNextStepLine', () => {
+  it('asks for a reply and never carries a promotional CTA', () => {
+    const withNew = buildAgentDigestNextStepLine(digest([stats({ newDirectBuyers: 2 })]))
+    const withoutNew = buildAgentDigestNextStepLine(digest([stats({ directBuyers: 4 })]))
+    expect(withNew).toContain('new buyer details')
+    expect(withoutNew).toContain('per-listing breakdown')
+    for (const line of [withNew, withoutNew]) {
+      expect(line).not.toMatch(/https?:\/\/|sign ?up/i)
+    }
   })
 })
 

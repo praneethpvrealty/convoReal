@@ -20,14 +20,19 @@ export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
     // referred inventory, not promotional content.
     category: 'Utility',
     language: 'en_US',
+    // Every word here is read by Meta's categoriser: promotional
+    // framing ("reach", "performed across our network"), the 📣
+    // megaphone and a signup CTA in a sample value all push the
+    // template to Marketing. Mirror owner_property_digest, which
+    // clears review as Utility with the same footer and buttons.
     body_text: [
-      '📣 *Your Inventory Reach Update*',
+      '📊 *Your Listing Activity Update*',
       '',
-      'Hi {{1}}, here is how {{2}} performed across our buyer network:',
+      'Hi {{1}}, here is the latest buyer activity on {{2}}:',
       '',
       '📈 Summary: {{3}}',
       '',
-      'Your next step: {{4}}',
+      'Next step: {{4}}',
       '',
       'Reply to this message for details.',
     ].join('\n'),
@@ -43,7 +48,7 @@ export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
         'Deepak',
         'your 3 referred listings (today)',
         '2 direct buyers reached · 1 indirect buyer via partner agents · 1 partner agent onboarded',
-        'Track your inventory network live on ConvoReal: https://www.convoreal.com/signup',
+        'Reply to this message to get the new buyer details',
       ],
     },
   };
@@ -51,18 +56,19 @@ export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
 
 /**
  * Body params {{1}}..{{4}}: first name, listings phrase (with period),
- * compact reach summary, closing line (signup invite for agents with
- * no ConvoReal profile, dashboard pointer otherwise). Every param is
- * guaranteed non-empty (Meta rejects empty values) and newline-free
- * (sanitizeTemplateParam).
+ * compact reach summary, next step. The next step must stay
+ * transactional — a signup or dashboard CTA in this param is what got
+ * the template categorised as Marketing; the invite lives on the
+ * free-form path instead. Every param is guaranteed non-empty (Meta
+ * rejects empty values) and newline-free (sanitizeTemplateParam).
  */
 export function buildAgentInventoryDigestParams(
   contactName: string | null | undefined,
   propertyCount: number,
   periodLabel: string,
   summaryLine: string,
-  closingLine: string
-): [name: string, listings: string, summary: string, closing: string] {
+  nextStepLine: string
+): [name: string, listings: string, summary: string, nextStep: string] {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   const listingPhrase =
     propertyCount === 1 ? 'your referred listing' : `your ${propertyCount} referred listings`;
@@ -70,6 +76,6 @@ export function buildAgentInventoryDigestParams(
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(`${listingPhrase} (${periodLabel})`),
     sanitizeTemplateParam(summaryLine || 'New buyer activity'),
-    sanitizeTemplateParam(closingLine || 'Reply to this message for details.'),
+    sanitizeTemplateParam(nextStepLine || 'Reply to this message for details.'),
   ];
 }
