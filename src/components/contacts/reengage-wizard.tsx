@@ -225,12 +225,21 @@ export function ReengageWizard({
         return;
       }
 
+      // An existing number is enriched rather than duplicated, so a
+      // list the account already holds imports as 0 new + N updated and
+      // is still a perfectly good batch to send.
       const imported = data.imported ?? 0;
-      if (imported === 0) {
+      const updated = data.updated ?? 0;
+      if (imported + updated === 0) {
         toast.error('No contacts were imported — check the CSV rows.');
         return;
       }
-      setImportedCount(imported);
+      setImportedCount(imported + updated);
+      if (updated > 0) {
+        toast.info(
+          `${updated} of these were already in your engine — updated in place, not duplicated.`
+        );
+      }
       if ((data.skipped ?? 0) > 0) {
         toast.warning(
           `${data.skipped} rows skipped — contact limit on your plan.`
@@ -238,9 +247,12 @@ export function ReengageWizard({
       }
       onImported();
 
-      const importedIds: string[] = Array.isArray(data.importedIds)
-        ? data.importedIds
-        : [];
+      // Updated contacts are re-extracted too — their notes changed,
+      // and extract-preferences skips anything whose source text has not.
+      const importedIds: string[] = [
+        ...(Array.isArray(data.importedIds) ? data.importedIds : []),
+        ...(Array.isArray(data.updatedIds) ? data.updatedIds : []),
+      ];
       await extractPreferencesInBatches(importedIds, (done, total) =>
         setExtractProgress({ done, total })
       );

@@ -11,7 +11,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import {
+  Upload,
+  FileText,
+  Loader2,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+} from 'lucide-react';
 import {
   parseContactsCsv,
   extractPreferencesInBatches,
@@ -33,16 +40,30 @@ interface PreflightResult {
   willExceedLimit: boolean;
 }
 
-export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps) {
+export function ImportModal({
+  open,
+  onOpenChange,
+  onImported,
+}: ImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [parsedRows, setParsedRows] = useState<ParsedContactRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<{ imported: number; failed: number; skipped?: number } | null>(null);
-  const [limitWarning, setLimitWarning] = useState<PreflightResult | null>(null);
-  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number } | null>(null);
+  const [result, setResult] = useState<{
+    imported: number;
+    updated: number;
+    failed: number;
+    skipped?: number;
+  } | null>(null);
+  const [limitWarning, setLimitWarning] = useState<PreflightResult | null>(
+    null
+  );
+  const [extractProgress, setExtractProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   function reset() {
     setFile(null);
@@ -59,9 +80,12 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
   }
 
   function handleDownloadSample() {
-    const headers = 'phone,name,name_tag,email,company,tags,areas_of_interest,min_budget,max_budget,preferences\n';
-    const sampleRow1 = '+919876543210,John Doe,Bank DSA,john@example.com,Acme Corp,"Hot, Buyer",Whitefield,10000000,15000000,Looking for a 3 BHK premium apartment in Whitefield\n';
-    const sampleRow2 = '+918765432109,Jane Smith,,jane@example.com,Global Realty,"Warm, Agent",HSR Layout,20000000,25000000,Has clients looking for villas in HSR Layout\n';
+    const headers =
+      'phone,name,name_tag,email,company,tags,areas_of_interest,min_budget,max_budget,preferences\n';
+    const sampleRow1 =
+      '+919876543210,John Doe,Bank DSA,john@example.com,Acme Corp,"Hot, Buyer",Whitefield,10000000,15000000,Looking for a 3 BHK premium apartment in Whitefield\n';
+    const sampleRow2 =
+      '+918765432109,Jane Smith,,jane@example.com,Global Realty,"Warm, Agent",HSR Layout,20000000,25000000,Has clients looking for villas in HSR Layout\n';
     const csvContent = headers + sampleRow1 + sampleRow2;
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -87,7 +111,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     const rows = parseContactsCsv(text);
 
     if (rows.length === 0) {
-      toast.error('No valid rows found. Ensure CSV has a "phone" column header.');
+      toast.error(
+        'No valid rows found. Ensure CSV has a "phone" column header.'
+      );
       setParsedRows([]);
       return;
     }
@@ -108,7 +134,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       });
 
       if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Failed to check import limits' }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: 'Failed to check import limits' }));
         toast.error(data.error || 'Failed to check import limits');
         setChecking(false);
         return;
@@ -117,7 +145,9 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       const preflight: PreflightResult = await res.json();
 
       if (!preflight.canImport) {
-        toast.error(`You've reached the ${preflight.limit} contact limit on your plan. Upgrade to import more.`);
+        toast.error(
+          `You've reached the ${preflight.limit} contact limit on your plan. Upgrade to import more.`
+        );
         setChecking(false);
         return;
       }
@@ -160,22 +190,40 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
       setResult({
         imported: data.imported ?? 0,
+        updated: data.updated ?? 0,
         failed: data.failed ?? 0,
         skipped: data.skipped ?? 0,
       });
 
-      if (data.imported > 0) {
-        toast.success(`${data.imported} contact${data.imported !== 1 ? 's' : ''} imported`);
+      if (data.imported > 0 || data.updated > 0) {
+        const parts: string[] = [];
+        if (data.imported > 0) {
+          parts.push(
+            `${data.imported} contact${data.imported !== 1 ? 's' : ''} imported`
+          );
+        }
+        // Numbers already on file are enriched rather than duplicated.
+        if (data.updated > 0) {
+          parts.push(`${data.updated} existing updated`);
+        }
+        toast.success(parts.join(', '));
         onImported();
       }
       if (data.failed > 0) {
-        toast.error(`${data.failed} contact${data.failed !== 1 ? 's' : ''} failed to import`);
+        toast.error(
+          `${data.failed} contact${data.failed !== 1 ? 's' : ''} failed to import`
+        );
       }
 
-      const importedIds: string[] = Array.isArray(data.importedIds) ? data.importedIds : [];
+      // Updated contacts get re-extracted too: their notes changed, and
+      // extract-preferences skips anything whose source text has not.
+      const importedIds: string[] = [
+        ...(Array.isArray(data.importedIds) ? data.importedIds : []),
+        ...(Array.isArray(data.updatedIds) ? data.updatedIds : []),
+      ];
       if (importedIds.length > 0) {
         void extractPreferencesInBatches(importedIds, (done, total) =>
-          setExtractProgress({ done, total }),
+          setExtractProgress({ done, total })
         ).then(() => {
           setExtractProgress(null);
           toast.success('Matching preferences analysed');
@@ -193,17 +241,18 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-lg">
+      <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-white">Import Contacts</DialogTitle>
           <DialogDescription className="text-slate-400">
-            Upload a CSV file with a &quot;phone&quot; column (required). Optional columns:
-            name, name_tag, email, company. Trailing qualifiers in names (e.g.
-            &quot;Nataraj Bank DSA&quot;) are auto-split into the Engine-only Name Tag.{" "}
+            Upload a CSV file with a &quot;phone&quot; column (required).
+            Optional columns: name, name_tag, email, company. Trailing
+            qualifiers in names (e.g. &quot;Nataraj Bank DSA&quot;) are
+            auto-split into the Engine-only Name Tag.{' '}
             <button
               type="button"
               onClick={handleDownloadSample}
-              className="text-primary hover:underline font-semibold"
+              className="text-primary font-semibold hover:underline"
             >
               Download sample template
             </button>
@@ -214,14 +263,15 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {/* Upload area */}
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-700 p-6 cursor-pointer hover:border-primary/50 transition-colors"
+            className="hover:border-primary/50 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-700 p-6 transition-colors"
           >
             {file ? (
               <>
-                <FileText className="size-8 text-primary" />
+                <FileText className="text-primary size-8" />
                 <p className="text-sm text-slate-300">{file.name}</p>
                 <p className="text-xs text-slate-500">
-                  {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''} detected
+                  {parsedRows.length} row{parsedRows.length !== 1 ? 's' : ''}{' '}
+                  detected
                 </p>
               </>
             ) : (
@@ -247,30 +297,32 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
           {/* Limit warning dialog */}
           {limitWarning && (
-            <div className="rounded-lg border border-amber-600/50 bg-amber-950/30 p-4 space-y-3">
+            <div className="space-y-3 rounded-lg border border-amber-600/50 bg-amber-950/30 p-4">
               <div className="flex items-start gap-2">
-                <AlertTriangle className="size-5 text-amber-400 shrink-0 mt-0.5" />
+                <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-400" />
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-amber-200">
                     Contact limit will be exceeded
                   </p>
                   <p className="text-xs text-amber-300/80">
-                    Your plan allows {limitWarning.limit} contacts. You currently
-                    have {limitWarning.currentCount}. Importing all {limitWarning.totalRequested} contacts
-                    would exceed your limit.
+                    Your plan allows {limitWarning.limit} contacts. You
+                    currently have {limitWarning.currentCount}. Importing all{' '}
+                    {limitWarning.totalRequested} contacts would exceed your
+                    limit.
                   </p>
-                  <p className="text-sm text-white font-medium mt-2">
-                    Do you want to import the first {limitWarning.maxImportable} contacts?
+                  <p className="mt-2 text-sm font-medium text-white">
+                    Do you want to import the first {limitWarning.maxImportable}{' '}
+                    contacts?
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="flex justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => setLimitWarning(null)}
-                  className="border-slate-600 text-slate-300 hover:bg-slate-800 h-8 text-xs"
+                  className="h-8 border-slate-600 text-xs text-slate-300 hover:bg-slate-800"
                 >
                   Cancel
                 </Button>
@@ -279,7 +331,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                   size="sm"
                   onClick={doImport}
                   disabled={importing}
-                  className="bg-amber-600 hover:bg-amber-700 text-white h-8 text-xs"
+                  className="h-8 bg-amber-600 text-xs text-white hover:bg-amber-700"
                 >
                   {importing && <Loader2 className="size-3 animate-spin" />}
                   Import {limitWarning.maxImportable} Contacts
@@ -291,44 +343,71 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
           {/* Preview table */}
           {preview.length > 0 && !result && !limitWarning && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+              <p className="text-xs font-medium tracking-wider text-slate-400 uppercase">
                 Preview (first {preview.length} rows)
               </p>
-              <div className="rounded-lg border border-slate-700 overflow-x-auto">
-                <table className="w-full text-xs min-w-[700px]">
+              <div className="overflow-x-auto rounded-lg border border-slate-700">
+                <table className="w-full min-w-[700px] text-xs">
                   <thead>
                     <tr className="bg-slate-800">
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Phone</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Name</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Name Tag</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Tags</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Areas</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Budget</th>
-                      <th className="px-3 py-1.5 text-left text-slate-400 font-medium">Preferences</th>
+                      <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                        Phone
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                        Name
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                        Name Tag
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                        Tags
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                        Areas
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                        Budget
+                      </th>
+                      <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                        Preferences
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.map((row, i) => {
-                      const budgetLabel = row.min_budget || row.max_budget
-                        ? `${row.min_budget ? `₹${(row.min_budget / 100000).toFixed(0)}L` : '0'} - ${row.max_budget ? `₹${(row.max_budget / 100000).toFixed(0)}L` : 'Any'}`
-                        : '-';
+                      const budgetLabel =
+                        row.min_budget || row.max_budget
+                          ? `${row.min_budget ? `₹${(row.min_budget / 100000).toFixed(0)}L` : '0'} - ${row.max_budget ? `₹${(row.max_budget / 100000).toFixed(0)}L` : 'Any'}`
+                          : '-';
                       return (
                         <tr key={i} className="border-t border-slate-700/50">
-                          <td className="px-3 py-1.5 text-slate-300">{row.phone}</td>
-                          <td className="px-3 py-1.5 text-slate-300 font-medium">{row.name || '-'}</td>
+                          <td className="px-3 py-1.5 text-slate-300">
+                            {row.phone}
+                          </td>
+                          <td className="px-3 py-1.5 font-medium text-slate-300">
+                            {row.name || '-'}
+                          </td>
                           <td className="px-3 py-1.5">
                             {row.name_tag ? (
-                              <span className="inline-flex items-center bg-slate-700/40 border border-slate-600/50 text-slate-300 px-1.5 py-0.5 rounded text-[10px]">
+                              <span className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-300">
                                 {row.name_tag}
                               </span>
                             ) : (
                               <span className="text-slate-500">-</span>
                             )}
                           </td>
-                          <td className="px-3 py-1.5 text-slate-400">{row.tags || '-'}</td>
-                          <td className="px-3 py-1.5 text-slate-400 font-mono text-[10px]">{row.areas_of_interest || '-'}</td>
-                          <td className="px-3 py-1.5 text-slate-350">{budgetLabel}</td>
-                          <td className="px-3 py-1.5 text-slate-400 max-w-[200px] truncate">{row.notes || '-'}</td>
+                          <td className="px-3 py-1.5 text-slate-400">
+                            {row.tags || '-'}
+                          </td>
+                          <td className="px-3 py-1.5 font-mono text-[10px] text-slate-400">
+                            {row.areas_of_interest || '-'}
+                          </td>
+                          <td className="text-slate-350 px-3 py-1.5">
+                            {budgetLabel}
+                          </td>
+                          <td className="max-w-[200px] truncate px-3 py-1.5 text-slate-400">
+                            {row.notes || '-'}
+                          </td>
                         </tr>
                       );
                     })}
@@ -345,39 +424,46 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
 
           {/* Results */}
           {result && (
-            <div className="rounded-lg border border-slate-700 p-4 space-y-2">
+            <div className="space-y-2 rounded-lg border border-slate-700 p-4">
               <p className="text-sm font-medium text-white">Import Complete</p>
-              <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex flex-wrap items-center gap-4">
                 {result.imported > 0 && (
-                  <div className="flex items-center gap-1.5 text-primary text-sm">
+                  <div className="text-primary flex items-center gap-1.5 text-sm">
                     <CheckCircle className="size-4" />
                     {result.imported} imported
                   </div>
                 )}
                 {(result.failed ?? 0) > 0 && (
-                  <div className="flex items-center gap-1.5 text-red-400 text-sm">
+                  <div className="flex items-center gap-1.5 text-sm text-red-400">
                     <XCircle className="size-4" />
                     {result.failed} failed
                   </div>
                 )}
+                {result.updated > 0 && (
+                  <div className="flex items-center gap-1.5 text-sm text-blue-400">
+                    <CheckCircle className="size-4" />
+                    {result.updated} existing updated
+                  </div>
+                )}
                 {(result.skipped ?? 0) > 0 && (
-                  <div className="flex items-center gap-1.5 text-amber-400 text-sm">
+                  <div className="flex items-center gap-1.5 text-sm text-amber-400">
                     <AlertTriangle className="size-4" />
                     {result.skipped} skipped (plan limit)
                   </div>
                 )}
               </div>
               {extractProgress && (
-                <div className="flex items-center gap-1.5 text-slate-400 text-sm">
+                <div className="flex items-center gap-1.5 text-sm text-slate-400">
                   <Loader2 className="size-4 animate-spin" />
-                  Analysing matching preferences {extractProgress.done}/{extractProgress.total}
+                  Analysing matching preferences {extractProgress.done}/
+                  {extractProgress.total}
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <DialogFooter className="bg-slate-900 border-slate-700">
+        <DialogFooter className="border-slate-700 bg-slate-900">
           <Button
             type="button"
             variant="outline"
@@ -393,8 +479,11 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
               onClick={handleImportClick}
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              {(importing || checking) && <Loader2 className="size-4 animate-spin" />}
-              Import {parsedRows.length > 0 ? `${parsedRows.length} Contacts` : ''}
+              {(importing || checking) && (
+                <Loader2 className="size-4 animate-spin" />
+              )}
+              Import{' '}
+              {parsedRows.length > 0 ? `${parsedRows.length} Contacts` : ''}
             </Button>
           )}
         </DialogFooter>
