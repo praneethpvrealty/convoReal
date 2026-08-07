@@ -17,6 +17,7 @@ import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
+import { useCallLog } from '@/lib/use-call-log';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
 import type { Appointment, Contact, ContactNote, Property, Tag as TagRow } from '@/lib/types';
 
@@ -888,13 +889,14 @@ export function AgentRequirements({ agent }: { agent: Contact }) {
  */
 export function AgentDetail({ agent }: { agent: Contact }) {
   const { colors, fonts: f } = useTheme();
+  const { startCall, callLogProps } = useCallLog();
   const name = agent.name || 'Unnamed Agent';
 
   const actions = [
     {
       icon: 'call' as const,
       label: 'Call',
-      onPress: () => Linking.openURL(`tel:${agent.phone}`),
+      onPress: () => startCall(agent),
     },
     {
       icon: 'logo-whatsapp' as const,
@@ -952,6 +954,7 @@ export function AgentDetail({ agent }: { agent: Contact }) {
       <AgentRequirements key={`req-${agent.id}`} agent={agent} />
       <AgentSchedule contact={agent} />
       <AgentNotes contactId={agent.id} title="Agent notes" />
+      <AppDialog {...callLogProps} />
     </View>
   );
 }

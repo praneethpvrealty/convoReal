@@ -15,6 +15,10 @@ import type {
 } from "@/types";
 import Link from "next/link";
 import {
+  LogCallPrompt,
+  type PendingDial,
+} from "@/components/contacts/log-call-prompt";
+import {
   MessageSquare,
   ChevronDown,
   UserPlus,
@@ -25,6 +29,7 @@ import {
   Archive,
   ArchiveRestore,
   Waypoints,
+  Phone,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -172,6 +177,9 @@ export function MessageThread({
   // parent's resyncToken); the 700ms spin is just feedback so the click
   // doesn't feel like a no-op. Cleared via the timer ref on unmount.
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // A tel: dial tells the browser nothing about how the call went, so
+  // the same prompt the contact panel uses asks the agent afterwards.
+  const [pendingDial, setPendingDial] = useState<PendingDial | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -896,6 +904,24 @@ export function MessageThread({
             <div className="flex items-center gap-1.5 min-w-0">
               <h2 className="truncate text-sm font-semibold text-white">{displayName}</h2>
               {contact.name && <NameTagBadge tag={contact.name_tag} />}
+              {contact.phone && (
+                <a
+                  href={`tel:${contact.phone}`}
+                  aria-label={`Call ${displayName}`}
+                  title={`Call ${contact.phone}`}
+                  onClick={() =>
+                    setPendingDial({
+                      contactId: contact.id,
+                      name: contact.name,
+                      phone: contact.phone,
+                      dialedAt: new Date().toISOString(),
+                    })
+                  }
+                  className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary transition-colors hover:bg-primary/25"
+                >
+                  <Phone className="size-3" />
+                </a>
+              )}
             </div>
             <p className="truncate text-xs text-slate-400">{contact.phone}</p>
           </div>
@@ -1138,6 +1164,13 @@ export function MessageThread({
         message={forwardMessage}
         onOpenChange={(open) => {
           if (!open) setForwardMessage(null);
+        }}
+      />
+
+      <LogCallPrompt
+        dial={pendingDial}
+        onOpenChange={(next) => {
+          if (!next) setPendingDial(null);
         }}
       />
     </div>
