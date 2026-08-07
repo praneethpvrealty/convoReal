@@ -47,9 +47,9 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
   },
   {
     name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
-    label: 'Enquiry follow-up',
+    label: 'Enquiry status',
     whyItMatters:
-      'Re-engages imported portal leads whose original listing expired — asks for their latest requirement and offers matched deal alerts via the preference flow and START/STOP buttons.',
+      'Re-engages imported portal leads whose original listing expired — a status notice asking for their latest requirement, with buttons to update preferences or close the enquiry.',
     build: buildEnquiryFollowupTemplatePayload,
   },
 ];

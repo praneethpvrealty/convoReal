@@ -4,12 +4,10 @@ import {
   buildEnquiryFollowupParams,
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
   ENQUIRY_FOLLOWUP_UPDATE_BUTTON,
-  ENQUIRY_FOLLOWUP_SUBSCRIBE_BUTTON,
-  ENQUIRY_FOLLOWUP_STOP_BUTTON,
+  ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
 } from './enquiry-followup-template';
 import { validateTemplatePayload } from './template-validators';
 import { isPreferenceFlowRequestText } from './preference-flow';
-import { parseBuyerAlertsCommand } from '@/lib/buyer/alerts';
 
 describe('buildEnquiryFollowupTemplatePayload', () => {
   it('produces a payload that passes the same validator the submit API runs', () => {
@@ -28,23 +26,39 @@ describe('buildEnquiryFollowupTemplatePayload', () => {
     expect(payload.sample_values?.body).toHaveLength(1);
   });
 
-  it('every button tap routes to a webhook action via its text', () => {
-    // Template quick-reply taps arrive as message.button.text — each
-    // label must satisfy the parser that drives its action.
+  it('the update button routes to the preference flow via its text', () => {
+    // Template quick-reply taps arrive as message.button.text — the
+    // label must satisfy the matcher that drives its action. The close
+    // button is matched exactly against ENQUIRY_FOLLOWUP_CLOSE_BUTTON
+    // in the webhook handler.
     expect(isPreferenceFlowRequestText(ENQUIRY_FOLLOWUP_UPDATE_BUTTON)).toBe(
       true
     );
-    expect(parseBuyerAlertsCommand(ENQUIRY_FOLLOWUP_SUBSCRIBE_BUTTON)).toBe(
-      'start'
+    const texts = (buildEnquiryFollowupTemplatePayload().buttons ?? []).map(
+      (b) => ('text' in b ? b.text : '')
     );
-    expect(parseBuyerAlertsCommand(ENQUIRY_FOLLOWUP_STOP_BUTTON)).toBe('stop');
+    expect(texts).toEqual([
+      ENQUIRY_FOLLOWUP_UPDATE_BUTTON,
+      ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
+    ]);
   });
 
-  it('carries quick replies only — no URL/CTA button to trip the utility classifier', () => {
+  it('avoids the marketing-classifier signals that got the previous name reclassified', () => {
+    // property_enquiry_followup was submitted as Utility and approved
+    // as Marketing: opt-in button, "options"/"deals"/"alerts"
+    // vocabulary, and an opt-out footer. None of these may reappear.
     const payload = buildEnquiryFollowupTemplatePayload();
+    expect(payload.footer_text).toBeUndefined();
     expect((payload.buttons ?? []).every((b) => b.type === 'QUICK_REPLY')).toBe(
       true
     );
+    const rendered = [
+      payload.body_text,
+      ...(payload.buttons ?? []).map((b) => ('text' in b ? b.text : '')),
+    ]
+      .join(' ')
+      .toLowerCase();
+    expect(rendered).not.toMatch(/alert|deal|offer|subscribe|opt.?out|stop/);
   });
 });
 

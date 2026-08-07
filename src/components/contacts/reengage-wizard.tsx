@@ -51,6 +51,7 @@ type Step = 'template' | 'upload' | 'send' | 'done';
 interface TemplateRow {
   id: string;
   status?: string | null;
+  category?: string | null;
   language?: string | null;
   rejection_reason?: string | null;
 }
@@ -102,7 +103,7 @@ export function ReengageWizard({
       const supabase = createClient();
       const { data, error } = await supabase
         .from('message_templates')
-        .select('id, status, language, rejection_reason')
+        .select('id, status, category, language, rejection_reason')
         .eq('name', ENQUIRY_FOLLOWUP_TEMPLATE_NAME)
         .order('created_at', { ascending: false })
         .limit(1);
@@ -346,9 +347,27 @@ export function ReengageWizard({
                   Submit template for approval
                 </Button>
               ) : isApproved(template.status) ? (
-                <div className="text-primary flex items-center gap-1.5 text-sm">
-                  <CheckCircle className="size-4" /> Approved and ready to send
-                </div>
+                (template.category ?? '').toLowerCase() === 'marketing' ? (
+                  // Submitted as Utility but Meta's classifier approved it
+                  // as Marketing — deliverability is reduced (silent drops
+                  // at capped recipients), so say it out loud.
+                  <div className="space-y-1 text-sm text-amber-400">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="size-4" /> Approved, but as a
+                      Marketing template
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Meta reclassified it, so sends can be silently dropped for
+                      recipients at their marketing-message limit. You can
+                      continue, but reaching every lead is not guaranteed.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-primary flex items-center gap-1.5 text-sm">
+                    <CheckCircle className="size-4" /> Approved and ready to
+                    send
+                  </div>
+                )
               ) : templateStatus === 'REJECTED' ? (
                 <div className="space-y-1 text-sm text-red-400">
                   <div className="flex items-center gap-1.5">
@@ -448,10 +467,10 @@ export function ReengageWizard({
                 {importedCount} lead{importedCount !== 1 ? 's' : ''} ready
               </p>
               <p className="text-xs text-slate-400">
-                Each lead receives the approved follow-up template asking for
-                their latest requirement, with buttons to update preferences and
-                start or stop matched deal alerts. Replies open a conversation
-                in your Inbox.
+                Each lead receives the approved enquiry-status template asking
+                for their latest requirement, with buttons to update preferences
+                or close the enquiry. Replies open a conversation in your Inbox,
+                where the deal-alert opt-in is asked next.
               </p>
             </div>
           </div>

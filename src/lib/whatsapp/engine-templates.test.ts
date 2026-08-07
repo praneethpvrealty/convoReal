@@ -7,7 +7,7 @@ describe('missingEngineTemplates', () => {
     const missing = missingEngineTemplates([
       'location_reveal',
       'inventory_update',
-      'property_enquiry_followup',
+      'property_enquiry_status',
     ]);
     expect(missing.map((t) => t.name)).toEqual(['property_enquiry_response']);
   });
