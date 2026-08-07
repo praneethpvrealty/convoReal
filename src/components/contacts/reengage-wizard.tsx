@@ -34,11 +34,14 @@ import {
   buildEnquiryFollowupTemplatePayload,
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
 } from '@/lib/whatsapp/enquiry-followup-template';
+import { ENQUIRY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-update-template';
 import {
   parseContactsCsv,
   extractPreferencesInBatches,
   type ParsedContactRow,
 } from '@/lib/contacts/import-csv';
+import { loadBatchSplit, type BatchSplit } from '@/lib/reengagement/queries';
+import { useAuth } from '@/hooks/use-auth';
 
 interface ReengageWizardProps {
   open: boolean;
@@ -71,6 +74,7 @@ export function ReengageWizard({
   onOpenChange,
   onImported,
 }: ReengageWizardProps) {
+  const { accountId } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>('template');
@@ -92,6 +96,12 @@ export function ReengageWizard({
   const [batchTagId, setBatchTagId] = useState<string | null>(null);
 
   const [sending, setSending] = useState(false);
+  const [split, setSplit] = useState<BatchSplit | null>(null);
+  const [updateTemplateApproved, setUpdateTemplateApproved] = useState(false);
+  const [sentSplit, setSentSplit] = useState<{
+    anchored: number;
+    generic: number;
+  } | null>(null);
   const [broadcast, setBroadcast] = useState<{
     id: string;
     recipients: number;
@@ -103,12 +113,24 @@ export function ReengageWizard({
       const supabase = createClient();
       const { data, error } = await supabase
         .from('message_templates')
-        .select('id, status, category, language, rejection_reason')
-        .eq('name', ENQUIRY_FOLLOWUP_TEMPLATE_NAME)
-        .order('created_at', { ascending: false })
-        .limit(1);
+        .select('id, name, status, category, language, rejection_reason')
+        .in('name', [
+          ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+          ENQUIRY_UPDATE_TEMPLATE_NAME,
+        ])
+        .order('created_at', { ascending: false });
       if (error) throw error;
-      setTemplate(data?.[0] ?? null);
+      const rows = (data ?? []) as (TemplateRow & { name?: string })[];
+      setTemplate(
+        rows.find((r) => r.name === ENQUIRY_FOLLOWUP_TEMPLATE_NAME) ?? null
+      );
+      // The property-anchored template is optional: without it the
+      // batch still goes out on the generic notice.
+      setUpdateTemplateApproved(
+        rows.some(
+          (r) => r.name === ENQUIRY_UPDATE_TEMPLATE_NAME && isApproved(r.status)
+        )
+      );
     } catch {
       toast.error('Failed to check template status');
     } finally {
@@ -128,6 +150,8 @@ export function ReengageWizard({
     setExtractProgress(null);
     setBatchTagId(null);
     setBroadcast(null);
+    setSplit(null);
+    setSentSplit(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -230,6 +254,15 @@ export function ReengageWizard({
         return;
       }
       setBatchTagId(tagRow.id);
+
+      // Who can get the property-anchored message and who falls back to
+      // the generic notice. Computed before the send, because a missing
+      // property means an empty body param, which Meta rejects.
+      try {
+        setSplit(await loadBatchSplit(supabase, accountId!, tagRow.id));
+      } catch {
+        setSplit(null);
+      }
       setStep('send');
     } catch {
       toast.error('Import failed');
@@ -238,35 +271,118 @@ export function ReengageWizard({
     }
   }
 
+  /** One broadcast for a slice of the batch, addressed by phone so the
+   *  two templates can go to different leads within the same tag. */
+  async function startBroadcast(args: {
+    name: string;
+    templateName: string;
+    leads: { phone: string | null; name: string | null }[];
+    variables: Record<string, { type: 'field' | 'static'; value: string }>;
+  }): Promise<{ id: string; recipients: number } | null> {
+    const csvContacts = args.leads
+      .filter((l) => Boolean(l.phone))
+      .map((l) => ({ phone: l.phone as string, name: l.name ?? undefined }));
+    if (csvContacts.length === 0) return null;
+
+    const res = await fetch('/api/broadcasts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: args.name,
+        template: {
+          name: args.templateName,
+          language: template?.language ?? 'en_US',
+        },
+        audience: { type: 'csv', csvContacts },
+        variables: args.variables,
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok)
+      throw new Error(data?.error || 'Failed to start the broadcast');
+    return {
+      id: data.broadcastId,
+      recipients: data.recipientsCount ?? csvContacts.length,
+    };
+  }
+
   async function handleSend() {
     if (!batchTagId) return;
     setSending(true);
     try {
-      const res = await fetch('/api/broadcasts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `Lead re-engagement — ${batchTag}`,
-          template: {
-            name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
-            language: template?.language ?? 'en_US',
-          },
-          audience: { type: 'tags', tagIds: [batchTagId] },
-          variables: { '1': { type: 'field', value: 'name' } },
-        }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(data?.error || 'Failed to start the broadcast');
+      // No split available (the RPC failed) — fall back to the generic
+      // notice for the whole tag rather than sending nothing.
+      if (!split) {
+        const res = await fetch('/api/broadcasts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: `Lead re-engagement — ${batchTag}`,
+            template: {
+              name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+              language: template?.language ?? 'en_US',
+            },
+            audience: { type: 'tags', tagIds: [batchTagId] },
+            variables: { '1': { type: 'field', value: 'name' } },
+          }),
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok)
+          throw new Error(data?.error || 'Failed to start the broadcast');
+        setBroadcast({
+          id: data.broadcastId,
+          recipients: data.recipientsCount ?? importedCount,
+        });
+        setStep('done');
+        return;
+      }
+
+      const anchoredResult =
+        split.anchored.length > 0 && updateTemplateApproved
+          ? await startBroadcast({
+              name: `Lead re-engagement (property-anchored) — ${batchTag}`,
+              templateName: ENQUIRY_UPDATE_TEMPLATE_NAME,
+              leads: split.anchored,
+              // Filled per recipient by the sender from the enquired
+              // property and the best match, not from contact columns.
+              variables: {},
+            })
+          : null;
+
+      // Everyone the anchored template cannot address — plus, when it
+      // is not approved yet, the whole batch.
+      const genericLeads = anchoredResult
+        ? split.generic
+        : [...split.anchored, ...split.generic];
+      const genericResult =
+        genericLeads.length > 0
+          ? await startBroadcast({
+              name: `Lead re-engagement — ${batchTag}`,
+              templateName: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+              leads: genericLeads,
+              variables: { '1': { type: 'field', value: 'name' } },
+            })
+          : null;
+
+      const primary = anchoredResult ?? genericResult;
+      if (!primary) {
+        toast.error('No leads with a phone number to send to.');
         return;
       }
       setBroadcast({
-        id: data.broadcastId,
-        recipients: data.recipientsCount ?? importedCount,
+        id: primary.id,
+        recipients:
+          (anchoredResult?.recipients ?? 0) + (genericResult?.recipients ?? 0),
+      });
+      setSentSplit({
+        anchored: anchoredResult?.recipients ?? 0,
+        generic: genericResult?.recipients ?? 0,
       });
       setStep('done');
-    } catch {
-      toast.error('Failed to start the broadcast');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to start the broadcast'
+      );
     } finally {
       setSending(false);
     }
@@ -466,11 +582,49 @@ export function ReengageWizard({
               <p className="text-sm font-medium text-white">
                 {importedCount} lead{importedCount !== 1 ? 's' : ''} ready
               </p>
-              <p className="text-xs text-slate-400">
-                Each lead receives the approved enquiry-status template asking
-                for their latest requirement, with buttons to update preferences
-                or close the enquiry. Replies open a conversation in your Inbox,
-                where the deal-alert opt-in is asked next.
+              {split && updateTemplateApproved && split.anchored.length > 0 ? (
+                <div className="space-y-1.5 text-xs text-slate-400">
+                  <p>
+                    <span className="font-semibold text-white">
+                      {split.anchored.length}
+                    </span>{' '}
+                    lead{split.anchored.length !== 1 ? 's' : ''} get the
+                    property-anchored message, naming the listing they enquired
+                    about.
+                  </p>
+                  {split.generic.length > 0 && (
+                    <p>
+                      The other{' '}
+                      <span className="font-semibold text-white">
+                        {split.generic.length}
+                      </span>{' '}
+                      get the general enquiry-status notice — no linked property
+                      on record.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Each lead receives the approved enquiry-status template asking
+                  for their latest requirement, with buttons to update
+                  preferences or close the enquiry.
+                  {split &&
+                    split.anchored.length > 0 &&
+                    !updateTemplateApproved && (
+                      <span className="text-amber-400">
+                        {' '}
+                        {split.anchored.length} of them could get the
+                        property-anchored message instead once that template is
+                        approved.
+                      </span>
+                    )}
+                </p>
+              )}
+              <p className="text-xs text-slate-500">
+                Tapping &quot;Send listings&quot; asks for matches, which opens
+                the 24-hour window — so the properties go out free-form, with
+                photos and full details. Replies land in your Inbox, where the
+                deal-alert opt-in is asked next.
               </p>
             </div>
           </div>
@@ -482,6 +636,9 @@ export function ReengageWizard({
               <CheckCircle className="size-4" />
               Broadcast started for {broadcast.recipients} lead
               {broadcast.recipients !== 1 ? 's' : ''}
+              {sentSplit && sentSplit.anchored > 0 && sentSplit.generic > 0
+                ? ` — ${sentSplit.anchored} property-anchored, ${sentSplit.generic} general`
+                : ''}
             </div>
             <p className="text-xs text-slate-400">
               Delivery, reads and replies are tracked on the broadcast page.

@@ -16,6 +16,10 @@ export interface ParsedContactRow {
   min_budget?: number;
   max_budget?: number;
   notes?: string;
+  /** The property this lead originally enquired about, as whatever
+   *  identifier the portal export carried — id, PROP- code, portal
+   *  listing id or exact title. Resolved server-side. */
+  property_ref?: string;
 }
 
 export function parseContactsCsv(text: string): ParsedContactRow[] {
@@ -60,6 +64,22 @@ export function parseContactsCsv(text: string): ParsedContactRow[] {
       : headers.indexOf('preferences') >= 0
         ? headers.indexOf('preferences')
         : headers.indexOf('requirements');
+
+  // The enquired property, under any of the header names a portal
+  // export uses. First present column wins.
+  const propertyRefIdx = [
+    'property_id',
+    'property id',
+    'property_code',
+    'property code',
+    'portal_listing_id',
+    'portal listing id',
+    'listing_id',
+    'listing id',
+    'property',
+  ]
+    .map((h) => headers.indexOf(h))
+    .find((i) => i >= 0);
 
   const rows: ParsedContactRow[] = [];
   for (let i = 1; i < lines.length; i++) {
@@ -137,6 +157,10 @@ export function parseContactsCsv(text: string): ParsedContactRow[] {
       notes:
         notesIdx >= 0
           ? values[notesIdx]?.replace(/["']/g, '').trim() || undefined
+          : undefined,
+      property_ref:
+        propertyRefIdx !== undefined
+          ? values[propertyRefIdx]?.replace(/["']/g, '').trim() || undefined
           : undefined,
     });
   }

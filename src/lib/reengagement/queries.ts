@@ -185,6 +185,67 @@ export async function loadReengagementLeads(
   };
 }
 
+export interface BatchSplitLead {
+  contactId: string;
+  name: string | null;
+  phone: string | null;
+  hasEnquiredProperty: boolean;
+  hasAlternative: boolean;
+}
+
+export interface BatchSplit {
+  /** Leads that can receive the property-anchored message. */
+  anchored: BatchSplitLead[];
+  /** Leads that fall back to the generic status notice. */
+  generic: BatchSplitLead[];
+}
+
+/**
+ * Split a freshly imported batch by whether the property-anchored
+ * template can be filled for each lead — which needs only the property
+ * they enquired about, since the message names that and nothing else.
+ * Meta rejects empty body params, so a lead without it must fall back
+ * rather than receive "Property: " with nothing after it.
+ *
+ * `hasAlternative` is still reported because it tells the caller who
+ * will have something to send the moment they tap, but it is not a
+ * condition for the message itself.
+ */
+export async function loadBatchSplit(
+  db: DB,
+  accountId: string,
+  tagId: string
+): Promise<BatchSplit> {
+  const { data, error } = await db.rpc('reengagement_batch_split', {
+    p_account_id: accountId,
+    p_tag_id: tagId,
+  });
+  if (error) throw error;
+
+  const rows = (data ?? []) as Array<{
+    contact_id: string;
+    contact_name: string | null;
+    contact_phone: string | null;
+    has_enquired_property: boolean;
+    has_alternative: boolean;
+  }>;
+
+  const anchored: BatchSplitLead[] = [];
+  const generic: BatchSplitLead[] = [];
+  for (const r of rows) {
+    const lead: BatchSplitLead = {
+      contactId: r.contact_id,
+      name: r.contact_name,
+      phone: r.contact_phone,
+      hasEnquiredProperty: r.has_enquired_property,
+      hasAlternative: r.has_alternative,
+    };
+    if (lead.hasEnquiredProperty) anchored.push(lead);
+    else generic.push(lead);
+  }
+  return { anchored, generic };
+}
+
 export async function loadReengagementBatches(
   db: DB,
   accountId: string
