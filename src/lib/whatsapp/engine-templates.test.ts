@@ -12,6 +12,7 @@ describe('missingEngineTemplates', () => {
     expect(missing.map((t) => t.name)).toEqual([
       'property_enquiry_response',
       'property_enquiry_photos',
+      'buyer_alerts_consent',
     ]);
   });
 

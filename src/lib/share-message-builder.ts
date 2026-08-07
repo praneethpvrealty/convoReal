@@ -263,9 +263,18 @@ export function showcaseBaseUrl(
   return url.toString();
 }
 
+/** The part of a property a showcase link actually needs — callers
+ *  holding a narrower row (the webhook's PropertyRow) can link too. */
+export type ShowcaseLinkProperty = Pick<Property, 'id'> & {
+  property_code?: string | null;
+};
+
 /** Append `property_id` to the account's showcase base, preserving any
  *  query params (`?ref=` when there's no subdomain). */
-export function propertyShowcaseUrl(baseUrl: string, property: Property): string {
+export function propertyShowcaseUrl(
+  baseUrl: string,
+  property: ShowcaseLinkProperty,
+): string {
   const id = property.property_code || property.id;
   const sep = baseUrl.includes('?') ? '&' : '?';
   return `${baseUrl}${sep}property_id=${encodeURIComponent(id)}`;

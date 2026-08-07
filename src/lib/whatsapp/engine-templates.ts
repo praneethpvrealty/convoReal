@@ -16,6 +16,7 @@ import { buildPropertyEnquiryPhotosTemplatePayload, PROPERTY_ENQUIRY_PHOTOS_TEMP
 import { buildLocationRevealTemplatePayload, LOCATION_REVEAL_TEMPLATE_NAME } from './location-reveal-template';
 import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } from './inventory-update-template';
 import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
+import { buildBuyerAlertsConsentTemplatePayload, BUYER_ALERTS_CONSENT_TEMPLATE_NAME } from './buyer-alerts-consent-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -59,6 +60,13 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'Re-engages imported portal leads whose original listing expired — a status notice asking for their latest requirement, with buttons to update preferences or close the enquiry.',
     build: buildEnquiryFollowupTemplatePayload,
+  },
+  {
+    name: BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
+    label: 'Buyer alerts consent',
+    whyItMatters:
+      'Asks a buyer with no open window whether they want match alerts — without it the buyer match digest can only ask buyers who happen to be mid-chat, so most are never asked and never opt in.',
+    build: buildBuyerAlertsConsentTemplatePayload,
   },
 ];
 

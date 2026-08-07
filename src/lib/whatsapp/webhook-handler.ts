@@ -25,6 +25,7 @@ import {
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
+import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import {
   parseOwnerDigestCommand,
   applyOwnerDigestCommand,
@@ -2128,9 +2129,16 @@ export async function handlePropertyShareYesReply(
       ].filter(Boolean).join(', ') ||
       (propertyGuarded ? '' : typedProperty.location)
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    // The account's own showcase (its subdomain when it has one) and
+    // the listing's property code — same link the manual share builds,
+    // rather than an unbranded convoreal.com/?property_id=<uuid>.
     // v= attributes Showcase Pulse engagement to this contact (never filters)
-    const showcaseUrl = `${baseUrl}/?property_id=${typedProperty.id}&v=${contactId}`
+    const showcaseUrl = await accountPropertyShowcaseUrl(
+      supabaseAdmin(),
+      accountId,
+      typedProperty,
+      contactId,
+    )
 
     let detailsText = `🏠 *${typedProperty.title}*\n`
     if (formattedPrice) detailsText += `💰 *Price:* ${formattedPrice}\n`
@@ -3021,9 +3029,14 @@ export async function handleShowMoreProperties(
           ? ''
           : typedProp.location)
 
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+      // Account showcase + property code, as the manual share builds.
       // v= attributes Showcase Pulse engagement to this contact (never filters)
-      const showcaseUrl = `${baseUrl}/?property_id=${typedProp.id}&v=${contactId}`
+      const showcaseUrl = await accountPropertyShowcaseUrl(
+        supabaseAdmin(),
+        accountId,
+        typedProp,
+        contactId,
+      )
 
       // Send image first
       const firstImage = typedProp.images?.find((img: string) => img.trim().length > 0)

@@ -31,6 +31,10 @@ import {
   buildPropertyAlertParams,
   PROPERTY_ALERT_TEMPLATE_NAME,
 } from '@/lib/whatsapp/property-alert-template';
+import {
+  buildBuyerAlertsConsentParams,
+  BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
+} from '@/lib/whatsapp/buyer-alerts-consent-template';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import {
   buildConsentRequestMessage,
@@ -171,16 +175,15 @@ async function runAccount(
 
       const sessionOpen = await isSessionOpen(db, accountId, buyer.id);
 
-      // Consent-first. A pending buyer is asked once, and only inside
-      // an open window — an unsolicited template asking permission to
-      // send messages is the thing consent exists to prevent.
+      // Consent-first. A pending buyer is asked exactly once — free
+      // form inside an open window, otherwise through the approved
+      // Utility consent template. Asking outside the window is why the
+      // template exists: buyers who are never mid-chat at digest time
+      // were never asked, so they could never opt in and the digest
+      // starved. The template names no listing and makes no offer.
       if (consent !== 'granted') {
         if (buyer.buyer_alerts_consent_requested_at) {
           summary.skippedAwaitingConsent++;
-          continue;
-        }
-        if (!sessionOpen) {
-          summary.skippedNoChannel++;
           continue;
         }
         const asked = await sendDenNotification(db, {
@@ -191,6 +194,8 @@ async function runAccount(
             matchCount: matches.length,
             agencyName,
           }),
+          templateName: BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
+          templateParams: buildBuyerAlertsConsentParams(buyer.name, agencyName),
         });
         if (!asked) {
           summary.failed++;
