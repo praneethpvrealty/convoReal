@@ -34,6 +34,21 @@ describe('isPlaceholderLeadName', () => {
     expect(isPlaceholderLeadName('Sheetal Sawarthia')).toBe(false);
     expect(isPlaceholderLeadName('Priya Lead Sharma')).toBe(false);
   });
+
+  // The parser rejects these on the way in now, but rows saved before it
+  // did are still in the book — one "Housing User" is live today.
+  it('recognises the mask the portal sent, not just the one we mint', () => {
+    expect(isPlaceholderLeadName('Housing User')).toBe(true);
+    expect(isPlaceholderLeadName('99acres User')).toBe(true);
+    expect(isPlaceholderLeadName('User')).toBe(true);
+    expect(isPlaceholderLeadName('Unknown')).toBe(true);
+  });
+
+  it('does not mistake a real name that merely contains one', () => {
+    expect(isPlaceholderLeadName('Guest Rao')).toBe(false);
+    expect(isPlaceholderLeadName('Omi NA')).toBe(false);
+    expect(isPlaceholderLeadName('Housing Kumar')).toBe(false);
+  });
 });
 
 describe('greetingName', () => {
@@ -42,6 +57,13 @@ describe('greetingName', () => {
     expect(greetingName('Portal Lead')).toBe('there');
     expect(greetingName('Housing Lead')).toBe('there');
     expect(greetingName(null)).toBe('there');
+  });
+
+  // Left as-is this greets a real buyer "Hi Housing," — the alert
+  // template takes the first word.
+  it('never greets a lead by the portal that masked it', () => {
+    expect(greetingName('Housing User')).toBe('there');
+    expect(greetingName('User')).toBe('there');
   });
 
   it('uses a real name as given', () => {
