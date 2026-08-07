@@ -34,7 +34,7 @@ import {
   buildEnquiryFollowupTemplatePayload,
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
 } from '@/lib/whatsapp/enquiry-followup-template';
-import { ENQUIRY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-update-template';
+import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   parseContactsCsv,
   extractPreferencesInBatches,
@@ -117,7 +117,7 @@ export function ReengageWizard({
         .select('id, name, status, category, language, rejection_reason')
         .in('name', [
           ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
-          ENQUIRY_UPDATE_TEMPLATE_NAME,
+          ENQUIRY_NOTICE_TEMPLATE_NAME,
         ])
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -133,7 +133,7 @@ export function ReengageWizard({
       setUpdateTemplateApproved(
         rows.some(
           (r) =>
-            r.name === ENQUIRY_UPDATE_TEMPLATE_NAME && canSendToEveryLead(r)
+            r.name === ENQUIRY_NOTICE_TEMPLATE_NAME && canSendToEveryLead(r)
         )
       );
     } catch {
@@ -346,7 +346,7 @@ export function ReengageWizard({
         split.anchored.length > 0 && updateTemplateApproved
           ? await startBroadcast({
               name: `Lead re-engagement (property-anchored) — ${batchTag}`,
-              templateName: ENQUIRY_UPDATE_TEMPLATE_NAME,
+              templateName: ENQUIRY_NOTICE_TEMPLATE_NAME,
               leads: split.anchored,
               // Filled per recipient by the sender from the enquired
               // property and the best match, not from contact columns.

@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import type { Contact, Property } from '@/types';
 import {
-  resolveEnquiryUpdateParams,
-  ENQUIRY_UPDATE_FAILURE_REASONS,
-  type EnquiryUpdateContext,
-} from './enquiry-update-params';
+  resolveEnquiryNoticeParams,
+  ENQUIRY_NOTICE_FAILURE_REASONS,
+  type EnquiryNoticeContext,
+} from './enquiry-notice-params';
 
 function prop(overrides: Partial<Property>): Property {
   return {
@@ -25,9 +25,9 @@ function prop(overrides: Partial<Property>): Property {
 
 const contact = { id: 'c1', name: 'Praneeth' } as Pick<Contact, 'id' | 'name'>;
 
-describe('resolveEnquiryUpdateParams', () => {
+describe('resolveEnquiryNoticeParams', () => {
   it('builds both params when the enquired property is known', () => {
-    const result = resolveEnquiryUpdateParams(contact, {
+    const result = resolveEnquiryNoticeParams(contact, {
       enquired: new Map([
         [
           'c1',
@@ -45,20 +45,20 @@ describe('resolveEnquiryUpdateParams', () => {
   });
 
   it('refuses rather than sending "Property:" with nothing after it', () => {
-    const ctx: EnquiryUpdateContext = { enquired: new Map() };
-    expect(resolveEnquiryUpdateParams(contact, ctx)).toEqual({
+    const ctx: EnquiryNoticeContext = { enquired: new Map() };
+    expect(resolveEnquiryNoticeParams(contact, ctx)).toEqual({
       failure: 'no_enquired_property',
     });
   });
 
   it('the failure names the fix, not just the fault', () => {
-    for (const reason of Object.values(ENQUIRY_UPDATE_FAILURE_REASONS)) {
+    for (const reason of Object.values(ENQUIRY_NOTICE_FAILURE_REASONS)) {
       expect(reason).toMatch(/instead|import/i);
     }
   });
 
   it('greets a placeholder lead name as "there"', () => {
-    const result = resolveEnquiryUpdateParams(
+    const result = resolveEnquiryNoticeParams(
       { id: 'c1', name: 'Housing Lead' } as Pick<Contact, 'id' | 'name'>,
       { enquired: new Map([['c1', prop({ title: 'A' })]]) }
     );
