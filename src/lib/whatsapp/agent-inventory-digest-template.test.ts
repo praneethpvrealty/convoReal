@@ -3,6 +3,8 @@ import {
   buildAgentInventoryDigestTemplatePayload,
   buildAgentInventoryDigestParams,
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
+  AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
+  LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
 } from './agent-inventory-digest-template';
 import { validateTemplatePayload } from './template-validators';
 
@@ -25,6 +27,13 @@ describe('buildAgentInventoryDigestTemplatePayload', () => {
     const reviewed = [payload.body_text, ...(payload.sample_values?.body ?? [])].join('\n');
     expect(reviewed).not.toMatch(/https?:\/\//);
     expect(reviewed).not.toMatch(/sign ?up|free|📣/i);
+  });
+
+  it('submits under a name Meta is not holding in deletion cooldown', () => {
+    expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME).not.toBe('agent_inventory_digest');
+    expect(LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES).toContain('agent_inventory_digest');
+    expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES[0]).toBe(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME);
+    expect(/^[a-z0-9_]+$/.test(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME)).toBe(true);
   });
 
   it('provides a sample value for every body param', () => {

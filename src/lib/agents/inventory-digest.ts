@@ -4,6 +4,7 @@ import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import {
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
+  AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
   buildAgentInventoryDigestParams,
 } from '@/lib/whatsapp/agent-inventory-digest-template'
 import {
@@ -428,16 +429,18 @@ export async function sendAgentInventoryDigests(options?: {
         (agentRows || []).map((c) => [c.id as string, c as Record<string, unknown>])
       )
 
-      const { data: templateRow } = await db
+      const { data: templateRows } = await db
         .from('message_templates')
         .select('*')
         .eq('account_id', accountId)
-        .eq('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAME)
+        .in('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES)
+        .eq('status', 'APPROVED')
         .order('last_submitted_at', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-      const template = templateRow as MessageTemplate | null
-      const digestTemplate = template?.status === 'APPROVED' ? template : null
+      const approved = (templateRows || []) as MessageTemplate[]
+      const digestTemplate =
+        approved.find((t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME) ??
+        approved[0] ??
+        null
 
       let sentThisRun = 0
       for (const digest of digests) {

@@ -141,8 +141,11 @@ export function OwnerDigestCard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(slot.buildPayload()),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Template submission failed');
+      const data = await res.json().catch(() => null);
+      if (!res.ok)
+        throw new Error(
+          data?.error || `Template submission failed (HTTP ${res.status})`
+        );
       setTemplateStatus((prev) => ({ ...prev, [slot.name]: 'PENDING' }));
       toast.success(`${slot.label} template submitted to Meta for approval.`);
     } catch (err) {

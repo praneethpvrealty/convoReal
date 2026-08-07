@@ -18,6 +18,7 @@ import {
 import { Share2, Loader2 } from 'lucide-react';
 import {
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
+  AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
   buildAgentInventoryDigestTemplatePayload,
 } from '@/lib/whatsapp/agent-inventory-digest-template';
 
@@ -60,17 +61,22 @@ export function AgentInventoryDigestCard() {
           .from('message_templates')
           .select('id, name, status, category, meta_template_id, last_submitted_at')
           .eq('account_id', accountId)
-          .eq('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAME)
-          .order('last_submitted_at', { ascending: false })
-          .limit(1),
+          .in('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES)
+          .order('last_submitted_at', { ascending: false }),
       ]);
       if (settings?.frequency) setFrequency(settings.frequency as Frequency);
-      const template = templates?.[0];
+      // The current name wins; a row under the pre-rewrite name still
+      // sends digests, so its status is what the badge should show
+      // until the new template exists.
+      const current = (templates || []).find(
+        (t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME
+      );
+      const template = current ?? templates?.[0];
       setTemplateStatus(template?.status ?? null);
       setTemplateCategory(template?.category ?? null);
       setEditableTemplateId(
-        template?.meta_template_id && EDITABLE_STATUSES.has(template.status)
-          ? (template.id as string)
+        current?.meta_template_id && EDITABLE_STATUSES.has(current.status)
+          ? (current.id as string)
           : null
       );
     } finally {
@@ -127,8 +133,13 @@ export function AgentInventoryDigestCard() {
           body: JSON.stringify(buildAgentInventoryDigestTemplatePayload()),
         }
       );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Template submission failed');
+      // Platform error pages are HTML: a bare .json() throws
+      // "Unexpected token '<'" and hides what Meta actually said.
+      const data = await res.json().catch(() => null);
+      if (!res.ok)
+        throw new Error(
+          data?.error || `Template submission failed (HTTP ${res.status})`
+        );
       setTemplateStatus('PENDING');
       toast.success('Reach digest template submitted to Meta for approval.');
     } catch (err) {
