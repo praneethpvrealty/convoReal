@@ -4,6 +4,12 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getPlanLimits } from '@/lib/billing/gates';
 import { resolvePropertyRefs } from '@/lib/contacts/property-reference';
 import { buildExistingContactPatch } from '@/lib/contacts/import-merge';
+import {
+  prepareImportRows,
+  distinctTagNames,
+  type ImportRow,
+  type PreparedImportRow,
+} from '@/lib/contacts/import-batch';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface ExistingContactRow {
@@ -83,20 +89,6 @@ export async function POST(request: Request) {
         { error: "'rows' must be a non-empty array" },
         { status: 400 }
       );
-    }
-
-    interface ImportRow {
-      phone?: string;
-      name?: string;
-      name_tag?: string;
-      email?: string;
-      company?: string;
-      tags?: string;
-      areas_of_interest?: string;
-      min_budget?: number;
-      max_budget?: number;
-      notes?: string;
-      property_ref?: string;
     }
 
     const rows: ImportRow[] = body.rows;
@@ -188,180 +180,224 @@ export async function POST(request: Request) {
       propertyRefs.filter((ref) => !resolvedProperties.has(ref.trim()))
     );
 
+    // One record per number, so a file naming someone twice writes one
+    // contact instead of an insert followed by an update.
+    const { prepared, invalid, merged } = prepareImportRows(
+      rowsToImport,
+      (ref) => resolvedProperties.get(ref) ?? null
+    );
+
     let imported = 0;
-    let updated = 0;
-    let failed = 0;
+    // A folded duplicate did enrich the record the first row created,
+    // which is what `updated` has always meant here — counting it keeps
+    // imported + updated + failed + skipped equal to the row count.
+    let updated = merged;
+    let failed = invalid;
     let propertiesLinked = 0;
     const importedIds: string[] = [];
     const updatedIds: string[] = [];
 
-    for (const row of rowsToImport) {
-      if (typeof row.phone !== 'string' || row.phone.trim().length === 0) {
-        failed++;
-        continue;
-      }
+    const toInsert: PreparedImportRow[] = [];
+    const toUpdate: { prep: PreparedImportRow; id: string }[] = [];
+    for (const prep of prepared) {
+      const existing = existingByPhone.get(prep.phoneKey);
+      if (existing) toUpdate.push({ prep, id: existing.id });
+      else toInsert.push(prep);
+    }
 
-      // Parse areas of interest
-      let areas: string[] = [];
-      if (
-        typeof row.areas_of_interest === 'string' &&
-        row.areas_of_interest.trim()
-      ) {
-        areas = row.areas_of_interest
-          .split(',')
-          .map((a) => a.trim())
-          .filter(Boolean);
-      }
+    const contactIdByPhone = new Map<string, string>();
 
-      const enquiredPropertyId = row.property_ref
-        ? (resolvedProperties.get(row.property_ref.trim()) ?? null)
-        : null;
+    const insertPayload = (prep: PreparedImportRow) => ({
+      user_id: ctx.userId,
+      account_id: ctx.accountId,
+      phone: prep.phone,
+      classification: 'Buyer' as const, // Default to Buyer
+      ...prep.fields,
+    });
 
-      const contactData = {
-        user_id: ctx.userId,
-        account_id: ctx.accountId,
-        phone: row.phone.trim(),
-        last_inquired_property_id: enquiredPropertyId,
-        name: typeof row.name === 'string' ? row.name.trim() || null : null,
-        name_tag:
-          typeof row.name_tag === 'string' ? row.name_tag.trim() || null : null,
-        email: typeof row.email === 'string' ? row.email.trim() || null : null,
-        company:
-          typeof row.company === 'string' ? row.company.trim() || null : null,
-        classification: 'Buyer' as const, // Default to Buyer
-        min_budget: typeof row.min_budget === 'number' ? row.min_budget : null,
-        max_budget: typeof row.max_budget === 'number' ? row.max_budget : null,
-        areas_of_interest: areas,
-      };
+    if (toInsert.length > 0) {
+      // Phone strings are unique across prepared records, so the
+      // returned rows map back without relying on statement ordering.
+      const { data: created, error: insertErr } = await ctx.supabase
+        .from('contacts')
+        .insert(toInsert.map(insertPayload))
+        .select('id, phone');
 
-      const existing = existingByPhone.get(row.phone.trim().replace(/\D/g, ''));
-
-      let contactId: string;
-      if (existing) {
-        const patch = buildExistingContactPatch(existing.row, {
-          name: contactData.name,
-          name_tag: contactData.name_tag,
-          email: contactData.email,
-          company: contactData.company,
-          min_budget: contactData.min_budget,
-          max_budget: contactData.max_budget,
-          areas_of_interest: areas,
-          last_inquired_property_id: enquiredPropertyId,
-        });
-
-        if (Object.keys(patch).length > 0) {
-          const { data: patched, error: updateErr } = await ctx.supabase
-            .from('contacts')
-            .update(patch)
-            .eq('id', existing.id)
-            .eq('account_id', ctx.accountId)
-            .select('id');
-          if (updateErr || !patched?.length) {
-            console.error(
-              '[POST /api/contacts/import] Update error for row:',
-              row.phone,
-              updateErr
-            );
-            failed++;
+      if (!insertErr && created) {
+        for (const c of created as { id: string; phone: string }[]) {
+          contactIdByPhone.set(c.phone, c.id);
+        }
+      } else {
+        // One bad row rejects the whole statement, so fall back to
+        // single inserts and let only the offending rows fail. Re-read
+        // first: a statement that committed but failed to answer would
+        // otherwise be inserted twice, and a duplicated contact means a
+        // duplicated message.
+        console.error(
+          '[POST /api/contacts/import] Batched insert failed, retrying row by row:',
+          insertErr
+        );
+        const landed = await loadExistingByPhone(
+          ctx,
+          toInsert.map((p) => p.phone)
+        );
+        for (const prep of toInsert) {
+          const already = landed.get(prep.phoneKey);
+          if (already) {
+            contactIdByPhone.set(prep.phone, already.id);
             continue;
           }
-        }
-        contactId = existing.id;
-        updatedIds.push(contactId);
-        updated++;
-      } else {
-        const { data: created, error: insertErr } = await ctx.supabase
-          .from('contacts')
-          .insert(contactData)
-          .select('id')
-          .single();
 
-        if (insertErr || !created) {
+          const { data: one, error: oneErr } = await ctx.supabase
+            .from('contacts')
+            .insert(insertPayload(prep))
+            .select('id')
+            .single();
+          if (oneErr || !one) {
+            console.error(
+              '[POST /api/contacts/import] Insert error for row:',
+              prep.phone,
+              oneErr
+            );
+            continue;
+          }
+          contactIdByPhone.set(prep.phone, one.id);
+        }
+      }
+
+      for (const prep of toInsert) {
+        const id = contactIdByPhone.get(prep.phone);
+        if (!id) {
+          failed++;
+          continue;
+        }
+        importedIds.push(id);
+        imported++;
+      }
+    }
+
+    // Each patch differs, so these stay one statement per contact —
+    // rows that add nothing are skipped entirely.
+    for (const { prep, id } of toUpdate) {
+      const existing = existingByPhone.get(prep.phoneKey)!;
+      const patch = buildExistingContactPatch(existing.row, prep.fields);
+
+      if (Object.keys(patch).length > 0) {
+        const { data: patched, error: updateErr } = await ctx.supabase
+          .from('contacts')
+          .update(patch)
+          .eq('id', id)
+          .eq('account_id', ctx.accountId)
+          .select('id');
+        if (updateErr || !patched?.length) {
           console.error(
-            '[POST /api/contacts/import] Insert error for row:',
-            row.phone,
-            insertErr
+            '[POST /api/contacts/import] Update error for row:',
+            prep.phone,
+            updateErr
           );
           failed++;
           continue;
         }
-        contactId = created.id;
-        importedIds.push(contactId);
-        imported++;
-        // A second row for this number later in the same file now
-        // updates this contact instead of inserting another.
-        existingByPhone.set(row.phone.trim().replace(/\D/g, ''), {
-          id: contactId,
-          row: { ...contactData, id: contactId } as ExistingContactRow,
-        });
+      }
+      contactIdByPhone.set(prep.phone, id);
+      updatedIds.push(id);
+      updated++;
+    }
+
+    const written = prepared.filter((p) => contactIdByPhone.has(p.phone));
+
+    // Same record the portal email webhook writes, so an imported lead
+    // and an emailed one are indistinguishable downstream. One record
+    // per number means no pair repeats, which a single upsert requires.
+    const inquiries = written
+      .filter((p) => p.fields.last_inquired_property_id)
+      .map((p) => ({
+        contact_id: contactIdByPhone.get(p.phone)!,
+        property_id: p.fields.last_inquired_property_id!,
+        inquiry_source: 'CSV Import',
+      }));
+    if (inquiries.length > 0) {
+      const { error: inquiryErr } = await ctx.supabase
+        .from('contact_property_inquiries')
+        .upsert(inquiries, { onConflict: 'contact_id,property_id' });
+      if (inquiryErr) {
+        console.error(
+          '[POST /api/contacts/import] Inquiry upsert failed:',
+          inquiryErr
+        );
+      } else {
+        propertiesLinked = inquiries.length;
+      }
+    }
+
+    // A re-engagement batch tags every row the same way, so resolving
+    // the distinct names once replaces a lookup per row with a handful.
+    const tagIdByName = new Map<string, string>();
+    for (const tagName of distinctTagNames(written)) {
+      const { data: existingTag } = await ctx.supabase
+        .from('tags')
+        .select('id')
+        .eq('account_id', ctx.accountId)
+        .ilike('name', tagName)
+        .maybeSingle();
+
+      if (existingTag) {
+        tagIdByName.set(tagName.toLowerCase(), existingTag.id);
+        continue;
       }
 
-      // Same record the portal email webhook writes, so an imported
-      // lead and an emailed one are indistinguishable downstream.
-      if (enquiredPropertyId) {
-        const { error: inquiryErr } = await ctx.supabase
-          .from('contact_property_inquiries')
-          .upsert(
-            {
-              contact_id: contactId,
-              property_id: enquiredPropertyId,
-              inquiry_source: 'CSV Import',
-            },
-            { onConflict: 'contact_id,property_id' }
-          );
-        if (!inquiryErr) propertiesLinked++;
-      }
-
-      // Process tags
-      if (typeof row.tags === 'string' && row.tags.trim()) {
-        const tagNames = row.tags
-          .split(',')
-          .map((t) => t.trim())
-          .filter(Boolean);
-        for (const tagName of tagNames) {
-          let tagId: string | null = null;
-
-          // Find existing tag scoped to account_id (case-insensitive)
-          const { data: existingTag } = await ctx.supabase
-            .from('tags')
-            .select('id')
-            .eq('account_id', ctx.accountId)
-            .ilike('name', tagName)
-            .maybeSingle();
-
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            // Create tag
-            const { data: newTag } = await ctx.supabase
-              .from('tags')
-              .insert({
-                account_id: ctx.accountId,
-                user_id: ctx.userId,
-                name: tagName,
-              })
-              .select('id')
-              .single();
-            if (newTag) tagId = newTag.id;
-          }
-
-          if (tagId) {
-            await ctx.supabase.from('contact_tags').insert({
-              contact_id: contactId,
-              tag_id: tagId,
-            });
-          }
-        }
-      }
-
-      // Process notes/preferences
-      if (typeof row.notes === 'string' && row.notes.trim()) {
-        await ctx.supabase.from('contact_notes').insert({
-          contact_id: contactId,
-          user_id: ctx.userId,
+      const { data: newTag } = await ctx.supabase
+        .from('tags')
+        .insert({
           account_id: ctx.accountId,
-          note_text: row.notes.trim(),
+          user_id: ctx.userId,
+          name: tagName,
+        })
+        .select('id')
+        .single();
+      if (newTag) tagIdByName.set(tagName.toLowerCase(), newTag.id);
+    }
+
+    const tagLinks = written.flatMap((p) =>
+      p.tags
+        .map((name) => tagIdByName.get(name.toLowerCase()))
+        .filter((tagId): tagId is string => Boolean(tagId))
+        .map((tagId) => ({
+          contact_id: contactIdByPhone.get(p.phone)!,
+          tag_id: tagId,
+        }))
+    );
+    if (tagLinks.length > 0) {
+      // A contact already carrying the tag would reject the statement,
+      // and re-tagging an existing lead is the normal case here.
+      const { error: tagErr } = await ctx.supabase
+        .from('contact_tags')
+        .upsert(tagLinks, {
+          onConflict: 'contact_id,tag_id',
+          ignoreDuplicates: true,
         });
+      if (tagErr) {
+        console.error('[POST /api/contacts/import] Tag link failed:', tagErr);
+      }
+    }
+
+    const noteRows = written.flatMap((p) =>
+      p.notes.map((note) => ({
+        contact_id: contactIdByPhone.get(p.phone)!,
+        user_id: ctx.userId,
+        account_id: ctx.accountId,
+        note_text: note,
+      }))
+    );
+    if (noteRows.length > 0) {
+      const { error: noteErr } = await ctx.supabase
+        .from('contact_notes')
+        .insert(noteRows);
+      if (noteErr) {
+        console.error(
+          '[POST /api/contacts/import] Note insert failed:',
+          noteErr
+        );
       }
     }
 
