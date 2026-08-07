@@ -28,6 +28,11 @@ import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-t
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import { hasRecentAgentReply } from '@/lib/whatsapp/agent-takeover'
 import {
+  answerLeadQuestion,
+  looksLikeQuestion,
+  questionSubjectProperty,
+} from '@/lib/ai/lead-question'
+import {
   parseTemplateQuickReply,
   lastSharedPropertyId,
   buildFullListMessage,
@@ -1511,7 +1516,11 @@ async function processMessage(
   // read-only calendar query below so a concrete date/time creates an
   // event instead of just listing existing ones; vague schedule talk
   // ("what visits do I have?") falls through untouched.
-  if (!ownerCheck.isOwner) {
+  // A question that happens to mention a day is not a booking request.
+  // "Can we see inside when we visit tomorrow" parsed as a schedule and
+  // re-acknowledged a visit already in the diary; it is a question about
+  // access, and it belongs on the answer ladder below.
+  if (!ownerCheck.isOwner && !looksLikeQuestion(contentText)) {
     const booked = await tryHandleInboundScheduling({
       message,
       contentText,
@@ -1800,6 +1809,65 @@ async function processMessage(
       listings: ownedListings,
     })
     if (ownerHandled) return
+  }
+
+  // A lead's question nothing above claimed. Answer it from the listing
+  // they were last sent — free fields first, then Gemini grounded in
+  // those same fields — and when neither can, say so and put a person
+  // on it rather than guessing or going quiet.
+  if (
+    !flowConsumed &&
+    !ownerCheck.isOwner &&
+    !isPropertyOwnerSender &&
+    message.type === 'text' &&
+    looksLikeQuestion(inboundText)
+  ) {
+    const admin = supabaseAdmin()
+    const subject = await questionSubjectProperty(admin, accountId, contactRecord.id)
+    const answer = await answerLeadQuestion({
+      accountId,
+      question: inboundText,
+      property: subject,
+    })
+
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      kind: 'text',
+      senderType: 'bot',
+      text: answer.text,
+    })
+
+    if (answer.source === 'handover') {
+      // The lead has been promised a person, so make sure one hears
+      // about it: notification, the agent's own WhatsApp, and the
+      // thread flagged for whoever is on duty.
+      await createNotification({
+        accountId,
+        userId: assignedAgentUserId,
+        type: 'new_message',
+        title: `Question needs you: ${contactRecord.name || senderPhone}`,
+        body: inboundText.slice(0, 140),
+        entityType: 'conversation',
+        entityId: conversation.id,
+        link: `/inbox?conversation=${conversation.id}`,
+      })
+      await relayLeadMessageToBridgedAgent({
+        accountId,
+        conversationId: conversation.id,
+        leadName: contactRecord.name || senderPhone,
+        body: inboundText,
+      })
+      await admin
+        .from('conversations')
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', conversation.id)
+        .eq('account_id', accountId)
+        .select('id')
+    }
+    return
   }
 
   const automationTriggers: (
