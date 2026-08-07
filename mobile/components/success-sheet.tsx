@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 
 import { Confetti } from '@/components/motion';
-import { BottomSheet } from '@/components/sheet';
+import { BottomSheet, sheetScrollArea } from '@/components/sheet';
 import { haptic } from '@/lib/haptics';
 import { radius, spacing, useTheme } from '@/lib/theme';
 
@@ -88,9 +88,17 @@ export function SuccessSheet({
           <Confetti onDone={() => setBurst(false)} />
         </View>
       ) : null}
-      <SuccessBadge />
-      <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>{title}</Text>
-      <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text>
+      {/* Badge and copy scroll, the CTAs stay put: on a short screen the
+          sheet hits its height cap and the buttons — the whole point of
+          the celebration — were the first thing clipped. */}
+      <ScrollView
+        style={[sheetScrollArea, { alignSelf: 'stretch' }]}
+        contentContainerStyle={{ alignItems: 'center', gap: spacing.md }}
+      >
+        <SuccessBadge />
+        <Text style={[styles.title, { color: colors.text, fontFamily: f.extrabold }]}>{title}</Text>
+        <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text>
+      </ScrollView>
       <View style={{ alignSelf: 'stretch', gap: spacing.sm, marginTop: spacing.sm }}>
         {actions.map((action, i) => {
           const primary = i === 0;
