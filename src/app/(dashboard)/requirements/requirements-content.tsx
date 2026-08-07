@@ -1020,6 +1020,7 @@ export default function RequirementsPage() {
 
                       {/* Co-broker share */}
                       <Button
+                        data-tour="share-requirement"
                         onClick={() => openShare([c.id])}
                         disabled={isParked}
                         variant="ghost"

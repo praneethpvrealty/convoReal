@@ -48,6 +48,7 @@ export default function ContactsPage() {
         {TABS.map((tab) => (
           <button
             key={tab.id}
+            data-tour={`contacts-tab-${tab.id}`}
             onClick={() => handleTabChange(tab.id)}
             className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
               activeTab === tab.id
