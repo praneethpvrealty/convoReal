@@ -1192,7 +1192,12 @@ async function processMessage(
   // chat. They just opened the 24-hour window by texting, so the reply
   // is free-form: no template, nothing to get approved first. Falls
   // through when the buyer has no brief or nothing fits.
-  if (parseBuyerMatchesCommand(contentText)) {
+  // Also reachable from the enquiry-update template's "Send listings"
+  // quick reply, which arrives as message.button.text. That tap IS the
+  // request — it is what makes sending listings solicited rather than
+  // volunteered, and it opens the 24-hour window so the reply is
+  // free-form.
+  if (parseBuyerMatchesCommand(message.button?.text ?? contentText)) {
     const matchReply = await buildBuyerMatchReply({
       accountId,
       contactId: contactRecord.id,
