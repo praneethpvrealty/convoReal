@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { standDownActiveFlowRuns } from '@/lib/whatsapp/agent-takeover'
 import { storagePublicUrl } from '@/lib/storage/url'
 import {
   sendTextMessage,
@@ -549,19 +550,29 @@ export async function sendWhatsAppMessageAndPersist(
         .eq('status', 'pending')
     }
 
-    // Flow integration: Pause active Flow runs if agent manually sends a message
-    if (args.senderType === 'agent') {
+    // Flow integration: Pause active Flow runs if agent manually sends a message.
+    //
+    // ALWAYS through the admin client, never `db`. A send from the
+    // inbox passes its RLS-scoped client in, and flow_runs carries only
+    // a SELECT policy — so this update was refused, returned zero rows
+    // and no error, and the pause silently did nothing for every human
+    // reply. A lead negotiating with an agent kept being answered
+    // "Sorry, I didn't quite catch that" by a run nobody could stop.
+    // .select() makes a future refusal visible instead of silent.
+    if (args.senderType === 'agent' && resolvedContactId) {
+      // Never let the pause fail the send it follows — the message has
+      // already reached the lead by this point.
       try {
-        await db
-          .from('flow_runs')
-          .update({
-            status: 'paused_by_agent',
-            ended_at: new Date().toISOString(),
-            end_reason: 'agent_replied',
-          })
-          .eq('account_id', accountId)
-          .eq('contact_id', resolvedContactId)
-          .eq('status', 'active')
+        const paused = await standDownActiveFlowRuns(
+          defaultAdminClient() as unknown as SupabaseClient,
+          accountId,
+          resolvedContactId,
+        )
+        if (paused > 0) {
+          console.log(
+            `[meta-api-dispatcher] paused ${paused} flow run(s) — agent replied`,
+          )
+        }
       } catch (flowErr) {
         console.error('[meta-api-dispatcher] flow pause warning:', flowErr)
       }

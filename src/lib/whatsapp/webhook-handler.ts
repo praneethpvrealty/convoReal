@@ -27,7 +27,10 @@ import {
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
-import { hasRecentAgentReply } from '@/lib/whatsapp/agent-takeover'
+import {
+  hasRecentAgentReply,
+  standDownActiveFlowRuns,
+} from '@/lib/whatsapp/agent-takeover'
 import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask'
 import {
   answerLeadQuestion,
@@ -1765,6 +1768,22 @@ async function processMessage(
   // funnel underneath them. Active runs still advance — the lead is
   // mid-answer and expects the next question.
   const agentHandling = await hasRecentAgentReply(supabaseAdmin(), conversation.id)
+  if (agentHandling) {
+    // A run that outlived the send-time pause would keep answering the
+    // lead "Sorry, I didn't quite catch that" through a live
+    // negotiation. Stand it down before dispatch, so this message
+    // reaches the agent instead of the funnel.
+    const stoodDown = await standDownActiveFlowRuns(
+      supabaseAdmin(),
+      accountId,
+      contactRecord.id,
+    )
+    if (stoodDown > 0) {
+      console.log(
+        `[webhook] Stood down ${stoodDown} flow run(s) — an agent is handling this thread`,
+      )
+    }
+  }
 
   console.log(`[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`);
   const flowResult = await dispatchInboundToFlows({
@@ -1876,7 +1895,12 @@ async function processMessage(
   // Meta's test, so this is the only compliant place to ask — and it
   // reaches every buyer who ever replies, not just whoever happens to
   // be mid-chat when the daily digest runs.
-  if (!ownerCheck.isOwner && !isPropertyOwnerSender) {
+  //
+  // Not while an agent is mid-conversation, though: asking "want
+  // alerts?" in the middle of a price negotiation is the bot talking
+  // over the person actually closing the deal. It waits for a quieter
+  // message — the buyer is never asked twice, so nothing is lost.
+  if (!ownerCheck.isOwner && !isPropertyOwnerSender && !agentHandling) {
     try {
       const consentAsk = await claimBuyerConsentAsk(
         supabaseAdmin(),
