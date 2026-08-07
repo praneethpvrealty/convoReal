@@ -61,6 +61,24 @@ export async function GET(
       );
     }
 
+    // Who this listing already went out to, so a client can mark those
+    // rows instead of showing them as untouched. A read failure only
+    // costs the marker, never the list.
+    const { data: shares, error: sharesError } = await ctx.supabase
+      .from('property_shares')
+      .select('contact_id, created_at')
+      .eq('account_id', ctx.accountId)
+      .eq('property_id', propertyId);
+    if (sharesError) {
+      console.error('[GET /api/properties/[id]/matches]', sharesError);
+    }
+    const sharedAtByContact = new Map<string, string>(
+      (shares ?? []).map((row) => [
+        row.contact_id as string,
+        row.created_at as string,
+      ])
+    );
+
     const results = getMatchingContacts(
       property as Property,
       (contacts ?? []) as unknown as Contact[]
@@ -72,7 +90,13 @@ export async function GET(
         // rendering a match row has no use for free-form history.
         const row = { ...contact } as Contact & { contact_notes?: unknown };
         delete row.contact_notes;
-        return { contact: row, score, details, matchedFields };
+        return {
+          contact: row,
+          score,
+          details,
+          matchedFields,
+          sharedAt: sharedAtByContact.get(contact.id) ?? null,
+        };
       }),
     });
   } catch (err) {
