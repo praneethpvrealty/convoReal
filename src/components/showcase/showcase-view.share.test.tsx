@@ -71,7 +71,12 @@ const settings = {
   is_active: true,
 } as unknown as ShowcaseSettings;
 
-function renderAt(search: string, grantToken?: string, agentMode = false) {
+function renderAt(
+  search: string,
+  grantToken?: string,
+  agentMode = false,
+  visitorRef?: string
+) {
   window.history.replaceState({}, '', `/${search}`);
   const writeText = vi.fn<(text: string) => Promise<void>>();
   Object.defineProperty(navigator, 'clipboard', {
@@ -86,6 +91,7 @@ function renderAt(search: string, grantToken?: string, agentMode = false) {
       initialPropertyId={property.id}
       shareGrantToken={grantToken}
       initialAgentMode={agentMode}
+      visitorRef={visitorRef}
       disableSavedState
     />
   );
@@ -130,12 +136,21 @@ describe('showcase detail — share control', () => {
   });
 
   it('leaves a co-broker with the attributed link instead', () => {
-    renderAt('', undefined, true);
+    renderAt('', undefined, true, 'contact-7');
 
     expect(
       screen.queryByRole('button', { name: /share this property/i })
     ).toBeNull();
     expect(screen.getByText(/get my share link/i)).toBeTruthy();
+  });
+
+  it('withholds the re-share panel from an unattributed visit', () => {
+    // A new hop has to hang off the attribution on the link the visitor
+    // holds. With none, the API refuses the mint, so the form would only
+    // collect a phone number it cannot use.
+    renderAt('', undefined, true);
+
+    expect(screen.queryByText(/get my share link/i)).toBeNull();
   });
 
   it('never forwards the share grant that unmasked this visit', () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { encrypt } from "./encryption";
 import { isReengagementError } from "./customer-window";
+import { isChainOnlyBlockedError } from "@/lib/contacts/chain-only";
 
 /**
  * Regression test for a real production incident: system-initiated
@@ -29,6 +30,9 @@ function makeDb(
      *  null to model a contact who has never messaged. */
     lastInboundAt?: string | null;
     integrationType?: string;
+    /** Marks the contact as a re-share chain intermediary (migration
+     *  215) rather than a lead of this account. */
+    chainOnly?: boolean;
   } = {},
 ) {
   const inserts: Record<string, Row[]> = { conversations: [], messages: [] };
@@ -75,7 +79,10 @@ function makeDb(
         }
         if (table === "contacts") {
           return Promise.resolve({
-            data: { phone: "+919876543210" },
+            data: {
+              phone: "+919876543210",
+              chain_only: overrides.chainOnly ?? false,
+            },
             error: null,
           });
         }
@@ -418,6 +425,115 @@ describe("sendWhatsAppMessageAndPersist", () => {
       // Sandbox credentials aren't configured in this harness, so the
       // send fails — but on the sandbox config, not the window.
       expect(isReengagementError(result.error)).toBe(false);
+    });
+  });
+
+  describe("chain-only contacts", () => {
+    it("refuses a send to a re-share intermediary", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({ chainOnly: true });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "template",
+        senderType: "agent",
+        templateName: "new_property_alert",
+        text: "rendered body",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(false);
+      expect(isChainOnlyBlockedError(result.error)).toBe(true);
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("refuses before opening a conversation, so no empty thread is left behind", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({ chainOnly: true });
+
+      await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "bot",
+        text: "hello",
+        customDbClient: db,
+      });
+
+      expect(db._inserts.conversations).toHaveLength(0);
+      expect(db._inserts.messages).toHaveLength(0);
+    });
+
+    it("lets the consent chain itself through with allowChainOnly", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb({
+        chainOnly: true,
+        existingConversation: { id: "conv-existing" },
+      });
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "bot",
+        text: "a co-broker wants the location",
+        allowChainOnly: true,
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(true);
+      expect(fetch).toHaveBeenCalled();
+    });
+
+    it("creates a chain-only contact for a seeker reached by phone", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb();
+
+      await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        toPhone: "+919000000001",
+        kind: "text",
+        senderType: "bot",
+        text: "your location request was approved",
+        createAsChainOnly: true,
+        allowChainOnly: true,
+        customDbClient: db,
+      });
+
+      expect(db._inserts.contacts?.[0]).toMatchObject({ chain_only: true });
+    });
+
+    it("creates an ordinary contact when the flag is absent", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb();
+
+      await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        toPhone: "+919000000002",
+        kind: "text",
+        senderType: "bot",
+        text: "hello",
+        customDbClient: db,
+      });
+
+      expect(db._inserts.contacts?.[0]).toMatchObject({ chain_only: false });
+    });
+
+    it("leaves ordinary contacts alone", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb();
+
+      const result = await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        contactId: CONTACT_ID,
+        kind: "text",
+        senderType: "bot",
+        text: "hello",
+        customDbClient: db,
+      });
+
+      expect(result.success).toBe(true);
     });
   });
 });
