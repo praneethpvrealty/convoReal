@@ -57,12 +57,13 @@ function makeSupabaseStub(
 }
 
 describe('isTemplateWebhookField', () => {
-  it('recognises the three template fields', () => {
+  it('recognises the four template fields', () => {
     expect(isTemplateWebhookField('message_template_status_update')).toBe(true);
     expect(isTemplateWebhookField('message_template_quality_update')).toBe(true);
     expect(isTemplateWebhookField('message_template_components_update')).toBe(
       true,
     );
+    expect(isTemplateWebhookField('template_category_update')).toBe(true);
   });
   it('rejects messaging fields', () => {
     expect(isTemplateWebhookField('messages')).toBe(false);
@@ -214,6 +215,77 @@ describe('handleTemplateWebhookChange — quality update', () => {
       stub,
     );
     expect(calls[0].update).toEqual({ quality_score: null });
+  });
+});
+
+describe('handleTemplateWebhookChange — category update', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  it('persists the normalised new_category by meta_template_id', async () => {
+    const { stub, calls } = makeSupabaseStub();
+    await handleTemplateWebhookChange(
+      {
+        field: 'template_category_update',
+        value: {
+          message_template_id: 12345,
+          message_template_name: 'property_enquiry_details',
+          previous_category: 'UTILITY',
+          new_category: 'MARKETING',
+        },
+      },
+      stub,
+    );
+    expect(calls).toHaveLength(1);
+    expect(calls[0].table).toBe('message_templates');
+    expect(calls[0].filter).toEqual({
+      column: 'meta_template_id',
+      value: '12345',
+    });
+    expect(calls[0].update).toEqual({ category: 'Marketing' });
+  });
+
+  it('falls back to correct_category on the advance-notice variant', async () => {
+    const { stub, calls } = makeSupabaseStub();
+    await handleTemplateWebhookChange(
+      {
+        field: 'template_category_update',
+        value: {
+          message_template_id: '7',
+          correct_category: 'MARKETING',
+        },
+      },
+      stub,
+    );
+    expect(calls[0].update).toEqual({ category: 'Marketing' });
+  });
+
+  it('logs and exits when the id or category is missing (no UPDATE issued)', async () => {
+    const { stub, calls } = makeSupabaseStub();
+    await handleTemplateWebhookChange(
+      { field: 'template_category_update', value: { new_category: 'MARKETING' } },
+      stub,
+    );
+    await handleTemplateWebhookChange(
+      { field: 'template_category_update', value: { message_template_id: '7' } },
+      stub,
+    );
+    expect(calls).toHaveLength(0);
+  });
+
+  it('logs a warning when the row is unknown locally (zero matches)', async () => {
+    const warn = vi.spyOn(console, 'warn');
+    const { stub } = makeSupabaseStub({ data: [], error: null });
+    await handleTemplateWebhookChange(
+      {
+        field: 'template_category_update',
+        value: { message_template_id: 'NEVER_SEEN', new_category: 'MARKETING' },
+      },
+      stub,
+    );
+    expect(warn).toHaveBeenCalled();
   });
 });
 

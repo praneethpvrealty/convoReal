@@ -5,12 +5,12 @@ import { validateTemplatePayload } from './template-validators';
 describe('missingEngineTemplates', () => {
   it('reports a template the account has no row for', () => {
     const missing = missingEngineTemplates(['location_reveal', 'inventory_update']);
-    expect(missing.map((t) => t.name)).toEqual(['property_enquiry_details']);
+    expect(missing.map((t) => t.name)).toEqual(['property_enquiry_response']);
   });
 
   it('ignores case and stray whitespace on existing names', () => {
-    expect(missingEngineTemplates(['  Property_Enquiry_Details '])).not.toContainEqual(
-      expect.objectContaining({ name: 'property_enquiry_details' }),
+    expect(missingEngineTemplates(['  Property_Enquiry_Response '])).not.toContainEqual(
+      expect.objectContaining({ name: 'property_enquiry_response' }),
     );
   });
 

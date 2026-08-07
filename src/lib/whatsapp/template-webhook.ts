@@ -1,20 +1,21 @@
 /**
  * Handlers for Meta's template-lifecycle webhook events.
  *
- * Meta delivers three template-related webhook fields, each with a
+ * Meta delivers four template-related webhook fields, each with a
  * different `value` shape:
  *
  *   - message_template_status_update      — APPROVED / REJECTED / PAUSED / etc.
  *   - message_template_quality_update     — GREEN / YELLOW / RED quality score
  *   - message_template_components_update  — Meta auto-modified the template
+ *   - template_category_update            — Meta re-categorised the template
  *
  * The route handler at /api/whatsapp/webhook receives every change and
- * delegates here when `change.field` starts with `message_template_`.
+ * delegates here when `isTemplateWebhookField(change.field)` matches.
  *
  * ─── Setup requirement (out-of-band) ──────────────────────────────
  * These fields are NOT subscribed to by default. In Meta App Dashboard
  * → WhatsApp → Configuration → Webhooks, you must explicitly toggle
- * each of the three fields above. There is no API to do this for
+ * each of the four fields above. There is no API to do this for
  * Cloud API apps — it's a one-time manual step per app. Until that's
  * done, status updates only land via the manual "Sync from Meta"
  * button (the legacy fallback, intentionally preserved).
@@ -28,12 +29,13 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { normalizeStatus } from './template-status-normalize'
+import { normalizeCategory, normalizeStatus } from './template-status-normalize'
 
 const TEMPLATE_WEBHOOK_FIELDS = new Set([
   'message_template_status_update',
   'message_template_quality_update',
   'message_template_components_update',
+  'template_category_update',
 ])
 
 export function isTemplateWebhookField(field: string): boolean {
@@ -60,6 +62,17 @@ interface TemplateComponentsUpdateValue {
   message_template_id?: string | number
   message_template_name?: string
   message_template_language?: string
+}
+
+interface TemplateCategoryUpdateValue {
+  message_template_id?: string | number
+  message_template_name?: string
+  message_template_language?: string
+  previous_category?: string
+  new_category?: string
+  /** Advance-notice variant: the category Meta has determined is
+   *  correct but has not applied yet. */
+  correct_category?: string
 }
 
 export interface TemplateWebhookChange {
@@ -96,6 +109,12 @@ export async function handleTemplateWebhookChange(
     case 'message_template_components_update':
       handleComponentsUpdate(
         change.value as TemplateComponentsUpdateValue,
+      )
+      return
+    case 'template_category_update':
+      await handleCategoryUpdate(
+        change.value as TemplateCategoryUpdateValue,
+        supabase,
       )
       return
   }
@@ -193,6 +212,65 @@ async function handleQualityUpdate(
       error.message,
     )
   }
+}
+
+/**
+ * Meta re-categorised the template — the event behind "submitted as
+ * Utility, silently enforced as Marketing". The effective category is
+ * what Meta's per-user marketing frequency caps (error 131049) key off,
+ * so the local row must track Meta's value, not the submitted one.
+ * The advance-notice variant carries `correct_category` instead of
+ * `new_category`; persist it too, so the UI warns before sends start
+ * failing rather than after.
+ */
+async function handleCategoryUpdate(
+  value: TemplateCategoryUpdateValue,
+  supabase: SupabaseClient,
+): Promise<void> {
+  const metaTemplateId =
+    value.message_template_id !== undefined
+      ? String(value.message_template_id)
+      : null
+  const raw = value.new_category ?? value.correct_category
+  if (!metaTemplateId || !raw) {
+    console.warn(
+      '[template-webhook] category update missing message_template_id or category:',
+      value,
+    )
+    return
+  }
+
+  const category = normalizeCategory(raw)
+
+  const { data, error } = await supabase
+    .from('message_templates')
+    .update({ category })
+    .eq('meta_template_id', metaTemplateId)
+    .select('id')
+
+  if (error) {
+    console.error(
+      '[template-webhook] category update failed for meta_template_id',
+      metaTemplateId,
+      error.message,
+    )
+    return
+  }
+  if (!data || data.length === 0) {
+    console.warn(
+      '[template-webhook] category update received for unknown template:',
+      metaTemplateId,
+      value.message_template_name,
+    )
+    return
+  }
+  console.warn(
+    `[template-webhook] Meta re-categorised template ${value.message_template_name ?? metaTemplateId} ` +
+      `${value.previous_category ? `from ${value.previous_category} ` : ''}to ${category}.` +
+      (category === 'Marketing'
+        ? ' Sends are now subject to per-user marketing frequency caps (error 131049).'
+        : ''),
+  )
 }
 
 /**

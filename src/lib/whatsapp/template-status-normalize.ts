@@ -26,3 +26,19 @@ export function normalizeStatus(raw: string): MessageTemplateStatus {
     ? (upper as MessageTemplateStatus)
     : 'PENDING'
 }
+
+/**
+ * Normalize Meta's UPPERCASE category (create response, sync poll, or
+ * template_category_update webhook) into the local casing. Meta decides
+ * the effective category — since April 2025 a Utility submission that
+ * fails its utility test is approved as MARKETING rather than rejected,
+ * so the value Meta returns must always win over the value requested.
+ */
+export function normalizeCategory(
+  raw: string,
+): 'Marketing' | 'Utility' | 'Authentication' {
+  const upper = (raw ?? '').toUpperCase()
+  if (upper === 'UTILITY') return 'Utility'
+  if (upper === 'AUTHENTICATION') return 'Authentication'
+  return 'Marketing'
+}

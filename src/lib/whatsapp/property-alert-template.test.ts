@@ -49,10 +49,24 @@ describe('buildPropertyAlertTemplatePayload', () => {
     expect(body).not.toMatch(/just came up|new property match|don't miss/i);
   });
 
-  it('orders quick replies before the dynamic URL button', () => {
+  it('carries no sales CTA anywhere — that is what got the predecessor re-categorised', () => {
+    const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com');
+    // Meta classifies mixed utility+marketing content as Marketing,
+    // which error-131049 frequency caps silently drop. "Site visit",
+    // "book", offers and emoji ad-card styling all read as promotional.
+    const everything = [
+      payload.body_text,
+      ...(payload.buttons ?? []).map((b) => b.text),
+      ...(payload.sample_values?.body ?? []),
+    ].join('\n');
+    expect(everything).not.toMatch(/site visit|book|offer|discount|exclusive|premium|don'?t miss/i);
+    expect(payload.body_text).not.toMatch(/[*_]|🏠|📍/);
+  });
+
+  it('orders the quick reply before the dynamic URL button', () => {
     const payload = buildPropertyAlertTemplatePayload('https://www.convoreal.com/');
     const types = (payload.buttons ?? []).map((b) => b.type);
-    expect(types).toEqual(['QUICK_REPLY', 'QUICK_REPLY', 'URL']);
+    expect(types).toEqual(['QUICK_REPLY', 'URL']);
     const urlBtn = payload.buttons?.find((b) => b.type === 'URL');
     expect(urlBtn && 'url' in urlBtn ? urlBtn.url : '').toBe('https://www.convoreal.com/{{1}}');
   });
