@@ -5,7 +5,9 @@ import {
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
   LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
+  countTemplateBodyParams,
 } from './agent-inventory-digest-template';
+import { buildOwnerDigestTemplatePayload } from './owner-digest-template';
 import { validateTemplatePayload } from './template-validators';
 
 describe('buildAgentInventoryDigestTemplatePayload', () => {
@@ -36,6 +38,18 @@ describe('buildAgentInventoryDigestTemplatePayload', () => {
     expect(/^[a-z0-9_]+$/.test(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME)).toBe(true);
   });
 
+  it('matches the shape of the Utility-approved owner digest', () => {
+    const agent = buildAgentInventoryDigestTemplatePayload();
+    const owner = buildOwnerDigestTemplatePayload();
+    expect(countTemplateBodyParams(agent.body_text)).toBe(
+      countTemplateBodyParams(owner.body_text)
+    );
+    expect(agent.footer_text).toBe(owner.footer_text);
+    // A variable announced as a call to action is what Meta kept
+    // reading as Marketing.
+    expect(agent.body_text).not.toMatch(/next step/i);
+  });
+
   it('provides a sample value for every body param', () => {
     const payload = buildAgentInventoryDigestTemplatePayload();
     const paramCount = new Set(payload.body_text.match(/\{\{\d+\}\}/g)).size;
@@ -43,31 +57,38 @@ describe('buildAgentInventoryDigestTemplatePayload', () => {
   });
 });
 
+describe('countTemplateBodyParams', () => {
+  it('counts distinct placeholders, so an older four-param body still sends', () => {
+    expect(countTemplateBodyParams('Hi {{1}}, activity on {{2}}: {{3}} Next step: {{4}}')).toBe(4);
+    expect(countTemplateBodyParams(buildAgentInventoryDigestTemplatePayload().body_text)).toBe(3);
+    expect(countTemplateBodyParams('{{1}} and {{1}} again')).toBe(1);
+    expect(countTemplateBodyParams(null)).toBe(0);
+  });
+});
+
 describe('buildAgentInventoryDigestParams', () => {
-  it('builds first name, listings phrase, summary and next step', () => {
+  it('builds first name, listings phrase and summary', () => {
     const params = buildAgentInventoryDigestParams(
       'Deepak Sharma',
       3,
       'today',
-      '2 new direct buyers · 1 new buyer via partner agents',
-      'Reply to this message to get the new buyer details'
+      '2 new direct buyers · 1 new buyer via partner agents'
     );
     expect(params).toEqual([
       'Deepak',
       'your 3 referred listings (today)',
       '2 new direct buyers · 1 new buyer via partner agents',
-      'Reply to this message to get the new buyer details',
     ]);
   });
 
   it('uses singular phrasing for one property and a fallback name', () => {
-    const params = buildAgentInventoryDigestParams(null, 1, 'this week', '1 direct buyer', 'x');
+    const params = buildAgentInventoryDigestParams(null, 1, 'this week', '1 direct buyer');
     expect(params[0]).toBe('there');
     expect(params[1]).toBe('your referred listing (this week)');
   });
 
   it('never produces empty or multi-line params', () => {
-    const params = buildAgentInventoryDigestParams('  ', 2, 'today', '', '');
+    const params = buildAgentInventoryDigestParams('  ', 2, 'today', '');
     for (const p of params) {
       expect(p.length).toBeGreaterThan(0);
       expect(p).not.toMatch(/\n/);

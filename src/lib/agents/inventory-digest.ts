@@ -6,6 +6,7 @@ import {
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
   buildAgentInventoryDigestParams,
+  countTemplateBodyParams,
 } from '@/lib/whatsapp/agent-inventory-digest-template'
 import {
   digestPeriod,
@@ -523,13 +524,17 @@ export async function sendAgentInventoryDigests(options?: {
           continue
         }
 
-        const params = buildAgentInventoryDigestParams(
+        const params: string[] = buildAgentInventoryDigestParams(
           digest.name,
           activeProps.length,
           period.label,
-          buildAgentReachSummaryLine(digest),
-          buildAgentDigestNextStepLine(digest)
+          buildAgentReachSummaryLine(digest)
         )
+        // Older approved revisions declare a fourth "Next step" param;
+        // Meta rejects a send that supplies fewer than the body needs.
+        if (countTemplateBodyParams(digestTemplate.body_text) > params.length) {
+          params.push(buildAgentDigestNextStepLine(digest))
+        }
         const bodyParams = truncateParametersToBudget(digestTemplate.body_text, [...params])
         const res = await sendWhatsAppMessageAndPersist({
           accountId,

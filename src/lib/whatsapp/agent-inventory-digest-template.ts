@@ -36,21 +36,20 @@ export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
     // referred inventory, not promotional content.
     category: 'Utility',
     language: 'en_US',
-    // Every word here is read by Meta's categoriser: promotional
-    // framing ("reach", "performed across our network"), the 📣
-    // megaphone and a signup CTA in a sample value all push the
-    // template to Marketing. Mirror owner_property_digest, which
-    // clears review as Utility with the same footer and buttons.
+    // owner_property_digest is the control: same footer, same buttons,
+    // approved as Utility. Two rewrites of this template were still
+    // categorised Marketing, and what it had that the control did not
+    // was a fourth free-text param introduced as "Next step:" — a slot
+    // Meta cannot inspect, announced as a call to action. Dropping it
+    // leaves the two templates structurally identical.
     body_text: [
-      '📊 *Your Listing Activity Update*',
+      '📊 *Your Listing Update*',
       '',
       'Hi {{1}}, here is the latest buyer activity on {{2}}:',
       '',
       '📈 Summary: {{3}}',
       '',
-      'Next step: {{4}}',
-      '',
-      'Reply to this message for details.',
+      'Reply to this message for details or to talk to our team.',
     ].join('\n'),
     footer_text: 'Reply STOP UPDATES to pause these updates',
     buttons: [
@@ -64,27 +63,22 @@ export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
         'Deepak',
         'your 3 referred listings (today)',
         '2 direct buyers reached · 1 indirect buyer via partner agents · 1 partner agent onboarded',
-        'Reply to this message to get the new buyer details',
       ],
     },
   };
 }
 
 /**
- * Body params {{1}}..{{4}}: first name, listings phrase (with period),
- * compact reach summary, next step. The next step must stay
- * transactional — a signup or dashboard CTA in this param is what got
- * the template categorised as Marketing; the invite lives on the
- * free-form path instead. Every param is guaranteed non-empty (Meta
+ * Body params {{1}}..{{3}}: first name, listings phrase (with period),
+ * compact reach summary. Every param is guaranteed non-empty (Meta
  * rejects empty values) and newline-free (sanitizeTemplateParam).
  */
 export function buildAgentInventoryDigestParams(
   contactName: string | null | undefined,
   propertyCount: number,
   periodLabel: string,
-  summaryLine: string,
-  nextStepLine: string
-): [name: string, listings: string, summary: string, nextStep: string] {
+  summaryLine: string
+): [name: string, listings: string, summary: string] {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   const listingPhrase =
     propertyCount === 1 ? 'your referred listing' : `your ${propertyCount} referred listings`;
@@ -92,6 +86,14 @@ export function buildAgentInventoryDigestParams(
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(`${listingPhrase} (${periodLabel})`),
     sanitizeTemplateParam(summaryLine || 'New buyer activity'),
-    sanitizeTemplateParam(nextStepLine || 'Reply to this message for details.'),
   ];
+}
+
+/**
+ * How many distinct {{N}} the stored template body expects. Earlier
+ * revisions of this template carry a fourth "Next step" param, and
+ * sending a template fewer params than it declares is a Meta error.
+ */
+export function countTemplateBodyParams(bodyText: string | null | undefined): number {
+  return new Set((bodyText || '').match(/\{\{\d+\}\}/g) ?? []).size;
 }
