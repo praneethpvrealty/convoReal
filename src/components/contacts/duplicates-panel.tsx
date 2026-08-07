@@ -14,6 +14,8 @@ import {
   Check,
   RefreshCw,
   Users,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +59,9 @@ interface DuplicateGroup {
 
 interface Props {
   onMergeComplete?: () => void;
+  /** Opens the contact card, so a record can be corrected rather than
+   *  merged — often the right answer once you can see the difference. */
+  onOpenContact?: (contactId: string) => void;
 }
 
 // Duplicate detection scans every non-merged contact on the account to
@@ -72,6 +77,10 @@ interface Props {
 // for the life of the tab, and the panel hides itself when empty. A
 // duplicate created after the first visit could never surface.
 const DUPLICATES_STALE_MS = 5 * 60 * 1000;
+
+function groupIds(group: DuplicateGroup): string {
+  return group.contacts.map((c) => c.id).sort().join(':');
+}
 
 async function fetchDuplicateGroups(): Promise<DuplicateGroup[]> {
   const res = await fetch('/api/contacts/duplicates');
@@ -136,7 +145,7 @@ function ContactDifferences({ contacts }: { contacts: DuplicateContact[] }) {
   );
 }
 
-export function DuplicatesPanel({ onMergeComplete }: Props) {
+export function DuplicatesPanel({ onMergeComplete, onOpenContact }: Props) {
   const {
     data: groups = [],
     isPending,
@@ -149,6 +158,42 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
     staleTime: DUPLICATES_STALE_MS,
   });
   const [expanded, setExpanded] = useState(false);
+  const [dismissing, setDismissing] = useState<string | null>(null);
+
+  // A pair the panel is right to suggest and you are right to reject comes
+  // back on every check, so the answer has to be recordable. Offered with
+  // an undo because a suggestion that vanishes for good on one misclick is
+  // worse than one that keeps asking.
+  async function handleDismiss(group: DuplicateGroup) {
+    const contactIds = group.contacts.map((c) => c.id);
+    setDismissing(groupIds(group));
+    try {
+      const res = await fetch('/api/contacts/duplicates/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactIds }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Could not dismiss');
+      await refetch();
+      toast.success('Marked as different people', {
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            await fetch('/api/contacts/duplicates/dismiss', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contactIds }),
+            });
+            await refetch();
+          },
+        },
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not dismiss');
+    } finally {
+      setDismissing(null);
+    }
+  }
 
   // Merge dialog state
   const [mergeGroup, setMergeGroup] = useState<DuplicateGroup | null>(null);
@@ -306,37 +351,59 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {group.contacts.map((c) => (
-                      <div
+                      // Not every pair resolves to merge-or-ignore: seeing
+                      // the difference is often what tells you one record
+                      // is simply wrong. Open it and fix it in place.
+                      <button
                         key={c.id}
-                        className="rounded-lg border border-slate-700 bg-slate-800/60 px-2.5 py-1.5 text-xs"
+                        type="button"
+                        disabled={!onOpenContact}
+                        onClick={() => onOpenContact?.(c.id)}
+                        title={onOpenContact ? 'Open this contact' : undefined}
+                        className="rounded-lg border border-slate-700 bg-slate-800/60 px-2.5 py-1.5 text-left text-xs enabled:cursor-pointer enabled:hover:border-slate-600 enabled:hover:bg-slate-800"
                       >
                         <div className="flex items-center gap-1.5 font-medium text-white">
                           <span className="truncate">
                             {c.name || '(no name)'}
                           </span>
                           <NameTagBadge tag={c.name_tag} />
+                          {onOpenContact && (
+                            <ExternalLink className="h-3 w-3 shrink-0 text-slate-500" />
+                          )}
                         </div>
                         <div className="mt-0.5 text-slate-400">
                           {c.source || c.classification || 'Unknown source'} ·{' '}
                           {new Date(c.created_at).toLocaleDateString('en-IN')}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                   <ContactDifferences contacts={group.contacts} />
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 border-amber-500/40 text-xs text-amber-300 hover:bg-amber-500/10"
-                  onClick={() => {
-                    setMergeGroup(group);
-                    setTargetId(group.contacts[0].id); // default: keep oldest
-                  }}
-                >
-                  <GitMerge className="mr-1 h-3.5 w-3.5" />
-                  Merge
-                </Button>
+                <div className="flex shrink-0 flex-col gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-500/40 text-xs text-amber-300 hover:bg-amber-500/10"
+                    onClick={() => {
+                      setMergeGroup(group);
+                      setTargetId(group.contacts[0].id); // default: keep oldest
+                    }}
+                  >
+                    <GitMerge className="mr-1 h-3.5 w-3.5" />
+                    Merge
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={dismissing === groupIds(group)}
+                    className="text-xs text-slate-400 hover:text-slate-200"
+                    onClick={() => handleDismiss(group)}
+                  >
+                    <X className="mr-1 h-3.5 w-3.5" />
+                    Not duplicates
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

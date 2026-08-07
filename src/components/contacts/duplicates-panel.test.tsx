@@ -15,7 +15,13 @@
 // ============================================================
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, cleanup, screen, fireEvent } from '@testing-library/react';
+import {
+  render,
+  cleanup,
+  screen,
+  fireEvent,
+  waitFor,
+} from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
 
@@ -210,6 +216,45 @@ describe('duplicates panel', () => {
 
     fireEvent.click(await screen.findByText(/1 duplicate group detected/));
     expect(screen.getByText(/Compare 1 difference$/)).toBeTruthy();
+  });
+
+  // Seeing the difference often tells you one record is simply wrong,
+  // and the answer is to correct it rather than merge or ignore.
+  it('opens a contact card from the group', async () => {
+    mockGroups({ groups: [GROUP] });
+    const onOpenContact = vi.fn();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <DuplicatesPanel onOpenContact={onOpenContact} />
+      </QueryClientProvider>
+    );
+
+    fireEvent.click(await screen.findByText(/1 duplicate group detected/));
+    fireEvent.click(screen.getByText('Chetan kumar'));
+
+    expect(onOpenContact).toHaveBeenCalledWith('c1');
+  });
+
+  it('records a dismissal against every contact in the group', async () => {
+    const fetchMock = mockGroups({ groups: [GROUP] }, { groups: [] });
+    renderPanel();
+
+    fireEvent.click(await screen.findByText(/1 duplicate group detected/));
+    fireEvent.click(screen.getByText('Not duplicates'));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/contacts/duplicates/dismiss',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ contactIds: ['c1', 'c2'] }),
+        })
+      )
+    );
+    expect(await screen.findByText(/No duplicate contacts found/)).toBeTruthy();
   });
 
   it('re-checks on demand without a remount', async () => {
