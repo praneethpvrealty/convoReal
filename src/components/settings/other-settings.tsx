@@ -76,6 +76,10 @@ export function OtherSettingsPanel() {
   const [approvedTemplates, setApprovedTemplates] = useState<MessageTemplate[]>([]);
   const [autoQualify, setAutoQualify] = useState(true);
   const [autoQualifySaving, setAutoQualifySaving] = useState(false);
+  // Off unless the account says otherwise — the seller's floor is the
+  // brokerage's to quote, not the bot's to volunteer.
+  const [shareFinalPrice, setShareFinalPrice] = useState(false);
+  const [shareFinalPriceSaving, setShareFinalPriceSaving] = useState(false);
   const [hasSyncConfig, setHasSyncConfig] = useState(false);
   const [syncConfigLoading, setSyncConfigLoading] = useState(true);
   const [syncConfigSaving, setSyncConfigSaving] = useState(false);
@@ -191,11 +195,36 @@ export function OtherSettingsPanel() {
     if (!accountId) return;
     const { data } = await supabase
       .from('whatsapp_config')
-      .select('auto_qualify_leads')
+      .select('auto_qualify_leads, share_seller_final_price')
       .eq('account_id', accountId)
       .maybeSingle();
-    if (data) setAutoQualify(data.auto_qualify_leads !== false);
+    if (data) {
+      setAutoQualify(data.auto_qualify_leads !== false);
+      setShareFinalPrice(data.share_seller_final_price === true);
+    }
   }, [accountId, supabase]);
+
+  const handleToggleShareFinalPrice = async () => {
+    if (!accountId || shareFinalPriceSaving) return;
+    const next = !shareFinalPrice;
+    setShareFinalPriceSaving(true);
+    const { data: saved, error } = await supabase
+      .from('whatsapp_config')
+      .update({ share_seller_final_price: next })
+      .eq('account_id', accountId)
+      .select('id');
+    setShareFinalPriceSaving(false);
+    if (error || !saved?.length) {
+      toast.error('Failed to update price disclosure');
+      return;
+    }
+    setShareFinalPrice(next);
+    toast.success(
+      next
+        ? "Buyers asking about negotiation will hear the seller's final price"
+        : "The seller's final price stays internal"
+    );
+  };
 
   const handleToggleAutoQualify = async () => {
     if (!accountId || autoQualifySaving) return;
@@ -788,6 +817,26 @@ export function OtherSettingsPanel() {
                 </div>
                 <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 shrink-0 ${autoQualify ? 'bg-primary' : 'bg-slate-700'}`}>
                   <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 ${autoQualify ? 'translate-x-4' : 'translate-x-0'}`} />
+                </div>
+              </div>
+
+              {/* Toggle Seller's Final Price disclosure */}
+              <div
+                onClick={handleToggleShareFinalPrice}
+                className={`p-4 rounded-xl border transition-all duration-300 cursor-pointer flex items-center justify-between select-none ${
+                  shareFinalPrice
+                    ? 'border-primary bg-primary/5 text-white shadow-[0_0_15px_rgba(99,102,241,0.05)]'
+                    : 'border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:bg-slate-950/40'
+                } ${shareFinalPriceSaving ? 'pointer-events-none opacity-60' : ''}`}
+              >
+                <div className="space-y-0.5 pr-2">
+                  <h4 className="text-xs font-bold text-slate-100">Quote the Seller&apos;s Final Price</h4>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    Let the bot answer &ldquo;is this negotiable?&rdquo; with the final price saved on the listing, instead of promising a callback. Off keeps it internal.
+                  </p>
+                </div>
+                <div className={`w-8 h-4 rounded-full p-0.5 transition-colors duration-200 shrink-0 ${shareFinalPrice ? 'bg-primary' : 'bg-slate-700'}`}>
+                  <div className={`w-3 h-3 rounded-full bg-white transition-transform duration-200 ${shareFinalPrice ? 'translate-x-4' : 'translate-x-0'}`} />
                 </div>
               </div>
             </div>

@@ -922,10 +922,20 @@ export interface Property {
   user_id: string | null;
   title: string;
   description?: string;
+  /** Listing/quote price — the advertised figure, and the only price a
+   *  public surface may show. */
   price: number;
   /** Rate quoted per Sq.Ft. at intake (migration 167). `price` is derived
    *  from it once an area is known; this keeps what the owner quoted. */
   price_per_sqft?: number | null;
+  /** What the seller will actually accept, as a total and/or a per-Sq.Ft.
+   *  rate (migration 215). Internal — absent from PUBLIC_PROPERTY_FIELDS
+   *  and DEN_PROPERTY_SELECT, and reaches a buyer only through the
+   *  WhatsApp lead Q&A when the account has opted in. */
+  seller_final_price?: number | null;
+  seller_final_price_per_sqft?: number | null;
+  seller_final_price_at?: string | null;
+  seller_final_price_source?: 'manual' | 'chat' | null;
   /** Final sale price captured when status → Sold. Optional, never buyer-facing. */
   sold_price?: number | null;
   location: string;
@@ -1080,6 +1090,37 @@ export interface Property {
   updated_at: string;
   meta_catalog_synced_at?: string | null;
   meta_catalog_error?: string | null;
+}
+
+// ============================================================
+// Learned property facts (216_property_fact_suggestions.sql)
+// ============================================================
+
+export const SUGGESTABLE_PROPERTY_FIELDS = [
+  'seller_final_price',
+  'seller_final_price_per_sqft',
+] as const;
+
+export type SuggestablePropertyField =
+  (typeof SUGGESTABLE_PROPERTY_FIELDS)[number];
+
+export interface PropertyFactSuggestion {
+  id: string;
+  account_id: string;
+  property_id: string;
+  contact_id: string | null;
+  conversation_id: string | null;
+  message_id: string | null;
+  field: SuggestablePropertyField;
+  current_value: number | null;
+  suggested_value: number;
+  /** The agent's own sentence — what the reviewer is confirming. */
+  evidence: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================

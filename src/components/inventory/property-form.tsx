@@ -75,6 +75,7 @@ import { getMatchingContacts } from '@/lib/matching';
 import { fetchPropertyShareLog, recordPropertyShares } from '@/lib/inventory/share-log';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
+import { FactSuggestionsPanel } from '@/components/inventory/fact-suggestions-panel';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -180,6 +181,11 @@ export function PropertyForm({
   // Final sale price, captured only when status is Sold. Optional —
   // feeds the anonymized market-stats aggregation, never shown to buyers.
   const [soldPrice, setSoldPrice] = useState('');
+  // What the seller will actually accept, as a total and/or a per-Sq.Ft.
+  // rate. Distinct from `price`, which is the advertised figure — this
+  // one never reaches a public surface.
+  const [sellerFinalPrice, setSellerFinalPrice] = useState('');
+  const [sellerFinalPricePerSqft, setSellerFinalPricePerSqft] = useState('');
   const [listingType, setListingType] = useState<'Sale' | 'Rent' | 'JV/JD' | 'Built to Suit'>('Sale');
   const [rentPerMonth, setRentPerMonth] = useState('');
   const [maintenance, setMaintenance] = useState('');
@@ -1426,6 +1432,8 @@ export function PropertyForm({
         setType(property.type);
         setStatus(property.status);
         setSoldPrice(property.sold_price !== null && property.sold_price !== undefined ? String(property.sold_price) : '');
+        setSellerFinalPrice(property.seller_final_price !== null && property.seller_final_price !== undefined ? String(property.seller_final_price) : '');
+        setSellerFinalPricePerSqft(property.seller_final_price_per_sqft !== null && property.seller_final_price_per_sqft !== undefined ? String(property.seller_final_price_per_sqft) : '');
         setBedrooms(property.bedrooms !== null && property.bedrooms !== undefined ? String(property.bedrooms) : '');
         setBathrooms(property.bathrooms !== null && property.bathrooms !== undefined ? String(property.bathrooms) : '');
         setAreaSqft(property.area_sqft !== null && property.area_sqft !== undefined ? String(property.area_sqft) : '');
@@ -2319,6 +2327,16 @@ export function PropertyForm({
           status === 'Sold' && soldPrice.trim() !== '' && !Number.isNaN(Number(soldPrice))
             ? Number(soldPrice)
             : null,
+        // Ignored by the create route's allowlist — a listing has no
+        // negotiated floor on the day it is entered.
+        seller_final_price:
+          sellerFinalPrice.trim() !== '' && !Number.isNaN(Number(sellerFinalPrice))
+            ? Number(sellerFinalPrice)
+            : null,
+        seller_final_price_per_sqft:
+          sellerFinalPricePerSqft.trim() !== '' && !Number.isNaN(Number(sellerFinalPricePerSqft))
+            ? Number(sellerFinalPricePerSqft)
+            : null,
         bedrooms: parsedBedrooms,
         bathrooms: parsedBathrooms,
         furnishing: !isLand && furnishing ? furnishing : null,
@@ -2491,6 +2509,15 @@ export function PropertyForm({
           <div className="flex-1 overflow-y-auto min-h-0">
             {/* PROPERTY DETAILS TAB */}
             <TabsContent value="details" className="m-0 px-6 py-4 focus:outline-none">
+              {/* Facts an agent stated to a buyer that this listing does
+                  not carry yet. Renders nothing when the queue is empty,
+                  so it costs the ordinary listing no space. */}
+              {property?.id && (
+                <FactSuggestionsPanel
+                  propertyId={property.id}
+                  onApplied={onSaved}
+                />
+              )}
               {viewMode ? (
                 <div className="space-y-6 animate-fade-in pb-4">
                   {/* 1. IMAGE CAROUSEL / GALLERY — photos plus the
@@ -4005,6 +4032,50 @@ export function PropertyForm({
                           </option>
                         ))}
                       </select>
+                    </div>
+                  )}
+
+                  {isEdit && (
+                    <div className="space-y-1.5 col-span-2 rounded-lg border border-slate-800 bg-slate-950/20 p-4">
+                      <h4 className="text-sm font-semibold text-white">
+                        Seller&apos;s final price
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        What the seller will actually accept, as against the quoted
+                        price above. Internal — never shown on the showcase or in a
+                        share link.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-seller-final-price" className="text-slate-300">
+                            Total
+                          </Label>
+                          <Input
+                            id="prop-seller-final-price"
+                            type="number"
+                            min="0"
+                            value={sellerFinalPrice}
+                            onChange={(e) => setSellerFinalPrice(e.target.value)}
+                            placeholder={price ? `e.g. ${price}` : 'e.g. 42000000'}
+                            className="border-slate-700 bg-slate-800 text-white"
+                          />
+                          <PriceHint value={sellerFinalPrice} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="prop-seller-final-rate" className="text-slate-300">
+                            Per Sq.Ft.
+                          </Label>
+                          <Input
+                            id="prop-seller-final-rate"
+                            type="number"
+                            min="0"
+                            value={sellerFinalPricePerSqft}
+                            onChange={(e) => setSellerFinalPricePerSqft(e.target.value)}
+                            placeholder="e.g. 10500"
+                            className="border-slate-700 bg-slate-800 text-white"
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 

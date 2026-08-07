@@ -23,6 +23,7 @@ import {
   type QaProperty,
 } from '@/lib/showcase/property-qa';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
+import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -42,6 +43,62 @@ export interface LeadAnswer {
   source: LeadAnswerSource;
   /** The matched deterministic intent, for logging. */
   intent?: string | null;
+}
+
+/** The listing fields the final-price rung reads. Not part of QaProperty:
+ *  those are the fields the PUBLIC showcase answers from, and the
+ *  seller's floor is not one of them. */
+export type SellerPriceFields = Pick<
+  Property,
+  'seller_final_price' | 'seller_final_price_per_sqft' | 'area_sqft'
+>;
+
+/**
+ * A buyer asking whether there is room on the price. Mirrors the
+ * ESCALATE_PATTERN clause in property-qa.ts that sends these questions
+ * past the structured answers — the difference is that here we may
+ * actually have the answer.
+ */
+const FINAL_PRICE_QUESTION =
+  /\b(negotiab|negotiate|bargain|discount|best price|final price|last price|lowest|net price|come down|reduce|any room)/i;
+
+function inr(n: number): string {
+  return '₹' + n.toLocaleString('en-IN');
+}
+
+/**
+ * Answers "is this negotiable?" from what an agent already established
+ * with the seller, when the account has chosen to quote it.
+ *
+ * This is the payoff of the learning loop: the figure lands here only
+ * because a human approved a suggestion extracted from an agent's own
+ * reply, so quoting it is repeating a decision the brokerage made, not
+ * a number the model inferred. Returns null when nothing is stored, and
+ * the ladder carries on to the AI path and then the handover exactly as
+ * before.
+ */
+export function answerFromSellerFinalPrice(
+  question: string,
+  property: SellerPriceFields,
+): string | null {
+  if (!FINAL_PRICE_QUESTION.test(question || '')) return null;
+
+  const rate = property.seller_final_price_per_sqft;
+  const total = property.seller_final_price;
+
+  if (rate) {
+    const derived =
+      property.area_sqft && property.area_sqft > 0
+        ? ` — about ${inr(Math.round(rate * property.area_sqft))} for this unit`
+        : '';
+    return `There is a little room: the seller's final rate is ${inr(rate)} per sq.ft.${derived}. Shall I put you in touch with the team to close it?`;
+  }
+
+  if (total) {
+    return `There is a little room: the seller's final price is ${inr(total)}. Shall I put you in touch with the team to close it?`;
+  }
+
+  return null;
 }
 
 /**
@@ -72,7 +129,7 @@ export async function questionSubjectProperty(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-): Promise<(QaProperty & { id: string }) | null> {
+): Promise<(QaProperty & SellerPriceFields & { id: string }) | null> {
   const { data: share } = await db
     .from('property_shares')
     .select('property_id')
@@ -90,7 +147,9 @@ export async function questionSubjectProperty(
     .eq('id', propertyId)
     .eq('account_id', accountId)
     .maybeSingle();
-  return (property as (QaProperty & { id: string }) | null) ?? null;
+  return (
+    (property as (QaProperty & SellerPriceFields & { id: string }) | null) ?? null
+  );
 }
 
 /**
@@ -104,7 +163,11 @@ export async function questionSubjectProperty(
 export async function answerLeadQuestion(args: {
   accountId: string;
   question: string;
-  property: QaProperty | null;
+  property: (QaProperty & Partial<SellerPriceFields>) | null;
+  /** whatsapp_config.share_seller_final_price. Off by default: a
+   *  seller's floor is the brokerage's to quote, not the bot's to
+   *  volunteer, and the account decides when it is. */
+  shareSellerFinalPrice?: boolean;
 }): Promise<LeadAnswer> {
   const { accountId, question, property } = args;
   if (!property) return { text: HANDOVER_TEXT, source: 'handover' };
@@ -113,6 +176,16 @@ export async function answerLeadQuestion(args: {
   const qaProperty = guarded
     ? { ...property, location: localityLabel(property) }
     : property;
+
+  // Ahead of the structured matchers: property-qa deliberately refuses
+  // price-negotiability questions, and it is right to — it answers the
+  // public showcase too, where this figure must never appear.
+  if (args.shareSellerFinalPrice) {
+    const finalPrice = answerFromSellerFinalPrice(question, property);
+    if (finalPrice) {
+      return { text: finalPrice, source: 'listing', intent: 'seller_final_price' };
+    }
+  }
 
   const structured = answerFromPropertyData(question, qaProperty);
   if (structured.answer) {

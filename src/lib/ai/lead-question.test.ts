@@ -12,6 +12,7 @@ import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import {
   answerLeadQuestion,
+  answerFromSellerFinalPrice,
   looksLikeQuestion,
   HANDOVER_TEXT,
 } from './lead-question';
@@ -131,5 +132,98 @@ describe('answerLeadQuestion', () => {
     });
     expect(res.source).toBe('handover');
     expect(generateText).not.toHaveBeenCalled();
+  });
+});
+
+describe('answerFromSellerFinalPrice', () => {
+  it('answers the negotiability question from the stored rate', () => {
+    const answer = answerFromSellerFinalPrice('Is this negotiable???', {
+      seller_final_price_per_sqft: 10500,
+      seller_final_price: null,
+      area_sqft: 4200,
+    });
+    expect(answer).toContain('₹10,500 per sq.ft.');
+    // Derived only as a convenience — the rate is what was stated.
+    expect(answer).toContain('₹4,41,00,000');
+  });
+
+  it('omits the derived total when no area is known', () => {
+    const answer = answerFromSellerFinalPrice('any room on the price?', {
+      seller_final_price_per_sqft: 10500,
+      seller_final_price: null,
+      area_sqft: undefined,
+    });
+    expect(answer).toContain('₹10,500 per sq.ft.');
+    expect(answer).not.toContain('for this unit');
+  });
+
+  it('falls back to the stored total', () => {
+    expect(
+      answerFromSellerFinalPrice('whats the best price', {
+        seller_final_price: 42000000,
+        seller_final_price_per_sqft: null,
+        area_sqft: 4200,
+      })
+    ).toContain('₹4,20,00,000');
+  });
+
+  it('stays silent when the listing carries no final price', () => {
+    expect(
+      answerFromSellerFinalPrice('is it negotiable', {
+        seller_final_price: null,
+        seller_final_price_per_sqft: null,
+        area_sqft: 4200,
+      })
+    ).toBeNull();
+  });
+
+  it('stays silent for a question that is not about negotiation', () => {
+    expect(
+      answerFromSellerFinalPrice('is it north facing?', {
+        seller_final_price_per_sqft: 10500,
+        seller_final_price: null,
+        area_sqft: 4200,
+      })
+    ).toBeNull();
+  });
+});
+
+describe('answerLeadQuestion — seller final price rung', () => {
+  const withFinal = {
+    ...property,
+    seller_final_price_per_sqft: 10500,
+    seller_final_price: null,
+  } as unknown as QaProperty;
+
+  beforeEach(() => {
+    vi.mocked(burnCredits).mockResolvedValue({
+      success: true,
+      deficit: 0,
+      balanceAfter: 100,
+    } as unknown as Awaited<ReturnType<typeof burnCredits>>);
+  });
+
+  it('answers from the listing without a model call when the account opted in', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is this negotiable???',
+      property: withFinal,
+      shareSellerFinalPrice: true,
+    });
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('seller_final_price');
+    expect(res.text).toContain('₹10,500 per sq.ft.');
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('keeps the floor internal when the account has not opted in', async () => {
+    vi.mocked(generateText).mockResolvedValue("I don't know that.");
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is this negotiable???',
+      property: withFinal,
+    });
+    expect(res.text).toBe(HANDOVER_TEXT);
+    expect(res.text).not.toContain('10,500');
   });
 });

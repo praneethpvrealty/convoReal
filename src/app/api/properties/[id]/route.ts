@@ -99,6 +99,8 @@ export async function PUT(
       title,
       description,
       price,
+      seller_final_price,
+      seller_final_price_per_sqft,
       sold_price,
       location,
       type,
@@ -209,6 +211,35 @@ export async function PUT(
         );
       }
       updateData.price = price;
+    }
+
+    // What the seller will accept (migration 215) — internal, and never
+    // in a public payload: PUBLIC_PROPERTY_FIELDS does not list it.
+    // Stamped with when and how it was set so an agent can tell a figure
+    // they typed from one a bot proposal wrote.
+    const sellerPriceEdits = (
+      [
+        ["seller_final_price", seller_final_price],
+        ["seller_final_price_per_sqft", seller_final_price_per_sqft],
+      ] as const
+    ).filter(([, value]) => value !== undefined);
+
+    for (const [key, value] of sellerPriceEdits) {
+      if (value !== null && (typeof value !== "number" || value < 0)) {
+        return NextResponse.json(
+          { error: `'${key}' must be a non-negative number or null` },
+          { status: 400 }
+        );
+      }
+      updateData[key] = value;
+    }
+
+    // One stamp for the edit, not one per field: clearing the total
+    // while setting a rate is still a manual decision made just now.
+    if (sellerPriceEdits.length > 0) {
+      const anySet = sellerPriceEdits.some(([, value]) => value !== null);
+      updateData.seller_final_price_at = anySet ? new Date().toISOString() : null;
+      updateData.seller_final_price_source = anySet ? "manual" : null;
     }
 
     if (sold_price !== undefined) {
