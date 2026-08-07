@@ -43,6 +43,11 @@ import type {
   SenderType,
 } from '@/lib/types';
 import { chatListTime } from '@/lib/format';
+import {
+  lastMsgStatusInvalidationKey,
+  lastMsgStatusKey,
+  outgoingTickStatus,
+} from '@/lib/inbox-ticks';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import {
@@ -103,6 +108,23 @@ export default function InboxScreen() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversations' },
         () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
+      )
+      // Delivery ticks live on the message, not the conversation: a
+      // status webhook moves messages.status sent → delivered → read and
+      // touches nothing else, so without this the row keeps whatever it
+      // first read — usually a single tick — while the thread shows the
+      // message as read.
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'messages' },
+        (payload) => {
+          const conversationId = (
+            payload.new as { conversation_id?: string } | null
+          )?.conversation_id;
+          queryClient.invalidateQueries({
+            queryKey: lastMsgStatusInvalidationKey(conversationId),
+          });
+        }
       )
       .subscribe();
     return () => {
@@ -404,11 +426,7 @@ function ConversationRow({
   // conversations row carries no status, so the latest message's meta is
   // fetched per visible row (FlatList only mounts what's on screen).
   const { data: lastMsg } = useQuery({
-    queryKey: [
-      'last-msg-status',
-      conversation.id,
-      conversation.last_message_at,
-    ],
+    queryKey: lastMsgStatusKey(conversation.id, conversation.last_message_at),
     enabled: Boolean(conversation.last_message_at),
     staleTime: 60_000,
     queryFn: async () => {
@@ -425,8 +443,7 @@ function ConversationRow({
       } | null;
     },
   });
-  const outgoingTicks =
-    lastMsg && lastMsg.sender_type !== 'customer' ? lastMsg.status : null;
+  const outgoingTicks = outgoingTickStatus(lastMsg);
 
   async function toggleArchive() {
     haptic.tap();
