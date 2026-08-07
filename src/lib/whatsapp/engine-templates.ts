@@ -14,6 +14,7 @@ import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { buildPropertyAlertTemplatePayload, PROPERTY_ALERT_TEMPLATE_NAME } from './property-alert-template';
 import { buildLocationRevealTemplatePayload, LOCATION_REVEAL_TEMPLATE_NAME } from './location-reveal-template';
 import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } from './inventory-update-template';
+import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -43,6 +44,13 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     label: 'Inventory update',
     whyItMatters: 'Carries an inventory update to a contact with no open service window.',
     build: buildInventoryUpdateTemplatePayload,
+  },
+  {
+    name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+    label: 'Enquiry follow-up',
+    whyItMatters:
+      'Re-engages imported portal leads whose original listing expired — asks for their latest requirement and offers matched deal alerts via the preference flow and START/STOP buttons.',
+    build: buildEnquiryFollowupTemplatePayload,
   },
 ];
 

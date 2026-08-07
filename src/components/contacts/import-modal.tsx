@@ -128,6 +128,10 @@ function parseCSV(text: string): ParsedRow[] {
   return rows;
 }
 
+// extract-preferences processes at most 25 contacts per request, so a
+// larger import runs the extraction as sequential batches from here.
+const EXTRACT_BATCH_SIZE = 25;
+
 export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -137,12 +141,14 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: number; skipped?: number } | null>(null);
   const [limitWarning, setLimitWarning] = useState<PreflightResult | null>(null);
+  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number } | null>(null);
 
   function reset() {
     setFile(null);
     setParsedRows([]);
     setResult(null);
     setLimitWarning(null);
+    setExtractProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -264,11 +270,40 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       if (data.failed > 0) {
         toast.error(`${data.failed} contact${data.failed !== 1 ? 's' : ''} failed to import`);
       }
+
+      const importedIds: string[] = Array.isArray(data.importedIds) ? data.importedIds : [];
+      if (importedIds.length > 0) {
+        void extractPreferencesInBatches(importedIds);
+      }
     } catch {
       toast.error('Import failed');
     } finally {
       setImporting(false);
     }
+  }
+
+  async function extractPreferencesInBatches(contactIds: string[]) {
+    setExtractProgress({ done: 0, total: contactIds.length });
+    for (let i = 0; i < contactIds.length; i += EXTRACT_BATCH_SIZE) {
+      const batch = contactIds.slice(i, i + EXTRACT_BATCH_SIZE);
+      try {
+        await fetch('/api/contacts/extract-preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contactIds: batch }),
+        });
+      } catch {
+        // Best-effort: the share/match dialogs re-run extraction for any
+        // contact they touch, so a failed batch heals itself later.
+      }
+      setExtractProgress({
+        done: Math.min(i + batch.length, contactIds.length),
+        total: contactIds.length,
+      });
+    }
+    setExtractProgress(null);
+    toast.success('Matching preferences analysed');
+    onImported();
   }
 
   const preview = parsedRows.slice(0, 5);
@@ -449,6 +484,12 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                   </div>
                 )}
               </div>
+              {extractProgress && (
+                <div className="flex items-center gap-1.5 text-slate-400 text-sm">
+                  <Loader2 className="size-4 animate-spin" />
+                  Analysing matching preferences {extractProgress.done}/{extractProgress.total}
+                </div>
+              )}
             </div>
           )}
         </div>

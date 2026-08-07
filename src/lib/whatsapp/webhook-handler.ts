@@ -1157,9 +1157,11 @@ async function processMessage(
   }
 
   // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text. Same chat-as-control-panel pattern as the owner digest
-  // commands above, editing contacts.buyer_alerts_consent.
-  const alertsCommand = parseBuyerAlertsCommand(contentText)
+  // free text, or the enquiry-followup template's "Start deal alerts" /
+  // "Stop alerts" quick replies (which arrive as message.button.text).
+  // Same chat-as-control-panel pattern as the owner digest commands
+  // above, editing contacts.buyer_alerts_consent.
+  const alertsCommand = parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
     const confirmation = await applyBuyerAlertsCommand({
       command: alertsCommand,
@@ -1518,12 +1520,14 @@ async function processMessage(
   }
 
   // Buyer asked to update their preferences (free text like "update my
-  // preferences" or the update_preferences button) — send the native
-  // Meta Flow form if this account has one published. Falls through to
-  // normal handling when the flow isn't set up, so accounts without the
-  // feature see no behavior change.
+  // preferences", the update_preferences button, or the enquiry-followup
+  // template's "Update my preferences" quick reply, which arrives as
+  // message.button.text) — send the native Meta Flow form if this
+  // account has one published. Falls through to normal handling when
+  // the flow isn't set up, so accounts without the feature see no
+  // behavior change.
   if (
-    isPreferenceFlowRequestText(contentText) ||
+    isPreferenceFlowRequestText(message.button?.text ?? contentText) ||
     interactiveReplyId === PREFERENCE_FLOW_BUTTON_ID
   ) {
     const handledPreferenceFlow = await handlePreferenceFlowTrigger(
