@@ -230,7 +230,13 @@ export default function ConversationScreen() {
       <Stack.Screen
         options={{
           headerShown: true,
-          headerTitle: () => <ThreadHeader title={title} status={conversation?.status} />,
+          headerTitle: () => (
+            <ThreadHeader
+              title={title}
+              status={conversation?.status}
+              phone={conversation?.contact?.phone || undefined}
+            />
+          ),
           headerRight: () => (
             <Pressable
               onPress={() => setMenuOpen(true)}
@@ -356,15 +362,42 @@ const STATUS_LABELS: Record<string, string> = {
   closed: 'Closed',
 };
 
-function ThreadHeader({ title, status }: { title: string; status?: string }) {
+function ThreadHeader({
+  title,
+  status,
+  phone,
+}: {
+  title: string;
+  status?: string;
+  phone?: string;
+}) {
   const { colors, fonts: f } = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
       <Avatar name={title} size={34} />
-      <View>
-        <Text style={{ fontSize: 16, fontFamily: f.bold, color: colors.text }} numberOfLines={1}>
-          {title}
-        </Text>
+      <View style={{ flexShrink: 1 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text
+            style={{ fontSize: 16, fontFamily: f.bold, color: colors.text, flexShrink: 1 }}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {phone ? (
+            <Pressable
+              hitSlop={10}
+              onPress={() => {
+                haptic.tap();
+                Linking.openURL(`tel:${phone}`);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${title}`}
+              style={[styles.headerCall, { backgroundColor: colors.primarySoft }]}
+            >
+              <Ionicons name="call" size={13} color={colors.primary} />
+            </Pressable>
+          ) : null}
+        </View>
         {status ? (
           <Text
             style={{
@@ -932,6 +965,13 @@ function Composer({
 }
 
 const styles = StyleSheet.create({
+  headerCall: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bubble: {
     maxWidth: '82%',
     borderRadius: radius.lg,
