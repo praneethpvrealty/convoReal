@@ -188,20 +188,16 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fire-and-forget: extract AI matching preferences in background
-    if (importedIds.length > 0) {
-      fetch(`${process.env.NEXT_PUBLIC_APP_URL || ''}/api/contacts/extract-preferences`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactIds: importedIds }),
-      }).catch(() => {});
-    }
-
+    // Preference extraction is driven by the client in batches of 25
+    // (extract-preferences caps contactIds per request) — a server-side
+    // self-fetch here carries no session cookie, so it can never
+    // authenticate.
     return NextResponse.json({
       imported,
       failed,
       skipped,
       total: rows.length,
+      importedIds,
     });
   } catch (err) {
     return toErrorResponse(err);

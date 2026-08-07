@@ -12,25 +12,16 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
-import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
+import {
+  parseContactsCsv,
+  extractPreferencesInBatches,
+  type ParsedContactRow,
+} from '@/lib/contacts/import-csv';
 
 interface ImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImported: () => void;
-}
-
-interface ParsedRow {
-  phone: string;
-  name?: string;
-  name_tag?: string;
-  email?: string;
-  company?: string;
-  tags?: string;
-  areas_of_interest?: string;
-  min_budget?: number;
-  max_budget?: number;
-  notes?: string;
 }
 
 interface PreflightResult {
@@ -42,107 +33,23 @@ interface PreflightResult {
   willExceedLimit: boolean;
 }
 
-function parseCSV(text: string): ParsedRow[] {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
-
-  const headerLine = lines[0];
-  const headers = headerLine.split(',').map((h) => h.trim().toLowerCase().replace(/["']/g, ''));
-
-  const phoneIdx = headers.indexOf('phone');
-  if (phoneIdx === -1) return [];
-
-  const nameIdx = headers.indexOf('name');
-  const nameTagIdx = headers.indexOf('name_tag') >= 0
-    ? headers.indexOf('name_tag')
-    : headers.indexOf('name tag');
-  const emailIdx = headers.indexOf('email');
-  const companyIdx = headers.indexOf('company');
-  const tagsIdx = headers.indexOf('tags');
-  
-  const areasIdx = headers.indexOf('areas of interest') >= 0 
-    ? headers.indexOf('areas of interest') 
-    : headers.indexOf('areas_of_interest');
-    
-  const minBudgetIdx = headers.indexOf('min budget') >= 0 
-    ? headers.indexOf('min budget') 
-    : headers.indexOf('min_budget');
-    
-  const maxBudgetIdx = headers.indexOf('max budget') >= 0 
-    ? headers.indexOf('max budget') 
-    : headers.indexOf('max_budget');
-    
-  const notesIdx = headers.indexOf('notes') >= 0 
-    ? headers.indexOf('notes') 
-    : (headers.indexOf('preferences') >= 0 
-      ? headers.indexOf('preferences') 
-      : headers.indexOf('requirements'));
-
-  const rows: ParsedRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-
-    // Simple CSV parse (handles quoted fields)
-    const values: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    for (const char of line) {
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        values.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    values.push(current.trim());
-
-    const phone = values[phoneIdx]?.replace(/["']/g, '').trim();
-    if (!phone) continue;
-
-    const minBudgetRaw = minBudgetIdx >= 0 ? values[minBudgetIdx]?.replace(/["']/g, '').trim() : undefined;
-    const maxBudgetRaw = maxBudgetIdx >= 0 ? values[maxBudgetIdx]?.replace(/["']/g, '').trim() : undefined;
-
-    const rawName = nameIdx >= 0 ? values[nameIdx]?.replace(/["']/g, '').trim() || undefined : undefined;
-    const explicitTag = nameTagIdx >= 0 ? values[nameTagIdx]?.replace(/["']/g, '').trim() || undefined : undefined;
-    // No explicit tag column → suggest splitting a trailing qualifier off the
-    // name ("Nataraj Bank DSA" → "Nataraj" + tag "Bank DSA").
-    const split = !explicitTag && rawName ? suggestNameTagSplit(rawName) : null;
-
-    rows.push({
-      phone,
-      name: split ? split.name : rawName,
-      name_tag: explicitTag ?? split?.nameTag ?? undefined,
-      email: emailIdx >= 0 ? values[emailIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
-      company: companyIdx >= 0 ? values[companyIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
-      tags: tagsIdx >= 0 ? values[tagsIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
-      areas_of_interest: areasIdx >= 0 ? values[areasIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
-      min_budget: minBudgetRaw && !isNaN(Number(minBudgetRaw)) ? Number(minBudgetRaw) : undefined,
-      max_budget: maxBudgetRaw && !isNaN(Number(maxBudgetRaw)) ? Number(maxBudgetRaw) : undefined,
-      notes: notesIdx >= 0 ? values[notesIdx]?.replace(/["']/g, '').trim() || undefined : undefined,
-    });
-  }
-
-  return rows;
-}
-
 export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([]);
+  const [parsedRows, setParsedRows] = useState<ParsedContactRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<{ imported: number; failed: number; skipped?: number } | null>(null);
   const [limitWarning, setLimitWarning] = useState<PreflightResult | null>(null);
+  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number } | null>(null);
 
   function reset() {
     setFile(null);
     setParsedRows([]);
     setResult(null);
     setLimitWarning(null);
+    setExtractProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -177,7 +84,7 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
     setLimitWarning(null);
 
     const text = await selected.text();
-    const rows = parseCSV(text);
+    const rows = parseContactsCsv(text);
 
     if (rows.length === 0) {
       toast.error('No valid rows found. Ensure CSV has a "phone" column header.');
@@ -263,6 +170,17 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
       }
       if (data.failed > 0) {
         toast.error(`${data.failed} contact${data.failed !== 1 ? 's' : ''} failed to import`);
+      }
+
+      const importedIds: string[] = Array.isArray(data.importedIds) ? data.importedIds : [];
+      if (importedIds.length > 0) {
+        void extractPreferencesInBatches(importedIds, (done, total) =>
+          setExtractProgress({ done, total }),
+        ).then(() => {
+          setExtractProgress(null);
+          toast.success('Matching preferences analysed');
+          onImported();
+        });
       }
     } catch {
       toast.error('Import failed');
@@ -449,6 +367,12 @@ export function ImportModal({ open, onOpenChange, onImported }: ImportModalProps
                   </div>
                 )}
               </div>
+              {extractProgress && (
+                <div className="flex items-center gap-1.5 text-slate-400 text-sm">
+                  <Loader2 className="size-4 animate-spin" />
+                  Analysing matching preferences {extractProgress.done}/{extractProgress.total}
+                </div>
+              )}
             </div>
           )}
         </div>

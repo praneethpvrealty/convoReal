@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
+import { greetingName } from '@/lib/contacts/lead-placeholder';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
 
@@ -60,8 +61,11 @@ export function resolveVariables(
     if (v.type === 'static') return v.value;
 
     if (v.type === 'field') {
+      // Meta rejects empty body params, failing that recipient's send —
+      // a missing or placeholder name ("Housing Lead") resolves to a
+      // greetable fallback instead.
       const fieldMap: Record<string, string | undefined> = {
-        name: contact.name,
+        name: greetingName(contact.name),
         phone: contact.phone,
         email: contact.email,
         company: contact.company,
