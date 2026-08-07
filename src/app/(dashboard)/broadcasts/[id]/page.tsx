@@ -38,6 +38,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ReengagementOutcome } from '@/components/reengagement/reengagement-outcome';
+import { isReengagementTemplate } from '@/lib/reengagement/funnel';
 import {
   getBroadcastStatus,
   getRecipientStatus,
@@ -457,6 +459,21 @@ export default function BroadcastDetailPage() {
       </div>
 
       <FunnelChart steps={funnelSteps} />
+
+      {/* Re-engagement outcome — only for batches sent on the
+          enquiry-status template, where the send funnel above is just
+          the first half of the story: what matters after it is who
+          restated a requirement and what now matches them. */}
+      {isReengagementTemplate(broadcast.template_name) && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <h2 className="text-sm font-medium text-white">Re-engagement outcome</h2>
+          <p className="mt-0.5 mb-4 text-xs text-slate-400">
+            What this batch produced downstream — replies, restated requirements, and
+            matched inventory ready to shortlist.
+          </p>
+          <ReengagementOutcome broadcastId={broadcastId} />
+        </div>
+      )}
 
       {/* Recipients Table */}
       <div className="rounded-xl border border-slate-800 bg-slate-900">
