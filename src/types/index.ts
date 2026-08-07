@@ -1093,30 +1093,27 @@ export interface Property {
 }
 
 // ============================================================
-// Learned property facts (216_property_fact_suggestions.sql)
+// Learned facts (218_learned_facts.sql)
 // ============================================================
 
-export const SUGGESTABLE_PROPERTY_FIELDS = [
-  'seller_final_price',
-  'seller_final_price_per_sqft',
-] as const;
-
-export type SuggestablePropertyField =
-  (typeof SUGGESTABLE_PROPERTY_FIELDS)[number];
-
-export interface PropertyFactSuggestion {
+export interface LearnedFact {
   id: string;
   account_id: string;
-  property_id: string;
+  entity_type: 'property' | 'contact';
+  entity_id: string;
+  field: string;
+  previous_value: unknown;
+  value: unknown;
+  /** The sentence this was read out of — what a reviewer confirms. */
+  evidence: string;
+  source: 'agent_reply' | 'lead_message' | 'owner_reply' | 'portal_sync';
+  /** 'auto' wrote on sight and left this as the audit row; 'propose'
+   *  wrote nothing until a human said so. */
+  disposition: 'auto' | 'propose';
+  status: 'pending' | 'approved' | 'rejected' | 'applied';
   contact_id: string | null;
   conversation_id: string | null;
   message_id: string | null;
-  field: SuggestablePropertyField;
-  current_value: number | null;
-  suggested_value: number;
-  /** The agent's own sentence — what the reviewer is confirming. */
-  evidence: string;
-  status: 'pending' | 'approved' | 'rejected';
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;

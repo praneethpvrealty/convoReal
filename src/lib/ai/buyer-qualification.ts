@@ -33,6 +33,7 @@ import {
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { recordLearnedFacts } from '@/lib/learning/record';
 import type { Contact } from '@/types';
 
 export type QualifierField = 'type' | 'budget' | 'location';
@@ -323,6 +324,28 @@ export function preferenceSignature(prefs: ExtractedPreferences): string {
   ]);
 }
 
+/**
+ * The extraction, as candidates the learning framework can police.
+ * Field names are the contact columns themselves — fields.ts owns
+ * which of them are writable, and what happens when they change.
+ */
+export function preferenceFacts(
+  prefs: ExtractedPreferences
+): { field: string; value: unknown }[] {
+  return [
+    { field: 'pref_property_types', value: prefs.property_types },
+    { field: 'pref_property_categories', value: prefs.property_categories },
+    { field: 'pref_bhk_min', value: prefs.bhk_min },
+    { field: 'pref_bhk_max', value: prefs.bhk_max },
+    { field: 'pref_budget_min', value: prefs.budget_min },
+    { field: 'pref_budget_max', value: prefs.budget_max },
+    { field: 'pref_areas', value: prefs.areas },
+    { field: 'pref_excluded_areas', value: prefs.excluded_areas },
+    { field: 'pref_projects', value: prefs.projects },
+    { field: 'pref_listing_types', value: prefs.listing_types },
+  ];
+}
+
 /** Preferences already on the contact row, in extraction shape. */
 function prefsFromContact(contact: Contact): ExtractedPreferences {
   return {
@@ -510,22 +533,37 @@ export async function processBuyerQualificationMessage(
         return false;
 
       prefs = extracted;
+
+      // The registry-governed fields go through the framework, which
+      // applies them (they are 'auto' — the ladder reads them back on
+      // the very next message) and leaves an audit row per field that
+      // actually moved. Before this, Gemini rewrote a contact's budget,
+      // areas and projects on every inbound message with no record at
+      // all: one mis-parse of "not more than 2cr" changed who that
+      // buyer matched, and there was nothing to look at and nothing to
+      // roll back to.
+      await recordLearnedFacts({
+        db,
+        accountId,
+        entity: 'contact',
+        entityId: contact.id,
+        current: contact as unknown as Record<string, unknown>,
+        facts: preferenceFacts(prefs),
+        evidence: text,
+        source: 'lead_message',
+        contactId: contact.id,
+        conversationId: conversation.id,
+      });
+
+      // Bookkeeping and the fields the registry does not govern. The
+      // hash must be written even when nothing moved, or the same text
+      // is re-extracted — and paid for — on the next message.
       const { error: updateErr } = await db
         .from('contacts')
         .update({
           requirements,
-          pref_property_types: prefs.property_types,
-          pref_property_categories: prefs.property_categories,
-          pref_bhk_min: prefs.bhk_min,
-          pref_bhk_max: prefs.bhk_max,
-          pref_budget_min: prefs.budget_min,
-          pref_budget_max: prefs.budget_max,
-          pref_areas: prefs.areas,
-          pref_excluded_areas: prefs.excluded_areas,
-          pref_projects: prefs.projects,
           pref_suggested_tags: prefs.suggested_tags,
           pref_min_roi: prefs.min_roi,
-          pref_listing_types: prefs.listing_types,
           pref_source_hash: hash,
           pref_extracted_at: new Date().toISOString(),
         })

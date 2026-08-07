@@ -26,9 +26,12 @@ import { generateJson } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import {
-  SUGGESTABLE_PROPERTY_FIELDS,
-  type SuggestablePropertyField,
-} from '@/types';
+  fieldPolicy,
+  normalizeValue,
+  type FieldPolicy,
+} from '@/lib/learning/fields';
+import { recordLearnedFacts } from '@/lib/learning/record';
+import { resolvePropertySubject } from '@/lib/learning/subject';
 
 const AI_FEATURE = 'chatbot_classify' as const;
 
@@ -57,27 +60,26 @@ export function carriesPriceFactSignal(text?: string | null): boolean {
 }
 
 export interface ExtractedPriceFact {
-  field: SuggestablePropertyField;
+  field: string;
   value: number;
 }
 
-/**
- * Bounds a parsed figure to what a real Indian listing can be, per
- * field. A model that reads "10.5k per sqft" as 10.5 would otherwise
- * propose a rate of ten and a half rupees, and a reviewer skimming a
- * queue can approve a wrong number faster than they can spot it.
- */
-const FIELD_BOUNDS: Record<
-  SuggestablePropertyField,
-  { min: number; max: number }
-> = {
-  // ₹1 lakh to ₹10,000 Cr.
-  seller_final_price: { min: 100_000, max: 100_000_000_000 },
-  // ₹100 to ₹5 lakh per Sq.Ft.
-  seller_final_price_per_sqft: { min: 100, max: 500_000 },
-};
+/** The two property fields this learner is allowed to reach. The
+ *  registry owns their bounds and their disposition; naming them here
+ *  only stops the model from wandering into a different learner's
+ *  fields. */
+const PRICE_FIELDS = [
+  'seller_final_price',
+  'seller_final_price_per_sqft',
+] as const;
 
-/** Keeps only well-formed, in-range facts, one per field. */
+/**
+ * Keeps only well-formed, in-range facts, one per field.
+ *
+ * Bounds come from the field registry rather than a local table, so
+ * "10.5k per sqft" read as 10.5 is rejected by the same rule whether it
+ * arrived here, from a portal sync, or from a future learner.
+ */
 export function sanitizePriceFacts(raw: unknown): ExtractedPriceFact[] {
   const list = Array.isArray(raw) ? raw : [];
   const seen = new Set<string>();
@@ -87,19 +89,16 @@ export function sanitizePriceFacts(raw: unknown): ExtractedPriceFact[] {
     if (!entry || typeof entry !== 'object') continue;
     const { field, value } = entry as { field?: unknown; value?: unknown };
     if (typeof field !== 'string') continue;
-    if (!(SUGGESTABLE_PROPERTY_FIELDS as readonly string[]).includes(field))
-      continue;
+    if (!(PRICE_FIELDS as readonly string[]).includes(field)) continue;
     if (seen.has(field)) continue;
 
-    const typed = field as SuggestablePropertyField;
-    const num = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(num)) continue;
-
-    const bounds = FIELD_BOUNDS[typed];
-    if (num < bounds.min || num > bounds.max) continue;
+    const policy = fieldPolicy('property', field) as FieldPolicy | null;
+    if (!policy) continue;
+    const normalized = normalizeValue(policy, value);
+    if (normalized === null) continue;
 
     seen.add(field);
-    out.push({ field: typed, value: Math.round(num) });
+    out.push({ field, value: normalized as number });
   }
 
   return out;
@@ -157,54 +156,6 @@ export async function extractPriceFacts(
   }
 }
 
-/**
- * A fact worth asking about: one that is not already what the listing
- * says. Re-proposing the value already stored is noise in a review
- * queue, and a queue people stop reading learns nothing.
- */
-export function isNewFact(
-  fact: ExtractedPriceFact,
-  property: Record<string, unknown>
-): boolean {
-  const current = property[fact.field];
-  if (current === null || current === undefined) return true;
-  return Number(current) !== fact.value;
-}
-
-/**
- * The listing an agent's message is about: the one most recently shared
- * with this contact. Same source of truth as questionSubjectProperty,
- * so a fact lands on the listing the buyer was asking about.
- */
-async function subjectProperty(
-  db: SupabaseClient,
-  accountId: string,
-  contactId: string
-): Promise<Record<string, unknown> | null> {
-  const { data: share } = await db
-    .from('property_shares')
-    .select('property_id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const propertyId = share?.property_id as string | undefined;
-  if (!propertyId) return null;
-
-  const { data: property } = await db
-    .from('properties')
-    .select(
-      'id, price, area_sqft, seller_final_price, seller_final_price_per_sqft'
-    )
-    .eq('id', propertyId)
-    .eq('account_id', accountId)
-    .maybeSingle();
-
-  return (property as Record<string, unknown> | null) ?? null;
-}
-
 export interface LearnFromAgentReplyArgs {
   db: SupabaseClient;
   accountId: string;
@@ -216,8 +167,9 @@ export interface LearnFromAgentReplyArgs {
 }
 
 /**
- * Walks the gates and records what survives as a pending suggestion.
- * Returns the number of suggestions written.
+ * Walks the gates and hands what survives to the learning framework,
+ * which decides — from the field policy — whether it is applied on
+ * sight or queued for a human. Returns how many facts were filed.
  *
  * Never throws: this runs after a message has already reached the
  * buyer, so nothing here may fail the send it follows.
@@ -230,49 +182,49 @@ export async function learnFromAgentReply(
   try {
     if (!carriesPriceFactSignal(text)) return 0;
 
-    const property = await subjectProperty(db, accountId, contactId);
+    // The shared resolver, so a rate quoted just after an agent pitched
+    // a different project is filed against THAT project — or against
+    // nothing, when the thread names more than one. Filing a price on
+    // the wrong listing is the same error as answering a question from
+    // it, and it outlives the conversation.
+    const propertyId = await resolvePropertySubject(
+      db,
+      accountId,
+      contactId,
+      conversationId
+    );
+    if (!propertyId) return 0;
+
+    const { data: property } = await db
+      .from('properties')
+      .select(
+        'id, price, area_sqft, seller_final_price, seller_final_price_per_sqft'
+      )
+      .eq('id', propertyId)
+      .eq('account_id', accountId)
+      .maybeSingle();
     if (!property) return 0;
 
-    const facts = (await extractPriceFacts(accountId, text)).filter((f) =>
-      isNewFact(f, property)
-    );
+    const facts = await extractPriceFacts(accountId, text);
     if (!facts.length) return 0;
 
-    // Replaces any open suggestion for the same field — the latest
-    // thing the agent said is the one worth confirming. Reviewed rows
-    // are left alone, so the audit trail survives.
-    const propertyId = property.id as string;
-    const { error: clearErr } = await db
-      .from('property_fact_suggestions')
-      .update({ status: 'rejected', reviewed_at: new Date().toISOString() })
-      .eq('account_id', accountId)
-      .eq('property_id', propertyId)
-      .eq('status', 'pending')
-      .in(
-        'field',
-        facts.map((f) => f.field)
-      );
-    if (clearErr) throw clearErr;
+    // Whitelist, bounds, novelty and apply-or-propose all belong to the
+    // field policy now — this learner only decides what it heard.
+    const result = await recordLearnedFacts({
+      db,
+      accountId,
+      entity: 'property',
+      entityId: propertyId,
+      current: property as Record<string, unknown>,
+      facts,
+      evidence: text,
+      source: 'agent_reply',
+      contactId,
+      conversationId,
+      messageId,
+    });
 
-    const { error: insertErr } = await db
-      .from('property_fact_suggestions')
-      .insert(
-        facts.map((f) => ({
-          account_id: accountId,
-          property_id: propertyId,
-          contact_id: contactId,
-          conversation_id: conversationId,
-          message_id: messageId,
-          field: f.field,
-          current_value: (property[f.field] as number | null) ?? null,
-          suggested_value: f.value,
-          evidence: text.slice(0, 2000),
-          status: 'pending',
-        }))
-      );
-    if (insertErr) throw insertErr;
-
-    return facts.length;
+    return result.applied.length + result.proposed.length;
   } catch (err) {
     console.error(
       '[chat-learning] learnFromAgentReply failed (non-fatal):',

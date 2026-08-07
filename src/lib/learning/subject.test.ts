@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { propertiesNamedIn, resolveSubjectShift } from './question-subject';
+import { propertiesNamedIn, resolveSubjectShift } from './subject';
 
 const OVAL_REEF = {
   id: 'prop-oval',

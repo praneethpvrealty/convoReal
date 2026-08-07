@@ -20,6 +20,8 @@
 // is meant, and the caller hands over to a human rather than guessing.
 // ============================================================
 
+import type { SupabaseClient } from '@supabase/supabase-js';
+
 export interface SubjectCandidate {
   id: string;
   project?: string | null;
@@ -117,4 +119,75 @@ export function resolveSubjectShift(
     return { kind: 'ambiguous' };
   }
   return { kind: 'unchanged' };
+}
+
+/** Agent messages read back when deciding what the subject is. Far
+ *  enough to catch a project pitched a few turns ago, short enough that
+ *  a listing named yesterday does not outrank today's. */
+const SUBJECT_LOOKBACK_MESSAGES = 8;
+
+/**
+ * The listing a conversation is currently about, for every learner
+ * that needs one.
+ *
+ * The share ledger answers it most of the time — the last listing sent
+ * to this contact is the one they are reading. But an agent who types
+ * "Have some inventories in Jade Gardens Devanahalli" has moved the
+ * conversation without touching the ledger, and property_shares does
+ * not even bump: recordPropertyShares upserts with ignoreDuplicates,
+ * so created_at is the FIRST share.
+ *
+ * Left alone that misfires in both directions. A question gets answered
+ * from a listing nobody is discussing; a price an agent quotes gets
+ * filed against the wrong property. One resolver, so fixing it fixes
+ * both.
+ *
+ * Returns null when the thread has moved somewhere that cannot be
+ * pinned to a single listing. Callers read that as "don't guess" — the
+ * Q&A hands over to a human, the learner files nothing.
+ */
+export async function resolvePropertySubject(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+  conversationId?: string | null
+): Promise<string | null> {
+  const { data: share } = await db
+    .from('property_shares')
+    .select('property_id')
+    .eq('account_id', accountId)
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const sharedId = (share?.property_id as string | undefined) ?? null;
+  if (!conversationId) return sharedId;
+
+  const { data: agentMessages } = await db
+    .from('messages')
+    .select('content_text')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'agent')
+    .not('content_text', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(SUBJECT_LOOKBACK_MESSAGES);
+
+  if (!agentMessages?.length) return sharedId;
+
+  const { data: candidates } = await db
+    .from('properties')
+    .select('id, project, title')
+    .eq('account_id', accountId)
+    .eq('status', 'Available');
+
+  const verdict = resolveSubjectShift(
+    agentMessages.map((m) => (m.content_text as string) || ''),
+    (candidates ?? []) as SubjectCandidate[],
+    sharedId
+  );
+
+  if (verdict.kind === 'ambiguous') return null;
+  if (verdict.kind === 'moved') return verdict.propertyId;
+  return sharedId;
 }

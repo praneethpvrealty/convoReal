@@ -75,8 +75,7 @@ import { getMatchingContacts } from '@/lib/matching';
 import { fetchPropertyShareLog, recordPropertyShares } from '@/lib/inventory/share-log';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
-import { FactSuggestionsPanel } from '@/components/inventory/fact-suggestions-panel';
-import { PortalDriftPanel } from '@/components/inventory/portal-drift-panel';
+import { LearningPanel } from '@/components/inventory/learning-panel';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
 import { formatCurrency } from '@/lib/currency-utils';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -2514,13 +2513,7 @@ export function PropertyForm({
                   not carry yet. Renders nothing when the queue is empty,
                   so it costs the ordinary listing no space. */}
               {property?.id && (
-                <>
-                  <PortalDriftPanel propertyId={property.id} />
-                  <FactSuggestionsPanel
-                    propertyId={property.id}
-                    onApplied={onSaved}
-                  />
-                </>
+                <LearningPanel propertyId={property.id} onApplied={onSaved} />
               )}
               {viewMode ? (
                 <div className="space-y-6 animate-fade-in pb-4">

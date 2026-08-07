@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  carriesPriceFactSignal,
-  sanitizePriceFacts,
-  isNewFact,
-} from './chat-learning';
+import { carriesPriceFactSignal, sanitizePriceFacts } from './chat-learning';
 
 describe('carriesPriceFactSignal', () => {
   it('accepts the message that started this feature', () => {
@@ -110,25 +106,5 @@ describe('sanitizePriceFacts', () => {
     expect(
       sanitizePriceFacts([null, 3, { field: 'seller_final_price' }])
     ).toEqual([]);
-  });
-});
-
-describe('isNewFact', () => {
-  const fact = { field: 'seller_final_price_per_sqft', value: 10500 } as const;
-
-  it('is new when the listing has nothing', () => {
-    expect(isNewFact(fact, {})).toBe(true);
-    expect(isNewFact(fact, { seller_final_price_per_sqft: null })).toBe(true);
-  });
-
-  it('is new when the listing disagrees', () => {
-    expect(isNewFact(fact, { seller_final_price_per_sqft: 11000 })).toBe(true);
-  });
-
-  it('is not new when the listing already says it', () => {
-    expect(isNewFact(fact, { seller_final_price_per_sqft: 10500 })).toBe(false);
-    expect(isNewFact(fact, { seller_final_price_per_sqft: '10500' })).toBe(
-      false
-    );
   });
 });
