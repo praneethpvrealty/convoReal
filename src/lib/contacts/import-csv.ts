@@ -334,3 +334,90 @@ export async function extractPreferencesInBatches(
     );
   }
 }
+
+/**
+ * Rows per import request.
+ *
+ * The route writes each row with several sequential round trips — the
+ * contact, its enquired-property link, a lookup and a link per tag, and
+ * a note. A 500-row file is therefore a few thousand serial queries,
+ * which is minutes of wall time in a single request and well past any
+ * serverless limit. Splitting the upload keeps each request short and
+ * gives the user progress instead of a spinner that eventually fails.
+ *
+ * Chunking is safe against duplicates because the route resolves
+ * existing contacts by phone per request, so a number inserted by one
+ * chunk is found and updated by the next rather than inserted twice.
+ */
+export const IMPORT_CHUNK_SIZE = 50;
+
+export interface ImportTotals {
+  imported: number;
+  updated: number;
+  failed: number;
+  skipped: number;
+  propertiesLinked: number;
+  propertiesUnresolved: number;
+  importedIds: string[];
+  updatedIds: string[];
+}
+
+const EMPTY_TOTALS: ImportTotals = {
+  imported: 0,
+  updated: 0,
+  failed: 0,
+  skipped: 0,
+  propertiesLinked: 0,
+  propertiesUnresolved: 0,
+  importedIds: [],
+  updatedIds: [],
+};
+
+/**
+ * POST the rows in chunks, accumulating the per-chunk report. Throws
+ * only if the FIRST chunk fails — a later failure stops the run but
+ * keeps what already landed, which is recoverable by re-uploading the
+ * same file (existing numbers are then updated, not duplicated).
+ */
+export async function importContactsInChunks(
+  rows: readonly ParsedContactRow[],
+  onProgress?: (done: number, total: number) => void
+): Promise<ImportTotals> {
+  const totals: ImportTotals = {
+    ...EMPTY_TOTALS,
+    importedIds: [],
+    updatedIds: [],
+  };
+  onProgress?.(0, rows.length);
+
+  for (let i = 0; i < rows.length; i += IMPORT_CHUNK_SIZE) {
+    const chunk = rows.slice(i, i + IMPORT_CHUNK_SIZE);
+    const res = await fetch('/api/contacts/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: chunk }),
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      if (i === 0) throw new Error(data?.error || 'Import failed');
+      // Partial success: report what landed rather than discarding it.
+      break;
+    }
+
+    totals.imported += data.imported ?? 0;
+    totals.updated += data.updated ?? 0;
+    totals.failed += data.failed ?? 0;
+    totals.skipped += data.skipped ?? 0;
+    totals.propertiesLinked += data.propertiesLinked ?? 0;
+    totals.propertiesUnresolved += data.propertiesUnresolved ?? 0;
+    if (Array.isArray(data.importedIds))
+      totals.importedIds.push(...data.importedIds);
+    if (Array.isArray(data.updatedIds))
+      totals.updatedIds.push(...data.updatedIds);
+
+    onProgress?.(Math.min(i + chunk.length, rows.length), rows.length);
+  }
+
+  return totals;
+}

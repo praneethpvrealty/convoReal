@@ -22,6 +22,7 @@ import {
 import {
   parseContactsCsv,
   extractPreferencesInBatches,
+  importContactsInChunks,
   type ParsedContactRow,
 } from '@/lib/contacts/import-csv';
 
@@ -56,11 +57,17 @@ export function ImportModal({
     updated: number;
     failed: number;
     skipped?: number;
+    propertiesLinked: number;
+    propertiesUnresolved: number;
   } | null>(null);
   const [limitWarning, setLimitWarning] = useState<PreflightResult | null>(
     null
   );
   const [extractProgress, setExtractProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const [importProgress, setImportProgress] = useState<{
     done: number;
     total: number;
   } | null>(null);
@@ -71,6 +78,7 @@ export function ImportModal({
     setResult(null);
     setLimitWarning(null);
     setExtractProgress(null);
+    setImportProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -174,25 +182,21 @@ export function ImportModal({
     setLimitWarning(null);
 
     try {
-      const res = await fetch('/api/contacts/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows: parsedRows }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        toast.error(data?.error || 'Import failed');
-        setImporting(false);
-        return;
-      }
+      // Chunked: the route writes several rows-worth of queries per
+      // contact, so a few hundred rows in one request would outlast the
+      // serverless limit.
+      const data = await importContactsInChunks(parsedRows, (done, total) =>
+        setImportProgress({ done, total })
+      );
+      setImportProgress(null);
 
       setResult({
-        imported: data.imported ?? 0,
-        updated: data.updated ?? 0,
-        failed: data.failed ?? 0,
-        skipped: data.skipped ?? 0,
+        imported: data.imported,
+        updated: data.updated,
+        failed: data.failed,
+        skipped: data.skipped,
+        propertiesLinked: data.propertiesLinked,
+        propertiesUnresolved: data.propertiesUnresolved,
       });
 
       if (data.imported > 0 || data.updated > 0) {
@@ -217,12 +221,9 @@ export function ImportModal({
 
       // Updated contacts get re-extracted too: their notes changed, and
       // extract-preferences skips anything whose source text has not.
-      const importedIds: string[] = [
-        ...(Array.isArray(data.importedIds) ? data.importedIds : []),
-        ...(Array.isArray(data.updatedIds) ? data.updatedIds : []),
-      ];
-      if (importedIds.length > 0) {
-        void extractPreferencesInBatches(importedIds, (done, total) =>
+      const contactIds = [...data.importedIds, ...data.updatedIds];
+      if (contactIds.length > 0) {
+        void extractPreferencesInBatches(contactIds, (done, total) =>
           setExtractProgress({ done, total })
         ).then(() => {
           setExtractProgress(null);
@@ -230,8 +231,9 @@ export function ImportModal({
           onImported();
         });
       }
-    } catch {
-      toast.error('Import failed');
+    } catch (err) {
+      setImportProgress(null);
+      toast.error(err instanceof Error ? err.message : 'Import failed');
     } finally {
       setImporting(false);
     }
@@ -452,6 +454,12 @@ export function ImportModal({
                   </div>
                 )}
               </div>
+              {importProgress && (
+                <div className="flex items-center gap-1.5 text-sm text-slate-400">
+                  <Loader2 className="size-4 animate-spin" />
+                  Importing {importProgress.done}/{importProgress.total}
+                </div>
+              )}
               {extractProgress && (
                 <div className="flex items-center gap-1.5 text-sm text-slate-400">
                   <Loader2 className="size-4 animate-spin" />
