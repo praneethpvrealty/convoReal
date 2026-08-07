@@ -865,7 +865,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
           { count: 'exact' },
         )
-        .eq('account_id', accountId);
+        .eq('account_id', accountId)
+        // A merged contact has been folded into another and is kept only
+        // so its history resolves. Listing it shows the same person twice
+        // and makes the duplicate check look like it missed a pair it had
+        // in fact already merged.
+        .eq('is_merged', false);
 
       if (internalContactIds.length > 0) {
         query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
@@ -1175,24 +1180,28 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
+        .eq('is_merged', false)
         .eq('status', 'active');
       
       let revQuery = supabaseClient
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
+        .eq('is_merged', false)
         .eq('status', 'pending_review');
 
       let favoritesQuery = supabaseClient
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
+        .eq('is_merged', false)
         .eq('is_favorite', true);
 
       let transactedQuery = supabaseClient
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
+        .eq('is_merged', false)
         .eq('status', 'active')
         .in('id', transactedIds.length > 0 ? transactedIds : ['00000000-0000-0000-0000-000000000000']);
 
@@ -1200,6 +1209,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
+        .eq('is_merged', false)
         .eq('status', 'active')
         .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
 
@@ -1584,7 +1594,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       </div>
 
       {/* Duplicate detection panel — only visible to agents+ when dupes exist */}
-      <DuplicatesPanel onMergeComplete={fetchContactsWithInvalidate} />
+      <DuplicatesPanel
+        onMergeComplete={fetchContactsWithInvalidate}
+        onOpenContact={openDetail}
+      />
 
       {/* Search and Filters */}
       <div className="flex flex-col gap-4">
