@@ -28,6 +28,15 @@ from the semantic cache. Ceilings live in `RATE_LIMITS.copilot*`
 3. **Nothing else** — the tour appears in the helper's Guides list and the AI tour
    catalog automatically, and `tours.test.ts` enforces the registry invariants.
 
+## How to attach a walkthrough video
+
+Set `videoUrl` on the tour — an absolute `https` URL. A **Watch video** link
+appears under that guide in the helper panel and opens in a new tab. It is a
+link rather than an embed on purpose: the panel is a narrow column, and an
+iframe would need a `frame-src` exception in the CSP (`next.config.ts`) for
+whichever host the video lives on. Tours without a `videoUrl` render exactly as
+before.
+
 ## How to add / edit page knowledge
 
 Edit `PAGE_KNOWLEDGE` in `knowledge.ts` (2–4 plain sentences per route). Keep the

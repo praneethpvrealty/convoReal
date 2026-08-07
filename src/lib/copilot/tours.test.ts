@@ -65,4 +65,16 @@ describe('tour registry invariants', () => {
     expect(getTour('add-contact')?.id).toBe('add-contact');
     expect(getTour('nope')).toBeUndefined();
   });
+
+  it('any walkthrough video is an absolute https URL', () => {
+    // The link opens in a new tab, so a relative path or a bare host
+    // would resolve against the dashboard and 404 silently. http would
+    // trip mixed-content blocking on the https app.
+    for (const tour of TOURS) {
+      if (tour.videoUrl === undefined) continue;
+      expect(tour.videoUrl, tour.id).toBeTruthy();
+      expect(() => new URL(tour.videoUrl!), tour.id).not.toThrow();
+      expect(new URL(tour.videoUrl!).protocol, tour.id).toBe('https:');
+    }
+  });
 });

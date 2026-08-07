@@ -9,7 +9,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Compass, Send, Sparkles, ThumbsDown, ThumbsUp, X } from "lucide-react";
+import {
+  Compass,
+  PlayCircle,
+  Send,
+  Sparkles,
+  ThumbsDown,
+  ThumbsUp,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TOURS } from "@/lib/copilot/tours";
 import { useCopilot } from "./copilot-context";
@@ -241,15 +249,30 @@ export function CopilotPanel() {
             </p>
             <div className="flex flex-col gap-1.5">
               {TOURS.map((tour) => (
-                <button
+                <div
                   key={tour.id}
-                  type="button"
-                  onClick={() => startTour(tour.id)}
-                  className="rounded-xl border border-slate-800 bg-slate-900/40 px-3 py-2.5 text-left transition-colors hover:border-primary/40 hover:bg-slate-900"
+                  className="rounded-xl border border-slate-800 bg-slate-900/40 transition-colors hover:border-primary/40 hover:bg-slate-900"
                 >
-                  <p className="text-sm font-semibold text-white">{tour.title}</p>
-                  <p className="mt-0.5 text-xs text-slate-400">{tour.description}</p>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => startTour(tour.id)}
+                    className="w-full px-3 py-2.5 text-left"
+                  >
+                    <p className="text-sm font-semibold text-white">{tour.title}</p>
+                    <p className="mt-0.5 text-xs text-slate-400">{tour.description}</p>
+                  </button>
+                  {tour.videoUrl && (
+                    <a
+                      href={tour.videoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1.5 border-t border-slate-800/80 px-3 py-2 text-xs font-semibold text-primary hover:bg-slate-900/60"
+                    >
+                      <PlayCircle className="h-3.5 w-3.5" />
+                      Watch video
+                    </a>
+                  )}
+                </div>
               ))}
             </div>
           </div>

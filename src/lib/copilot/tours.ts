@@ -41,6 +41,12 @@ export interface Tour {
    *  matcher checks before any AI call is made. */
   triggers: RegExp[];
   steps: TourStep[];
+  /** Absolute https URL of a recorded walkthrough, shown as a "Watch
+   *  video" link beside the guide. Opened in a new tab rather than
+   *  embedded: the panel is a narrow column, and an iframe would need
+   *  a frame-src exception in the CSP for whichever host the video
+   *  lives on. Optional — a tour without one is unchanged. */
+  videoUrl?: string;
 }
 
 /** Step reachable from any dashboard page. */
