@@ -486,6 +486,40 @@ describe("sendWhatsAppMessageAndPersist", () => {
       expect(fetch).toHaveBeenCalled();
     });
 
+    it("creates a chain-only contact for a seeker reached by phone", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb();
+
+      await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        toPhone: "+919000000001",
+        kind: "text",
+        senderType: "bot",
+        text: "your location request was approved",
+        createAsChainOnly: true,
+        allowChainOnly: true,
+        customDbClient: db,
+      });
+
+      expect(db._inserts.contacts?.[0]).toMatchObject({ chain_only: true });
+    });
+
+    it("creates an ordinary contact when the flag is absent", async () => {
+      const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
+      const db = makeDb();
+
+      await sendWhatsAppMessageAndPersist({
+        accountId: ACCOUNT_ID,
+        toPhone: "+919000000002",
+        kind: "text",
+        senderType: "bot",
+        text: "hello",
+        customDbClient: db,
+      });
+
+      expect(db._inserts.contacts?.[0]).toMatchObject({ chain_only: false });
+    });
+
     it("leaves ordinary contacts alone", async () => {
       const { sendWhatsAppMessageAndPersist } = await import("./meta-api-dispatcher");
       const db = makeDb();

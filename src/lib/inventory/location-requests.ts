@@ -174,12 +174,20 @@ async function sendToSeeker(
 ): Promise<{ success: boolean; error?: string }> {
   const phone = normalizePhoneWithCountryCode(requesterPhone);
   if (!phone) return { success: false, error: 'No reachable phone' };
+  // Reaching the seeker needs a contact row, and the dispatcher creates
+  // one when the phone is unknown — which is how the header's promise
+  // that no Engine contact is created for a seeker was quietly broken.
+  // It is created chain_only instead: addressable by this module,
+  // invisible to the listing side's pipeline. A seeker who is already a
+  // contact here is matched, not re-created, so nothing is downgraded.
   const res = await sendWhatsAppMessageAndPersist({
     accountId,
     toPhone: phone,
     kind: 'text',
     senderType: 'bot',
     text,
+    createAsChainOnly: true,
+    allowChainOnly: true,
   });
   if (!res.success) {
     console.error('[location-requests] Seeker send failed:', res.error);
@@ -270,6 +278,8 @@ async function sendRevealToSeeker(
     },
     templateRow: template,
     text: resolveTemplateBodyText(template.body_text, bodyParams),
+    createAsChainOnly: true,
+    allowChainOnly: true,
   });
   if (!res.success) {
     console.error(

@@ -100,6 +100,13 @@ export interface SendWhatsAppAndPersistArgs {
    *  a co-broker's downstream party is not reachable by the listing
    *  side just because the chain recorded them. */
   allowChainOnly?: boolean
+  /** Marks a contact this call has to CREATE (toPhone with no existing
+   *  match) as chain_only. For sends to someone who is a counterparty
+   *  of the chain rather than a lead of this account — a location
+   *  seeker who came in through a co-broker's link. An existing contact
+   *  is never downgraded: a real lead who also happens to seek stays a
+   *  real lead. */
+  createAsChainOnly?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customDbClient?: any
 }
@@ -170,6 +177,7 @@ export async function sendWhatsAppMessageAndPersist(
             user_id: userId || (await resolveOwnerUserId()),
             phone: targetPhone,
             name: targetPhone,
+            chain_only: args.createAsChainOnly ?? false,
           })
           .select()
           .single()
