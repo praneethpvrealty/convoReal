@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { normalisePhone } from '@/lib/contacts/find-or-create';
+import { phoneMatchKey, emailMatchKey } from '@/lib/contacts/duplicate-key';
 
 // GET /api/contacts/duplicates
-// Returns groups of contacts that share a normalised phone or email.
+// Returns groups of contacts that share a phone or email, compared on the
+// match keys in @/lib/contacts/duplicate-key rather than the stored text.
 // Each group has a `reason` ('phone' | 'email') and ≥2 contacts.
 // Only non-merged contacts are considered.
 
@@ -48,17 +49,17 @@ export async function GET() {
     const emailMap = new Map<string, typeof contacts>();
 
     for (const c of contacts) {
-      const norm = normalisePhone(c.phone);
-      if (norm.length >= 7) {
-        const existing = phoneMap.get(norm) ?? [];
+      const phoneKey = phoneMatchKey(c.phone);
+      if (phoneKey) {
+        const existing = phoneMap.get(phoneKey) ?? [];
         existing.push(c);
-        phoneMap.set(norm, existing);
+        phoneMap.set(phoneKey, existing);
       }
-      if (c.email) {
-        const normEmail = c.email.trim().toLowerCase();
-        const existing = emailMap.get(normEmail) ?? [];
+      const emailKey = emailMatchKey(c.email);
+      if (emailKey) {
+        const existing = emailMap.get(emailKey) ?? [];
         existing.push(c);
-        emailMap.set(normEmail, existing);
+        emailMap.set(emailKey, existing);
       }
     }
 

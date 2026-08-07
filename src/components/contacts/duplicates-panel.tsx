@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import {
   GitMerge,
@@ -73,6 +74,7 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
     data: groups = [],
     isPending,
     isFetching,
+    dataUpdatedAt,
     refetch,
   } = useQuery({
     queryKey: ['contacts', 'duplicates'],
@@ -127,7 +129,30 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
     );
   }
 
-  if (groups.length === 0) return null;
+  // Rendering nothing here is what made a working check indistinguishable
+  // from a removed feature: the panel had already merged everything away,
+  // said so by vanishing, and left no way to ask it again.
+  if (groups.length === 0) {
+    return (
+      <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
+        <Check className="h-4 w-4 shrink-0 text-emerald-500/70" />
+        <span>
+          No duplicate contacts found
+          {dataUpdatedAt
+            ? ` — checked ${formatDistanceToNow(dataUpdatedAt, { addSuffix: true })}`
+            : ''}
+        </span>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          title="Re-check for duplicates"
+          className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-800/60 hover:text-slate-300"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+    );
+  }
 
   const totalDuplicates = groups.reduce(
     (sum, g) => sum + g.contacts.length - 1,
@@ -148,7 +173,7 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
             <span className="flex items-center text-sm font-semibold text-amber-300">
               {groups.length} duplicate group{groups.length !== 1 ? 's' : ''}{' '}
               detected
-              <InfoHint text="Duplicate check looks for contacts with the exact same phone number or email address, allowing you to merge them into a single record." />
+              <InfoHint text="Duplicate check groups contacts by phone number or email address, ignoring formatting — so +919876543210 and 9876543210 count as the same person. Review each group before merging it into a single record." />
             </span>
             <Badge className="border-amber-500/30 bg-amber-500/20 text-xs text-amber-300">
               {totalDuplicates} extra
