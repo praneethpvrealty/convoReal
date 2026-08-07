@@ -38,6 +38,7 @@ import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-temp
 import {
   parseContactsCsv,
   extractPreferencesInBatches,
+  importContactsInChunks,
   type ParsedContactRow,
 } from '@/lib/contacts/import-csv';
 import { loadBatchSplit, type BatchSplit } from '@/lib/reengagement/queries';
@@ -94,6 +95,10 @@ export function ReengageWizard({
     done: number;
     total: number;
   } | null>(null);
+  const [importProgress, setImportProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [batchTagId, setBatchTagId] = useState<string | null>(null);
 
   const [sending, setSending] = useState(false);
@@ -106,6 +111,14 @@ export function ReengageWizard({
   const [broadcast, setBroadcast] = useState<{
     id: string;
     recipients: number;
+  } | null>(null);
+  const [importReport, setImportReport] = useState<{
+    imported: number;
+    updated: number;
+    failed: number;
+    skipped: number;
+    propertiesLinked: number;
+    propertiesUnresolved: number;
   } | null>(null);
 
   const fetchTemplate = useCallback(async () => {
@@ -157,6 +170,8 @@ export function ReengageWizard({
     setBroadcast(null);
     setSplit(null);
     setSentSplit(null);
+    setImportReport(null);
+    setImportProgress(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
@@ -214,33 +229,47 @@ export function ReengageWizard({
         tags: row.tags ? `${row.tags}, ${batchTag}` : batchTag,
       }));
 
-      const res = await fetch('/api/contacts/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        toast.error(data?.error || 'Import failed');
-        return;
-      }
+      // Chunked: the route writes several queries per contact, so a
+      // few hundred rows in one request would outlast the serverless
+      // limit and fail after doing most of the work.
+      const data = await importContactsInChunks(rows, (done, total) =>
+        setImportProgress({ done, total })
+      );
+      setImportProgress(null);
 
-      const imported = data.imported ?? 0;
-      if (imported === 0) {
+      // An existing number is enriched rather than duplicated, so a
+      // list the account already holds imports as 0 new + N updated and
+      // is still a perfectly good batch to send.
+      const imported = data.imported;
+      const updated = data.updated;
+      if (imported + updated === 0) {
         toast.error('No contacts were imported — check the CSV rows.');
         return;
       }
-      setImportedCount(imported);
-      if ((data.skipped ?? 0) > 0) {
+      setImportedCount(imported + updated);
+      setImportReport({
+        imported,
+        updated,
+        failed: data.failed,
+        skipped: data.skipped,
+        propertiesLinked: data.propertiesLinked,
+        propertiesUnresolved: data.propertiesUnresolved,
+      });
+      if (updated > 0) {
+        toast.info(
+          `${updated} of these were already in your engine — updated in place, not duplicated.`
+        );
+      }
+      if (data.skipped > 0) {
         toast.warning(
           `${data.skipped} rows skipped — contact limit on your plan.`
         );
       }
       onImported();
 
-      const importedIds: string[] = Array.isArray(data.importedIds)
-        ? data.importedIds
-        : [];
+      // Updated contacts are re-extracted too — their notes changed,
+      // and extract-preferences skips anything whose source text has not.
+      const importedIds = [...data.importedIds, ...data.updatedIds];
       await extractPreferencesInBatches(importedIds, (done, total) =>
         setExtractProgress({ done, total })
       );
@@ -571,6 +600,12 @@ export function ReengageWizard({
                 so this batch can be targeted and tracked.
               </p>
             )}
+            {importProgress && (
+              <div className="flex items-center gap-1.5 text-sm text-slate-400">
+                <Loader2 className="size-4 animate-spin" />
+                Importing {importProgress.done}/{importProgress.total}
+              </div>
+            )}
             {extractProgress && (
               <div className="flex items-center gap-1.5 text-sm text-slate-400">
                 <Loader2 className="size-4 animate-spin" />
@@ -626,6 +661,37 @@ export function ReengageWizard({
                       </span>
                     )}
                 </p>
+              )}
+              {importReport && (
+                <div className="space-y-1 border-t border-slate-800 pt-2 text-xs">
+                  <p className="text-slate-400">
+                    {importReport.imported} new
+                    {importReport.updated > 0
+                      ? `, ${importReport.updated} already on file and updated in place`
+                      : ''}
+                    {importReport.failed > 0
+                      ? `, ${importReport.failed} failed`
+                      : ''}
+                    {importReport.skipped > 0
+                      ? `, ${importReport.skipped} skipped on your plan limit`
+                      : ''}
+                    .
+                  </p>
+                  {importReport.propertiesLinked > 0 && (
+                    <p className="text-slate-400">
+                      {importReport.propertiesLinked} linked to the property
+                      they enquired about.
+                    </p>
+                  )}
+                  {importReport.propertiesUnresolved > 0 && (
+                    <p className="text-amber-400">
+                      {importReport.propertiesUnresolved} property reference
+                      {importReport.propertiesUnresolved !== 1 ? 's' : ''}{' '}
+                      matched no listing in your inventory, so those leads get
+                      the general notice.
+                    </p>
+                  )}
+                </div>
               )}
               <p className="text-xs text-slate-500">
                 Tapping &quot;Send listings&quot; asks for matches, which opens
