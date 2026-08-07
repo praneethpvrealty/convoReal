@@ -24,6 +24,7 @@ import {
   summarizePreferenceUpdate,
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
+import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
 import {
   parseOwnerDigestCommand,
   applyOwnerDigestCommand,
@@ -1157,11 +1158,14 @@ async function processMessage(
   }
 
   // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text, or the enquiry-followup template's "Start deal alerts" /
-  // "Stop alerts" quick replies (which arrive as message.button.text).
-  // Same chat-as-control-panel pattern as the owner digest commands
-  // above, editing contacts.buyer_alerts_consent.
-  const alertsCommand = parseBuyerAlertsCommand(message.button?.text ?? contentText)
+  // free text, or the enquiry-status template's "Close my enquiry"
+  // quick reply (which arrives as message.button.text). Same
+  // chat-as-control-panel pattern as the owner digest commands above,
+  // editing contacts.buyer_alerts_consent.
+  const alertsCommand =
+    message.button?.text === ENQUIRY_FOLLOWUP_CLOSE_BUTTON
+      ? 'stop'
+      : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
     const confirmation = await applyBuyerAlertsCommand({
       command: alertsCommand,
