@@ -12,6 +12,7 @@
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { buildPropertyAlertTemplatePayload, PROPERTY_ALERT_TEMPLATE_NAME } from './property-alert-template';
+import { buildPropertyEnquiryPhotosTemplatePayload, PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME } from './property-enquiry-photos-template';
 import { buildLocationRevealTemplatePayload, LOCATION_REVEAL_TEMPLATE_NAME } from './location-reveal-template';
 import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } from './inventory-update-template';
 
@@ -30,6 +31,13 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     whyItMatters:
       'Sends a listing to a buyer who is outside the 24-hour window — Match Radar alerts, share-property and the buyer digest all fall back to it.',
     build: buildPropertyAlertTemplatePayload,
+  },
+  {
+    name: PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME,
+    label: 'Property photos',
+    whyItMatters:
+      'Photo-first property share to a buyer outside the 24-hour window — the Utility replacement for Marketing image templates that error 131049 silently drops.',
+    build: buildPropertyEnquiryPhotosTemplatePayload,
   },
   {
     name: LOCATION_REVEAL_TEMPLATE_NAME,
