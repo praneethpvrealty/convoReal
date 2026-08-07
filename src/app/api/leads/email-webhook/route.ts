@@ -34,6 +34,7 @@ export {
   isValidContactName,
   isUsableLocation,
   areaLabelFromListing,
+  extractLeadPhone,
   parsePortalLead,
 } from './email-parser';
 
