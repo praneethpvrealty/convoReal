@@ -227,8 +227,14 @@ export async function resolveAudienceOnServer(
 
   // Respect the buyer's WhatsApp alert opt-out (STOP ALERTS / portal
   // settings, migration 160) — declined contacts never enter the
-  // audience, regardless of how it was built.
-  return contacts.filter((c) => c.buyer_alerts_consent !== 'declined');
+  // audience, regardless of how it was built. Chain-only contacts drop
+  // out on the same principle: they are a co-broker's downstream party,
+  // carried so the consent walk can reach them and for nothing else.
+  // The dispatcher would refuse them anyway; filtering here keeps them
+  // out of the recipient rows and the reach count too.
+  return contacts.filter(
+    (c) => c.buyer_alerts_consent !== 'declined' && !c.chain_only
+  );
 }
 
 export async function sendBroadcastRecipients(

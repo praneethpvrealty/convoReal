@@ -870,7 +870,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         // so its history resolves. Listing it shows the same person twice
         // and makes the duplicate check look like it missed a pair it had
         // in fact already merged.
-        .eq('is_merged', false);
+        .eq('is_merged', false)
+        // A chain-only contact is a re-share intermediary's attribution,
+        // not a lead of this account — someone downstream of a co-broker
+        // who registered to forward a link onward. Listing them here is
+        // what turns the consent chain into a poachable contact list.
+        .eq('chain_only', false);
 
       if (internalContactIds.length > 0) {
         query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
@@ -1181,13 +1186,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
         .eq('is_merged', false)
+        .eq('chain_only', false)
         .eq('status', 'active');
-      
+
       let revQuery = supabaseClient
         .from('contacts')
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
         .eq('is_merged', false)
+        .eq('chain_only', false)
         .eq('status', 'pending_review');
 
       let favoritesQuery = supabaseClient
@@ -1195,6 +1202,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
         .eq('is_merged', false)
+        .eq('chain_only', false)
         .eq('is_favorite', true);
 
       let transactedQuery = supabaseClient
@@ -1202,6 +1210,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
         .eq('is_merged', false)
+        .eq('chain_only', false)
         .eq('status', 'active')
         .in('id', transactedIds.length > 0 ? transactedIds : ['00000000-0000-0000-0000-000000000000']);
 
@@ -1210,6 +1219,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         .select('id', { count: 'exact', head: true })
         .eq('account_id', accountId)
         .eq('is_merged', false)
+        .eq('chain_only', false)
         .eq('status', 'active')
         .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
 

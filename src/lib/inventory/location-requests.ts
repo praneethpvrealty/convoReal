@@ -329,6 +329,7 @@ export async function requestConsentFromContact(
         { id: `${CONSENT_APPROVE_PREFIX}${request.id}`, title: '✅ Approve' },
         { id: `${CONSENT_DECLINE_PREFIX}${request.id}`, title: '❌ Decline' },
       ],
+      allowChainOnly: true,
     });
   } catch (err) {
     console.error('[location-requests] Consent send failed:', err);
@@ -431,7 +432,10 @@ export async function notifyOwnerQueue(
     : `From: ${request.requester_name} · ${request.requester_phone}`;
   const propertyLine = `${property.title}${property.property_code ? ` (${property.property_code})` : ''}`;
 
-  const channels = await resolveChannels(request.account_id, 'location_request');
+  const channels = await resolveChannels(
+    request.account_id,
+    'location_request'
+  );
 
   await createNotification({
     accountId: request.account_id,
@@ -625,6 +629,7 @@ export async function approveRequestAndSendReveal(
         kind: 'text',
         senderType: 'bot',
         text: buildCoBrokerRevealNotice(title),
+        allowChainOnly: true,
       });
     } catch (err) {
       console.error('[location-requests] Co-broker notice failed:', err);
@@ -826,6 +831,7 @@ async function ackConsentContact(
       kind: 'text',
       senderType: 'bot',
       text,
+      allowChainOnly: true,
     });
   } catch (err) {
     console.error('[location-requests] Consent ack failed:', err);
