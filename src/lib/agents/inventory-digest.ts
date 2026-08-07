@@ -33,10 +33,11 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
  *
  * A digest is sent ONLY when the period added new direct or indirect
  * buyers, and never twice for the same IST day (insert-as-claim on
- * agent_inventory_digest_log, mirroring owner_digest_log). Source
- * agents without a ConvoReal profile (matched by phone, last 10
- * digits) get a signup invite line with every digest; signed-up agents
- * get a dashboard pointer instead. The contact's "STOP UPDATES" reply
+ * agent_inventory_digest_log, mirroring owner_digest_log). On the
+ * free-form leg, source agents without a ConvoReal profile (matched by
+ * phone, last 10 digits) get a signup invite line and signed-up agents
+ * get a dashboard pointer; the Utility template carries neither, since
+ * a CTA in it re-categorises it as Marketing. The contact's "STOP UPDATES" reply
  * (contacts.owner_digest_consent = 'declined', webhook-handler.ts) is
  * honored here too, and delivery is template-first because partner
  * agents rarely have an open 24h window.
@@ -101,6 +102,19 @@ export function buildSignupInviteLine(siteUrl: string): string {
 /** Closing line for source agents who already signed up. */
 export function buildDashboardPointerLine(siteUrl: string): string {
   return `📊 See the full breakdown anytime on your ConvoReal dashboard: ${siteUrl}/dashboard`
+}
+
+/**
+ * The template's {{4}}. Meta categorises a template by its content, so
+ * the signup/dashboard CTA above cannot ride on the Utility template —
+ * it stays on the free-form leg, and the template asks for a reply,
+ * which opens the 24h window the invite goes out in.
+ */
+export function buildAgentDigestNextStepLine(digest: AgentInventoryDigest): string {
+  const totals = reachTotals(digest)
+  return totals.newDirectBuyers + totals.newIndirectBuyers > 0
+    ? 'Reply to this message to get the new buyer details'
+    : 'Reply to this message for the per-listing breakdown'
 }
 
 /** Rich free-form message for source agents with an open 24h window. */
@@ -445,13 +459,15 @@ export async function sendAgentInventoryDigests(options?: {
         digest.name = (agent.name as string | null) ?? null
 
         const signedUp = await hasProfile(agent.phone as string)
-        const closingLine = signedUp
-          ? buildDashboardPointerLine(siteUrl())
-          : buildSignupInviteLine(siteUrl())
-
         const activeProps = digest.properties.filter(
           (p) => p.directBuyers > 0 || p.indirectBuyers > 0 || p.agentsReached > 0
         )
+        // Resolved before the claim so invite_included records what was
+        // actually sent: only the free-form leg carries the signup
+        // invite, since a CTA in the template re-categorises it as
+        // Marketing.
+        const open = await isSessionOpen(db, accountId, digest.contactId)
+        const inviteIncluded = open && !signedUp
         const { data: claim, error: claimErr } = await db
           .from('agent_inventory_digest_log')
           .insert({
@@ -461,7 +477,7 @@ export async function sendAgentInventoryDigests(options?: {
             period_start: period.startIso,
             period_end: period.endIso,
             stats: activeProps,
-            invite_included: !signedUp,
+            invite_included: inviteIncluded,
           })
           .select('id')
           .single()
@@ -474,7 +490,6 @@ export async function sendAgentInventoryDigests(options?: {
         const recordChannel = (channel: string) =>
           db.from('agent_inventory_digest_log').update({ channel }).eq('id', claim.id)
 
-        const open = await isSessionOpen(db, accountId, digest.contactId)
         if (open) {
           const res = await sendWhatsAppMessageAndPersist({
             accountId,
@@ -484,12 +499,12 @@ export async function sendAgentInventoryDigests(options?: {
             text: buildAgentInventoryDigestMessage(
               { ...digest, properties: activeProps },
               period.label,
-              closingLine
+              signedUp ? buildDashboardPointerLine(siteUrl()) : buildSignupInviteLine(siteUrl())
             ),
           })
           if (res.success) {
             summary.sent++
-            if (!signedUp) summary.invitesIncluded++
+            if (inviteIncluded) summary.invitesIncluded++
             sentThisRun++
             await recordChannel('freeform')
           } else {
@@ -510,7 +525,7 @@ export async function sendAgentInventoryDigests(options?: {
           activeProps.length,
           period.label,
           buildAgentReachSummaryLine(digest),
-          closingLine
+          buildAgentDigestNextStepLine(digest)
         )
         const bodyParams = truncateParametersToBudget(digestTemplate.body_text, [...params])
         const res = await sendWhatsAppMessageAndPersist({
@@ -527,7 +542,6 @@ export async function sendAgentInventoryDigests(options?: {
         })
         if (res.success) {
           summary.sent++
-          if (!signedUp) summary.invitesIncluded++
           sentThisRun++
           await recordChannel('template')
         } else {

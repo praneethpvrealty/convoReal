@@ -32,6 +32,9 @@ import {
 
 type Frequency = 'off' | 'daily' | 'weekly';
 
+/** Statuses Meta accepts an edit for — mirrors the PATCH route. */
+const EDITABLE_STATUSES = new Set(['APPROVED', 'REJECTED', 'PAUSED']);
+
 export function AgentInventoryDigestCard() {
   const supabase = createClient();
   const { accountId, loading: authLoading } = useAuth();
@@ -40,6 +43,8 @@ export function AgentInventoryDigestCard() {
   const [saving, setSaving] = useState(false);
   const [frequency, setFrequency] = useState<Frequency>('off');
   const [templateStatus, setTemplateStatus] = useState<string | null>(null);
+  const [templateCategory, setTemplateCategory] = useState<string | null>(null);
+  const [editableTemplateId, setEditableTemplateId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const loadState = useCallback(async () => {
@@ -53,14 +58,21 @@ export function AgentInventoryDigestCard() {
           .maybeSingle(),
         supabase
           .from('message_templates')
-          .select('name, status, last_submitted_at')
+          .select('id, name, status, category, meta_template_id, last_submitted_at')
           .eq('account_id', accountId)
           .eq('name', AGENT_INVENTORY_DIGEST_TEMPLATE_NAME)
           .order('last_submitted_at', { ascending: false })
           .limit(1),
       ]);
       if (settings?.frequency) setFrequency(settings.frequency as Frequency);
-      setTemplateStatus(templates?.[0]?.status ?? null);
+      const template = templates?.[0];
+      setTemplateStatus(template?.status ?? null);
+      setTemplateCategory(template?.category ?? null);
+      setEditableTemplateId(
+        template?.meta_template_id && EDITABLE_STATUSES.has(template.status)
+          ? (template.id as string)
+          : null
+      );
     } finally {
       setLoading(false);
     }
@@ -98,15 +110,23 @@ export function AgentInventoryDigestCard() {
 
   // One-click create/resubmit — same flow as the owner digest template.
   // Source agents rarely have an open 24h window, so the template needs
-  // Meta approval for the feature to reach them.
+  // Meta approval for the feature to reach them. A template that already
+  // exists on Meta goes through the edit endpoint: creating it again is
+  // a duplicate-name error, and an edit is what carries a corrected
+  // category (Marketing → Utility) back to Meta for re-review.
   const handleSubmitTemplate = async () => {
     setSubmitting(true);
     try {
-      const res = await fetch('/api/whatsapp/templates/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildAgentInventoryDigestTemplatePayload()),
-      });
+      const res = await fetch(
+        editableTemplateId
+          ? `/api/whatsapp/templates/${editableTemplateId}`
+          : '/api/whatsapp/templates/submit',
+        {
+          method: editableTemplateId ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildAgentInventoryDigestTemplatePayload()),
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Template submission failed');
       setTemplateStatus('PENDING');
@@ -118,6 +138,8 @@ export function AgentInventoryDigestCard() {
       setSubmitting(false);
     }
   };
+
+  const miscategorized = templateCategory === 'Marketing' && !!editableTemplateId;
 
   const statusBadge = (status: string | null) =>
     status === 'APPROVED' ? (
@@ -149,8 +171,8 @@ export function AgentInventoryDigestCard() {
           Automatic WhatsApp reach updates to partner agents whose inventory you list as
           agent-referred: how many direct buyers their listings were shared with and how many
           more were reached through downstream partner agents. Agents not yet on ConvoReal get
-          a signup invite with each digest; their &quot;STOP UPDATES&quot; reply always
-          overrides this setting.
+          a signup invite once they reply and the chat is open; their &quot;STOP UPDATES&quot;
+          reply always overrides this setting.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -194,7 +216,7 @@ export function AgentInventoryDigestCard() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {statusBadge(templateStatus)}
-                    {templateStatus !== 'APPROVED' && (
+                    {(templateStatus !== 'APPROVED' || miscategorized) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -207,6 +229,8 @@ export function AgentInventoryDigestCard() {
                             <Loader2 className="size-4 animate-spin" />
                             Submitting...
                           </>
+                        ) : miscategorized ? (
+                          'Resubmit as Utility'
                         ) : (
                           'Submit to Meta'
                         )}
@@ -214,6 +238,13 @@ export function AgentInventoryDigestCard() {
                     )}
                   </div>
                 </div>
+                {miscategorized && (
+                  <p className="text-xs text-amber-400">
+                    Meta categorised this template as Marketing, so every digest is billed at
+                    the marketing rate and needs marketing opt-in. Resubmitting sends the
+                    current non-promotional wording back for review as Utility.
+                  </p>
+                )}
               </div>
             )}
           </>

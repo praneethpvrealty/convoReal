@@ -20,6 +20,13 @@ describe('buildAgentInventoryDigestTemplatePayload', () => {
     expect(quickReplies.map((b) => ('text' in b ? b.text : ''))).toContain('Pause updates');
   });
 
+  it('keeps promotional wording out of the body and samples', () => {
+    const payload = buildAgentInventoryDigestTemplatePayload();
+    const reviewed = [payload.body_text, ...(payload.sample_values?.body ?? [])].join('\n');
+    expect(reviewed).not.toMatch(/https?:\/\//);
+    expect(reviewed).not.toMatch(/sign ?up|free|📣/i);
+  });
+
   it('provides a sample value for every body param', () => {
     const payload = buildAgentInventoryDigestTemplatePayload();
     const paramCount = new Set(payload.body_text.match(/\{\{\d+\}\}/g)).size;
@@ -28,19 +35,19 @@ describe('buildAgentInventoryDigestTemplatePayload', () => {
 });
 
 describe('buildAgentInventoryDigestParams', () => {
-  it('builds first name, listings phrase, summary and closing line', () => {
+  it('builds first name, listings phrase, summary and next step', () => {
     const params = buildAgentInventoryDigestParams(
       'Deepak Sharma',
       3,
       'today',
       '2 new direct buyers · 1 new buyer via partner agents',
-      'Sign up free: https://www.convoreal.com/signup'
+      'Reply to this message to get the new buyer details'
     );
     expect(params).toEqual([
       'Deepak',
       'your 3 referred listings (today)',
       '2 new direct buyers · 1 new buyer via partner agents',
-      'Sign up free: https://www.convoreal.com/signup',
+      'Reply to this message to get the new buyer details',
     ]);
   });
 

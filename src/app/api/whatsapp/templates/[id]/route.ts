@@ -148,6 +148,11 @@ export async function PATCH(
           metaTemplateId: existing.meta_template_id,
           accessToken,
           components: metaPayload.components,
+          // Meta lets an edit carry a new category (it re-reviews the
+          // whole template), and that is the only way back from a
+          // silent Marketing re-categorisation. Without it we would
+          // save Utility locally while Meta keeps billing Marketing.
+          category: metaPayload.category,
         })
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Meta edit failed.'
