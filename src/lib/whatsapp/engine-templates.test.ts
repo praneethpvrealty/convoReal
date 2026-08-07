@@ -4,7 +4,11 @@ import { validateTemplatePayload } from './template-validators';
 
 describe('missingEngineTemplates', () => {
   it('reports a template the account has no row for', () => {
-    const missing = missingEngineTemplates(['location_reveal', 'inventory_update']);
+    const missing = missingEngineTemplates([
+      'location_reveal',
+      'inventory_update',
+      'property_enquiry_status',
+    ]);
     expect(missing.map((t) => t.name)).toEqual([
       'property_enquiry_response',
       'property_enquiry_photos',

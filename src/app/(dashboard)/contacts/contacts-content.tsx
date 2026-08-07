@@ -59,10 +59,12 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
   Eye,
+  Megaphone,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
 import { ImportModal } from '@/components/contacts/import-modal';
+import { ReengageWizard } from '@/components/contacts/reengage-wizard';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
@@ -702,6 +704,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [reengageOpen, setReengageOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -1556,6 +1559,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           >
             <Upload className="size-4" />
             Import
+          </GatedButton>
+          <GatedButton
+            variant="outline"
+            canAct={canEdit}
+            gateReason="re-engage leads"
+            onClick={() => setReengageOpen(true)}
+            className="border-slate-700 text-slate-300 hover:bg-slate-800"
+          >
+            <Megaphone className="size-4" />
+            Re-engage
           </GatedButton>
           <GatedButton
             canAct={canEdit}
@@ -2472,6 +2485,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       <ImportModal
         open={importOpen}
         onOpenChange={setImportOpen}
+        onImported={fetchContactsWithInvalidate}
+      />
+
+      {/* Re-engage Wizard */}
+      <ReengageWizard
+        open={reengageOpen}
+        onOpenChange={setReengageOpen}
         onImported={fetchContactsWithInvalidate}
       />
 

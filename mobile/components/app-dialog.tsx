@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -83,7 +83,15 @@ export function AppDialog({
         >
           <Text style={{ fontSize: 17, fontFamily: f.bold, color: colors.text }}>{title}</Text>
           {message ? (
-            <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textMuted }}>{message}</Text>
+            // Scrolls rather than growing: a long message on a short
+            // screen — landscape, or an unfolded device — would otherwise
+            // push the actions past the bottom of the card, leaving a
+            // confirmation with no reachable way to confirm.
+            <ScrollView style={{ flexGrow: 0, flexShrink: 1 }}>
+              <Text style={{ fontSize: 13.5, lineHeight: 20, color: colors.textMuted }}>
+                {message}
+              </Text>
+            </ScrollView>
           ) : null}
           <View style={styles.actions}>
             {resolvedActions.map((a) => {
@@ -139,6 +147,7 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 400,
+    maxHeight: '85%',
     borderRadius: radius.lg,
     borderWidth: 1,
     padding: spacing.lg,

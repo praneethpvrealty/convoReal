@@ -139,3 +139,19 @@ describe('buildRequirementDigest', () => {
     expect(out).not.toContain('Vinoth');
   });
 });
+
+describe('response links', () => {
+  it('appends the respond line in both modes when a link was minted', () => {
+    const withLink = { ...base, responseUrl: 'https://x.example/req/tok123' };
+    expect(formatRequirement(withLink, 'masked')).toContain(
+      'Respond here: https://x.example/req/tok123'
+    );
+    expect(formatRequirement(withLink, 'full')).toContain(
+      'Respond here: https://x.example/req/tok123'
+    );
+  });
+
+  it('adds nothing without one', () => {
+    expect(formatRequirement(base, 'masked')).not.toContain('Respond here');
+  });
+});

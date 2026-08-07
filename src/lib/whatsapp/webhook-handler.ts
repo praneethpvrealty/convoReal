@@ -24,6 +24,7 @@ import {
   summarizePreferenceUpdate,
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
+import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
 import {
   parseOwnerDigestCommand,
   applyOwnerDigestCommand,
@@ -50,6 +51,7 @@ import {
   type OwnedListing,
 } from '@/lib/owners/owner-reply'
 import { processListingVerification } from '@/lib/showcase/listing-verification'
+import { processRequirementReply } from '@/lib/requirements/respond'
 import { tryHandleInboundScheduling } from '@/lib/calendar/whatsapp-scheduler'
 import { createNotification } from '@/lib/notifications/create'
 import { processCtwaReferral, type WhatsAppReferral } from '@/lib/whatsapp/ctwa-attribution'
@@ -1157,9 +1159,14 @@ async function processMessage(
   }
 
   // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text. Same chat-as-control-panel pattern as the owner digest
-  // commands above, editing contacts.buyer_alerts_consent.
-  const alertsCommand = parseBuyerAlertsCommand(contentText)
+  // free text, or the enquiry-status template's "Close my enquiry"
+  // quick reply (which arrives as message.button.text). Same
+  // chat-as-control-panel pattern as the owner digest commands above,
+  // editing contacts.buyer_alerts_consent.
+  const alertsCommand =
+    message.button?.text === ENQUIRY_FOLLOWUP_CLOSE_BUTTON
+      ? 'stop'
+      : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
     const confirmation = await applyBuyerAlertsCommand({
       command: alertsCommand,
@@ -1216,6 +1223,21 @@ async function processMessage(
       conversationId: conversation.id,
     })
     if (handledListingVerification) return
+  }
+
+  // Co-broker requirement replies: a message quoting REQ-XXXX from a
+  // shared requirement (backed by a live share link) reveals the brief
+  // and opens an external listing intake session for it. Never for the
+  // account owner, and a no-op for every other message.
+  if (contentText && !ownerCheck.isOwner) {
+    const handledRequirementReply = await processRequirementReply({
+      accountId,
+      contentText,
+      senderPhone,
+      contactRecord: { id: contactRecord.id, classification: contactRecord.classification },
+      conversationId: conversation.id,
+    })
+    if (handledRequirementReply) return
   }
 
   if (ownerCheck.isOwner) {
@@ -1518,12 +1540,14 @@ async function processMessage(
   }
 
   // Buyer asked to update their preferences (free text like "update my
-  // preferences" or the update_preferences button) — send the native
-  // Meta Flow form if this account has one published. Falls through to
-  // normal handling when the flow isn't set up, so accounts without the
-  // feature see no behavior change.
+  // preferences", the update_preferences button, or the enquiry-followup
+  // template's "Update my preferences" quick reply, which arrives as
+  // message.button.text) — send the native Meta Flow form if this
+  // account has one published. Falls through to normal handling when
+  // the flow isn't set up, so accounts without the feature see no
+  // behavior change.
   if (
-    isPreferenceFlowRequestText(contentText) ||
+    isPreferenceFlowRequestText(message.button?.text ?? contentText) ||
     interactiveReplyId === PREFERENCE_FLOW_BUTTON_ID
   ) {
     const handledPreferenceFlow = await handlePreferenceFlowTrigger(

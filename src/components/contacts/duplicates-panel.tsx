@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import {
   GitMerge,
@@ -12,11 +13,13 @@ import {
   Loader2,
   Check,
   RefreshCw,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
+import { diffContacts } from '@/lib/contacts/duplicate-diff';
 import {
   Dialog,
   DialogContent,
@@ -35,10 +38,19 @@ interface DuplicateContact {
   classification: string | null;
   created_at: string;
   name_tag?: string | null;
+  status?: string | null;
+  company?: string | null;
+  second_name?: string | null;
+  requirements?: string | null;
+  min_budget?: number | null;
+  max_budget?: number | null;
+  areas_of_interest?: string[] | null;
+  property_interests?: string[] | null;
+  last_contacted_at?: string | null;
 }
 
 interface DuplicateGroup {
-  reason: 'phone' | 'email';
+  reason: 'phone' | 'email' | 'name';
   key: string;
   contacts: DuplicateContact[];
 }
@@ -68,11 +80,68 @@ async function fetchDuplicateGroups(): Promise<DuplicateGroup[]> {
   return data.groups ?? [];
 }
 
+// Deciding a merge from a name and a source alone is how an Owner gets
+// folded into a Buyer who happens to share their name. This puts the
+// difference in front of whoever is deciding, on the row they are
+// deciding on, rather than a tab away in two contact records.
+function ContactDifferences({ contacts }: { contacts: DuplicateContact[] }) {
+  const [open, setOpen] = useState(false);
+  const differences = diffContacts(contacts);
+
+  if (differences.length === 0) {
+    return (
+      <p className="mt-2 text-xs text-slate-500">
+        These records hold the same details wherever both are filled in.
+      </p>
+    );
+  }
+
+  const conflicts = differences.filter((d) => d.conflict).length;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex cursor-pointer items-center gap-1 text-xs text-amber-400/80 hover:text-amber-300"
+      >
+        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        {open ? 'Hide' : 'Compare'} {differences.length} difference
+        {differences.length !== 1 ? 's' : ''}
+        {conflicts > 0 ? ` · ${conflicts} conflicting` : ''}
+      </button>
+
+      {open && (
+        <table className="mt-2 w-full table-fixed text-xs">
+          <tbody>
+            {differences.map((d) => (
+              <tr key={d.label} className="align-top">
+                <td className="w-32 py-1 pr-2 text-slate-500">{d.label}</td>
+                {d.values.map((v, i) => (
+                  <td
+                    key={i}
+                    className={`py-1 pr-3 break-words ${
+                      d.conflict ? 'text-amber-300' : 'text-slate-300'
+                    }`}
+                  >
+                    {v || <span className="text-slate-600">—</span>}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 export function DuplicatesPanel({ onMergeComplete }: Props) {
   const {
     data: groups = [],
     isPending,
     isFetching,
+    dataUpdatedAt,
     refetch,
   } = useQuery({
     queryKey: ['contacts', 'duplicates'],
@@ -127,7 +196,30 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
     );
   }
 
-  if (groups.length === 0) return null;
+  // Rendering nothing here is what made a working check indistinguishable
+  // from a removed feature: the panel had already merged everything away,
+  // said so by vanishing, and left no way to ask it again.
+  if (groups.length === 0) {
+    return (
+      <div className="flex items-center gap-2 py-2 text-sm text-slate-500">
+        <Check className="h-4 w-4 shrink-0 text-emerald-500/70" />
+        <span>
+          No duplicate contacts found
+          {dataUpdatedAt
+            ? ` — checked ${formatDistanceToNow(dataUpdatedAt, { addSuffix: true })}`
+            : ''}
+        </span>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          title="Re-check for duplicates"
+          className="cursor-pointer rounded p-1 text-slate-500 hover:bg-slate-800/60 hover:text-slate-300"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+    );
+  }
 
   const totalDuplicates = groups.reduce(
     (sum, g) => sum + g.contacts.length - 1,
@@ -148,7 +240,7 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
             <span className="flex items-center text-sm font-semibold text-amber-300">
               {groups.length} duplicate group{groups.length !== 1 ? 's' : ''}{' '}
               detected
-              <InfoHint text="Duplicate check looks for contacts with the exact same phone number or email address, allowing you to merge them into a single record." />
+              <InfoHint text="Duplicate check groups contacts by phone number or email address, ignoring formatting — so +919876543210 and 9876543210 count as the same person. It also flags contacts with the same full name on different numbers, which is a weaker signal worth reading carefully. Review each group before merging it into a single record." />
             </span>
             <Badge className="border-amber-500/30 bg-amber-500/20 text-xs text-amber-300">
               {totalDuplicates} extra
@@ -193,13 +285,22 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
               >
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex items-center gap-1.5 text-xs text-amber-400/70">
-                    {group.reason === 'phone' ? (
+                    {group.reason === 'phone' && (
                       <>
                         <Phone className="h-3 w-3" /> Same phone: {group.key}
                       </>
-                    ) : (
+                    )}
+                    {group.reason === 'email' && (
                       <>
                         <Mail className="h-3 w-3" /> Same email: {group.key}
+                      </>
+                    )}
+                    {group.reason === 'name' && (
+                      <>
+                        <Users className="h-3 w-3" /> Similar name: {group.key}
+                        <span className="text-amber-400/50">
+                          · different numbers, so check before merging
+                        </span>
                       </>
                     )}
                   </div>
@@ -222,6 +323,7 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
                       </div>
                     ))}
                   </div>
+                  <ContactDifferences contacts={group.contacts} />
                 </div>
                 <Button
                   size="sm"

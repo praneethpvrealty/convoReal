@@ -15,6 +15,7 @@ import { buildPropertyAlertTemplatePayload, PROPERTY_ALERT_TEMPLATE_NAME } from 
 import { buildPropertyEnquiryPhotosTemplatePayload, PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME } from './property-enquiry-photos-template';
 import { buildLocationRevealTemplatePayload, LOCATION_REVEAL_TEMPLATE_NAME } from './location-reveal-template';
 import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } from './inventory-update-template';
+import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
 
 export interface EngineTemplateDef {
   name: string;
@@ -51,6 +52,13 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     label: 'Inventory update',
     whyItMatters: 'Carries an inventory update to a contact with no open service window.',
     build: buildInventoryUpdateTemplatePayload,
+  },
+  {
+    name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+    label: 'Enquiry status',
+    whyItMatters:
+      'Re-engages imported portal leads whose original listing expired — a status notice asking for their latest requirement, with buttons to update preferences or close the enquiry.',
+    build: buildEnquiryFollowupTemplatePayload,
   },
 ];
 
