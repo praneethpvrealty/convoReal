@@ -26,6 +26,7 @@ import {
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
+import { hasRecentAgentReply } from '@/lib/whatsapp/agent-takeover'
 import {
   parseTemplateQuickReply,
   lastSharedPropertyId,
@@ -1750,13 +1751,19 @@ async function processMessage(
   }
   const isPropertyOwnerSender = ownedListings.length > 0
 
+  // A human agent already talking to this lead owns the conversation:
+  // suppress flow ENTRY so a stray keyword cannot restart the welcome
+  // funnel underneath them. Active runs still advance — the lead is
+  // mid-answer and expects the next question.
+  const agentHandling = await hasRecentAgentReply(supabaseAdmin(), conversation.id)
+
   console.log(`[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`);
   const flowResult = await dispatchInboundToFlows({
     accountId,
     userId: configOwnerUserId,
     contactId: contactRecord.id,
     conversationId: conversation.id,
-    allowEntry: !isPropertyOwnerSender,
+    allowEntry: !isPropertyOwnerSender && !agentHandling,
     message:
       interactiveReplyId
         ? {

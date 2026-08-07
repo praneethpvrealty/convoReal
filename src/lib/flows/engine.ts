@@ -171,6 +171,14 @@ export const REPROMPT_BODY_TEXT =
  * Case-insensitive contains/exact match against a list of keywords.
  * Used by the trigger evaluator. Stable enough that the v3 builder
  * UI can preview matches by passing canned strings.
+ *
+ * "contains" matches whole WORDS, not raw substrings. A naive
+ * `includes` made short keywords match almost any sentence — the
+ * default "hi" fired on "which", "this" and "behind", so a lead mid
+ * conversation with an agent ("...which one is the one we are talking
+ * here") was answered by the welcome funnel. Multi-word keywords still
+ * match as a phrase, and a keyword ending in punctuation still matches
+ * because only the edges are anchored.
  */
 export function matchesKeywordTrigger(
   text: string,
@@ -182,11 +190,27 @@ export function matchesKeywordTrigger(
   for (const raw of cfg.keywords) {
     if (!raw) continue;
     const needle = cfg.case_sensitive ? raw : raw.toLowerCase();
-    if (matchType === "exact" ? haystack === needle : haystack.includes(needle)) {
-      return true;
+    if (matchType === "exact") {
+      if (haystack === needle) return true;
+      continue;
     }
+    if (containsWord(haystack, needle)) return true;
   }
   return false;
+}
+
+/** Whole-word (or whole-phrase) containment. Falls back to plain
+ *  containment for keywords with no word characters to anchor on
+ *  (emoji, punctuation), where a boundary has no meaning. */
+function containsWord(haystack: string, needle: string): boolean {
+  const trimmed = needle.trim();
+  if (!trimmed) return false;
+  if (!/[\p{L}\p{N}]/u.test(trimmed)) return haystack.includes(trimmed);
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`,
+    "u",
+  ).test(haystack);
 }
 
 /** Nodes that advance to a next_node_key without waiting for input. */

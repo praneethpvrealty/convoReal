@@ -207,6 +207,45 @@ describe("REPROMPT_BODY_TEXT", () => {
   });
 });
 
+describe("matchesKeywordTrigger — word boundaries", () => {
+  // The showcase funnel ships with "hi" among its keywords. Naive
+  // substring matching made it fire on "which"/"this", restarting the
+  // welcome funnel underneath a live agent conversation.
+  const cfg = { keywords: ["hello", "hi", "buy", "rent"] };
+
+  it("does not match a keyword buried inside another word", () => {
+    expect(
+      matchesKeywordTrigger(
+        "There are two building pics in the link above. Which one is the one we are talking here.",
+        cfg,
+      ),
+    ).toBe(false);
+    expect(matchesKeywordTrigger("Is this still available?", cfg)).toBe(false);
+    expect(matchesKeywordTrigger("The parking is behind the block", cfg)).toBe(false);
+    expect(matchesKeywordTrigger("current tenant pays maintenance", cfg)).toBe(false);
+  });
+
+  it("still matches the keyword as a whole word", () => {
+    expect(matchesKeywordTrigger("hi there", cfg)).toBe(true);
+    expect(matchesKeywordTrigger("I want to buy a plot", cfg)).toBe(true);
+    expect(matchesKeywordTrigger("Hello!", cfg)).toBe(true);
+    expect(matchesKeywordTrigger("looking to RENT.", cfg)).toBe(true);
+  });
+
+  it("matches multi-word keywords as a phrase", () => {
+    expect(
+      matchesKeywordTrigger("can we book a site visit", { keywords: ["site visit"] }),
+    ).toBe(true);
+    expect(
+      matchesKeywordTrigger("the site visitor logged in", { keywords: ["site visit"] }),
+    ).toBe(false);
+  });
+
+  it("falls back to plain containment for keywords with no word characters", () => {
+    expect(matchesKeywordTrigger("sounds good 👍 thanks", { keywords: ["👍"] })).toBe(true);
+  });
+});
+
 describe("matchesKeywordTrigger", () => {
   it("returns false for empty text", () => {
     expect(matchesKeywordTrigger("", { keywords: ["hi"] })).toBe(false);
