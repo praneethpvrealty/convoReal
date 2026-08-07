@@ -4,12 +4,20 @@
 
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-followup-template';
+import { ENQUIRY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-update-template';
 import type { ReengagementLead, ReengagementSummary } from './queries';
 
 /** The pre-rename template name. A batch sent on it is still a
- *  re-engagement batch, so the report must not drop it. Kept in sync
- *  with is_reengagement_template() in migration 212. */
+ *  re-engagement batch, so the report must not drop it. */
 const LEGACY_ENQUIRY_TEMPLATE_NAME = 'property_enquiry_followup';
+
+/** Every template a re-engagement batch can go out on. Kept in sync
+ *  with is_reengagement_template() in migration 213. */
+export const REENGAGEMENT_TEMPLATE_NAMES: readonly string[] = [
+  ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+  ENQUIRY_UPDATE_TEMPLATE_NAME,
+  LEGACY_ENQUIRY_TEMPLATE_NAME,
+];
 
 /** Whether a broadcast on this template is a re-engagement batch — the
  *  client-side twin of the SQL predicate, used to decide whether the
@@ -18,10 +26,7 @@ export function isReengagementTemplate(
   templateName: string | null | undefined
 ): boolean {
   if (!templateName) return false;
-  return (
-    templateName === ENQUIRY_FOLLOWUP_TEMPLATE_NAME ||
-    templateName === LEGACY_ENQUIRY_TEMPLATE_NAME
-  );
+  return REENGAGEMENT_TEMPLATE_NAMES.includes(templateName);
 }
 
 export interface FunnelStage {
