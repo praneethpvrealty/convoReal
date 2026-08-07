@@ -425,7 +425,15 @@ export function FlyerSheet({
  *  sheet — cap its size so the controls stay in view. Sized from the
  *  sheet's measured frame, not the window, which foldables misreport.
  *  Lives inside the sheet's tree so `useSheetFrame` sees the measured
- *  value; the parent component renders above the provider. */
+ *  value; the parent component renders above the provider.
+ *
+ *  Both axes are set from that one number rather than capping width and
+ *  letting `aspectRatio` follow: Yoga derives the height from the width
+ *  it was asked for, not the width `maxWidth` clamped it to. On a phone
+ *  the cap never binds so the square held, but on a wide or unfolded
+ *  screen the sheet is short and wide — the cap bit hard, the height
+ *  stayed at the full container width, and the preview grew into a tall
+ *  column that ran under the footer. */
 function PreviewFrame({
   style,
   children,
@@ -433,14 +441,13 @@ function PreviewFrame({
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }) {
-  const frameHeight = useSheetFrame();
-  return <View style={[style, { maxWidth: Math.round(frameHeight * 0.38) }]}>{children}</View>;
+  const size = Math.round(useSheetFrame() * 0.38);
+  return <View style={[style, { width: size, height: size }]}>{children}</View>;
 }
 
 const styles = StyleSheet.create({
   preview: {
     aspectRatio: 1,
-    width: '100%',
     alignSelf: 'center',
     borderRadius: radius.lg,
     borderWidth: 1,
