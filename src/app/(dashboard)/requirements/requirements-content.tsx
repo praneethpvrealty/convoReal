@@ -34,6 +34,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ChecklistLoader } from "@/components/ui/checklist-loader"
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader"
@@ -129,6 +130,11 @@ export default function RequirementsPage() {
   const [shareIds, setShareIds] = useState<string[] | null>(null)
   const [shareMode, setShareMode] = useState<RequirementShareMode>("masked")
   const [shareCopied, setShareCopied] = useState(false)
+  // Interactive links: minted lazily per requirement+mode, cached for
+  // the session. Best-effort — a failed mint shares plain text.
+  const [includeLinks, setIncludeLinks] = useState(true)
+  const [shareLinks, setShareLinks] = useState<Record<string, string>>({})
+  const [mintingLinks, setMintingLinks] = useState(false)
   const [parkingId, setParkingId] = useState<string | null>(null)
 
   // Add/edit requirements dialog. `editorContactId` is preset when a
@@ -175,26 +181,80 @@ export default function RequirementsPage() {
 
   // Card row → the shape src/lib/requirements/share.ts formats. Tags
   // and the latest note are handed over but only survive in full mode.
-  const toShareable = (c: ConsolidatedContact): ShareableRequirement => ({
-    id: c.id,
-    name: c.name,
-    classification: c.classification,
-    no_budget: c.no_budget,
-    min_budget: c.min_budget,
-    max_budget: c.max_budget,
-    requirements: c.requirements,
-    areas_of_interest: c.areas_of_interest,
-    projects_of_interest: c.projects_of_interest,
-    tags: (c.contact_tags ?? []).map((t) => t.tags?.name),
-    latestNote: c.contact_notes?.[0]?.note_text,
-    requirement_active: c.requirement_active,
-  })
+  const toShareable = useCallback(
+    (c: ConsolidatedContact): ShareableRequirement => ({
+      id: c.id,
+      name: c.name,
+      classification: c.classification,
+      no_budget: c.no_budget,
+      min_budget: c.min_budget,
+      max_budget: c.max_budget,
+      requirements: c.requirements,
+      areas_of_interest: c.areas_of_interest,
+      projects_of_interest: c.projects_of_interest,
+      tags: (c.contact_tags ?? []).map((t) => t.tags?.name),
+      latestNote: c.contact_notes?.[0]?.note_text,
+      requirement_active: c.requirement_active,
+    }),
+    []
+  )
+
+  // Mint any missing links for the open share. The cache key carries
+  // the mode because a link freezes what the public page reveals.
+  useEffect(() => {
+    if (!shareIds || !includeLinks) return
+    const pending = data.filter(
+      (c) =>
+        shareIds.includes(c.id) &&
+        !shareLinks[`${c.id}:${shareMode}`] &&
+        isShareable(toShareable(c))
+    )
+    if (pending.length === 0) return
+    let cancelled = false
+    setMintingLinks(true)
+    Promise.all(
+      pending.map(async (c) => {
+        try {
+          const res = await fetch("/api/requirement-shares", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contact_id: c.id, mode: shareMode }),
+          })
+          const json = await res.json().catch(() => ({}))
+          const path = json?.data?.path as string | undefined
+          return path
+            ? ([`${c.id}:${shareMode}`, `${window.location.origin}${path}`] as [string, string])
+            : null
+        } catch {
+          return null
+        }
+      })
+    )
+      .then((entries) => {
+        if (cancelled) return
+        const minted = entries.filter((e): e is [string, string] => e !== null)
+        if (minted.length) {
+          setShareLinks((prev) => ({ ...prev, ...Object.fromEntries(minted) }))
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setMintingLinks(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [shareIds, shareMode, includeLinks, data, shareLinks, toShareable])
 
   const shareText = useMemo(() => {
     if (!shareIds) return ""
-    const rows = data.filter((c) => shareIds.includes(c.id)).map(toShareable)
+    const rows = data
+      .filter((c) => shareIds.includes(c.id))
+      .map((c) => ({
+        ...toShareable(c),
+        responseUrl: includeLinks ? shareLinks[`${c.id}:${shareMode}`] : undefined,
+      }))
     return buildRequirementDigest(rows, shareMode)
-  }, [shareIds, shareMode, data])
+  }, [shareIds, shareMode, data, includeLinks, shareLinks, toShareable])
 
   // The agent's own record, always unmasked — this one stays in the
   // Engine rather than going to a co-broker.
@@ -1024,8 +1084,24 @@ export default function RequirementsPage() {
               </p>
             )}
 
+            <div className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/30 px-3 py-2.5">
+              <div>
+                <p className="text-xs font-bold text-slate-200">Interactive response links</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Each brief gets a link where the broker can submit a matching listing or
+                  reply on WhatsApp. Links expire in 7 days.
+                </p>
+              </div>
+              <Switch checked={includeLinks} onCheckedChange={setIncludeLinks} />
+            </div>
+
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300">Preview</Label>
+              <Label className="text-xs text-slate-300">
+                Preview
+                {mintingLinks && includeLinks ? (
+                  <span className="ml-2 text-slate-500 font-normal">creating links…</span>
+                ) : null}
+              </Label>
               <Textarea
                 readOnly
                 value={shareText}
@@ -1038,7 +1114,7 @@ export default function RequirementsPage() {
             <Button
               variant="outline"
               onClick={copyShareText}
-              disabled={!shareText}
+              disabled={!shareText || (includeLinks && mintingLinks)}
               className="border-slate-700 text-slate-300 hover:bg-slate-800"
             >
               {shareCopied ? <Check className="size-4 text-emerald-400" /> : <Copy className="size-4" />}
@@ -1046,7 +1122,7 @@ export default function RequirementsPage() {
             </Button>
             <Button
               onClick={sendShareOnWhatsApp}
-              disabled={!shareText}
+              disabled={!shareText || (includeLinks && mintingLinks)}
               className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold"
             >
               <Share2 className="size-4" />

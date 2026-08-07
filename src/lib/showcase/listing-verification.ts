@@ -21,6 +21,7 @@ import { parseListingFromImageOrText } from '@/lib/ai/gemini';
 import { validateDraft, backfillLocationFromMapLink } from '@/lib/ai/intake-core';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
+import { recordRequirementResponse } from '@/lib/requirements/respond';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 
 let _admin: SupabaseClient | null = null;
@@ -205,9 +206,11 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
       return true;
     }
 
-    // Mark the sender as an Owner lead (only upgrade generic contacts).
+    // Mark the sender: a co-broker answering a shared requirement is an
+    // Agent, anyone else is an Owner lead (only upgrade generic contacts).
     if (!contactRecord.classification || contactRecord.classification === 'Others') {
-      await db.from('contacts').update({ classification: 'Owner' }).eq('id', contactRecord.id);
+      const classification = claimed.requirement_link_id ? 'Agent' : 'Owner';
+      await db.from('contacts').update({ classification }).eq('id', contactRecord.id);
     }
 
     // Claim already flipped status -> 'verified' above; just attach the
@@ -217,6 +220,14 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
       .update({ created_property_id: prop.id })
       .eq('id', submission.id);
 
+    let requirementRef: string | null = null;
+    if (claimed.requirement_link_id) {
+      requirementRef = await recordRequirementResponse(db, claimed.requirement_link_id, {
+        propertyCode: prop.property_code,
+        title: prop.title,
+      });
+    }
+
     let confirmation =
       `✅ *Your property listing has been submitted!*\n\n` +
       `*Code:* ${prop.property_code}\n` +
@@ -224,6 +235,9 @@ export async function processListingVerification(args: ProcessArgs): Promise<boo
       `*Price:* ₹${Number(prop.price).toLocaleString('en-IN')}\n` +
       `*Location:* ${prop.location}\n` +
       `*Type:* ${prop.type}\n`;
+    if (requirementRef) {
+      confirmation += `\n🤝 Submitted as a response to requirement ${requirementRef}.`;
+    }
     if (!isValid) {
       confirmation += `\n📝 A few details still need confirming (${missingFields.join(', ')}) — the agent will reach out.`;
     }

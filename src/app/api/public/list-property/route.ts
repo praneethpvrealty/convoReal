@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { generateSubmissionCode } from '@/lib/showcase/listing-verification';
+import { resolveRequirementLinkByToken } from '@/lib/requirements/respond';
+import { requirementReference } from '@/lib/requirements/share';
 
 // POST /api/public/list-property
 // Public "List your property" submission for the seller funnel.
@@ -31,6 +33,7 @@ export async function POST(request: NextRequest) {
       images?: unknown;
       submitter_name?: string;
       session_key?: string;
+      requirement_link_token?: string;
     } | null;
 
     const accountId = body?.account_id;
@@ -90,6 +93,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // A submission from the /req page carries the share link it
+    // answers. The token is the public credential — resolve it and
+    // require it to belong to this account; anything else is ignored
+    // rather than failing the submission (tagging is best-effort).
+    let requirementLinkId: string | null = null;
+    let reference: string | null = null;
+    const requirementLinkToken = (body?.requirement_link_token || '').slice(0, 64);
+    if (requirementLinkToken) {
+      const resolved = await resolveRequirementLinkByToken(db, requirementLinkToken);
+      if (resolved && resolved.link.account_id === accountId) {
+        requirementLinkId = resolved.link.id;
+        reference = requirementReference(resolved.requirement.id);
+      }
+    }
+
     // Insert with a unique code, retrying on the rare collision.
     let code = generateSubmissionCode();
     let inserted = false;
@@ -100,6 +118,7 @@ export async function POST(request: NextRequest) {
         raw_text: rawText,
         images,
         submitter_name: submitterName,
+        requirement_link_id: requirementLinkId,
       });
       if (!error) {
         inserted = true;
@@ -117,7 +136,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Could not submit your listing. Please try again.' }, { status: 500 });
     }
 
-    const message = `Hi! I'd like to list my property. My verification code is ${code}`;
+    const message = reference
+      ? `Hi! I have a matching listing for requirement ${reference}. My verification code is ${code}`
+      : `Hi! I'd like to list my property. My verification code is ${code}`;
     const whatsappLink = `https://wa.me/${contactPhone}?text=${encodeURIComponent(message)}`;
 
     return NextResponse.json({ code, whatsappLink, expiresInHours: 24 });

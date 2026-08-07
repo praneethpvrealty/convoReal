@@ -33,6 +33,9 @@ export interface ShareableRequirement {
   /** False parks the requirement: it stops matching and stops being
    *  offered to co-brokers. */
   requirement_active?: boolean | null;
+  /** Public /req/<token> URL for interactive responses — appended in
+   *  both modes when the caller minted a share link. */
+  responseUrl?: string | null;
 }
 
 function compactINR(value: number): string {
@@ -115,6 +118,10 @@ export function formatRequirement(
     const tags = cleanList(r.tags);
     if (tags.length) lines.push(`Tags: ${tags.join(', ')}`);
     if (r.latestNote?.trim()) lines.push(`Notes: ${r.latestNote.trim()}`);
+  }
+
+  if (r.responseUrl?.trim()) {
+    lines.push(`Got a match? Respond here: ${r.responseUrl.trim()}`);
   }
 
   return lines.join('\n• ');
