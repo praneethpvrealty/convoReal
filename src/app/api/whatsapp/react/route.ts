@@ -131,8 +131,11 @@ export async function POST(request: Request) {
 
     // Mirror into DB. Empty emoji = removal.
     if (emoji === '') {
+      // Removing a reaction is idempotent — zero rows means it was
+      // already gone, which is the desired end state, not a refusal.
       const { error: delError } = await supabase
         .from('message_reactions')
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .delete()
         .eq('message_id', targetMessage.id)
         .eq('actor_type', 'agent')

@@ -11,9 +11,9 @@ module.exports = defineConfig([
   },
   {
     plugins: { convoreal: { rules: { 'supabase-write-guard': supabaseWriteGuard } } },
-    // 'warn' for the same reason as the rules below: it lands on 11
-    // existing writes here, so it is visible rather than blocking. Clear
-    // them file by file, do not add new ones.
+    // Every .delete() here is clean; the 9 that remain are all .update(),
+    // left at 'warn' for the same reason as the rules below — visible
+    // rather than blocking. Clear them file by file, do not add new ones.
     rules: { 'convoreal/supabase-write-guard': 'warn' },
   },
   {

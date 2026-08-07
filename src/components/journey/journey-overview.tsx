@@ -193,13 +193,18 @@ export function JourneyOverview({
   // events; the contact/property records are untouched.
   const deleteJourney = async (g: JourneyGroup) => {
     if (!accountId) return;
-    const { error } = await supabase
+    const { data: removed, error } = await supabase
       .from("journey_items")
       .delete()
       .eq("account_id", accountId)
-      .eq(mode === "buyer" ? "contact_id" : "property_id", g.subjectId);
+      .eq(mode === "buyer" ? "contact_id" : "property_id", g.subjectId)
+      .select("id");
     if (error) {
       toast.error(`Failed to remove: ${error.message}`);
+      return;
+    }
+    if (!removed?.length) {
+      toast.error("Nothing was removed — reload and try again.");
       return;
     }
     setHidden(g.subjectId, false); // drop the stale view pref too

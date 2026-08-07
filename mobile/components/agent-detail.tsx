@@ -215,14 +215,20 @@ export function InterestedProperties({ contact }: { contact: Contact }) {
           variant: 'destructive',
           onPress: async () => {
             close();
-            const { error } = await supabase
+            const { data: removed, error } = await supabase
               .from('contact_property_inquiries')
               .delete()
               .eq('contact_id', contact.id)
-              .eq('property_id', p.id);
-            if (error) {
+              .eq('property_id', p.id)
+              .select('contact_id');
+            if (error || !removed?.length) {
               haptic.warn();
-              show({ title: 'Could not remove', message: friendlyError(error.message) });
+              show({
+                title: 'Could not remove',
+                message: error
+                  ? friendlyError(error.message)
+                  : 'That interest is no longer there. Pull to refresh and try again.',
+              });
               return;
             }
             if (contact.last_inquired_property_id === p.id) {
@@ -496,14 +502,20 @@ export function ContactTags({ contactId }: { contactId: string }) {
 
   async function toggle(tagId: string, selected: boolean) {
     if (selected) {
-      const { error } = await supabase
+      const { data: removed, error } = await supabase
         .from('contact_tags')
         .delete()
         .eq('contact_id', contactId)
-        .eq('tag_id', tagId);
-      if (error) {
+        .eq('tag_id', tagId)
+        .select('tag_id');
+      if (error || !removed?.length) {
         haptic.warn();
-        show({ title: 'Could not update tags', message: friendlyError(error.message) });
+        show({
+          title: 'Could not update tags',
+          message: error
+            ? friendlyError(error.message)
+            : 'That tag is no longer on this contact. Pull to refresh and try again.',
+        });
         return;
       }
     } else {

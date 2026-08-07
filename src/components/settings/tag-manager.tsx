@@ -121,12 +121,18 @@ export function TagManager() {
 
     try {
       setDeleting(true);
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('tags')
         .delete()
-        .eq('id', tagToDelete.id);
+        .eq('id', tagToDelete.id)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) {
+        throw new Error(
+          'That tag is no longer there, or you do not have permission to delete it.',
+        );
+      }
 
       toast.success('Tag deleted');
       setTags((prev) => prev.filter((t) => t.id !== tagToDelete.id));

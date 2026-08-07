@@ -375,12 +375,17 @@ export function JourneySection({
 
   const handleRemove = useCallback(
     async (item: JourneyItem) => {
-      const { error } = await supabase
+      const { data: removed, error } = await supabase
         .from("journey_items")
         .delete()
-        .eq("id", item.id);
+        .eq("id", item.id)
+        .select("id");
       if (error) {
         toast.error(`Failed to remove: ${error.message}`);
+        return;
+      }
+      if (!removed?.length) {
+        toast.error("Nothing was removed — reload and try again.");
         return;
       }
       setSelectedItem(null);

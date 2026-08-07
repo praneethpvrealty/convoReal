@@ -61,6 +61,24 @@ function isRlsScoped(client) {
   return client === 'supabase' || client.endsWith('.supabase');
 }
 
+/**
+ * True when the call asks PostgREST for the affected-row count, as in
+ * `.delete({ count: 'exact' })`. Reading that count answers the same
+ * question `.select()` does, so it is an equally good guard.
+ */
+function countsAffectedRows(node) {
+  return node.arguments.some(
+    (arg) =>
+      arg.type === 'ObjectExpression' &&
+      arg.properties.some(
+        (prop) =>
+          prop.type === 'Property' &&
+          !prop.computed &&
+          (prop.key.name === 'count' || prop.key.value === 'count')
+      )
+  );
+}
+
 /** True when `.select()` is called further along the same chain. */
 function hasSelectDownstream(node) {
   let current = node;
@@ -104,6 +122,7 @@ module.exports = {
         }
         const client = queryClient(node, context.sourceCode);
         if (client === null || !isRlsScoped(client)) return;
+        if (countsAffectedRows(node)) return;
         if (hasSelectDownstream(node)) return;
 
         context.report({
