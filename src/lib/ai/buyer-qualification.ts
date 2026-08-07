@@ -41,9 +41,15 @@ export type QualifierField = 'type' | 'budget' | 'location';
  *  Owner answering this number is not stating a buying requirement. */
 const QUALIFIABLE_CLASSIFICATIONS = ['Buyer', 'Agent', 'Owner & Buyer'];
 
-/** Bot replies allowed per conversation before it belongs to a human.
+/** Bot REPLIES allowed per conversation before it belongs to a human.
  *  Three covers the full ladder; anything past it is a conversation the
- *  ladder isn't solving. */
+ *  ladder isn't solving.
+ *
+ *  It caps talking, not listening. A lead who states their budget on
+ *  the fourth turn has still stated their budget, and the cap used to
+ *  sit ahead of the extraction — so everything said after an agent took
+ *  the thread over was thrown away, and the contact's preferences froze
+ *  at whatever the bot had managed to ask for. */
 const MAX_BOT_TURNS = 3;
 
 /** Listings per reply. Three is a shortlist; more reads as a dump. */
@@ -79,8 +85,12 @@ function hasBudget(prefs: ExtractedPreferences): boolean {
   return prefs.budget_min != null || prefs.budget_max != null;
 }
 
+function hasProject(prefs: ExtractedPreferences): boolean {
+  return prefs.projects.length > 0;
+}
+
 function hasLocation(prefs: ExtractedPreferences): boolean {
-  return prefs.areas.length > 0 || prefs.projects.length > 0;
+  return prefs.areas.length > 0 || hasProject(prefs);
 }
 
 /**
@@ -94,6 +104,30 @@ export function nextQualifier(
   if (!hasBudget(prefs)) return 'budget';
   if (!hasLocation(prefs)) return 'location';
   return null;
+}
+
+/**
+ * Show listings now instead of asking the next question.
+ *
+ * A buyer who names a project has given the matcher its most decisive
+ * input — src/lib/matching.ts short-circuits its entire hierarchy on
+ * one, letting it satisfy location and survive a type mismatch. The
+ * ladder did not know that: it ranked projects third, so "if you have
+ * any in Swiss town, Hollywood town or oval reef" was answered with
+ * "what kind of property are you looking for?" while a matching plot
+ * sat in inventory, and the turn budget ran out before it was ever
+ * offered.
+ *
+ * Gated on actually having something to send. With no match the ladder
+ * still runs — asking the next question beats "nothing fits, we'll
+ * call you", which is where an ungated short-circuit would land every
+ * buyer who named a project we have no stock in.
+ */
+export function shouldSendMatchesNow(
+  prefs: ExtractedPreferences,
+  matchCount: number
+): boolean {
+  return matchCount > 0 && hasProject(prefs);
 }
 
 function firstName(name?: string | null): string {
@@ -153,11 +187,30 @@ export function buildQualifierQuestion(
   return `Perfect — ${known}. Which area are you looking at?${hint}`;
 }
 
+/**
+ * The same rung, asked as a postscript to a shortlist rather than as
+ * the whole turn. Short-circuiting to matches skips questions but must
+ * not abandon them — we still want the budget. The full versions open
+ * with a greeting ("Got it 👍", "Noted —"), which trailing three
+ * listings reads as though the bot forgot it had just spoken.
+ */
+export function buildFollowUpQuestion(field: QualifierField): string {
+  if (field === 'type') {
+    return "One thing — land/plot, apartment, villa or commercial? I'll narrow these down.";
+  }
+  if (field === 'budget') {
+    return "One thing — what budget are you working with? I'll narrow these down.";
+  }
+  return "One thing — which area suits you best? I'll narrow these down.";
+}
+
 export function buildMatchesReply(
   contactName: string | null | undefined,
   matches: RankedPropertyMatch[],
   baseUrl: string,
-  contactId: string
+  contactId: string,
+  /** Appended when listings went out before the ladder was finished. */
+  followUp?: string | null
 ): string {
   const shown = matches.slice(0, MAX_MATCHES_SENT);
   const origin = baseUrl.replace(/\/+$/, '');
@@ -186,6 +239,7 @@ export function buildMatchesReply(
     listings.join('\n\n'),
     '',
     "Want photos or a site visit for any of these? Reply with the number and I'll set it up.",
+    ...(followUp ? ['', followUp] : []),
   ].join('\n');
 }
 
@@ -223,14 +277,25 @@ export function buildQualificationReply(
   baseUrl: string,
   contactId: string
 ): QualificationOutcome {
-  const missing = nextQualifier(prefs);
+  const laddered = nextQualifier(prefs);
+  const shortCircuit = shouldSendMatchesNow(prefs, matches.length);
+  const missing = shortCircuit ? null : laddered;
+
   if (missing) {
     return { missing, reply: buildQualifierQuestion(missing, prefs, areaSuggestions) };
   }
   return {
     missing: null,
     reply: matches.length
-      ? buildMatchesReply(contactName, matches, baseUrl, contactId)
+      ? buildMatchesReply(
+          contactName,
+          matches,
+          baseUrl,
+          contactId,
+          // Only when the listings jumped the queue: a ladder that
+          // finished on its own has nothing left to ask.
+          shortCircuit && laddered ? buildFollowUpQuestion(laddered) : null
+        )
       : buildNoMatchReply(contactName, prefs),
   };
 }
@@ -402,14 +467,17 @@ export async function processBuyerQualificationMessage(
     )
       return false;
 
-    // Already answered as many times as the ladder needs — whatever is
-    // being discussed now is a human's conversation.
+    // Read here, acted on after the extraction below. Past the cap the
+    // conversation belongs to a human and the bot must not talk over
+    // them — but it can still listen, and what a lead volunteers to an
+    // agent is exactly the requirement detail the ladder was fishing
+    // for.
     const { count: botTurns } = await db
       .from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('conversation_id', conversation.id)
       .eq('sender_type', 'bot');
-    if ((botTurns ?? 0) >= MAX_BOT_TURNS) return false;
+    const atReplyCap = (botTurns ?? 0) >= MAX_BOT_TURNS;
 
     // A bare answer ("Devanahalli") carries no signal of its own — it
     // only means something because we asked the question directly
@@ -466,13 +534,34 @@ export async function processBuyerQualificationMessage(
       if (updateErr) throw updateErr;
     }
 
-    const missing = nextQualifier(prefs);
+    // Learned and filed. The cap bites here, on the reply: the thread
+    // is a human's, so we stand down rather than answer — but Radar
+    // fires, so the agent picks it up already seeing what the lead's
+    // updated brief now matches.
+    if (atReplyCap) {
+      void generateMatchEventForContact(db, accountId, contact.id).catch(
+        (err) => {
+          console.error('[buyer-qualification] radar event failed:', err);
+        }
+      );
+      return false;
+    }
+
+    // A named project earns a ranking run of its own, before any
+    // question is asked — see shouldSendMatchesNow. Everything else
+    // still waits for the ladder to finish, so an unqualified lead
+    // never costs a scan of the account's inventory.
+    const laddered = nextQualifier(prefs);
+    const matches =
+      !laddered || hasProject(prefs)
+        ? await rankPropertiesForContact(db, accountId, contact.id, {
+            strictArea: true,
+          })
+        : [];
+    const missing = shouldSendMatchesNow(prefs, matches.length)
+      ? null
+      : laddered;
     const areas = missing === 'location' ? await suggestAreas(accountId) : [];
-    const matches = missing
-      ? []
-      : await rankPropertiesForContact(db, accountId, contact.id, {
-          strictArea: true,
-        });
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const outcome = buildQualificationReply(
       prefs,
@@ -492,8 +581,9 @@ export async function processBuyerQualificationMessage(
     );
 
     // Surface the same matches on Match Radar so the agent picks the
-    // thread up already knowing what the lead was shown. Only once the
-    // ladder is answered — a half-qualified buyer is not a Radar event.
+    // thread up already knowing what the lead was shown. Only when
+    // listings actually went out — a lead who was asked a question is
+    // not a Radar event.
     if (!outcome.missing) {
       void generateMatchEventForContact(db, accountId, contact.id).catch(
         (err) => {

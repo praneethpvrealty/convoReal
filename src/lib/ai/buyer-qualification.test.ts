@@ -9,6 +9,8 @@ import {
   carriesRequirementSignal,
   nextQualifier,
   preferenceSignature,
+  shouldSendMatchesNow,
+  buildFollowUpQuestion,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -359,5 +361,122 @@ describe('preferenceSignature', () => {
     expect(preferenceSignature(prefs({ suggested_tags: ['Investor'] }))).toBe(
       preferenceSignature(prefs())
     );
+  });
+});
+
+describe('shouldSendMatchesNow', () => {
+  it('short-circuits the ladder when a named project has stock', () => {
+    expect(shouldSendMatchesNow(prefs({ projects: ['Oval Reef'] }), 1)).toBe(
+      true
+    );
+  });
+
+  it('leaves the ladder alone when the named project has no stock', () => {
+    expect(shouldSendMatchesNow(prefs({ projects: ['Oval Reef'] }), 0)).toBe(
+      false
+    );
+  });
+
+  it('does not fire on a plain locality — only a named project is decisive', () => {
+    expect(shouldSendMatchesNow(prefs({ areas: ['Devanahalli'] }), 3)).toBe(
+      false
+    );
+  });
+
+  it('does not fire on an empty brief', () => {
+    expect(shouldSendMatchesNow(prefs(), 3)).toBe(false);
+  });
+});
+
+describe('buildQualificationReply — project-first matching', () => {
+  // Anju's opening message, as extracted: three named projects, no
+  // type and no budget.
+  const anju = prefs({
+    projects: ['Swiss Town', 'Hollywood Town', 'Oval Reef'],
+  });
+
+  it('sends the Oval Reef listing instead of asking for the property type', () => {
+    const outcome = buildQualificationReply(
+      anju,
+      'Anju',
+      [match({ title: '70x60 Residential Plot in Oval Reef, Devanahalli' })],
+      [],
+      'https://aryavartaventures.convoreal.com',
+      'contact-anju'
+    );
+
+    expect(outcome.missing).toBeNull();
+    expect(outcome.reply).toContain('Oval Reef');
+    expect(outcome.reply).not.toContain('What kind of property are you looking for');
+  });
+
+  it('still asks the open rung, as a postscript to the listings', () => {
+    const outcome = buildQualificationReply(
+      anju,
+      'Anju',
+      [match({})],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    // Anju stated no type, so that is what is still worth knowing.
+    expect(outcome.reply).toContain('land/plot, apartment, villa or commercial');
+    // The greeting-led version would read as though the bot forgot it
+    // had just sent three listings.
+    expect(outcome.reply).not.toContain('Got it 👍');
+  });
+
+  it('moves the postscript on to budget once the type is known', () => {
+    const outcome = buildQualificationReply(
+      prefs({ ...anju, property_categories: ['plot'] }),
+      'Anju',
+      [match({})],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(outcome.reply).toContain('what budget are you working with');
+    expect(outcome.reply).not.toContain('Noted —');
+  });
+
+  it('falls back to the ladder when the named project has nothing to show', () => {
+    const outcome = buildQualificationReply(
+      anju,
+      'Anju',
+      [],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(outcome.missing).toBe('type');
+    expect(outcome.reply).toContain('What kind of property are you looking for');
+  });
+
+  it('adds no postscript when the ladder finished on its own', () => {
+    const complete = prefs({
+      property_types: ['Residential Plot'],
+      budget_max: 50_000_000,
+      areas: ['Devanahalli'],
+    });
+    const outcome = buildQualificationReply(
+      complete,
+      'Anju',
+      [match({})],
+      [],
+      'https://convoreal.com',
+      'c1'
+    );
+    expect(outcome.reply).not.toContain('One thing —');
+  });
+});
+
+describe('buildFollowUpQuestion', () => {
+  it('asks the rung without re-greeting the lead', () => {
+    for (const field of ['type', 'budget', 'location'] as const) {
+      const text = buildFollowUpQuestion(field);
+      expect(text.startsWith('One thing —')).toBe(true);
+      expect(text).not.toContain('Got it');
+      expect(text).not.toContain('Perfect —');
+    }
   });
 });
