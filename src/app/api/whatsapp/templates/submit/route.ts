@@ -12,7 +12,10 @@ import {
   type TemplatePayload,
 } from '@/lib/whatsapp/template-validators'
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
-import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize'
+import {
+  normalizeCategory,
+  normalizeStatus,
+} from '@/lib/whatsapp/template-status-normalize'
 
 /**
  * Shared upsert payload builder — both the Meta-failure path and the
@@ -27,6 +30,10 @@ function buildUpsertRow(
     status: 'DRAFT' | string
     metaTemplateId: string | null
     submissionError: string | null
+    /** Category Meta actually assigned, when it returned one — Meta can
+     *  approve a Utility submission as MARKETING, and the effective
+     *  category is what frequency caps (error 131049) key off. */
+    metaCategory?: TemplatePayload['category'] | null
   },
 ) {
   return {
@@ -39,7 +46,7 @@ function buildUpsertRow(
     // for the cross-teammate dedup follow-up.
     user_id: userId,
     name: payload.name,
-    category: payload.category,
+    category: extras.metaCategory ?? payload.category,
     language: payload.language,
     header_type: payload.header_type ?? null,
     header_content: payload.header_content ?? null,
@@ -152,6 +159,7 @@ export async function POST(request: Request) {
 
     let metaTemplateId: string
     let metaStatus: string
+    let metaCategory: TemplatePayload['category'] | null = null
 
     if (dryRun) {
       metaTemplateId = `dry-run-${crypto.randomUUID()}`
@@ -190,6 +198,7 @@ export async function POST(request: Request) {
         })
         metaTemplateId = meta.id
         metaStatus = meta.status
+        metaCategory = meta.category ? normalizeCategory(meta.category) : null
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Meta submit failed.'
         // Persist the failure so the user can retry; row stays DRAFT
@@ -220,6 +229,7 @@ export async function POST(request: Request) {
         status: normalizeStatus(metaStatus),
         metaTemplateId,
         submissionError: null,
+        metaCategory,
       }),
     )
 
@@ -236,10 +246,21 @@ export async function POST(request: Request) {
       )
     }
 
+    const categoryChanged =
+      metaCategory !== null && metaCategory !== payload.category
+
     return NextResponse.json({
       success: true,
       template: row,
       dry_run: dryRun,
+      ...(categoryChanged
+        ? {
+            category_changed: {
+              requested: payload.category,
+              assigned: metaCategory,
+            },
+          }
+        : {}),
     })
   } catch (error) {
     console.error('Error submitting template:', error)

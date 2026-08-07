@@ -5,7 +5,10 @@ import {
   type AccountContext,
 } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize'
+import {
+  normalizeCategory,
+  normalizeStatus,
+} from '@/lib/whatsapp/template-status-normalize'
 import type { TemplateButton, TemplateSampleValues } from '@/types'
 
 /**
@@ -52,15 +55,6 @@ interface MetaTemplate {
   category: string
   components?: MetaTemplateComponent[]
   quality_score?: { score?: string } | string
-}
-
-function normalizeCategory(
-  meta: string,
-): 'Marketing' | 'Utility' | 'Authentication' {
-  const upper = meta.toUpperCase()
-  if (upper === 'UTILITY') return 'Utility'
-  if (upper === 'AUTHENTICATION') return 'Authentication'
-  return 'Marketing'
 }
 
 function normalizeQualityScore(
