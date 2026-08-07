@@ -1062,7 +1062,11 @@ export function ShowcaseView({
         throw new Error(data?.error || 'Request failed');
       }
       setReshareLink(data.link || null);
-      toast.success('Your personal share link is ready — also sent to your WhatsApp.');
+      toast.success(
+        data.delivered
+          ? 'Your personal share link is ready — also sent to your WhatsApp.'
+          : 'Your personal share link is ready — copy it below.'
+      );
     } catch (err) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : 'Failed to create your link');
@@ -2173,8 +2177,10 @@ export function ShowcaseView({
                 {/* Co-broker re-share link — clean view only. Whoever
                     holds a forwarded link mints their own attributed
                     link here, keeping onward shares visible to the
-                    location-consent chain. */}
-                {isAgentMode && (
+                    location-consent chain. Needs an attribution to hang
+                    the new hop from, so it is hidden on an unattributed
+                    visit rather than offering a form the API refuses. */}
+                {isAgentMode && visitorRef && (
                 <div className="bg-slate-950/50 border border-slate-850 p-3.5 rounded-xl space-y-2">
                   <div className="flex items-start gap-2.5">
                     <div className="h-7 w-7 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">

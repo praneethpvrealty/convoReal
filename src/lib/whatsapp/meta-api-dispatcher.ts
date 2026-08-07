@@ -27,6 +27,7 @@ import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
 } from '@/lib/whatsapp/customer-window'
+import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 
 /** Window within which an identical template to the same conversation is
  *  treated as a duplicate and skipped (double-submit / overlapping-trigger
@@ -92,6 +93,20 @@ export interface SendWhatsAppAndPersistArgs {
    *  row's `reply_to_message_id`, which is a UUID self-FK: writing a
    *  wamid there fails the insert after Meta has already sent. */
   replyToMessageId?: string | null
+  /** Permits a send to a `chain_only` contact. Only the re-share
+   *  consent chain may set this — it is the machinery that created
+   *  those contacts and has to reach them. Everything else (broadcasts,
+   *  automations, digests, an agent typing in the inbox) is refused, so
+   *  a co-broker's downstream party is not reachable by the listing
+   *  side just because the chain recorded them. */
+  allowChainOnly?: boolean
+  /** Marks a contact this call has to CREATE (toPhone with no existing
+   *  match) as chain_only. For sends to someone who is a counterparty
+   *  of the chain rather than a lead of this account — a location
+   *  seeker who came in through a co-broker's link. An existing contact
+   *  is never downgraded: a real lead who also happens to seek stays a
+   *  real lead. */
+  createAsChainOnly?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customDbClient?: any
 }
@@ -162,6 +177,7 @@ export async function sendWhatsAppMessageAndPersist(
             user_id: userId || (await resolveOwnerUserId()),
             phone: targetPhone,
             name: targetPhone,
+            chain_only: args.createAsChainOnly ?? false,
           })
           .select()
           .single()
@@ -182,6 +198,25 @@ export async function sendWhatsAppMessageAndPersist(
           throw new Error('Contact not found for this account')
         }
         targetPhone = contact.phone
+      }
+    }
+
+    // 1b. Chain-only contacts belong to a re-share attribution chain,
+    // not to this account's pipeline. Refused here rather than at each
+    // caller for the same reason as the customer window below — every
+    // sender funnels through this function, so this is the only place
+    // that covers broadcasts, automations, digests and inbox sends
+    // alike. Checked before the conversation is resolved so a blocked
+    // send leaves no empty thread implying one was attempted.
+    if (!args.allowChainOnly && resolvedContactId) {
+      const { data: chainRow } = await db
+        .from('contacts')
+        .select('chain_only')
+        .eq('id', resolvedContactId)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      if ((chainRow as { chain_only?: boolean } | null)?.chain_only) {
+        throw new Error(CHAIN_ONLY_BLOCKED_MESSAGE)
       }
     }
 
