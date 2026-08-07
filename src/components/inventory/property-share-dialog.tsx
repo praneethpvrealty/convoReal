@@ -53,6 +53,8 @@ import {
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
+import { PROPERTY_ALERT_TEMPLATE_NAME } from '@/lib/whatsapp/property-alert-template';
+import { PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME } from '@/lib/whatsapp/property-enquiry-photos-template';
 import {
   buildPropertyShareMessage,
   buildShareTargets,
@@ -741,18 +743,36 @@ export function PropertyShareDialog({
 
       // Intelligent auto-selection
       if (tData.length > 0) {
-        // 1. Try to find a template specifically meant for sharing property details
-        let matching = tData.find((t) =>
-          /share_property|property_detail|property_share/i.test(t.name)
+        // 1. The engine's own enquiry templates, by exact name. Both
+        //    are Utility, so they are exempt from the per-user
+        //    marketing cap that silently drops Marketing sends
+        //    (error 131049). Photo-first when the listing has one.
+        const byName = (n: string) => tData.find((t) => t.name === n);
+        const hasPhoto = Boolean(
+          property?.images?.some((img) => img && img.trim().length > 0)
         );
+        let matching =
+          (hasPhoto ? byName(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME) : undefined) ??
+          byName(PROPERTY_ALERT_TEMPLATE_NAME) ??
+          byName(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME);
 
-        // 2. Fall back to templates containing property/share/detail, excluding reminders or appointment visits
+        // 2. Any other template named for sharing property details.
+        if (!matching) {
+          matching = tData.find((t) =>
+            /share_property|property_detail|property_share/i.test(t.name)
+          );
+        }
+
+        // 3. Fall back to templates containing property/share/detail,
+        //    excluding reminders, appointment visits, and the digests
+        //    addressed to owners rather than to a buyer.
         if (!matching) {
           matching = tData.find((t) => {
             const name = t.name.toLowerCase();
             const hasKeywords = /property|share|detail|send/i.test(name);
             const isReminderOrAppointment = /reminder|visit|appointment|schedule|nudge|followup/i.test(name);
-            return hasKeywords && !isReminderOrAppointment;
+            const isDigestOrConsent = /digest|consent|owner_/i.test(name);
+            return hasKeywords && !isReminderOrAppointment && !isDigestOrConsent;
           });
         }
 
@@ -763,7 +783,7 @@ export function PropertyShareDialog({
     } finally {
       setLoadingTemplates(false);
     }
-  }, [supabase]);
+  }, [supabase, property?.images]);
 
   // Reset dialog states only when open changes from false to true
   useEffect(() => {
