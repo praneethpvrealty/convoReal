@@ -530,13 +530,15 @@ export default function CalendarPage() {
     if (!confirm(`Are you sure you want to cancel and delete "${target.title}"?`)) return;
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("appointments")
         .delete()
         .eq("id", target.id)
-        .eq("account_id", accountId);
+        .eq("account_id", accountId)
+        .select("id");
 
       if (error) throw error;
+      if (!data?.length) throw new Error("That appointment is no longer there.");
       toast.success("Appointment deleted successfully");
       setIsApptModalOpen(false);
       loadData();
@@ -991,13 +993,15 @@ export default function CalendarPage() {
 
   const deleteTodo = async (id: string) => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("todos")
         .delete()
         .eq("id", id)
-        .eq("account_id", accountId);
+        .eq("account_id", accountId)
+        .select("id");
 
       if (error) throw error;
+      if (!data?.length) throw new Error("That task is no longer there.");
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

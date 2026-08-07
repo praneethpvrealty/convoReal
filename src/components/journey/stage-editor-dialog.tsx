@@ -109,11 +109,13 @@ export function StageEditorDialog({
       if ((count ?? 0) > 0) {
         return `“${stage.name}” has ${count} item${count === 1 ? "" : "s"} on it — move them to another stage first.`;
       }
-      const { error } = await supabase
+      const { data: removed, error } = await supabase
         .from("journey_stages")
         .delete()
-        .eq("id", stage.id);
-      return error ? `Delete failed: ${error.message}` : null;
+        .eq("id", stage.id)
+        .select("id");
+      if (error) return `Delete failed: ${error.message}`;
+      return removed?.length ? null : "Delete failed: the stage is no longer there.";
     });
 
   const add = () =>

@@ -283,10 +283,17 @@ export async function DELETE(
       }
     }
 
-    const { error: delErr } = await supabase
+    const { data: deleted, error: delErr } = await supabase
       .from('message_templates')
       .delete()
       .eq('id', id)
+      .select('id')
+    if (!delErr && !deleted?.length) {
+      return NextResponse.json(
+        { error: 'Template not found' },
+        { status: 404 },
+      )
+    }
     if (delErr) {
       return NextResponse.json(
         {

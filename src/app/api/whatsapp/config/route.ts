@@ -429,10 +429,18 @@ export async function DELETE() {
       )
     }
 
-    const { error: deleteError } = await supabase
+    const { data: deleted, error: deleteError } = await supabase
       .from('whatsapp_config')
       .delete()
       .eq('account_id', accountId)
+      .select('id')
+
+    if (!deleteError && !deleted?.length) {
+      return NextResponse.json(
+        { error: 'No WhatsApp configuration to disconnect.' },
+        { status: 404 },
+      )
+    }
 
     if (deleteError) {
       console.error('Error deleting whatsapp_config:', deleteError)

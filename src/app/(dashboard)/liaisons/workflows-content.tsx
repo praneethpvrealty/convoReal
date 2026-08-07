@@ -106,12 +106,13 @@ export default function WorkflowsContent() {
     if (!deleteTarget) return;
     setDeleting(true);
 
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('liaison_workflows')
       .delete()
-      .eq('id', deleteTarget.id);
+      .eq('id', deleteTarget.id)
+      .select('id');
 
-    if (error) {
+    if (error || !deleted?.length) {
       toast.error('Failed to delete workflow');
     } else {
       toast.success('Workflow deleted');

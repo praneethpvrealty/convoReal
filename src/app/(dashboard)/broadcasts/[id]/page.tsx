@@ -236,13 +236,18 @@ export default function BroadcastDetailPage() {
     // single delete is sufficient — the aggregate trigger in migration 003
     // is defined on broadcast_recipients but fires only on its own row
     // changes, not on a cascaded drop of the parent row.
-    const { error: delErr } = await supabase
+    const { data: deleted, error: delErr } = await supabase
       .from('broadcasts')
       .delete()
-      .eq('id', broadcastId);
+      .eq('id', broadcastId)
+      .select('id');
     setDeleting(false);
     if (delErr) {
       toast.error(`Failed to delete: ${delErr.message}`);
+      return;
+    }
+    if (!deleted?.length) {
+      toast.error('Failed to delete: the broadcast is no longer there.');
       return;
     }
     toast.success('Broadcast deleted');

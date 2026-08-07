@@ -169,11 +169,12 @@ export function PipelineSettings({
       toast.error("Move or delete deals in this stage first");
       return;
     }
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from("pipeline_stages")
       .delete()
-      .eq("id", stageId);
-    if (error) {
+      .eq("id", stageId)
+      .select("id");
+    if (error || !deleted?.length) {
       toast.error("Failed to delete stage");
       return;
     }
@@ -183,12 +184,13 @@ export function PipelineSettings({
   async function handleDeletePipeline() {
     setDeleting(true);
     // ON DELETE CASCADE handles deals + stages.
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from("pipelines")
       .delete()
-      .eq("id", pipeline.id);
+      .eq("id", pipeline.id)
+      .select("id");
     setDeleting(false);
-    if (error) {
+    if (error || !deleted?.length) {
       toast.error("Failed to delete pipeline");
       return;
     }

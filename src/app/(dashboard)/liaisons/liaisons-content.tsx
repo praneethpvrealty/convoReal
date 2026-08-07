@@ -165,12 +165,13 @@ export default function LiaisonsContent() {
     if (!deleteTarget) return;
     setDeleting(true);
 
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('liaisons')
       .delete()
-      .eq('id', deleteTarget.id);
+      .eq('id', deleteTarget.id)
+      .select('id');
 
-    if (error) {
+    if (error || !deleted?.length) {
       toast.error('Failed to delete liaison');
     } else {
       toast.success('Liaison deleted');

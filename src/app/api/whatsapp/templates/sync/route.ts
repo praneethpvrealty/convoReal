@@ -222,8 +222,12 @@ export async function POST() {
 
         if (idsToDelete.length > 0) {
           console.log(`[template-sync] Cleaning up ${idsToDelete.length} duplicate template rows`);
+          // Best-effort duplicate cleanup, already declared non-fatal by
+          // the catch below: a row that does not go is left for the next
+          // sync rather than failing this one.
           await supabase
             .from('message_templates')
+            // eslint-disable-next-line convoreal/supabase-write-guard
             .delete()
             .in('id', idsToDelete);
         }

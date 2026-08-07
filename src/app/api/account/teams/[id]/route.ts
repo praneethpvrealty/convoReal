@@ -116,15 +116,20 @@ export async function DELETE(
 
     const { id } = await params;
 
-    const { error } = await ctx.supabase
+    const { data, error } = await ctx.supabase
       .from("teams")
       .delete()
       .eq("id", id)
-      .eq("account_id", ctx.accountId);
+      .eq("account_id", ctx.accountId)
+      .select("id");
 
     if (error) {
       console.error("[DELETE /api/account/teams/[id]] delete error:", error);
       return NextResponse.json({ error: "Failed to delete team" }, { status: 500 });
+    }
+
+    if (!data?.length) {
+      return NextResponse.json({ error: "Team not found" }, { status: 404 });
     }
 
     return new NextResponse(null, { status: 204 });
