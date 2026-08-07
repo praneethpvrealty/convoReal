@@ -139,6 +139,67 @@ export function parseBudgetToINR(text: string): number | null {
   return null;
 }
 
+/**
+ * The phone number in a line of a portal lead email, or null.
+ *
+ * Portal emails are full of long numbers that are not phone numbers: the
+ * advertisement code ("C93313942"), property ids, areas, prices. Scanning
+ * for "7 to 15 digits somewhere in the line" read all of them as phones —
+ * that is how a 99acres response created a contact whose number was the
+ * ad's own code and whose name was a fragment of the subject line.
+ *
+ * So: drop digit runs welded to letters and ordinals first, refuse lines
+ * that are quoting money or area, and require what is left to be the
+ * length of a real subscriber number.
+ */
+export function extractLeadPhone(line: string): string | null {
+  if (!line) return null;
+
+  // "₹8.4 Cr", "1,50,00,000", "4200 sq. ft." — quantities, not numbers to call.
+  if (/[₹$€£]|\b(?:rs|inr|cr|crore|crores|lakh|lakhs)\b|\bsq\.?\s*(?:ft|feet|yd|m|meter|metre)\b|%/i.test(line)) {
+    return null;
+  }
+
+  const cleaned = line
+    // "C93313942", "AB1234X" — a code, not a number.
+    .replace(/\b[A-Za-z]+\d[\dA-Za-z]*/g, ' ')
+    // "6th block", "1st floor" — the digits belong to the ordinal.
+    .replace(/\b\d+(?:st|nd|rd|th)\b/gi, ' ');
+
+  for (const match of cleaned.matchAll(/(?:\+|\b00)?\s*\d[\d\s().-]{6,20}\d/g)) {
+    const candidate = match[0].trim();
+    const digits = candidate.replace(/\D/g, '');
+    // 10 digits is a bare Indian mobile; 15 is E.164's ceiling, which
+    // covers any country code an NRI lead arrives with.
+    if (digits.length >= 10 && digits.length <= 15) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+/**
+ * Lines that are portal furniture rather than a person's name — the
+ * section headings and salutations that sit next to the contact block.
+ *
+ * Word-bounded on purpose: as a bare substring test, "hi" matched
+ * Sawarthia, Abhishek and Rohit, so a real name next to a real phone
+ * number was thrown away and the lead saved as "Portal Lead".
+ */
+function isJunkNameLine(line: string): boolean {
+  return /\b(?:details|response|dear|hello|hi|sourcing|ingest|message|subject|advertisement|property)\b/i.test(
+    line,
+  );
+}
+
+/** SMTP headers and trace lines picked up when a raw MIME body is scanned. */
+function isHeaderOrSMTPLine(line: string): boolean {
+  return (
+    /^[a-zA-Z0-9-]+:/i.test(line) ||
+    /received|by|id|date|subject|from|to|message-id|content-type/i.test(line)
+  );
+}
+
 // Helper to validate if a name looks like a legitimate contact name
 // Returns true if the name is valid, false if it's junk
 export function isValidContactName(name: string): boolean {
@@ -203,10 +264,11 @@ export function isValidContactName(name: string): boolean {
 }
 
 // Helper to strip owner/developer/builder/individual/agent/buyer suffixes from contact names
-// e.g. "Kg Subramanian (Owner)" -> "Kg Subramanian", "Pushpa (Individual)" -> "Pushpa"
+// e.g. "Kg Subramanian (Owner)" -> "Kg Subramanian", "Pushpa (Individual)" -> "Pushpa",
+// "Sheetal Sawarthia [DEALER]" -> "Sheetal Sawarthia" (99acres brackets its role)
 export function stripOwnerSuffix(name: string): string {
   if (!name) return name;
-  return name.replace(/\s*\((?:Owner|Developer|Builder|Broker|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)\)\s*$/i, '').trim();
+  return name.replace(/\s*[([](?:Owner|Developer|Builder|Broker|Dealer|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)[)\]]\s*$/i, '').trim();
 }
 
 const ROLE_SUFFIX_TO_CLASSIFICATION: Record<string, 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer'> = {
@@ -215,6 +277,8 @@ const ROLE_SUFFIX_TO_CLASSIFICATION: Record<string, 'Owner' | 'Seller' | 'Buyer'
   builder: 'Developer',
   broker: 'Agent',
   agent: 'Agent',
+  // 99acres tags a responding agency "[DEALER]".
+  dealer: 'Agent',
   landlord: 'Owner',
   seller: 'Seller',
   // "Individual" distinguishes a private buyer/tenant from an agent
@@ -236,7 +300,7 @@ export function classificationFromNameSuffix(
   name: string,
 ): 'Owner' | 'Seller' | 'Buyer' | 'Agent' | 'Developer' | null {
   if (!name) return null;
-  const match = name.match(/\((Owner|Developer|Builder|Broker|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)\)\s*$/i);
+  const match = name.match(/[([](Owner|Developer|Builder|Broker|Dealer|Landlord|Seller|Individual|Agent|Buyer|Tenant|Customer)[)\]]\s*$/i);
   if (!match) return null;
   return ROLE_SUFFIX_TO_CLASSIFICATION[match[1].toLowerCase()] ?? null;
 }
@@ -516,7 +580,7 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
       const nameInAngleBracketsMatch = lineWithEmail.match(/(?:from\s*:\s*)?([^<]+)<[^>]+>/i);
       if (nameInAngleBracketsMatch) {
         const potentialName = nameInAngleBracketsMatch[1].replace(/["']/g, '').trim();
-        if (potentialName && !/details|response|dear|hello|hi|sourcing|ingest|message|subject|advertisement|property/i.test(potentialName)) {
+        if (potentialName && !isJunkNameLine(potentialName)) {
           candidateName = potentialName;
         }
       }
@@ -525,28 +589,24 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
         for (let i = 1; i <= 2; i++) {
           if (emailIndex - i >= 0) {
             const line = lines[emailIndex - i];
-            const isHeaderOrSMTP = /^[a-zA-Z0-9-]+:/i.test(line) || 
-                                   /received|by|id|date|subject|from|to|message-id|content-type/i.test(line);
-            if (!/details|response|dear|hello|hi|sourcing|ingest|message|subject|advertisement|property/i.test(line) && !isHeaderOrSMTP) {
+            if (!isJunkNameLine(line) && !isHeaderOrSMTPLine(line)) {
               candidateName = line;
               break;
             }
           }
         }
       }
-      
-      // Candidate Phone: Scan the next 2 lines for a phone number (containing 7-15 digits)
+
+      // Candidate Phone: Scan the next 2 lines for something phone-shaped
       let candidatePhone = '';
       for (let i = 1; i <= 2; i++) {
         if (emailIndex + i < lines.length) {
           const line = lines[emailIndex + i];
-          const digitsCount = line.replace(/\D/g, '').length;
-          const isHeaderOrSMTP = /^[a-zA-Z0-9-]+:/i.test(line) || 
-                                 /received|by|id|date|subject|from|to|message-id|content-type/i.test(line);
           // Skip lines that are clearly not phone numbers (Property ID, listing IDs, etc., or URLs)
           const isNotPhone = /property\s*id|listing\s*id|reference|ref\s*#|id\s*:/i.test(line) || line.includes('/') || line.includes('http');
-          if (digitsCount >= 7 && digitsCount <= 15 && !isHeaderOrSMTP && !isNotPhone) {
-            candidatePhone = line.replace(/\(verified\)/i, '').trim();
+          const found = isHeaderOrSMTPLine(line) || isNotPhone ? null : extractLeadPhone(line);
+          if (found) {
+            candidatePhone = found;
             break;
           }
         }
@@ -567,18 +627,16 @@ export function parsePortalLead(subject: string, bodyText: string, html: string)
     if (!phone) {
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const digitsCount = line.replace(/\D/g, '').length;
-        const isHeaderOrSMTP = /^[a-zA-Z0-9-]+:/i.test(line) || 
-                               /received|by|id|date|subject|from|to|message-id|content-type/i.test(line);
         // Skip lines that are clearly not phone numbers (Property ID, listing IDs, etc., or URLs)
         const isNotPhone = /property\s*id|listing\s*id|reference|ref\s*#|id\s*:/i.test(line) || line.includes('/') || line.includes('http');
-        if (digitsCount >= 7 && digitsCount <= 15 && !isHeaderOrSMTP && !isNotPhone) {
-          phone = line.replace(/\(verified\)/i, '').trim();
-          
+        const found = isHeaderOrSMTPLine(line) || isNotPhone ? null : extractLeadPhone(line);
+        if (found) {
+          phone = found;
+
           // Candidate Name: Use the line immediately preceding the phone number line
           if (i - 1 >= 0 && (!name || name === 'Portal Lead')) {
             const prevLine = lines[i - 1];
-            if (!/details|response|dear|hello|hi|sourcing|ingest|message|subject|advertisement|property/i.test(prevLine)) {
+            if (!isJunkNameLine(prevLine)) {
               name = prevLine;
             }
           }

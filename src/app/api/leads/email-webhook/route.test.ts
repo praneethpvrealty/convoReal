@@ -113,6 +113,7 @@ import {
   isValidContactName,
   isUsableLocation,
   areaLabelFromListing,
+  extractLeadPhone,
   checkLocationMatch,
   matchableSqft,
   POST
@@ -426,6 +427,71 @@ describe('Email Webhook Lead Parsing', () => {
       expect(res.phone).toBe('+91-9811122232');
       expect(res.phone.replace(/\D/g, '')).toBe('919811122232');
       expect(res.email).toBeNull();
+    });
+
+    // Both live failures this guards against are real: on 2026-08-06 two
+    // 99acres responses were saved as contacts named ", Other in" and
+    // ", Commercial Land/Inst. Land in", each with the advertisement's own
+    // code as its phone number (+693313942, +89065520). The dealer who
+    // actually responded was never recorded. The header sentence wraps
+    // across lines in the HTML, so the code lands on a line of its own,
+    // with no "Rs"/"received" left on it to disqualify it.
+    it('reads the responder, not the advertisement code, when the header sentence wraps', () => {
+      const subject = 'Advertisement Response for Rs15 Crore, Other in  6th block Koramangala';
+      const body = `
+        Property Advertisement Response
+        Dear PRANEETH KUMAR
+        You have received a response on Rs15 Crore
+        , Other in
+        6th block Koramangala (C93313942) on
+        99acres.com
+        Details of the response
+        Sheetal Sawarthia [DEALER]
+        +91-9886155488 (Verified)
+        Send Mail
+      `;
+      const res = parsePortalLead(subject, body, '');
+      expect(res.phone.replace(/\D/g, '')).toBe('919886155488');
+      expect(res.name).toBe('Sheetal Sawarthia [DEALER]');
+      expect(stripOwnerSuffix(res.name)).toBe('Sheetal Sawarthia');
+      expect(classificationFromNameSuffix(res.name)).toBe('Agent');
+    });
+
+    it('keeps a name that merely contains a stop-word as a substring', () => {
+      const subject = 'Property Advertisement Response';
+      const body = `
+        Details of the response
+        Abhishek Rathi
+        +91-9886155488 (Verified)
+      `;
+      // "Abhishek" and "Rathi" both contain "hi"; as a bare substring test
+      // that threw the name away and saved the lead as "Portal Lead".
+      expect(parsePortalLead(subject, body, '').name).toBe('Abhishek Rathi');
+    });
+  });
+
+  describe('extractLeadPhone', () => {
+    it('takes a real number, with or without a country code', () => {
+      expect(extractLeadPhone('+91-9886155488 (Verified)')).toBe('+91-9886155488');
+      expect(extractLeadPhone('9886155488')).toBe('9886155488');
+      expect(extractLeadPhone('Mobile 098 8615 5488')).toBe('098 8615 5488');
+    });
+
+    it('refuses an advertisement or listing code', () => {
+      expect(extractLeadPhone('6th block Koramangala (C93313942) on')).toBeNull();
+      expect(extractLeadPhone('Dollars Colony (C89065520)')).toBeNull();
+      expect(extractLeadPhone('Property ID 20327451')).toBeNull();
+    });
+
+    it('refuses money and area, however long the number', () => {
+      expect(extractLeadPhone('₹1,50,00,00,000')).toBeNull();
+      expect(extractLeadPhone('Rs 15 Crore')).toBeNull();
+      expect(extractLeadPhone('4200 sq. ft.')).toBeNull();
+    });
+
+    it('refuses a run of digits too short to be a subscriber number', () => {
+      expect(extractLeadPhone('693313942')).toBeNull();
+      expect(extractLeadPhone('89065520')).toBeNull();
     });
   });
 
