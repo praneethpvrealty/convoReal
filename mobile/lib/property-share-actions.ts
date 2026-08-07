@@ -14,7 +14,9 @@ import type { Contact, Property } from '@/lib/types';
 
 /** Record an external share on the contact's timeline — a contact note
  *  plus last-contacted/last-inquired, mirroring the web's
- *  log-external-share dialog. Best-effort: failures don't block the
+ *  log-external-share dialog — and on the property share ledger, which
+ *  is what marks the recipient as already contacted on the listing's
+ *  Matching Contacts list. Best-effort: failures don't block the
  *  WhatsApp hand-off the caller is about to make. */
 export async function logExternalShare(contact: Contact, property: Property): Promise<void> {
   const { profile, session } = useAuthStore.getState();
@@ -37,6 +39,17 @@ export async function logExternalShare(contact: Contact, property: Property): Pr
       account_id: profile.account_id,
       note_text: `📱 Shared via personal WhatsApp\n🏠 Property: ${label}`,
     }),
+    supabase.from('property_shares').upsert(
+      {
+        account_id: profile.account_id,
+        property_id: property.id,
+        contact_id: contact.id,
+        recipient_kind: contact.classification === 'Agent' ? 'agent' : 'buyer',
+        channel: 'whatsapp',
+        created_by: session.user.id,
+      },
+      { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true }
+    ),
   ]);
 }
 

@@ -74,3 +74,29 @@ export async function recordPropertyShares({
   }
   return { created: (data ?? []).length, error: null };
 }
+
+/**
+ * Who this listing has already gone out to, as contactId → ISO
+ * timestamp of the first share. Feeds the "Already shared" marker on
+ * the Matching Contacts list so an agent working down it can see at a
+ * glance who has already had the communication.
+ */
+export async function fetchPropertyShareLog(
+  accountId: string,
+  propertyId: string
+): Promise<Record<string, string>> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('property_shares')
+    .select('contact_id, created_at')
+    .eq('account_id', accountId)
+    .eq('property_id', propertyId);
+
+  if (error) {
+    console.error('Property share log read failed:', error.message);
+    return {};
+  }
+  return Object.fromEntries(
+    (data ?? []).map((row) => [row.contact_id as string, row.created_at as string])
+  );
+}

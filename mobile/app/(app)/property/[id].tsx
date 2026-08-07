@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Linking from 'expo-linking';
 import { Link, Stack, router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -30,7 +30,7 @@ import { openInMaps } from '@/lib/open-maps';
 import { storagePublicUrl } from '@/lib/storage-url';
 import { apiFetch, ApiError } from '@/lib/api';
 import { friendlyError } from '@/lib/errors';
-import { formatInr } from '@/lib/format';
+import { chatListTime, formatInr } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { matchChips, scoreTone, type MatchChipTone } from '@/lib/match-chips';
 import { fetchPropertyMatches } from '@/lib/property-matches';
@@ -864,6 +864,7 @@ function chipColor(tone: MatchChipTone, colors: ThemeColors): string {
  */
 function MatchesSection({ property }: { property: Property }) {
   const { colors, fonts: f } = useTheme();
+  const queryClient = useQueryClient();
   const [showAgents, setShowAgents] = useState(false);
   const [shareTo, setShareTo] = useState<Contact | null>(null);
 
@@ -876,6 +877,7 @@ function MatchesSection({ property }: { property: Property }) {
   const all = matches.data ?? [];
   const agentCount = all.filter((m) => m.contact.classification === 'Agent').length;
   const rows = showAgents ? all : all.filter((m) => m.contact.classification !== 'Agent');
+  const sharedCount = rows.filter((m) => m.sharedAt).length;
 
   return (
     <Section title="Matching Contacts">
@@ -887,7 +889,8 @@ function MatchesSection({ property }: { property: Property }) {
               ? 'Could not load matches — pull to refresh.'
               : rows.length === 0
                 ? 'No matching contacts'
-                : `Found ${rows.length} matching contact${rows.length === 1 ? '' : 's'}`}
+                : `Found ${rows.length} matching contact${rows.length === 1 ? '' : 's'}` +
+                  (sharedCount > 0 ? ` · ${sharedCount} already shared` : '')}
         </Text>
         {agentCount > 0 ? (
           <Pressable onPress={() => setShowAgents((v) => !v)} hitSlop={8} accessibilityRole="button">
@@ -910,15 +913,24 @@ function MatchesSection({ property }: { property: Property }) {
             : tone === 'fair'
               ? colors.warningSoft
               : colors.glass;
+        // Already shared: the row recedes and says so, so an agent
+        // working down the list can see who still needs the message
+        // without re-sending to someone who already has it. Sharing
+        // again stays available — it is a reminder, not a lockout.
+        const shared = Boolean(m.sharedAt);
         return (
           <Pressable
             key={m.contact.id}
             onPress={() => router.push(`/(app)/contact/${m.contact.id}`)}
             accessibilityRole="button"
-            accessibilityLabel={`${m.contact.name || m.contact.phone}, ${m.score} percent match`}
+            accessibilityLabel={
+              `${m.contact.name || m.contact.phone}, ${m.score} percent match` +
+              (shared ? ', already shared' : '')
+            }
             style={[
               styles.matchRow,
               { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+              shared && { opacity: 0.6 },
             ]}
           >
             <View style={{ flex: 1, gap: 4 }}>
@@ -939,6 +951,9 @@ function MatchesSection({ property }: { property: Property }) {
               </View>
               <Text style={{ fontSize: 12.5, color: colors.textMuted }}>{m.contact.phone}</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+                {shared ? (
+                  <Tag label={`✓ Shared ${chatListTime(m.sharedAt!)}`} color={colors.success} />
+                ) : null}
                 {matchChips(m.details).map((chip) => (
                   <Tag key={chip.label} label={chip.label} color={chipColor(chip.tone, colors)} />
                 ))}
@@ -958,9 +973,17 @@ function MatchesSection({ property }: { property: Property }) {
                 }}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel={`Share this property with ${m.contact.name || m.contact.phone}`}
+                accessibilityLabel={
+                  shared
+                    ? `Already shared with ${m.contact.name || m.contact.phone}. Share again`
+                    : `Share this property with ${m.contact.name || m.contact.phone}`
+                }
               >
-                <Ionicons name="paper-plane-outline" size={18} color={colors.primary} />
+                <Ionicons
+                  name={shared ? 'checkmark-done-outline' : 'paper-plane-outline'}
+                  size={18}
+                  color={shared ? colors.textFaint : colors.primary}
+                />
               </Pressable>
             </View>
           </Pressable>
@@ -972,6 +995,9 @@ function MatchesSection({ property }: { property: Property }) {
         contact={shareTo}
         visible={shareTo !== null}
         onClose={() => setShareTo(null)}
+        onShared={() => {
+          void queryClient.invalidateQueries({ queryKey: ['property-matches', property.id] });
+        }}
       />
     </Section>
   );
