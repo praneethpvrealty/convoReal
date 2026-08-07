@@ -73,6 +73,16 @@ describe('nameMatchKey', () => {
     expect(nameMatchKey('+91 98765 43210')).toBeNull();
     expect(nameMatchKey(null)).toBeNull();
   });
+
+  // These are two-token names that clear every other guard, and portal-heavy
+  // accounts hold many of them. Grouping them would offer a pile of
+  // unrelated buyers as one person.
+  it('ignores the placeholder a portal lead is filed under', () => {
+    expect(nameMatchKey('Housing Lead')).toBeNull();
+    expect(nameMatchKey('MagicBricks Lead')).toBeNull();
+    expect(nameMatchKey('Portal Lead')).toBeNull();
+    expect(nameMatchKey('99acres Lead')).toBeNull();
+  });
 });
 
 describe('namesAreSimilar', () => {

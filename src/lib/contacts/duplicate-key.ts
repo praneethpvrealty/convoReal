@@ -1,4 +1,5 @@
 import { normalisePhone, normaliseEmail } from '@/lib/contacts/find-or-create';
+import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 
 // The last-10 rule: the same person saved once from a WhatsApp webhook and
 // once by hand is usually +919876543210 against 9876543210, which are two
@@ -39,7 +40,11 @@ const MIN_FUZZY_LENGTH = 8;
 const SIMILARITY_FLOOR = 0.88;
 
 export function nameMatchKey(name: string | null): string | null {
-  if (!name) return null;
+  // "Housing Lead" is two tokens and passes every test below, so without
+  // this every portal lead filed under a placeholder would be offered as a
+  // duplicate of every other one — a pile of unrelated buyers, on the
+  // accounts that take the most portal leads.
+  if (!name || isPlaceholderLeadName(name)) return null;
   const tokens = name
     .toLowerCase()
     // Source annotations travel with imported names: "Priya (MagicBricks)".
