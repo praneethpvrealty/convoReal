@@ -26,15 +26,11 @@ import { BRANDING } from '@/config/branding';
 // The session-first / template-fallback ladder is persona-neutral —
 // reused rather than duplicated (it lives under den/ for historical
 // reasons; the Den was the first surface that needed it).
-import { approvedTemplate, isSessionOpen, sendDenNotification } from '@/lib/den/notify';
+import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
 import {
   buildPropertyAlertParams,
   PROPERTY_ALERT_TEMPLATE_NAME,
 } from '@/lib/whatsapp/property-alert-template';
-import {
-  buildBuyerAlertsConsentParams,
-  BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
-} from '@/lib/whatsapp/buyer-alerts-consent-template';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import {
   buildConsentRequestMessage,
@@ -175,26 +171,20 @@ async function runAccount(
 
       const sessionOpen = await isSessionOpen(db, accountId, buyer.id);
 
-      // Consent-first. A pending buyer is asked exactly once, and only
-      // inside an open window: soliciting an opt-in is MARKETING by
-      // Meta's test however it is worded (they approved our Utility
-      // submission as Marketing), and a marketing template asking
+      // Consent-first, and free-form only. There is no template path:
+      // soliciting an opt-in is MARKETING by Meta's test however it is
+      // worded (a Utility submission of exactly this question came back
+      // approved as Marketing), and a marketing template asking
       // permission to send marketing is the thing consent exists to
-      // prevent. The template is used only if this account's approved
-      // copy really is Utility — otherwise the ask waits for a window,
-      // which src/lib/buyer/consent-ask.ts opens on any inbound message.
+      // prevent. A closed window waits — src/lib/buyer/consent-ask.ts
+      // asks the moment the buyer next messages us, which reaches far
+      // more of them than this daily pass ever could.
       if (consent !== 'granted') {
         if (buyer.buyer_alerts_consent_requested_at) {
           summary.skippedAwaitingConsent++;
           continue;
         }
-        const consentTemplate = await approvedTemplate(
-          db,
-          accountId,
-          BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
-        );
-        const templateIsUtility = consentTemplate?.category === 'Utility';
-        if (!sessionOpen && !templateIsUtility) {
+        if (!sessionOpen) {
           summary.skippedNoChannel++;
           continue;
         }
@@ -206,12 +196,6 @@ async function runAccount(
             matchCount: matches.length,
             agencyName,
           }),
-          ...(templateIsUtility
-            ? {
-                templateName: BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
-                templateParams: buildBuyerAlertsConsentParams(buyer.name, agencyName),
-              }
-            : {}),
         });
         if (!asked) {
           summary.failed++;

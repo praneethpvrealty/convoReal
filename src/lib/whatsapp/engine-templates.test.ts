@@ -13,7 +13,6 @@ describe('missingEngineTemplates', () => {
       'property_enquiry_response',
       'property_enquiry_photos',
       'property_enquiry_notice',
-      'buyer_alerts_consent',
     ]);
   });
 
