@@ -823,6 +823,60 @@ export async function submitMessageTemplate(
   }
 }
 
+export interface UploadSampleMediaArgs {
+  accessToken: string
+  /** Raw bytes of the sample file. */
+  data: ArrayBuffer
+  /** MIME type, e.g. image/png. */
+  fileType: string
+}
+
+/**
+ * Upload a template-sample file through Meta's Resumable Upload API and
+ * return the handle ("4::…") that template creation expects in
+ * example.header_handle — the create endpoint rejects a plain sample
+ * URL for media headers ("Missing sample parameter"). The `app` path
+ * segment resolves to the app the access token belongs to, so no app id
+ * needs to be stored. One-shot upload — template samples are small
+ * enough to send in a single chunk.
+ */
+export async function uploadSampleMedia(
+  args: UploadSampleMediaArgs
+): Promise<string> {
+  const { accessToken, data, fileType } = args
+  const sessionRes = await fetch(
+    `${META_API_BASE}/app/uploads?file_length=${data.byteLength}&file_type=${encodeURIComponent(fileType)}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }
+  )
+  if (!sessionRes.ok) {
+    await throwMetaError(sessionRes, `Meta API error: ${sessionRes.status}`)
+  }
+  const session = await sessionRes.json()
+  if (!session?.id) {
+    throw new Error('Meta did not return an upload session id.')
+  }
+  const uploadRes = await fetch(`${META_API_BASE}/${session.id}`, {
+    method: 'POST',
+    headers: {
+      // The upload leg authenticates with OAuth, not Bearer.
+      Authorization: `OAuth ${accessToken}`,
+      file_offset: '0',
+    },
+    body: data,
+  })
+  if (!uploadRes.ok) {
+    await throwMetaError(uploadRes, `Meta API error: ${uploadRes.status}`)
+  }
+  const uploaded = await uploadRes.json()
+  if (!uploaded?.h) {
+    throw new Error('Meta upload finished but returned no handle.')
+  }
+  return uploaded.h
+}
+
 export interface EditMessageTemplateArgs {
   /** Meta's template id (stored locally as `meta_template_id`). */
   metaTemplateId: string

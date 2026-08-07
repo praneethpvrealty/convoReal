@@ -6,7 +6,10 @@ import {
   type AccountContext,
 } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { submitMessageTemplate } from '@/lib/whatsapp/meta-api'
+import {
+  submitMessageTemplate,
+  uploadSampleMedia,
+} from '@/lib/whatsapp/meta-api'
 import {
   validateTemplatePayload,
   type TemplatePayload,
@@ -151,8 +154,6 @@ export async function POST(request: Request) {
       )
     }
 
-    const metaPayload = buildMetaTemplatePayload(payload)
-
     const dryRun =
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === 'true' ||
       process.env.WHATSAPP_TEMPLATES_DRY_RUN === '1'
@@ -191,10 +192,35 @@ export async function POST(request: Request) {
 
       const accessToken = decrypt(config.access_token)
       try {
+        // Meta's create-template endpoint only accepts a Resumable
+        // Upload handle as the sample for media headers — a plain URL
+        // is rejected with "Missing sample parameter". When the payload
+        // carries only a URL, fetch the sample and upload it for the
+        // handle before building the components.
+        if (
+          payload.header_type &&
+          payload.header_type !== 'text' &&
+          !payload.header_handle &&
+          payload.header_media_url
+        ) {
+          const sample = await fetch(payload.header_media_url)
+          if (!sample.ok) {
+            throw new Error(
+              `Could not fetch the header sample (HTTP ${sample.status}) from ${payload.header_media_url}`,
+            )
+          }
+          const fileType =
+            sample.headers.get('content-type')?.split(';')[0] || 'image/png'
+          payload.header_handle = await uploadSampleMedia({
+            accessToken,
+            data: await sample.arrayBuffer(),
+            fileType,
+          })
+        }
         const meta = await submitMessageTemplate({
           wabaId: config.waba_id,
           accessToken,
-          payload: metaPayload,
+          payload: buildMetaTemplatePayload(payload),
         })
         metaTemplateId = meta.id
         metaStatus = meta.status

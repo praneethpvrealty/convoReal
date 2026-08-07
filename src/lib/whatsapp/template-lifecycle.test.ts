@@ -3,6 +3,7 @@ import {
   deleteMessageTemplate,
   editMessageTemplate,
   submitMessageTemplate,
+  uploadSampleMedia,
 } from './meta-api';
 
 // We mock fetch and assert on the request URL/method/body — these
@@ -220,5 +221,69 @@ describe('deleteMessageTemplate', () => {
         metaTemplateId: 'y',
       }),
     ).rejects.toThrow(/boom/);
+  });
+});
+
+describe('uploadSampleMedia', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse({ id: 'upload:SESSION1' }))
+      .mockResolvedValueOnce(okResponse({ h: '4::HANDLE' }));
+    vi.stubGlobal('fetch', fetchMock);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('opens an app upload session, sends the bytes, and returns the handle', async () => {
+    const data = new TextEncoder().encode('png-bytes').buffer as ArrayBuffer;
+    const handle = await uploadSampleMedia({
+      accessToken: 'tok',
+      data,
+      fileType: 'image/png',
+    });
+    expect(handle).toBe('4::HANDLE');
+
+    const [sessionUrl, sessionInit] = fetchMock.mock.calls[0];
+    expect(sessionUrl).toContain('/app/uploads?file_length=9&file_type=image%2Fpng');
+    expect(sessionInit.method).toBe('POST');
+    expect(sessionInit.headers.Authorization).toBe('Bearer tok');
+
+    const [uploadUrl, uploadInit] = fetchMock.mock.calls[1];
+    expect(uploadUrl).toContain('/upload:SESSION1');
+    expect(uploadInit.method).toBe('POST');
+    // The upload leg authenticates with OAuth, not Bearer.
+    expect(uploadInit.headers.Authorization).toBe('OAuth tok');
+    expect(uploadInit.headers.file_offset).toBe('0');
+    expect(uploadInit.body).toBe(data);
+  });
+
+  it('throws when the upload finishes without a handle', async () => {
+    fetchMock
+      .mockReset()
+      .mockResolvedValueOnce(okResponse({ id: 'upload:S' }))
+      .mockResolvedValueOnce(okResponse({}));
+    await expect(
+      uploadSampleMedia({
+        accessToken: 't',
+        data: new ArrayBuffer(1),
+        fileType: 'image/jpeg',
+      }),
+    ).rejects.toThrow(/no handle/);
+  });
+
+  it('throws when the session cannot be opened', async () => {
+    fetchMock
+      .mockReset()
+      .mockResolvedValueOnce(errorResponse(400, { error: { message: 'bad app' } }));
+    await expect(
+      uploadSampleMedia({
+        accessToken: 't',
+        data: new ArrayBuffer(1),
+        fileType: 'image/png',
+      }),
+    ).rejects.toThrow(/bad app/);
   });
 });
