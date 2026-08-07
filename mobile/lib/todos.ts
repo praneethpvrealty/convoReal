@@ -93,6 +93,15 @@ export async function setTodoCompleted(
 }
 
 export async function deleteTodo(id: string): Promise<void> {
-  const { error } = await supabase.from('todos').delete().eq('id', id);
+  // Same guard as setTodoCompleted: a delete RLS refuses removes zero
+  // rows and reports no error, so without reading the row back this
+  // resolves as success and the caller re-renders the task it just told
+  // the user was gone.
+  const { data, error } = await supabase
+    .from('todos')
+    .delete()
+    .eq('id', id)
+    .select('id');
   if (error) throw error;
+  if (!data?.length) throw new Error('Todo not found');
 }
