@@ -10,6 +10,8 @@ import { getShowcaseSessionKey } from '@/lib/pulse/session-key';
 interface ListPropertyFormProps {
   accountId: string;
   siteName: string;
+  requirementLinkToken?: string;
+  requirementReference?: string;
 }
 
 interface UploadedImage {
@@ -17,7 +19,12 @@ interface UploadedImage {
   name: string;
 }
 
-export function ListPropertyForm({ accountId, siteName }: ListPropertyFormProps) {
+export function ListPropertyForm({
+  accountId,
+  siteName,
+  requirementLinkToken,
+  requirementReference,
+}: ListPropertyFormProps) {
   const [rawText, setRawText] = useState('');
   const [name, setName] = useState('');
   const [images, setImages] = useState<UploadedImage[]>([]);
@@ -71,6 +78,7 @@ export function ListPropertyForm({ accountId, siteName }: ListPropertyFormProps)
           images: images.map((i) => i.url),
           submitter_name: name.trim() || undefined,
           session_key: sessionKey,
+          requirement_link_token: requirementLinkToken,
         }),
       });
       const data = (await res.json().catch(() => ({}))) as {
@@ -97,7 +105,7 @@ export function ListPropertyForm({ accountId, siteName }: ListPropertyFormProps)
         <h2 className="text-xl font-bold text-white">One last step to submit</h2>
         <p className="text-sm text-slate-300 leading-relaxed">
           Tap the button below to send your verification code on WhatsApp. This confirms your number
-          so {siteName} can publish your listing. Your details are saved for 24 hours.
+          so {siteName} can {requirementReference ? `match your listing against ${requirementReference}` : 'publish your listing'}. Your details are saved for 24 hours.
         </p>
         <div className="rounded-lg bg-slate-950 border border-slate-800 py-3">
           <p className="text-[11px] uppercase tracking-wider text-slate-500">Your code</p>

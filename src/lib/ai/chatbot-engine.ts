@@ -47,6 +47,7 @@ import {
   mergeContactDraftsContainer,
 } from '@/lib/ai/intake-core';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { recordRequirementResponse } from '@/lib/requirements/respond';
 
 // Debounces the low-balance WhatsApp ping per account so a Manager
 // isn't paged on every single inbound message once their balance
@@ -2453,6 +2454,14 @@ export async function processExternalListingMessage(
     // listing is unpublished and pending review; it must not reach the
     // public WhatsApp catalog until the account owner approves it.
 
+    let requirementRef: string | null = null;
+    if (propSession.requirement_link_id) {
+      requirementRef = await recordRequirementResponse(supabaseAdmin(), propSession.requirement_link_id, {
+        propertyCode: prop.property_code,
+        title: prop.title,
+      });
+    }
+
     let reply = `✅ *Thanks! Your property listing has been submitted.*\n\n` +
       `*Code:* ${prop.property_code}\n` +
       `*Title:* ${prop.title}\n` +
@@ -2465,6 +2474,9 @@ export async function processExternalListingMessage(
     }
     if (prop.nearby_highlights && prop.nearby_highlights.length > 0) {
       reply += `*Nearby Highlights:* ${prop.nearby_highlights.join(', ')}\n`;
+    }
+    if (requirementRef) {
+      reply += `🤝 *Responding to:* requirement ${requirementRef}\n`;
     }
 
     reply += `\n🕐 *Pending review* — our team will verify the details and publish it shortly.`;
