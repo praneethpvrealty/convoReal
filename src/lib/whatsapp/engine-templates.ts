@@ -16,7 +16,7 @@ import { buildPropertyEnquiryPhotosTemplatePayload, PROPERTY_ENQUIRY_PHOTOS_TEMP
 import { buildLocationRevealTemplatePayload, LOCATION_REVEAL_TEMPLATE_NAME } from './location-reveal-template';
 import { buildInventoryUpdateTemplatePayload, INVENTORY_UPDATE_TEMPLATE_NAME } from './inventory-update-template';
 import { buildEnquiryFollowupTemplatePayload, ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from './enquiry-followup-template';
-import { buildEnquiryUpdateTemplatePayload, ENQUIRY_UPDATE_TEMPLATE_NAME } from './enquiry-update-template';
+import { buildEnquiryNoticeTemplatePayload, ENQUIRY_NOTICE_TEMPLATE_NAME } from './enquiry-notice-template';
 import { buildBuyerAlertsConsentTemplatePayload, BUYER_ALERTS_CONSENT_TEMPLATE_NAME } from './buyer-alerts-consent-template';
 
 export interface EngineTemplateDef {
@@ -63,11 +63,11 @@ export const ENGINE_TEMPLATES: EngineTemplateDef[] = [
     build: buildEnquiryFollowupTemplatePayload,
   },
   {
-    name: ENQUIRY_UPDATE_TEMPLATE_NAME,
-    label: 'Enquiry update',
+    name: ENQUIRY_NOTICE_TEMPLATE_NAME,
+    label: 'Enquiry notice',
     whyItMatters:
       'The property-anchored version of the enquiry status notice — names the listing the lead enquired about, so the message is specific rather than a form letter. Used for leads whose enquired property is known.',
-    build: buildEnquiryUpdateTemplatePayload,
+    build: buildEnquiryNoticeTemplatePayload,
   },
   {
     name: BUYER_ALERTS_CONSENT_TEMPLATE_NAME,

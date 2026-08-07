@@ -1207,11 +1207,9 @@ async function processMessage(
   // chat. They just opened the 24-hour window by texting, so the reply
   // is free-form: no template, nothing to get approved first. Falls
   // through when the buyer has no brief or nothing fits.
-  // Also reachable from the enquiry-update template's "Send listings"
-  // quick reply, which arrives as message.button.text. That tap IS the
-  // request — it is what makes sending listings solicited rather than
-  // volunteered, and it opens the 24-hour window so the reply is
-  // free-form.
+  // A template quick reply arrives as message.button.text rather than
+  // as message text, so read both — otherwise a tap that plainly says
+  // "send listings" would fall through to generic handling.
   if (parseBuyerMatchesCommand(message.button?.text ?? contentText)) {
     const matchReply = await buildBuyerMatchReply({
       accountId,

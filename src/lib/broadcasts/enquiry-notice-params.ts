@@ -13,22 +13,22 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
-import { buildEnquiryUpdateParams } from '@/lib/whatsapp/enquiry-update-template';
+import { buildEnquiryNoticeParams } from '@/lib/whatsapp/enquiry-notice-template';
 
-export interface EnquiryUpdateContext {
+export interface EnquiryNoticeContext {
   /** Enquired property per contact id. */
   enquired: Map<string, Property>;
 }
 
-export type EnquiryUpdateFailure = 'no_enquired_property';
+export type EnquiryNoticeFailure = 'no_enquired_property';
 
 /** Load the enquired property for a batch of contacts — one query
  *  regardless of batch size. */
-export async function loadEnquiryUpdateContext(
+export async function loadEnquiryNoticeContext(
   db: SupabaseClient,
   accountId: string,
   contacts: readonly Contact[]
-): Promise<EnquiryUpdateContext> {
+): Promise<EnquiryNoticeContext> {
   const enquired = new Map<string, Property>();
   if (contacts.length === 0) return { enquired };
 
@@ -61,17 +61,17 @@ export async function loadEnquiryUpdateContext(
  * built. Pure given a loaded context, so the routing rule is testable
  * without a database.
  */
-export function resolveEnquiryUpdateParams(
+export function resolveEnquiryNoticeParams(
   contact: Pick<Contact, 'id' | 'name'>,
-  ctx: EnquiryUpdateContext
-): { params: string[] } | { failure: EnquiryUpdateFailure } {
+  ctx: EnquiryNoticeContext
+): { params: string[] } | { failure: EnquiryNoticeFailure } {
   const enquired = ctx.enquired.get(contact.id);
   if (!enquired) return { failure: 'no_enquired_property' };
-  return { params: buildEnquiryUpdateParams(contact.name, enquired) };
+  return { params: buildEnquiryNoticeParams(contact.name, enquired) };
 }
 
-export const ENQUIRY_UPDATE_FAILURE_REASONS: Record<
-  EnquiryUpdateFailure,
+export const ENQUIRY_NOTICE_FAILURE_REASONS: Record<
+  EnquiryNoticeFailure,
   string
 > = {
   no_enquired_property:

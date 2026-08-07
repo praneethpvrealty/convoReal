@@ -34,13 +34,14 @@ import {
   buildEnquiryFollowupTemplatePayload,
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
 } from '@/lib/whatsapp/enquiry-followup-template';
-import { ENQUIRY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-update-template';
+import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   parseContactsCsv,
   extractPreferencesInBatches,
   type ParsedContactRow,
 } from '@/lib/contacts/import-csv';
 import { loadBatchSplit, type BatchSplit } from '@/lib/reengagement/queries';
+import { canSendToEveryLead } from '@/lib/reengagement/template-gate';
 import { useAuth } from '@/hooks/use-auth';
 
 interface ReengageWizardProps {
@@ -116,7 +117,7 @@ export function ReengageWizard({
         .select('id, name, status, category, language, rejection_reason')
         .in('name', [
           ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
-          ENQUIRY_UPDATE_TEMPLATE_NAME,
+          ENQUIRY_NOTICE_TEMPLATE_NAME,
         ])
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -126,9 +127,13 @@ export function ReengageWizard({
       );
       // The property-anchored template is optional: without it the
       // batch still goes out on the generic notice.
+      // Utility, not merely APPROVED: Meta re-files a failed Utility
+      // submission as Marketing, and those sends are silently dropped
+      // at capped recipients. The generic notice is the safe fallback.
       setUpdateTemplateApproved(
         rows.some(
-          (r) => r.name === ENQUIRY_UPDATE_TEMPLATE_NAME && isApproved(r.status)
+          (r) =>
+            r.name === ENQUIRY_NOTICE_TEMPLATE_NAME && canSendToEveryLead(r)
         )
       );
     } catch {
@@ -341,7 +346,7 @@ export function ReengageWizard({
         split.anchored.length > 0 && updateTemplateApproved
           ? await startBroadcast({
               name: `Lead re-engagement (property-anchored) — ${batchTag}`,
-              templateName: ENQUIRY_UPDATE_TEMPLATE_NAME,
+              templateName: ENQUIRY_NOTICE_TEMPLATE_NAME,
               leads: split.anchored,
               // Filled per recipient by the sender from the enquired
               // property and the best match, not from contact columns.
@@ -614,8 +619,10 @@ export function ReengageWizard({
                       <span className="text-amber-400">
                         {' '}
                         {split.anchored.length} of them could get the
-                        property-anchored message instead once that template is
-                        approved.
+                        property-anchored message instead, once that template is
+                        approved as Utility — a Marketing approval is not
+                        enough, because those sends are dropped for leads at
+                        their marketing cap.
                       </span>
                     )}
                 </p>
