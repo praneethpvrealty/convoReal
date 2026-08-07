@@ -159,6 +159,59 @@ describe('duplicates panel', () => {
     expect(screen.getByText(/check before merging/)).toBeTruthy();
   });
 
+  // Modelled on the live pair: two contacts both named Arun Kumar, one an
+  // Owner from WhatsApp, one a Housing buyer. Merging them would be wrong,
+  // and the panel used to show only the name and the source.
+  it('shows what differs, and marks the fields that disagree', async () => {
+    mockGroups({
+      groups: [
+        {
+          reason: 'name',
+          key: 'Arun Kumar',
+          contacts: [
+            {
+              ...GROUP.contacts[0],
+              id: 'a1', name: 'Arun Kumar', phone: '+919663549494',
+              source: 'WhatsApp', classification: 'Owner', max_budget: null,
+            },
+            {
+              ...GROUP.contacts[1],
+              id: 'a2', name: 'Arun Kumar', phone: '+918217878362',
+              source: 'Housing', classification: 'Buyer', max_budget: 147000000,
+            },
+          ],
+        },
+      ],
+    });
+    renderPanel();
+
+    fireEvent.click(await screen.findByText(/1 duplicate group detected/));
+    fireEvent.click(screen.getByText(/Compare \d+ differences/));
+
+    expect(screen.getByText('Owner')).toBeTruthy();
+    expect(screen.getByText('Buyer')).toBeTruthy();
+    expect(screen.getByText('₹14.7 Cr')).toBeTruthy();
+  });
+
+  it('counts a field only one record fills as a difference, not a conflict', async () => {
+    mockGroups({
+      groups: [
+        {
+          reason: 'phone',
+          key: '919108362189',
+          contacts: [
+            { ...GROUP.contacts[0], email: null },
+            { ...GROUP.contacts[1], email: 'c@example.com' },
+          ],
+        },
+      ],
+    });
+    renderPanel();
+
+    fireEvent.click(await screen.findByText(/1 duplicate group detected/));
+    expect(screen.getByText(/Compare 1 difference$/)).toBeTruthy();
+  });
+
   it('re-checks on demand without a remount', async () => {
     const fetchMock = mockGroups(
       { groups: [GROUP] },
