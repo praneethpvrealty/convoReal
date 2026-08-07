@@ -224,6 +224,7 @@ export function ContactDetailView({
   // Tags tab
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [contactTagIds, setContactTagIds] = useState<string[]>([]);
+  const [pinnedTagIds, setPinnedTagIds] = useState<string[]>([]);
   const [savingTags, setSavingTags] = useState(false);
 
   // Notes tab
@@ -612,6 +613,15 @@ export function ContactDetailView({
     ).slice(0, 5);
   }, [contactsList, editReferrer, contactId]);
 
+  // Applied tags lead; the rest keep their alphabetical order behind
+  // them (sort is stable, and the query already orders by name).
+  const orderedTags = useMemo(() => {
+    const lead = new Set(pinnedTagIds);
+    return [...allTags].sort(
+      (a, b) => Number(lead.has(b.id)) - Number(lead.has(a.id))
+    );
+  }, [allTags, pinnedTagIds]);
+
   const fetchTags = useCallback(async () => {
     if (!contactId) return;
 
@@ -622,7 +632,12 @@ export function ContactDetailView({
 
     if (tagsRes.data) setAllTags(tagsRes.data);
     if (contactTagsRes.data) {
-      setContactTagIds(contactTagsRes.data.map((ct) => ct.tag_id));
+      const ids = contactTagsRes.data.map((ct) => ct.tag_id);
+      setContactTagIds(ids);
+      // Snapshot for ordering only. Pinned at load rather than tracking
+      // contactTagIds, so toggling a tag doesn't slide the next one out
+      // from under the cursor mid-click.
+      setPinnedTagIds(ids);
     }
   }, [contactId, supabase]);
 
@@ -2421,7 +2436,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     </p>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {allTags.map((tag) => {
+                      {orderedTags.map((tag) => {
                         const selected = contactTagIds.includes(tag.id);
                         return (
                           <button

@@ -54,6 +54,8 @@ export interface ThemeColors {
   outgoingMeta: string;
   danger: string;
   dangerSoft: string;
+  /** Text/icons sitting on a `danger` fill. */
+  onDanger: string;
   success: string;
   successSoft: string;
   /** Text/icons sitting on a `success` fill. */
@@ -98,6 +100,7 @@ export const lightColors: ThemeColors = {
   outgoingMeta: '#5F7A63',
   danger: '#D5493B',
   dangerSoft: 'rgba(213,73,59,0.10)',
+  onDanger: '#FFFFFF',
   success: '#25D366',
   successSoft: 'rgba(37,211,102,0.16)',
   onSuccess: '#FFFFFF',
@@ -137,6 +140,7 @@ export const darkColors: ThemeColors = {
   outgoingMeta: 'rgba(234,251,241,0.6)',
   danger: '#FF7A6B',
   dangerSoft: 'rgba(255,122,107,0.16)',
+  onDanger: '#3A0D07',
   success: '#5EE0A0',
   successSoft: 'rgba(94,224,160,0.16)',
   onSuccess: '#08301D',

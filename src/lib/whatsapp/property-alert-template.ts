@@ -10,6 +10,7 @@ import type { Property } from '@/types';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
+import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 
 /** Bumped from `new_property_alert` when the category moved to Utility:
  *  Meta will not re-categorise an already-approved template in place, so
@@ -92,7 +93,11 @@ export function buildPropertyAlertParams(
   contactName: string | null | undefined,
   property: Property,
 ): [name: string, title: string, specs: string, location: string] {
-  const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
+  // A lead filed under "Housing Lead" would be greeted "Hi Housing," —
+  // the placeholder is a filing name, never a form of address.
+  const firstName = isPlaceholderLeadName(contactName)
+    ? 'there'
+    : contactName!.trim().split(/\s+/)[0];
   const location =
     [property.sublocality?.trim(), property.city?.trim()].filter(Boolean).join(', ') ||
     property.location?.trim() ||

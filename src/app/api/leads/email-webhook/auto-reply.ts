@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { decrypt } from '@/lib/whatsapp/encryption';
 import { EmailSyncConfig, MessageTemplate } from '@/types';
+import { greetingName } from '@/lib/contacts/lead-placeholder';
 
 export interface SendAutoReplyResult {
   success: boolean;
@@ -20,7 +21,9 @@ export function buildBodyParams(bodyText: string | null | undefined, leadName: s
 
   const params: string[] = [];
   if (count >= 1) {
-    params.push(leadName || 'there');
+    // A lead whose name never parsed is filed under a placeholder —
+    // greeting them by it says "Hi Portal Lead" to a real buyer.
+    params.push(greetingName(leadName));
   }
   if (count >= 2) {
     params.push(leadSource || 'portal');
@@ -129,7 +132,7 @@ export async function sendAutoReply({
         messageId = sendRes.messageId;
         usedTemplateName = template.name;
         replyText = template.body_text
-          .replace(/\{\{1\}\}/g, leadName || 'there')
+          .replace(/\{\{1\}\}/g, greetingName(leadName))
           .replace(/\{\{2\}\}/g, leadSource || 'portal');
 
         console.log(`${logPrefix} Primary template SENT: ${template.name}, Meta messageId=${messageId}`);
@@ -176,7 +179,7 @@ export async function sendAutoReply({
       // Within 24h window: send free-form text if available
       if (isWithin24Hours && syncConfig?.auto_reply_text) {
         replyText = syncConfig.auto_reply_text
-          .replace(/{name}/g, leadName || 'there')
+          .replace(/{name}/g, greetingName(leadName))
           .replace(/{source}/g, leadSource || 'portal');
 
         console.log(`${logPrefix} Sending free-form text (within 24h window): "${replyText.slice(0, 60)}..."`);
@@ -244,7 +247,7 @@ export async function sendAutoReply({
               messageId = sendRes.messageId;
               usedTemplateName = tpl.name;
               replyText = (tpl.body_text || '')
-                .replace(/\{\{1\}\}/g, leadName || 'there')
+                .replace(/\{\{1\}\}/g, greetingName(leadName))
                 .replace(/\{\{2\}\}/g, leadSource || 'portal');
               sent = true;
               console.log(`${logPrefix} Fallback template SENT: ${tpl.name} (lang: ${lang}), Meta messageId=${messageId}`);

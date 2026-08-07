@@ -470,6 +470,30 @@ export function ContactTags({ contactId }: { contactId: string }) {
 
   const linked = useMemo(() => new Set(data?.linked ?? []), [data?.linked]);
 
+  // Applied tags lead, the rest keep their alphabetical order behind
+  // them (sort is stable, and `all` already arrives ordered by name).
+  //
+  // The grouping is frozen at the first load rather than tracking
+  // `linked`: re-sorting on every toggle would slide the chip out from
+  // under the finger that just tapped it, and with the two-row clamp it
+  // could disappear behind "Show more" mid-tap. A newly applied tag
+  // moves to the front the next time the screen opens.
+  const [pinned, setPinned] = useState<{ contactId: string; ids: Set<string> } | null>(null);
+  if (data && pinned?.contactId !== contactId) {
+    // Adjusting state during render, not in an effect: React re-renders
+    // this component before committing, so no extra frame and no
+    // cascade. Re-pins when the screen switches contact.
+    setPinned({ contactId, ids: new Set(data.linked) });
+  }
+
+  const orderedTags = useMemo(() => {
+    if (!data) return [];
+    const lead = pinned?.contactId === contactId ? pinned.ids : linked;
+    return [...data.all].sort(
+      (a, b) => Number(lead.has(b.id)) - Number(lead.has(a.id))
+    );
+  }, [data, pinned, linked, contactId]);
+
   async function toggle(tagId: string, selected: boolean) {
     if (selected) {
       const { error } = await supabase
@@ -521,7 +545,7 @@ export function ContactTags({ contactId }: { contactId: string }) {
               style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
               onLayout={(e) => setContentH(e.nativeEvent.layout.height)}
             >
-              {data.all.map((t, i) => {
+              {orderedTags.map((t, i) => {
                 const selected = linked.has(t.id);
                 return (
                   <Pressable

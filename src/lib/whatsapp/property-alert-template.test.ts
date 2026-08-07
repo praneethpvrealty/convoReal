@@ -87,6 +87,13 @@ describe('buildPropertyAlertParams', () => {
     expect(specs).toBe('₹85,000/mo rent · 1,650 Sq.Ft. · 3 BHK');
   });
 
+  it('greets a placeholder-named lead as "there", not by its portal', () => {
+    // A lead whose name never parsed is filed as "Housing Lead"; greeting
+    // on the first word made that "Hi Housing," to a real buyer.
+    const [name] = buildPropertyAlertParams('Housing Lead', prop({ title: 'A plot' }));
+    expect(name).toBe('there');
+  });
+
   it('never returns empty params', () => {
     const params = buildPropertyAlertParams(undefined, prop({ title: ' ', price: 0, location: '' }));
     expect(params).toEqual(['there', 'New listing', 'Details on request', 'Location shared on request']);
