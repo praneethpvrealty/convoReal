@@ -2,6 +2,12 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
+import { ENQUIRY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-update-template';
+import {
+  loadEnquiryUpdateContext,
+  resolveEnquiryUpdateParams,
+  ENQUIRY_UPDATE_FAILURE_REASONS,
+} from './enquiry-update-params';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
 
@@ -327,6 +333,19 @@ export async function sendBroadcastRecipients(
     }
   }
 
+  // Loaded once per sweep for the property-anchored template only —
+  // every other template resolves its params from the contact row.
+  const enquiryUpdateContext =
+    broadcast.template_name === ENQUIRY_UPDATE_TEMPLATE_NAME
+      ? await loadEnquiryUpdateContext(
+          supabase,
+          accountId,
+          recipients
+            .map((r) => r.contact)
+            .filter((c): c is Contact => Boolean(c?.id)),
+        )
+      : null;
+
   const BATCH_SIZE = 10;
   const DELAY_MS = 1000;
   const MAX_RETRIES = 5;
@@ -359,11 +378,31 @@ export async function sendBroadcastRecipients(
         continue;
       }
 
-      const bodyParams = resolveVariables(
-        broadcast.template_variables || {},
-        recipient.contact,
-        customValueIndex.get(recipient.contact.id),
-      );
+      // The property-anchored template's params come from two other
+      // tables, not from columns on the contact — and a recipient
+      // missing either property must not be sent a message with a
+      // hole in it.
+      let bodyParams: string[];
+      if (enquiryUpdateContext) {
+        const resolved = resolveEnquiryUpdateParams(recipient.contact, enquiryUpdateContext);
+        if ('failure' in resolved) {
+          await supabase
+            .from('broadcast_recipients')
+            .update({
+              status: 'failed',
+              error_message: ENQUIRY_UPDATE_FAILURE_REASONS[resolved.failure],
+            })
+            .eq('id', recipient.id);
+          continue;
+        }
+        bodyParams = resolved.params;
+      } else {
+        bodyParams = resolveVariables(
+          broadcast.template_variables || {},
+          recipient.contact,
+          customValueIndex.get(recipient.contact.id),
+        );
+      }
 
       let truncatedParams = bodyParams;
       if (templateRow?.body_text) {

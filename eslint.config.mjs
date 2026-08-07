@@ -8,13 +8,11 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     plugins: { convoreal: { rules: { "supabase-write-guard": supabaseWriteGuard } } },
-    // Every .delete() is clean. The 122 that remain are all .update(),
-    // kept at 'warn' because rewriting them blind would be a worse change
-    // than the bug — the same bargain the mobile config strikes with the
-    // React Compiler rules: visible in the log and blocking for nothing,
-    // rather than silently off. Clear them file by file, do not add new
-    // ones, and flip this to 'error' once it is quiet.
-    rules: { "convoreal/supabase-write-guard": "warn" },
+    // 'error' now that the backlog is clear: every RLS-scoped write
+    // either reads back what it changed or carries a written reason why
+    // zero rows is its normal path. Keep it that way — a new write that
+    // cannot tell a refusal from a success should not reach main.
+    rules: { "convoreal/supabase-write-guard": "error" },
   },
   {
     // Test teardown deletes whatever the run happened to create, so

@@ -273,12 +273,18 @@ export function ShowcaseSettingsPanel() {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = hasRow
+      const { data: savedRow, error } = hasRow
         ? await supabase
             .from('showcase_settings')
             .update(payload)
             .eq('account_id', accountId)
-        : await supabase.from('showcase_settings').insert([payload]);
+            .select('account_id')
+        : await supabase.from('showcase_settings').insert([payload]).select('account_id');
+
+      if (!error && !savedRow?.length) {
+        toast.error('Your settings could not be saved.');
+        return;
+      }
 
       if (error) {
         // The subdomain column is UNIQUE account-wide, so a clash here

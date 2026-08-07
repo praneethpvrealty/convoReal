@@ -310,19 +310,31 @@ export async function POST() {
         
         if (anyExisting?.id) {
           // Found a row with same name but different language — update it
-          const { error: updLangErr } = await supabase
+          const { data: updLangRows, error: updLangErr } = await supabase
             .from('message_templates')
             .update(row)
-            .eq('id', anyExisting.id);
-          if (!updLangErr) { updated++; continue; }
+            .eq('id', anyExisting.id)
+            .select('id');
+          // Only count a row the write actually touched, or the summary
+          // reports templates it never synced.
+          if (!updLangErr && updLangRows?.length) { updated++; continue; }
         }
       }
 
       if (existing?.id) {
-        const { error: updErr } = await supabase
+        const { data: updRows, error: updErr } = await supabase
           .from('message_templates')
           .update(row)
           .eq('id', existing.id)
+          .select('id')
+        if (!updErr && !updRows?.length) {
+          errors.push({
+            name: t.name,
+            language: t.language,
+            message: 'Local row could not be updated.',
+          })
+          continue
+        }
         if (updErr) {
           errors.push({
             name: t.name,

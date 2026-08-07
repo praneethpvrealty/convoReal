@@ -11,6 +11,9 @@ export async function POST(request: NextRequest) {
 
     let query = ctx.supabase
       .from('notifications')
+      // Marking as read is idempotent and filtered to unread rows, so
+      // zero rows means there was nothing left to mark.
+      // eslint-disable-next-line convoreal/supabase-write-guard
       .update({ read_at: new Date().toISOString() })
       .eq('user_id', ctx.userId)
       .is('read_at', null)

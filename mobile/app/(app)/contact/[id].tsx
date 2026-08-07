@@ -766,7 +766,7 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
     }
     setSaving(true);
     setError(null);
-    const { error: updateError } = await supabase
+    const { data: saved, error: updateError } = await supabase
       .from('contacts')
       .update({
         name: name.trim() || null,
@@ -789,11 +789,16 @@ function ContactEditor({ contact, onDone }: { contact: Contact; onDone: () => vo
         property_interests: propertyInterests,
         min_roi: parseAmount(minRoi),
       })
-      .eq('id', contact.id);
+      .eq('id', contact.id)
+      .select('id');
     setSaving(false);
-    if (updateError) {
+    if (updateError || !saved?.length) {
       haptic.warn();
-      setError(friendlyError(updateError.message));
+      setError(
+        updateError
+          ? friendlyError(updateError.message)
+          : 'That contact is no longer there. Go back and reopen it.'
+      );
       return;
     }
     haptic.success();

@@ -74,10 +74,21 @@ export async function POST(
       );
     }
 
-    await ctx.supabase
+    // Claim the property before enqueueing: if the status write does not
+    // land, the worker still picks the job up while the listing shows no
+    // render in flight.
+    const { data: queued } = await ctx.supabase
       .from('properties')
       .update({ video_status: 'queued', video_language: language, video_error: null })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
+
+    if (!queued?.length) {
+      return NextResponse.json(
+        { error: 'Property not found, or you cannot change it' },
+        { status: 404 },
+      );
+    }
 
     const redis = new Redis(redisUrl, { maxRetriesPerRequest: 2, lazyConnect: true });
     try {
@@ -154,7 +165,7 @@ export async function DELETE(
       }
     }
 
-    const { error: updateErr } = await ctx.supabase
+    const { data: cleared, error: updateErr } = await ctx.supabase
       .from('properties')
       .update({
         video_url: null,
@@ -164,8 +175,15 @@ export async function DELETE(
         video_generated_at: null,
       })
       .eq('id', id)
-      .eq('account_id', ctx.accountId);
+      .eq('account_id', ctx.accountId)
+      .select('id');
     if (updateErr) throw updateErr;
+    if (!cleared?.length) {
+      return NextResponse.json(
+        { error: 'Property not found, or you cannot change it' },
+        { status: 404 },
+      );
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {

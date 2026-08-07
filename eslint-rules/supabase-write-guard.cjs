@@ -57,8 +57,55 @@ function queryClient(node, sourceCode) {
  * withheld, and demanding a `.select()` would be noise — those are the
  * `supabaseAdmin()` / `db` / `admin` roots this skips.
  */
-function isRlsScoped(client) {
+function isRlsScopedName(client) {
   return client === 'supabase' || client.endsWith('.supabase');
+}
+
+/** Factories that hand back a service-role client. */
+const ADMIN_FACTORIES = new Set(['supabaseAdmin', 'billingAdmin']);
+
+/** Where a raw, key-carrying client comes from. */
+const RAW_CLIENT_MODULE = '@supabase/supabase-js';
+
+function resolveVariable(name, scope) {
+  for (let s = scope; s; s = s.upper) {
+    const found = s.variables.find((v) => v.name === name);
+    if (found) return found;
+  }
+  return null;
+}
+
+/**
+ * A local `const supabase = supabaseAdmin()` is service-role however it
+ * is named, and naming alone cannot see that — several modules bind an
+ * admin client to `supabase` and would otherwise be flagged for a check
+ * that cannot apply to them.
+ *
+ * A client arriving as a parameter stays flagged: callers pass both
+ * kinds (broadcasts/sender.ts takes `ctx.supabase` on one path and an
+ * admin client on another), so the RLS-scoped reading is the safe one.
+ */
+function bindsServiceRoleClient(name, scope) {
+  const variable = resolveVariable(name, scope);
+  const def = variable?.defs?.[0];
+  if (!def || def.type !== 'Variable') return false;
+
+  const init = def.node.init;
+  if (!init || init.type !== 'CallExpression') return false;
+  if (init.callee.type !== 'Identifier') return false;
+
+  const factory = init.callee.name;
+  if (ADMIN_FACTORIES.has(factory)) return true;
+
+  // `createClient` is both the browser/SSR helper and the raw
+  // service-role constructor; only the raw one bypasses RLS.
+  if (factory !== 'createClient') return false;
+  const factoryVar = resolveVariable(factory, scope);
+  const factoryDef = factoryVar?.defs?.[0];
+  return (
+    factoryDef?.type === 'ImportBinding' &&
+    factoryDef.parent?.source?.value === RAW_CLIENT_MODULE
+  );
 }
 
 /**
@@ -121,7 +168,13 @@ module.exports = {
           return;
         }
         const client = queryClient(node, context.sourceCode);
-        if (client === null || !isRlsScoped(client)) return;
+        if (client === null || !isRlsScopedName(client)) return;
+        if (
+          !client.includes('.') &&
+          bindsServiceRoleClient(client, context.sourceCode.getScope(node))
+        ) {
+          return;
+        }
         if (countsAffectedRows(node)) return;
         if (hasSelectDownstream(node)) return;
 

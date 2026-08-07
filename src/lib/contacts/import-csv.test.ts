@@ -36,3 +36,28 @@ describe('parseContactsCsv', () => {
     expect(rows[0].name_tag).toBe('Bank DSA');
   });
 });
+
+describe('parseContactsCsv — enquired property', () => {
+  it('picks up the property reference under any portal header name', () => {
+    for (const header of [
+      'property_id',
+      'property code',
+      'portal_listing_id',
+      'listing id',
+      'property',
+    ]) {
+      const rows = parseContactsCsv(`phone,${header}\n+911234567890,PROP-1018`);
+      expect(rows[0].property_ref, header).toBe('PROP-1018');
+    }
+  });
+
+  it('leaves property_ref undefined when the CSV has no such column', () => {
+    const rows = parseContactsCsv('phone,name\n+911234567890,John');
+    expect(rows[0].property_ref).toBeUndefined();
+  });
+
+  it('ignores a blank property cell', () => {
+    const rows = parseContactsCsv('phone,property_id\n+911234567890,');
+    expect(rows[0].property_ref).toBeUndefined();
+  });
+});

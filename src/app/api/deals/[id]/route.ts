@@ -45,10 +45,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (typeof brokerage_amount === 'number') updateData.brokerage_amount = brokerage_amount;
     if (typeof dealStatus === 'string') updateData.status = dealStatus;
 
-    const { error: updateErr } = await ctx.supabase
+    const { data: updated, error: updateErr } = await ctx.supabase
       .from('deals')
       .update(updateData)
-      .eq('id', dealId);
+      .eq('id', dealId)
+      .select('id');
+
+    if (!updateErr && !updated?.length) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    }
 
     if (updateErr) {
       console.error('[PUT /api/deals/[id]] Update error:', updateErr);
@@ -67,10 +72,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       } else if (stage_name === 'Closed Won') {
         propertyStatus = 'Sold';
       }
-      await ctx.supabase
+      const { data: synced } = await ctx.supabase
         .from('properties')
         .update({ status: propertyStatus })
-        .eq('id', effectivePropertyId);
+        .eq('id', effectivePropertyId)
+        .select('id');
+      // The deal is already saved; a listing that did not follow is
+      // worth a line in the log, not a failed request.
+      if (!synced?.length) {
+        console.warn(
+          '[PUT /api/deals/[id]] Property status not synced:',
+          effectivePropertyId,
+        );
+      }
     }
 
     return NextResponse.json({ id: dealId });
@@ -110,10 +124,15 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       updateData.stage_id = target_stage_id.trim();
     }
 
-    const { error: updateErr } = await ctx.supabase
+    const { data: updated, error: updateErr } = await ctx.supabase
       .from('deals')
       .update(updateData)
-      .eq('id', dealId);
+      .eq('id', dealId)
+      .select('id');
+
+    if (!updateErr && !updated?.length) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
+    }
 
     if (updateErr) {
       console.error('[PATCH /api/deals/[id]] Status update error:', updateErr);
@@ -137,10 +156,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
           propertyStatus = 'Under Contract';
         }
       }
-      await ctx.supabase
+      const { data: synced } = await ctx.supabase
         .from('properties')
         .update({ status: propertyStatus })
-        .eq('id', propId);
+        .eq('id', propId)
+        .select('id');
+      if (!synced?.length) {
+        console.warn(
+          '[PATCH /api/deals/[id]] Property status not synced:',
+          propId,
+        );
+      }
     }
 
     return NextResponse.json({ id: dealId, status });
@@ -191,10 +217,17 @@ export async function DELETE(
 
     // Reset property status to Available if it was linked
     if (deal?.property_id) {
-      await ctx.supabase
+      const { data: released } = await ctx.supabase
         .from('properties')
         .update({ status: 'Available' })
-        .eq('id', deal.property_id);
+        .eq('id', deal.property_id)
+        .select('id');
+      if (!released?.length) {
+        console.warn(
+          '[DELETE /api/deals/[id]] Property not released:',
+          deal.property_id,
+        );
+      }
     }
 
     return NextResponse.json({ deleted: true });

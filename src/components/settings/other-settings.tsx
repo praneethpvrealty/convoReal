@@ -201,12 +201,13 @@ export function OtherSettingsPanel() {
     if (!accountId || autoQualifySaving) return;
     const next = !autoQualify;
     setAutoQualifySaving(true);
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from('whatsapp_config')
       .update({ auto_qualify_leads: next })
-      .eq('account_id', accountId);
+      .eq('account_id', accountId)
+      .select('id');
     setAutoQualifySaving(false);
-    if (error) {
+    if (error || !saved?.length) {
       toast.error('Failed to update lead qualification');
       return;
     }
@@ -317,12 +318,14 @@ export function OtherSettingsPanel() {
       };
 
       if (hasSyncConfig) {
-        const { error } = await supabase
+        const { data: saved, error } = await supabase
           .from('email_sync_configs')
           .update(payload)
-          .eq('account_id', accountId);
+          .eq('account_id', accountId)
+          .select('id');
 
         if (error) throw error;
+        if (!saved?.length) throw new Error('Your settings could not be saved.');
       } else {
         const { error } = await supabase
           .from('email_sync_configs')
@@ -372,14 +375,18 @@ export function OtherSettingsPanel() {
     try {
       if (hasSettings) {
         // Update
-        const { error } = await supabase
+        const { data: saved, error } = await supabase
           .from('showcase_settings')
           .update({
             currency,
             default_country_code: defaultCountryCode,
             updated_at: new Date().toISOString(),
           })
-          .eq('account_id', accountId);
+          .eq('account_id', accountId)
+          .select('account_id');
+        if (!error && !saved?.length) {
+          throw new Error('Your settings could not be saved.');
+        }
 
         if (error) throw error;
       } else {

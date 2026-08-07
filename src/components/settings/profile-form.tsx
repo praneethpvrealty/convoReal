@@ -156,15 +156,19 @@ export function ProfileForm() {
       // it's OTP-verified through Supabase Auth and mirrored onto
       // profiles.phone by a DB trigger (migration 137); a direct write
       // would be rejected by the profiles_phone_guard trigger.
-      const { error: updateError } = await supabase
+      const { data: saved, error: updateError } = await supabase
         .from('profiles')
         .update({
           full_name: trimmedName,
           avatar_url: nextAvatarUrl,
         })
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .select('user_id');
       if (updateError) {
         throw new Error(`Save failed: ${updateError.message}`);
+      }
+      if (!saved?.length) {
+        throw new Error('Save failed: your profile could not be updated.');
       }
 
       // Email change goes through Supabase Auth, which emails a

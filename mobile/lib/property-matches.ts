@@ -12,6 +12,9 @@ export interface PropertyMatch {
   contact: Contact;
   score: number;
   details: MatchDetails;
+  /** When this listing was already shared with the contact, ISO — null
+   *  if the communication hasn't gone out yet. */
+  sharedAt: string | null;
 }
 
 export async function fetchPropertyMatches(

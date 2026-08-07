@@ -153,6 +153,9 @@ export async function PATCH(
         const message = e instanceof Error ? e.message : 'Meta edit failed.'
         await supabase
           .from('message_templates')
+          // Recording why Meta rejected the edit, on a path that already
+          // returns 502 — the error to the caller is the real answer.
+          // eslint-disable-next-line convoreal/supabase-write-guard
           .update({
             submission_error: message,
             last_submitted_at: new Date().toISOString(),

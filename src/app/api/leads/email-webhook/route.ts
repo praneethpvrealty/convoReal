@@ -815,6 +815,9 @@ export async function POST(request: Request) {
 
       await supabase
         .from('contacts')
+        // Opportunistic enrichment from a portal email; the inquiry below
+        // is the point of this webhook, not the backfill.
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update(updatePayload)
         .eq('id', existingContact.id);
 
@@ -881,6 +884,9 @@ export async function POST(request: Request) {
         // Update conversation last message
         await supabase
           .from('conversations')
+          // Preview refresh on a conversation just resolved above; the
+          // message insert below is what this webhook is for.
+          // eslint-disable-next-line convoreal/supabase-write-guard
           .update({
             last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
             last_message_at: new Date().toISOString(),

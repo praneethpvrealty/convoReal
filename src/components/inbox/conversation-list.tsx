@@ -324,12 +324,13 @@ export function ConversationList({
       e.stopPropagation();
       const newArchived = !conv.is_archived;
       const supabase = createClient();
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("conversations")
         .update({ is_archived: newArchived })
-        .eq("id", conv.id);
+        .eq("id", conv.id)
+        .select("id");
 
-      if (error) {
+      if (error || !data?.length) {
         toast.error("Failed to update conversation");
         return;
       }

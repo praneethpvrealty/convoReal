@@ -70,12 +70,16 @@ export function PropertyShareSheet({
   visible,
   onClose,
   contact = null,
+  onShared,
 }: {
   property: Property;
   visible: boolean;
   onClose: () => void;
   /** Preselected recipient; when set, neither send path opens the picker. */
   contact?: Contact | null;
+  /** Fired with the recipients a share actually reached, so a caller
+   *  showing per-contact share state can refresh it. */
+  onShared?: (contactIds: string[]) => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const session = useAuthStore((s) => s.session);
@@ -169,6 +173,7 @@ export function PropertyShareSheet({
       : `${message}\n\n📸 Photos & full details:\n${trackedUrl}`;
     const text = addRecipientGreeting(linked, contact.name);
     Linking.openURL(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`);
+    onShared?.([contact.id]);
     onClose();
   }
 
@@ -257,6 +262,7 @@ export function PropertyShareSheet({
     setPicker(null);
     if (outcome.sent) {
       haptic.success();
+      onShared?.([contact.id]);
       onClose();
       if (outcome.conversationId) router.push(`/(app)/conversation/${outcome.conversationId}`);
       return;
@@ -313,7 +319,7 @@ export function PropertyShareSheet({
     haptic.send();
     const blocked: string[] = [];
     const failed: string[] = [];
-    let sent = 0;
+    const reached: string[] = [];
     for (const c of contacts) {
       const outcome = await sendPropertyViaEngine(
         c,
@@ -321,15 +327,19 @@ export function PropertyShareSheet({
         addRecipientGreeting(message, c.name)
       );
       if (outcome.sent) {
-        sent++;
+        reached.push(c.id);
       } else if (outcome.templateStatus) {
         blocked.push(c.name || c.phone);
       } else {
         failed.push(c.name || c.phone);
       }
     }
+    const sent = reached.length;
     setEngineSending(false);
     setPicker(null);
+    // Report the partial set too — the ones that did land are already
+    // on the ledger and must show as shared.
+    if (sent > 0) onShared?.(reached);
 
     if (sent === contacts.length) {
       haptic.success();

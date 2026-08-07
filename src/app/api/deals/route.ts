@@ -80,10 +80,19 @@ export async function POST(request: Request) {
       } else if (stage_name === 'Closed Won') {
         propertyStatus = 'Sold';
       }
-      await ctx.supabase
+      const { data: synced } = await ctx.supabase
         .from('properties')
         .update({ status: propertyStatus })
-        .eq('id', insertData.property_id);
+        .eq('id', insertData.property_id)
+        .select('id');
+      // The deal is created; a listing that did not follow is a log
+      // line, not a failed creation.
+      if (!synced?.length) {
+        console.warn(
+          '[POST /api/deals] Property status not synced:',
+          insertData.property_id,
+        );
+      }
     }
 
     return NextResponse.json({ id: created.id }, { status: 201 });

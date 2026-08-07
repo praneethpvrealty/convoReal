@@ -133,12 +133,18 @@ export async function POST(request: Request) {
     // Step 4: Link properties (for Seller/Owner/Agent classifications)
     const propIds = Array.isArray(property_ids) ? property_ids.filter((id: unknown) => typeof id === 'string') : [];
     if (propIds.length > 0 && ['Buyer', 'Seller', 'Agent', 'Developer', 'Owner', 'Owner & Buyer'].includes(contactData.classification)) {
-      const { error: propErr } = await ctx.supabase
+      const { data: linked, error: propErr } = await ctx.supabase
         .from('properties')
         .update({ owner_contact_id: contactId })
-        .in('id', propIds);
-      if (propErr) {
-        console.error('[POST /api/contacts] Property link error:', propErr);
+        .in('id', propIds)
+        .select('id');
+      // The contact is created either way; an unlinked listing is worth
+      // a log line rather than undoing the creation.
+      if (propErr || linked?.length !== propIds.length) {
+        console.error(
+          '[POST /api/contacts] Property link error:',
+          propErr ?? `linked ${linked?.length ?? 0} of ${propIds.length}`,
+        );
       }
     }
 

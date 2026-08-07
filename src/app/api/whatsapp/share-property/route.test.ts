@@ -37,6 +37,10 @@ function makeDb(queues: () => Record<string, QueuedResponse[]>, inserts?: () => 
           inserts?.().push({ table, row });
           return builder;
         },
+        upsert: (row: unknown) => {
+          inserts?.().push({ table, row });
+          return builder;
+        },
         maybeSingle: () => Promise.resolve(response),
         single: () => Promise.resolve(response),
         then: (resolve: unknown, reject: unknown) =>
@@ -222,6 +226,47 @@ describe('share-property — channel selection', () => {
       table: 'conversations',
       row: { account_id: 'acc-1', user_id: 'user-1', contact_id: 'contact-1' },
     });
+  });
+
+  it('ledgers the share so the listing can mark the recipient as already contacted', async () => {
+    primeLookups({ windowOpen: true });
+
+    await POST(request(shareBody()));
+
+    expect(adminInserts).toContainEqual({
+      table: 'property_shares',
+      row: {
+        account_id: 'acc-1',
+        property_id: 'prop-1',
+        contact_id: 'contact-1',
+        recipient_kind: 'buyer',
+        channel: 'whatsapp',
+        created_by: 'user-1',
+      },
+    });
+  });
+
+  it('snapshots an agent recipient as such on the ledger', async () => {
+    primeLookups({ windowOpen: true });
+    adminQueues.contacts = [{ data: { classification: 'Agent' }, error: null }];
+
+    await POST(request(shareBody()));
+
+    expect(adminInserts).toContainEqual(
+      expect.objectContaining({
+        table: 'property_shares',
+        row: expect.objectContaining({ recipient_kind: 'agent' }),
+      }),
+    );
+  });
+
+  it('does not ledger a share that was never delivered', async () => {
+    primeLookups({ windowOpen: false });
+    adminQueues.message_templates = [{ data: null, error: null }];
+
+    await POST(request(shareBody()));
+
+    expect(adminInserts.some((i) => i.table === 'property_shares')).toBe(false);
   });
 
   it('rejects a body without required fields', async () => {

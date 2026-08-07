@@ -486,13 +486,15 @@ export default function CalendarPage() {
           ? { ...payload, reminder_morning_sent: false, reminder_1h_sent: false, reschedule_requested_at: null, client_confirmed_at: null }
           : payload;
 
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("appointments")
           .update(updatePayload)
           .eq("id", selectedAppt.id)
-          .eq("account_id", accountId);
+          .eq("account_id", accountId)
+          .select("id");
 
         if (error) throw error;
+        if (!data?.length) throw new Error("That appointment is no longer there.");
         toast.success("Appointment updated successfully");
       } else {
         const userRes = await supabase.auth.getUser();
@@ -899,7 +901,7 @@ export default function CalendarPage() {
     try {
       const { contactId, propertyId } = resolveMentions(editTodoTitle);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("todos")
         .update({
           title: editTodoTitle,
@@ -911,9 +913,11 @@ export default function CalendarPage() {
           property_id: propertyId,
         })
         .eq("id", selectedTodo.id)
-        .eq("account_id", accountId);
+        .eq("account_id", accountId)
+        .select("id");
 
       if (error) throw error;
+      if (!data?.length) throw new Error("That task is no longer there.");
       toast.success("Task updated successfully");
       setIsTodoModalOpen(false);
       setSelectedTodo(null);
@@ -965,25 +969,29 @@ export default function CalendarPage() {
         const appt = appointments.find((a) => a.id === todo.id);
         if (!appt) return;
         const newStatus = appt.status === "completed" ? "scheduled" : "completed";
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("appointments")
           .update({ status: newStatus })
           .eq("id", appt.id)
-          .eq("account_id", accountId);
+          .eq("account_id", accountId)
+          .select("id");
 
         if (error) throw error;
+        if (!data?.length) throw new Error("That appointment is no longer there.");
         toast.success(`Appointment marked as ${newStatus}`);
         loadData();
         return;
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("todos")
         .update({ completed: !todo.completed })
         .eq("id", todo.id)
-        .eq("account_id", accountId);
+        .eq("account_id", accountId)
+        .select("id");
 
       if (error) throw error;
+      if (!data?.length) throw new Error("That task is no longer there.");
       loadData();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);

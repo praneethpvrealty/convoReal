@@ -194,11 +194,12 @@ export function MessageThread({
     if (!conversation) return;
     const newArchived = !conversation.is_archived;
     const supabase = createClient();
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("conversations")
       .update({ is_archived: newArchived })
-      .eq("id", conversation.id);
-    if (error) {
+      .eq("id", conversation.id)
+      .select("id");
+    if (error || !data?.length) {
       toast.error("Failed to archive conversation");
       return;
     }
@@ -463,8 +464,14 @@ export function MessageThread({
       .from("conversations")
       .update({ unread_count: 0 })
       .eq("id", conversationId)
-      .then(({ error }) => {
-        if (error) console.error("Failed to reset unread_count:", error);
+      .select("id")
+      .then(({ data, error }) => {
+        if (error || !data?.length) {
+          console.error(
+            "Failed to reset unread_count:",
+            error ?? "no conversation changed",
+          );
+        }
       });
   }, [conversationId, hasUnread]);
 
@@ -582,10 +589,16 @@ export function MessageThread({
       if (!conversation) return;
 
       const supabase = createClient();
-      await supabase
+      const { data: statusSaved } = await supabase
         .from("conversations")
         .update({ status })
-        .eq("id", conversation.id);
+        .eq("id", conversation.id)
+        .select("id");
+
+      if (!statusSaved?.length) {
+        toast.error("Failed to update status");
+        return;
+      }
 
       onStatusChange(conversation.id, status);
     },
@@ -801,12 +814,13 @@ export function MessageThread({
       const teamId = agentId ? profiles.find((p) => p.user_id === agentId)?.team_id ?? null : null;
 
       const supabase = createClient();
-      const { error } = await supabase
+      const { data: assigned, error } = await supabase
         .from("conversations")
         .update({ assigned_agent_id: agentId, assigned_team_id: teamId })
-        .eq("id", conversation.id);
+        .eq("id", conversation.id)
+        .select("id");
 
-      if (error) {
+      if (error || !assigned?.length) {
         console.error("Failed to update assignment:", error);
         toast.error("Failed to update assignment");
         return;

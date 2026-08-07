@@ -59,7 +59,7 @@ export async function POST(
       );
     }
 
-    const { error: updateErr } = await ctx.supabase
+    const { data: restored, error: updateErr } = await ctx.supabase
       .from('properties')
       .update({
         images,
@@ -68,8 +68,15 @@ export async function POST(
         images_dereferenced_at: null,
       })
       .eq('id', id)
-      .eq('account_id', ctx.accountId);
+      .eq('account_id', ctx.accountId)
+      .select('id');
     if (updateErr) throw updateErr;
+    if (!restored?.length) {
+      return NextResponse.json(
+        { error: 'Property not found, or you cannot change it' },
+        { status: 404 },
+      );
+    }
 
     return NextResponse.json({ restored: images.length, images });
   } catch (err) {

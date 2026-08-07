@@ -172,6 +172,9 @@ export async function POST(
 
     await ctx.supabase
       .from('contact_call_logs')
+      // Stamp on a log whose events are already created; the created
+      // events are the answer this route returns.
+      // eslint-disable-next-line convoreal/supabase-write-guard
       .update({ events_created_at: new Date().toISOString() })
       .eq('id', callId)
       .eq('account_id', ctx.accountId);

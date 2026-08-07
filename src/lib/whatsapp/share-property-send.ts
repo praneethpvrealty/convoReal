@@ -29,6 +29,38 @@ function adminClient() {
 
 const SESSION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/** Property share ledger row for a confirmed send — the same table the
+ *  web share dialog writes through src/lib/inventory/share-log.ts, so
+ *  the Matching Contacts list marks a recipient as already contacted
+ *  whichever surface sent it. Best-effort: a ledger failure must never
+ *  turn a delivered message into a reported error. */
+async function logShare(
+  db: ReturnType<typeof adminClient>,
+  accountId: string,
+  userId: string,
+  propertyId: string,
+  contactId: string,
+) {
+  const { data: contact } = await db
+    .from('contacts')
+    .select('classification')
+    .eq('id', contactId)
+    .eq('account_id', accountId)
+    .maybeSingle();
+  const { error } = await db.from('property_shares').upsert(
+    {
+      account_id: accountId,
+      property_id: propertyId,
+      contact_id: contactId,
+      recipient_kind: contact?.classification === 'Agent' ? 'agent' : 'buyer',
+      channel: 'whatsapp',
+      created_by: userId,
+    },
+    { onConflict: 'account_id,property_id,contact_id', ignoreDuplicates: true },
+  );
+  if (error) console.error('[share-property-send] share ledger failed:', error.message);
+}
+
 /** Renders a template body with its params, for the persisted text. */
 function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
   return bodyTemplateText.replace(/\{\{(\d+)\}\}/g, (match, numberStr) => {
@@ -105,6 +137,7 @@ export async function sendPropertyToContact(opts: {
       senderType: 'agent',
     });
     if (res.success) {
+      await logShare(db, accountId, userId, property.id, contactId);
       return {
         sent: true,
         channel: 'freeform',
@@ -181,5 +214,6 @@ export async function sendPropertyToContact(opts: {
   if (!res.success) {
     return { sent: false, conversationId: existingConvId, error: res.error || 'Failed to send' };
   }
+  await logShare(db, accountId, userId, property.id, contactId);
   return { sent: true, channel: 'template', conversationId: await conversationIdAfterSend() };
 }

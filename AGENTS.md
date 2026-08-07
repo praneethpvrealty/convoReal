@@ -705,6 +705,7 @@ All cron routes require `AUTOMATION_CRON_SECRET` or `CRON_SECRET`.
 | `docs/scaling-architecture.md` / `docs/scaling-costs.md` | Scaling roadmap and cost model |
 | `docs/ultimate-whatsapp-onboarding-guide.md` / `docs/meta-onboarding-guide.md` | WhatsApp/Meta onboarding |
 | `docs/meta-ads-integration-plan.md` | Meta Ads OAuth and campaign integration |
+| `docs/embedded-signup-plan.md` | Embedded Signup + Coexistence onboarding plan (one-click WABA, same-number app+API) |
 | `docs/OWNERS_DEN_TESTING.md` | Owners Den testing checklist |
 | `docs/CLOUDFLARE_EMAIL_SETUP.md` / `docs/cloudflare-waf.md` | Cloudflare email routing and WAF |
 | `docs/GUIDE_MOBILE_APPLICATION_PORTABILITY.md` | Web/native split for shared features |

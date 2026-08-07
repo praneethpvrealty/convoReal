@@ -158,10 +158,18 @@ export async function POST(request: Request) {
       updated_at: new Date().toISOString(),
     }
 
-    const { error: updateError } = await supabase
+    const { data: migrated, error: updateError } = await supabase
       .from('whatsapp_config')
       .update(updatePayload)
       .eq('account_id', accountId)
+      .select('id')
+
+    if (!updateError && !migrated?.length) {
+      return NextResponse.json(
+        { error: 'No WhatsApp configuration to migrate.' },
+        { status: 404 },
+      )
+    }
 
     if (updateError) {
       console.error('Migration update failed:', updateError)

@@ -66,6 +66,10 @@ export async function POST(request: NextRequest) {
           const prefs = sourceText ? await extractContactPreferences(sourceText) : EMPTY_PREFERENCES;
           const { error: updateErr } = await ctx.supabase
             .from('contacts')
+            // Batch enrichment over contacts read a moment ago; the
+            // per-contact outcome is already collected below, and a row
+            // that has since gone is not worth failing the batch for.
+            // eslint-disable-next-line convoreal/supabase-write-guard
             .update({
               pref_property_types: prefs.property_types,
               pref_property_categories: prefs.property_categories,

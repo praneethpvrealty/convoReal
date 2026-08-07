@@ -155,5 +155,8 @@ async function applyUpdates(
     patch.email = normaliseEmail(input.email);
   }
 
+  // Opportunistic enrichment of a contact we just resolved; the caller
+  // has its id either way, so a no-op here changes nothing for it.
+  // eslint-disable-next-line convoreal/supabase-write-guard
   await supabase.from('contacts').update(patch).eq('id', contactId);
 }

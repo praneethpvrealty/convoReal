@@ -34,6 +34,7 @@ import {
   Users,
   Send,
   CheckSquare,
+  CheckCheck,
   Square,
   ArrowLeft,
   Smartphone,
@@ -71,6 +72,7 @@ import {
 import { haversineKm } from '@/lib/geo';
 import { extractCoordinatesFromMapUrl } from '@/lib/maps/map-links';
 import { getMatchingContacts } from '@/lib/matching';
+import { fetchPropertyShareLog, recordPropertyShares } from '@/lib/inventory/share-log';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { ListingVideoCard } from '@/components/inventory/listing-video-card';
 import { NameTagBadge } from '@/components/contacts/name-tag-badge';
@@ -459,6 +461,7 @@ export function PropertyForm({
   const [listingSource, setListingSource] = useState<'owner' | 'agent'>('owner');
   const [interestedContactIds, setInterestedContactIds] = useState<string[]>([]);
   const [contactedContactIds, setContactedContactIds] = useState<Set<string>>(new Set());
+  const [sharedAtByContact, setSharedAtByContact] = useState<Record<string, string>>({});
   const [contactSearchInput, setContactSearchInput] = useState('');
   const [isContactDropdownOpen, setIsContactDropdownOpen] = useState(false);
   const [ownerSearchInput, setOwnerSearchInput] = useState('');
@@ -668,6 +671,16 @@ export function PropertyForm({
     }
   }, [supabase]);
 
+  // The share ledger for this listing, so the Matching Contacts list can
+  // mark recipients the communication has already gone out to.
+  const fetchShareLog = useCallback(async () => {
+    if (!property?.id || !accountId) {
+      setSharedAtByContact({});
+      return;
+    }
+    setSharedAtByContact(await fetchPropertyShareLog(accountId, property.id));
+  }, [accountId, property?.id]);
+
   const fetchContactedStatus = useCallback(async () => {
     if (!property?.id) {
       setContactedContactIds(new Set());
@@ -767,6 +780,7 @@ export function PropertyForm({
       fetchContacts();
       fetchTemplates();
       fetchContactedStatus();
+      fetchShareLog();
       // Load currency settings from showcase_settings
       if (accountId) {
         supabase
@@ -792,7 +806,7 @@ export function PropertyForm({
         setInterestedContactIds([]);
       }
     }
-  }, [open, fetchContacts, fetchTemplates, fetchContactedStatus, property, accountId, supabase, initialTab]);
+  }, [open, fetchContacts, fetchTemplates, fetchContactedStatus, fetchShareLog, property, accountId, supabase, initialTab]);
 
   useEffect(() => {
     if (open && property && contacts && contacts.length > 0) {
@@ -866,6 +880,11 @@ export function PropertyForm({
       return false;
     });
   }, [matchedContacts, showAgentsInMatches]);
+
+  const sharedMatchCount = useMemo(
+    () => displayedMatches.filter(({ contact: c }) => sharedAtByContact[c.id]).length,
+    [displayedMatches, sharedAtByContact]
+  );
 
   const placeholders = useMemo(() => {
     if (!selectedTemplate) return [];
@@ -1094,6 +1113,7 @@ export function PropertyForm({
 
       const resData = await response.json();
       
+      const delivered: Contact[] = [];
       const resultsMap = selectedContacts.map((c) => {
         const matchResult = resData.results?.find(
           (r: { phone: string; status?: 'sent' | 'failed' | null; error?: string | null }) =>
@@ -1101,13 +1121,30 @@ export function PropertyForm({
             r.phone.includes(c.phone) ||
             c.phone.includes(r.phone)
         );
+        const status = matchResult?.status || 'failed';
+        if (status === 'sent') delivered.push(c);
         return {
           name: c.name || 'Unknown',
           phone: c.phone,
-          status: matchResult?.status || 'failed',
-          error: matchResult?.error || (matchResult?.status === 'failed' ? 'Delivery failure' : undefined),
+          status,
+          error: matchResult?.error || (status === 'failed' ? 'Delivery failure' : undefined),
         };
       });
+
+      // Ledger the confirmed sends so this listing's Matching Contacts
+      // list marks them as already communicated with, here and on
+      // mobile. Fire-and-forget: it must not delay the results screen.
+      if (accountId && property?.id && delivered.length > 0) {
+        void recordPropertyShares({
+          accountId,
+          propertyId: property.id,
+          userId: user?.id,
+          recipients: delivered.map((c) => ({
+            contactId: c.id,
+            classification: c.classification,
+          })),
+        }).then(() => fetchShareLog());
+      }
 
       setBroadcastResults(resultsMap);
       setBroadcastStep('results');
@@ -5720,7 +5757,9 @@ export function PropertyForm({
                             ) : displayedMatches.length === 0 ? (
                               '0 matching contacts found'
                             ) : (
-                              `Found ${displayedMatches.length} matching contact${displayedMatches.length === 1 ? '' : 's'}`
+                              `Found ${displayedMatches.length} matching contact${displayedMatches.length === 1 ? '' : 's'}${
+                                sharedMatchCount > 0 ? ` · ${sharedMatchCount} already shared` : ''
+                              }`
                             )}
                           </div>
                           {contacts.length > 0 && (
@@ -5778,6 +5817,12 @@ export function PropertyForm({
                         ) : (
                           displayedMatches.map(({ contact: c, score, details }) => {
                             const isSelected = selectedContactIds.includes(c.id);
+                            // Already shared: the row recedes and says
+                            // so, so an agent working down the list sees
+                            // who still needs the message. Selecting it
+                            // again stays possible — this is a reminder,
+                            // not a lockout.
+                            const sharedAt = sharedAtByContact[c.id];
                             return (
                               <div
                                 key={c.id}
@@ -5785,7 +5830,9 @@ export function PropertyForm({
                                 className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
                                   isSelected
                                     ? 'bg-primary/5 border-primary/45 ring-1 ring-primary/10'
-                                    : 'bg-slate-900 border-slate-800 hover:border-slate-750'
+                                    : sharedAt
+                                      ? 'bg-slate-900/40 border-slate-850 opacity-60 hover:opacity-100 hover:border-slate-750'
+                                      : 'bg-slate-900 border-slate-800 hover:border-slate-750'
                                 }`}
                               >
                                 <button
@@ -5820,6 +5867,17 @@ export function PropertyForm({
                                     </Badge>
                                   </div>
                                   <p className="text-xs text-slate-450 font-mono mt-0.5">{c.phone}</p>
+
+                                  {sharedAt && (
+                                    <div className="mt-1.5 inline-flex items-center gap-1 rounded bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400 uppercase tracking-wide">
+                                      <CheckCheck className="size-3" />
+                                      Already shared ·{' '}
+                                      {new Date(sharedAt).toLocaleDateString(undefined, {
+                                        day: 'numeric',
+                                        month: 'short',
+                                      })}
+                                    </div>
+                                  )}
 
                                   <MatchDetailChips details={details} />
                                 </div>

@@ -45,6 +45,9 @@ export async function logShowcaseShare(contact: Contact): Promise<void> {
   await Promise.allSettled([
     supabase
       .from('contacts')
+      // Same settled-touch as the property share: the note below is the
+      // record, this only moves the last-contacted stamp.
+      // eslint-disable-next-line convoreal/supabase-write-guard
       .update({ last_contacted_at: new Date().toISOString() })
       .eq('id', contact.id),
     supabase.from('contact_notes').insert({

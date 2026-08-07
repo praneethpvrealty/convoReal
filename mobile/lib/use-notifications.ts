@@ -72,6 +72,9 @@ export function useNotifications() {
 export async function markAllNotificationsRead(userId: string): Promise<void> {
   await supabase
     .from('notifications')
+    // Declared fire-and-forget above, and filtered to unread rows, so
+    // zero rows means there was nothing left to mark.
+    // eslint-disable-next-line convoreal/supabase-write-guard
     .update({ read_at: new Date().toISOString() })
     .is('read_at', null)
     .eq('user_id', userId);
