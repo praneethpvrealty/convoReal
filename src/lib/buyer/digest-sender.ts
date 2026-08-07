@@ -26,7 +26,7 @@ import { BRANDING } from '@/config/branding';
 // The session-first / template-fallback ladder is persona-neutral —
 // reused rather than duplicated (it lives under den/ for historical
 // reasons; the Den was the first surface that needed it).
-import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
+import { approvedTemplate, isSessionOpen, sendDenNotification } from '@/lib/den/notify';
 import {
   buildPropertyAlertParams,
   PROPERTY_ALERT_TEMPLATE_NAME,
@@ -175,15 +175,27 @@ async function runAccount(
 
       const sessionOpen = await isSessionOpen(db, accountId, buyer.id);
 
-      // Consent-first. A pending buyer is asked exactly once — free
-      // form inside an open window, otherwise through the approved
-      // Utility consent template. Asking outside the window is why the
-      // template exists: buyers who are never mid-chat at digest time
-      // were never asked, so they could never opt in and the digest
-      // starved. The template names no listing and makes no offer.
+      // Consent-first. A pending buyer is asked exactly once, and only
+      // inside an open window: soliciting an opt-in is MARKETING by
+      // Meta's test however it is worded (they approved our Utility
+      // submission as Marketing), and a marketing template asking
+      // permission to send marketing is the thing consent exists to
+      // prevent. The template is used only if this account's approved
+      // copy really is Utility — otherwise the ask waits for a window,
+      // which src/lib/buyer/consent-ask.ts opens on any inbound message.
       if (consent !== 'granted') {
         if (buyer.buyer_alerts_consent_requested_at) {
           summary.skippedAwaitingConsent++;
+          continue;
+        }
+        const consentTemplate = await approvedTemplate(
+          db,
+          accountId,
+          BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
+        );
+        const templateIsUtility = consentTemplate?.category === 'Utility';
+        if (!sessionOpen && !templateIsUtility) {
+          summary.skippedNoChannel++;
           continue;
         }
         const asked = await sendDenNotification(db, {
@@ -194,8 +206,12 @@ async function runAccount(
             matchCount: matches.length,
             agencyName,
           }),
-          templateName: BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
-          templateParams: buildBuyerAlertsConsentParams(buyer.name, agencyName),
+          ...(templateIsUtility
+            ? {
+                templateName: BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
+                templateParams: buildBuyerAlertsConsentParams(buyer.name, agencyName),
+              }
+            : {}),
         });
         if (!asked) {
           summary.failed++;

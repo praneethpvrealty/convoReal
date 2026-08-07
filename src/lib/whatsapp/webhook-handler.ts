@@ -26,7 +26,9 @@ import {
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
+import type { Contact } from '@/types'
 import { hasRecentAgentReply } from '@/lib/whatsapp/agent-takeover'
+import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask'
 import {
   answerLeadQuestion,
   looksLikeQuestion,
@@ -1868,6 +1870,37 @@ async function processMessage(
         .select('id')
     }
     return
+  }
+
+  // The buyer just messaged us, so their 24-hour window is open: the
+  // one moment the alerts question can be asked free-form, needing no
+  // template and no category. Soliciting an opt-in is Marketing by
+  // Meta's test, so this is the only compliant place to ask — and it
+  // reaches every buyer who ever replies, not just whoever happens to
+  // be mid-chat when the daily digest runs.
+  if (!ownerCheck.isOwner && !isPropertyOwnerSender) {
+    try {
+      const consentAsk = await claimBuyerConsentAsk(
+        supabaseAdmin(),
+        accountId,
+        contactRecord as unknown as Contact,
+        null,
+        1,
+      )
+      if (consentAsk) {
+        await sendWhatsAppMessageAndPersist({
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+          kind: 'text',
+          senderType: 'bot',
+          text: consentAsk,
+        })
+      }
+    } catch (err) {
+      console.error('[buyer-consent] ask failed (non-fatal):', err)
+    }
   }
 
   const automationTriggers: (
