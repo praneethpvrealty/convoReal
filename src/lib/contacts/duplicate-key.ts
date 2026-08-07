@@ -24,3 +24,55 @@ export function emailMatchKey(email: string | null): string | null {
   const normalised = normaliseEmail(email);
   return normalised.length > 0 ? normalised : null;
 }
+
+// A name is far weaker evidence than a number: two people really can both
+// be Ravi Kumar, and a book of 250 contacts will contain repeats that are
+// not duplicates. So the name rule is deliberately strict where the phone
+// rule is generous — it demands a full name, because grouping every
+// contact whose first name is Ravi would bury the real finds.
+const HONORIFICS = new Set([
+  'mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'shri', 'sri', 'smt', 'er', 'adv',
+]);
+const MIN_NAME_TOKENS = 2;
+// Below this, one edit is too large a share of the word to call a typo.
+const MIN_FUZZY_LENGTH = 8;
+const SIMILARITY_FLOOR = 0.88;
+
+export function nameMatchKey(name: string | null): string | null {
+  if (!name) return null;
+  const tokens = name
+    .toLowerCase()
+    // Source annotations travel with imported names: "Priya (MagicBricks)".
+    .replace(/[([{][^)\]}]*[)\]}]/g, ' ')
+    .replace(/[^\p{L}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 0 && !HONORIFICS.has(t));
+
+  if (tokens.length < MIN_NAME_TOKENS) return null;
+  // Sorted so "Kumar Ravi" and "Ravi Kumar" land on the same key.
+  return tokens.sort().join(' ');
+}
+
+function editDistance(a: string, b: string): number {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i];
+    for (let j = 1; j <= b.length; j++) {
+      row[j] = Math.min(
+        prev[j] + 1,
+        row[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    prev = row;
+  }
+  return prev[b.length];
+}
+
+/** Whether two name keys differ by little enough to read as a typo. */
+export function namesAreSimilar(a: string, b: string): boolean {
+  if (a === b) return true;
+  const longest = Math.max(a.length, b.length);
+  if (longest < MIN_FUZZY_LENGTH) return false;
+  return 1 - editDistance(a, b) / longest >= SIMILARITY_FLOOR;
+}

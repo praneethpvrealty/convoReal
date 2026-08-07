@@ -135,6 +135,30 @@ describe('duplicates panel', () => {
     expect(screen.getByText('C Kumar')).toBeTruthy();
   });
 
+  // A name group is a guess, not a finding — two people really can share
+  // one. It has to read differently from a shared phone number, or someone
+  // merges two strangers on the same trust they gave an exact match.
+  it('marks a name group as the weaker signal it is', async () => {
+    mockGroups({
+      groups: [
+        {
+          reason: 'name',
+          key: 'Anita Desai',
+          contacts: [
+            { ...GROUP.contacts[0], id: 'n1', name: 'Anita Desai', phone: '+919111111111' },
+            { ...GROUP.contacts[1], id: 'n2', name: 'Anita Desai', phone: '+919222222222' },
+          ],
+        },
+      ],
+    });
+    renderPanel();
+
+    fireEvent.click(await screen.findByText(/1 duplicate group detected/));
+
+    expect(screen.getByText(/Similar name/)).toBeTruthy();
+    expect(screen.getByText(/check before merging/)).toBeTruthy();
+  });
+
   it('re-checks on demand without a remount', async () => {
     const fetchMock = mockGroups(
       { groups: [GROUP] },

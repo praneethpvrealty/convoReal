@@ -13,6 +13,7 @@ import {
   Loader2,
   Check,
   RefreshCw,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -39,7 +40,7 @@ interface DuplicateContact {
 }
 
 interface DuplicateGroup {
-  reason: 'phone' | 'email';
+  reason: 'phone' | 'email' | 'name';
   key: string;
   contacts: DuplicateContact[];
 }
@@ -173,7 +174,7 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
             <span className="flex items-center text-sm font-semibold text-amber-300">
               {groups.length} duplicate group{groups.length !== 1 ? 's' : ''}{' '}
               detected
-              <InfoHint text="Duplicate check groups contacts by phone number or email address, ignoring formatting — so +919876543210 and 9876543210 count as the same person. Review each group before merging it into a single record." />
+              <InfoHint text="Duplicate check groups contacts by phone number or email address, ignoring formatting — so +919876543210 and 9876543210 count as the same person. It also flags contacts with the same full name on different numbers, which is a weaker signal worth reading carefully. Review each group before merging it into a single record." />
             </span>
             <Badge className="border-amber-500/30 bg-amber-500/20 text-xs text-amber-300">
               {totalDuplicates} extra
@@ -218,13 +219,22 @@ export function DuplicatesPanel({ onMergeComplete }: Props) {
               >
                 <div className="min-w-0 flex-1">
                   <div className="mb-2 flex items-center gap-1.5 text-xs text-amber-400/70">
-                    {group.reason === 'phone' ? (
+                    {group.reason === 'phone' && (
                       <>
                         <Phone className="h-3 w-3" /> Same phone: {group.key}
                       </>
-                    ) : (
+                    )}
+                    {group.reason === 'email' && (
                       <>
                         <Mail className="h-3 w-3" /> Same email: {group.key}
+                      </>
+                    )}
+                    {group.reason === 'name' && (
+                      <>
+                        <Users className="h-3 w-3" /> Similar name: {group.key}
+                        <span className="text-amber-400/50">
+                          · different numbers, so check before merging
+                        </span>
                       </>
                     )}
                   </div>

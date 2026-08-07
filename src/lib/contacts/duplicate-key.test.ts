@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { phoneMatchKey, emailMatchKey } from '@/lib/contacts/duplicate-key';
+import {
+  phoneMatchKey,
+  emailMatchKey,
+  nameMatchKey,
+  namesAreSimilar,
+} from '@/lib/contacts/duplicate-key';
 
 describe('phoneMatchKey', () => {
   it('pairs a number saved with and without its country code', () => {
@@ -41,5 +46,47 @@ describe('emailMatchKey', () => {
   it('ignores a missing or blank address', () => {
     expect(emailMatchKey(null)).toBeNull();
     expect(emailMatchKey('   ')).toBeNull();
+  });
+});
+
+describe('nameMatchKey', () => {
+  it('pairs the same name across case, punctuation and word order', () => {
+    const keys = [
+      'Ravi Kumar',
+      'ravi  kumar',
+      'Kumar, Ravi',
+      'Mr. Ravi Kumar',
+    ].map(nameMatchKey);
+    expect(new Set(keys).size).toBe(1);
+  });
+
+  it('strips the source annotation an import leaves behind', () => {
+    expect(nameMatchKey('Priya Menon (MagicBricks)')).toBe(nameMatchKey('Priya Menon'));
+  });
+
+  it('refuses a single name, which is too common to be evidence', () => {
+    expect(nameMatchKey('Ravi')).toBeNull();
+    expect(nameMatchKey('Mr Ravi')).toBeNull();
+  });
+
+  it('ignores a name that carries no letters at all', () => {
+    expect(nameMatchKey('+91 98765 43210')).toBeNull();
+    expect(nameMatchKey(null)).toBeNull();
+  });
+});
+
+describe('namesAreSimilar', () => {
+  it('reads a one-letter difference in a long name as a typo', () => {
+    expect(namesAreSimilar('kumar praneeth', 'kumar praneth')).toBe(true);
+  });
+
+  it('keeps two different people with the same surname apart', () => {
+    expect(namesAreSimilar('kumar ravi', 'sharma ravi')).toBe(false);
+  });
+
+  it('will not fuzzy-match a short name, where one edit is most of the word', () => {
+    // 'anil dev' vs 'anil deb' is a single edit, but on a name this short
+    // that is as likely to be a different person as a typo.
+    expect(namesAreSimilar('anil dev', 'anil deb')).toBe(false);
   });
 });
