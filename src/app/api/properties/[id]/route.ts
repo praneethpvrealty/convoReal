@@ -582,11 +582,19 @@ export async function PUT(
       }
     }
 
-    const { error: updateError } = await ctx.supabase
+    const { data: updated, error: updateError } = await ctx.supabase
       .from("properties")
       .update(updateData)
       .eq("id", id)
-      .eq("account_id", ctx.accountId);
+      .eq("account_id", ctx.accountId)
+      .select("id");
+
+    if (!updateError && !updated?.length) {
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
+      );
+    }
 
     if (updateError) {
       console.error("[PUT /api/properties/[id]] Update error:", updateError);
@@ -612,6 +620,10 @@ export async function PUT(
         if (toRemove.length > 0) {
           await ctx.supabase
             .from("contacts")
+            // Detaching contacts whose interest was removed; the listing
+            // is already saved and a contact that has since gone needs no
+            // detaching.
+            // eslint-disable-next-line convoreal/supabase-write-guard
             .update({ last_inquired_property_id: null })
             .in("id", toRemove);
         }
@@ -619,10 +631,17 @@ export async function PUT(
 
       // Link the new ones
       if (interestedContactIds.length > 0) {
-        await ctx.supabase
+        const { data: linkedContacts } = await ctx.supabase
           .from("contacts")
           .update({ last_inquired_property_id: id })
-          .in("id", interestedContactIds);
+          .in("id", interestedContactIds)
+          .select("id");
+        if (linkedContacts?.length !== interestedContactIds.length) {
+          console.warn(
+            "[PUT /api/properties/[id]] Interested contacts not all linked:",
+            `${linkedContacts?.length ?? 0} of ${interestedContactIds.length}`,
+          );
+        }
       }
     }
 

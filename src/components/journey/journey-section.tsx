@@ -294,7 +294,7 @@ export function JourneySection({
       toStageId: string,
       eventType: "advanced" | "moved",
     ) => {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("journey_items")
         .update({
           stage_id: toStageId,
@@ -306,13 +306,17 @@ export function JourneySection({
           planned_stage_id: null,
           planned_at: null,
         })
-        .eq("id", item.id);
-      if (error) {
-        toast.error(`Failed to move: ${error.message}`);
-        return;
+        .eq("id", item.id)
+        .select("id");
+      if (error || !updated?.length) {
+        toast.error(
+          `Failed to move: ${error?.message ?? "that item is no longer there"}`,
+        );
+        return false;
       }
       await logEvent(item.id, eventType, item.stage_id, toStageId);
       await refresh();
+      return true;
     },
     [supabase, logEvent, refresh],
   );
@@ -323,9 +327,11 @@ export function JourneySection({
       const next = stages[idx + 1];
       if (!next) return;
       const stageName = next.name;
-      moveItem(item, next.id, "advanced").then(() =>
-        toast.success(`Moved to ${stageName}`),
-      );
+      // Only on a move that actually landed — otherwise the failure
+      // toast above is immediately contradicted by a success one.
+      moveItem(item, next.id, "advanced").then((moved) => {
+        if (moved) toast.success(`Moved to ${stageName}`);
+      });
     },
     [stages, moveItem],
   );
@@ -339,16 +345,17 @@ export function JourneySection({
 
   const handleDrop = useCallback(
     async (item: JourneyItem, reason: string) => {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("journey_items")
         .update({
           status: "dropped",
           drop_reason: reason,
           dropped_at: new Date().toISOString(),
         })
-        .eq("id", item.id);
-      if (error) {
-        toast.error(`Failed to drop: ${error.message}`);
+        .eq("id", item.id)
+        .select("id");
+      if (error || !updated?.length) {
+        toast.error(`Failed to drop: ${error?.message ?? "that item is no longer there"}`);
         return;
       }
       await logEvent(item.id, "dropped", item.stage_id, item.stage_id, reason);
@@ -359,12 +366,13 @@ export function JourneySection({
 
   const handleReactivate = useCallback(
     async (item: JourneyItem) => {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("journey_items")
         .update({ status: "active", drop_reason: null, dropped_at: null })
-        .eq("id", item.id);
-      if (error) {
-        toast.error(`Failed to reactivate: ${error.message}`);
+        .eq("id", item.id)
+        .select("id");
+      if (error || !updated?.length) {
+        toast.error(`Failed to reactivate: ${error?.message ?? "that item is no longer there"}`);
         return;
       }
       await logEvent(item.id, "reactivated", item.stage_id, item.stage_id);
@@ -396,12 +404,13 @@ export function JourneySection({
 
   const handlePlan = useCallback(
     async (item: JourneyItem, stageId: string, dateISO: string) => {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("journey_items")
         .update({ planned_stage_id: stageId, planned_at: dateISO })
-        .eq("id", item.id);
-      if (error) {
-        toast.error(`Failed to save plan: ${error.message}`);
+        .eq("id", item.id)
+        .select("id");
+      if (error || !updated?.length) {
+        toast.error(`Failed to save plan: ${error?.message ?? "that item is no longer there"}`);
         return;
       }
       await logEvent(item.id, "planned", item.stage_id, stageId, `Expected by ${dateISO}`);
@@ -412,12 +421,13 @@ export function JourneySection({
 
   const handleClearPlan = useCallback(
     async (item: JourneyItem) => {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("journey_items")
         .update({ planned_stage_id: null, planned_at: null })
-        .eq("id", item.id);
-      if (error) {
-        toast.error(`Failed to clear plan: ${error.message}`);
+        .eq("id", item.id)
+        .select("id");
+      if (error || !updated?.length) {
+        toast.error(`Failed to clear plan: ${error?.message ?? "that item is no longer there"}`);
         return;
       }
       await logEvent(item.id, "plan_cleared", item.stage_id, item.planned_stage_id ?? null);
@@ -428,12 +438,13 @@ export function JourneySection({
 
   const setHiddenFlag = useCallback(
     async (item: JourneyItem, hidden: boolean) => {
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("journey_items")
         .update({ hidden })
-        .eq("id", item.id);
-      if (error) {
-        toast.error(`Failed to update: ${error.message}`);
+        .eq("id", item.id)
+        .select("id");
+      if (error || !updated?.length) {
+        toast.error(`Failed to update: ${error?.message ?? "that item is no longer there"}`);
         return false;
       }
       await logEvent(
@@ -468,15 +479,16 @@ export function JourneySection({
   const handleShowAll = useCallback(async () => {
     const hiddenItems = items.filter((i) => i.hidden);
     if (hiddenItems.length === 0) return;
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("journey_items")
       .update({ hidden: false })
       .in(
         "id",
         hiddenItems.map((i) => i.id),
-      );
-    if (error) {
-      toast.error(`Failed to show all: ${error.message}`);
+      )
+      .select("id");
+    if (error || !updated?.length) {
+      toast.error(`Failed to show all: ${error?.message ?? "those items are no longer there"}`);
       return;
     }
     await Promise.all(

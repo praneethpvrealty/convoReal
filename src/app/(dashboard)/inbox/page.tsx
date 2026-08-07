@@ -464,8 +464,14 @@ export default function InboxPage() {
               .from("conversations")
               .update({ unread_count: 0 })
               .eq("id", match.id)
-              .then(({ error }) => {
-                if (error) console.error("Failed to reset unread_count:", error);
+              .select("id")
+              .then(({ data, error }) => {
+                if (error || !data?.length) {
+                  console.error(
+                    "Failed to reset unread_count:",
+                    error ?? "no conversation changed",
+                  );
+                }
               });
             setConversations((prev) =>
               prev.map((c) =>
@@ -500,8 +506,14 @@ export default function InboxPage() {
           .from("conversations")
           .update({ unread_count: 0 })
           .eq("id", conv.id)
-          .then(({ error }) => {
-            if (error) console.error("Failed to reset unread_count:", error);
+          .select("id")
+          .then(({ data, error }) => {
+            if (error || !data?.length) {
+              console.error(
+                "Failed to reset unread_count:",
+                error ?? "no conversation changed",
+              );
+            }
           });
       }
       setConversations((prev) =>

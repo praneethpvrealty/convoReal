@@ -43,13 +43,23 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     if (contactErr) throw contactErr;
     if (!contact) return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
 
-    const { error: updateErr } = await ctx.supabase
+    const { data: approved, error: updateErr } = await ctx.supabase
       .from('contacts')
       .update({ status: 'active', updated_at: new Date().toISOString() })
       .eq('id', contactId)
-      .eq('account_id', ctx.accountId);
+      .eq('account_id', ctx.accountId)
+      .select('id');
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+    if (!approved?.length) {
+      // The read above passed, so this is the write policy refusing —
+      // approving and then sending details on an unapproved contact
+      // would be worse than stopping here.
+      return NextResponse.json(
+        { error: 'You do not have permission to approve this contact.' },
+        { status: 403 },
+      );
     }
 
     const propertyId = contact.last_inquired_property_id as string | null;

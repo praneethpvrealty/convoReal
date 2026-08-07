@@ -298,11 +298,13 @@ export default function RequirementsPage() {
     setParkingId(c.id)
     try {
       const supabase = createClient()
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("contacts")
         .update({ requirement_active: next, updated_at: new Date().toISOString() })
         .eq("id", c.id)
+        .select("id")
       if (error) throw error
+      if (!data?.length) throw new Error("That contact is no longer there.")
       setData((prev) =>
         prev.map((row) => (row.id === c.id ? { ...row, requirement_active: next } : row))
       )
@@ -437,7 +439,7 @@ export default function RequirementsPage() {
       // Same write path the Agents tab uses — a scoped column update,
       // not the full-contact PUT (which would null unrelated fields).
       const supabase = createClient()
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("contacts")
         .update({
           requirements: reqText.trim() || null,
@@ -446,7 +448,9 @@ export default function RequirementsPage() {
           updated_at: new Date().toISOString(),
         })
         .eq("id", editorContactId)
+        .select("id")
       if (error) throw error
+      if (!data?.length) throw new Error("That contact is no longer there.")
 
       // Fire-and-forget: re-extract AI matching preferences from the
       // updated text (same hook the contact form uses).

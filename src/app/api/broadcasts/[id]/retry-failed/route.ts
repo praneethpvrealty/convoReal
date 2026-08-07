@@ -75,6 +75,12 @@ export async function POST(
       return NextResponse.json({ retried: 0, message: 'No retryable recipients found' });
     }
 
+    /* eslint-disable convoreal/supabase-write-guard --
+       Per-recipient status bookkeeping inside the send loop. Every row
+       here was just read back under the same client, and the loop
+       already records a per-recipient outcome in error_message, so a
+       row-count check on each write would add noise without telling the
+       caller anything it does not already report. */
     // Mark all as pending before starting so they don't get double-queued
     const retryableIds = retryable.map((r) => r.id);
     await ctx.supabase
@@ -213,6 +219,8 @@ export async function POST(
       }
     }
 
+    /* eslint-enable convoreal/supabase-write-guard */
+
     // Update broadcast status based on remaining failures
     const { data: summary } = await ctx.supabase
       .from('broadcast_recipients')
@@ -222,12 +230,22 @@ export async function POST(
     const allFailed = summary?.every((r) => r.status === 'failed');
     const anyPending = summary?.some((r) => ['pending', 'rate_limited'].includes(r.status));
 
-    await ctx.supabase
+    // This one the campaign screen reads, so a status that never landed
+    // would leave a finished send showing as still sending.
+    const { data: statusSaved } = await ctx.supabase
       .from('broadcasts')
       .update({
         status: allFailed ? 'failed' : anyPending ? 'sending' : 'sent',
       })
-      .eq('id', broadcastId);
+      .eq('id', broadcastId)
+      .select('id');
+
+    if (!statusSaved?.length) {
+      console.warn(
+        '[POST /api/broadcasts/[id]/retry-failed] Broadcast status not saved:',
+        broadcastId,
+      );
+    }
 
     return NextResponse.json({
       retried: retryable.length,

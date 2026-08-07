@@ -200,8 +200,11 @@ async function handleQualityUpdate(
       ? (raw.toUpperCase() as 'GREEN' | 'YELLOW' | 'RED')
       : null
 
+  // Keyed on Meta's id, so zero rows means the webhook is about a
+  // template this account does not hold — expected, not a refusal.
   const { error } = await supabase
     .from('message_templates')
+    // eslint-disable-next-line convoreal/supabase-write-guard
     .update({ quality_score: score })
     .eq('meta_template_id', metaTemplateId)
 

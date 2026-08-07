@@ -26,6 +26,9 @@ export async function logExternalShare(contact: Contact, property: Property): Pr
   await Promise.allSettled([
     supabase
       .from('contacts')
+      // Touch settled alongside the note insert below; the note is the
+      // record that matters and the caller reports on it.
+      // eslint-disable-next-line convoreal/supabase-write-guard
       .update({ last_contacted_at: now, last_inquired_property_id: property.id })
       .eq('id', contact.id),
     supabase.from('contact_notes').insert({

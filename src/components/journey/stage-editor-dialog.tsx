@@ -64,20 +64,26 @@ export function StageEditorDialog({
     run(async () => {
       const trimmed = name.trim();
       if (!trimmed || trimmed === stage.name) return null;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("journey_stages")
         .update({ name: trimmed })
-        .eq("id", stage.id);
-      return error ? `Rename failed: ${error.message}` : null;
+        .eq("id", stage.id)
+        .select("id");
+      if (error) return `Rename failed: ${error.message}`;
+      return data?.length ? null : "Rename failed: that stage is no longer there.";
     });
 
   const recolor = (stage: JourneyStage, color: string) =>
     run(async () => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("journey_stages")
         .update({ color })
-        .eq("id", stage.id);
-      return error ? `Color change failed: ${error.message}` : null;
+        .eq("id", stage.id)
+        .select("id");
+      if (error) return `Color change failed: ${error.message}`;
+      return data?.length
+        ? null
+        : "Color change failed: that stage is no longer there.";
     });
 
   const move = (idx: number, dir: -1 | 1) =>
@@ -90,13 +96,20 @@ export function StageEditorDialog({
       const r1 = await supabase
         .from("journey_stages")
         .update({ position: b.position })
-        .eq("id", a.id);
+        .eq("id", a.id)
+        .select("id");
       const r2 = await supabase
         .from("journey_stages")
         .update({ position: a.position })
-        .eq("id", b.id);
+        .eq("id", b.id)
+        .select("id");
       const error = r1.error ?? r2.error;
-      return error ? `Reorder failed: ${error.message}` : null;
+      if (error) return `Reorder failed: ${error.message}`;
+      // Half a swap is worse than none — say so rather than leaving two
+      // stages sharing a position until the next refetch.
+      return r1.data?.length && r2.data?.length
+        ? null
+        : "Reorder failed: those stages are no longer there.";
     });
 
   const remove = (stage: JourneyStage) =>

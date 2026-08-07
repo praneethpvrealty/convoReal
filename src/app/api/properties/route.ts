@@ -87,6 +87,9 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
         if (pinned) {
           await supabase
             .from("properties")
+            // Backfilling a derived pin while listing; the response uses
+            // the value below either way.
+            // eslint-disable-next-line convoreal/supabase-write-guard
             .update({ latitude: pinned.latitude, longitude: pinned.longitude })
             .eq("id", row.id);
           return { ...row, latitude: pinned.latitude, longitude: pinned.longitude };
@@ -104,6 +107,9 @@ async function geocodeRowsOnTheFly(supabase: any, rows: any[]): Promise<any[]> {
         if (!geo) return row;
         await supabase
           .from("properties")
+          // Geocode backfill while listing; the response uses the value
+          // below whether or not the row took it.
+          // eslint-disable-next-line convoreal/supabase-write-guard
           .update({
             latitude: geo.latitude,
             longitude: geo.longitude,
@@ -715,10 +721,19 @@ export async function POST(request: Request) {
 
       // Link the new ones
       if (interestedContactIds.length > 0) {
-        await ctx.supabase
+        const { data: linkedContacts } = await ctx.supabase
           .from("contacts")
           .update({ last_inquired_property_id: rawData.id })
-          .in("id", interestedContactIds);
+          .in("id", interestedContactIds)
+          .select("id");
+        // The listing exists either way; an unlinked contact is a log
+        // line rather than a failed creation.
+        if (linkedContacts?.length !== interestedContactIds.length) {
+          console.warn(
+            "[api/properties] Interested contacts not all linked:",
+            `${linkedContacts?.length ?? 0} of ${interestedContactIds.length}`,
+          );
+        }
       }
     }
 

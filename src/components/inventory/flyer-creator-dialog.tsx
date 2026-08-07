@@ -674,10 +674,15 @@ export function FlyerCreatorDialog({
       const updatedImages = [storedPath, ...currentImages.filter(url => url !== storedPath)];
 
       console.log('[FlyerCreatorDialog] Updating property images...');
-      const { error: updateError } = await supabase
+      const { data: saved, error: updateError } = await supabase
         .from('properties')
         .update({ images: updatedImages, updated_at: new Date().toISOString() })
-        .eq('id', property.id);
+        .eq('id', property.id)
+        .select('id');
+
+      if (!updateError && !saved?.length) {
+        throw new Error('Failed to save flyer url to property: listing not found.');
+      }
 
       if (updateError) {
         console.error('[FlyerCreatorDialog] Database update error:', updateError);

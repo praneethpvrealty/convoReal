@@ -37,10 +37,15 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
-    const { error: updateErr } = await ctx.supabase
+    const { data: updated, error: updateErr } = await ctx.supabase
       .from('liaison_workflows')
       .update(fieldsToSave)
-      .eq('id', workflowId);
+      .eq('id', workflowId)
+      .select('id');
+
+    if (!updateErr && !updated?.length) {
+      return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
+    }
 
     if (updateErr) {
       console.error('[PUT /api/liaison-workflows/[id]] Update error:', updateErr);

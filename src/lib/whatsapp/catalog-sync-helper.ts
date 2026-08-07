@@ -55,8 +55,11 @@ export async function autoSyncPropertyCatalogIfNeeded(
     } catch (decErr) {
       const errMsg = decErr instanceof Error ? decErr.message : String(decErr)
       console.error('[Auto-Sync] Token decryption failed:', errMsg)
+      // Audit breadcrumb on a path that has already failed; if the row
+       // is gone there is nothing left to annotate.
       await supabase
         .from('properties')
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update({
           meta_catalog_error: `Token decryption failed: ${errMsg}`,
         })
@@ -73,8 +76,11 @@ export async function autoSyncPropertyCatalogIfNeeded(
     })
 
     // 5. Update success audit timestamp
+    // Audit timestamp for a sync that already succeeded at Meta — not
+    // worth failing the sync over.
     await supabase
       .from('properties')
+      // eslint-disable-next-line convoreal/supabase-write-guard
       .update({
         meta_catalog_synced_at: new Date().toISOString(),
         meta_catalog_error: null,
@@ -90,6 +96,7 @@ export async function autoSyncPropertyCatalogIfNeeded(
     try {
       await supabase
         .from('properties')
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update({
           meta_catalog_error: errorMsg,
         })

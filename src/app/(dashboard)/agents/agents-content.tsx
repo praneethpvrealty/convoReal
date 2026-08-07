@@ -200,15 +200,17 @@ export default function AgentsPage() {
     if (!selectedAgentId) return;
     setSavingRequirements(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('contacts')
         .update({
           requirements: requirementsText.trim() || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', selectedAgentId);
+        .eq('id', selectedAgentId)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('That agent is no longer there.');
       toast.success('Agent requirements updated successfully');
       // Update local state copy
       setAgents((prev) =>
@@ -251,12 +253,14 @@ export default function AgentsPage() {
   // Unlink property
   const handleUnlinkProperty = async (propertyId: string) => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('properties')
         .update({ owner_contact_id: null })
-        .eq('id', propertyId);
+        .eq('id', propertyId)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('That property is no longer there.');
       toast.success('Property unlinked from agent');
       fetchAssociatedProperties();
     } catch (err) {

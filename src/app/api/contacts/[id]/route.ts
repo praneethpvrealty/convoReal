@@ -77,10 +77,15 @@ export async function PUT(
     };
 
     // Step 1: Update the contact row
-    const { error: updateErr } = await ctx.supabase
+    const { data: updated, error: updateErr } = await ctx.supabase
       .from('contacts')
       .update(fieldsToSave)
-      .eq('id', contactId);
+      .eq('id', contactId)
+      .select('id');
+
+    if (!updateErr && !updated?.length) {
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+    }
 
     if (updateErr) {
       if (updateErr.code === '23505') {
@@ -125,12 +130,16 @@ export async function PUT(
 
     if (noteId) {
       if (noteStr) {
-        const { error: noteErr } = await ctx.supabase
+        const { data: noteRows, error: noteErr } = await ctx.supabase
           .from('contact_notes')
           .update({ note_text: noteStr })
-          .eq('id', noteId);
-        if (noteErr) {
-          console.error('[PUT /api/contacts/[id]] Note update error:', noteErr);
+          .eq('id', noteId)
+          .select('id');
+        if (noteErr || !noteRows?.length) {
+          console.error(
+            '[PUT /api/contacts/[id]] Note update error:',
+            noteErr ?? 'note no longer there',
+          );
         }
       } else {
         // Clearing the note text drops the row; if it is already gone
@@ -161,17 +170,24 @@ export async function PUT(
       // Clear existing ownership links for this contact
       await ctx.supabase
         .from('properties')
+        // Clearing links before re-adding them: a contact that owns
+        // nothing yet clears zero rows, which is the normal path.
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update({ owner_contact_id: null })
         .eq('owner_contact_id', contactId);
 
       const propIds = Array.isArray(property_ids) ? property_ids.filter((id: unknown) => typeof id === 'string') : [];
       if (propIds.length > 0) {
-        const { error: propErr } = await ctx.supabase
+        const { data: linked, error: propErr } = await ctx.supabase
           .from('properties')
           .update({ owner_contact_id: contactId })
-          .in('id', propIds);
-        if (propErr) {
-          console.error('[PUT /api/contacts/[id]] Property link error:', propErr);
+          .in('id', propIds)
+          .select('id');
+        if (propErr || linked?.length !== propIds.length) {
+          console.error(
+            '[PUT /api/contacts/[id]] Property link error:',
+            propErr ?? `linked ${linked?.length ?? 0} of ${propIds.length}`,
+          );
         }
       }
     }

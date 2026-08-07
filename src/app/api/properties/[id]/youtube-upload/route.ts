@@ -71,10 +71,21 @@ export async function POST(
       );
     }
 
-    await ctx.supabase
+    // Claim the property before enqueueing: if the status write does not
+    // land, the worker still picks the job up while the listing shows no
+    // upload in flight.
+    const { data: queued } = await ctx.supabase
       .from('properties')
       .update({ youtube_status: 'queued', youtube_error: null })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
+
+    if (!queued?.length) {
+      return NextResponse.json(
+        { error: 'Property not found, or you cannot change it' },
+        { status: 404 },
+      );
+    }
 
     const redis = new Redis(redisUrl, {
       maxRetriesPerRequest: 2,

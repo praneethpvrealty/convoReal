@@ -143,6 +143,9 @@ export async function sendAutoReply({
           console.warn(`${logPrefix} Marking template ${template.name} as INACTIVE in DB`);
           await supabase
             .from('message_templates')
+            // Bookkeeping after Meta said the template is gone; the send
+            // has already failed and the caller is told so.
+            // eslint-disable-next-line convoreal/supabase-write-guard
             .update({ status: 'INACTIVE' })
             .eq('id', template.id);
         } else {
@@ -260,6 +263,8 @@ export async function sendAutoReply({
                 console.warn(`${logPrefix} Marking template ${fallbackTemplate.name} as INACTIVE`);
                 await supabase
                   .from('message_templates')
+                  // Same bookkeeping as the primary-template path above.
+                  // eslint-disable-next-line convoreal/supabase-write-guard
                   .update({ status: 'INACTIVE' })
                   .eq('id', fallbackTemplate.id);
                 break;

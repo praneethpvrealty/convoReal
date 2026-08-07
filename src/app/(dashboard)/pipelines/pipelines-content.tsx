@@ -316,12 +316,13 @@ export default function PipelinesPage() {
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId, status: dealStatus } : d)),
       );
       
-      const { error } = await supabase
+      const { data: moved, error } = await supabase
         .from("deals")
         .update({ stage_id: newStageId, status: dealStatus })
-        .eq("id", dealId);
+        .eq("id", dealId)
+        .select("id");
 
-      if (error) {
+      if (error || !moved?.length) {
         toast.error("Failed to move deal");
         refreshDeals();
         return;
@@ -340,13 +341,17 @@ export default function PipelinesPage() {
               nextStatus = "Available";
             }
 
-            const { error: propErr } = await supabase
+            const { data: synced, error: propErr } = await supabase
               .from("properties")
               .update({ status: nextStatus })
-              .eq("id", deal.property_id);
-            
-            if (propErr) {
-              console.error("Failed to sync property status:", propErr.message);
+              .eq("id", deal.property_id)
+              .select("id");
+
+            if (propErr || !synced?.length) {
+              console.error(
+                "Failed to sync property status:",
+                propErr?.message ?? "no listing changed",
+              );
             }
           }
         }
@@ -393,7 +398,7 @@ export default function PipelinesPage() {
       )
     );
 
-    const { error } = await supabase
+    const { data: moved, error } = await supabase
       .from("deals")
       .update({
         stage_id: pendingStageId,
@@ -402,9 +407,10 @@ export default function PipelinesPage() {
         brokerage_amount: brokerageAmt,
         status: dealStatus,
       })
-      .eq("id", dealId);
+      .eq("id", dealId)
+      .select("id");
 
-    if (error) {
+    if (error || !moved?.length) {
       toast.error("Failed to move deal");
       refreshDeals();
       setBrokeragePromptDeal(null);
@@ -425,13 +431,17 @@ export default function PipelinesPage() {
             nextStatus = "Available";
           }
 
-          const { error: propErr } = await supabase
+          const { data: synced, error: propErr } = await supabase
             .from("properties")
             .update({ status: nextStatus })
-            .eq("id", brokeragePromptDeal.property_id);
-          
-          if (propErr) {
-            console.error("Failed to sync property status:", propErr.message);
+            .eq("id", brokeragePromptDeal.property_id)
+            .select("id");
+
+          if (propErr || !synced?.length) {
+            console.error(
+              "Failed to sync property status:",
+              propErr?.message ?? "no listing changed",
+            );
           }
         }
       }

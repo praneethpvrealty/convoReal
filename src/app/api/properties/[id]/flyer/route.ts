@@ -127,11 +127,19 @@ export async function POST(
 
     const updatedImages = [storedPath, ...currentImages.filter((u) => u !== storedPath)];
 
-    const { error: updateError } = await ctx.supabase
+    const { data: saved, error: updateError } = await ctx.supabase
       .from("properties")
       .update({ images: updatedImages, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("account_id", ctx.accountId);
+      .eq("account_id", ctx.accountId)
+      .select("id");
+
+    if (!updateError && !saved?.length) {
+      return NextResponse.json(
+        { error: "Property not found, or you cannot change it" },
+        { status: 404 }
+      );
+    }
 
     if (updateError) {
       console.error("[POST /api/properties/[id]/flyer] Update error:", updateError);

@@ -340,10 +340,18 @@ export async function POST(request: Request) {
     }
 
     if (existing) {
-      const { error: updateError } = await supabase
+      const { data: saved, error: updateError } = await supabase
         .from('whatsapp_config')
         .update(baseRow)
         .eq('account_id', accountId)
+        .select('id')
+
+      if (!updateError && !saved?.length) {
+        return NextResponse.json(
+          { error: 'No WhatsApp configuration to update.' },
+          { status: 404 },
+        )
+      }
 
       if (updateError) {
         console.error('Error updating whatsapp_config:', updateError)

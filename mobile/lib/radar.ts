@@ -34,11 +34,13 @@ export async function fetchMatchEvents(): Promise<MatchEvent[]> {
 }
 
 export async function dismissMatchEvent(eventId: string): Promise<void> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('match_events')
     .update({ status: 'dismissed' })
-    .eq('id', eventId);
+    .eq('id', eventId)
+    .select('id');
   if (error) throw error;
+  if (!data?.length) throw new Error('That match is no longer there.');
 }
 
 export interface RadarSendResult {

@@ -234,11 +234,13 @@ export function PortalPostDialog({ open, onOpenChange, property, currency = 'INR
     if (!activeListing) return;
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('property_portal_listings')
         .update({ status: 'removed' })
-        .eq('id', activeListing.id);
+        .eq('id', activeListing.id)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('That listing is no longer there.');
       toast.success(`Marked as removed from ${meta.label}.`);
       fetchListings();
       onSaved?.();

@@ -175,7 +175,7 @@ export async function POST(
       }
     }
 
-    const { error: updateError } = await ctx.supabase
+    const { data: saved, error: updateError } = await ctx.supabase
       .from('properties')
       .update({
         images: nextImages,
@@ -183,7 +183,15 @@ export async function POST(
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .eq('account_id', ctx.accountId);
+      .eq('account_id', ctx.accountId)
+      .select('id');
+
+    if (!updateError && !saved?.length) {
+      return NextResponse.json(
+        { error: 'Property not found, or you cannot change it' },
+        { status: 404 },
+      );
+    }
 
     if (updateError) {
       console.error('[POST private-images] Update error:', updateError);

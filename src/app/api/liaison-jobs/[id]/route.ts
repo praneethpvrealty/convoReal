@@ -55,10 +55,15 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
-    const { error: updateErr } = await ctx.supabase
+    const { data: updated, error: updateErr } = await ctx.supabase
       .from('liaison_jobs')
       .update(fieldsToSave)
-      .eq('id', jobId);
+      .eq('id', jobId)
+      .select('id');
+
+    if (!updateErr && !updated?.length) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
 
     if (updateErr) {
       console.error('[PUT /api/liaison-jobs/[id]] Update error:', updateErr);

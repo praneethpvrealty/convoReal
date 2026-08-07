@@ -144,6 +144,10 @@ export function LogExternalShareDialog({
       const [contactRes, noteRes] = await Promise.allSettled([
         supabase
           .from('contacts')
+          // Touch alongside the note insert below, both settled rather
+          // than awaited for success — the note is the record that
+          // matters and its outcome is reported.
+          // eslint-disable-next-line convoreal/supabase-write-guard
           .update(contactUpdate)
           .eq('id', contactId),
         supabase

@@ -96,6 +96,9 @@ export async function POST(
     if (!contact.last_contacted_at || new Date(calledAt) > new Date(contact.last_contacted_at)) {
       await ctx.supabase
         .from('contacts')
+        // Declared best-effort just above: the call log is already
+        // saved, so a bump that does not land must not fail the request.
+        // eslint-disable-next-line convoreal/supabase-write-guard
         .update({ last_contacted_at: calledAt })
         .eq('id', contactId)
         .eq('account_id', ctx.accountId);
