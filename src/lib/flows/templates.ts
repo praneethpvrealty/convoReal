@@ -341,7 +341,7 @@ const REAL_ESTATE_ONBOARDING: FlowTemplate = {
       node_type: "collect_input",
       config: {
         prompt_text:
-          "Great choice! 💰 What's your budget range for the purchase? This helps us match you with the right properties.\n\n_For example: 50L–1Cr, 1–2 Cr, 5 Cr+_",
+          "Great choice! 💰 What's your budget range for the purchase? This helps us match you with the right properties.\n\n_For example: 50L–1Cr, 1–2 Cr, 2–5 Cr, 5–10 Cr, 10–25 Cr, 25–50 Cr, 50 Cr+_",
         var_key: "budget",
         next_node_key: "ask_buy_locality",
       } as CollectInputNodeConfig,
