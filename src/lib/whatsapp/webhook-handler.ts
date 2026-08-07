@@ -36,6 +36,7 @@ import {
   answerLeadQuestion,
   looksLikeQuestion,
   questionSubjectProperty,
+  subjectPortalListings,
 } from '@/lib/ai/lead-question'
 import {
   parseTemplateQuickReply,
@@ -1848,11 +1849,15 @@ async function processMessage(
       .select('share_seller_final_price')
       .eq('account_id', accountId)
       .maybeSingle()
+    const portalListings = subject
+      ? await subjectPortalListings(admin, accountId, subject.id)
+      : []
     const answer = await answerLeadQuestion({
       accountId,
       question: inboundText,
       property: subject,
       shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
+      portalListings,
     })
 
     await sendWhatsAppMessageAndPersist({
