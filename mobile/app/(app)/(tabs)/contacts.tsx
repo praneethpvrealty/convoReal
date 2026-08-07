@@ -57,6 +57,7 @@ import {
   useTheme,
   fonts,
 } from '@/lib/theme';
+import { useCallLog } from '@/lib/use-call-log';
 import { useDebounced } from '@/lib/use-debounced';
 import { usePullRefresh } from '@/lib/use-pull-refresh';
 import { openWelcomeWhatsApp } from '@/lib/welcome-message';
@@ -361,6 +362,7 @@ export default function ContactsScreen() {
   const celebration =
     approvingIds.size === 0 ? (celebrations[0] ?? null) : null;
   const { show, dialogProps } = useAppDialog();
+  const { startCall, callLogProps } = useCallLog();
   // Debounce so multi-step tag/note lookups don't fire per keystroke.
   const debounced = useDebounced(search);
 
@@ -580,6 +582,7 @@ export default function ContactsScreen() {
                   setPeekId((cur) => (cur === item.id ? null : cur))
                 }
                 onWhatsAppMenu={(at) => setWaMenu({ contact: item, ...at })}
+                onCall={() => startCall(item)}
               />
               {peekId === item.id ? (
                 <ContactPeekCard
@@ -634,6 +637,7 @@ export default function ContactsScreen() {
         }
       />
       <AppDialog {...dialogProps} />
+      <AppDialog {...callLogProps} />
     </View>
   );
 }
@@ -794,6 +798,7 @@ function ContactRow({
   onPeekStart,
   onPeekEnd,
   onWhatsAppMenu,
+  onCall,
 }: {
   contact: Contact;
   dark: boolean;
@@ -806,6 +811,7 @@ function ContactRow({
   onPeekStart: () => void;
   onPeekEnd: () => void;
   onWhatsAppMenu: (at: { x: number; y: number }) => void;
+  onCall: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
   const name = contact.name || contact.phone;
@@ -845,7 +851,7 @@ function ContactRow({
           {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
           <Pressable
             hitSlop={10}
-            onPress={() => Linking.openURL(`tel:${contact.phone}`)}
+            onPress={onCall}
             accessibilityRole="button"
             accessibilityLabel={`Call ${name}`}
             style={[styles.inlineCall, { backgroundColor: colors.primarySoft }]}

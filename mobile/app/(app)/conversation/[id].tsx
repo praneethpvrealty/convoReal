@@ -54,6 +54,7 @@ import {
 import type { Contact, MessageTemplate , Conversation, Message, MessageStatus } from '@/lib/types';
 import { bubbleTime, dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
+import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
 import { useHeaderHeight } from '@/lib/use-header-height';
@@ -108,6 +109,7 @@ export default function ConversationScreen() {
   const [forwardFor, setForwardFor] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState(false);
   const { show, dialogProps } = useAppDialog();
+  const { startCall, callLogProps } = useCallLog();
 
   const { data: conversation } = useQuery({
     queryKey: ['conversation', id],
@@ -234,7 +236,16 @@ export default function ConversationScreen() {
             <ThreadHeader
               title={title}
               status={conversation?.status}
-              phone={conversation?.contact?.phone || undefined}
+              onCall={
+                conversation?.contact?.phone
+                  ? () =>
+                      startCall({
+                        id: conversation.contact!.id,
+                        name: conversation.contact!.name,
+                        phone: conversation.contact!.phone,
+                      })
+                  : undefined
+              }
             />
           ),
           headerRight: () => (
@@ -349,6 +360,7 @@ export default function ConversationScreen() {
         isArchived={conversation?.is_archived}
       />
       <AppDialog {...dialogProps} />
+      <AppDialog {...callLogProps} />
     </KeyboardAvoidingView>
   );
 }
@@ -365,11 +377,11 @@ const STATUS_LABELS: Record<string, string> = {
 function ThreadHeader({
   title,
   status,
-  phone,
+  onCall,
 }: {
   title: string;
   status?: string;
-  phone?: string;
+  onCall?: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
   return (
@@ -383,13 +395,10 @@ function ThreadHeader({
           >
             {title}
           </Text>
-          {phone ? (
+          {onCall ? (
             <Pressable
               hitSlop={10}
-              onPress={() => {
-                haptic.tap();
-                Linking.openURL(`tel:${phone}`);
-              }}
+              onPress={onCall}
               accessibilityRole="button"
               accessibilityLabel={`Call ${title}`}
               style={[styles.headerCall, { backgroundColor: colors.primarySoft }]}
