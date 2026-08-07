@@ -25,12 +25,38 @@ export interface DuplicateContact {
   created_at: string;
   conversation_count: number;
   name_tag?: string | null;
+  // Carried so the panel can show what actually differs between two
+  // records. Deciding a merge on name and source alone is how an Owner
+  // gets merged into a Buyer who only shares their name.
+  status?: string | null;
+  company?: string | null;
+  second_name?: string | null;
+  requirements?: string | null;
+  min_budget?: number | null;
+  max_budget?: number | null;
+  areas_of_interest?: string[] | null;
+  property_interests?: string[] | null;
+  last_contacted_at?: string | null;
 }
 
 export interface DuplicateGroup {
   reason: 'phone' | 'email' | 'name';
   key: string;   // match key, or the representative name for a name group
   contacts: DuplicateContact[];
+}
+
+type ContactRow = {
+  id: string; name: string | null; phone: string; email: string | null;
+  source: string | null; classification: string | null; created_at: string;
+  name_tag: string | null; status: string | null; company: string | null;
+  second_name: string | null; requirements: string | null;
+  min_budget: number | null; max_budget: number | null;
+  areas_of_interest: string[] | null; property_interests: string[] | null;
+  last_contacted_at: string | null;
+};
+
+function toDuplicateContact(r: ContactRow): DuplicateContact {
+  return { ...r, conversation_count: 0 };
 }
 
 export async function GET() {
@@ -40,7 +66,10 @@ export async function GET() {
     // Pull all non-merged contacts with phone + email
     const { data: contacts, error } = await ctx.supabase
       .from('contacts')
-      .select('id, name, phone, email, source, classification, created_at, name_tag')
+      // One literal, not a concatenation: the client infers the row type
+      // from the select string, and joining it loses that.
+      // prettier-ignore
+      .select('id, name, phone, email, source, classification, created_at, name_tag, status, company, second_name, requirements, min_budget, max_budget, areas_of_interest, property_interests, last_contacted_at')
       .eq('account_id', ctx.accountId)
       .eq('is_merged', false)
       .not('phone', 'is', null)
@@ -80,17 +109,7 @@ export async function GET() {
       groups.push({
         reason: 'phone',
         key,
-        contacts: rows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          phone: r.phone,
-          email: r.email,
-          source: r.source,
-          classification: r.classification,
-          created_at: r.created_at,
-          conversation_count: 0,
-          name_tag: r.name_tag,
-        })),
+        contacts: rows.map(toDuplicateContact),
       });
     }
 
@@ -105,17 +124,7 @@ export async function GET() {
       groups.push({
         reason: 'email',
         key,
-        contacts: newRows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          phone: r.phone,
-          email: r.email,
-          source: r.source,
-          classification: r.classification,
-          created_at: r.created_at,
-          conversation_count: 0,
-          name_tag: r.name_tag,
-        })),
+        contacts: newRows.map(toDuplicateContact),
       });
     }
 
@@ -151,17 +160,7 @@ export async function GET() {
       groups.push({
         reason: 'name',
         key: cluster.rows[0].name ?? cluster.keys[0],
-        contacts: cluster.rows.map((r) => ({
-          id: r.id,
-          name: r.name,
-          phone: r.phone,
-          email: r.email,
-          source: r.source,
-          classification: r.classification,
-          created_at: r.created_at,
-          conversation_count: 0,
-          name_tag: r.name_tag,
-        })),
+        contacts: cluster.rows.map(toDuplicateContact),
       });
     }
 
