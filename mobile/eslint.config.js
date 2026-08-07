@@ -1,10 +1,20 @@
 const { defineConfig } = require('eslint/config');
 const expoConfig = require('eslint-config-expo/flat');
 
+// Shared with the web config — one implementation, both packages.
+const supabaseWriteGuard = require('../eslint-rules/supabase-write-guard.cjs');
+
 module.exports = defineConfig([
   expoConfig,
   {
     ignores: ['.expo/*', 'dist/*', 'node_modules/*', 'scripts/*'],
+  },
+  {
+    plugins: { convoreal: { rules: { 'supabase-write-guard': supabaseWriteGuard } } },
+    // 'warn' for the same reason as the rules below: it lands on 11
+    // existing writes here, so it is visible rather than blocking. Clear
+    // them file by file, do not add new ones.
+    rules: { 'convoreal/supabase-write-guard': 'warn' },
   },
   {
     rules: {
