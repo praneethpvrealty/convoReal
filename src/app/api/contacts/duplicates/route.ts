@@ -6,6 +6,7 @@ import {
   nameMatchKey,
   namesAreSimilar,
 } from '@/lib/contacts/duplicate-key';
+import { pairKey, isGroupDismissed } from '@/lib/contacts/duplicate-dismissal';
 
 // GET /api/contacts/duplicates
 // Returns groups of contacts that share a phone, an email, or a name,
@@ -164,7 +165,23 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json({ groups });
+    // Drop anything already ruled on. Filtered here rather than in the
+    // grouping so a dismissed pair still counts as "surfaced" — it must
+    // not fall through and be offered again under a weaker reason.
+    const { data: dismissals } = await ctx.supabase
+      .from('contact_duplicate_dismissals')
+      .select('contact_a_id, contact_b_id')
+      .eq('account_id', ctx.accountId);
+
+    const dismissed = new Set(
+      (dismissals ?? []).map((d) => pairKey(d.contact_a_id, d.contact_b_id)),
+    );
+
+    return NextResponse.json({
+      groups: groups.filter(
+        (g) => !isGroupDismissed(g.contacts.map((c) => c.id), dismissed),
+      ),
+    });
   } catch (err) {
     return toErrorResponse(err);
   }

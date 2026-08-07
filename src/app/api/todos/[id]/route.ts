@@ -48,14 +48,19 @@ export async function DELETE(
     const { id } = await params
     const { supabase, accountId } = await requireRole('agent')
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('todos')
       .delete()
       .eq('id', id)
       .eq('account_id', accountId)
+      .select('id')
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (!data?.length) {
+      return NextResponse.json({ error: 'Todo not found' }, { status: 404 })
     }
 
     return NextResponse.json({ success: true })

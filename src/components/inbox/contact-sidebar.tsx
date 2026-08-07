@@ -221,11 +221,31 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
         duration: 4000,
         onDismiss: async () => {
           const supabase = createClient();
-          await supabase.from("contact_notes").delete().eq("id", note.id);
+          // The row is already gone from the list; if the delete does not
+          // land, say so rather than leaving the note to reappear on the
+          // next load with no explanation.
+          const { data, error } = await supabase
+            .from("contact_notes")
+            .delete()
+            .eq("id", note.id)
+            .select("id");
+          if (error || !data?.length) {
+            toast.error("Could not delete that note — it will reappear.");
+          }
         },
         onAutoClose: async () => {
           const supabase = createClient();
-          await supabase.from("contact_notes").delete().eq("id", note.id);
+          // The row is already gone from the list; if the delete does not
+          // land, say so rather than leaving the note to reappear on the
+          // next load with no explanation.
+          const { data, error } = await supabase
+            .from("contact_notes")
+            .delete()
+            .eq("id", note.id)
+            .select("id");
+          if (error || !data?.length) {
+            toast.error("Could not delete that note — it will reappear.");
+          }
         },
       });
     },

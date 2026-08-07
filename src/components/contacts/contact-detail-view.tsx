@@ -560,13 +560,15 @@ export function ContactDetailView({
 
   const handleRemoveInquiredProperty = useCallback(async (propertyId: string) => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('contact_property_inquiries')
         .delete()
         .eq('contact_id', contactId)
-        .eq('property_id', propertyId);
+        .eq('property_id', propertyId)
+        .select('contact_id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('That interest is no longer there.');
       
       // Update local state
       setInquiredProperties(prev => prev.filter(p => p.id !== propertyId));
@@ -1215,14 +1217,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const isSelected = contactTagIds.includes(tagId);
 
     if (isSelected) {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('contact_tags')
         .delete()
         .eq('contact_id', contactId)
-        .eq('tag_id', tagId);
-      if (!error) {
+        .eq('tag_id', tagId)
+        .select('tag_id');
+      if (!error && data?.length) {
         setContactTagIds((prev) => prev.filter((id) => id !== tagId));
         onUpdated();
+      } else {
+        toast.error('Could not remove that tag.');
       }
     } else {
       const { error } = await supabase
@@ -1264,12 +1269,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   }
 
   async function deleteNote(noteId: string) {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('contact_notes')
       .delete()
-      .eq('id', noteId);
+      .eq('id', noteId)
+      .select('id');
 
-    if (error) {
+    if (error || !data?.length) {
       toast.error('Failed to delete note');
     } else {
       setNotes((prev) => prev.filter((n) => n.id !== noteId));

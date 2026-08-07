@@ -171,10 +171,11 @@ export async function DELETE(
       .eq('id', dealId)
       .single();
 
-    const { error: deleteErr } = await ctx.supabase
+    const { data: deleted, error: deleteErr } = await ctx.supabase
       .from('deals')
       .delete()
-      .eq('id', dealId);
+      .eq('id', dealId)
+      .select('id');
 
     if (deleteErr) {
       console.error('[DELETE /api/deals/[id]] Delete error:', deleteErr);
@@ -182,6 +183,10 @@ export async function DELETE(
         { error: deleteErr.message ?? 'Failed to delete deal' },
         { status: 500 },
       );
+    }
+
+    if (!deleted?.length) {
+      return NextResponse.json({ error: 'Deal not found' }, { status: 404 });
     }
 
     // Reset property status to Available if it was linked

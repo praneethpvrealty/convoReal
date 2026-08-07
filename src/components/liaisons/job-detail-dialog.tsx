@@ -133,11 +133,12 @@ export function JobDetailDialog({
   };
 
   const handleDeletePayment = async (paymentId: string) => {
-    const { error } = await supabase
+    const { data: removed, error } = await supabase
       .from('liaison_job_payments')
       .delete()
-      .eq('id', paymentId);
-    if (error) {
+      .eq('id', paymentId)
+      .select('id');
+    if (error || !removed?.length) {
       toast.error('Failed to delete entry');
     } else {
       toast.success('Entry deleted');

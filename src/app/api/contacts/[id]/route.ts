@@ -96,9 +96,12 @@ export async function PUT(
       );
     }
 
-    // Step 2: Sync tags — delete old, insert new
+    // Step 2: Sync tags — delete old, insert new. A contact with no tags
+    // yet deletes zero rows, which is the normal path here rather than a
+    // refusal worth reporting.
     await ctx.supabase
       .from('contact_tags')
+      // eslint-disable-next-line convoreal/supabase-write-guard
       .delete()
       .eq('contact_id', contactId);
 
@@ -130,8 +133,11 @@ export async function PUT(
           console.error('[PUT /api/contacts/[id]] Note update error:', noteErr);
         }
       } else {
+        // Clearing the note text drops the row; if it is already gone
+        // there is nothing to report.
         await ctx.supabase
           .from('contact_notes')
+          // eslint-disable-next-line convoreal/supabase-write-guard
           .delete()
           .eq('id', noteId);
       }

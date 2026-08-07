@@ -26,9 +26,9 @@ export const PAGE_KNOWLEDGE: Record<string, string> = {
   '/flows':
     'Visual chatbot flow builder — design question-and-answer paths the WhatsApp bot follows with customers.',
   '/requirements':
-    'Buyer requirements collected from customers (budget, location, property type). These drive Match Radar suggestions.',
+    'Buyer requirements collected from customers (budget, location, property type). These drive Match Radar suggestions. You can share a requirement with other brokers — masked by default, so they see the brief under a code like REQ-A3F2 but never the client’s name. The share carries a link (or a code they can WhatsApp you) that lets them send back a matching property, which lands in Inventory under Review.',
   '/agents':
-    'Other agents you collaborate with, for sharing inventory and requirements.',
+    'Other agents you collaborate with, for sharing inventory and requirements. Listings they send you — from a shared requirement, your listing link, or WhatsApp — arrive in Inventory under Review to approve or reject.',
   '/ads':
     'Create and track Meta (Facebook/Instagram) ads for your properties, with AI-written ad copy.',
   '/settings':

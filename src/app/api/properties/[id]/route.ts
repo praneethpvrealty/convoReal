@@ -699,17 +699,25 @@ export async function DELETE(
       );
     }
 
-    const { error } = await ctx.supabase
+    const { data, error } = await ctx.supabase
       .from("properties")
       .delete()
       .eq("id", id)
-      .eq("account_id", ctx.accountId);
+      .eq("account_id", ctx.accountId)
+      .select("id");
 
     if (error) {
       console.error("[DELETE /api/properties/[id]] Delete error:", error);
       return NextResponse.json(
         { error: "Failed to delete property" },
         { status: 500 }
+      );
+    }
+
+    if (!data?.length) {
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 }
       );
     }
 

@@ -8,12 +8,19 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     plugins: { convoreal: { rules: { "supabase-write-guard": supabaseWriteGuard } } },
-    // 'warn' because it lands on 160 existing writes, and rewriting them
-    // blind would be a worse change than the bug. Same bargain the mobile
-    // config strikes with the React Compiler rules: visible in the log and
-    // blocking for nothing, rather than silently off. Clear them file by
-    // file, do not add new ones, and flip this to 'error' once it is quiet.
+    // Every .delete() is clean. The 122 that remain are all .update(),
+    // kept at 'warn' because rewriting them blind would be a worse change
+    // than the bug — the same bargain the mobile config strikes with the
+    // React Compiler rules: visible in the log and blocking for nothing,
+    // rather than silently off. Clear them file by file, do not add new
+    // ones, and flip this to 'error' once it is quiet.
     rules: { "convoreal/supabase-write-guard": "warn" },
+  },
+  {
+    // Test teardown deletes whatever the run happened to create, so
+    // zero rows is the normal case rather than a refusal to report.
+    files: ["**/*.test.ts", "**/*.test.tsx", "e2e/**"],
+    rules: { "convoreal/supabase-write-guard": "off" },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

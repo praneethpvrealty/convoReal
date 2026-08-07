@@ -153,12 +153,13 @@ export default function JobsContent() {
     if (!deleteTarget) return;
     setDeleting(true);
 
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('liaison_jobs')
       .delete()
-      .eq('id', deleteTarget.id);
+      .eq('id', deleteTarget.id)
+      .select('id');
 
-    if (error) {
+    if (error || !deleted?.length) {
       toast.error('Failed to delete job');
     } else {
       toast.success('Job deleted');

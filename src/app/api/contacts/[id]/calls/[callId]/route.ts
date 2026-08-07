@@ -64,15 +64,21 @@ export async function DELETE(
     const ctx = await requireRole('agent');
     const { id: contactId, callId } = await params;
 
-    const { error } = await ctx.supabase
+    const { data, error } = await ctx.supabase
       .from('contact_call_logs')
       .delete()
       .eq('id', callId)
       .eq('contact_id', contactId)
       .eq('account_id', ctx.accountId)
-      .eq('user_id', ctx.userId); // can only delete own logs
+      .eq('user_id', ctx.userId) // can only delete own logs
+      .select('id');
 
     if (error) throw error;
+    if (!data?.length) {
+      // Missing, or logged by a colleague — 404 either way rather than
+      // reporting a delete that never happened.
+      return NextResponse.json({ error: 'Call log not found' }, { status: 404 });
+    }
     return NextResponse.json({ success: true });
   } catch (err) {
     return toErrorResponse(err);
