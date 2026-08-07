@@ -9,6 +9,7 @@
 // photo); the sample below is only for Meta's review.
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
 
 export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'property_enquiry_photos';
 
@@ -42,7 +43,7 @@ export function buildPropertyEnquiryPhotosTemplatePayload(
     buttons: [
       // Same button set as property_enquiry_response: the quick reply
       // opens the 24h window, the URL carries the requested listing.
-      { type: 'QUICK_REPLY', text: 'Send more details' },
+      { type: 'QUICK_REPLY', text: SEND_MORE_DETAILS_BUTTON },
       {
         type: 'URL',
         text: 'View full details',

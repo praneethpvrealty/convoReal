@@ -11,6 +11,7 @@ import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
 
 /** Bumped twice — Meta will not re-review an approved template in
  *  place, so each category fix needs a new name:
@@ -50,7 +51,7 @@ export function buildPropertyAlertTemplatePayload(origin: string): TemplatePaylo
       // Quick reply first (Meta rule). A tap opens the 24h window, so
       // the follow-up conversation continues free-form in the Engine
       // Inbox; the URL carries the requested listing details.
-      { type: 'QUICK_REPLY', text: 'Send more details' },
+      { type: 'QUICK_REPLY', text: SEND_MORE_DETAILS_BUTTON },
       {
         type: 'URL',
         text: 'View full details',

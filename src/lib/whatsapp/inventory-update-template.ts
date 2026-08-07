@@ -12,6 +12,10 @@ import type { Property } from '@/types';
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { categoryForType } from '@/lib/inventory-summary-builder';
+import {
+  INVENTORY_FULL_LIST_BUTTON,
+  INVENTORY_SITE_VISIT_BUTTON,
+} from '@/lib/whatsapp/template-quick-replies';
 
 export const INVENTORY_UPDATE_TEMPLATE_NAME = 'inventory_update';
 
@@ -54,8 +58,8 @@ export function buildInventoryUpdateTemplatePayload(origin: string): TemplatePay
       // Quick replies first (Meta: QR block cannot follow CTA buttons).
       // A tap opens the 24h service window → the full digest / copilot
       // conversation continues free-form inside ConvoReal.
-      { type: 'QUICK_REPLY', text: 'Send full list' },
-      { type: 'QUICK_REPLY', text: 'Book a site visit' },
+      { type: 'QUICK_REPLY', text: INVENTORY_FULL_LIST_BUTTON },
+      { type: 'QUICK_REPLY', text: INVENTORY_SITE_VISIT_BUTTON },
       {
         type: 'URL',
         text: 'Browse showcase',
