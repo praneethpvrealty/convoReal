@@ -19,6 +19,7 @@ import { resolveHousingPhone } from './phone-resolver';
 import { writeSyncLog, assignTagsToContact } from './db-utils';
 import { sendAutoReply } from './auto-reply';
 import { portalKeyFromSource } from '@/lib/portals/listing-identity';
+import { placeholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { runAutomationsForTrigger } from '@/lib/automations/engine';
 
 // Re-export for route.test.ts and backward compatibility
@@ -477,10 +478,7 @@ export async function POST(request: Request) {
     let unusableName: string | null = null;
     if (!isValidContactName(parsed.name)) {
       unusableName = parsed.name;
-      parsed.name =
-        parsed.source && parsed.source !== 'Others'
-          ? `${parsed.source} Lead`
-          : 'Portal Lead';
+      parsed.name = placeholderLeadName(parsed.source);
       console.log(`[lead-webhook] Unusable lead name "${unusableName}" — captured as "${parsed.name}"`);
     }
 
