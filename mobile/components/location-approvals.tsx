@@ -124,8 +124,12 @@ export function LocationApprovals() {
                     { backgroundColor: colors.primary, opacity: processingId === row.id ? 0.5 : pressed ? 0.8 : 1 },
                   ]}
                 >
-                  <Ionicons name="checkmark" size={15} color="#fff" />
-                  <Text style={[styles.buttonText, { fontFamily: f.bold }]}>Approve</Text>
+                  <Ionicons name="checkmark" size={15} color={colors.onPrimary} />
+                  <Text
+                    style={[styles.buttonText, { fontFamily: f.bold, color: colors.onPrimary }]}
+                  >
+                    Approve
+                  </Text>
                 </Pressable>
                 <Pressable
                   onPress={() => act(row, 'reject')}
@@ -172,5 +176,5 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   rejectButton: { backgroundColor: 'transparent', borderWidth: 1 },
-  buttonText: { color: '#fff', fontSize: 13 },
+  buttonText: { fontSize: 13 },
 });

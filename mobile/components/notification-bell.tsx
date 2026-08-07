@@ -27,7 +27,7 @@ export function NotificationBell() {
       <Ionicons name="notifications-outline" size={19} color={colors.text} />
       {unread > 0 ? (
         <View style={[styles.badge, { backgroundColor: colors.danger, borderColor: colors.background }]}>
-          <Text style={[styles.badgeText, { fontFamily: f.bold }]}>
+          <Text style={[styles.badgeText, { fontFamily: f.bold, color: colors.onDanger }]}>
             {unread > 99 ? '99+' : unread}
           </Text>
         </View>
@@ -57,5 +57,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { color: '#fff', fontSize: 10 },
+  badgeText: { fontSize: 10 },
 });

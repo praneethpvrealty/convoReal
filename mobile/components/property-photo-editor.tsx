@@ -126,7 +126,9 @@ export function PropertyPhotoEditor({
             <Image source={{ uri: storagePublicUrl(img) }} style={styles.thumb} resizeMode="cover" />
             {i === 0 ? (
               <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-                <Text style={[styles.badgeText, { fontFamily: f.bold }]}>Cover</Text>
+                <Text style={[styles.badgeText, { fontFamily: f.bold, color: colors.onPrimary }]}>
+                  Cover
+                </Text>
               </View>
             ) : (
               <Pressable
@@ -184,7 +186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
-  badgeText: { color: '#fff', fontSize: 10 },
+  badgeText: { fontSize: 10 },
   starBtn: {
     position: 'absolute',
     left: 4,
