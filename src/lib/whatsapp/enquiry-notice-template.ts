@@ -97,8 +97,23 @@ export function buildEnquiryNoticeParams(
   contactName: string | null | undefined,
   enquired: Property
 ): [name: string, property: string] {
+  return buildEnquiryNoticeTextParams(
+    contactName,
+    describeEnquiredProperty(enquired)
+  );
+}
+
+/**
+ * Same params from a textual description of the enquiry — used when
+ * the enquired listing never existed in inventory but the portal's own
+ * wording of the requirement did survive the import.
+ */
+export function buildEnquiryNoticeTextParams(
+  contactName: string | null | undefined,
+  description: string
+): [name: string, property: string] {
   const firstName = isPlaceholderLeadName(contactName)
     ? 'there'
     : contactName!.trim().split(/\s+/)[0];
-  return [sanitizeTemplateParam(firstName), describeEnquiredProperty(enquired)];
+  return [sanitizeTemplateParam(firstName), sanitizeTemplateParam(description)];
 }
