@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { storagePublicUrl } from "@/lib/storage/url";
 import { useAuth } from "@/hooks/use-auth";
+import { needsReply, needsReplyLabel } from "@/lib/whatsapp/reply-state";
 import type { OrgRole } from "@/lib/auth/roles";
 import type { Conversation, ConversationStatus, Team } from "@/types";
 import { Search, ChevronDown, MoreVertical, Archive, ArchiveRestore, Users } from "lucide-react";
@@ -51,10 +52,12 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
   closed: "bg-slate-500",
 };
 
-type FilterValue = ConversationStatus | "all" | "archived";
+type FilterValue = ConversationStatus | "all" | "needs_reply" | "active" | "archived";
 
 const FILTER_OPTIONS: { label: string; value: FilterValue }[] = [
   { label: "All", value: "all" },
+  { label: "Needs reply", value: "needs_reply" },
+  { label: "Active", value: "active" },
   { label: "Open", value: "open" },
   { label: "Pending", value: "pending" },
   { label: "Closed", value: "closed" },
@@ -259,6 +262,36 @@ export function ConversationList({
 
   const userPhoneDigits = profile?.phone ? profile.phone.replace(/\D/g, "") : "";
 
+  // Busiest threads over the last 24 hours, counted in SQL by the
+  // conversation_activity RPC — fetched only while the Active filter is on.
+  const [activityById, setActivityById] = useState<Map<string, number> | null>(null);
+  useEffect(() => {
+    if (filter !== "active" || !accountId) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await createClient().rpc("conversation_activity", {
+        p_account_id: accountId,
+        p_hours: 24,
+      });
+      if (cancelled) return;
+      if (error) {
+        console.error("Failed to fetch conversation activity:", error.message);
+        return;
+      }
+      setActivityById(
+        new Map(
+          (data ?? []).map((r: { conversation_id: string; message_count: number }) => [
+            r.conversation_id,
+            Number(r.message_count),
+          ])
+        )
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [filter, accountId]);
+
   const filtered = useMemo(() => {
     let result = conversations;
 
@@ -273,7 +306,21 @@ export function ConversationList({
     } else {
       // Hide archived conversations from all non-archived views
       result = result.filter((c) => !c.is_archived);
-      if (filter !== "all") {
+      if (filter === "needs_reply") {
+        // Longest-waiting first: the closer a thread is to losing its
+        // 24-hour window, the higher it sits.
+        result = result
+          .filter((c) => needsReply(c) !== null)
+          .sort(
+            (a, b) =>
+              new Date(a.last_customer_message_at ?? a.last_message_at ?? 0).getTime() -
+              new Date(b.last_customer_message_at ?? b.last_message_at ?? 0).getTime()
+          );
+      } else if (filter === "active") {
+        result = result
+          .filter((c) => activityById?.has(c.id))
+          .sort((a, b) => (activityById?.get(b.id) ?? 0) - (activityById?.get(a.id) ?? 0));
+      } else if (filter !== "all") {
         result = result.filter((c) => c.status === filter);
       }
     }
@@ -303,7 +350,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search, effectiveScope, user?.id, userPhoneDigits]);
+  }, [conversations, filter, search, effectiveScope, user?.id, userPhoneDigits, activityById]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,6 +504,7 @@ export function ConversationList({
                 key={conv.id}
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
+                activityCount={filter === "active" ? activityById?.get(conv.id) : undefined}
                 onSelect={handleSelect}
                 onArchiveToggle={handleArchiveToggle}
               />
@@ -471,6 +519,8 @@ export function ConversationList({
 interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
+  /** Messages in the last 24h — set only while the Active filter is on. */
+  activityCount?: number;
   onSelect: (conversation: Conversation) => void;
   onArchiveToggle: (conv: Conversation, e: React.MouseEvent) => void;
 }
@@ -478,6 +528,7 @@ interface ConversationItemProps {
 function ConversationItem({
   conversation,
   isActive,
+  activityCount,
   onSelect,
   onArchiveToggle,
 }: ConversationItemProps) {
@@ -485,6 +536,7 @@ function ConversationItem({
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || "Unknown";
   const initials = displayName.charAt(0).toUpperCase();
+  const reply = needsReply(conversation);
 
   const handleClick = useCallback(() => {
     onSelect(conversation);
@@ -591,6 +643,27 @@ function ConversationItem({
               />
             </div>
           </div>
+          {(reply || activityCount != null) && (
+            <div className="mt-1 flex items-center gap-1.5">
+              {reply && (
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold",
+                    reply.windowExpired
+                      ? "bg-red-500/15 text-red-400"
+                      : "bg-amber-500/15 text-amber-400"
+                  )}
+                >
+                  {needsReplyLabel(reply)}
+                </span>
+              )}
+              {activityCount != null && (
+                <span className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+                  {activityCount} in 24h
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </button>
 

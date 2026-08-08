@@ -265,6 +265,8 @@ export async function POST(request: Request) {
               last_message_text: inboxText,
               last_message_at: new Date().toISOString(),
               unread_count: currentUnreadCount + 1,
+              awaiting_reply: true,
+              last_customer_message_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
             .eq("id", conversationId);

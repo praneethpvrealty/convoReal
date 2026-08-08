@@ -575,6 +575,7 @@ export async function sendWhatsAppMessageAndPersist(
         last_message_text: previewText,
         last_message_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        awaiting_reply: false,
       })
       .eq('id', resolvedConversationId)
 

@@ -228,6 +228,30 @@ describe("mobile/lib/customer-window.ts mirrors customer-window", () => {
   });
 });
 
+describe("mobile/lib/reply-state.ts mirrors reply-state", () => {
+  // Both inboxes decide "does this thread need a human?" from the same
+  // conversation columns. If the copies disagree, a thread shows as
+  // handled on one surface and waiting on the other.
+  const source = mobileSource("lib/reply-state.ts");
+  const web = readFileSync(
+    join(process.cwd(), "src/lib/whatsapp/reply-state.ts"),
+    "utf8"
+  );
+
+  it.each(["needsReply", "waitingShort", "needsReplyLabel"])(
+    "keeps the %s body identical to the web source",
+    (name) => {
+      const body = (s: string) => {
+        const start = s.indexOf(`export function ${name}`);
+        expect(start, `${name} missing`).toBeGreaterThan(-1);
+        const end = s.indexOf("\n}", start);
+        return s.slice(start, end);
+      };
+      expect(body(source)).toBe(body(web));
+    }
+  );
+});
+
 describe("mobile/lib/message-actions.ts mirrors delivery-failure", () => {
   // The marker is what a resend or forward cuts the failure note off at.
   // If the webhook's wording changes and the mobile copy doesn't, the

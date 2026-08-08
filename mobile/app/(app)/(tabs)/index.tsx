@@ -49,6 +49,7 @@ import {
   lastMsgStatusKey,
   outgoingTickStatus,
 } from '@/lib/inbox-ticks';
+import { needsReply, needsReplyLabel } from '@/lib/reply-state';
 import { queryClient } from '@/lib/query';
 import { supabase, uniqueChannel } from '@/lib/supabase';
 import {
@@ -63,13 +64,19 @@ import { usePullRefresh } from '@/lib/use-pull-refresh';
 
 const FILTERS = [
   'All',
+  'Needs reply',
   'Unread',
-  'Open',
-  'Pending',
+  'Active',
   'Closed',
   'Archived',
 ] as const;
 type Filter = (typeof FILTERS)[number];
+
+interface ActivityRow {
+  conversation_id: string;
+  message_count: number;
+  inbound_count: number;
+}
 
 async function fetchConversations(archived: boolean): Promise<Conversation[]> {
   const { data, error } = await supabase
@@ -100,6 +107,22 @@ export default function InboxScreen() {
     queryFn: () => fetchConversations(archived),
   });
   const pull = usePullRefresh(refetch);
+
+  // Busiest threads over the last 24 hours, counted in SQL — one RPC
+  // instead of shipping a day of message rows to the phone.
+  const { data: activity } = useQuery({
+    queryKey: ['conversation-activity', accountId],
+    enabled: Boolean(accountId) && filter === 'Active',
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase.rpc('conversation_activity', {
+        p_account_id: accountId,
+        p_hours: 24,
+      });
+      if (error) throw error;
+      return (rows ?? []) as ActivityRow[];
+    },
+  });
 
   useEffect(() => {
     if (!accountId || !userId) return;
@@ -133,11 +156,29 @@ export default function InboxScreen() {
     };
   }, [accountId, userId]);
 
+  const activityById = useMemo(
+    () => new Map((activity ?? []).map((r) => [r.conversation_id, r.message_count])),
+    [activity]
+  );
+
   const filtered = useMemo(() => {
     let list = data ?? [];
     if (filter === 'Unread') list = list.filter((c) => c.unread_count > 0);
-    else if (filter !== 'All' && filter !== 'Archived')
-      list = list.filter((c) => c.status === filter.toLowerCase());
+    else if (filter === 'Needs reply')
+      // Longest-waiting first: the closer a thread is to losing its
+      // 24-hour window, the higher it sits.
+      list = list
+        .filter((c) => needsReply(c) !== null)
+        .sort(
+          (a, b) =>
+            new Date(a.last_customer_message_at ?? a.last_message_at ?? 0).getTime() -
+            new Date(b.last_customer_message_at ?? b.last_message_at ?? 0).getTime()
+        );
+    else if (filter === 'Active')
+      list = list
+        .filter((c) => activityById.has(c.id))
+        .sort((a, b) => (activityById.get(b.id) ?? 0) - (activityById.get(a.id) ?? 0));
+    else if (filter === 'Closed') list = list.filter((c) => c.status === 'closed');
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -148,7 +189,7 @@ export default function InboxScreen() {
       );
     }
     return list;
-  }, [data, filter, search]);
+  }, [data, filter, search, activityById]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -216,6 +257,9 @@ export default function InboxScreen() {
               <ConversationRow
                 conversation={item}
                 archived={archived}
+                activityCount={
+                  filter === 'Active' ? activityById.get(item.id) : undefined
+                }
                 showDialog={show}
               />
             </EnterRow>
@@ -409,10 +453,13 @@ function MessageTicks({
 function ConversationRow({
   conversation,
   archived,
+  activityCount,
   showDialog,
 }: {
   conversation: Conversation;
   archived: boolean;
+  /** Messages in the last 24h — set only while the Active filter is on. */
+  activityCount?: number;
   /** The list owns the dialog: one per screen, not one per row. */
   showDialog: (spec: DialogSpec) => void;
 }) {
@@ -422,6 +469,7 @@ function ConversationRow({
     ? conversation.group.subject
     : conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
+  const reply = needsReply(conversation);
   const swipeRef = useRef<Swipeable>(null);
 
   // Delivery ticks for the last message, WhatsApp-style — only when we
@@ -553,6 +601,54 @@ function ConversationRow({
             </View>
             <UnreadBadge count={conversation.unread_count} />
           </View>
+          {reply || activityCount != null ? (
+            <View style={styles.pillRow}>
+              {reply ? (
+                <View
+                  style={[
+                    styles.pill,
+                    {
+                      backgroundColor: reply.windowExpired
+                        ? colors.dangerSoft
+                        : colors.warningSoft,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="arrow-undo"
+                    size={11}
+                    color={reply.windowExpired ? colors.danger : colors.warning}
+                  />
+                  <Text
+                    style={[
+                      styles.pillText,
+                      {
+                        fontFamily: f.bold,
+                        color: reply.windowExpired
+                          ? colors.danger
+                          : colors.warning,
+                      },
+                    ]}
+                  >
+                    {needsReplyLabel(reply)}
+                  </Text>
+                </View>
+              ) : null}
+              {activityCount != null ? (
+                <View style={[styles.pill, { backgroundColor: colors.primarySoft }]}>
+                  <Ionicons name="flame" size={11} color={colors.primary} />
+                  <Text
+                    style={[
+                      styles.pillText,
+                      { fontFamily: f.bold, color: colors.primary },
+                    ]}
+                  >
+                    {activityCount} in 24h
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
         </View>
       </PressScale>
     </Swipeable>
@@ -603,6 +699,16 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   previewWrap: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  pillRow: { flexDirection: 'row', gap: 6, marginTop: 2 },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: radius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+  },
+  pillText: { fontSize: 11 },
   tick: { marginRight: 3 },
   swipeAction: {
     justifyContent: 'center',

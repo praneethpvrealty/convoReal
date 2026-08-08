@@ -59,6 +59,8 @@ export interface Conversation {
   last_message_at?: string;
   unread_count: number;
   is_archived: boolean;
+  awaiting_reply?: boolean;
+  last_customer_message_at?: string | null;
   contact?: Contact;
   /** Set instead of `contact` when the thread is a WhatsApp group. A
    *  conversation is about exactly one of the two — see migration 222. */

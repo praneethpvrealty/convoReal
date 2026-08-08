@@ -54,6 +54,7 @@ import {
 } from '@/lib/attachments';
 import { useAuthStore } from '@/lib/auth-store';
 import { isReengagementError } from '@/lib/customer-window';
+import { needsReply } from '@/lib/reply-state';
 import { haptic } from '@/lib/haptics';
 import {
   canForward,
@@ -413,6 +414,7 @@ export default function ConversationScreen() {
             <ThreadHeader
               title={title}
               status={conversation?.status}
+              awaiting={Boolean(conversation && needsReply(conversation))}
               onCall={
                 conversation?.contact?.phone
                   ? () =>
@@ -662,10 +664,12 @@ const STATUS_LABELS: Record<string, string> = {
 function ThreadHeader({
   title,
   status,
+  awaiting,
   onCall,
 }: {
   title: string;
   status?: string;
+  awaiting?: boolean;
   onCall?: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -696,10 +700,13 @@ function ThreadHeader({
           <Text
             style={{
               fontSize: 11.5,
-              color: status === 'pending' ? colors.warning : colors.textMuted,
+              color:
+                awaiting || status === 'pending'
+                  ? colors.warning
+                  : colors.textMuted,
             }}
           >
-            {STATUS_LABELS[status] ?? status}
+            {awaiting ? 'Needs your reply' : (STATUS_LABELS[status] ?? status)}
           </Text>
         ) : null}
       </View>
