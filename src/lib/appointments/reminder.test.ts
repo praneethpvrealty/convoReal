@@ -163,13 +163,15 @@ describe('reminderLocationText', () => {
     ).toBe('Site office gate, opposite the water tank');
   });
 
-  it('falls back to the locality for a guarded listing', () => {
-    // A plot is guarded by default: the showcase withholds its address,
-    // so a reminder to every contact on the appointment cannot leak it.
-    expect(reminderLocationText(null, plot)).toBe('Devanahalli, Bangalore');
+  it('gives a booked visitor the full address, guard or not', () => {
+    // A plot is guarded everywhere else: the showcase withholds its
+    // address so a rival cannot reach the owner direct. Someone with a
+    // confirmed visit is not that — we picked them, we picked the date,
+    // and we are taking them to the gate.
+    expect(reminderLocationText(null, plot)).toBe(plot.location);
   });
 
-  it('gives the full address when the listing is not guarded', () => {
+  it('gives the full address for an unguarded listing too', () => {
     expect(
       reminderLocationText(null, {
         ...plot,
@@ -179,14 +181,14 @@ describe('reminderLocationText', () => {
     ).toBe('Purva Vantage, HSR Layout');
   });
 
-  it('honours an explicit privacy override on a guarded type', () => {
-    expect(reminderLocationText(null, { ...plot, location_privacy: 'exact' })).toBe(
-      plot.location
+  it('falls back to the locality when the listing has no street address', () => {
+    expect(reminderLocationText(null, { ...plot, location: null })).toBe(
+      'Devanahalli, Bangalore'
     );
   });
 
   it('promises the address rather than echoing "available on request"', () => {
-    // localityLabel's own fallback is showcase copy; in a reminder it
+    // localityLabel's own last resort is showcase copy; in a reminder it
     // answers a question the client did not ask.
     expect(
       reminderLocationText(null, {

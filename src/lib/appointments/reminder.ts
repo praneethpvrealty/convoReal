@@ -4,7 +4,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler'
-import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard'
+import { localityLabel } from '@/lib/inventory/location-guard'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ============================================================
@@ -41,9 +41,7 @@ const HOUR_MS = 60 * 60 * 1000
  */
 export const LOCATION_TO_FOLLOW = 'to be shared before the visit'
 
-/** Property fields the location text needs. Mirrors the guard's own
- *  inputs so the reminder can never reveal an address the showcase
- *  withholds. */
+/** Property fields the location text needs. */
 export interface ReminderProperty {
   title?: string | null
   type?: string | null
@@ -61,12 +59,21 @@ export interface ReminderProperty {
  * point meant that exact string, and it is the only field that can say
  * "site office gate, opposite the water tank".
  *
- * Failing that, a linked property can answer — through the SAME guard
- * every other surface uses. A brokerage that hid a plot's address from
- * its showcase has not agreed to broadcast it in a reminder, and this
- * one goes to every contact on the appointment. Guarded listings give
- * the locality; the agent puts the precise meeting point on the
- * appointment when the client needs it.
+ * Failing that, the linked property answers with its full address —
+ * and this is a DELIBERATE exception to the location guard, which
+ * src/lib/inventory/location-guard.ts otherwise applies to every
+ * surface that serializes a property for an external viewer.
+ *
+ * The guard exists to stop a rival agent identifying a house or plot
+ * from a public listing and approaching the owner directly. A booked
+ * site visit is not that: the brokerage chose this person, chose the
+ * date, and is taking them to the gate. Withholding the address there
+ * protects nothing and only makes the client ask for it — which is the
+ * agent's phone ringing at 7am to read out a street name.
+ *
+ * The exception is scoped to exactly that: an appointment already in
+ * the diary, reminding people who are on it. Nothing here widens what
+ * the showcase, a share link or the Q&A bot will reveal.
  */
 export function reminderLocationText(
   appointmentLocation: string | null | undefined,
@@ -75,17 +82,15 @@ export function reminderLocationText(
   const typed = (appointmentLocation || '').trim()
   if (typed) return typed
 
-  if (property?.type) {
-    const guarded = isLocationGuarded({
-      type: property.type,
-      location_privacy: property.location_privacy,
-    })
-    const text = guarded
-      ? localityLabel(property)
-      : (property.location || '').trim() || localityLabel(property)
-    // localityLabel falls back to its own "available on request" copy,
-    // which reads worse here than saying when they will get it.
-    if (text && !/available on request/i.test(text)) return text
+  const exact = (property?.location || '').trim()
+  if (exact) return exact
+
+  // No street address on the listing either — the locality still beats
+  // saying nothing, unless it degrades to localityLabel's own showcase
+  // fallback, which answers a question the client did not ask.
+  if (property) {
+    const label = localityLabel(property)
+    if (label && !/available on request/i.test(label)) return label
   }
 
   return LOCATION_TO_FOLLOW
