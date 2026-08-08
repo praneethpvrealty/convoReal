@@ -5,6 +5,7 @@ import {
   ENQUIRY_NOTICE_FAILURE_REASONS,
   type EnquiryNoticeContext,
 } from './enquiry-notice-params';
+import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
 
 function prop(overrides: Partial<Property>): Property {
   return {
@@ -26,20 +27,44 @@ function prop(overrides: Partial<Property>): Property {
 const contact = { id: 'c1', name: 'Praneeth' } as Pick<Contact, 'id' | 'name'>;
 
 describe('resolveEnquiryNoticeParams', () => {
-  it('builds both params when the enquired property is known', () => {
-    const result = resolveEnquiryNoticeParams(contact, {
-      enquired: new Map([
-        [
-          'c1',
-          prop({
-            title: 'Prestige Lakeside',
-            bedrooms: 3,
-            sublocality: 'Whitefield',
-          }),
-        ],
-      ]),
+  const known = () =>
+    new Map([
+      [
+        'c1',
+        prop({
+          title: 'Prestige Lakeside',
+          bedrooms: 3,
+          sublocality: 'Whitefield',
+        }),
+      ],
+    ]);
+
+  it('signs the notice with the brokerage when the property is known', () => {
+    expect(
+      resolveEnquiryNoticeParams(contact, {
+        enquired: known(),
+        brandName: 'Aryavarta Realty',
+        templateName: ENQUIRY_NOTICE_TEMPLATE_NAME,
+      })
+    ).toEqual({
+      params: [
+        'Praneeth',
+        'Aryavarta Realty',
+        '3 BHK at Prestige Lakeside, Whitefield',
+      ],
     });
-    expect(result).toEqual({
+  });
+
+  it('drops the brokerage param for the legacy name', () => {
+    // The predecessor has no {{2}} for it, and Meta rejects a send
+    // whose param count does not match the template.
+    expect(
+      resolveEnquiryNoticeParams(contact, {
+        enquired: known(),
+        brandName: 'Aryavarta Realty',
+        templateName: 'property_enquiry_notice',
+      })
+    ).toEqual({
       params: ['Praneeth', '3 BHK at Prestige Lakeside, Whitefield'],
     });
   });

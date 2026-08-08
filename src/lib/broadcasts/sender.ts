@@ -2,7 +2,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
-import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
+import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   loadEnquiryNoticeContext,
   resolveEnquiryNoticeParams,
@@ -341,16 +341,18 @@ export async function sendBroadcastRecipients(
 
   // Loaded once per sweep for the property-anchored template only —
   // every other template resolves its params from the contact row.
-  const enquiryNoticeContext =
-    broadcast.template_name === ENQUIRY_NOTICE_TEMPLATE_NAME
-      ? await loadEnquiryNoticeContext(
-          supabase,
-          accountId,
-          recipients
-            .map((r) => r.contact)
-            .filter((c): c is Contact => Boolean(c?.id)),
-        )
-      : null;
+  const enquiryNoticeContext = ENQUIRY_NOTICE_TEMPLATE_NAMES.includes(
+    broadcast.template_name ?? '',
+  )
+    ? await loadEnquiryNoticeContext(
+        supabase,
+        accountId,
+        recipients
+          .map((r) => r.contact)
+          .filter((c): c is Contact => Boolean(c?.id)),
+        broadcast.template_name ?? undefined,
+      )
+    : null;
 
   const BATCH_SIZE = 10;
   const DELAY_MS = 1000;

@@ -13,11 +13,22 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact, Property } from '@/types';
-import { buildEnquiryNoticeParams } from '@/lib/whatsapp/enquiry-notice-template';
+import {
+  buildEnquiryNoticeParams,
+  enquiryNoticeParamCount,
+} from '@/lib/whatsapp/enquiry-notice-template';
 
 export interface EnquiryNoticeContext {
   /** Enquired property per contact id. */
   enquired: Map<string, Property>;
+  /** The brokerage the notice is signed with — one value for the whole
+   *  batch. Absent only when the account has no name set, in which case
+   *  the param builder falls back rather than sending unsigned. */
+  brandName?: string | null;
+  /** The template the batch is going out under: the signed revision
+   *  carries the brokerage as {{2}}, the legacy one has no such param,
+   *  and Meta rejects a send whose count does not match. */
+  templateName?: string;
 }
 
 export type EnquiryNoticeFailure = 'no_enquired_property';
@@ -27,10 +38,17 @@ export type EnquiryNoticeFailure = 'no_enquired_property';
 export async function loadEnquiryNoticeContext(
   db: SupabaseClient,
   accountId: string,
-  contacts: readonly Contact[]
+  contacts: readonly Contact[],
+  templateName?: string
 ): Promise<EnquiryNoticeContext> {
   const enquired = new Map<string, Property>();
-  if (contacts.length === 0) return { enquired };
+  const { data: acct } = await db
+    .from('accounts')
+    .select('name')
+    .eq('id', accountId)
+    .maybeSingle();
+  const brandName = (acct?.name as string | null) ?? null;
+  if (contacts.length === 0) return { enquired, brandName, templateName };
 
   const enquiredIdByContact = new Map<string, string>();
   for (const c of contacts) {
@@ -38,7 +56,7 @@ export async function loadEnquiryNoticeContext(
       .last_inquired_property_id;
     if (pid) enquiredIdByContact.set(c.id, pid);
   }
-  if (enquiredIdByContact.size === 0) return { enquired };
+  if (enquiredIdByContact.size === 0) return { enquired, brandName, templateName };
 
   const { data } = await db
     .from('properties')
@@ -53,7 +71,7 @@ export async function loadEnquiryNoticeContext(
     const p = propertyById.get(propertyId);
     if (p) enquired.set(contactId, p);
   }
-  return { enquired };
+  return { enquired, brandName, templateName };
 }
 
 /**
@@ -67,7 +85,15 @@ export function resolveEnquiryNoticeParams(
 ): { params: string[] } | { failure: EnquiryNoticeFailure } {
   const enquired = ctx.enquired.get(contact.id);
   if (!enquired) return { failure: 'no_enquired_property' };
-  return { params: buildEnquiryNoticeParams(contact.name, enquired) };
+  const params = buildEnquiryNoticeParams(contact.name, enquired, ctx.brandName);
+  // The legacy name has no brokerage param. Drop it rather than send a
+  // spare, which Meta rejects outright.
+  return {
+    params:
+      ctx.templateName && enquiryNoticeParamCount(ctx.templateName) === 2
+        ? [params[0], params[2]]
+        : params,
+  };
 }
 
 export const ENQUIRY_NOTICE_FAILURE_REASONS: Record<

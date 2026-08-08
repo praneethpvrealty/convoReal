@@ -3,7 +3,10 @@
 // lead has reached are unit-testable.
 
 import { formatShareAmount } from '@/lib/share-message-builder';
-import { ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-followup-template';
+import {
+  ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+  LEGACY_ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
+} from '@/lib/whatsapp/enquiry-followup-template';
 import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
 import type { ReengagementLead, ReengagementSummary } from './queries';
 
@@ -19,6 +22,9 @@ const RETIRED_ENQUIRY_TEMPLATE_NAMES = [
  *  with is_reengagement_template() in migration 214. */
 export const REENGAGEMENT_TEMPLATE_NAMES: readonly string[] = [
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+  // Still sending, and still the fallback until the signed revision
+  // clears review — a batch on it is a re-engagement batch.
+  ...LEGACY_ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
   ENQUIRY_NOTICE_TEMPLATE_NAME,
   ...RETIRED_ENQUIRY_TEMPLATE_NAMES,
 ];
