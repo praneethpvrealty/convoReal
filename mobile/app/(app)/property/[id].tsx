@@ -24,7 +24,7 @@ import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { FlyerSheet } from '@/components/flyer-sheet';
 import { ConvoRealLoader } from '@/components/loader';
 import { PropertyShareSheet } from '@/components/property-share-sheet';
-import { SectionLabel, Tag } from '@/components/ui';
+import { SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { nativeMapsAvailable } from '@/lib/maps-support';
 import { openInMaps } from '@/lib/open-maps';
 import { storagePublicUrl } from '@/lib/storage-url';
@@ -941,7 +941,11 @@ function MatchesSection({ property }: { property: Property }) {
                 >
                   {m.contact.name || m.contact.phone}
                 </Text>
-                {m.contact.name_tag ? <Tag label={m.contact.name_tag} /> : null}
+                {m.contact.name_tag ? (
+                  <View style={nameTagCap}>
+                    <Tag label={m.contact.name_tag} />
+                  </View>
+                ) : null}
                 {m.contact.classification ? (
                   <Tag
                     label={m.contact.classification}

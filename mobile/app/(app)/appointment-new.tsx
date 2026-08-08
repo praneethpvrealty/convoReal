@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 
 import { InlineDateTimePicker } from '@/components/datetime-field';
-import { Avatar, Banner, PrimaryButton, Tag, TextField } from '@/components/ui';
+import { Avatar, Banner, PrimaryButton, Tag, TextField, nameTagCap } from '@/components/ui';
 import { VoiceScheduler } from '@/components/voice-scheduler';
 import { useAuthStore } from '@/lib/auth-store';
 import { friendlyError } from '@/lib/errors';
@@ -290,7 +290,11 @@ export default function NewAppointmentScreen() {
                 >
                   {c.name || c.phone}
                 </Text>
-                {c.name_tag ? <Tag label={c.name_tag} /> : null}
+                {c.name_tag ? (
+                  <View style={nameTagCap}>
+                    <Tag label={c.name_tag} />
+                  </View>
+                ) : null}
               </Pressable>
             ))}
           </View>

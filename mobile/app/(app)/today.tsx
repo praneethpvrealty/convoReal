@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { ConvoRealLoader } from '@/components/loader';
-import { Avatar, SectionLabel, Tag } from '@/components/ui';
+import { Avatar, SectionLabel, Tag, nameTagCap } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { queryClient } from '@/lib/query';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -308,7 +308,11 @@ function Row({
           >
             {title}
           </Text>
-          {nameTag ? <Tag label={nameTag} /> : null}
+          {nameTag ? (
+            <View style={nameTagCap}>
+              <Tag label={nameTag} />
+            </View>
+          ) : null}
         </View>
         <Text
           style={{ fontSize: 12.5, color: subtitleColor ?? colors.textMuted }}

@@ -20,6 +20,7 @@ import {
   SearchBar,
   Tag,
   listCard,
+  nameTagCap,
 } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 import { fonts, spacing, useTheme } from '@/lib/theme';
@@ -235,7 +236,7 @@ function AgentRow({
             {name}
           </Text>
           {agent.name_tag ? (
-            <View style={{ flexShrink: 1, maxWidth: '50%' }}>
+            <View style={nameTagCap}>
               <Tag label={agent.name_tag} />
             </View>
           ) : null}
