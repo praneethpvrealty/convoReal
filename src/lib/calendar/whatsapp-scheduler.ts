@@ -23,6 +23,7 @@ import {
   type ParsedEventDraft,
 } from '@/lib/calendar/event-parse';
 import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { parseEventOutcome } from '@/lib/calendar/event-outcome';
 import { autoLinkContactProperty } from '@/lib/calendar/auto-link';
 import { createNotification } from '@/lib/notifications/create';
 
@@ -333,6 +334,62 @@ export async function applySchedulingEdit(
     return 'skipped';
   }
   if (!row) return 'stale';
+
+  // ── "This is already done." ──────────────────────────────────
+  // Closing the event out, ahead of the reschedule parse and ahead of
+  // the editability window: an outcome is reported AFTER the thing
+  // happened, and isEditableAppointment deliberately refuses anything
+  // past its end time. Applying the same rule here would reject every
+  // report that arrived at the only moment it could be true.
+  //
+  // Free — no model call, and the agent's own sentence is the outcome.
+  if (target.entityType === 'appointment' && row.status === 'scheduled') {
+    const reported = parseEventOutcome(instruction);
+    if (reported) {
+      const { error: outcomeErr } = await admin
+        .from('appointments')
+        .update({
+          status: reported.status,
+          // Kept for a completion only. A cancelled visit has no
+          // outcome — nothing happened to report on — and writing the
+          // cancellation sentence into the feedback field would put it
+          // in front of an agent later as if it were one.
+          ...(reported.status === 'completed' ? { outcome: reported.outcome } : {}),
+        })
+        .eq('id', target.entityId)
+        .eq('account_id', accountId);
+      if (outcomeErr) {
+        console.error('[wa-scheduler] outcome update failed:', outcomeErr);
+        return 'skipped';
+      }
+
+      const closedWamid = await replyAndLog({
+        phoneNumberId,
+        accessToken,
+        toPhone: contactRecord.phone,
+        conversationId: conversation.id,
+        text: [
+          reported.status === 'completed'
+            ? '✅ *Marked done on your calendar*'
+            : '🚫 *Cancelled on your calendar*',
+          `🗓 ${row.title as string}`,
+          reported.status === 'completed' ? `📝 ${reported.outcome}` : null,
+          '',
+          '_Reply to this message to correct it._',
+        ]
+          .filter((l): l is string => l !== null)
+          .join('\n'),
+      });
+      await recordBotTarget({
+        accountId,
+        waMessageId: closedWamid,
+        entityType: 'appointment',
+        entityId: target.entityId,
+        client: admin,
+      });
+      return 'edited';
+    }
+  }
 
   if (target.entityType === 'appointment') {
     if (!isEditableAppointment(row as { status: string; end_time: string | null; start_time: string }, now)) {
