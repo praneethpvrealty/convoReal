@@ -308,6 +308,24 @@ export function sendTextMessage(
   });
 }
 
+/**
+ * Engine-local message state — PATCH /api/whatsapp/messages/{id}.
+ *
+ * 'pin'/'unpin' mark a message for the team; 'hide'/'restore' control
+ * whether it appears in this account's inbox. None of them touch the
+ * contact's copy: WhatsApp offers no way to recall a sent message, and
+ * no way to pin one outside a group.
+ */
+export function setMessageState(
+  messageId: string,
+  action: 'pin' | 'unpin' | 'hide' | 'restore'
+) {
+  return apiFetch<{ data: { id: string; action: string } }>(
+    `/api/whatsapp/messages/${encodeURIComponent(messageId)}`,
+    { method: 'PATCH', body: JSON.stringify({ action }) }
+  );
+}
+
 export interface StagedMedia {
   media_url: string;
   media_kind: 'image' | 'video' | 'audio' | 'document';

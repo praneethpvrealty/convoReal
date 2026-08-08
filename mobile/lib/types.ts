@@ -89,6 +89,14 @@ export interface Message {
   /** Meta's own wamid, once WhatsApp has accepted the message. Absent
    *  while a send is queued and on anything that failed. */
   message_id?: string | null;
+  /** Engine-local pin. Nothing changes on the contact's phone: the
+   *  Cloud API's pin endpoint takes group recipients only. */
+  pinned_at?: string | null;
+  pinned_by?: string | null;
+  /** Engine-local hide. The customer's copy is NOT deleted — Meta has
+   *  no revoke endpoint — so this only removes the row from our inbox. */
+  deleted_at?: string | null;
+  deleted_by?: string | null;
 }
 
 export type ReactionActor = 'agent' | 'customer';

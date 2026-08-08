@@ -41,6 +41,7 @@ import {
   sendMediaMessage,
   sendTemplateMessage,
   sendTextMessage,
+  setMessageState,
   suggestReplies,
   uploadChatMedia,
 } from '@/lib/api';
@@ -58,7 +59,15 @@ import {
   canResend,
   forwardSummary,
   forwardableText,
+  messagePreview,
 } from '@/lib/message-actions';
+import {
+  HIDE_ACTION_LABEL,
+  HIDE_CONFIRM_MESSAGE,
+  pinAction,
+  pinnedMessages,
+  visibleMessages,
+} from '@/lib/message-state';
 import {
   QUICK_EMOJIS,
   canReact,
@@ -230,7 +239,7 @@ export default function ConversationScreen() {
 
   // Interleave day separators (list is inverted: newest first).
   const items = useMemo<ThreadItem[]>(() => {
-    const list = messages ?? [];
+    const list = visibleMessages(messages ?? []);
     const out: ThreadItem[] = [];
     for (let i = 0; i < list.length; i++) {
       out.push({ kind: 'message', message: list[i] });
@@ -318,6 +327,43 @@ export default function ConversationScreen() {
     haptic.success();
   }
 
+  const pinned = useMemo(() => pinnedMessages(messages ?? []), [messages]);
+
+  async function changeState(
+    message: Message,
+    action: 'pin' | 'unpin' | 'hide' | 'restore'
+  ) {
+    haptic.tap();
+    try {
+      await setMessageState(message.id, action);
+      queryClient.invalidateQueries({ queryKey: ['messages', id] });
+    } catch (err) {
+      haptic.warn();
+      show({
+        title: 'Could not update the message',
+        message: err instanceof ApiError ? err.message : 'Something went wrong — try again.',
+      });
+    }
+  }
+
+  /** Hiding is confirmed every time. It reads like WhatsApp's "delete
+   *  for everyone" and is nothing like it — the customer keeps their
+   *  copy, because the Cloud API has no way to take it back. */
+  function confirmHide(message: Message) {
+    show({
+      title: HIDE_ACTION_LABEL,
+      message: HIDE_CONFIRM_MESSAGE,
+      actions: [
+        { label: 'Cancel', variant: 'muted', onPress: () => {} },
+        {
+          label: HIDE_ACTION_LABEL,
+          variant: 'destructive',
+          onPress: () => void changeState(message, 'hide'),
+        },
+      ],
+    });
+  }
+
   async function forwardTo(contacts: Contact[]) {
     const message = forwardFor;
     if (!message || contacts.length === 0) return;
@@ -397,6 +443,37 @@ export default function ConversationScreen() {
         </View>
       ) : (
         <View style={{ flex: 1 }}>
+          {pinned.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.pinnedRow}
+              style={[styles.pinnedBar, { borderBottomColor: colors.glassBorder }]}
+            >
+              {pinned.map((message) => (
+                <Pressable
+                  key={message.id}
+                  onPress={() => jumpToMessage(message.id)}
+                  onLongPress={() => void changeState(message, 'unpin')}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Pinned: ${messagePreview(message, 60)}`}
+                  accessibilityHint="Tap to jump to it, hold to unpin"
+                  style={[
+                    styles.pinnedChip,
+                    { backgroundColor: colors.glass, borderColor: colors.glassBorder },
+                  ]}
+                >
+                  <Ionicons name="pin" size={13} color={colors.primary} />
+                  <Text
+                    style={{ flexShrink: 1, fontSize: 12.5, color: colors.text }}
+                    numberOfLines={1}
+                  >
+                    {messagePreview(message, 60)}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : null}
           <FlatList
             ref={listRef}
             style={{ flex: 1 }}
@@ -509,6 +586,14 @@ export default function ConversationScreen() {
                       },
                     ]
                   : []),
+                {
+                  icon: actionsFor.message.pinned_at
+                    ? ('pin' as const)
+                    : ('pin-outline' as const),
+                  label: actionsFor.message.pinned_at ? 'Unpin' : 'Pin',
+                  onPress: () =>
+                    void changeState(actionsFor.message, pinAction(actionsFor.message)),
+                },
                 ...(canResend(actionsFor.message)
                   ? [
                       {
@@ -527,6 +612,11 @@ export default function ConversationScreen() {
                       },
                     ]
                   : []),
+                {
+                  icon: 'trash-outline' as const,
+                  label: HIDE_ACTION_LABEL,
+                  onPress: () => confirmHide(actionsFor.message),
+                },
               ]
             : []
         }
@@ -1227,6 +1317,26 @@ const styles = StyleSheet.create({
   replyBar: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
+  },
+  pinnedBar: {
+    flexGrow: 0,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  pinnedRow: {
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  pinnedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: 240,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   jumpToEnd: {
     position: 'absolute',

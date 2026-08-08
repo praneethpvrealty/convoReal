@@ -403,6 +403,14 @@ export function MessageBubble({
               ) : null}
 
               <View style={styles.meta}>
+                {message.pinned_at ? (
+                  <Ionicons
+                    name="pin"
+                    size={11}
+                    color={outgoing ? colors.outgoingMeta : colors.textFaint}
+                    accessibilityLabel="Pinned"
+                  />
+                ) : null}
                 <Text
                   style={{
                     fontSize: 10.5,
