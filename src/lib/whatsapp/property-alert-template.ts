@@ -12,6 +12,10 @@ import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
+import {
+  pickApprovedTemplate,
+  type ApprovedTemplateCandidate,
+} from '@/lib/whatsapp/pick-approved-template';
 
 /**
  * Bumped three times. Meta will not re-review an approved template in
@@ -51,48 +55,14 @@ export const PROPERTY_ALERT_TEMPLATE_NAMES = [
   ...LEGACY_PROPERTY_ALERT_TEMPLATE_NAMES,
 ];
 
-/** Just enough of a template row to choose between candidates. Both
- *  fields are optional because MessageTemplate leaves `status` so — a
- *  required one here silently stops MessageTemplate matching the
- *  constraint, and the generic collapses to this interface. */
-export interface PropertyAlertCandidate {
-  name: string;
-  status?: string | null;
-  category?: string | null;
-}
+export type PropertyAlertCandidate = ApprovedTemplateCandidate;
 
-/**
- * The template a send should actually use.
- *
- * Category outranks name. A Marketing template is silently dropped for
- * any recipient at their per-user cap (error 131049), which is the
- * whole reason this name has been bumped three times — so an approved
- * UTILITY row under an old name beats an approved MARKETING row under
- * the newest one. Preferring the new name blindly would be how the
- * branded template, if Meta miscategorises it, quietly stops half the
- * sends it was meant to improve.
- *
- * Within the same category, the newest name wins.
- */
-export function pickPropertyAlertTemplate<T extends PropertyAlertCandidate>(
+/** The text-only property-details template a send should use — see
+ *  pickApprovedTemplate for why category outranks name. */
+export function pickPropertyAlertTemplate<T extends ApprovedTemplateCandidate>(
   rows: T[]
 ): T | null {
-  const approved = rows.filter((t) => t.status === 'APPROVED');
-  if (!approved.length) return null;
-
-  // An unrecognised name sorts last rather than first — indexOf's -1
-  // would otherwise make a stranger the most preferred row.
-  const nameRank = (name: string): number => {
-    const i = PROPERTY_ALERT_TEMPLATE_NAMES.indexOf(name);
-    return i === -1 ? PROPERTY_ALERT_TEMPLATE_NAMES.length : i;
-  };
-
-  return [...approved].sort((a, b) => {
-    const category =
-      (a.category === 'Utility' ? 0 : 1) - (b.category === 'Utility' ? 0 : 1);
-    if (category !== 0) return category;
-    return nameRank(a.name) - nameRank(b.name);
-  })[0];
+  return pickApprovedTemplate(rows, PROPERTY_ALERT_TEMPLATE_NAMES);
 }
 
 export function buildPropertyAlertTemplatePayload(origin: string): TemplatePayload {

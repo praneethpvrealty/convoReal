@@ -27,11 +27,13 @@ import { BRANDING } from '@/config/branding';
 // reused rather than duplicated (it lives under den/ for historical
 // reasons; the Den was the first surface that needed it).
 import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
+import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
-  buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAMES,
-  pickPropertyAlertTemplate,
-} from '@/lib/whatsapp/property-alert-template';
+  PROPERTY_SHARE_TEMPLATE_NAMES,
+  pickPropertyShareTemplate,
+  shareHeaderImage,
+} from '@/lib/whatsapp/property-share-template';
+import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import {
   buildConsentRequestMessage,
@@ -232,6 +234,14 @@ async function runAccount(
       }
 
       const top = matches[0].property;
+      // The digest is headlined by its top match, so that listing's own
+      // photo leads the card — the account's brand image when it has
+      // none. A digest that arrives as a block of text is a worse
+      // digest, and the header costs nothing at the category level.
+      const headerImage = shareHeaderImage({
+        images: top.images,
+        brandImage: await accountBrandImage(db, accountId),
+      });
       const delivered = await sendDenNotification(db, {
         accountId,
         contactId: buyer.id,
@@ -240,9 +250,11 @@ async function runAccount(
           matches,
           portalUrl: url,
         }),
-        templateName: PROPERTY_ALERT_TEMPLATE_NAMES,
-        pickTemplate: pickPropertyAlertTemplate,
+        templateName: PROPERTY_SHARE_TEMPLATE_NAMES,
+        pickTemplate: (rows) =>
+          pickPropertyShareTemplate(rows, { hasImage: Boolean(headerImage) }),
         templateParams: buildPropertyAlertParams(buyer.name, top),
+        headerMediaUrl: headerImage,
       });
 
       if (delivered) {

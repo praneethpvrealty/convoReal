@@ -2,11 +2,13 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
-  buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAMES,
-  pickPropertyAlertTemplate,
-} from '@/lib/whatsapp/property-alert-template';
+  PROPERTY_SHARE_TEMPLATE_NAMES,
+  pickPropertyShareTemplate,
+  shareHeaderImage,
+} from '@/lib/whatsapp/property-share-template';
+import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
 import type { MessageTemplate, Property } from '@/types';
 
 // One property share to one contact through the account's WhatsApp
@@ -163,11 +165,22 @@ export async function sendPropertyToContact(opts: {
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .in('name', PROPERTY_ALERT_TEMPLATE_NAMES)
+    .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
     .order('last_submitted_at', { ascending: false });
   const candidates = (templateRows || []) as MessageTemplate[];
   const latestTemplate = candidates[0] ?? null;
-  const alertTemplate = pickPropertyAlertTemplate(candidates);
+
+  // Lead with the listing's own photo, or the account's brand card when
+  // it has none — a property message that leads with the property is a
+  // different message from one that does not, and the header is a
+  // send-time parameter so it costs nothing at the category level.
+  const headerImage = shareHeaderImage({
+    images: property.images,
+    brandImage: await accountBrandImage(db, accountId),
+  });
+  const alertTemplate = pickPropertyShareTemplate(candidates, {
+    hasImage: Boolean(headerImage),
+  });
 
   if (!alertTemplate) {
     // Ensure a conversation exists so the client's "Open chat" fallback
@@ -210,6 +223,9 @@ export async function sendPropertyToContact(opts: {
     messageParams: {
       body: bodyParams,
       ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+      // Only meaningful to a template with a media header; the text one
+      // ignores it, so both branches send the same call.
+      ...(headerImage ? { headerMediaUrl: headerImage } : {}),
     },
     templateRow: alertTemplate,
     text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),

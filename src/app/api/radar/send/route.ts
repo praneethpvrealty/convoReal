@@ -4,11 +4,13 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
+import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
-  buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAMES,
-  pickPropertyAlertTemplate,
-} from '@/lib/whatsapp/property-alert-template';
+  PROPERTY_SHARE_TEMPLATE_NAMES,
+  pickPropertyShareTemplate,
+  shareHeaderImage,
+} from '@/lib/whatsapp/property-share-template';
+import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
 import type { MatchEvent, MessageTemplate, Property } from '@/types';
 
 // POST /api/radar/send
@@ -148,11 +150,18 @@ export async function POST(request: NextRequest) {
       .from('message_templates')
       .select('*')
       .eq('account_id', ctx.accountId)
-      .in('name', PROPERTY_ALERT_TEMPLATE_NAMES)
+      .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
       .order('last_submitted_at', { ascending: false });
     const candidates = (templateRows || []) as MessageTemplate[];
     const latestTemplate = candidates[0] ?? null;
-    const alertTemplate = pickPropertyAlertTemplate(candidates);
+    // One lookup for the whole batch — the brand card is per account,
+    // and only the property photo varies from alert to alert.
+    const brandImage = await accountBrandImage(db, ctx.accountId);
+    /** Whether ANY of these alerts can go out at all, for the
+     *  "templateMissing" report — the per-property choice happens at
+     *  send time, once the header image is known. */
+    const anyApproved = pickPropertyShareTemplate(candidates, { hasImage: true })
+      ?? pickPropertyShareTemplate(candidates, { hasImage: false });
 
     /** One alert to one contact: free-form when the window is open,
      *  template otherwise. */
@@ -190,6 +199,16 @@ export async function POST(request: NextRequest) {
           : { status: 'failed', error: res.error };
       }
 
+      if (!anyApproved) return { status: 'templateMissing' };
+
+      // The listing's own photo, or the account's brand card — a
+      // Radar alert used to go out as text even for a listing with
+      // photos sitting right there, because this path only ever asked
+      // for the text template's names.
+      const headerImage = shareHeaderImage({ images: property.images, brandImage });
+      const alertTemplate = pickPropertyShareTemplate(candidates, {
+        hasImage: Boolean(headerImage),
+      });
       if (!alertTemplate) return { status: 'templateMissing' };
 
       const params = buildPropertyAlertParams(contactName, property);
@@ -213,6 +232,7 @@ export async function POST(request: NextRequest) {
         messageParams: {
           body: bodyParams,
           ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+          ...(headerImage ? { headerMediaUrl: headerImage } : {}),
         },
         templateRow: alertTemplate,
         text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),

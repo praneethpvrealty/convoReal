@@ -12,6 +12,7 @@ import {
   Copy,
   CheckCircle2,
   BarChart3,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -34,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { BRANDING } from '@/config/branding';
+import { storagePublicUrl } from '@/lib/storage/url';
 
 /** Mirrors the reserved list in resolveSubdomainFromHost()
  *  (src/lib/showcase/public-data.ts) — these labels resolve to the main
@@ -63,6 +65,8 @@ interface ShowcaseForm {
   metaPixelId: string;
   subdomain: string;
   theme: string;
+  /** Bucket-relative path, resolved for display by storagePublicUrl. */
+  brandImage: string;
 }
 
 const BLANK: ShowcaseForm = {
@@ -72,6 +76,7 @@ const BLANK: ShowcaseForm = {
   metaPixelId: '',
   subdomain: '',
   theme: 'violet',
+  brandImage: '',
 };
 
 function ShareLinkCard({
@@ -179,8 +184,45 @@ export function ShowcaseSettingsPanel() {
   const [form, setForm] = useState<ShowcaseForm>(BLANK);
   const [saved, setSaved] = useState<ShowcaseForm>(BLANK);
 
+  const [uploadingBrand, setUploadingBrand] = useState(false);
+
   const set = <K extends keyof ShowcaseForm>(key: K, value: ShowcaseForm[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // Straight to storage with the authed client, same bucket and
+  // account-scoped path as property images — the field holds the
+  // bucket-relative path, and Save is what commits it.
+  const uploadBrandImage = async (file: File) => {
+    if (!accountId) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Pick an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('That image is over 5 MB — WhatsApp will reject it.');
+      return;
+    }
+    setUploadingBrand(true);
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `${accountId}/brand-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage
+        .from('property-images')
+        .upload(path, file, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: file.type,
+        });
+      if (error) throw error;
+      set('brandImage', `property-images/${path}`);
+      toast.success('Brand card uploaded — Save to apply.');
+    } catch (err) {
+      console.error('Brand image upload failed:', err);
+      toast.error(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploadingBrand(false);
+    }
+  };
 
   useEffect(() => {
     if (authLoading || !accountId) return;
@@ -207,6 +249,7 @@ export function ShowcaseSettingsPanel() {
             metaPixelId: data.meta_pixel_id || '',
             subdomain: data.subdomain || '',
             theme: data.theme || 'violet',
+            brandImage: data.brand_image_url || '',
           };
           setForm((prev) => ({ ...prev, ...loaded }));
           setSaved((prev) => ({ ...prev, ...loaded }));
@@ -268,6 +311,7 @@ export function ShowcaseSettingsPanel() {
         contact_phone: form.contactPhone.trim(),
         whatsapp_message_template: form.whatsappTemplate.trim(),
         meta_pixel_id: form.metaPixelId.trim() || null,
+        brand_image_url: form.brandImage.trim() || null,
         subdomain: subdomain || null,
         theme: form.theme,
         updated_at: new Date().toISOString(),
@@ -558,6 +602,54 @@ export function ShowcaseSettingsPanel() {
             and{' '}
             <code className="text-primary rounded bg-slate-950 px-1 py-0.5">{`{location}`}</code>{' '}
             as dynamic placeholders.
+          </p>
+        </div>
+      </Section>
+
+      <Section
+        icon={<ImageIcon className="text-primary size-5" />}
+        title="Brand card"
+        description="Optional. The image WhatsApp messages lead with when they have no photo of their own."
+      >
+        <div className="space-y-3">
+          {form.brandImage ? (
+            <div className="flex items-start gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={storagePublicUrl(form.brandImage)}
+                alt="Brand card"
+                className="h-24 w-auto rounded-lg border border-slate-800 object-cover"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => set('brandImage', '')}
+                className="text-slate-400 hover:text-red-400"
+              >
+                Remove
+              </Button>
+            </div>
+          ) : null}
+          <div>
+            <input
+              id="brandImage"
+              type="file"
+              accept="image/*"
+              disabled={uploadingBrand}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = '';
+                if (file) uploadBrandImage(file);
+              }}
+              className="text-slate-350 file:bg-primary file:text-primary-foreground hover:file:bg-primary-hover block w-full cursor-pointer text-sm file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:px-3 file:py-1.5 file:text-sm"
+            />
+          </div>
+          <p className="text-[11px] text-slate-400">
+            A property message always leads with the property&apos;s own photo.
+            This is what everything else carries — a listing with no photos
+            uploaded yet, or a match digest. Landscape works best; WhatsApp
+            crops tall images. Save to apply.
           </p>
         </div>
       </Section>
