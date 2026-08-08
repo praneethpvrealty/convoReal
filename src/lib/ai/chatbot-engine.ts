@@ -32,6 +32,12 @@ import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
 import { parseEventOutcome } from '@/lib/calendar/event-outcome';
+import {
+  openOverdueEvents,
+  subjectOf,
+  openEventLabel,
+  type OpenEventSubject,
+} from '@/lib/calendar/open-event-subject';
 import { recordBotTarget, resolveBotTarget, latestBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import { applyRecordUpdate } from '@/lib/ai/record-edit';
@@ -626,24 +632,54 @@ export async function processOwnerChatbotMessage(
     ? await resolveBotTarget({ accountId, contextId: message.context?.id })
     : null;
 
-  // 1.64. The answer to "how did it go?", typed straight back.
+  // 1.64. The answer to "how did it go?".
   //
-  // The nudge card asks a direct question, and an agent answers it the
-  // way they would answer a person — no quote. That reply named no
-  // card, so it reached the intake classifier and came back "I couldn't
-  // tell what that was" while the visit stayed open.
+  // The nudge asks a direct question, and the answer comes back the way
+  // it would to a person — often with no quote at all, and never with
+  // any obligation to quote the right thing. Both card lookups are
+  // message plumbing: the newest registered card in the thread first,
+  // and then, when there is no card to find, the agent's own open
+  // events. A bot that can only be answered about messages it sent
+  // after a particular deploy is not answerable.
   //
-  // parseEventOutcome is the gate, and it is deterministic and free: the
-  // text has to already read as "it happened" or "it's off" before the
-  // thread is searched at all. Anything vaguer keeps falling through to
-  // the paths below, and a card the reply is not about is out of reach
-  // because applySchedulingEdit only closes an event still scheduled.
+  // parseEventOutcome is the gate, and it is deterministic and free:
+  // the text has to already read as "it happened" or "it's off" before
+  // anything is looked up. Anything vaguer falls through to the paths
+  // below untouched.
+  let outcomeSubject: OpenEventSubject | null = null;
   if (!editTarget && cleanedText && parseEventOutcome(cleanedText)) {
     editTarget = await latestBotTarget({
       accountId,
       conversationId: conversation.id,
       entityType: 'appointment',
     });
+
+    if (!editTarget) {
+      outcomeSubject = subjectOf(
+        await openOverdueEvents({ db: supabaseAdmin(), accountId, userId })
+      );
+      // One open overdue event and a sentence reporting an outcome is
+      // not a guess. Several is — closing the wrong meeting is worse
+      // than asking, so 'many' falls through to the reply below.
+      if (outcomeSubject.kind === 'one') {
+        editTarget = { entityType: 'appointment', entityId: outcomeSubject.event.id };
+      }
+    }
+  }
+
+  // Several open events and no card to say which: name them and let
+  // the agent point, rather than answering "I couldn't tell what that
+  // was" to a sentence that was perfectly clear.
+  if (outcomeSubject?.kind === 'many') {
+    const reply = [
+      '🤔 *Which one do you mean?*',
+      ...outcomeSubject.events.map((e) => `• ${openEventLabel(e)}`),
+      '',
+      '_Reply to the reminder for that one, or name it._',
+    ].join('\n');
+    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    await saveBotMessage(conversation.id, reply, sendRes.messageId);
+    return true;
   }
 
   if (editTarget) {
