@@ -5,7 +5,7 @@
 //
 // NEITHER REACHES WHATSAPP. Meta exposes no revoke endpoint for a sent
 // message, and its pin endpoint accepts group recipients only — see
-// migration 217. Hiding removes a message from this account's inbox;
+// migration 221. Hiding removes a message from this account's inbox;
 // the copy on the contact's phone is untouched and cannot be recalled.
 // The client must name the actions accordingly.
 // ============================================================

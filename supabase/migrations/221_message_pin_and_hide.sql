@@ -1,5 +1,5 @@
 -- ============================================================
--- 217_message_pin_and_hide.sql
+-- 221_message_pin_and_hide.sql
 -- Pinning a message, and hiding one from the Engine inbox.
 --
 -- BOTH ARE ENGINE-LOCAL FOR ONE-TO-ONE THREADS. Read this before

@@ -1,5 +1,5 @@
 -- ============================================================
--- 216_chat_media_bucket.sql
+-- 220_chat_media_bucket.sql
 -- Storage for media an agent sends into a WhatsApp thread.
 --
 -- Meta fetches outbound media by PUBLIC URL (sendMediaMessage takes a

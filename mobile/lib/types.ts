@@ -61,7 +61,7 @@ export interface Conversation {
   is_archived: boolean;
   contact?: Contact;
   /** Set instead of `contact` when the thread is a WhatsApp group. A
-   *  conversation is about exactly one of the two — see migration 218. */
+   *  conversation is about exactly one of the two — see migration 222. */
   group?: WhatsAppGroup | null;
 }
 

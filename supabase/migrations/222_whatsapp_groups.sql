@@ -1,5 +1,5 @@
 -- ============================================================
--- 218_whatsapp_groups.sql
+-- 222_whatsapp_groups.sql
 -- WhatsApp Groups (Cloud API Groups, 2026).
 --
 -- Eligibility, before anything here is useful: the Groups API is open
