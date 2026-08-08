@@ -30,6 +30,7 @@ import {
   Tag,
   UnreadBadge,
   listCard,
+  nameTagCap,
 } from '@/components/ui';
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { useAuthStore } from '@/lib/auth-store';
@@ -516,7 +517,9 @@ function ConversationRow({
                 {name}
               </Text>
               {conversation.contact?.name_tag ? (
-                <Tag label={conversation.contact.name_tag} />
+                <View style={nameTagCap}>
+                  <Tag label={conversation.contact.name_tag} />
+                </View>
               ) : null}
             </View>
             <Text

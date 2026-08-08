@@ -37,6 +37,7 @@ import {
   Tag,
   TextField,
   listCard,
+  nameTagCap,
 } from '@/components/ui';
 import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { approveAndSendDetails } from '@/lib/approve-contact';
@@ -844,7 +845,11 @@ function ContactRow({
           >
             {name}
           </Text>
-          {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
+          {contact.name_tag ? (
+            <View style={nameTagCap}>
+              <Tag label={contact.name_tag} />
+            </View>
+          ) : null}
           <Pressable
             hitSlop={10}
             onPress={onCall}
@@ -1395,11 +1400,7 @@ const styles = StyleSheet.create({
     fontSize: 16.5,
     fontFamily: fonts.extrabold,
     letterSpacing: -0.2,
-    // Shrinks, but reluctantly: the name_tag beside it also shrinks, and
-    // an even weight lets a long tag ("Ex Purva vantage …") crush the
-    // name to two letters. Shrink is weighted by basis, so the wider tag
-    // gives up most of the space.
-    flexShrink: 0.3,
+    flexShrink: 1,
   },
   // Wraps like the other chip rows (properties specRow,
   // contact-picker metaRow): a classification plus two tags plus the
