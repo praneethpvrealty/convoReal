@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import {
@@ -19,7 +18,6 @@ import { Share2, Loader2 } from 'lucide-react';
 import {
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
-  buildAgentInventoryDigestTemplatePayload,
 } from '@/lib/whatsapp/agent-inventory-digest-template';
 
 /**
@@ -28,13 +26,16 @@ import {
  * account lists as agent-referred): direct buyers their listings were
  * shared with, indirect buyers reached through downstream partner
  * agents, and partner agents onboarded. Source agents without a
- * ConvoReal account get a signup invite with each digest.
+ * ConvoReal account get a signup invite once the chat is open.
+ *
+ * There is no agent-specific template to submit here: the digest sends
+ * through the owner digest's approved Utility template (see the header
+ * of agent-inventory-digest-template.ts for why). This card reports
+ * that template's status and points at the Owner Digest tab, which
+ * owns submitting it.
  */
 
 type Frequency = 'off' | 'daily' | 'weekly';
-
-/** Statuses Meta accepts an edit for — mirrors the PATCH route. */
-const EDITABLE_STATUSES = new Set(['APPROVED', 'REJECTED', 'PAUSED']);
 
 export function AgentInventoryDigestCard() {
   const supabase = createClient();
@@ -45,9 +46,7 @@ export function AgentInventoryDigestCard() {
   const [frequency, setFrequency] = useState<Frequency>('off');
   const [templateStatus, setTemplateStatus] = useState<string | null>(null);
   const [templateCategory, setTemplateCategory] = useState<string | null>(null);
-  const [editableTemplateId, setEditableTemplateId] = useState<string | null>(null);
-  const [currentTemplateExists, setCurrentTemplateExists] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [templateName, setTemplateName] = useState<string | null>(null);
 
   const loadState = useCallback(async () => {
     if (!accountId) return;
@@ -66,26 +65,15 @@ export function AgentInventoryDigestCard() {
           .order('last_submitted_at', { ascending: false }),
       ]);
       if (settings?.frequency) setFrequency(settings.frequency as Frequency);
-      // The current name wins; a row under an older name still sends
-      // digests, so its status is what the badge should show until the
-      // new template exists.
-      const current = (templates || []).find(
-        (t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME
+      // Mirrors the send path: the shared owner template wins, and a
+      // legacy agent-specific row is the fallback that still delivers.
+      const shared = (templates || []).find(
+        (t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME && t.status === 'APPROVED'
       );
-      const template = current ?? templates?.[0];
+      const template = shared ?? (templates || []).find((t) => t.status === 'APPROVED') ?? null;
       setTemplateStatus(template?.status ?? null);
       setTemplateCategory(template?.category ?? null);
-      setCurrentTemplateExists(!!current);
-      // Editing can carry content but never a category — Meta refuses
-      // that on an approved template — so only offer it for a row that
-      // is already in the category we submit.
-      setEditableTemplateId(
-        current?.meta_template_id &&
-          EDITABLE_STATUSES.has(current.status) &&
-          current.category === 'Utility'
-          ? (current.id as string)
-          : null
-      );
+      setTemplateName(template?.name ?? null);
     } finally {
       setLoading(false);
     }
@@ -121,58 +109,8 @@ export function AgentInventoryDigestCard() {
     }
   };
 
-  // One-click create/resubmit — same flow as the owner digest template.
-  // Source agents rarely have an open 24h window, so the template needs
-  // Meta approval for the feature to reach them. An existing Meta-side
-  // row goes through the edit endpoint (creating it again is a
-  // duplicate-name error); a category is only ever set by creating,
-  // which is why a miscategorised template ships under a new name.
-  const handleSubmitTemplate = async () => {
-    setSubmitting(true);
-    try {
-      const res = await fetch(
-        editableTemplateId
-          ? `/api/whatsapp/templates/${editableTemplateId}`
-          : '/api/whatsapp/templates/submit',
-        {
-          method: editableTemplateId ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(buildAgentInventoryDigestTemplatePayload()),
-        }
-      );
-      // Read the body once as text: a platform error page is HTML, and
-      // a bare .json() would throw "Unexpected token '<'" over whatever
-      // Meta actually said. Keep a snippet either way.
-      const raw = await res.text();
-      let data: { error?: string } | null = null;
-      try {
-        data = JSON.parse(raw) as { error?: string };
-      } catch {
-        data = null;
-      }
-      if (!res.ok)
-        throw new Error(
-          data?.error ||
-            `Template submission failed (HTTP ${res.status})${
-              raw ? `: ${raw.slice(0, 200)}` : ''
-            }`
-        );
-      setTemplateStatus('PENDING');
-      toast.success('Reach digest template submitted to Meta for approval.');
-    } catch (err) {
-      console.error('[agent-inventory-digest] template submit failed:', err);
-      toast.error(err instanceof Error ? err.message : 'Template submission failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Marketing on the row the digests actually send from. When that row
-  // is an older name, the fix is to create the current one; when it is
-  // the current name and already approved, only Meta can undo it.
+  const sharesOwnerTemplate = templateName === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME;
   const miscategorized = templateCategory === 'Marketing';
-  const canSubmit =
-    !currentTemplateExists || !!editableTemplateId || templateStatus !== 'APPROVED';
 
   const statusBadge = (status: string | null) =>
     status === 'APPROVED' ? (
@@ -237,48 +175,36 @@ export function AgentInventoryDigestCard() {
               <div className="rounded-xl border border-slate-800 bg-slate-950 p-4 space-y-3">
                 <p className="text-sm text-slate-300">
                   Partner agents usually haven&apos;t messaged you in the last 24 hours, so
-                  the digest needs a pre-approved Utility template. Submit it once — Meta
-                  approval typically takes minutes to a few hours.
+                  the digest needs a pre-approved template. It shares the Owner Property
+                  Digest template rather than having one of its own — submit that one in the
+                  Owner Digest tab and both digests are covered.
                 </p>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-900 px-3 py-2">
                   <div className="min-w-0">
                     <p className="text-sm text-white">Reach digest</p>
                     <p className="text-xs text-slate-400">
-                      The recurring reach summary sent to each source agent.
+                      {templateName
+                        ? `Sends through "${templateName}".`
+                        : 'The recurring reach summary sent to each source agent.'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {statusBadge(templateStatus)}
-                    {canSubmit && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleSubmitTemplate}
-                        disabled={submitting || templateStatus === 'PENDING'}
-                        className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800"
-                      >
-                        {submitting ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            Submitting...
-                          </>
-                        ) : miscategorized ? (
-                          'Submit Utility version'
-                        ) : (
-                          'Submit to Meta'
-                        )}
-                      </Button>
-                    )}
-                  </div>
+                  <div className="flex items-center gap-2 shrink-0">{statusBadge(templateStatus)}</div>
                 </div>
-                {miscategorized && (
+                {!templateStatus && (
                   <p className="text-xs text-amber-400">
-                    Meta categorised the template digests currently send from as Marketing, so
-                    each one is billed at the marketing rate and needs marketing opt-in. A
-                    category is fixed once Meta approves a template and cannot be edited, so
-                    {canSubmit
-                      ? ' submitting creates a fresh non-promotional template for review as Utility.'
-                      : ' the only way back is an appeal in WhatsApp Manager (Business Support), within 60 days of the categorisation.'}
+                    No approved template yet — submit the Status digest in the Owner Digest
+                    tab. Until then, agents with an open chat still get the full free-form
+                    breakdown; the rest are skipped.
+                  </p>
+                )}
+                {miscategorized && !sharesOwnerTemplate && (
+                  <p className="text-xs text-amber-400">
+                    Digests are going out on {templateName}, which Meta categorised as
+                    Marketing — billed at the marketing rate and requiring marketing opt-in.
+                    Submitting the Owner Digest template moves them onto its Utility
+                    category. A template&apos;s category is fixed once Meta approves it, so
+                    the only way to change this one is an appeal in WhatsApp Manager
+                    (Business Support) within 60 days.
                   </p>
                 )}
               </div>

@@ -616,6 +616,33 @@ export async function sendWhatsAppMessageAndPersist(
       }
     }
 
+    // What the agent just told the buyer may be a fact about the
+    // listing ("seller's final price is 10.5k per sqft"). Propose it
+    // back onto the property so the next buyer's question is answered
+    // from the record instead of retyped.
+    //
+    // Admin client for the same reason the flow pause above uses one: a
+    // send from the inbox passes its RLS-scoped client in, and the
+    // suggestion is written on behalf of the account, not the caller.
+    // Awaited so a serverless invocation is not torn down mid-write;
+    // learnFromAgentReply gates on a free regex first, so the ordinary
+    // reply costs one predicate and returns.
+    if (args.senderType === 'agent' && args.kind === 'text' && args.text && resolvedContactId) {
+      try {
+        const { learnFromAgentReply } = await import('@/lib/ai/chat-learning')
+        await learnFromAgentReply({
+          db: defaultAdminClient() as unknown as SupabaseClient,
+          accountId,
+          contactId: resolvedContactId,
+          conversationId: resolvedConversationId ?? null,
+          messageId: insertedMsg.id,
+          text: args.text,
+        })
+      } catch (learnErr) {
+        console.error('[meta-api-dispatcher] chat learning warning:', learnErr)
+      }
+    }
+
     return {
       success: true,
       messageId: insertedMsg.id,

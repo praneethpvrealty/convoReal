@@ -30,6 +30,7 @@ function makeDb(queues: () => Record<string, QueuedResponse[]>, inserts?: () => 
       } = {
         select: () => builder,
         eq: () => builder,
+        in: () => builder,
         gte: () => builder,
         order: () => builder,
         limit: () => builder,
@@ -150,7 +151,7 @@ describe('share-property — channel selection', () => {
 
   it('sends the approved template outside the window, with the tracking URL button param', async () => {
     primeLookups({ windowOpen: false });
-    adminQueues.message_templates = [{ data: APPROVED_TEMPLATE, error: null }];
+    adminQueues.message_templates = [{ data: [APPROVED_TEMPLATE], error: null }];
 
     const res = await POST(request(shareBody()));
     const json = await res.json();
@@ -169,9 +170,68 @@ describe('share-property — channel selection', () => {
     expect(messageParams.buttonParams[0]).toBe(`?property_id=${PROPERTY.id}&v=${CONTACT.id}`);
   });
 
+  it('sends on the approved Utility row while the branded name is still under review', async () => {
+    // The branded template ships under a new name because Meta fixes a
+    // category at review and will not re-review in place. Until it
+    // clears, the working row has to keep sending.
+    primeLookups({ windowOpen: false });
+    adminQueues.message_templates = [
+      {
+        data: [
+          { ...APPROVED_TEMPLATE, name: 'property_enquiry_info', status: 'PENDING' },
+          { ...APPROVED_TEMPLATE, name: 'property_enquiry_response', category: 'Utility' },
+        ],
+        error: null,
+      },
+    ];
+
+    const res = await POST(request(shareBody()));
+    const json = await res.json();
+
+    expect(json.data).toMatchObject({ sent: true, channel: 'template' });
+    expect(dispatcherCalls[0]).toMatchObject({ templateName: 'property_enquiry_response' });
+  });
+
+  it('stays on the Utility row when Meta approves the new name as Marketing', async () => {
+    // Meta's real failure mode is approving a Utility submission as
+    // MARKETING rather than rejecting it, and Marketing is silently
+    // dropped at the recipient's per-user cap (131049).
+    primeLookups({ windowOpen: false });
+    adminQueues.message_templates = [
+      {
+        data: [
+          { ...APPROVED_TEMPLATE, name: 'property_enquiry_info', category: 'Marketing' },
+          { ...APPROVED_TEMPLATE, name: 'property_enquiry_response', category: 'Utility' },
+        ],
+        error: null,
+      },
+    ];
+
+    await POST(request(shareBody()));
+
+    expect(dispatcherCalls[0]).toMatchObject({ templateName: 'property_enquiry_response' });
+  });
+
+  it('moves to the branded template once Meta approves it as Utility', async () => {
+    primeLookups({ windowOpen: false });
+    adminQueues.message_templates = [
+      {
+        data: [
+          { ...APPROVED_TEMPLATE, name: 'property_enquiry_info', category: 'Utility' },
+          { ...APPROVED_TEMPLATE, name: 'property_enquiry_response', category: 'Utility' },
+        ],
+        error: null,
+      },
+    ];
+
+    await POST(request(shareBody()));
+
+    expect(dispatcherCalls[0]).toMatchObject({ templateName: 'property_enquiry_info' });
+  });
+
   it('falls back to the template when Meta rejects the free-form send as re-engagement', async () => {
     primeLookups({ windowOpen: true });
-    adminQueues.message_templates = [{ data: APPROVED_TEMPLATE, error: null }];
+    adminQueues.message_templates = [{ data: [APPROVED_TEMPLATE], error: null }];
     dispatcherResults = [
       { success: false, error: '(#131047) Re-engagement message' },
       { success: true },
@@ -187,7 +247,7 @@ describe('share-property — channel selection', () => {
 
   it('returns unsent + NONE when the window is closed and no template was ever submitted', async () => {
     primeLookups({ windowOpen: false });
-    adminQueues.message_templates = [{ data: null, error: null }];
+    adminQueues.message_templates = [{ data: [], error: null }];
 
     const res = await POST(request(shareBody()));
     const json = await res.json();
@@ -199,7 +259,7 @@ describe('share-property — channel selection', () => {
   it('returns unsent + PENDING while the template awaits Meta approval', async () => {
     primeLookups({ windowOpen: false });
     adminQueues.message_templates = [
-      { data: { ...APPROVED_TEMPLATE, status: 'PENDING' }, error: null },
+      { data: [{ ...APPROVED_TEMPLATE, status: 'PENDING' }], error: null },
     ];
 
     const res = await POST(request(shareBody()));
@@ -211,7 +271,7 @@ describe('share-property — channel selection', () => {
 
   it('creates the conversation for the "Open chat" fallback when none exists yet', async () => {
     primeLookups({ windowOpen: false, conversation: null });
-    adminQueues.message_templates = [{ data: null, error: null }];
+    adminQueues.message_templates = [{ data: [], error: null }];
     adminQueues.conversations = [
       { data: null, error: null },
       { data: { id: 'conv-new' }, error: null },
@@ -262,7 +322,7 @@ describe('share-property — channel selection', () => {
 
   it('does not ledger a share that was never delivered', async () => {
     primeLookups({ windowOpen: false });
-    adminQueues.message_templates = [{ data: null, error: null }];
+    adminQueues.message_templates = [{ data: [], error: null }];
 
     await POST(request(shareBody()));
 

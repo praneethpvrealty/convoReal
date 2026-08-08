@@ -53,7 +53,7 @@ import {
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { PROPERTY_ALERT_TEMPLATE_NAME } from '@/lib/whatsapp/property-alert-template';
+import { pickPropertyAlertTemplate } from '@/lib/whatsapp/property-alert-template';
 import { PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME } from '@/lib/whatsapp/property-enquiry-photos-template';
 import {
   buildPropertyShareMessage,
@@ -751,9 +751,12 @@ export function PropertyShareDialog({
         const hasPhoto = Boolean(
           property?.images?.some((img) => img && img.trim().length > 0)
         );
+        // The alert template has been renamed for each category fix, so
+        // walk the chain — an account can still be on an older approved
+        // name while the current one is under review.
         let matching =
           (hasPhoto ? byName(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME) : undefined) ??
-          byName(PROPERTY_ALERT_TEMPLATE_NAME) ??
+          pickPropertyAlertTemplate(tData) ??
           byName(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME);
 
         // 2. Any other template named for sharing property details.

@@ -12,6 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { BRANDING } from '@/config/branding';
 import {
   showcaseBaseUrl,
+  showcaseOriginForHost,
   propertyShowcaseUrl,
   type ShowcaseLinkProperty,
 } from '@/lib/share-message-builder';
@@ -21,26 +22,76 @@ function siteUrl(): string {
 }
 
 /**
- * The account's showcase origin: its own subdomain when it has one,
- * otherwise the shared site carrying `?ref=<account>` so the catalog
- * still renders that brokerage's listings. Falls back to the bare site
- * on any lookup failure — a link that loads the wrong catalog is worse
- * than one that loads the default.
+ * The account's own subdomain, or null.
+ *
+ * It lives on `showcase_settings`, and only there — `accounts` has no
+ * such column and never did. This helper used to select it from
+ * `accounts`, which PostgREST answers with an error rather than a
+ * throw, so `data` came back null, every account looked
+ * subdomain-less, and every link this file produced was unbranded. The
+ * one thing it exists to prevent.
+ */
+async function accountSubdomain(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<string | null> {
+  const { data, error } = await db
+    .from('showcase_settings')
+    .select('subdomain')
+    .eq('account_id', accountId)
+    .maybeSingle();
+  if (error) {
+    console.error('[showcase-url] subdomain lookup failed:', error);
+    return null;
+  }
+  const subdomain = (data?.subdomain as string | null) ?? null;
+  return subdomain?.trim() ? subdomain.trim() : null;
+}
+
+/**
+ * The account's showcase base as a full URL: its own subdomain when it
+ * has one, otherwise the shared site carrying `?ref=<account>` so the
+ * catalog still renders that brokerage's listings. Falls back to the
+ * bare site on any lookup failure — a link that loads the wrong catalog
+ * is worse than one that loads the default.
  */
 export async function accountShowcaseBase(
   db: SupabaseClient,
   accountId: string,
 ): Promise<string> {
   try {
-    const { data } = await db
-      .from('accounts')
-      .select('subdomain')
-      .eq('id', accountId)
-      .maybeSingle();
     return showcaseBaseUrl(
       siteUrl(),
-      (data?.subdomain as string | null) ?? null,
+      await accountSubdomain(db, accountId),
       accountId,
+    );
+  } catch {
+    return siteUrl();
+  }
+}
+
+/**
+ * The account's showcase ORIGIN — subdomain when it has one, otherwise
+ * the plain site. Never carries a query string, which is what separates
+ * it from accountShowcaseBase.
+ *
+ * For anywhere a caller appends its own query: a WhatsApp URL button
+ * takes its suffix as a template parameter (`?property_id=…&v=…`, see
+ * share-property-send), so a base already ending in `?ref=<account>`
+ * would compose into `…/?ref=x/?property_id=y` and resolve to nothing.
+ * An account with no subdomain loses the `ref` here rather than the
+ * link — the property id alone still finds the listing.
+ */
+export async function accountShowcaseOrigin(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<string> {
+  try {
+    const site = new URL(siteUrl());
+    return showcaseOriginForHost(
+      site.host,
+      site.protocol,
+      await accountSubdomain(db, accountId),
     );
   } catch {
     return siteUrl();

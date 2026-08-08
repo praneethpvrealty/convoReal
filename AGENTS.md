@@ -117,6 +117,8 @@ Two canonical rules the subsections below do not otherwise restate:
 - Only send UTILITY/MARKETING templates outside the 24-hour free-form window.
 - Always check template status before sending; sync statuses via `POST /api/whatsapp/templates/sync`.
 - Webhook payloads must be verified by `verifySignature()` from `src/lib/whatsapp/webhook-signature.ts` before processing.
+- **A template's category is decided once and is unfixable.** Meta assigns it when the template first passes review, refuses to change it afterwards (`POST /<template_id>` with a new category returns "You cannot update an approved template category" and rejects the whole edit, content included), and reserves a deleted template's name for four weeks. Meta's public categorisation guide claims an approved category can be edited — the API disagrees; trust the API.
+- **Never resubmit under a new name to chase a UTILITY category.** Four attempts at an agent digest (`agent_inventory_digest`, `agent_listing_activity_update`, `agent_property_digest`) all came back MARKETING, the last one near word-for-word identical to `owner_property_digest`, which holds UTILITY from an earlier approval. Content parity does not reproduce a category, and every attempt burns a name permanently. When a template is miscategorised, the only real options are: reuse an existing approved template whose params match, appeal in WhatsApp Manager (Business Support, within 60 days), or accept MARKETING and gate sends on explicit opt-in. See the header of `src/lib/whatsapp/agent-inventory-digest-template.ts`.
 
 ---
 
