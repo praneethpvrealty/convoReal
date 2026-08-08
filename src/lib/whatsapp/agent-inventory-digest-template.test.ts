@@ -31,9 +31,17 @@ describe('buildAgentInventoryDigestTemplatePayload', () => {
     expect(reviewed).not.toMatch(/sign ?up|free|📣/i);
   });
 
-  it('submits under a name Meta is not holding in deletion cooldown', () => {
-    expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME).not.toBe('agent_inventory_digest');
-    expect(LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES).toContain('agent_inventory_digest');
+  it('submits under a name Meta has not already categorised', () => {
+    // A category is set once, at creation: every name Meta has ruled on
+    // keeps its verdict for good, so the current name must be a new one
+    // and the old ones must stay listed for the send-path fallback.
+    expect(LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES).not.toContain(
+      AGENT_INVENTORY_DIGEST_TEMPLATE_NAME
+    );
+    expect(LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES).toEqual([
+      'agent_listing_activity_update',
+      'agent_inventory_digest',
+    ]);
     expect(AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES[0]).toBe(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME);
     expect(/^[a-z0-9_]+$/.test(AGENT_INVENTORY_DIGEST_TEMPLATE_NAME)).toBe(true);
   });

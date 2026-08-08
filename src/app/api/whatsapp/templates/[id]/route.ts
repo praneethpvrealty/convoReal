@@ -82,7 +82,7 @@ export async function PATCH(
     // meta_template_id and status — fetch explicitly.
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, status, meta_template_id, language')
+      .select('id, name, status, category, meta_template_id, language')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -114,6 +114,24 @@ export async function PATCH(
         {
           error:
             'AUTHENTICATION templates are not editable here — manage them in Meta WhatsApp Manager.',
+        },
+        { status: 400 },
+      )
+    }
+
+    // Meta fixes a template's category at review and refuses to move it
+    // afterwards ("You cannot update an approved template category"),
+    // rejecting the whole edit — content changes included. Say so here
+    // rather than spend the edit and relay a 502.
+    if (
+      existing.status === 'APPROVED' &&
+      payload.category &&
+      existing.category &&
+      payload.category !== existing.category
+    ) {
+      return NextResponse.json(
+        {
+          error: `Meta will not move an approved template from ${existing.category} to ${payload.category} — the category is fixed when it first passes review. Submit this content as a new template under a different name, or appeal the category in WhatsApp Manager (Business Support) within 60 days.`,
         },
         { status: 400 },
       )

@@ -1,4 +1,4 @@
-// The predefined "agent_listing_activity_update" WhatsApp template — the
+// The predefined "agent_property_digest" WhatsApp template — the
 // template-first channel for periodic reach digests to SOURCE AGENTS
 // (partner agents whose inventory this account lists, e.g. Deepak when
 // Suresh added Deepak's properties as agent-referred). Source agents
@@ -11,18 +11,22 @@
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 
-export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAME = 'agent_listing_activity_update';
+export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAME = 'agent_property_digest';
 
 /**
- * The pre-rewrite name. Meta reserves a deleted template's name for
- * four weeks and refuses a category change on it for the whole window
- * ("You can't change the category for this message template while the
- * existing English (US) content is being deleted"), so the Utility
- * rewrite ships under a new name instead of waiting. Accounts still
- * holding an approved row under the old name keep sending from it —
- * same four body params — until the new one clears review.
+ * Earlier names, newest first. Meta decides a template's category when
+ * it reviews the creation and never again — an edit that changes it is
+ * refused outright ("You cannot update an approved template category"),
+ * and deleting a template reserves its name for four weeks. So a
+ * template that came back Marketing is Marketing for good, and a
+ * corrected one can only ship under a name Meta has not seen. Accounts
+ * still holding an approved row under an older name keep sending from
+ * it until the new one clears review.
  */
-export const LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES = ['agent_inventory_digest'];
+export const LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES = [
+  'agent_listing_activity_update',
+  'agent_inventory_digest',
+];
 
 export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES = [
   AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,

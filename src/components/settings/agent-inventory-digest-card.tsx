@@ -46,6 +46,7 @@ export function AgentInventoryDigestCard() {
   const [templateStatus, setTemplateStatus] = useState<string | null>(null);
   const [templateCategory, setTemplateCategory] = useState<string | null>(null);
   const [editableTemplateId, setEditableTemplateId] = useState<string | null>(null);
+  const [currentTemplateExists, setCurrentTemplateExists] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const loadState = useCallback(async () => {
@@ -65,17 +66,23 @@ export function AgentInventoryDigestCard() {
           .order('last_submitted_at', { ascending: false }),
       ]);
       if (settings?.frequency) setFrequency(settings.frequency as Frequency);
-      // The current name wins; a row under the pre-rewrite name still
-      // sends digests, so its status is what the badge should show
-      // until the new template exists.
+      // The current name wins; a row under an older name still sends
+      // digests, so its status is what the badge should show until the
+      // new template exists.
       const current = (templates || []).find(
         (t) => t.name === AGENT_INVENTORY_DIGEST_TEMPLATE_NAME
       );
       const template = current ?? templates?.[0];
       setTemplateStatus(template?.status ?? null);
       setTemplateCategory(template?.category ?? null);
+      setCurrentTemplateExists(!!current);
+      // Editing can carry content but never a category — Meta refuses
+      // that on an approved template — so only offer it for a row that
+      // is already in the category we submit.
       setEditableTemplateId(
-        current?.meta_template_id && EDITABLE_STATUSES.has(current.status)
+        current?.meta_template_id &&
+          EDITABLE_STATUSES.has(current.status) &&
+          current.category === 'Utility'
           ? (current.id as string)
           : null
       );
@@ -116,10 +123,10 @@ export function AgentInventoryDigestCard() {
 
   // One-click create/resubmit — same flow as the owner digest template.
   // Source agents rarely have an open 24h window, so the template needs
-  // Meta approval for the feature to reach them. A template that already
-  // exists on Meta goes through the edit endpoint: creating it again is
-  // a duplicate-name error, and an edit is what carries a corrected
-  // category (Marketing → Utility) back to Meta for re-review.
+  // Meta approval for the feature to reach them. An existing Meta-side
+  // row goes through the edit endpoint (creating it again is a
+  // duplicate-name error); a category is only ever set by creating,
+  // which is why a miscategorised template ships under a new name.
   const handleSubmitTemplate = async () => {
     setSubmitting(true);
     try {
@@ -133,12 +140,22 @@ export function AgentInventoryDigestCard() {
           body: JSON.stringify(buildAgentInventoryDigestTemplatePayload()),
         }
       );
-      // Platform error pages are HTML: a bare .json() throws
-      // "Unexpected token '<'" and hides what Meta actually said.
-      const data = await res.json().catch(() => null);
+      // Read the body once as text: a platform error page is HTML, and
+      // a bare .json() would throw "Unexpected token '<'" over whatever
+      // Meta actually said. Keep a snippet either way.
+      const raw = await res.text();
+      let data: { error?: string } | null = null;
+      try {
+        data = JSON.parse(raw) as { error?: string };
+      } catch {
+        data = null;
+      }
       if (!res.ok)
         throw new Error(
-          data?.error || `Template submission failed (HTTP ${res.status})`
+          data?.error ||
+            `Template submission failed (HTTP ${res.status})${
+              raw ? `: ${raw.slice(0, 200)}` : ''
+            }`
         );
       setTemplateStatus('PENDING');
       toast.success('Reach digest template submitted to Meta for approval.');
@@ -150,7 +167,12 @@ export function AgentInventoryDigestCard() {
     }
   };
 
-  const miscategorized = templateCategory === 'Marketing' && !!editableTemplateId;
+  // Marketing on the row the digests actually send from. When that row
+  // is an older name, the fix is to create the current one; when it is
+  // the current name and already approved, only Meta can undo it.
+  const miscategorized = templateCategory === 'Marketing';
+  const canSubmit =
+    !currentTemplateExists || !!editableTemplateId || templateStatus !== 'APPROVED';
 
   const statusBadge = (status: string | null) =>
     status === 'APPROVED' ? (
@@ -227,7 +249,7 @@ export function AgentInventoryDigestCard() {
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {statusBadge(templateStatus)}
-                    {(templateStatus !== 'APPROVED' || miscategorized) && (
+                    {canSubmit && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -241,7 +263,7 @@ export function AgentInventoryDigestCard() {
                             Submitting...
                           </>
                         ) : miscategorized ? (
-                          'Resubmit as Utility'
+                          'Submit Utility version'
                         ) : (
                           'Submit to Meta'
                         )}
@@ -251,9 +273,12 @@ export function AgentInventoryDigestCard() {
                 </div>
                 {miscategorized && (
                   <p className="text-xs text-amber-400">
-                    Meta categorised this template as Marketing, so every digest is billed at
-                    the marketing rate and needs marketing opt-in. Resubmitting sends the
-                    current non-promotional wording back for review as Utility.
+                    Meta categorised the template digests currently send from as Marketing, so
+                    each one is billed at the marketing rate and needs marketing opt-in. A
+                    category is fixed once Meta approves a template and cannot be edited, so
+                    {canSubmit
+                      ? ' submitting creates a fresh non-promotional template for review as Utility.'
+                      : ' the only way back is an appeal in WhatsApp Manager (Business Support), within 60 days of the categorisation.'}
                   </p>
                 )}
               </div>
