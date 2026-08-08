@@ -14,6 +14,7 @@ import {
   type TemplatePayload,
 } from '@/lib/whatsapp/template-validators'
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
+import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
 
 /**
  * Per-template lifecycle endpoint.
@@ -136,6 +137,14 @@ export async function PATCH(
         { status: 400 },
       )
     }
+
+    // Same rule as submission: buyer-facing links belong on the
+    // brokerage's own showcase, not the dashboard host the client had
+    // to guess with. An edit is how an already-approved template gets
+    // its URL corrected, so it has to apply here too — a fix that only
+    // reached new templates would leave every live one pointing at the
+    // shared site forever.
+    payload = await withAccountShowcaseButtons(supabase, accountId, payload)
 
     try {
       validateTemplatePayload(payload)
