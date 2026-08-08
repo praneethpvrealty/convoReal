@@ -19,6 +19,7 @@ import {
   FilterChip,
   SectionLabel,
   Tag,
+  nameTagCap,
 } from '@/components/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { formatInr } from '@/lib/format';
@@ -375,7 +376,9 @@ function EventRow({ event }: { event: DedupedPulseEvent }) {
             {who}
           </Text>
           {event.contact?.name_tag ? (
-            <Tag label={event.contact.name_tag} />
+            <View style={nameTagCap}>
+              <Tag label={event.contact.name_tag} />
+            </View>
           ) : null}
         </View>
         <View style={styles.eventLine}>

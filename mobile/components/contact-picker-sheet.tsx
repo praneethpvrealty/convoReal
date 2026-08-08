@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/sheet';
-import { Avatar, SearchBar, Tag } from '@/components/ui';
+import { Avatar, SearchBar, Tag, nameTagCap } from '@/components/ui';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { radius, spacing, useTheme } from '@/lib/theme';
@@ -240,7 +240,11 @@ export function ContactPickerSheet({
                             >
                               {c.name || c.phone}
                             </Text>
-                            {c.name_tag ? <Tag label={c.name_tag} /> : null}
+                            {c.name_tag ? (
+                              <View style={nameTagCap}>
+                                <Tag label={c.name_tag} />
+                              </View>
+                            ) : null}
                           </View>
                           <View style={styles.metaRow}>
                             {c.name ? (

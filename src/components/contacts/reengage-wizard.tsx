@@ -58,7 +58,15 @@ interface ReengageWizardProps {
   onImported: () => void;
 }
 
-type Step = 'template' | 'upload' | 'send' | 'done';
+type Step = 'mode' | 'template' | 'upload' | 'send' | 'done';
+
+/**
+ * Importing and re-engaging are different jobs sharing one upload.
+ * Keeping them behind one door means a contact list can still be loaded
+ * while a template sits in Meta's review queue — the send path is gated
+ * on approval, and adding people to the account must not be.
+ */
+type WizardMode = 'import' | 'reengage';
 
 interface TemplateRow {
   id: string;
@@ -68,11 +76,14 @@ interface TemplateRow {
   rejection_reason?: string | null;
 }
 
-const STEPS: { key: Step; label: string }[] = [
-  { key: 'template', label: 'Template' },
-  { key: 'upload', label: 'Import leads' },
-  { key: 'send', label: 'Send' },
-];
+const STEPS_BY_MODE: Record<WizardMode, { key: Step; label: string }[]> = {
+  import: [{ key: 'upload', label: 'Import contacts' }],
+  reengage: [
+    { key: 'template', label: 'Template' },
+    { key: 'upload', label: 'Import leads' },
+    { key: 'send', label: 'Send' },
+  ],
+};
 
 function isApproved(status: string | null | undefined): boolean {
   return (status ?? '').toUpperCase() === 'APPROVED';
@@ -86,7 +97,8 @@ export function ReengageWizard({
   const { accountId, account } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [step, setStep] = useState<Step>('template');
+  const [step, setStep] = useState<Step>('mode');
+  const [mode, setMode] = useState<WizardMode>('reengage');
   const [template, setTemplate] = useState<TemplateRow | null>(null);
   const [templateLoading, setTemplateLoading] = useState(false);
   const [submittingTemplate, setSubmittingTemplate] = useState(false);
@@ -205,7 +217,8 @@ export function ReengageWizard({
   }, [open, fetchTemplate]);
 
   function reset() {
-    setStep('template');
+    setStep('mode');
+    setMode('reengage');
     setFile(null);
     setParsedRows([]);
     setImportedCount(0);
@@ -267,11 +280,16 @@ export function ReengageWizard({
     setImporting(true);
     try {
       // The batch tag is what the broadcast audience targets — every
-      // row carries it on top of whatever tags the CSV brought.
-      const rows = parsedRows.map((row) => ({
-        ...row,
-        tags: row.tags ? `${row.tags}, ${batchTag}` : batchTag,
-      }));
+      // row carries it on top of whatever tags the CSV brought. An
+      // import-only run is not a batch, so it takes the file's own tags
+      // and leaves the contact list unlittered.
+      const rows =
+        mode === 'reengage'
+          ? parsedRows.map((row) => ({
+              ...row,
+              tags: row.tags ? `${row.tags}, ${batchTag}` : batchTag,
+            }))
+          : parsedRows;
 
       // Chunked: the route writes several queries per contact, so a
       // few hundred rows in one request would outlast the serverless
@@ -318,6 +336,13 @@ export function ReengageWizard({
         setExtractProgress({ done, total })
       );
       setExtractProgress(null);
+
+      // Import-only stops here: contacts are in, preferences extracted,
+      // and nothing is sent.
+      if (mode === 'import') {
+        setStep('done');
+        return;
+      }
 
       const supabase = createClient();
       const { data: tagRow } = await supabase
@@ -467,11 +492,14 @@ export function ReengageWizard({
   }
 
   const templateStatus = (template?.status ?? '').toUpperCase();
-  const stepIndex = STEPS.findIndex((s) => s.key === step);
+  const steps = STEPS_BY_MODE[mode];
+  const stepIndex = steps.findIndex((s) => s.key === step);
+  // Enough to show what the columns mapped to without a wall of rows.
+  const preview = parsedRows.slice(0, 5);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
+      <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-white">
             Re-engage portal leads
@@ -483,9 +511,9 @@ export function ReengageWizard({
           </DialogDescription>
         </DialogHeader>
 
-        {step !== 'done' && (
+        {step !== 'done' && step !== 'mode' && (
           <div className="flex items-center gap-2">
-            {STEPS.map((s, i) => (
+            {steps.map((s, i) => (
               <div key={s.key} className="flex items-center gap-2">
                 <span
                   className={`flex size-5 items-center justify-center rounded-full text-[10px] font-semibold ${
@@ -503,7 +531,7 @@ export function ReengageWizard({
                 >
                   {s.label}
                 </span>
-                {i < STEPS.length - 1 && (
+                {i < steps.length - 1 && (
                   <span className="h-px w-6 bg-slate-700" />
                 )}
               </div>
@@ -511,8 +539,47 @@ export function ReengageWizard({
           </div>
         )}
 
+        {step === 'mode' && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('import');
+                setStep('upload');
+              }}
+              className="hover:border-primary/50 w-full rounded-lg border border-slate-700 p-4 text-left transition-colors"
+            >
+              <div className="flex items-center gap-2 text-sm text-slate-200">
+                <Upload className="size-4 text-slate-400" />
+                Import contacts only
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                Adds everyone in the file to your contact list. No WhatsApp
+                message is sent.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('reengage');
+                setStep('template');
+              }}
+              className="hover:border-primary/50 w-full rounded-lg border border-slate-700 p-4 text-left transition-colors"
+            >
+              <div className="flex items-center gap-2 text-sm text-slate-200">
+                <Send className="size-4 text-slate-400" />
+                Import and re-engage
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                Imports the file, tags it as one batch, then sends the approved
+                enquiry template to every lead in it.
+              </p>
+            </button>
+          </div>
+        )}
+
         {step === 'template' && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="space-y-2 rounded-lg border border-slate-700 p-4">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="text-primary size-4" />
@@ -601,7 +668,7 @@ export function ReengageWizard({
         )}
 
         {step === 'upload' && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div
               onClick={() => fileInputRef.current?.click()}
               className="hover:border-primary/50 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-700 p-6 transition-colors"
@@ -635,7 +702,7 @@ export function ReengageWizard({
               onChange={handleFileChange}
               className="hidden"
             />
-            {parsedRows.length > 0 && (
+            {parsedRows.length > 0 && mode === 'reengage' && (
               <p className="text-xs text-slate-400">
                 Each lead will be tagged{' '}
                 <span className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-300">
@@ -644,6 +711,89 @@ export function ReengageWizard({
                 so this batch can be targeted and tracked.
               </p>
             )}
+            {/* Preview table */}
+            {preview.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium tracking-wider text-slate-400 uppercase">
+                  Preview (first {preview.length} rows)
+                </p>
+                <div className="overflow-x-auto rounded-lg border border-slate-700">
+                  <table className="w-full min-w-[700px] text-xs">
+                    <thead>
+                      <tr className="bg-slate-800">
+                        <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                          Phone
+                        </th>
+                        <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                          Name
+                        </th>
+                        <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                          Name Tag
+                        </th>
+                        <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                          Tags
+                        </th>
+                        <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                          Areas
+                        </th>
+                        <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                          Budget
+                        </th>
+                        <th className="px-3 py-1.5 text-left font-medium text-slate-400">
+                          Preferences
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.map((row, i) => {
+                        const budgetLabel =
+                          row.min_budget || row.max_budget
+                            ? `${row.min_budget ? `₹${(row.min_budget / 100000).toFixed(0)}L` : '0'} - ${row.max_budget ? `₹${(row.max_budget / 100000).toFixed(0)}L` : 'Any'}`
+                            : '-';
+                        return (
+                          <tr key={i} className="border-t border-slate-700/50">
+                            <td className="px-3 py-1.5 text-slate-300">
+                              {row.phone}
+                            </td>
+                            <td className="px-3 py-1.5 font-medium text-slate-300">
+                              {row.name || '-'}
+                            </td>
+                            <td className="px-3 py-1.5">
+                              {row.name_tag ? (
+                                <span className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[10px] text-slate-300">
+                                  {row.name_tag}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500">-</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-1.5 text-slate-400">
+                              {row.tags || '-'}
+                            </td>
+                            <td className="px-3 py-1.5 font-mono text-[10px] text-slate-400">
+                              {row.areas_of_interest || '-'}
+                            </td>
+                            <td className="px-3 py-1.5 text-slate-300">
+                              {budgetLabel}
+                            </td>
+                            <td className="max-w-[200px] truncate px-3 py-1.5 text-slate-400">
+                              {row.notes || '-'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {parsedRows.length > preview.length && (
+                  <p className="text-xs text-slate-500">
+                    …and {parsedRows.length - preview.length} more row
+                    {parsedRows.length - preview.length !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            )}
+
             {importProgress && (
               <div className="flex items-center gap-1.5 text-sm text-slate-400">
                 <Loader2 className="size-4 animate-spin" />
@@ -661,7 +811,7 @@ export function ReengageWizard({
         )}
 
         {step === 'send' && (
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             <div className="space-y-2 rounded-lg border border-slate-700 p-4">
               <p className="text-sm font-medium text-white">
                 {importedCount} lead{importedCount !== 1 ? 's' : ''} ready
@@ -747,6 +897,36 @@ export function ReengageWizard({
           </div>
         )}
 
+        {step === 'done' && mode === 'import' && (
+          <div className="space-y-2 rounded-lg border border-slate-700 p-4">
+            <div className="text-primary flex items-center gap-1.5 text-sm">
+              <CheckCircle className="size-4" />
+              {importedCount} contact{importedCount !== 1 ? 's' : ''} imported
+            </div>
+            {importReport && (
+              <p className="text-xs text-slate-400">
+                {importReport.imported} new · {importReport.updated} updated
+                {importReport.failed > 0
+                  ? ` · ${importReport.failed} failed`
+                  : ''}
+                {importReport.skipped > 0
+                  ? ` · ${importReport.skipped} skipped`
+                  : ''}
+                {importReport.propertiesLinked > 0
+                  ? ` · ${importReport.propertiesLinked} linked to a property`
+                  : ''}
+                {importReport.propertiesUnresolved > 0
+                  ? ` · ${importReport.propertiesUnresolved} property refs matched nothing`
+                  : ''}
+              </p>
+            )}
+            <p className="text-xs text-slate-400">
+              No WhatsApp message was sent. To message these leads, run this
+              wizard again and choose &quot;Import and re-engage&quot;.
+            </p>
+          </div>
+        )}
+
         {step === 'done' && broadcast && (
           <div className="space-y-2 rounded-lg border border-slate-700 p-4">
             <div className="text-primary flex items-center gap-1.5 text-sm">
@@ -798,7 +978,10 @@ export function ReengageWizard({
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {importing && <Loader2 className="size-4 animate-spin" />}
-              Import {parsedRows.length > 0 ? `${parsedRows.length} Leads` : ''}
+              Import{' '}
+              {parsedRows.length > 0
+                ? `${parsedRows.length} ${mode === 'import' ? 'Contacts' : 'Leads'}`
+                : ''}
             </Button>
           )}
           {step === 'send' && (

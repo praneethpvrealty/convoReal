@@ -276,6 +276,14 @@ export const listCard: ViewStyle = {
   borderWidth: 1,
 };
 
+/**
+ * Wrapper for a name_tag sitting beside a name. Both shrink, and shrink
+ * is weighted by width, so a long tag ("Ex Purva vantage Ph 2") takes
+ * most of the row and leaves the name as two letters. Capped, the tag
+ * truncates first and the name keeps at least half the line.
+ */
+export const nameTagCap: ViewStyle = { flexShrink: 1, maxWidth: '50%' };
+
 export function ConversationSkeleton() {
   const { colors } = useTheme();
   return (

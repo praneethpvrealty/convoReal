@@ -7,7 +7,10 @@ import {
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
   LEGACY_ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
 } from '@/lib/whatsapp/enquiry-followup-template';
-import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
+import {
+  ENQUIRY_NOTICE_TEMPLATE_NAME,
+  LEGACY_ENQUIRY_NOTICE_TEMPLATE_NAMES,
+} from '@/lib/whatsapp/enquiry-notice-template';
 import type { ReengagementLead, ReengagementSummary } from './queries';
 
 /** Names retired by a category re-classification. A batch already sent
@@ -19,13 +22,14 @@ const RETIRED_ENQUIRY_TEMPLATE_NAMES = [
 ];
 
 /** Every template a re-engagement batch can appear under. Kept in sync
- *  with is_reengagement_template() in migration 214. */
+ *  with is_reengagement_template() in migration 225. */
 export const REENGAGEMENT_TEMPLATE_NAMES: readonly string[] = [
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
   // Still sending, and still the fallback until the signed revision
   // clears review — a batch on it is a re-engagement batch.
   ...LEGACY_ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
   ENQUIRY_NOTICE_TEMPLATE_NAME,
+  ...LEGACY_ENQUIRY_NOTICE_TEMPLATE_NAMES,
   ...RETIRED_ENQUIRY_TEMPLATE_NAMES,
 ];
 

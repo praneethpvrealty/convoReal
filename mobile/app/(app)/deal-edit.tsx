@@ -24,6 +24,7 @@ import {
   PrimaryButton,
   Tag,
   TextField,
+  nameTagCap,
 } from '@/components/ui';
 import { ApiError, apiFetch } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
@@ -339,7 +340,11 @@ function DealForm({
                 >
                   {c.name || c.phone}
                 </Text>
-                {c.name_tag ? <Tag label={c.name_tag} /> : null}
+                {c.name_tag ? (
+                  <View style={nameTagCap}>
+                    <Tag label={c.name_tag} />
+                  </View>
+                ) : null}
               </Pressable>
             ))}
           </View>

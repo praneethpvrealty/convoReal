@@ -13,11 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  LinearTransition,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
@@ -41,6 +37,7 @@ import {
   Tag,
   TextField,
   listCard,
+  nameTagCap,
 } from '@/components/ui';
 import { apiFetch, ApiError, isCancelled, isTimeout } from '@/lib/api';
 import { approveAndSendDetails } from '@/lib/approve-contact';
@@ -569,7 +566,7 @@ export default function ContactsScreen() {
             />
           }
           renderItem={({ item, index }) => (
-            <EnterRow index={index} animateLayout>
+            <EnterRow index={index}>
               <ContactRow
                 contact={item}
                 dark={dark}
@@ -855,7 +852,11 @@ function ContactRow({
           >
             {name}
           </Text>
-          {contact.name_tag ? <Tag label={contact.name_tag} /> : null}
+          {contact.name_tag ? (
+            <View style={nameTagCap}>
+              <Tag label={contact.name_tag} />
+            </View>
+          ) : null}
           <Pressable
             hitSlop={10}
             onPress={onCall}
@@ -1056,7 +1057,6 @@ function ContactPeekCard({
     <Animated.View
       entering={FadeIn.duration(150)}
       exiting={FadeOut.duration(120)}
-      layout={LinearTransition.duration(180)}
       style={[
         styles.peekCapsule,
         {
