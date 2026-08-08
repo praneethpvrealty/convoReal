@@ -86,6 +86,21 @@ export interface Message {
   error_info?: string;
   /** `messages.id` of the message this one quotes, when it is a reply. */
   reply_to_message_id?: string;
+  /** Meta's own wamid, once WhatsApp has accepted the message. Absent
+   *  while a send is queued and on anything that failed. */
+  message_id?: string | null;
+}
+
+export type ReactionActor = 'agent' | 'customer';
+
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  conversation_id: string;
+  actor_type: ReactionActor;
+  actor_id?: string | null;
+  emoji: string;
+  created_at: string;
 }
 
 export interface Profile {

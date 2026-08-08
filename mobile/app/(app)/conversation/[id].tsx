@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { useQuery } from '@tanstack/react-query';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,32 +16,26 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, {
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withSequence,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ContextMenu } from '@/components/context-menu';
 import { ConversationMenu } from '@/components/conversation-menu';
 import { ConvoRealLoader } from '@/components/loader';
-import { MediaImage } from '@/components/media-image';
+import { MessageBubble, QuotedMessage } from '@/components/message-bubble';
 import { PropertyPickerSheet } from '@/components/property-picker-sheet';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
 import {
   ApiError,
   forwardMessage,
+  reactToMessage,
   sendTemplateMessage,
   sendTextMessage,
   suggestReplies,
 } from '@/lib/api';
 import { buildInquiryDraft } from '@/lib/approve-contact';
+import { useAuthStore } from '@/lib/auth-store';
 import { isReengagementError } from '@/lib/customer-window';
 import { haptic } from '@/lib/haptics';
 import {
@@ -48,18 +43,40 @@ import {
   canResend,
   forwardSummary,
   forwardableText,
-  messageAuthorLabel,
-  messagePreview,
 } from '@/lib/message-actions';
-import type { Contact, MessageTemplate , Conversation, Message, MessageStatus } from '@/lib/types';
-import { bubbleTime, dayLabel } from '@/lib/format';
+import {
+  QUICK_EMOJIS,
+  canReact,
+  myReaction,
+  reactionsByMessage,
+  toggleEmoji,
+} from '@/lib/message-reactions';
+import type {
+  Contact,
+  MessageTemplate,
+  Conversation,
+  Message,
+  MessageReaction,
+} from '@/lib/types';
+import { dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
 import { useCallLog } from '@/lib/use-call-log';
 import { supabase, uniqueChannel } from '@/lib/supabase';
-import { radius, spacing, useTheme, type ThemeColors } from '@/lib/theme';
+import { radius, spacing, useTheme } from '@/lib/theme';
 import { useHeaderHeight } from '@/lib/use-header-height';
 
 const PAGE_SIZE = 60;
+
+/** How long a jumped-to message stays tinted before settling back. */
+const HIGHLIGHT_MS = 1400;
+
+/** Scrolled this far up (the list is inverted) and the jump-to-latest
+ *  button appears, as it does in WhatsApp. */
+const SCROLL_TO_END_THRESHOLD = 420;
+
+/** Shared empty list, so a bubble nobody reacted to keeps the same prop
+ *  identity across renders instead of remounting on a fresh `[]`. */
+const EMPTY_REACTIONS: MessageReaction[] = [];
 
 type ThreadItem =
   | { kind: 'message'; message: Message }
@@ -74,6 +91,17 @@ async function fetchMessages(conversationId: string): Promise<Message[]> {
     .limit(PAGE_SIZE);
   if (error) throw error;
   return (data ?? []) as Message[];
+}
+
+/** Every reaction in the thread — one bounded read, split per bubble in
+ *  memory rather than a query per message. */
+async function fetchReactions(conversationId: string): Promise<MessageReaction[]> {
+  const { data, error } = await supabase
+    .from('message_reactions')
+    .select('*')
+    .eq('conversation_id', conversationId);
+  if (error) throw error;
+  return (data ?? []) as MessageReaction[];
 }
 
 async function fetchConversation(id: string): Promise<Conversation | null> {
@@ -108,8 +136,14 @@ export default function ConversationScreen() {
   const [resend, setResend] = useState<Message | null>(null);
   const [forwardFor, setForwardFor] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState(false);
+  // Message the thread has just jumped to from a quote, tinted until the
+  // eye has had time to find it.
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [scrolledUp, setScrolledUp] = useState(false);
+  const listRef = useRef<FlatList<ThreadItem>>(null);
   const { show, dialogProps } = useAppDialog();
   const { startCall, callLogProps } = useCallLog();
+  const userId = useAuthStore((s) => s.session?.user.id);
 
   const { data: conversation } = useQuery({
     queryKey: ['conversation', id],
@@ -129,7 +163,14 @@ export default function ConversationScreen() {
     enabled: Boolean(id),
   });
 
-  // Live updates for this thread.
+  const { data: reactions } = useQuery({
+    queryKey: ['message-reactions', id],
+    queryFn: () => fetchReactions(id),
+    enabled: Boolean(id),
+  });
+
+  // Live updates for this thread. Reactions ride the same channel: a
+  // contact hearting a listing should land as fast as their reply does.
   useEffect(() => {
     if (!id) return;
     const channel = supabase
@@ -141,6 +182,16 @@ export default function ConversationScreen() {
           queryClient.invalidateQueries({ queryKey: ['messages', id] });
           queryClient.invalidateQueries({ queryKey: ['conversations'] });
         }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'message_reactions',
+          filter: `conversation_id=eq.${id}`,
+        },
+        () => queryClient.invalidateQueries({ queryKey: ['message-reactions', id] })
       )
       .subscribe();
     return () => {
@@ -186,8 +237,71 @@ export default function ConversationScreen() {
     return map;
   }, [messages]);
 
+  const reactionsByMessageId = useMemo(
+    () => reactionsByMessage(reactions ?? []),
+    [reactions]
+  );
+
   const title = conversation?.contact?.name || conversation?.contact?.phone || 'Conversation';
   const contactName = conversation?.contact?.name || undefined;
+
+  // Swipe-to-reply and the quote tap both need the composer's attention,
+  // so the reply target is set here and the composer reads it.
+  const openReply = useCallback((message: Message) => {
+    haptic.tap();
+    setReplyTo(message);
+  }, []);
+
+  /** Jump to the message a quote points at and tint it, WhatsApp-style.
+   *  Only the loaded page is addressable — a quote of something older
+   *  than the window has no row to scroll to, so nothing happens. */
+  const jumpToMessage = useCallback(
+    (messageId: string) => {
+      const index = items.findIndex(
+        (item) => item.kind === 'message' && item.message.id === messageId
+      );
+      if (index < 0) return;
+      haptic.tap();
+      listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+      setHighlightId(messageId);
+    },
+    [items]
+  );
+
+  // The tint clears itself; a second jump to the same message restarts it
+  // because the id is cleared in between.
+  useEffect(() => {
+    if (!highlightId) return;
+    const timer = setTimeout(() => setHighlightId(null), HIGHLIGHT_MS);
+    return () => clearTimeout(timer);
+  }, [highlightId]);
+
+  /** Leave, swap or withdraw the agent's reaction. Optimism would have to
+   *  be unwound on every Meta refusal, so this waits for the round trip
+   *  and lets realtime paint the pill. */
+  const applyReaction = useCallback(
+    async (message: Message, emoji: string) => {
+      if (!canReact(message)) return;
+      const next = toggleEmoji(reactionsByMessageId.get(message.id) ?? [], userId, emoji);
+      haptic.tap();
+      try {
+        await reactToMessage(message.id, next);
+        queryClient.invalidateQueries({ queryKey: ['message-reactions', id] });
+      } catch (err) {
+        haptic.warn();
+        show({
+          title: 'Could not react',
+          message: err instanceof ApiError ? err.message : 'Something went wrong — try again.',
+        });
+      }
+    },
+    [reactionsByMessageId, userId, id, show]
+  );
+
+  async function copyMessage(message: Message) {
+    await Clipboard.setStringAsync(forwardableText(message));
+    haptic.success();
+  }
 
   async function forwardTo(contacts: Contact[]) {
     const message = forwardFor;
@@ -267,32 +381,74 @@ export default function ConversationScreen() {
           <ConvoRealLoader />
         </View>
       ) : (
-        <FlatList
-          style={{ flex: 1 }}
-          data={items}
-          keyExtractor={(item) => (item.kind === 'message' ? item.message.id : item.id)}
-          inverted
-          contentContainerStyle={{ padding: spacing.md, gap: 4 }}
-          renderItem={({ item }) =>
-            item.kind === 'day' ? (
-              <DaySeparator label={item.label} />
-            ) : (
-              <MessageBubble
-                message={item.message}
-                parent={
-                  item.message.reply_to_message_id
-                    ? messagesById.get(item.message.reply_to_message_id)
-                    : undefined
-                }
-                contactName={contactName}
-                onLongPress={(message, x, y) => {
-                  haptic.tap();
-                  setActionsFor({ message, x, y });
-                }}
-              />
-            )
-          }
-        />
+        <View style={{ flex: 1 }}>
+          <FlatList
+            ref={listRef}
+            style={{ flex: 1 }}
+            data={items}
+            keyExtractor={(item) => (item.kind === 'message' ? item.message.id : item.id)}
+            inverted
+            contentContainerStyle={{ padding: spacing.md, gap: 4 }}
+            onScroll={(e) =>
+              setScrolledUp(e.nativeEvent.contentOffset.y > SCROLL_TO_END_THRESHOLD)
+            }
+            scrollEventThrottle={64}
+            // A quoted message far up the page may not be measured yet:
+            // land near it first, then ask again now that the rows in
+            // between have real heights.
+            onScrollToIndexFailed={({ index, averageItemLength }) => {
+              listRef.current?.scrollToOffset({
+                offset: index * averageItemLength,
+                animated: true,
+              });
+              setTimeout(
+                () => listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true }),
+                180
+              );
+            }}
+            renderItem={({ item }) =>
+              item.kind === 'day' ? (
+                <DaySeparator label={item.label} />
+              ) : (
+                <MessageBubble
+                  message={item.message}
+                  parent={
+                    item.message.reply_to_message_id
+                      ? messagesById.get(item.message.reply_to_message_id)
+                      : undefined
+                  }
+                  contactName={contactName}
+                  reactions={reactionsByMessageId.get(item.message.id) ?? EMPTY_REACTIONS}
+                  currentUserId={userId}
+                  highlighted={highlightId === item.message.id}
+                  onLongPress={(message, x, y) => {
+                    haptic.tap();
+                    setActionsFor({ message, x, y });
+                  }}
+                  onReply={openReply}
+                  onToggleReaction={applyReaction}
+                  onQuotePress={jumpToMessage}
+                />
+              )
+            }
+          />
+          {scrolledUp ? (
+            <Pressable
+              onPress={() => {
+                haptic.tap();
+                listRef.current?.scrollToOffset({ offset: 0, animated: true });
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Jump to the latest message"
+              style={[
+                styles.jumpToEnd,
+                { backgroundColor: colors.surfaceWell, borderColor: colors.glassBorder },
+              ]}
+            >
+              <Ionicons name="chevron-down" size={20} color={colors.primary} />
+            </Pressable>
+          ) : null}
+        </View>
       )}
 
       <Composer
@@ -309,6 +465,18 @@ export default function ConversationScreen() {
       <ContextMenu
         anchor={actionsFor ? { x: actionsFor.x, y: actionsFor.y } : null}
         onClose={() => setActionsFor(null)}
+        reactions={
+          actionsFor && canReact(actionsFor.message)
+            ? {
+                emojis: QUICK_EMOJIS,
+                selected: myReaction(
+                  reactionsByMessageId.get(actionsFor.message.id) ?? EMPTY_REACTIONS,
+                  userId
+                ),
+                onPick: (emoji) => applyReaction(actionsFor.message, emoji),
+              }
+            : undefined
+        }
         actions={
           actionsFor
             ? [
@@ -317,6 +485,15 @@ export default function ConversationScreen() {
                   label: 'Reply',
                   onPress: () => setReplyTo(actionsFor.message),
                 },
+                ...(canForward(actionsFor.message)
+                  ? [
+                      {
+                        icon: 'copy-outline' as const,
+                        label: 'Copy text',
+                        onPress: () => void copyMessage(actionsFor.message),
+                      },
+                    ]
+                  : []),
                 ...(canResend(actionsFor.message)
                   ? [
                       {
@@ -441,201 +618,6 @@ function DaySeparator({ label }: { label: string }) {
         {label}
       </Text>
     </View>
-  );
-}
-
-const AnimatedIonicons = Animated.createAnimatedComponent(Ionicons);
-
-/** WhatsApp-style ticks that MORPH on status change: a small pop as
- *  the tick doubles on delivery, and a colour sweep to blue on read —
- *  instead of an instant icon swap. */
-function StatusTicks({ status, colors }: { status: MessageStatus; colors: ThemeColors }) {
-  const read = status === 'read';
-  const pop = useSharedValue(1);
-  const blue = useSharedValue(read ? 1 : 0);
-  const prev = useRef(status);
-
-  useEffect(() => {
-    if (prev.current !== status) {
-      prev.current = status;
-      pop.value = withSequence(
-        withSpring(1.35, { damping: 14, stiffness: 420 }),
-        withSpring(1, { damping: 12, stiffness: 260 })
-      );
-    }
-    blue.value = withTiming(read ? 1 : 0, { duration: 350 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, read]);
-
-  const tickStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pop.value }],
-    color: interpolateColor(blue.value, [0, 1], [colors.outgoingMeta, colors.readTick]),
-  }));
-
-  if (status === 'failed') {
-    return (
-      <Ionicons
-        name="alert-circle"
-        size={13}
-        color={colors.danger}
-        accessibilityLabel="Failed to send"
-      />
-    );
-  }
-  if (status === 'sending') {
-    return (
-      <Ionicons
-        name="time-outline"
-        size={12}
-        color={colors.outgoingMeta}
-        accessibilityLabel="Sending"
-      />
-    );
-  }
-  const double = status === 'delivered' || read;
-  return (
-    <AnimatedIonicons
-      name={double ? 'checkmark-done' : 'checkmark'}
-      size={13}
-      style={tickStyle}
-      accessibilityLabel={read ? 'Read' : double ? 'Delivered' : 'Sent'}
-    />
-  );
-}
-
-const MEDIA_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
-  document: 'document-text-outline',
-  audio: 'mic-outline',
-  video: 'videocam-outline',
-  location: 'location-outline',
-  template: 'albums-outline',
-  interactive: 'return-down-back-outline',
-};
-
-/** The quoted parent, rendered inside a reply's own bubble and above the
- *  composer while a reply is being written. */
-function QuotedMessage({
-  message,
-  contactName,
-  onDismiss,
-}: {
-  message: Message;
-  contactName?: string;
-  onDismiss?: () => void;
-}) {
-  const { colors, fonts: f } = useTheme();
-  return (
-    <View style={[styles.quote, { borderLeftColor: colors.primary, backgroundColor: colors.glass }]}>
-      <View style={{ flex: 1, gap: 1 }}>
-        <Text style={{ fontSize: 11, fontFamily: f.bold, color: colors.primary }} numberOfLines={1}>
-          {messageAuthorLabel(message, contactName)}
-        </Text>
-        <Text style={{ fontSize: 12.5, color: colors.textMuted }} numberOfLines={2}>
-          {messagePreview(message)}
-        </Text>
-      </View>
-      {onDismiss ? (
-        <Pressable
-          onPress={onDismiss}
-          hitSlop={10}
-          accessibilityRole="button"
-          accessibilityLabel="Cancel reply"
-        >
-          <Ionicons name="close" size={16} color={colors.textMuted} />
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
-function MessageBubble({
-  message,
-  parent,
-  contactName,
-  onLongPress,
-}: {
-  message: Message;
-  parent?: Message;
-  contactName?: string;
-  onLongPress: (message: Message, x: number, y: number) => void;
-}) {
-  const { colors, fonts: f } = useTheme();
-  const outgoing = message.sender_type !== 'customer';
-  const isBot = message.sender_type === 'bot';
-
-  return (
-    <Pressable
-      onLongPress={(e) => onLongPress(message, e.nativeEvent.pageX, e.nativeEvent.pageY)}
-      accessibilityHint="Hold for reply, send again and forward"
-      style={[
-        styles.bubble,
-        outgoing
-          ? { alignSelf: 'flex-end', backgroundColor: colors.outgoingBubble, borderBottomRightRadius: 4 }
-          : { alignSelf: 'flex-start', backgroundColor: colors.incomingBubble, borderBottomLeftRadius: 4 },
-      ]}
-    >
-      {isBot ? (
-        <Text style={{ fontSize: 10.5, fontFamily: f.bold, color: colors.outgoingMeta }}>
-          🤖 Bot
-        </Text>
-      ) : null}
-
-      {parent ? <QuotedMessage message={parent} contactName={contactName} /> : null}
-
-      {message.content_type === 'image' && message.media_url ? (
-        <MediaImage relativeUrl={message.media_url} />
-      ) : null}
-
-      {message.content_type !== 'text' && message.content_type !== 'image' ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Ionicons
-            name={MEDIA_ICONS[message.content_type] ?? 'attach-outline'}
-            size={15}
-            color={outgoing ? colors.outgoingMeta : colors.textMuted}
-          />
-          <Text
-            style={{
-              fontSize: 12.5,
-              fontStyle: 'italic',
-              color: outgoing ? colors.outgoingMeta : colors.textMuted,
-              textTransform: 'capitalize',
-            }}
-          >
-            {message.content_type}
-          </Text>
-        </View>
-      ) : null}
-
-      {message.content_text ? (
-        <Text
-          style={{
-            fontSize: 15,
-            lineHeight: 21,
-            color: outgoing ? colors.outgoingText : colors.incomingText,
-          }}
-        >
-          {message.content_text}
-        </Text>
-      ) : null}
-
-      <View style={styles.meta}>
-        <Text
-          style={{
-            fontSize: 10.5,
-            color: outgoing ? colors.outgoingMeta : colors.textFaint,
-          }}
-        >
-          {bubbleTime(message.created_at)}
-        </Text>
-        {outgoing ? <StatusTicks status={message.status} colors={colors} /> : null}
-      </View>
-
-      {message.status === 'failed' && message.error_info ? (
-        <Text style={{ fontSize: 11.5, color: outgoing ? colors.dangerSoft : colors.danger }}>
-          {message.error_info}
-        </Text>
-      ) : null}
-    </Pressable>
   );
 }
 
@@ -1007,6 +989,22 @@ const styles = StyleSheet.create({
   replyBar: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
+  },
+  jumpToEnd: {
+    position: 'absolute',
+    right: spacing.md,
+    bottom: spacing.md,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
   errorBar: {
     flexDirection: 'row',

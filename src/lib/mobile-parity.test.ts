@@ -232,6 +232,26 @@ describe("mobile/lib/message-actions.ts mirrors delivery-failure", () => {
   });
 });
 
+describe("mobile/lib/message-reactions.ts mirrors the web quick-reaction bar", () => {
+  // Both surfaces sit on the same message rows and the same
+  // /api/whatsapp/react route. An emoji offered on one and missing on
+  // the other reads as a broken thread to whoever reached for the
+  // second surface, so the bars have to stay identical.
+  it("offers the same quick reactions the web thread does", () => {
+    const web = stringLiterals(
+      readFileSync(
+        join(process.cwd(), "src/components/inbox/message-actions.tsx"),
+        "utf8"
+      ).match(/const QUICK_EMOJIS = \[[^\]]*\]/)?.[0] ?? ""
+    );
+
+    expect(web.length).toBeGreaterThan(0);
+    expect(stringLiteralsInConst(mobileSource("lib/message-reactions.ts"), "QUICK_EMOJIS")).toEqual(
+      web
+    );
+  });
+});
+
 describe("mobile/lib/share-message.ts mirrors share-message-builder", () => {
   it("exports every function the web builder does", () => {
     const exportedFunctions = (source: string) =>

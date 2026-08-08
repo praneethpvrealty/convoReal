@@ -19,8 +19,16 @@ export interface ContextMenuAction {
   onPress: () => void;
 }
 
+export interface ContextMenuReactions {
+  emojis: string[];
+  /** The one already picked, tinted and toggled off by a second tap. */
+  selected?: string;
+  onPick: (emoji: string) => void;
+}
+
 const MENU_WIDTH = 250;
 const ROW_HEIGHT = 48;
+const REACTION_BAR_HEIGHT = 52;
 
 /**
  * A floating context menu anchored at the press point — the
@@ -31,11 +39,14 @@ const ROW_HEIGHT = 48;
 export function ContextMenu({
   anchor,
   actions,
+  reactions,
   onClose,
 }: {
   /** Screen coordinates of the long-press (pageX/pageY); null = hidden. */
   anchor: { x: number; y: number } | null;
   actions: ContextMenuAction[];
+  /** Optional emoji bar above the actions, as WhatsApp shows on hold. */
+  reactions?: ContextMenuReactions;
   onClose: () => void;
 }) {
   const { colors, fonts: f } = useTheme();
@@ -50,7 +61,10 @@ export function ContextMenu({
     anchorX: anchor.x,
     anchorY: anchor.y,
     menuWidth: MENU_WIDTH,
-    contentHeight: actions.length * ROW_HEIGHT + spacing.xs * 2,
+    contentHeight:
+      actions.length * ROW_HEIGHT +
+      spacing.xs * 2 +
+      (reactions ? REACTION_BAR_HEIGHT : 0),
     frameWidth: frame.width || windowSize.width,
     frameHeight: frame.height || windowSize.height,
   });
@@ -79,6 +93,31 @@ export function ContextMenu({
             },
           ]}
         >
+          {reactions ? (
+            <View style={[styles.reactionBar, { borderBottomColor: colors.border }]}>
+              {reactions.emojis.map((emoji) => {
+                const picked = reactions.selected === emoji;
+                return (
+                  <Pressable
+                    key={emoji}
+                    onPress={() => {
+                      onClose();
+                      reactions.onPick(emoji);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={picked ? `Remove ${emoji} reaction` : `React with ${emoji}`}
+                    accessibilityState={{ selected: picked }}
+                    style={[
+                      styles.reactionButton,
+                      picked ? { backgroundColor: colors.primarySoft } : null,
+                    ]}
+                  >
+                    <Text style={{ fontSize: 21 }}>{emoji}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
             {actions.map((a) => (
               <Pressable
@@ -121,6 +160,21 @@ const styles = StyleSheet.create({
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
     elevation: 12,
+  },
+  reactionBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    height: REACTION_BAR_HEIGHT,
+    paddingHorizontal: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  reactionButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scroll: { flexGrow: 0, flexShrink: 1 },
   row: {

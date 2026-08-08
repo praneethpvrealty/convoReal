@@ -293,6 +293,19 @@ export function sendTextMessage(
 }
 
 /**
+ * Leave (or withdraw) the agent's reaction on a message — POST
+ * /api/whatsapp/react. An empty `emoji` removes it; anything else
+ * replaces whatever the agent had there, matching WhatsApp's own
+ * one-reaction-per-person rule.
+ */
+export function reactToMessage(messageId: string, emoji: string) {
+  return apiFetch<{ success: boolean }>('/api/whatsapp/react', {
+    method: 'POST',
+    body: JSON.stringify({ message_id: messageId, emoji }),
+  });
+}
+
+/**
  * Send one message's text on to other contacts — POST
  * /api/whatsapp/forward. Each recipient gets it in their own thread from
  * the business number; the per-contact outcome comes back in `results`
