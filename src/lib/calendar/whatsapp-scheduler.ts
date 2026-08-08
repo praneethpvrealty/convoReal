@@ -282,6 +282,7 @@ async function replyAndLog(params: {
       last_message_text: params.text,
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      awaiting_reply: false,
     })
     .eq('id', params.conversationId);
   return sendRes.messageId || null;

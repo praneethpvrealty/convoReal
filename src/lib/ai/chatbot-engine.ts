@@ -203,7 +203,8 @@ export async function saveBotMessage(
       .update({
         last_message_text: replyText,
         last_message_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        awaiting_reply: false
       })
       .eq('id', conversationId);
 

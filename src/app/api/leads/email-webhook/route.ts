@@ -890,6 +890,8 @@ export async function POST(request: Request) {
           .update({
             last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
             last_message_at: new Date().toISOString(),
+            awaiting_reply: true,
+            last_customer_message_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
           .eq('id', conversationId);
@@ -911,6 +913,8 @@ export async function POST(request: Request) {
               contact_id: existingContact.id,
               last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
               last_message_at: new Date().toISOString(),
+              awaiting_reply: true,
+              last_customer_message_at: new Date().toISOString(),
             })
             .select('id')
             .single();
@@ -1061,6 +1065,8 @@ export async function POST(request: Request) {
         contact_id: newContact.id,
         last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
         last_message_at: new Date().toISOString(),
+        awaiting_reply: true,
+        last_customer_message_at: new Date().toISOString(),
       })
       .select('id')
       .single();

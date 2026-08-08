@@ -364,6 +364,8 @@ export interface Conversation {
   last_message_at?: string;
   unread_count: number;
   is_archived: boolean;
+  awaiting_reply?: boolean;
+  last_customer_message_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;

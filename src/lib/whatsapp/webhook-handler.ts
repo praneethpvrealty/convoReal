@@ -1120,7 +1120,13 @@ async function processMessage(
       updated_at: new Date().toISOString(),
       ...(ownerCheck.isOwner
         ? { unread_count: 0, is_archived: true }
-        : { unread_count: (conversation.unread_count || 0) + 1 }),
+        : {
+            unread_count: (conversation.unread_count || 0) + 1,
+            awaiting_reply: true,
+            last_customer_message_at: new Date(
+              parseInt(message.timestamp) * 1000
+            ).toISOString(),
+          }),
       ...routingUpdate,
     })
     .eq('id', conversation.id)
@@ -1595,6 +1601,7 @@ async function processMessage(
             last_message_text: replyText,
             last_message_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
+            awaiting_reply: false,
           }).eq('id', conversation.id);
         }
       } catch (err) {
@@ -1699,6 +1706,7 @@ async function processMessage(
           last_message_text: replyText,
           last_message_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          awaiting_reply: false,
         })
         .eq('id', conversation.id)
 
