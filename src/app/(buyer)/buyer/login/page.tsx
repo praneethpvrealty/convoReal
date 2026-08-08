@@ -12,6 +12,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { toAuthPhone } from "@/lib/whatsapp/phone-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,14 +25,7 @@ import {
 } from "@/components/ui/card";
 import { Home, Phone, ArrowLeft } from "lucide-react";
 
-function cleanPhoneInput(raw: string): string | null {
-  let phone = raw.trim().replace(/\s+/g, "");
-  if (!phone.startsWith("+")) {
-    if (phone.replace(/\D/g, "").length === 10) phone = `+91${phone.replace(/\D/g, "")}`;
-    else return null;
-  }
-  return phone;
-}
+const cleanPhoneInput = toAuthPhone;
 
 export default function BuyerLoginPage() {
   return (

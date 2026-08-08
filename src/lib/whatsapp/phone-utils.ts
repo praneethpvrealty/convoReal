@@ -53,6 +53,29 @@ export function normalizePhoneWithCountryCode(phone: unknown, defaultCountryCode
 }
 
 /**
+ * The one canonical phone string for Supabase Auth (signInWithOtp,
+ * verifyOtp, updateUser). Returns E.164 or null when the input cannot
+ * be one.
+ *
+ * Supabase keys an auth user on this exact string, so two spellings of
+ * one number mint two users for one person — which is how an account
+ * ended up with a "9900277111" identity alongside "+919900277111", the
+ * second of them profile-less and bounced to /profile-setup forever.
+ * Every auth entry point must send what this returns, never its own
+ * cleanup: hand-rolled versions kept the "+" branch untouched, so
+ * "+91-99002-77111" reached Supabase with its dashes.
+ */
+export function toAuthPhone(raw: unknown): string | null {
+  const e164 = normalizePhoneWithCountryCode(raw)
+  const digits = e164.replace(/\D/g, '')
+  // E.164 caps at 15 digits; below 11 cannot carry a country code and a
+  // subscriber number, and normalizePhoneWithCountryCode has already
+  // added the default code to a bare 10-digit local number.
+  if (digits.length < 11 || digits.length > 15) return null
+  return e164
+}
+
+/**
  * Compare two phone numbers accounting for trunk prefix differences.
  * e.g. "370063949836" (with trunk 0) matches "37063949836" (without trunk 0)
  * by comparing the last 8 digits.

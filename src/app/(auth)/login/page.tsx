@@ -4,6 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { toAuthPhone } from "@/lib/whatsapp/phone-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -157,15 +158,11 @@ function LoginPageInner() {
     setSuccessMessage(null);
     setLoading(true);
 
-    let cleanPhone = phone.trim().replace(/\s+/g, "");
-    if (!cleanPhone.startsWith("+")) {
-      if (cleanPhone.length === 10) {
-        cleanPhone = `+91${cleanPhone}`;
-      } else {
-        setError("Please enter a valid phone number (e.g. 9900277111 or +919900277111)");
-        setLoading(false);
-        return;
-      }
+    const cleanPhone = toAuthPhone(phone);
+    if (!cleanPhone) {
+      setError("Please enter a valid phone number (e.g. 9900277111 or +919900277111)");
+      setLoading(false);
+      return;
     }
 
     console.log('[LOGIN] Requesting SMS OTP for phone:', cleanPhone);
@@ -190,9 +187,13 @@ function LoginPageInner() {
     setError(null);
     setLoading(true);
 
-    let cleanPhone = phone.trim().replace(/\s+/g, "");
-    if (!cleanPhone.startsWith("+") && cleanPhone.length === 10) {
-      cleanPhone = `+91${cleanPhone}`;
+    // Must resolve to the same string handleSendOtp sent, or Supabase
+    // looks up a different identity than the code was issued for.
+    const cleanPhone = toAuthPhone(phone);
+    if (!cleanPhone) {
+      setError("Please enter a valid phone number (e.g. 9900277111 or +919900277111)");
+      setLoading(false);
+      return;
     }
 
     console.log('[LOGIN] Verifying OTP code for:', cleanPhone);
