@@ -38,6 +38,7 @@ import {
   ApiError,
   forwardMessage,
   reactToMessage,
+  sendGroupMessage,
   sendMediaMessage,
   sendTemplateMessage,
   sendTextMessage,
@@ -75,12 +76,13 @@ import {
   reactionsByMessage,
   toggleEmoji,
 } from '@/lib/message-reactions';
-import type {
-  Contact,
-  MessageTemplate,
-  Conversation,
-  Message,
-  MessageReaction,
+import {
+  conversationTitle,
+  type Contact,
+  type MessageTemplate,
+  type Conversation,
+  type Message,
+  type MessageReaction,
 } from '@/lib/types';
 import { dayLabel } from '@/lib/format';
 import { queryClient } from '@/lib/query';
@@ -131,7 +133,7 @@ async function fetchReactions(conversationId: string): Promise<MessageReaction[]
 async function fetchConversation(id: string): Promise<Conversation | null> {
   const { data, error } = await supabase
     .from('conversations')
-    .select('*, contact:contacts(*)')
+    .select('*, contact:contacts(*), group:whatsapp_groups(id, subject, status)')
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -266,7 +268,7 @@ export default function ConversationScreen() {
     [reactions]
   );
 
-  const title = conversation?.contact?.name || conversation?.contact?.phone || 'Conversation';
+  const title = conversationTitle(conversation);
   const contactName = conversation?.contact?.name || undefined;
 
   // Swipe-to-reply and the quote tap both need the composer's attention,
@@ -545,6 +547,7 @@ export default function ConversationScreen() {
 
       <Composer
         conversationId={id}
+        groupId={conversation?.group?.id}
         contactName={contactName}
         contactPhone={conversation?.contact?.phone || undefined}
         seedDraft={seedDraft}
@@ -728,6 +731,7 @@ function DaySeparator({ label }: { label: string }) {
 
 function Composer({
   conversationId,
+  groupId,
   contactName,
   contactPhone,
   seedDraft,
@@ -737,6 +741,9 @@ function Composer({
   onResendHandled,
 }: {
   conversationId: string;
+  /** Set when this thread is a group. Group sends take a different
+   *  route entirely: no contact to resolve, no 24-hour window. */
+  groupId?: string;
   contactName?: string;
   contactPhone?: string;
   seedDraft?: string;
@@ -811,7 +818,15 @@ function Composer({
     setError(null);
     setBlockedText(null);
     try {
-      await sendTextMessage(conversationId, trimmed, replyToMessageId);
+      if (groupId) {
+        await sendGroupMessage({
+          groupId,
+          text: trimmed,
+          replyToMessageId,
+        });
+      } else {
+        await sendTextMessage(conversationId, trimmed, replyToMessageId);
+      }
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
       return true;
     } catch (err) {
@@ -869,12 +884,21 @@ function Composer({
     try {
       const media = await uploadChatMedia(file);
       setAttaching('Sending…');
-      await sendMediaMessage({
-        conversationId,
-        media,
-        caption: draft.trim() || undefined,
-        replyToMessageId: replyTo?.id,
-      });
+      if (groupId) {
+        await sendGroupMessage({
+          groupId,
+          media,
+          caption: draft.trim() || undefined,
+          replyToMessageId: replyTo?.id,
+        });
+      } else {
+        await sendMediaMessage({
+          conversationId,
+          media,
+          caption: draft.trim() || undefined,
+          replyToMessageId: replyTo?.id,
+        });
+      }
       setDraft('');
       onClearReply();
       haptic.success();
@@ -1203,15 +1227,21 @@ function Composer({
         >
           <Ionicons name="attach-outline" size={20} color={colors.primary} />
         </Pressable>
-        <Pressable
-          style={[styles.templateButton, { backgroundColor: colors.surface }]}
-          onPress={() => setTemplatesOpen(true)}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel="Send a template message"
-        >
-          <Ionicons name="albums-outline" size={19} color={colors.primary} />
-        </Pressable>
+        {/* Groups accept approved templates, but sending one needs a
+            group-aware template path that does not exist yet — and the
+            1:1 route would fail on the missing contact. Hidden rather
+            than offered and broken. */}
+        {groupId ? null : (
+          <Pressable
+            style={[styles.templateButton, { backgroundColor: colors.surface }]}
+            onPress={() => setTemplatesOpen(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Send a template message"
+          >
+            <Ionicons name="albums-outline" size={19} color={colors.primary} />
+          </Pressable>
+        )}
         <Pressable
           style={[styles.templateButton, { backgroundColor: colors.surface }]}
           onPress={() => {

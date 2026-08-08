@@ -60,6 +60,25 @@ export interface Conversation {
   unread_count: number;
   is_archived: boolean;
   contact?: Contact;
+  /** Set instead of `contact` when the thread is a WhatsApp group. A
+   *  conversation is about exactly one of the two — see migration 218. */
+  group?: WhatsAppGroup | null;
+}
+
+export interface WhatsAppGroup {
+  id: string;
+  subject: string;
+  status: 'pending' | 'active' | 'suspended' | 'deleted' | 'failed';
+}
+
+/** The title a thread shows, whichever kind it is. */
+export function conversationTitle(
+  conversation: Pick<Conversation, 'contact' | 'group'> | null | undefined
+): string {
+  if (conversation?.group) return conversation.group.subject;
+  return (
+    conversation?.contact?.name || conversation?.contact?.phone || 'Conversation'
+  );
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';

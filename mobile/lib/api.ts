@@ -309,6 +309,49 @@ export function sendTextMessage(
 }
 
 /**
+ * Send into a WhatsApp group — POST /api/whatsapp/groups/{id}/send.
+ *
+ * A group thread cannot use /api/whatsapp/send: that route resolves the
+ * conversation's contact, and a group conversation has none. There is
+ * also no 24-hour window to check here, and no template fallback to
+ * offer if one were closed.
+ */
+export function sendGroupMessage(opts: {
+  groupId: string;
+  text?: string;
+  media?: StagedMedia;
+  caption?: string;
+  replyToMessageId?: string;
+}) {
+  return apiFetch<{ success: boolean }>(
+    `/api/whatsapp/groups/${encodeURIComponent(opts.groupId)}/send`,
+    {
+      method: 'POST',
+      body: JSON.stringify(
+        opts.media
+          ? {
+              message_type: 'media',
+              media_url: opts.media.media_url,
+              media_kind: opts.media.media_kind,
+              media_filename: opts.media.filename,
+              ...(opts.caption ? { content_text: opts.caption } : {}),
+              ...(opts.replyToMessageId
+                ? { reply_to_message_id: opts.replyToMessageId }
+                : {}),
+            }
+          : {
+              message_type: 'text',
+              content_text: opts.text,
+              ...(opts.replyToMessageId
+                ? { reply_to_message_id: opts.replyToMessageId }
+                : {}),
+            }
+      ),
+    }
+  );
+}
+
+/**
  * Engine-local message state — PATCH /api/whatsapp/messages/{id}.
  *
  * 'pin'/'unpin' mark a message for the team; 'hide'/'restore' control

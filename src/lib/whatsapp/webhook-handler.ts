@@ -14,6 +14,11 @@ import {
   isGroupWebhookField,
   processGroupWebhook,
 } from '@/lib/whatsapp/group-webhooks'
+import {
+  groupIdFromInbound,
+  resolveGroupSender,
+  resolveGroupThread,
+} from '@/lib/whatsapp/group-inbound'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
 import { processBuyerQualificationMessage } from '@/lib/ai/buyer-qualification'
 import {
@@ -93,7 +98,11 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface WhatsAppMessage {
   id: string
+  /** The PARTICIPANT's phone on a group message, not the group. */
   from: string
+  /** Present only on group messages. Its absence is what marks an
+   *  inbound as an ordinary one-to-one. */
+  group_id?: string | null
   timestamp: string
   type: string
   text?: { body: string }
@@ -883,6 +892,50 @@ async function processMessage(
 
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
+
+  // A group message reaches us on this same `messages` field, and `from`
+  // is the PARTICIPANT. Everything below would therefore file it in that
+  // person's private thread and let the bot answer them directly — so
+  // groups are split off before any contact or conversation is touched.
+  const waGroupId = groupIdFromInbound(message)
+  if (waGroupId) {
+    const thread = await resolveGroupThread(accountId, waGroupId)
+    if (!thread) {
+      console.warn(
+        `[webhook] group message for unknown group ${waGroupId} on account ${accountId}. Dropping.`
+      )
+      return
+    }
+    const parsed = await parseMessageContent(message, accessToken)
+    const senderContactId = await resolveGroupSender(accountId, senderPhone)
+
+    await supabaseAdmin().from('messages').insert({
+      conversation_id: thread.conversationId,
+      sender_type: 'customer',
+      content_type: message.type === 'sticker' ? 'image' : message.type,
+      content_text: parsed.contentText,
+      media_url: parsed.mediaUrl,
+      message_id: message.id,
+      status: 'delivered',
+      // In a group the conversation no longer says who wrote this.
+      sender_wa_id: senderPhone,
+      sender_contact_id: senderContactId,
+    })
+
+    await supabaseAdmin()
+      .from('conversations')
+      .update({
+        last_message_text: parsed.contentText || `[${message.type}]`,
+        last_message_at: new Date().toISOString(),
+      })
+      .eq('id', thread.conversationId)
+
+    // No bot, no automations, no flows. Every automated reply path the
+    // Engine has answers with buttons or lists, which groups reject
+    // outright (130501) — the members would see nothing, and a
+    // plain-text fallback would go to all eight of them.
+    return
+  }
 
   const contactOutcome = await findOrCreateContact(
     accountId,
