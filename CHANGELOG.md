@@ -78,6 +78,25 @@ and polish.
 
 ### Changed
 
+- **Agent inventory digests now send through the owner digest's
+  template.** They no longer have a template of their own. Four
+  agent-specific submissions were each approved by Meta as MARKETING —
+  billed at the marketing rate and requiring marketing opt-in — even
+  after the wording was stripped down to a near word-for-word copy of
+  `owner_property_digest`, which Meta had approved as UTILITY three
+  weeks earlier. A template's category is fixed at first review and can
+  never be edited, and deleting one reserves its name for four weeks,
+  so each attempt burned a name permanently. Both digests declare the
+  same three body params, so the agent digest reuses the approved
+  template and inherits its UTILITY category. Accounts still holding an
+  approved agent-specific template keep sending from it as a fallback.
+  The trade-off is coupling: the two digests now share one Meta
+  template, so a re-categorisation, quality pause, or deletion affects
+  both at once. Background and the rules that make this permanent are
+  documented in the header of
+  `src/lib/whatsapp/agent-inventory-digest-template.ts` and in
+  `AGENTS.md` §2.7.
+
 - **The WhatsApp assistant's help card now says what it can actually
   do.** Texting your own Engine number used to answer with a four-line
   "AI Ingestion Chatbot" card that only described draft-session

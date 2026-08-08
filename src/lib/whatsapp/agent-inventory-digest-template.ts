@@ -1,29 +1,77 @@
-// The predefined "agent_property_digest" WhatsApp template — the
-// template-first channel for periodic reach digests to SOURCE AGENTS
+// Template channel for periodic reach digests to SOURCE AGENTS
 // (partner agents whose inventory this account lists, e.g. Deepak when
 // Suresh added Deepak's properties as agent-referred). Source agents
-// rarely have an open 24-hour service window, so the pre-approved
-// Utility template is the primary path; an open window upgrades to the
-// richer free-form per-property breakdown. Same one-click submit flow
-// as owner_property_digest; pure functions so payload and params are
-// unit-testable.
+// rarely have an open 24-hour service window, so a pre-approved
+// template is the primary path; an open window upgrades to the richer
+// free-form per-property breakdown.
+//
+// ─────────────────────────────────────────────────────────────────
+// READ THIS BEFORE SUBMITTING A NEW TEMPLATE FOR THE AGENT DIGEST
+//
+// The agent digest deliberately has NO template of its own. It sends
+// through owner_property_digest — the same template the owner digest
+// uses — because four attempts to get an agent-specific one approved as
+// Utility all came back MARKETING:
+//
+//   agent_inventory_digest          2026-08-07  MARKETING
+//   agent_listing_activity_update   2026-08-08  MARKETING
+//   agent_property_digest           2026-08-08  MARKETING
+//
+// Each attempt stripped what looked like the promotional signal — a
+// signup URL in a sample value, a 📣 emoji, "reach"/"performed across
+// our buyer network" framing, then a fourth free-text param announced
+// as "Next step:". The last one was near word-for-word identical to
+// owner_property_digest (same 3 params, same footer, same two quick
+// replies, three words different) and Meta still categorised it
+// Marketing. Content parity does not reproduce the category.
+//
+// owner_property_digest was approved as Utility on 2026-07-16; every
+// Marketing verdict landed 2026-08-06 or later. The most likely reading
+// is that Meta tightened how it categorises recurring digests and the
+// owner template is grandfathered — not that some wording is the magic
+// one. Treat it as a fixed asset, not a control you can reproduce.
+//
+// Two Meta rules make each attempt permanent, which is why guessing is
+// expensive:
+//   1. Category is decided when Meta first reviews a template and can
+//      never be edited afterwards — the API rejects the whole edit with
+//      "You cannot update an approved template category".
+//   2. Deleting a template reserves its name for four weeks, and it
+//      refuses a category change for that entire window.
+// So every submission burns a name for good. Three are already spent.
+//
+// If the digest must stop sharing the owner template, the honest paths
+// are: appeal the category in WhatsApp Manager (Business Support,
+// within 60 days of the verdict), or accept MARKETING and gate sends on
+// explicit opt-in — marketing-category messages need it, count toward
+// per-user marketing limits, and cost more. Do NOT submit a fifth name
+// on a wording hunch.
+//
+// THE COUPLING THIS BUYS: owner and agent digests now share one Meta
+// template. If it is ever re-categorised, paused for quality, or
+// deleted, BOTH digests are affected at once. Quality signals from
+// agents (blocks, "STOP UPDATES") land on the template the owners
+// depend on too.
+// ─────────────────────────────────────────────────────────────────
 
-import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
+import { OWNER_DIGEST_TEMPLATE_NAME } from '@/lib/whatsapp/owner-digest-template';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 
-export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAME = 'agent_property_digest';
+/**
+ * The agent digest sends through the owner digest's approved Utility
+ * template. Its body reads correctly for a partner agent because {{2}}
+ * carries the listings phrase ("your 3 referred listings (today)").
+ */
+export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAME = OWNER_DIGEST_TEMPLATE_NAME;
 
 /**
- * Earlier names, newest first. Meta decides a template's category when
- * it reviews the creation and never again — an edit that changes it is
- * refused outright ("You cannot update an approved template category"),
- * and deleting a template reserves its name for four weeks. So a
- * template that came back Marketing is Marketing for good, and a
- * corrected one can only ship under a name Meta has not seen. Accounts
- * still holding an approved row under an older name keep sending from
- * it until the new one clears review.
+ * Agent-specific templates that were submitted before the switch above.
+ * All three are approved but MARKETING. They stay listed so an account
+ * that has one — and no approved owner digest — keeps receiving digests
+ * rather than none, at the marketing rate. Newest first.
  */
 export const LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES = [
+  'agent_property_digest',
   'agent_listing_activity_update',
   'agent_inventory_digest',
 ];
@@ -33,49 +81,11 @@ export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES = [
   ...LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
 ];
 
-export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
-  return {
-    name: AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
-    // Utility: a transactional status update about the agent's own
-    // referred inventory, not promotional content.
-    category: 'Utility',
-    language: 'en_US',
-    // owner_property_digest is the control: same footer, same buttons,
-    // approved as Utility. Two rewrites of this template were still
-    // categorised Marketing, and what it had that the control did not
-    // was a fourth free-text param introduced as "Next step:" — a slot
-    // Meta cannot inspect, announced as a call to action. Dropping it
-    // leaves the two templates structurally identical.
-    body_text: [
-      '📊 *Your Listing Update*',
-      '',
-      'Hi {{1}}, here is the latest buyer activity on {{2}}:',
-      '',
-      '📈 Summary: {{3}}',
-      '',
-      'Reply to this message for details or to talk to our team.',
-    ].join('\n'),
-    footer_text: 'Reply STOP UPDATES to pause these updates',
-    buttons: [
-      // A tap opens the 24h window, so the follow-up conversation
-      // continues free-form in the Engine Inbox.
-      { type: 'QUICK_REPLY', text: 'Tell me more' },
-      { type: 'QUICK_REPLY', text: 'Pause updates' },
-    ],
-    sample_values: {
-      body: [
-        'Deepak',
-        'your 3 referred listings (today)',
-        '2 direct buyers reached · 1 indirect buyer via partner agents · 1 partner agent onboarded',
-      ],
-    },
-  };
-}
-
 /**
  * Body params {{1}}..{{3}}: first name, listings phrase (with period),
- * compact reach summary. Every param is guaranteed non-empty (Meta
- * rejects empty values) and newline-free (sanitizeTemplateParam).
+ * compact reach summary — the same three owner_property_digest
+ * declares, in the same order. Every param is guaranteed non-empty
+ * (Meta rejects empty values) and newline-free (sanitizeTemplateParam).
  */
 export function buildAgentInventoryDigestParams(
   contactName: string | null | undefined,
@@ -94,8 +104,8 @@ export function buildAgentInventoryDigestParams(
 }
 
 /**
- * How many distinct {{N}} the stored template body expects. Earlier
- * revisions of this template carry a fourth "Next step" param, and
+ * How many distinct {{N}} the stored template body expects. The legacy
+ * agent_inventory_digest carries a fourth "Next step" param, and
  * sending a template fewer params than it declares is a Meta error.
  */
 export function countTemplateBodyParams(bodyText: string | null | undefined): number {
