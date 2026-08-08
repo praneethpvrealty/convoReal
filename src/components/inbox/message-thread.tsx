@@ -30,6 +30,7 @@ import {
   ArchiveRestore,
   Waypoints,
   Phone,
+  Pin,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MessageBubble } from "./message-bubble";
 import { MessageActions, actionableText } from "./message-actions";
+import {
+  HIDE_CONFIRM_MESSAGE,
+  pinAction,
+  pinnedMessages,
+  visibleMessages,
+} from "@/lib/whatsapp/message-state";
 import { ForwardMessageDialog } from "./forward-message-dialog";
 import { MessageComposer } from "./message-composer";
 import { TemplatePicker } from "./template-picker";
@@ -292,6 +299,15 @@ export function MessageThread({
     onMessagesLoadedRef.current = onMessagesLoaded;
   });
 
+  // Same reason: pin/hide run inside an async handler and must see the
+  // current list and callback, not the ones captured when it was built.
+  const onUpdateMessageRef = useRef(onUpdateMessage);
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    onUpdateMessageRef.current = onUpdateMessage;
+    messagesRef.current = messages;
+  });
+
   const lastConversationIdRef = useRef<string | null>(null);
 
   const conversationId = conversation?.id;
@@ -329,7 +345,11 @@ export function MessageThread({
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        // A message hidden from the inbox must be hidden on every
+        // surface. Without this it stays visible here while the mobile
+        // thread has dropped it, and the two disagree about what the
+        // conversation contains.
+        onMessagesLoadedRef.current(visibleMessages(data ?? []));
       }
 
       if (!cancelled && isConversationChange) {
@@ -749,6 +769,115 @@ export function MessageThread({
   // The "toggle" semantic (pill click) is computed at the call site where the
   // current reactions for the bubble are already in scope — keeps this
   // function dependency-free w.r.t. the reaction list.
+  /**
+   * Upload an attachment, then send it.
+   *
+   * Two calls rather than one: a send refused by the 24-hour window
+   * should not also cost the agent the upload, and the staged file can
+   * be sent again once a template has reopened the window.
+   */
+  const handleSendAttachment = useCallback(
+    async (file: File, caption: string | undefined, replyToId?: string) => {
+      if (!conversation) return;
+      try {
+        const form = new FormData();
+        form.append("file", file);
+        const uploadRes = await fetch("/api/whatsapp/media/upload", {
+          method: "POST",
+          body: form,
+        });
+        const uploaded = await uploadRes.json();
+        if (!uploadRes.ok) {
+          // The route names the actual limit ("WhatsApp caps video at
+          // 16 MB — this is 40 MB"), which is more use than "failed".
+          throw new Error(uploaded.error || "Could not upload the attachment");
+        }
+
+        const sendRes = await fetch("/api/whatsapp/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversation_id: conversation.id,
+            message_type: "media",
+            media_url: uploaded.data.media_url,
+            media_kind: uploaded.data.media_kind,
+            media_filename: uploaded.data.filename,
+            ...(caption ? { content_text: caption } : {}),
+            ...(replyToId ? { reply_to_message_id: replyToId } : {}),
+          }),
+        });
+        const sent = await sendRes.json();
+        if (!sendRes.ok) {
+          throw new Error(
+            isReengagementError(sent.error)
+              ? "Past the 24-hour window — an attachment needs the contact to write first, or a template."
+              : sent.error || "Could not send the attachment",
+          );
+        }
+
+        setReplyTo(null);
+        onRefresh?.();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not send that");
+      }
+    },
+    [conversation, onRefresh],
+  );
+
+  /**
+   * Pin/unpin, or hide a message from this account's inbox.
+   *
+   * Neither reaches WhatsApp — Meta has no revoke endpoint, and its pin
+   * endpoint takes group recipients only. The hide confirmation says so
+   * verbatim, from the same constant the mobile thread uses.
+   */
+  const setMessageState = useCallback(
+    async (message: Message, action: "pin" | "unpin" | "hide") => {
+      if (message.id.startsWith("temp-")) {
+        toast.error("Wait for the message to finish sending");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/whatsapp/messages/${message.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action }),
+        });
+        const payload = await res.json();
+        if (!res.ok) throw new Error(payload.error || "That did not work");
+
+        // The parent owns the message list, so a hide replaces it and a
+        // pin patches the single row through the callbacks it provides.
+        if (action === "hide") {
+          onMessagesLoadedRef.current(
+            messagesRef.current.filter((m) => m.id !== message.id),
+          );
+        } else {
+          onUpdateMessageRef.current(message.id, {
+            pinned_at: action === "pin" ? new Date().toISOString() : null,
+          });
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "That did not work");
+      }
+    },
+    [],
+  );
+
+  const confirmHide = useCallback(
+    (message: Message) => {
+      // Confirmed every time. It sits where "delete for everyone" sits
+      // in WhatsApp and does something entirely different.
+      if (typeof window !== "undefined" && !window.confirm(HIDE_CONFIRM_MESSAGE)) {
+        return;
+      }
+      void setMessageState(message, "hide");
+    },
+    [setMessageState],
+  );
+
+  const pinned = useMemo(() => pinnedMessages(messages), [messages]);
+
   const postReaction = useCallback(
     async (messageId: string, emoji: string) => {
       if (!user?.id || !conversation) {
@@ -1084,6 +1213,24 @@ export function MessageThread({
           </div>
         ) : (
           <div className="space-y-4">
+            {pinned.length > 0 && (
+              <div className="sticky top-0 z-10 -mx-1 flex flex-wrap gap-1.5 rounded-lg border border-slate-800 bg-slate-900/90 px-2 py-1.5 backdrop-blur-sm">
+                {pinned.map((msg) => (
+                  <button
+                    key={msg.id}
+                    type="button"
+                    onClick={() => void setMessageState(msg, "unpin")}
+                    title="Click to unpin — the contact sees no change either way"
+                    className="flex max-w-60 items-center gap-1.5 rounded-full border border-slate-700 bg-slate-800/60 px-2.5 py-1 text-xs text-slate-300 hover:border-slate-600 hover:text-white"
+                  >
+                    <Pin className="h-3 w-3 shrink-0 text-violet-400" />
+                    <span className="truncate">
+                      {actionableText(msg) || `[${msg.content_type}]`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
             {messageGroups.map((group) => (
               <div key={group.date}>
                 {/* Date separator */}
@@ -1126,6 +1273,8 @@ export function MessageThread({
                         }}
                         onResend={() => handleResend(msg)}
                         onForward={() => setForwardMessage(msg)}
+                        onTogglePin={() => void setMessageState(msg, pinAction(msg))}
+                        onHide={() => confirmHide(msg)}
                       >
                         <MessageBubble
                           message={msg}
@@ -1149,6 +1298,7 @@ export function MessageThread({
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired}
         onSend={handleSend}
+        onSendAttachment={handleSendAttachment}
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}

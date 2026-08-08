@@ -498,6 +498,22 @@ export interface SendTextMessageArgs {
   /** Meta's message_id of the message being replied to. Adds a `context` field
    *  so WhatsApp renders the new message as a reply with a quote preview. */
   contextMessageId?: string
+  /** 'group' addresses `to` as a group id rather than a phone number.
+   *  Groups live on a newer Graph version — see groups-api.ts — so a
+   *  group send is routed through that base. */
+  recipientType?: RecipientType
+}
+
+/** Who a message is addressed to. Groups arrived with the 2026 Groups
+ *  API; everything before it is 'individual'. */
+export type RecipientType = 'individual' | 'group'
+
+/** Groups do not exist on the version the rest of the client pins, so a
+ *  group send has to go out on the newer one. */
+const META_GROUPS_API_BASE = 'https://graph.facebook.com/v23.0'
+
+function sendBase(recipientType: RecipientType | undefined): string {
+  return recipientType === 'group' ? META_GROUPS_API_BASE : META_API_BASE
 }
 
 /**
@@ -507,11 +523,11 @@ export interface SendTextMessageArgs {
 export async function sendTextMessage(
   args: SendTextMessageArgs
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, text, contextMessageId } = args
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const { phoneNumberId, accessToken, to, text, contextMessageId, recipientType } = args
+  const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
-    recipient_type: 'individual',
+    recipient_type: recipientType ?? 'individual',
     to,
     type: 'text',
     text: { body: text },
@@ -534,7 +550,10 @@ export async function sendTextMessage(
   return { messageId: data.messages[0].id }
 }
 
-export type MediaKind = 'image' | 'video' | 'document'
+/** Audio is what a voice note goes out as — Meta renders an
+ *  `audio` message as a playable clip, and as a push-to-talk bubble
+ *  when the file is ogg/opus. It takes no caption. */
+export type MediaKind = 'image' | 'video' | 'document' | 'audio'
 
 export interface SendMediaMessageArgs {
   phoneNumberId: string
@@ -548,6 +567,8 @@ export interface SendMediaMessageArgs {
   /** Document-only. Shown in the recipient's chat as the file name. Ignored for image/video. */
   filename?: string
   contextMessageId?: string
+  /** Groups accept media; see sendTextMessage's note on the base URL. */
+  recipientType?: RecipientType
 }
 
 /**
@@ -560,17 +581,29 @@ export interface SendMediaMessageArgs {
 export async function sendMediaMessage(
   args: SendMediaMessageArgs,
 ): Promise<MetaSendResult> {
-  const { phoneNumberId, accessToken, to, kind, link, caption, filename, contextMessageId } = args
+  const {
+    phoneNumberId,
+    accessToken,
+    to,
+    kind,
+    link,
+    caption,
+    filename,
+    contextMessageId,
+    recipientType,
+  } = args
   if (!link) throw new Error('sendMediaMessage requires a link.')
-  const url = `${META_API_BASE}/${phoneNumberId}/messages`
+  const url = `${sendBase(recipientType)}/${phoneNumberId}/messages`
 
   const media: Record<string, unknown> = { link }
-  if (caption) media.caption = caption
+  // Audio rejects a caption outright (Meta returns 100), so it is only
+  // ever attached to the kinds that render one.
+  if (caption && kind !== 'audio') media.caption = caption
   if (kind === 'document' && filename) media.filename = filename
 
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
-    recipient_type: 'individual',
+    recipient_type: recipientType ?? 'individual',
     to,
     type: kind,
     [kind]: media,

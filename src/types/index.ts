@@ -432,6 +432,18 @@ export interface Message {
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;
+  /** Engine-local pin. Nothing changes on the contact's phone — the
+   *  Cloud API's pin endpoint takes group recipients only. */
+  pinned_at?: string | null;
+  pinned_by?: string | null;
+  /** Engine-local hide. The customer's copy is NOT deleted; Meta has no
+   *  revoke endpoint for a sent message. */
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  /** Who wrote an inbound GROUP message. In a 1:1 thread the
+   *  conversation identifies the author; in a group it cannot. */
+  sender_wa_id?: string | null;
+  sender_contact_id?: string | null;
   /**
    * Only set when `content_type === 'interactive'` — the stable id of
    * the button or list row the customer tapped. The Flows engine uses

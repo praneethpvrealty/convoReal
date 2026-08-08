@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback, KeyboardEvent } from "react";
-import { Send, LayoutTemplate } from "lucide-react";
+import { useState, useRef, useCallback, useEffect, KeyboardEvent } from "react";
+import { Send, LayoutTemplate, Paperclip, Mic, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useCan } from "@/hooks/use-can";
@@ -19,6 +20,12 @@ interface MessageComposerProps {
   conversationId: string;
   sessionExpired: boolean;
   onSend: (text: string, replyToId?: string) => void;
+  /** Upload the file and send it. Caption comes from whatever is typed. */
+  onSendAttachment: (
+    file: File,
+    caption: string | undefined,
+    replyToId?: string,
+  ) => Promise<void>;
   onOpenTemplates: () => void;
   replyTo?: ReplyDraft | null;
   onClearReply?: () => void;
@@ -27,13 +34,24 @@ interface MessageComposerProps {
 export function MessageComposer({
   sessionExpired,
   onSend,
+  onSendAttachment,
   onOpenTemplates,
   replyTo,
   onClearReply,
 }: MessageComposerProps) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [attaching, setAttaching] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  // A cancelled recording must never be sent, and the recorder's stop
+  // event fires either way — so intent is recorded before stopping.
+  const keepRecordingRef = useRef(true);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Viewers (read-only role) can browse the inbox but never send.
   // For solo users this is always true — single-owner accounts pass
   // every capability — so the disabled branch is a no-op there.
@@ -63,6 +81,80 @@ export function MessageComposer({
       setSending(false);
     }
   }, [text, sending, sessionExpired, onSend, replyTo?.id]);
+
+  const sendFile = useCallback(
+    async (file: File) => {
+      setAttaching(true);
+      try {
+        await onSendAttachment(file, text.trim() || undefined, replyTo?.id);
+        setText("");
+        if (textareaRef.current) textareaRef.current.style.height = "auto";
+      } finally {
+        setAttaching(false);
+      }
+    },
+    [onSendAttachment, text, replyTo?.id],
+  );
+
+  const handleFilePicked = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      // Reset first: picking the same file twice in a row fires no
+      // change event otherwise, so a failed send could not be retried.
+      e.target.value = "";
+      if (file) await sendFile(file);
+    },
+    [sendFile],
+  );
+
+  const stopRecording = useCallback((keep: boolean) => {
+    keepRecordingRef.current = keep;
+    recorderRef.current?.stop();
+  }, []);
+
+  const startRecording = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Chrome and Firefox produce ogg/opus, Safari mp4 — both are types
+      // WhatsApp accepts, so whatever the browser picks is sent as-is
+      // rather than transcoded in the page.
+      const recorder = new MediaRecorder(stream);
+      chunksRef.current = [];
+      keepRecordingRef.current = true;
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        if (tickRef.current) clearInterval(tickRef.current);
+        setRecording(false);
+        setRecordSeconds(0);
+        if (!keepRecordingRef.current) return;
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+        // Under a second is a mis-click, not a message.
+        if (blob.size < 1200) return;
+        const ext = recorder.mimeType.includes("mp4") ? "m4a" : "ogg";
+        void sendFile(
+          new File([blob], `voice-${Date.now()}.${ext}`, { type: recorder.mimeType }),
+        );
+      };
+
+      recorder.start();
+      recorderRef.current = recorder;
+      setRecording(true);
+      setRecordSeconds(0);
+      tickRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+    } catch {
+      toast.error("Microphone access is needed to record a voice note.");
+    }
+  }, [sendFile]);
+
+  useEffect(() => {
+    return () => {
+      if (tickRef.current) clearInterval(tickRef.current);
+    };
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -110,7 +202,53 @@ export function MessageComposer({
         </div>
       )}
 
+      {recording ? (
+        // Replaces the composer while recording: the two ways out of a
+        // recording should be the only things on screen.
+        <div className="flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5">
+          <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-rose-400" />
+          <span className="flex-1 text-sm text-slate-200">
+            Recording {Math.floor(recordSeconds / 60)}:
+            {String(recordSeconds % 60).padStart(2, "0")}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-slate-400 hover:text-white"
+            onClick={() => stopRecording(false)}
+          >
+            Discard
+          </Button>
+          <Button size="sm" className="h-8" onClick={() => stopRecording(true)}>
+            <Send className="mr-1 h-3.5 w-3.5" />
+            Send
+          </Button>
+        </div>
+      ) : (
       <div className="flex items-end gap-2">
+        <input
+          ref={fileRef}
+          type="file"
+          className="hidden"
+          accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt"
+          onChange={handleFilePicked}
+        />
+        <GatedButton
+          variant="ghost"
+          size="sm"
+          canAct={!readOnly}
+          gateReason="send messages"
+          disabled={sessionExpired || attaching}
+          title={readOnly ? undefined : "Attach a photo, video or document"}
+          className="h-9 w-9 shrink-0 p-0 text-slate-400 hover:text-white rounded-xl bg-slate-950/40 border border-slate-900 hover:bg-slate-900/50 hover:scale-105 transition-all cursor-pointer flex items-center justify-center"
+          onClick={() => fileRef.current?.click()}
+        >
+          {attaching ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Paperclip className="h-4 w-4" />
+          )}
+        </GatedButton>
         <GatedButton
           variant="ghost"
           size="sm"
@@ -147,17 +285,20 @@ export function MessageComposer({
           )}
         />
 
+        {/* Mic until there is something to send, as WhatsApp does. */}
         <GatedButton
           size="sm"
           canAct={!readOnly}
           gateReason="send messages"
-          disabled={!text.trim() || sessionExpired || sending}
-          onClick={handleSend}
+          disabled={sessionExpired || sending || attaching}
+          onClick={text.trim() ? handleSend : startRecording}
+          title={text.trim() ? "Send" : "Record a voice note"}
           className="h-9 w-9 shrink-0 bg-primary p-0 hover:bg-primary-hover disabled:opacity-40 rounded-xl transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-md shadow-primary/20 flex items-center justify-center text-white"
         >
-          <Send className="h-4 w-4" />
+          {text.trim() ? <Send className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </GatedButton>
       </div>
+      )}
 
       {/* Hint sits outside the flex row so its height doesn't push
           `items-end` buttons below the textarea. Indented to line up

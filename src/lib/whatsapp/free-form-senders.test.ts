@@ -43,6 +43,15 @@ const ALLOWED_DIRECT_SENDERS = [
   // The dispatcher is not usable here: it persists to the tenant's own
   // conversation and bills their WABA, which is the wrong sender.
   "src/lib/whatsapp/platform-sender.ts",
+  // Group sends. The 24-hour window is a property of a conversation
+  // with ONE contact — it is measured from that person's last inbound
+  // message, and re-entered with a template addressed to them. A group
+  // has neither: Meta prices group messaging per message rather than
+  // per conversation window, and there is no single inbound to measure
+  // from. Routing groups through the dispatcher would mean giving it a
+  // contact it does not have, purely to skip the check that contact
+  // exists for.
+  "src/lib/whatsapp/group-send.ts",
   // The dispatcher itself — where the guard lives.
   "src/lib/whatsapp/meta-api-dispatcher.ts",
 ].sort();
