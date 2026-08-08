@@ -12,6 +12,8 @@ import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import {
   answerLeadQuestion,
+  answerFromSellerFinalPrice,
+  answerFromPortalListing,
   looksLikeQuestion,
   HANDOVER_TEXT,
 } from './lead-question';
@@ -131,5 +133,179 @@ describe('answerLeadQuestion', () => {
     });
     expect(res.source).toBe('handover');
     expect(generateText).not.toHaveBeenCalled();
+  });
+});
+
+describe('answerFromSellerFinalPrice', () => {
+  it('answers the negotiability question from the stored rate', () => {
+    const answer = answerFromSellerFinalPrice('Is this negotiable???', {
+      seller_final_price_per_sqft: 10500,
+      seller_final_price: null,
+      area_sqft: 4200,
+    });
+    expect(answer).toContain('₹10,500 per sq.ft.');
+    // Derived only as a convenience — the rate is what was stated.
+    expect(answer).toContain('₹4,41,00,000');
+  });
+
+  it('omits the derived total when no area is known', () => {
+    const answer = answerFromSellerFinalPrice('any room on the price?', {
+      seller_final_price_per_sqft: 10500,
+      seller_final_price: null,
+      area_sqft: undefined,
+    });
+    expect(answer).toContain('₹10,500 per sq.ft.');
+    expect(answer).not.toContain('for this unit');
+  });
+
+  it('falls back to the stored total', () => {
+    expect(
+      answerFromSellerFinalPrice('whats the best price', {
+        seller_final_price: 42000000,
+        seller_final_price_per_sqft: null,
+        area_sqft: 4200,
+      })
+    ).toContain('₹4,20,00,000');
+  });
+
+  it('stays silent when the listing carries no final price', () => {
+    expect(
+      answerFromSellerFinalPrice('is it negotiable', {
+        seller_final_price: null,
+        seller_final_price_per_sqft: null,
+        area_sqft: 4200,
+      })
+    ).toBeNull();
+  });
+
+  it('stays silent for a question that is not about negotiation', () => {
+    expect(
+      answerFromSellerFinalPrice('is it north facing?', {
+        seller_final_price_per_sqft: 10500,
+        seller_final_price: null,
+        area_sqft: 4200,
+      })
+    ).toBeNull();
+  });
+});
+
+describe('answerLeadQuestion — seller final price rung', () => {
+  const withFinal = {
+    ...property,
+    seller_final_price_per_sqft: 10500,
+    seller_final_price: null,
+  } as unknown as QaProperty;
+
+  beforeEach(() => {
+    vi.mocked(burnCredits).mockResolvedValue({
+      success: true,
+      deficit: 0,
+      balanceAfter: 100,
+    } as unknown as Awaited<ReturnType<typeof burnCredits>>);
+  });
+
+  it('answers from the listing without a model call when the account opted in', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is this negotiable???',
+      property: withFinal,
+      shareSellerFinalPrice: true,
+    });
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('seller_final_price');
+    expect(res.text).toContain('₹10,500 per sq.ft.');
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('keeps the floor internal when the account has not opted in', async () => {
+    vi.mocked(generateText).mockResolvedValue("I don't know that.");
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'Is this negotiable???',
+      property: withFinal,
+    });
+    expect(res.text).toBe(HANDOVER_TEXT);
+    expect(res.text).not.toContain('10,500');
+  });
+});
+
+describe('answerFromPortalListing', () => {
+  const property = { price: 44_100_000, area_sqft: 4200, title: 'Oval Reef Plot' };
+
+  it('answers the MagicBricks question with both figures instead of denying knowledge', () => {
+    const answer = answerFromPortalListing(
+      'It says as 4000sqft in magicbricks. Is it thecsame one???',
+      property,
+      [{ portal: 'magicbricks', areaSqft: 4000 }]
+    );
+    expect(answer).toContain("same property");
+    expect(answer).toContain('MagicBricks shows 4,000 sq.ft.');
+    expect(answer).toContain('our records show 4,200 sq.ft.');
+    // The persona break that started this: never a third party.
+    expect(answer).not.toContain('the agent');
+    expect(answer).not.toContain("don't have information");
+  });
+
+  it('confirms plainly when the portal copy agrees', () => {
+    const answer = answerFromPortalListing(
+      'is this the same as the magicbricks one?',
+      property,
+      [{ portal: 'magicbricks', areaSqft: 4200, price: 44_100_000 }]
+    );
+    expect(answer).toContain('same property');
+    expect(answer).not.toContain('•');
+  });
+
+  it('stays out of the way when the named portal has no linked copy', () => {
+    expect(
+      answerFromPortalListing('what about 99acres?', property, [
+        { portal: 'magicbricks', areaSqft: 4000 },
+      ])
+    ).toBeNull();
+  });
+
+  it('stays out of the way when no portal is named', () => {
+    expect(
+      answerFromPortalListing('is it north facing?', property, [
+        { portal: 'magicbricks', areaSqft: 4000 },
+      ])
+    ).toBeNull();
+  });
+});
+
+describe('answerLeadQuestion — portal rung and persona', () => {
+  beforeEach(() => {
+    vi.mocked(burnCredits).mockResolvedValue({ deficit: 0 } as never);
+    vi.mocked(generateText).mockResolvedValue('');
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reconciles against the portal without spending a model call', async () => {
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'It says as 4000sqft in magicbricks. Is it thecsame one???',
+      property: { ...property, area_sqft: 4200 } as unknown as QaProperty,
+      portalListings: [{ portal: 'magicbricks', areaSqft: 4000 }],
+    });
+    expect(res.source).toBe('listing');
+    expect(res.intent).toBe('portal_compare');
+    expect(res.text).toContain('MagicBricks shows 4,000 sq.ft.');
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it('treats a first-person deferral as a handover, so an agent is still told', async () => {
+    // The prompt now asks for this shape instead of "I don't know";
+    // scoring it as a real answer would skip the agent notification.
+    vi.mocked(generateText).mockResolvedValue(
+      "Let me confirm that and come right back to you."
+    );
+    const res = await answerLeadQuestion({
+      accountId: 'a1',
+      question: 'can we see inside when we visit tomorrow',
+      property,
+    });
+    expect(res.source).toBe('handover');
   });
 });

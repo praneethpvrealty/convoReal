@@ -77,7 +77,11 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
     sendWhatsAppMessageAndPersist(...args),
 }));
 
-import { checkAndSendAppointmentReminders } from './reminder';
+import {
+  checkAndSendAppointmentReminders,
+  reminderLocationText,
+  LOCATION_TO_FOLLOW,
+} from './reminder';
 
 const NOW = new Date('2026-08-01T06:00:00Z');
 const START = new Date('2026-08-01T06:30:00Z').toISOString();
@@ -134,5 +138,69 @@ describe('checkAndSendAppointmentReminders', () => {
       contactId: 'c-visit',
       templateName: 'property_visit_reminder',
     });
+  });
+});
+
+describe('reminderLocationText', () => {
+  const plot = {
+    type: 'Residential Plot',
+    location: 'Oval Reef Layout, Poojanahalli Village, Devanahalli',
+    sublocality: 'Devanahalli',
+    city: 'Bangalore',
+    state: 'Karnataka',
+  };
+
+  it('never sends the old placeholder to a client', () => {
+    // "Location: Scheduled Location" reads like a variable nobody
+    // filled in, because it was one.
+    expect(reminderLocationText(null, null)).not.toMatch(/scheduled location/i);
+    expect(reminderLocationText('', undefined)).toBe(LOCATION_TO_FOLLOW);
+  });
+
+  it("prefers the agent's own meeting point", () => {
+    expect(
+      reminderLocationText('Site office gate, opposite the water tank', plot)
+    ).toBe('Site office gate, opposite the water tank');
+  });
+
+  it('gives a booked visitor the full address, guard or not', () => {
+    // A plot is guarded everywhere else: the showcase withholds its
+    // address so a rival cannot reach the owner direct. Someone with a
+    // confirmed visit is not that — we picked them, we picked the date,
+    // and we are taking them to the gate.
+    expect(reminderLocationText(null, plot)).toBe(plot.location);
+  });
+
+  it('gives the full address for an unguarded listing too', () => {
+    expect(
+      reminderLocationText(null, {
+        ...plot,
+        type: 'Flat/ Apartment',
+        location: 'Purva Vantage, HSR Layout',
+      })
+    ).toBe('Purva Vantage, HSR Layout');
+  });
+
+  it('falls back to the locality when the listing has no street address', () => {
+    expect(reminderLocationText(null, { ...plot, location: null })).toBe(
+      'Devanahalli, Bangalore'
+    );
+  });
+
+  it('promises the address rather than echoing "available on request"', () => {
+    // localityLabel's own last resort is showcase copy; in a reminder it
+    // answers a question the client did not ask.
+    expect(
+      reminderLocationText(null, {
+        type: 'Residential Plot',
+        sublocality: null,
+        city: null,
+        state: null,
+      })
+    ).toBe(LOCATION_TO_FOLLOW);
+  });
+
+  it('trims whitespace-only input rather than sending a blank', () => {
+    expect(reminderLocationText('   ', null)).toBe(LOCATION_TO_FOLLOW);
   });
 });
