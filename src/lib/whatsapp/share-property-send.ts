@@ -4,7 +4,8 @@ import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import {
   buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAME,
+  PROPERTY_ALERT_TEMPLATE_NAMES,
+  pickPropertyAlertTemplate,
 } from '@/lib/whatsapp/property-alert-template';
 import type { MessageTemplate, Property } from '@/types';
 
@@ -153,18 +154,20 @@ export async function sendPropertyToContact(opts: {
     freeformError = res.error;
   }
 
-  // Latest alert template row of ANY status, so "not created yet" is
+  // Every candidate name, not just the current one: a rename ships the
+  // branded template under a name Meta has not ruled on, and the
+  // previously approved row has to keep sending until it clears. The
+  // latest row of ANY status is kept so "not created yet" stays
   // distinguishable from "pending Meta approval" (same lookup as radar).
-  const { data: latestTemplateRow } = await db
+  const { data: templateRows } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .eq('name', PROPERTY_ALERT_TEMPLATE_NAME)
-    .order('last_submitted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const latestTemplate = latestTemplateRow as MessageTemplate | null;
-  const alertTemplate = latestTemplate?.status === 'APPROVED' ? latestTemplate : null;
+    .in('name', PROPERTY_ALERT_TEMPLATE_NAMES)
+    .order('last_submitted_at', { ascending: false });
+  const candidates = (templateRows || []) as MessageTemplate[];
+  const latestTemplate = candidates[0] ?? null;
+  const alertTemplate = pickPropertyAlertTemplate(candidates);
 
   if (!alertTemplate) {
     // Ensure a conversation exists so the client's "Open chat" fallback

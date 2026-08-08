@@ -3,6 +3,7 @@ import type { Property } from '@/types';
 import {
   buildPropertyAlertTemplatePayload,
   buildPropertyAlertParams,
+  pickPropertyAlertTemplate,
   PROPERTY_ALERT_TEMPLATE_NAME,
 } from './property-alert-template';
 import { validateTemplatePayload } from './template-validators';
@@ -112,5 +113,90 @@ describe('buildPropertyAlertParams', () => {
     const params = buildPropertyAlertParams(undefined, prop({ title: ' ', price: 0, location: '' }));
     expect(params).toEqual(['there', 'New listing', 'Details on request', 'Location shared on request']);
     for (const p of params) expect(p.length).toBeGreaterThan(0);
+  });
+});
+
+describe('pickPropertyAlertTemplate', () => {
+  const row = (name: string, status: string, category?: string) => ({
+    name,
+    status,
+    category,
+  });
+
+  it('prefers the current name once it is approved as Utility', () => {
+    expect(
+      pickPropertyAlertTemplate([
+        row('property_enquiry_response', 'APPROVED', 'Utility'),
+        row(PROPERTY_ALERT_TEMPLATE_NAME, 'APPROVED', 'Utility'),
+      ])?.name
+    ).toBe(PROPERTY_ALERT_TEMPLATE_NAME);
+  });
+
+  it('falls back while the new name is still pending', () => {
+    expect(
+      pickPropertyAlertTemplate([
+        row('property_enquiry_response', 'APPROVED', 'Utility'),
+        row(PROPERTY_ALERT_TEMPLATE_NAME, 'PENDING', 'Utility'),
+      ])?.name
+    ).toBe('property_enquiry_response');
+  });
+
+  it('falls back when the new name is rejected', () => {
+    expect(
+      pickPropertyAlertTemplate([
+        row('property_enquiry_response', 'APPROVED', 'Utility'),
+        row(PROPERTY_ALERT_TEMPLATE_NAME, 'REJECTED', 'Utility'),
+      ])?.name
+    ).toBe('property_enquiry_response');
+  });
+
+  it('keeps the Utility legacy over a new name Meta made Marketing', () => {
+    // The failure mode that matters: Meta approves a Utility submission
+    // as MARKETING rather than rejecting it, and Marketing is dropped
+    // at the per-user cap with 131049. Category has to outrank name.
+    expect(
+      pickPropertyAlertTemplate([
+        row('property_enquiry_response', 'APPROVED', 'Utility'),
+        row(PROPERTY_ALERT_TEMPLATE_NAME, 'APPROVED', 'Marketing'),
+      ])?.name
+    ).toBe('property_enquiry_response');
+  });
+
+  it('still sends on a Marketing row when that is all there is', () => {
+    expect(
+      pickPropertyAlertTemplate([row('new_property_alert', 'APPROVED', 'Marketing')])
+        ?.name
+    ).toBe('new_property_alert');
+  });
+
+  it('prefers the newest name among equals', () => {
+    expect(
+      pickPropertyAlertTemplate([
+        row('new_property_alert', 'APPROVED', 'Utility'),
+        row('property_enquiry_details', 'APPROVED', 'Utility'),
+        row('property_enquiry_response', 'APPROVED', 'Utility'),
+      ])?.name
+    ).toBe('property_enquiry_response');
+  });
+
+  it('sorts an unrecognised name last rather than first', () => {
+    // indexOf returns -1 for a stranger, which would otherwise make it
+    // the most preferred row of all.
+    expect(
+      pickPropertyAlertTemplate([
+        row('someone_elses_template', 'APPROVED', 'Utility'),
+        row('property_enquiry_response', 'APPROVED', 'Utility'),
+      ])?.name
+    ).toBe('property_enquiry_response');
+  });
+
+  it('is null when nothing is approved', () => {
+    expect(
+      pickPropertyAlertTemplate([
+        row(PROPERTY_ALERT_TEMPLATE_NAME, 'PENDING', 'Utility'),
+        row('property_enquiry_response', 'REJECTED', 'Utility'),
+      ])
+    ).toBeNull();
+    expect(pickPropertyAlertTemplate([])).toBeNull();
   });
 });
