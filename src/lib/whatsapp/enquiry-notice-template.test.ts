@@ -138,11 +138,11 @@ describe('buildEnquiryNoticeParams', () => {
           bedrooms: 3,
           sublocality: 'Whitefield',
         }),
-        'Aryavarta Realty'
+        'Aryavarta Ventures'
       )
     ).toEqual([
       'Praneeth',
-      'Aryavarta Realty',
+      'Aryavarta Ventures',
       '3 BHK at Prestige Lakeside Habitat, Whitefield',
     ]);
   });

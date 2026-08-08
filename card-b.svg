@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="838" viewBox="0 0 1600 838">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D4B048"/>
+      <stop offset="100%" stop-color="#B8912A"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="838" fill="#F6F4EF"/>
+
+  <!-- Skyline mark. Crop-safe: nothing within 120px of any edge. -->
+  <g transform="translate(190,250)" fill="url(#gold)">
+    <rect x="10"  y="180" width="36" height="132"/>
+    <rect x="60"  y="118" width="36" height="194"/>
+    <polygon points="110,58 156,18 156,312 110,312"/>
+    <rect x="170" y="100" width="36" height="212"/>
+    <rect x="220" y="148" width="36" height="164"/>
+    <rect x="270" y="192" width="32" height="120"/>
+    <rect x="0"   y="322" width="312" height="34"/>
+  </g>
+
+  <line x1="600" y1="268" x2="600" y2="606" stroke="#D9CFB4" stroke-width="3"/>
+
+  <g font-family="Liberation Sans, DejaVu Sans, sans-serif" fill="#16294B">
+    <text x="672" y="392" font-size="104" font-weight="bold" letter-spacing="2">ARYAVARTA</text>
+    <text x="672" y="502" font-size="104" font-weight="bold" letter-spacing="2">VENTURES</text>
+    <text x="676" y="580" font-size="31" letter-spacing="11" fill="#5D6E88">REAL ESTATE CONSULTING</text>
+  </g>
+
+  <text x="676" y="662" font-family="Liberation Sans, DejaVu Sans, sans-serif"
+        font-size="34" fill="#16294B" letter-spacing="1">Praneeth<tspan fill="#B8912A" dx="14">|</tspan><tspan dx="14" fill="#5D6E88">Consultant</tspan></text>
+
+  <rect x="0" y="806" width="1600" height="32" fill="#16294B"/>
+  <rect x="0" y="806" width="420" height="32" fill="url(#gold)"/>
+</svg>

@@ -106,7 +106,7 @@ export function buildEnquiryNoticeTemplatePayload(): TemplatePayload {
     sample_values: {
       body: [
         'Praneeth',
-        'Aryavarta Realty',
+        'Aryavarta Ventures',
         '3 BHK at Prestige Lakeside Habitat, Whitefield',
       ],
     },

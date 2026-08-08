@@ -43,13 +43,13 @@ describe('resolveEnquiryNoticeParams', () => {
     expect(
       resolveEnquiryNoticeParams(contact, {
         enquired: known(),
-        brandName: 'Aryavarta Realty',
+        brandName: 'Aryavarta Ventures',
         templateName: ENQUIRY_NOTICE_TEMPLATE_NAME,
       })
     ).toEqual({
       params: [
         'Praneeth',
-        'Aryavarta Realty',
+        'Aryavarta Ventures',
         '3 BHK at Prestige Lakeside, Whitefield',
       ],
     });
@@ -61,7 +61,7 @@ describe('resolveEnquiryNoticeParams', () => {
     expect(
       resolveEnquiryNoticeParams(contact, {
         enquired: known(),
-        brandName: 'Aryavarta Realty',
+        brandName: 'Aryavarta Ventures',
         templateName: 'property_enquiry_notice',
       })
     ).toEqual({

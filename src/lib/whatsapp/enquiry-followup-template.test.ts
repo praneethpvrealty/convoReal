@@ -75,15 +75,15 @@ describe('buildEnquiryFollowupTemplatePayload', () => {
 
 describe('buildEnquiryFollowupParams', () => {
   it('greets by first name and signs with the brokerage', () => {
-    expect(buildEnquiryFollowupParams('Praneeth Kumar', 'Aryavarta Realty')).toEqual([
+    expect(buildEnquiryFollowupParams('Praneeth Kumar', 'Aryavarta Ventures')).toEqual([
       'Praneeth',
-      'Aryavarta Realty',
+      'Aryavarta Ventures',
     ]);
   });
 
   it('never greets a placeholder or missing name', () => {
     for (const name of ['Housing Lead', null, '  ']) {
-      expect(buildEnquiryFollowupParams(name, 'Aryavarta Realty')[0], String(name)).toBe(
+      expect(buildEnquiryFollowupParams(name, 'Aryavarta Ventures')[0], String(name)).toBe(
         'there'
       );
     }
