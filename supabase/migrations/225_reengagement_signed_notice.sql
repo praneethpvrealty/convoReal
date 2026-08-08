@@ -18,6 +18,7 @@ IMMUTABLE
 AS $$
   SELECT p_template_name IN (
     'enquiry_status_notice',
+    'listing_status_notice',
     'property_enquiry_status',
     'property_enquiry_notice',
     'property_enquiry_update',
