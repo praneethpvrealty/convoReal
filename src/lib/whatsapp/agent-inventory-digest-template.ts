@@ -1,4 +1,4 @@
-// The predefined "agent_inventory_digest" WhatsApp template — the
+// The predefined "agent_property_digest" WhatsApp template — the
 // template-first channel for periodic reach digests to SOURCE AGENTS
 // (partner agents whose inventory this account lists, e.g. Deepak when
 // Suresh added Deepak's properties as agent-referred). Source agents
@@ -11,7 +11,27 @@
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 
-export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAME = 'agent_inventory_digest';
+export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAME = 'agent_property_digest';
+
+/**
+ * Earlier names, newest first. Meta decides a template's category when
+ * it reviews the creation and never again — an edit that changes it is
+ * refused outright ("You cannot update an approved template category"),
+ * and deleting a template reserves its name for four weeks. So a
+ * template that came back Marketing is Marketing for good, and a
+ * corrected one can only ship under a name Meta has not seen. Accounts
+ * still holding an approved row under an older name keep sending from
+ * it until the new one clears review.
+ */
+export const LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES = [
+  'agent_listing_activity_update',
+  'agent_inventory_digest',
+];
+
+export const AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES = [
+  AGENT_INVENTORY_DIGEST_TEMPLATE_NAME,
+  ...LEGACY_AGENT_INVENTORY_DIGEST_TEMPLATE_NAMES,
+];
 
 export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
   return {
@@ -20,16 +40,20 @@ export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
     // referred inventory, not promotional content.
     category: 'Utility',
     language: 'en_US',
+    // owner_property_digest is the control: same footer, same buttons,
+    // approved as Utility. Two rewrites of this template were still
+    // categorised Marketing, and what it had that the control did not
+    // was a fourth free-text param introduced as "Next step:" — a slot
+    // Meta cannot inspect, announced as a call to action. Dropping it
+    // leaves the two templates structurally identical.
     body_text: [
-      '📣 *Your Inventory Reach Update*',
+      '📊 *Your Listing Update*',
       '',
-      'Hi {{1}}, here is how {{2}} performed across our buyer network:',
+      'Hi {{1}}, here is the latest buyer activity on {{2}}:',
       '',
       '📈 Summary: {{3}}',
       '',
-      'Your next step: {{4}}',
-      '',
-      'Reply to this message for details.',
+      'Reply to this message for details or to talk to our team.',
     ].join('\n'),
     footer_text: 'Reply STOP UPDATES to pause these updates',
     buttons: [
@@ -43,26 +67,22 @@ export function buildAgentInventoryDigestTemplatePayload(): TemplatePayload {
         'Deepak',
         'your 3 referred listings (today)',
         '2 direct buyers reached · 1 indirect buyer via partner agents · 1 partner agent onboarded',
-        'Track your inventory network live on ConvoReal: https://www.convoreal.com/signup',
       ],
     },
   };
 }
 
 /**
- * Body params {{1}}..{{4}}: first name, listings phrase (with period),
- * compact reach summary, closing line (signup invite for agents with
- * no ConvoReal profile, dashboard pointer otherwise). Every param is
- * guaranteed non-empty (Meta rejects empty values) and newline-free
- * (sanitizeTemplateParam).
+ * Body params {{1}}..{{3}}: first name, listings phrase (with period),
+ * compact reach summary. Every param is guaranteed non-empty (Meta
+ * rejects empty values) and newline-free (sanitizeTemplateParam).
  */
 export function buildAgentInventoryDigestParams(
   contactName: string | null | undefined,
   propertyCount: number,
   periodLabel: string,
-  summaryLine: string,
-  closingLine: string
-): [name: string, listings: string, summary: string, closing: string] {
+  summaryLine: string
+): [name: string, listings: string, summary: string] {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   const listingPhrase =
     propertyCount === 1 ? 'your referred listing' : `your ${propertyCount} referred listings`;
@@ -70,6 +90,14 @@ export function buildAgentInventoryDigestParams(
     sanitizeTemplateParam(firstName),
     sanitizeTemplateParam(`${listingPhrase} (${periodLabel})`),
     sanitizeTemplateParam(summaryLine || 'New buyer activity'),
-    sanitizeTemplateParam(closingLine || 'Reply to this message for details.'),
   ];
+}
+
+/**
+ * How many distinct {{N}} the stored template body expects. Earlier
+ * revisions of this template carry a fourth "Next step" param, and
+ * sending a template fewer params than it declares is a Meta error.
+ */
+export function countTemplateBodyParams(bodyText: string | null | undefined): number {
+  return new Set((bodyText || '').match(/\{\{\d+\}\}/g) ?? []).size;
 }

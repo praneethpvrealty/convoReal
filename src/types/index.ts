@@ -159,6 +159,11 @@ export interface Contact {
   /** Agent bookmark (migration 203) — drives the Favourites tab on the
    *  Contacts page. Uncapped, and independent of `status`. */
   is_favorite?: boolean;
+  /** Carried only to attribute a re-share hop (migration 215) — a
+   *  co-broker's downstream party, not a lead of this account. Kept out
+   *  of the contacts list and broadcast audiences, and unreachable by
+   *  outbound except the consent-chain sends that created them. */
+  chain_only?: boolean;
   status?: 'active' | 'pending_review';
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
   dob?: string | null;

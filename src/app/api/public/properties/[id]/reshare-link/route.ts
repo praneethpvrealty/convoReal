@@ -49,6 +49,17 @@ export async function POST(
         { status: 400 }
       );
     }
+    // The caller must be holding an attributed link. Without this the
+    // endpoint is an open door: an account_id and any published
+    // property id were enough to write a contact into someone else's
+    // account. A re-share only means anything as a link in the chain
+    // anyway, so a request with no parent has nothing to attribute.
+    if (typeof via_contact_id !== 'string' || !UUID_RE.test(via_contact_id)) {
+      return NextResponse.json(
+        { error: 'This link cannot be re-shared' },
+        { status: 403 }
+      );
+    }
 
     const ip =
       request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
@@ -87,26 +98,39 @@ export async function POST(
     }
 
     // The parent is the attribution on the link they hold — it must
-    // resolve within this account and must not be themselves.
-    let parentContactId: string | null = null;
-    if (typeof via_contact_id === 'string' && UUID_RE.test(via_contact_id)) {
-      const { data: parent } = await admin
-        .from('contacts')
-        .select('id, phone')
-        .eq('id', via_contact_id)
-        .eq('account_id', account_id)
-        .maybeSingle();
-      if (
-        parent &&
-        normalizePhoneWithCountryCode(parent.phone || '') !== normalizedPhone
-      ) {
-        parentContactId = parent.id;
-      }
+    // resolve within this account.
+    const { data: parent } = await admin
+      .from('contacts')
+      .select('id, phone')
+      .eq('id', via_contact_id)
+      .eq('account_id', account_id)
+      .maybeSingle();
+    if (!parent) {
+      return NextResponse.json(
+        { error: 'This link cannot be re-shared' },
+        { status: 403 }
+      );
     }
 
-    // Find or create their contact. An existing contact keeps its
-    // classification — the reshare row itself marks them a chain
-    // intermediary.
+    // Re-sharing to yourself: you already hold this link, so hand it
+    // back rather than recording a hop to nowhere.
+    if (normalizePhoneWithCountryCode(parent.phone || '') === normalizedPhone) {
+      return NextResponse.json({
+        success: true,
+        link: buildReshareUrl({
+          propertyIdOrCode: property.property_code || property.id,
+          contactId: parent.id,
+        }),
+        delivered: false,
+      });
+    }
+    const parentContactId = parent.id;
+
+    // Find or create their contact. An existing contact is left alone
+    // entirely: they were already a lead of this account by some other
+    // route, and re-sharing does not retract that. Only a contact this
+    // endpoint brings into existence is chain_only — attribution for
+    // the consent walk, not a lead the listing side may work.
     const { data: account } = await admin
       .from('accounts')
       .select('owner_user_id')
@@ -133,6 +157,7 @@ export async function POST(
           classification: 'Agent',
           status: 'pending_review',
           referrer: 'Co-broker Reshare',
+          chain_only: true,
         })
         .select('id')
         .single();
@@ -157,25 +182,40 @@ export async function POST(
       contactId,
     });
 
-    void (async () => {
-      try {
-        await sendWhatsAppMessageAndPersist({
-          accountId: account_id,
-          contactId,
-          kind: 'text',
-          senderType: 'bot',
-          text: buildReshareLinkMessage({
-            name: name.trim(),
-            propertyTitle: property.title || 'the property',
-            link,
-          }),
-        });
-      } catch (err) {
-        console.error('[reshare-link] WA send failed:', err);
+    // The link is on screen with a copy button regardless, so WhatsApp
+    // is a convenience here rather than the delivery. It goes out only
+    // while their own 24-hour service window happens to be open, and
+    // the outcome is reported so the page can say which happened —
+    // previously this was fired and forgotten while the response
+    // claimed success, and every send failed the window check unseen.
+    //
+    // Deliberately no template fallback, unlike the location reveal: a
+    // template here would be the listing account pushing a message at
+    // a party downstream of its co-broker, which is the thing
+    // chain_only exists to prevent.
+    let delivered = false;
+    try {
+      const sent = await sendWhatsAppMessageAndPersist({
+        accountId: account_id,
+        contactId,
+        kind: 'text',
+        senderType: 'bot',
+        text: buildReshareLinkMessage({
+          name: name.trim(),
+          propertyTitle: property.title || 'the property',
+          link,
+        }),
+        allowChainOnly: true,
+      });
+      delivered = sent.success;
+      if (!sent.success) {
+        console.error('[reshare-link] WA send failed:', sent.error);
       }
-    })();
+    } catch (err) {
+      console.error('[reshare-link] WA send failed:', err);
+    }
 
-    return NextResponse.json({ success: true, link });
+    return NextResponse.json({ success: true, link, delivered });
   } catch (err) {
     console.error('[POST reshare-link] Unexpected error:', err);
     return NextResponse.json(

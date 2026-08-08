@@ -17,6 +17,7 @@ import {
   sendPreferenceFlowToContact,
   getPublishedPreferenceFlow,
 } from '@/lib/whatsapp/meta-flow-service'
+import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup'
 import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
@@ -2673,6 +2674,18 @@ async function handlePreferenceFlowNfmReply(
     kind: 'text',
     senderType: 'bot',
     text: summarizePreferenceUpdate(update),
+  })
+
+  // The summary above promises a match. Deliver it now, while the
+  // window this submission just opened is still open — a re-engaged
+  // lead who filled the form is the highest intent this funnel sees,
+  // and it used to end here.
+  await sendPreferenceMatchFollowUp({
+    db: supabaseAdmin(),
+    accountId,
+    userId: configOwnerUserId,
+    contactId,
+    conversationId,
   })
 }
 

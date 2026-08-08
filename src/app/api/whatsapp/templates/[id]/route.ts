@@ -82,7 +82,7 @@ export async function PATCH(
     // meta_template_id and status — fetch explicitly.
     const { data: existing, error: lookupErr } = await supabase
       .from('message_templates')
-      .select('id, name, status, meta_template_id, language')
+      .select('id, name, status, category, meta_template_id, language')
       .eq('id', id)
       .eq('account_id', accountId)
       .maybeSingle()
@@ -119,6 +119,24 @@ export async function PATCH(
       )
     }
 
+    // Meta fixes a template's category at review and refuses to move it
+    // afterwards ("You cannot update an approved template category"),
+    // rejecting the whole edit — content changes included. Say so here
+    // rather than spend the edit and relay a 502.
+    if (
+      existing.status === 'APPROVED' &&
+      payload.category &&
+      existing.category &&
+      payload.category !== existing.category
+    ) {
+      return NextResponse.json(
+        {
+          error: `Meta will not move an approved template from ${existing.category} to ${payload.category} — the category is fixed when it first passes review. Submit this content as a new template under a different name, or appeal the category in WhatsApp Manager (Business Support) within 60 days.`,
+        },
+        { status: 400 },
+      )
+    }
+
     try {
       validateTemplatePayload(payload)
     } catch (e) {
@@ -148,6 +166,11 @@ export async function PATCH(
           metaTemplateId: existing.meta_template_id,
           accessToken,
           components: metaPayload.components,
+          // Meta lets an edit carry a new category (it re-reviews the
+          // whole template), and that is the only way back from a
+          // silent Marketing re-categorisation. Without it we would
+          // save Utility locally while Meta keeps billing Marketing.
+          category: metaPayload.category,
         })
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Meta edit failed.'
