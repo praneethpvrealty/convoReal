@@ -10,6 +10,10 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
+import {
+  isGroupWebhookField,
+  processGroupWebhook,
+} from '@/lib/whatsapp/group-webhooks'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
 import { processBuyerQualificationMessage } from '@/lib/ai/buyer-qualification'
 import {
@@ -254,6 +258,36 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           { field: change.field, value: change.value as unknown },
           supabaseAdmin(),
         )
+        continue
+      }
+
+      // Group lifecycle/participants/settings/status. These carry no
+      // `messages` or `contacts`, so they have to be dispatched before
+      // the inbound-message path below drops them.
+      if (isGroupWebhookField(change.field)) {
+        const groupPhoneNumberId = (
+          change.value as { metadata?: { phone_number_id?: string } }
+        )?.metadata?.phone_number_id
+        if (groupPhoneNumberId) {
+          const { data: groupConfigs } = await supabaseAdmin()
+            .from('whatsapp_config')
+            .select('account_id')
+            .eq('phone_number_id', groupPhoneNumberId)
+
+          // Same rule as the message path: an ambiguous number is
+          // dropped rather than written to an arbitrary account.
+          if (groupConfigs?.length === 1) {
+            await processGroupWebhook(
+              groupConfigs[0].account_id as string,
+              change.field,
+              change.value as unknown,
+            )
+          } else {
+            console.error(
+              `[webhook] group event for phone_number_id ${groupPhoneNumberId} matched ${groupConfigs?.length ?? 0} configs. Dropping.`,
+            )
+          }
+        }
         continue
       }
 
