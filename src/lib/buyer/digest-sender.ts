@@ -29,7 +29,8 @@ import { BRANDING } from '@/config/branding';
 import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
 import {
   buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAME,
+  PROPERTY_ALERT_TEMPLATE_NAMES,
+  pickPropertyAlertTemplate,
 } from '@/lib/whatsapp/property-alert-template';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import {
@@ -239,7 +240,8 @@ async function runAccount(
           matches,
           portalUrl: url,
         }),
-        templateName: PROPERTY_ALERT_TEMPLATE_NAME,
+        templateName: PROPERTY_ALERT_TEMPLATE_NAMES,
+        pickTemplate: pickPropertyAlertTemplate,
         templateParams: buildPropertyAlertParams(buyer.name, top),
       });
 

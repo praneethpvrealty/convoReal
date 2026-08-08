@@ -6,7 +6,8 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import {
   buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAME,
+  PROPERTY_ALERT_TEMPLATE_NAMES,
+  pickPropertyAlertTemplate,
 } from '@/lib/whatsapp/property-alert-template';
 import type { MatchEvent, MessageTemplate, Property } from '@/types';
 
@@ -143,16 +144,15 @@ export async function POST(request: NextRequest) {
     // Latest approved alert template (template-first channel). The
     // latest row of ANY status is also surfaced so the UI can tell
     // "not created yet" apart from "pending Meta approval".
-    const { data: latestTemplateRow } = await db
+    const { data: templateRows } = await db
       .from('message_templates')
       .select('*')
       .eq('account_id', ctx.accountId)
-      .eq('name', PROPERTY_ALERT_TEMPLATE_NAME)
-      .order('last_submitted_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const latestTemplate = latestTemplateRow as MessageTemplate | null;
-    const alertTemplate = latestTemplate?.status === 'APPROVED' ? latestTemplate : null;
+      .in('name', PROPERTY_ALERT_TEMPLATE_NAMES)
+      .order('last_submitted_at', { ascending: false });
+    const candidates = (templateRows || []) as MessageTemplate[];
+    const latestTemplate = candidates[0] ?? null;
+    const alertTemplate = pickPropertyAlertTemplate(candidates);
 
     /** One alert to one contact: free-form when the window is open,
      *  template otherwise. */

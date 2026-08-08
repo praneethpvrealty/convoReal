@@ -13,16 +13,87 @@ import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template'
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
 
-/** Bumped twice — Meta will not re-review an approved template in
- *  place, so each category fix needs a new name:
- *    new_property_alert        → approved as Marketing (submitted as such)
- *    property_enquiry_details  → submitted as Utility, but Meta's
- *      classifier approved it as Marketing anyway (since April 2025 a
- *      utility submission that fails the utility test is approved as
- *      MARKETING instead of rejected), so sends died with 131049.
- *  Accounts holding an older approved variant keep it until they run
- *  the one-click setup again. */
-export const PROPERTY_ALERT_TEMPLATE_NAME = 'property_enquiry_response';
+/**
+ * Bumped three times. Meta will not re-review an approved template in
+ * place, so every fix needs a name it has not ruled on:
+ *
+ *   new_property_alert        → approved as Marketing (submitted as such)
+ *   property_enquiry_details  → submitted as Utility, but Meta's
+ *     classifier approved it as Marketing anyway (since April 2025 a
+ *     utility submission that fails the utility test is approved as
+ *     MARKETING instead of rejected), so sends died with 131049.
+ *   property_enquiry_response → approved as Utility, and still working.
+ *     Its URL button carries the DASHBOARD host, because every builder
+ *     caller is a client component with only window.location.origin to
+ *     offer, so a brokerage with its own subdomain sends buyers to the
+ *     shared showcase. Now corrected at submission — but correcting
+ *     THIS row means an edit, and an edit is a fresh review that could
+ *     land it in Marketing permanently.
+ *
+ * So the branded version ships under a new name instead. The old one
+ * keeps sending untouched while this is under review, and if Meta
+ * classifies it Marketing it is simply never selected — see
+ * pickPropertyAlertTemplate. Nothing is risked to gain a hostname.
+ */
+export const PROPERTY_ALERT_TEMPLATE_NAME = 'property_enquiry_info';
+
+/** Earlier names, newest first. An account holding an approved row
+ *  under any of these keeps sending from it until the current name
+ *  clears review. */
+export const LEGACY_PROPERTY_ALERT_TEMPLATE_NAMES = [
+  'property_enquiry_response',
+  'property_enquiry_details',
+  'new_property_alert',
+];
+
+export const PROPERTY_ALERT_TEMPLATE_NAMES = [
+  PROPERTY_ALERT_TEMPLATE_NAME,
+  ...LEGACY_PROPERTY_ALERT_TEMPLATE_NAMES,
+];
+
+/** Just enough of a template row to choose between candidates. Both
+ *  fields are optional because MessageTemplate leaves `status` so — a
+ *  required one here silently stops MessageTemplate matching the
+ *  constraint, and the generic collapses to this interface. */
+export interface PropertyAlertCandidate {
+  name: string;
+  status?: string | null;
+  category?: string | null;
+}
+
+/**
+ * The template a send should actually use.
+ *
+ * Category outranks name. A Marketing template is silently dropped for
+ * any recipient at their per-user cap (error 131049), which is the
+ * whole reason this name has been bumped three times — so an approved
+ * UTILITY row under an old name beats an approved MARKETING row under
+ * the newest one. Preferring the new name blindly would be how the
+ * branded template, if Meta miscategorises it, quietly stops half the
+ * sends it was meant to improve.
+ *
+ * Within the same category, the newest name wins.
+ */
+export function pickPropertyAlertTemplate<T extends PropertyAlertCandidate>(
+  rows: T[]
+): T | null {
+  const approved = rows.filter((t) => t.status === 'APPROVED');
+  if (!approved.length) return null;
+
+  // An unrecognised name sorts last rather than first — indexOf's -1
+  // would otherwise make a stranger the most preferred row.
+  const nameRank = (name: string): number => {
+    const i = PROPERTY_ALERT_TEMPLATE_NAMES.indexOf(name);
+    return i === -1 ? PROPERTY_ALERT_TEMPLATE_NAMES.length : i;
+  };
+
+  return [...approved].sort((a, b) => {
+    const category =
+      (a.category === 'Utility' ? 0 : 1) - (b.category === 'Utility' ? 0 : 1);
+    if (category !== 0) return category;
+    return nameRank(a.name) - nameRank(b.name);
+  })[0];
+}
 
 export function buildPropertyAlertTemplatePayload(origin: string): TemplatePayload {
   return {
