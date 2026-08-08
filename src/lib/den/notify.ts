@@ -80,6 +80,9 @@ export async function sendDenNotification(
     /** Chooses among several approved candidates — see approvedTemplate. */
     pickTemplate?: (rows: MessageTemplate[]) => MessageTemplate | null;
     templateParams?: string[];
+    /** Media-header image, resolved to a URL Meta can fetch. Ignored by
+     *  a template with a text header, so callers can pass it blind. */
+    headerMediaUrl?: string | null;
   },
 ): Promise<boolean> {
   try {
@@ -112,7 +115,10 @@ export async function sendDenNotification(
       templateName: template.name,
       templateLanguage: template.language || "en_US",
       templateParams: args.templateParams,
-      messageParams: { body: args.templateParams },
+      messageParams: {
+        body: args.templateParams,
+        ...(args.headerMediaUrl ? { headerMediaUrl: args.headerMediaUrl } : {}),
+      },
       templateRow: template,
       text: args.text,
     });

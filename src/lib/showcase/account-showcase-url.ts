@@ -49,6 +49,40 @@ async function accountSubdomain(
 }
 
 /**
+ * The account's brand card, as a bucket-relative path, or null.
+ *
+ * A WhatsApp template's media header is filled at send time, so this
+ * rides in an already-approved Utility template without touching its
+ * category. It is what a message leads with when it has no photo of its
+ * own — a listing with none uploaded yet, or anything that is not about
+ * one listing.
+ *
+ * Never throws: a message with a plain header is a message, and losing
+ * one over a missing decoration would be the worse trade.
+ */
+export async function accountBrandImage(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await db
+      .from('showcase_settings')
+      .select('brand_image_url')
+      .eq('account_id', accountId)
+      .maybeSingle();
+    if (error) {
+      console.error('[showcase-url] brand image lookup failed:', error);
+      return null;
+    }
+    const url = (data?.brand_image_url as string | null) ?? null;
+    return url?.trim() ? url.trim() : null;
+  } catch (err) {
+    console.error('[showcase-url] brand image lookup threw:', err);
+    return null;
+  }
+}
+
+/**
  * The account's showcase base as a full URL: its own subdomain when it
  * has one, otherwise the shared site carrying `?ref=<account>` so the
  * catalog still renders that brokerage's listings. Falls back to the

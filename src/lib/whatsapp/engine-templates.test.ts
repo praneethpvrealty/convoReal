@@ -11,9 +11,17 @@ describe('missingEngineTemplates', () => {
     ]);
     expect(missing.map((t) => t.name)).toEqual([
       'property_enquiry_info',
-      'property_enquiry_photos',
+      'property_enquiry_gallery',
       'property_enquiry_notice',
     ]);
+  });
+
+  it('offers the branded photo template to an account still on the old one', () => {
+    // Same rename, same reason: property_enquiry_photos is approved and
+    // sending, its URL button just carries the dashboard host.
+    expect(
+      missingEngineTemplates(['property_enquiry_photos']).map((t) => t.name),
+    ).toContain('property_enquiry_gallery');
   });
 
   it('offers the branded property-details template to an account still on the old one', () => {
