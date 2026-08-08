@@ -243,7 +243,7 @@ export function ImportModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-lg">
+      <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="text-white">Import Contacts</DialogTitle>
           <DialogDescription className="text-slate-400">
@@ -261,7 +261,10 @@ export function ImportModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        {/* min-w-0: DialogContent is a grid, and a grid item defaults to
+            min-width:auto — without this the preview table's min-w-[700px]
+            widens the track and every row spills outside the panel. */}
+        <div className="min-w-0 space-y-4">
           {/* Upload area */}
           <div
             onClick={() => fileInputRef.current?.click()}
