@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   funnelStages,
+  REENGAGEMENT_TEMPLATE_NAMES,
   leadStage,
   requirementSummary,
   readyToShortlist,
@@ -142,5 +144,31 @@ describe('readyToShortlist', () => {
       lead({ contactId: 'c', matchCount: 0 }),
     ];
     expect(readyToShortlist(rows).map((l) => l.contactId)).toEqual(['a']);
+  });
+});
+
+describe('REENGAGEMENT_TEMPLATE_NAMES vs is_reengagement_template()', () => {
+  // The SQL predicate decides whether the broadcast page shows an
+  // outcome panel; this list is its client-side twin. They drifted
+  // once already: the notice template was renamed after the migration
+  // was written, so listing_status_notice reached the DB by hand but
+  // never reached the file, and a fresh environment would have lost
+  // the panel for every property-anchored batch.
+  const sql = readFileSync(
+    'supabase/migrations/225_reengagement_signed_notice.sql',
+    'utf8'
+  );
+  const inSql = [...sql.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
+
+  it('every name the code counts is a name the database counts', () => {
+    for (const name of REENGAGEMENT_TEMPLATE_NAMES) {
+      expect(inSql, name).toContain(name);
+    }
+  });
+
+  it('and the reverse, so a retired name is dropped from both', () => {
+    for (const name of inSql) {
+      expect(REENGAGEMENT_TEMPLATE_NAMES, name).toContain(name);
+    }
   });
 });
