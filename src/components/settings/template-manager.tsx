@@ -711,8 +711,14 @@ export function TemplateManager() {
                         {template.footer_text}
                       </p>
                     )}
+                    {/* A submission_error on an APPROVED row is the
+                        record of a refused EDIT, not a problem with the
+                        template Meta is serving — and the edit was
+                        already reported when it happened. Left visible
+                        it reads as "this template is broken" about one
+                        that is sending fine. */}
                     {(template.rejection_reason ||
-                      template.submission_error) && (
+                      (template.submission_error && statusKey !== 'APPROVED')) && (
                       <div className="flex items-start gap-1.5 rounded border border-red-900/40 bg-red-950/20 px-2 py-1.5 text-xs text-red-400">
                         <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
                         <span>

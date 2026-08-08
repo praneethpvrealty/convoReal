@@ -6,6 +6,7 @@ import {
 } from '@/lib/auth/account'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import {
+  clearedTemplateComplaints,
   normalizeCategory,
   normalizeStatus,
 } from '@/lib/whatsapp/template-status-normalize'
@@ -277,6 +278,7 @@ export async function POST() {
         status: normalizeStatus(t.status),
         meta_template_id: t.id,
         quality_score: normalizeQualityScore(t.quality_score),
+        ...clearedTemplateComplaints(normalizeStatus(t.status)),
         updated_at: new Date().toISOString(),
       }
 
