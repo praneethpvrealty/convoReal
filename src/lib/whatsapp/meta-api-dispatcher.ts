@@ -1,4 +1,5 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { standDownActiveFlowRuns } from '@/lib/whatsapp/agent-takeover'
 import { storagePublicUrl } from '@/lib/storage/url'
 import {
   sendTextMessage,
@@ -26,6 +27,7 @@ import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
 } from '@/lib/whatsapp/customer-window'
+import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
 
 /** Window within which an identical template to the same conversation is
  *  treated as a duplicate and skipped (double-submit / overlapping-trigger
@@ -91,6 +93,20 @@ export interface SendWhatsAppAndPersistArgs {
    *  row's `reply_to_message_id`, which is a UUID self-FK: writing a
    *  wamid there fails the insert after Meta has already sent. */
   replyToMessageId?: string | null
+  /** Permits a send to a `chain_only` contact. Only the re-share
+   *  consent chain may set this — it is the machinery that created
+   *  those contacts and has to reach them. Everything else (broadcasts,
+   *  automations, digests, an agent typing in the inbox) is refused, so
+   *  a co-broker's downstream party is not reachable by the listing
+   *  side just because the chain recorded them. */
+  allowChainOnly?: boolean
+  /** Marks a contact this call has to CREATE (toPhone with no existing
+   *  match) as chain_only. For sends to someone who is a counterparty
+   *  of the chain rather than a lead of this account — a location
+   *  seeker who came in through a co-broker's link. An existing contact
+   *  is never downgraded: a real lead who also happens to seek stays a
+   *  real lead. */
+  createAsChainOnly?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customDbClient?: any
 }
@@ -161,6 +177,7 @@ export async function sendWhatsAppMessageAndPersist(
             user_id: userId || (await resolveOwnerUserId()),
             phone: targetPhone,
             name: targetPhone,
+            chain_only: args.createAsChainOnly ?? false,
           })
           .select()
           .single()
@@ -181,6 +198,25 @@ export async function sendWhatsAppMessageAndPersist(
           throw new Error('Contact not found for this account')
         }
         targetPhone = contact.phone
+      }
+    }
+
+    // 1b. Chain-only contacts belong to a re-share attribution chain,
+    // not to this account's pipeline. Refused here rather than at each
+    // caller for the same reason as the customer window below — every
+    // sender funnels through this function, so this is the only place
+    // that covers broadcasts, automations, digests and inbox sends
+    // alike. Checked before the conversation is resolved so a blocked
+    // send leaves no empty thread implying one was attempted.
+    if (!args.allowChainOnly && resolvedContactId) {
+      const { data: chainRow } = await db
+        .from('contacts')
+        .select('chain_only')
+        .eq('id', resolvedContactId)
+        .eq('account_id', accountId)
+        .maybeSingle()
+      if ((chainRow as { chain_only?: boolean } | null)?.chain_only) {
+        throw new Error(CHAIN_ONLY_BLOCKED_MESSAGE)
       }
     }
 
@@ -364,6 +400,9 @@ export async function sendWhatsAppMessageAndPersist(
             link: storagePublicUrl(args.mediaLink),
             caption: args.mediaCaption || undefined,
             filename: args.mediaFilename || undefined,
+            // Every other branch forwards this; media dropped it, so a
+            // photo sent as a reply arrived in WhatsApp unquoted.
+            contextMessageId: args.contextMessageId || undefined,
           })
           return resultMed.messageId
 
@@ -549,21 +588,58 @@ export async function sendWhatsAppMessageAndPersist(
         .eq('status', 'pending')
     }
 
-    // Flow integration: Pause active Flow runs if agent manually sends a message
-    if (args.senderType === 'agent') {
+    // Flow integration: Pause active Flow runs if agent manually sends a message.
+    //
+    // ALWAYS through the admin client, never `db`. A send from the
+    // inbox passes its RLS-scoped client in, and flow_runs carries only
+    // a SELECT policy — so this update was refused, returned zero rows
+    // and no error, and the pause silently did nothing for every human
+    // reply. A lead negotiating with an agent kept being answered
+    // "Sorry, I didn't quite catch that" by a run nobody could stop.
+    // .select() makes a future refusal visible instead of silent.
+    if (args.senderType === 'agent' && resolvedContactId) {
+      // Never let the pause fail the send it follows — the message has
+      // already reached the lead by this point.
       try {
-        await db
-          .from('flow_runs')
-          .update({
-            status: 'paused_by_agent',
-            ended_at: new Date().toISOString(),
-            end_reason: 'agent_replied',
-          })
-          .eq('account_id', accountId)
-          .eq('contact_id', resolvedContactId)
-          .eq('status', 'active')
+        const paused = await standDownActiveFlowRuns(
+          defaultAdminClient() as unknown as SupabaseClient,
+          accountId,
+          resolvedContactId,
+        )
+        if (paused > 0) {
+          console.log(
+            `[meta-api-dispatcher] paused ${paused} flow run(s) — agent replied`,
+          )
+        }
       } catch (flowErr) {
         console.error('[meta-api-dispatcher] flow pause warning:', flowErr)
+      }
+    }
+
+    // What the agent just told the buyer may be a fact about the
+    // listing ("seller's final price is 10.5k per sqft"). Propose it
+    // back onto the property so the next buyer's question is answered
+    // from the record instead of retyped.
+    //
+    // Admin client for the same reason the flow pause above uses one: a
+    // send from the inbox passes its RLS-scoped client in, and the
+    // suggestion is written on behalf of the account, not the caller.
+    // Awaited so a serverless invocation is not torn down mid-write;
+    // learnFromAgentReply gates on a free regex first, so the ordinary
+    // reply costs one predicate and returns.
+    if (args.senderType === 'agent' && args.kind === 'text' && args.text && resolvedContactId) {
+      try {
+        const { learnFromAgentReply } = await import('@/lib/ai/chat-learning')
+        await learnFromAgentReply({
+          db: defaultAdminClient() as unknown as SupabaseClient,
+          accountId,
+          contactId: resolvedContactId,
+          conversationId: resolvedConversationId ?? null,
+          messageId: insertedMsg.id,
+          text: args.text,
+        })
+      } catch (learnErr) {
+        console.error('[meta-api-dispatcher] chat learning warning:', learnErr)
       }
     }
 

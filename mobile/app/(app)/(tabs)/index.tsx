@@ -74,7 +74,7 @@ type Filter = (typeof FILTERS)[number];
 async function fetchConversations(archived: boolean): Promise<Conversation[]> {
   const { data, error } = await supabase
     .from('conversations')
-    .select('*, contact:contacts(*)')
+    .select('*, contact:contacts(*), group:whatsapp_groups(id, subject, status)')
     .eq('is_archived', archived)
     // A conversation row can exist with no messages yet (e.g. an approve
     // flow opened it but the send was blocked by the 24-hour window) —
@@ -417,8 +417,10 @@ function ConversationRow({
   showDialog: (spec: DialogSpec) => void;
 }) {
   const { colors, fonts: f } = useTheme();
-  const name =
-    conversation.contact?.name || conversation.contact?.phone || 'Unknown';
+  // A group thread has no contact — its subject is the name.
+  const name = conversation.group
+    ? conversation.group.subject
+    : conversation.contact?.name || conversation.contact?.phone || 'Unknown';
   const unread = conversation.unread_count > 0;
   const swipeRef = useRef<Swipeable>(null);
 

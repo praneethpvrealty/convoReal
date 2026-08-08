@@ -12,17 +12,58 @@ import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
+import {
+  pickApprovedTemplate,
+  type ApprovedTemplateCandidate,
+} from '@/lib/whatsapp/pick-approved-template';
 
-/** Bumped twice — Meta will not re-review an approved template in
- *  place, so each category fix needs a new name:
- *    new_property_alert        → approved as Marketing (submitted as such)
- *    property_enquiry_details  → submitted as Utility, but Meta's
- *      classifier approved it as Marketing anyway (since April 2025 a
- *      utility submission that fails the utility test is approved as
- *      MARKETING instead of rejected), so sends died with 131049.
- *  Accounts holding an older approved variant keep it until they run
- *  the one-click setup again. */
-export const PROPERTY_ALERT_TEMPLATE_NAME = 'property_enquiry_response';
+/**
+ * Bumped three times. Meta will not re-review an approved template in
+ * place, so every fix needs a name it has not ruled on:
+ *
+ *   new_property_alert        → approved as Marketing (submitted as such)
+ *   property_enquiry_details  → submitted as Utility, but Meta's
+ *     classifier approved it as Marketing anyway (since April 2025 a
+ *     utility submission that fails the utility test is approved as
+ *     MARKETING instead of rejected), so sends died with 131049.
+ *   property_enquiry_response → approved as Utility, and still working.
+ *     Its URL button carries the DASHBOARD host, because every builder
+ *     caller is a client component with only window.location.origin to
+ *     offer, so a brokerage with its own subdomain sends buyers to the
+ *     shared showcase. Now corrected at submission — but correcting
+ *     THIS row means an edit, and an edit is a fresh review that could
+ *     land it in Marketing permanently.
+ *
+ * So the branded version ships under a new name instead. The old one
+ * keeps sending untouched while this is under review, and if Meta
+ * classifies it Marketing it is simply never selected — see
+ * pickPropertyAlertTemplate. Nothing is risked to gain a hostname.
+ */
+export const PROPERTY_ALERT_TEMPLATE_NAME = 'property_enquiry_info';
+
+/** Earlier names, newest first. An account holding an approved row
+ *  under any of these keeps sending from it until the current name
+ *  clears review. */
+export const LEGACY_PROPERTY_ALERT_TEMPLATE_NAMES = [
+  'property_enquiry_response',
+  'property_enquiry_details',
+  'new_property_alert',
+];
+
+export const PROPERTY_ALERT_TEMPLATE_NAMES = [
+  PROPERTY_ALERT_TEMPLATE_NAME,
+  ...LEGACY_PROPERTY_ALERT_TEMPLATE_NAMES,
+];
+
+export type PropertyAlertCandidate = ApprovedTemplateCandidate;
+
+/** The text-only property-details template a send should use — see
+ *  pickApprovedTemplate for why category outranks name. */
+export function pickPropertyAlertTemplate<T extends ApprovedTemplateCandidate>(
+  rows: T[]
+): T | null {
+  return pickApprovedTemplate(rows, PROPERTY_ALERT_TEMPLATE_NAMES);
+}
 
 export function buildPropertyAlertTemplatePayload(origin: string): TemplatePayload {
   return {

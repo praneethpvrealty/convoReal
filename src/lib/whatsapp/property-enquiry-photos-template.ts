@@ -10,8 +10,45 @@
 
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
+import {
+  pickApprovedTemplate,
+  type ApprovedTemplateCandidate,
+} from '@/lib/whatsapp/pick-approved-template';
 
-export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'property_enquiry_photos';
+/**
+ * Renamed once, for the same reason property_enquiry_info was:
+ *
+ *   property_enquiry_photos  → approved as Utility and still sending,
+ *     but its URL button carries the DASHBOARD host, because the
+ *     builder's only caller was a client component with nothing but
+ *     window.location.origin to pass. Correcting that means an edit,
+ *     and an edit is a fresh Meta review that could land a working
+ *     Utility template in Marketing permanently.
+ *
+ * So the branded version ships under a name Meta has not ruled on. The
+ * old row keeps sending untouched while this is under review, and if
+ * Meta classifies it Marketing it is simply never selected — see
+ * pickPropertyPhotosTemplate. property_enquiry_info took exactly this
+ * route and came back Utility with the subdomain intact.
+ */
+export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'property_enquiry_gallery';
+
+/** Earlier names, newest first. */
+export const LEGACY_PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES = [
+  'property_enquiry_photos',
+];
+
+export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES = [
+  PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME,
+  ...LEGACY_PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES,
+];
+
+/** The photo-header property template a send should use. */
+export function pickPropertyPhotosTemplate<T extends ApprovedTemplateCandidate>(
+  rows: T[],
+): T | null {
+  return pickApprovedTemplate(rows, PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES);
+}
 
 export function buildPropertyEnquiryPhotosTemplatePayload(
   origin: string,

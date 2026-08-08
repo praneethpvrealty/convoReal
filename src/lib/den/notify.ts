@@ -38,20 +38,31 @@ export async function isSessionOpen(
   return (count ?? 0) > 0;
 }
 
+/**
+ * The approved row for a template, by name — or by any of several
+ * names, newest first, when the caller has a rename chain to walk.
+ *
+ * A renamed template ships under a name Meta has not ruled on, so for
+ * a while the account holds an approved row under the OLD name and a
+ * pending one under the new. Passing both lets the send keep working
+ * throughout, and `pick` decides which row wins.
+ */
 export async function approvedTemplate(
   db: SupabaseClient,
   accountId: string,
-  templateName: string,
+  templateName: string | string[],
+  pick?: (rows: MessageTemplate[]) => MessageTemplate | null,
 ): Promise<MessageTemplate | null> {
-  const { data: row } = await db
+  const names = Array.isArray(templateName) ? templateName : [templateName];
+  const { data: rows } = await db
     .from("message_templates")
     .select("*")
     .eq("account_id", accountId)
-    .eq("name", templateName)
-    .order("last_submitted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const template = row as MessageTemplate | null;
+    .in("name", names)
+    .order("last_submitted_at", { ascending: false });
+  const templates = (rows || []) as MessageTemplate[];
+  if (pick) return pick(templates);
+  const template = templates[0] ?? null;
   return template?.status === "APPROVED" ? template : null;
 }
 
@@ -65,8 +76,13 @@ export async function sendDenNotification(
     accountId: string;
     contactId: string;
     text: string;
-    templateName?: string;
+    templateName?: string | string[];
+    /** Chooses among several approved candidates — see approvedTemplate. */
+    pickTemplate?: (rows: MessageTemplate[]) => MessageTemplate | null;
     templateParams?: string[];
+    /** Media-header image, resolved to a URL Meta can fetch. Ignored by
+     *  a template with a text header, so callers can pass it blind. */
+    headerMediaUrl?: string | null;
   },
 ): Promise<boolean> {
   try {
@@ -83,7 +99,12 @@ export async function sendDenNotification(
     }
 
     if (!args.templateName || !args.templateParams) return false;
-    const template = await approvedTemplate(db, args.accountId, args.templateName);
+    const template = await approvedTemplate(
+      db,
+      args.accountId,
+      args.templateName,
+      args.pickTemplate,
+    );
     if (!template) return false;
 
     const res = await sendWhatsAppMessageAndPersist({
@@ -94,7 +115,10 @@ export async function sendDenNotification(
       templateName: template.name,
       templateLanguage: template.language || "en_US",
       templateParams: args.templateParams,
-      messageParams: { body: args.templateParams },
+      messageParams: {
+        body: args.templateParams,
+        ...(args.headerMediaUrl ? { headerMediaUrl: args.headerMediaUrl } : {}),
+      },
       templateRow: template,
       text: args.text,
     });

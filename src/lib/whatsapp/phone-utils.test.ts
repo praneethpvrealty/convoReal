@@ -4,6 +4,7 @@ import {
   isValidE164,
   normalizePhone,
   normalizePhoneWithCountryCode,
+  toAuthPhone,
   phoneVariants,
   phonesMatch,
   sanitizePhoneForMeta,
@@ -188,5 +189,37 @@ describe("normalizePhoneWithCountryCode", () => {
 
   it("returns empty string for empty input", () => {
     expect(normalizePhoneWithCountryCode("")).toBe("");
+  });
+});
+
+describe("toAuthPhone", () => {
+  it("collapses every spelling of one number onto a single auth identity", () => {
+    // Two auth users for one person is exactly what these must not do:
+    // each spelling below has to key the same Supabase identity.
+    for (const raw of [
+      "9900277111",
+      "+919900277111",
+      "919900277111",
+      "+91 99002 77111",
+      "+91-99002-77111",
+      "09900277111",
+      "00919900277111",
+      " +91 9900277111 ",
+    ]) {
+      expect(toAuthPhone(raw)).toBe("+919900277111");
+    }
+  });
+
+  it("rejects input that cannot be an E.164 number", () => {
+    expect(toAuthPhone("")).toBeNull();
+    expect(toAuthPhone(null)).toBeNull();
+    expect(toAuthPhone("12345")).toBeNull();
+    expect(toAuthPhone("abcd")).toBeNull();
+    expect(toAuthPhone("9900277111000000")).toBeNull();
+  });
+
+  it("keeps non-Indian numbers that already carry a country code", () => {
+    expect(toAuthPhone("+1 415 555 2671")).toBe("+14155552671");
+    expect(toAuthPhone("+44 7911 123456")).toBe("+447911123456");
   });
 });

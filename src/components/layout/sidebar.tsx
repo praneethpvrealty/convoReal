@@ -105,6 +105,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/inbox", label: "Inbox", icon: MessageSquare },
+  { href: "/groups", label: "Groups", icon: UsersRound, beta: true },
   { href: "/contacts", label: "Contacts", icon: Users },
   { href: "/inventory", label: "Inventory", icon: Home },
   { href: "/liaisons", label: "Liaisons", icon: Landmark },

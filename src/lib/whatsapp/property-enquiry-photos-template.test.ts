@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildPropertyEnquiryPhotosTemplatePayload,
   PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME,
+  pickPropertyPhotosTemplate,
 } from './property-enquiry-photos-template';
 import { buildPropertyAlertTemplatePayload } from './property-alert-template';
 import { validateTemplatePayload } from './template-validators';
@@ -52,5 +53,44 @@ describe('buildPropertyEnquiryPhotosTemplatePayload', () => {
     expect(types).toEqual(['QUICK_REPLY', 'URL']);
     const urlBtn = payload.buttons?.find((b) => b.type === 'URL');
     expect(urlBtn && 'url' in urlBtn ? urlBtn.url : '').toBe('https://www.convoreal.com/{{1}}');
+  });
+});
+
+describe('pickPropertyPhotosTemplate', () => {
+  const row = (name: string, category = 'Utility', status = 'APPROVED') => ({
+    name,
+    status,
+    category,
+  });
+
+  it('prefers the branded name once Meta approves it as Utility', () => {
+    expect(
+      pickPropertyPhotosTemplate([
+        row('property_enquiry_photos'),
+        row(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME),
+      ])?.name
+    ).toBe(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME);
+  });
+
+  it('keeps the working legacy row while the rename is under review', () => {
+    expect(
+      pickPropertyPhotosTemplate([
+        row('property_enquiry_photos'),
+        row(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME, 'Utility', 'PENDING'),
+      ])?.name
+    ).toBe('property_enquiry_photos');
+  });
+
+  it('keeps the Utility legacy over a rename Meta made Marketing', () => {
+    expect(
+      pickPropertyPhotosTemplate([
+        row('property_enquiry_photos', 'Utility'),
+        row(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME, 'Marketing'),
+      ])?.name
+    ).toBe('property_enquiry_photos');
+  });
+
+  it('is null when the account has neither', () => {
+    expect(pickPropertyPhotosTemplate([])).toBeNull();
   });
 });

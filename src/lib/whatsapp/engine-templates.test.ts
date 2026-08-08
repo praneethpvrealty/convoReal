@@ -10,16 +10,34 @@ describe('missingEngineTemplates', () => {
       'property_enquiry_status',
     ]);
     expect(missing.map((t) => t.name)).toEqual([
-      'property_enquiry_response',
-      'property_enquiry_photos',
-      'property_enquiry_update',
-      'buyer_alerts_consent',
+      'property_enquiry_info',
+      'property_enquiry_gallery',
+      'property_enquiry_notice',
     ]);
   });
 
+  it('offers the branded photo template to an account still on the old one', () => {
+    // Same rename, same reason: property_enquiry_photos is approved and
+    // sending, its URL button just carries the dashboard host.
+    expect(
+      missingEngineTemplates(['property_enquiry_photos']).map((t) => t.name),
+    ).toContain('property_enquiry_gallery');
+  });
+
+  it('offers the branded property-details template to an account still on the old one', () => {
+    // property_enquiry_response is approved and sending; its URL button
+    // just carries the dashboard host. Meta fixes a category at review
+    // and an edit is a fresh review, so the branded version ships under
+    // a new name — which means this list has to keep offering it even
+    // though the account already has a working predecessor.
+    expect(
+      missingEngineTemplates(['property_enquiry_response']).map((t) => t.name),
+    ).toContain('property_enquiry_info');
+  });
+
   it('ignores case and stray whitespace on existing names', () => {
-    expect(missingEngineTemplates(['  Property_Enquiry_Response '])).not.toContainEqual(
-      expect.objectContaining({ name: 'property_enquiry_response' }),
+    expect(missingEngineTemplates(['  Property_Enquiry_Info '])).not.toContainEqual(
+      expect.objectContaining({ name: 'property_enquiry_info' }),
     );
   });
 

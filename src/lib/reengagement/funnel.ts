@@ -4,19 +4,23 @@
 
 import { formatShareAmount } from '@/lib/share-message-builder';
 import { ENQUIRY_FOLLOWUP_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-followup-template';
-import { ENQUIRY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-update-template';
+import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
 import type { ReengagementLead, ReengagementSummary } from './queries';
 
-/** The pre-rename template name. A batch sent on it is still a
- *  re-engagement batch, so the report must not drop it. */
-const LEGACY_ENQUIRY_TEMPLATE_NAME = 'property_enquiry_followup';
+/** Names retired by a category re-classification. A batch already sent
+ *  on one is still a re-engagement batch, so the report must not drop
+ *  it even though nothing sends on them any more. */
+const RETIRED_ENQUIRY_TEMPLATE_NAMES = [
+  'property_enquiry_followup',
+  'property_enquiry_update',
+];
 
-/** Every template a re-engagement batch can go out on. Kept in sync
- *  with is_reengagement_template() in migration 213. */
+/** Every template a re-engagement batch can appear under. Kept in sync
+ *  with is_reengagement_template() in migration 214. */
 export const REENGAGEMENT_TEMPLATE_NAMES: readonly string[] = [
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
-  ENQUIRY_UPDATE_TEMPLATE_NAME,
-  LEGACY_ENQUIRY_TEMPLATE_NAME,
+  ENQUIRY_NOTICE_TEMPLATE_NAME,
+  ...RETIRED_ENQUIRY_TEMPLATE_NAMES,
 ];
 
 /** Whether a broadcast on this template is a re-engagement batch — the

@@ -159,6 +159,11 @@ export interface Contact {
   /** Agent bookmark (migration 203) — drives the Favourites tab on the
    *  Contacts page. Uncapped, and independent of `status`. */
   is_favorite?: boolean;
+  /** Carried only to attribute a re-share hop (migration 215) — a
+   *  co-broker's downstream party, not a lead of this account. Kept out
+   *  of the contacts list and broadcast audiences, and unreachable by
+   *  outbound except the consent-chain sends that created them. */
+  chain_only?: boolean;
   status?: 'active' | 'pending_review';
   lead_temp?: 'HOT' | 'COLD' | 'Not Responding' | 'Dead' | null;
   dob?: string | null;
@@ -427,6 +432,18 @@ export interface Message {
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;
+  /** Engine-local pin. Nothing changes on the contact's phone — the
+   *  Cloud API's pin endpoint takes group recipients only. */
+  pinned_at?: string | null;
+  pinned_by?: string | null;
+  /** Engine-local hide. The customer's copy is NOT deleted; Meta has no
+   *  revoke endpoint for a sent message. */
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  /** Who wrote an inbound GROUP message. In a 1:1 thread the
+   *  conversation identifies the author; in a group it cannot. */
+  sender_wa_id?: string | null;
+  sender_contact_id?: string | null;
   /**
    * Only set when `content_type === 'interactive'` — the stable id of
    * the button or list row the customer tapped. The Flows engine uses
@@ -922,10 +939,20 @@ export interface Property {
   user_id: string | null;
   title: string;
   description?: string;
+  /** Listing/quote price — the advertised figure, and the only price a
+   *  public surface may show. */
   price: number;
   /** Rate quoted per Sq.Ft. at intake (migration 167). `price` is derived
    *  from it once an area is known; this keeps what the owner quoted. */
   price_per_sqft?: number | null;
+  /** What the seller will actually accept, as a total and/or a per-Sq.Ft.
+   *  rate (migration 216). Internal — absent from PUBLIC_PROPERTY_FIELDS
+   *  and DEN_PROPERTY_SELECT, and reaches a buyer only through the
+   *  WhatsApp lead Q&A when the account has opted in. */
+  seller_final_price?: number | null;
+  seller_final_price_per_sqft?: number | null;
+  seller_final_price_at?: string | null;
+  seller_final_price_source?: 'manual' | 'chat' | null;
   /** Final sale price captured when status → Sold. Optional, never buyer-facing. */
   sold_price?: number | null;
   location: string;
@@ -1080,6 +1107,34 @@ export interface Property {
   updated_at: string;
   meta_catalog_synced_at?: string | null;
   meta_catalog_error?: string | null;
+}
+
+// ============================================================
+// Learned facts (219_learned_facts.sql)
+// ============================================================
+
+export interface LearnedFact {
+  id: string;
+  account_id: string;
+  entity_type: 'property' | 'contact';
+  entity_id: string;
+  field: string;
+  previous_value: unknown;
+  value: unknown;
+  /** The sentence this was read out of — what a reviewer confirms. */
+  evidence: string;
+  source: 'agent_reply' | 'lead_message' | 'owner_reply' | 'portal_sync';
+  /** 'auto' wrote on sight and left this as the audit row; 'propose'
+   *  wrote nothing until a human said so. */
+  disposition: 'auto' | 'propose';
+  status: 'pending' | 'approved' | 'rejected' | 'applied';
+  contact_id: string | null;
+  conversation_id: string | null;
+  message_id: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 // ============================================================

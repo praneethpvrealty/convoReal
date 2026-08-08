@@ -53,8 +53,7 @@ import {
 } from '@/lib/inventory/share-grants';
 import { MatchDetailChips } from '@/components/inventory/match-detail-chips';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
-import { PROPERTY_ALERT_TEMPLATE_NAME } from '@/lib/whatsapp/property-alert-template';
-import { PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME } from '@/lib/whatsapp/property-enquiry-photos-template';
+import { pickPropertyShareTemplate } from '@/lib/whatsapp/property-share-template';
 import {
   buildPropertyShareMessage,
   buildShareTargets,
@@ -747,14 +746,13 @@ export function PropertyShareDialog({
         //    are Utility, so they are exempt from the per-user
         //    marketing cap that silently drops Marketing sends
         //    (error 131049). Photo-first when the listing has one.
-        const byName = (n: string) => tData.find((t) => t.name === n);
         const hasPhoto = Boolean(
           property?.images?.some((img) => img && img.trim().length > 0)
         );
-        let matching =
-          (hasPhoto ? byName(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME) : undefined) ??
-          byName(PROPERTY_ALERT_TEMPLATE_NAME) ??
-          byName(PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME);
+        // Both templates have been renamed for each category fix, so
+        // walk both chains — an account can still be on an older
+        // approved name while the current one is under review.
+        let matching = pickPropertyShareTemplate(tData, { hasImage: hasPhoto });
 
         // 2. Any other template named for sharing property details.
         if (!matching) {

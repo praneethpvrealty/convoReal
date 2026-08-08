@@ -299,7 +299,10 @@ export function TemplateManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildSubmitPayload()),
       });
-      const data = await res.json();
+      // A gateway or platform error answers with an HTML page, and a
+      // bare .json() there throws "Unexpected token '<'" — which buries
+      // the real failure. Fall through to the status code instead.
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(
           data?.error ||
@@ -336,7 +339,7 @@ export function TemplateManager() {
       const res = await fetch('/api/whatsapp/templates/sync', {
         method: 'POST',
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error(data?.error || `Sync failed (HTTP ${res.status})`);
       }
@@ -551,8 +554,11 @@ export function TemplateManager() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(def.build(window.location.origin)),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Template submission failed');
+      const data = await res.json().catch(() => null);
+      if (!res.ok)
+        throw new Error(
+          data?.error || `Template submission failed (HTTP ${res.status})`
+        );
       toast.success(`${def.label} submitted to Meta — approval usually takes minutes to a few hours.`);
       if (accountId) await fetchTemplates(accountId);
     } catch (err) {
@@ -705,8 +711,14 @@ export function TemplateManager() {
                         {template.footer_text}
                       </p>
                     )}
+                    {/* A submission_error on an APPROVED row is the
+                        record of a refused EDIT, not a problem with the
+                        template Meta is serving — and the edit was
+                        already reported when it happened. Left visible
+                        it reads as "this template is broken" about one
+                        that is sending fine. */}
                     {(template.rejection_reason ||
-                      template.submission_error) && (
+                      (template.submission_error && statusKey !== 'APPROVED')) && (
                       <div className="flex items-start gap-1.5 rounded border border-red-900/40 bg-red-950/20 px-2 py-1.5 text-xs text-red-400">
                         <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
                         <span>

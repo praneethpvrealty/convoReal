@@ -10,6 +10,15 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook'
+import {
+  isGroupWebhookField,
+  processGroupWebhook,
+} from '@/lib/whatsapp/group-webhooks'
+import {
+  groupIdFromInbound,
+  resolveGroupSender,
+  resolveGroupThread,
+} from '@/lib/whatsapp/group-inbound'
 import { checkIsAccountOwner, processOwnerChatbotMessage, processExternalListingMessage } from '@/lib/ai/chatbot-engine'
 import { processBuyerQualificationMessage } from '@/lib/ai/buyer-qualification'
 import {
@@ -17,6 +26,7 @@ import {
   sendPreferenceFlowToContact,
   getPublishedPreferenceFlow,
 } from '@/lib/whatsapp/meta-flow-service'
+import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup'
 import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
@@ -26,11 +36,17 @@ import {
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
-import { hasRecentAgentReply } from '@/lib/whatsapp/agent-takeover'
+import type { Contact } from '@/types'
+import {
+  hasRecentAgentReply,
+  standDownActiveFlowRuns,
+} from '@/lib/whatsapp/agent-takeover'
+import { claimBuyerConsentAsk } from '@/lib/buyer/consent-ask'
 import {
   answerLeadQuestion,
   looksLikeQuestion,
   questionSubjectProperty,
+  subjectPortalListings,
 } from '@/lib/ai/lead-question'
 import {
   parseTemplateQuickReply,
@@ -83,7 +99,11 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 
 export interface WhatsAppMessage {
   id: string
+  /** The PARTICIPANT's phone on a group message, not the group. */
   from: string
+  /** Present only on group messages. Its absence is what marks an
+   *  inbound as an ordinary one-to-one. */
+  group_id?: string | null
   timestamp: string
   type: string
   text?: { body: string }
@@ -248,6 +268,36 @@ export async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           { field: change.field, value: change.value as unknown },
           supabaseAdmin(),
         )
+        continue
+      }
+
+      // Group lifecycle/participants/settings/status. These carry no
+      // `messages` or `contacts`, so they have to be dispatched before
+      // the inbound-message path below drops them.
+      if (isGroupWebhookField(change.field)) {
+        const groupPhoneNumberId = (
+          change.value as { metadata?: { phone_number_id?: string } }
+        )?.metadata?.phone_number_id
+        if (groupPhoneNumberId) {
+          const { data: groupConfigs } = await supabaseAdmin()
+            .from('whatsapp_config')
+            .select('account_id')
+            .eq('phone_number_id', groupPhoneNumberId)
+
+          // Same rule as the message path: an ambiguous number is
+          // dropped rather than written to an arbitrary account.
+          if (groupConfigs?.length === 1) {
+            await processGroupWebhook(
+              groupConfigs[0].account_id as string,
+              change.field,
+              change.value as unknown,
+            )
+          } else {
+            console.error(
+              `[webhook] group event for phone_number_id ${groupPhoneNumberId} matched ${groupConfigs?.length ?? 0} configs. Dropping.`,
+            )
+          }
+        }
         continue
       }
 
@@ -844,6 +894,50 @@ async function processMessage(
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
 
+  // A group message reaches us on this same `messages` field, and `from`
+  // is the PARTICIPANT. Everything below would therefore file it in that
+  // person's private thread and let the bot answer them directly — so
+  // groups are split off before any contact or conversation is touched.
+  const waGroupId = groupIdFromInbound(message)
+  if (waGroupId) {
+    const thread = await resolveGroupThread(accountId, waGroupId)
+    if (!thread) {
+      console.warn(
+        `[webhook] group message for unknown group ${waGroupId} on account ${accountId}. Dropping.`
+      )
+      return
+    }
+    const parsed = await parseMessageContent(message, accessToken)
+    const senderContactId = await resolveGroupSender(accountId, senderPhone)
+
+    await supabaseAdmin().from('messages').insert({
+      conversation_id: thread.conversationId,
+      sender_type: 'customer',
+      content_type: message.type === 'sticker' ? 'image' : message.type,
+      content_text: parsed.contentText,
+      media_url: parsed.mediaUrl,
+      message_id: message.id,
+      status: 'delivered',
+      // In a group the conversation no longer says who wrote this.
+      sender_wa_id: senderPhone,
+      sender_contact_id: senderContactId,
+    })
+
+    await supabaseAdmin()
+      .from('conversations')
+      .update({
+        last_message_text: parsed.contentText || `[${message.type}]`,
+        last_message_at: new Date().toISOString(),
+      })
+      .eq('id', thread.conversationId)
+
+    // No bot, no automations, no flows. Every automated reply path the
+    // Engine has answers with buttons or lists, which groups reject
+    // outright (130501) — the members would see nothing, and a
+    // plain-text fallback would go to all eight of them.
+    return
+  }
+
   const contactOutcome = await findOrCreateContact(
     accountId,
     configOwnerUserId,
@@ -1205,11 +1299,9 @@ async function processMessage(
   // chat. They just opened the 24-hour window by texting, so the reply
   // is free-form: no template, nothing to get approved first. Falls
   // through when the buyer has no brief or nothing fits.
-  // Also reachable from the enquiry-update template's "Send listings"
-  // quick reply, which arrives as message.button.text. That tap IS the
-  // request — it is what makes sending listings solicited rather than
-  // volunteered, and it opens the 24-hour window so the reply is
-  // free-form.
+  // A template quick reply arrives as message.button.text rather than
+  // as message text, so read both — otherwise a tap that plainly says
+  // "send listings" would fall through to generic handling.
   if (parseBuyerMatchesCommand(message.button?.text ?? contentText)) {
     const matchReply = await buildBuyerMatchReply({
       accountId,
@@ -1765,6 +1857,22 @@ async function processMessage(
   // funnel underneath them. Active runs still advance — the lead is
   // mid-answer and expects the next question.
   const agentHandling = await hasRecentAgentReply(supabaseAdmin(), conversation.id)
+  if (agentHandling) {
+    // A run that outlived the send-time pause would keep answering the
+    // lead "Sorry, I didn't quite catch that" through a live
+    // negotiation. Stand it down before dispatch, so this message
+    // reaches the agent instead of the funnel.
+    const stoodDown = await standDownActiveFlowRuns(
+      supabaseAdmin(),
+      accountId,
+      contactRecord.id,
+    )
+    if (stoodDown > 0) {
+      console.log(
+        `[webhook] Stood down ${stoodDown} flow run(s) — an agent is handling this thread`,
+      )
+    }
+  }
 
   console.log(`[webhook] Dispatching to flows. accountId=${accountId}, contact=${contactRecord.id}, text="${contentText ?? message.text?.body ?? ''}"`);
   const flowResult = await dispatchInboundToFlows({
@@ -1823,11 +1931,26 @@ async function processMessage(
     looksLikeQuestion(inboundText)
   ) {
     const admin = supabaseAdmin()
-    const subject = await questionSubjectProperty(admin, accountId, contactRecord.id)
+    const subject = await questionSubjectProperty(
+      admin,
+      accountId,
+      contactRecord.id,
+      conversation.id,
+    )
+    const { data: qaConfig } = await admin
+      .from('whatsapp_config')
+      .select('share_seller_final_price')
+      .eq('account_id', accountId)
+      .maybeSingle()
+    const portalListings = subject
+      ? await subjectPortalListings(admin, accountId, subject.id)
+      : []
     const answer = await answerLeadQuestion({
       accountId,
       question: inboundText,
       property: subject,
+      shareSellerFinalPrice: qaConfig?.share_seller_final_price === true,
+      portalListings,
     })
 
     await sendWhatsAppMessageAndPersist({
@@ -1868,6 +1991,42 @@ async function processMessage(
         .select('id')
     }
     return
+  }
+
+  // The buyer just messaged us, so their 24-hour window is open: the
+  // one moment the alerts question can be asked free-form, needing no
+  // template and no category. Soliciting an opt-in is Marketing by
+  // Meta's test, so this is the only compliant place to ask — and it
+  // reaches every buyer who ever replies, not just whoever happens to
+  // be mid-chat when the daily digest runs.
+  //
+  // Not while an agent is mid-conversation, though: asking "want
+  // alerts?" in the middle of a price negotiation is the bot talking
+  // over the person actually closing the deal. It waits for a quieter
+  // message — the buyer is never asked twice, so nothing is lost.
+  if (!ownerCheck.isOwner && !isPropertyOwnerSender && !agentHandling) {
+    try {
+      const consentAsk = await claimBuyerConsentAsk(
+        supabaseAdmin(),
+        accountId,
+        contactRecord as unknown as Contact,
+        null,
+        1,
+      )
+      if (consentAsk) {
+        await sendWhatsAppMessageAndPersist({
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+          kind: 'text',
+          senderType: 'bot',
+          text: consentAsk,
+        })
+      }
+    } catch (err) {
+      console.error('[buyer-consent] ask failed (non-fatal):', err)
+    }
   }
 
   const automationTriggers: (
@@ -2602,6 +2761,18 @@ async function handlePreferenceFlowNfmReply(
     kind: 'text',
     senderType: 'bot',
     text: summarizePreferenceUpdate(update),
+  })
+
+  // The summary above promises a match. Deliver it now, while the
+  // window this submission just opened is still open — a re-engaged
+  // lead who filled the form is the highest intent this funnel sees,
+  // and it used to end here.
+  await sendPreferenceMatchFollowUp({
+    db: supabaseAdmin(),
+    accountId,
+    userId: configOwnerUserId,
+    contactId,
+    conversationId,
   })
 }
 

@@ -2,12 +2,12 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
-import { ENQUIRY_UPDATE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-update-template';
+import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
 import {
-  loadEnquiryUpdateContext,
-  resolveEnquiryUpdateParams,
-  ENQUIRY_UPDATE_FAILURE_REASONS,
-} from './enquiry-update-params';
+  loadEnquiryNoticeContext,
+  resolveEnquiryNoticeParams,
+  ENQUIRY_NOTICE_FAILURE_REASONS,
+} from './enquiry-notice-params';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Contact } from '@/types';
 
@@ -227,8 +227,14 @@ export async function resolveAudienceOnServer(
 
   // Respect the buyer's WhatsApp alert opt-out (STOP ALERTS / portal
   // settings, migration 160) — declined contacts never enter the
-  // audience, regardless of how it was built.
-  return contacts.filter((c) => c.buyer_alerts_consent !== 'declined');
+  // audience, regardless of how it was built. Chain-only contacts drop
+  // out on the same principle: they are a co-broker's downstream party,
+  // carried so the consent walk can reach them and for nothing else.
+  // The dispatcher would refuse them anyway; filtering here keeps them
+  // out of the recipient rows and the reach count too.
+  return contacts.filter(
+    (c) => c.buyer_alerts_consent !== 'declined' && !c.chain_only
+  );
 }
 
 export async function sendBroadcastRecipients(
@@ -335,9 +341,9 @@ export async function sendBroadcastRecipients(
 
   // Loaded once per sweep for the property-anchored template only —
   // every other template resolves its params from the contact row.
-  const enquiryUpdateContext =
-    broadcast.template_name === ENQUIRY_UPDATE_TEMPLATE_NAME
-      ? await loadEnquiryUpdateContext(
+  const enquiryNoticeContext =
+    broadcast.template_name === ENQUIRY_NOTICE_TEMPLATE_NAME
+      ? await loadEnquiryNoticeContext(
           supabase,
           accountId,
           recipients
@@ -383,14 +389,14 @@ export async function sendBroadcastRecipients(
       // missing either property must not be sent a message with a
       // hole in it.
       let bodyParams: string[];
-      if (enquiryUpdateContext) {
-        const resolved = resolveEnquiryUpdateParams(recipient.contact, enquiryUpdateContext);
+      if (enquiryNoticeContext) {
+        const resolved = resolveEnquiryNoticeParams(recipient.contact, enquiryNoticeContext);
         if ('failure' in resolved) {
           await supabase
             .from('broadcast_recipients')
             .update({
               status: 'failed',
-              error_message: ENQUIRY_UPDATE_FAILURE_REASONS[resolved.failure],
+              error_message: ENQUIRY_NOTICE_FAILURE_REASONS[resolved.failure],
             })
             .eq('id', recipient.id);
           continue;

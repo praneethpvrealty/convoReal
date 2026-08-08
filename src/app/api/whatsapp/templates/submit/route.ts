@@ -15,6 +15,7 @@ import {
   type TemplatePayload,
 } from '@/lib/whatsapp/template-validators'
 import { buildMetaTemplatePayload } from '@/lib/whatsapp/template-components'
+import { withAccountShowcaseButtons } from '@/lib/whatsapp/template-showcase-buttons'
 import {
   normalizeCategory,
   normalizeStatus,
@@ -144,6 +145,17 @@ export async function POST(request: Request) {
         { status: 400 },
       )
     }
+
+    // Every buyer-facing link goes to the brokerage's own showcase.
+    //
+    // The engine-template builders take an origin, and each caller had
+    // only `window.location.origin` to give them — the DASHBOARD's
+    // host. So an account with its own subdomain submitted a
+    // "View full details" button pointing at the shared site, and every
+    // buyer who tapped it left the brokerage's showcase for the default
+    // one. The account is known here and nowhere in the client, so this
+    // is the one place that can be right for every template at once.
+    payload = await withAccountShowcaseButtons(supabase, accountId, payload)
 
     try {
       validateTemplatePayload(payload)

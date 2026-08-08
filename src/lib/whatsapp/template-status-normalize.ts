@@ -28,6 +28,28 @@ export function normalizeStatus(raw: string): MessageTemplateStatus {
 }
 
 /**
+ * The local complaint fields, as a sync should leave them.
+ *
+ * Meta is the authority on a row it returns, so its answer retires what
+ * we recorded locally. `submission_error` is the record of a handoff
+ * that failed — Meta returning the template at all means one of them
+ * succeeded — and a refused EDIT wrote that string onto an APPROVED
+ * template where nothing could clear it, so a template sending
+ * perfectly well wore a red banner indefinitely.
+ *
+ * `rejection_reason` is Meta's own verdict and survives exactly as long
+ * as Meta still calls the template rejected.
+ */
+export function clearedTemplateComplaints(status: MessageTemplateStatus): {
+  submission_error: null
+  rejection_reason?: null
+} {
+  return status === 'REJECTED'
+    ? { submission_error: null }
+    : { submission_error: null, rejection_reason: null }
+}
+
+/**
  * Normalize Meta's UPPERCASE category (create response, sync poll, or
  * template_category_update webhook) into the local casing. Meta decides
  * the effective category — since April 2025 a Utility submission that

@@ -23,6 +23,15 @@ import {
   type QaProperty,
 } from '@/lib/showcase/property-qa';
 import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard';
+import { PORTALS } from '@/lib/portals/post-kit';
+import {
+  findPortalDiscrepancies,
+  portalFromQuestion,
+  type PortalListingFigures,
+  type ReconcilableProperty,
+} from '@/lib/portals/listing-reconcile';
+import { resolvePropertySubject } from '@/lib/learning/subject';
+import type { Property } from '@/types';
 import { generateText } from '@/lib/ai/gemini';
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
@@ -42,6 +51,111 @@ export interface LeadAnswer {
   source: LeadAnswerSource;
   /** The matched deterministic intent, for logging. */
   intent?: string | null;
+}
+
+/** The listing fields the final-price rung reads. Not part of QaProperty:
+ *  those are the fields the PUBLIC showcase answers from, and the
+ *  seller's floor is not one of them. */
+export type SellerPriceFields = Pick<
+  Property,
+  'seller_final_price' | 'seller_final_price_per_sqft' | 'area_sqft'
+>;
+
+/**
+ * "It says 4000sqft in magicbricks. Is it the same one???"
+ *
+ * A buyer comparing our listing against the portal copy of it. The
+ * honest answer needs both figures and no bluff about which is right —
+ * we genuinely do not know until an agent checks the survey, so this
+ * confirms the listing is the same one, names both numbers, and
+ * promises the confirmation rather than guessing.
+ *
+ * Returns null when the named portal has no linked copy of this
+ * listing, which leaves the ladder exactly as it was.
+ */
+export function answerFromPortalListing(
+  question: string,
+  property: ReconcilableProperty & { title?: string },
+  listings: PortalListingFigures[]
+): string | null {
+  const portal = portalFromQuestion(question);
+  if (!portal) return null;
+
+  const listing = listings.find((l) => l.portal === portal);
+  if (!listing) return null;
+
+  const label = PORTALS[portal]?.label ?? portal;
+  const drifts = findPortalDiscrepancies(property, [listing]);
+
+  if (!drifts.length) {
+    return `Yes — same property. Our ${label} listing carries the same details you're seeing there.`;
+  }
+
+  const lines = drifts.map((d) => {
+    if (d.field === 'price') {
+      return `• Price — ${label} shows ${inr(d.theirs)}, our records show ${inr(d.ours)}`;
+    }
+    if (d.field === 'bedrooms') {
+      return `• Bedrooms — ${label} shows ${d.theirs}, our records show ${d.ours}`;
+    }
+    return `• Area — ${label} shows ${d.theirs.toLocaleString('en-IN')} sq.ft., our records show ${d.ours.toLocaleString('en-IN')} sq.ft.`;
+  });
+
+  return [
+    `Yes, it's the same property — good catch, the two don't line up:`,
+    '',
+    ...lines,
+    '',
+    "Let me confirm which is correct and come straight back to you.",
+  ].join('\n');
+}
+
+/**
+ * A buyer asking whether there is room on the price. Mirrors the
+ * ESCALATE_PATTERN clause in property-qa.ts that sends these questions
+ * past the structured answers — the difference is that here we may
+ * actually have the answer.
+ */
+const FINAL_PRICE_QUESTION =
+  /\b(negotiab|negotiate|bargain|discount|best price|final price|last price|lowest|net price|come down|reduce|any room)/i;
+
+function inr(n: number): string {
+  return '₹' + n.toLocaleString('en-IN');
+}
+
+/**
+ * Answers "is this negotiable?" from what an agent already established
+ * with the seller, when the account has chosen to quote it.
+ *
+ * This is the payoff of the learning loop: the figure lands here only
+ * because a human approved a suggestion extracted from an agent's own
+ * reply, so quoting it is repeating a decision the brokerage made, not
+ * a number the model inferred. Returns null when nothing is stored, and
+ * the ladder carries on to the AI path and then the handover exactly as
+ * before.
+ */
+export function answerFromSellerFinalPrice(
+  question: string,
+  property: SellerPriceFields,
+): string | null {
+  if (!FINAL_PRICE_QUESTION.test(question || '')) return null;
+
+  const rate = property.seller_final_price_per_sqft;
+  const total = property.seller_final_price;
+
+  if (rate) {
+    const derived =
+      property.area_sqft && property.area_sqft > 0
+        ? ` — about ${inr(Math.round(rate * property.area_sqft))} for this unit`
+        : '';
+    return `There is a little room: the seller's final rate is ${inr(rate)} per sq.ft.${derived}. Shall I put you in touch with the team to close it?`;
+  }
+
+  if (total) {
+    return `There is a little room: the seller's final price is ${inr(total)}. Shall I put you in touch with the team to close it?`;
+  }
+
+  return null;
 }
 
 /**
@@ -64,24 +178,25 @@ export function looksLikeQuestion(text: string | null | undefined): boolean {
 }
 
 /**
- * The listing a question is about: the one most recently shared with
- * this contact. Same source of truth the template quick replies use, so
- * "more details" and "is it north facing?" resolve to the same property.
+ * The listing a question is about, as the shared subject resolver sees
+ * it — the share ledger reconciled against what the agent has since
+ * said. Null means the thread cannot be pinned to one listing, which
+ * the caller reads as a handover: a buyer told "let me check and come
+ * back" loses nothing, where a buyer told the wrong listing's facts
+ * cannot tell.
  */
 export async function questionSubjectProperty(
   db: SupabaseClient,
   accountId: string,
   contactId: string,
-): Promise<(QaProperty & { id: string }) | null> {
-  const { data: share } = await db
-    .from('property_shares')
-    .select('property_id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const propertyId = share?.property_id as string | undefined;
+  conversationId?: string | null,
+): Promise<(QaProperty & SellerPriceFields & { id: string }) | null> {
+  const propertyId = await resolvePropertySubject(
+    db,
+    accountId,
+    contactId,
+    conversationId,
+  );
   if (!propertyId) return null;
 
   const { data: property } = await db
@@ -90,7 +205,40 @@ export async function questionSubjectProperty(
     .eq('id', propertyId)
     .eq('account_id', accountId)
     .maybeSingle();
-  return (property as (QaProperty & { id: string }) | null) ?? null;
+  return (
+    (property as (QaProperty & SellerPriceFields & { id: string }) | null) ?? null
+  );
+}
+
+/** Portal statuses that mean this row describes THIS property. A
+ *  'review' or 'new' item is an unresolved guess — quoting its figures
+ *  to a buyer would assert a link nobody has confirmed. */
+const LINKED_PORTAL_STATUSES = ['linked', 'auto_matched', 'imported'];
+
+/**
+ * The harvested portal copies of one listing. Empty for an account
+ * that has never run a portal sync, which is the pre-existing
+ * behaviour: no rows, no portal rung, ladder unchanged.
+ */
+export async function subjectPortalListings(
+  db: SupabaseClient,
+  accountId: string,
+  propertyId: string,
+): Promise<PortalListingFigures[]> {
+  const { data } = await db
+    .from('portal_import_items')
+    .select('portal, listing_url, price, area_sqft, bedrooms')
+    .eq('account_id', accountId)
+    .eq('matched_property_id', propertyId)
+    .in('match_status', LINKED_PORTAL_STATUSES);
+
+  return (data ?? []).map((row) => ({
+    portal: row.portal as PortalListingFigures['portal'],
+    listingUrl: row.listing_url,
+    price: row.price,
+    areaSqft: row.area_sqft,
+    bedrooms: row.bedrooms,
+  }));
 }
 
 /**
@@ -104,7 +252,16 @@ export async function questionSubjectProperty(
 export async function answerLeadQuestion(args: {
   accountId: string;
   question: string;
-  property: QaProperty | null;
+  property:
+    | (QaProperty & Partial<SellerPriceFields> & Partial<ReconcilableProperty>)
+    | null;
+  /** whatsapp_config.share_seller_final_price. Off by default: a
+   *  seller's floor is the brokerage's to quote, not the bot's to
+   *  volunteer, and the account decides when it is. */
+  shareSellerFinalPrice?: boolean;
+  /** This listing's harvested portal copies, for a buyer comparing us
+   *  against MagicBricks / 99acres / Housing. */
+  portalListings?: PortalListingFigures[];
 }): Promise<LeadAnswer> {
   const { accountId, question, property } = args;
   if (!property) return { text: HANDOVER_TEXT, source: 'handover' };
@@ -113,6 +270,32 @@ export async function answerLeadQuestion(args: {
   const qaProperty = guarded
     ? { ...property, location: localityLabel(property) }
     : property;
+
+  // First rung of all: a buyer naming a portal is asking about a
+  // specific document we hold, and the generic matchers below have no
+  // idea it exists — property-qa would send "is it the same one?" to
+  // the model, which grounds only on our own fields and can do nothing
+  // but deny knowledge of MagicBricks.
+  if (args.portalListings?.length) {
+    const portalAnswer = answerFromPortalListing(
+      question,
+      property,
+      args.portalListings
+    );
+    if (portalAnswer) {
+      return { text: portalAnswer, source: 'listing', intent: 'portal_compare' };
+    }
+  }
+
+  // Ahead of the structured matchers: property-qa deliberately refuses
+  // price-negotiability questions, and it is right to — it answers the
+  // public showcase too, where this figure must never appear.
+  if (args.shareSellerFinalPrice) {
+    const finalPrice = answerFromSellerFinalPrice(question, property);
+    if (finalPrice) {
+      return { text: finalPrice, source: 'listing', intent: 'seller_final_price' };
+    }
+  }
 
   const structured = answerFromPropertyData(question, qaProperty);
   if (structured.answer) {
@@ -153,9 +336,26 @@ export async function answerLeadQuestion(args: {
   }
 }
 
-/** Gemini saying "I don't know" in the shapes the prompt invites. */
+/**
+ * Gemini saying "I don't know" in the shapes the prompt invites.
+ *
+ * Since the prompt started asking for a first-person deferral instead
+ * of a flat refusal, "let me confirm that and come back to you" is what
+ * a non-answer now looks like. It reads like an answer and is not one —
+ * missing it would return source 'ai', and the handover branch is what
+ * notifies an agent and pings the reply bridge. A buyer promised a
+ * callback by a bot nobody was told about is worse than no reply.
+ */
 function isNonAnswer(answer: string): boolean {
-  return /^(i (don'?t|do not) (know|have)|sorry[, ]|that information (is|isn'?t)|not (specified|available|mentioned)|no information)/i.test(
-    answer.trim(),
+  const text = answer.trim();
+  if (
+    /^(i (don'?t|do not) (know|have)|sorry[, ]|that information (is|isn'?t)|not (specified|available|mentioned)|no information)/i.test(
+      text,
+    )
+  ) {
+    return true;
+  }
+  return /\b(let me (confirm|check|find out|verify)|i'?ll (confirm|check|find out|verify|get back)|come (right )?back to you|check (on )?(that|this) and revert|revert (on|to) you)\b/i.test(
+    text,
   );
 }

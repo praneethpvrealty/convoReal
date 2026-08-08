@@ -20,19 +20,12 @@ import { useState } from "react";
 import { Phone, ArrowLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { toAuthPhone } from "@/lib/whatsapp/phone-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-function cleanPhoneInput(raw: string): string | null {
-  let phone = raw.trim().replace(/\s+/g, "");
-  if (!phone.startsWith("+")) {
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length === 10) phone = `+91${digits}`;
-    else return null;
-  }
-  return phone;
-}
+const cleanPhoneInput = toAuthPhone;
 
 export function WhatsappPhoneVerify({
   onVerified,

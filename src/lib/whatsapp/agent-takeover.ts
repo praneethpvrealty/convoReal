@@ -46,3 +46,41 @@ export async function hasRecentAgentReply(
     return false;
   }
 }
+
+/**
+ * Belt and braces for the pause that runs when an agent SENDS: stand
+ * down any flow run still active on a thread a human is handling,
+ * checked when the lead's next message arrives.
+ *
+ * The send-time pause is the primary mechanism and now uses the admin
+ * client; this catches a run that outlived it — one started before the
+ * takeover, or an agent reply that reached the lead by some path other
+ * than the dispatcher. Returns how many runs were stood down.
+ */
+export async function standDownActiveFlowRuns(
+  db: SupabaseClient,
+  accountId: string,
+  contactId: string,
+): Promise<number> {
+  try {
+    const { data, error } = await db
+      .from('flow_runs')
+      .update({
+        status: 'paused_by_agent',
+        ended_at: new Date().toISOString(),
+        end_reason: 'agent_replied',
+      })
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId)
+      .eq('status', 'active')
+      .select('id');
+    if (error) {
+      console.error('[agent-takeover] stand-down failed:', error.message);
+      return 0;
+    }
+    return data?.length ?? 0;
+  } catch (err) {
+    console.error('[agent-takeover] stand-down threw:', err);
+    return 0;
+  }
+}

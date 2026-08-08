@@ -60,6 +60,25 @@ export interface Conversation {
   unread_count: number;
   is_archived: boolean;
   contact?: Contact;
+  /** Set instead of `contact` when the thread is a WhatsApp group. A
+   *  conversation is about exactly one of the two — see migration 222. */
+  group?: WhatsAppGroup | null;
+}
+
+export interface WhatsAppGroup {
+  id: string;
+  subject: string;
+  status: 'pending' | 'active' | 'suspended' | 'deleted' | 'failed';
+}
+
+/** The title a thread shows, whichever kind it is. */
+export function conversationTitle(
+  conversation: Pick<Conversation, 'contact' | 'group'> | null | undefined
+): string {
+  if (conversation?.group) return conversation.group.subject;
+  return (
+    conversation?.contact?.name || conversation?.contact?.phone || 'Conversation'
+  );
 }
 
 export type SenderType = 'customer' | 'agent' | 'bot';
@@ -86,6 +105,29 @@ export interface Message {
   error_info?: string;
   /** `messages.id` of the message this one quotes, when it is a reply. */
   reply_to_message_id?: string;
+  /** Meta's own wamid, once WhatsApp has accepted the message. Absent
+   *  while a send is queued and on anything that failed. */
+  message_id?: string | null;
+  /** Engine-local pin. Nothing changes on the contact's phone: the
+   *  Cloud API's pin endpoint takes group recipients only. */
+  pinned_at?: string | null;
+  pinned_by?: string | null;
+  /** Engine-local hide. The customer's copy is NOT deleted — Meta has
+   *  no revoke endpoint — so this only removes the row from our inbox. */
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+}
+
+export type ReactionActor = 'agent' | 'customer';
+
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  conversation_id: string;
+  actor_type: ReactionActor;
+  actor_id?: string | null;
+  emoji: string;
+  created_at: string;
 }
 
 export interface Profile {

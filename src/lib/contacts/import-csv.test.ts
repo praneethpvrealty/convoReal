@@ -61,3 +61,70 @@ describe('parseContactsCsv — enquired property', () => {
     expect(rows[0].property_ref).toBeUndefined();
   });
 });
+
+describe('parseContactsCsv — portal CRM exports', () => {
+  // The shape a MagicBricks / Housing / 99acres export actually has:
+  // number split across two columns, none of the headers named the way
+  // the Engine names them, and the same lead repeated per enquiry.
+  const portalCsv = [
+    'Notes,Customer Name,Country Code,Contact Number,Customer Email,Location,Budget,Property Id,Contact Message Details',
+    ',Tulajaram,91,9876543210,t@example.com,Kumaraswamy Layout,5500000,75995649,"Looking for 2 BHK for Sale in Kumaraswamy Layout"',
+    ',Asha,91,9876543211,a@example.com,Whitefield,12000000,74928739,"Looking for a Residential Plot in Whitefield"',
+  ].join('\r\n');
+
+  it('reads a portal export without any reshaping', () => {
+    const rows = parseContactsCsv(portalCsv);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({
+      phone: '+919876543210',
+      name: 'Tulajaram',
+      email: 't@example.com',
+      areas_of_interest: 'Kumaraswamy Layout',
+      max_budget: 5500000,
+      property_ref: '75995649',
+    });
+    expect(rows[0].notes).toContain('2 BHK');
+  });
+
+  it('joins Country Code onto Contact Number exactly once', () => {
+    const already = parseContactsCsv(
+      'Country Code,Contact Number\r\n91,919876543210'
+    );
+    expect(already[0].phone).toBe('+919876543210');
+    const plus = parseContactsCsv('Country Code,Phone\r\n91,+919876543210');
+    expect(plus[0].phone).toBe('+919876543210');
+    const intl = parseContactsCsv(
+      'Country Code,Contact Number\r\n971,501234567'
+    );
+    expect(intl[0].phone).toBe('+971501234567');
+  });
+
+  it('survives the UTF-8 BOM Excel writes, which would hide the first header', () => {
+    const rows = parseContactsCsv('﻿Phone,Customer Name\r\n+919876543210,Asha');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('Asha');
+  });
+
+  it('keeps one row per number and lets later rows fill blanks', () => {
+    const dupes = [
+      'Contact Number,Customer Name,Customer Email,Location',
+      '9876543210,Asha,,Whitefield',
+      '9876543210,,asha@example.com,HSR',
+      '9876543211,Ravi,,Hebbal',
+    ].join('\n');
+    const rows = parseContactsCsv(dupes);
+    expect(rows).toHaveLength(2);
+    // First occurrence wins on conflict, but its blank email is filled.
+    expect(rows[0].name).toBe('Asha');
+    expect(rows[0].areas_of_interest).toBe('Whitefield');
+    expect(rows[0].email).toBe('asha@example.com');
+  });
+
+  it('still prefers the canonical header when a file carries both', () => {
+    const rows = parseContactsCsv(
+      'phone,contact number,name,customer name\n+919999999999,+918888888888,Real,Portal'
+    );
+    expect(rows[0].phone).toBe('+919999999999');
+    expect(rows[0].name).toBe('Real');
+  });
+});

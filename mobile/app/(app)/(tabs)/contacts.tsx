@@ -137,6 +137,9 @@ async function fetchContacts(
         'status, last_contacted_at, last_inquired_property_id, property_interests, ' +
         'areas_of_interest, min_budget, max_budget, no_budget, is_favorite'
     )
+    // Web parity: a chain-only contact is a re-share intermediary's
+    // attribution, not a lead of this account.
+    .eq('chain_only', false)
     .order('created_at', { ascending: false })
     .limit(150);
 
@@ -295,24 +298,28 @@ async function fetchSegmentCounts(): Promise<Record<SegmentKey, number>> {
       supabase
         .from('contacts')
         .select('id', { count: 'exact', head: true })
+        .eq('chain_only', false)
         .eq('status', 'active')
     ),
     excludeStaff(
       supabase
         .from('contacts')
         .select('id', { count: 'exact', head: true })
+        .eq('chain_only', false)
         .eq('status', 'pending_review')
     ),
     excludeStaff(
       supabase
         .from('contacts')
         .select('id', { count: 'exact', head: true })
+        .eq('chain_only', false)
         .eq('is_favorite', true)
     ),
     excludeStaff(
       supabase
         .from('contacts')
         .select('id', { count: 'exact', head: true })
+        .eq('chain_only', false)
         .eq('status', 'active')
         .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null')
     ),

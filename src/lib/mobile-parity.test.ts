@@ -44,6 +44,11 @@ import {
 } from "@/lib/property-interests";
 import { CUSTOMER_WINDOW_EXPIRED_MESSAGE } from "@/lib/whatsapp/customer-window";
 import { DELIVERY_FAILURE_MARKER } from "@/lib/whatsapp/delivery-failure";
+import {
+  HIDE_ACTION_LABEL,
+  HIDE_CONFIRM_MESSAGE,
+  MAX_PINNED_PER_CONVERSATION,
+} from "@/lib/whatsapp/message-state";
 
 function mobileSource(relativePath: string): string {
   return readFileSync(join(process.cwd(), "mobile", relativePath), "utf8");
@@ -229,6 +234,52 @@ describe("mobile/lib/message-actions.ts mirrors delivery-failure", () => {
   // agent's own error report goes back out to the customer.
   it("cuts at the same marker", () => {
     expect(mobileSource("lib/message-actions.ts")).toContain(DELIVERY_FAILURE_MARKER);
+  });
+});
+
+describe("mobile/lib/message-reactions.ts mirrors the web quick-reaction bar", () => {
+  // Both surfaces sit on the same message rows and the same
+  // /api/whatsapp/react route. An emoji offered on one and missing on
+  // the other reads as a broken thread to whoever reached for the
+  // second surface, so the bars have to stay identical.
+  it("offers the same quick reactions the web thread does", () => {
+    const web = stringLiterals(
+      readFileSync(
+        join(process.cwd(), "src/components/inbox/message-actions.tsx"),
+        "utf8"
+      ).match(/const QUICK_EMOJIS = \[[^\]]*\]/)?.[0] ?? ""
+    );
+
+    expect(web.length).toBeGreaterThan(0);
+    expect(stringLiteralsInConst(mobileSource("lib/message-reactions.ts"), "QUICK_EMOJIS")).toEqual(
+      web
+    );
+  });
+});
+
+describe("mobile/lib/message-state.ts mirrors message-state", () => {
+  // Pin and hide are Engine-local: WhatsApp has no revoke endpoint and
+  // no pin outside a group. If either copy stops saying so, an agent
+  // tells a customer their message was deleted when it is still on
+  // their phone — so the wording is pinned, not just the cap.
+  const source = mobileSource("lib/message-state.ts");
+
+  it("uses the same pin ceiling", () => {
+    expect(source).toContain(
+      `MAX_PINNED_PER_CONVERSATION = ${MAX_PINNED_PER_CONVERSATION}`,
+    );
+  });
+
+  it("carries the same confirmation copy, verbatim", () => {
+    expect(source).toContain(HIDE_CONFIRM_MESSAGE);
+  });
+
+  it("names the action the same way on both surfaces", () => {
+    expect(source).toContain(HIDE_ACTION_LABEL);
+  });
+
+  it("still warns, in its own header, that neither reaches WhatsApp", () => {
+    expect(source).toMatch(/no revoke endpoint/i);
   });
 });
 

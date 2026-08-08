@@ -14,7 +14,8 @@ import {
 import type { MessageTemplate } from '@/types'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher'
-import { parseMetaErrorInfo } from '@/lib/whatsapp/meta-api'
+import { parseMetaErrorInfo, type MediaKind } from '@/lib/whatsapp/meta-api'
+import { isMediaKind, normalizeCaption } from '@/lib/whatsapp/media-kinds'
 import {
   CUSTOMER_WINDOW_EXPIRED_MESSAGE,
   isWithinCustomerWindow,
@@ -55,6 +56,9 @@ export async function POST(request: Request) {
       reply_to_message_id,
       product_catalog_id,
       product_retailer_id,
+      media_url,
+      media_kind,
+      media_filename,
     } = body
 
     if (!conversation_id || !message_type) {
@@ -83,6 +87,32 @@ export async function POST(request: Request) {
         { error: 'product_retailer_id is required for product messages' },
         { status: 400 }
       )
+    }
+
+    // Media arrives already staged by /api/whatsapp/media/upload, so
+    // `media_url` is a path in our own bucket rather than caller-supplied
+    // input. Refuse anything else: Meta fetches this link server-side,
+    // and an arbitrary URL here would make the business number a fetcher
+    // for whatever the caller names.
+    if (message_type === 'media') {
+      if (!media_url || typeof media_url !== 'string') {
+        return NextResponse.json(
+          { error: 'media_url is required for media messages' },
+          { status: 400 }
+        )
+      }
+      if (!media_url.startsWith(`chat-media/${accountId}/`)) {
+        return NextResponse.json(
+          { error: 'media_url must be an attachment staged by this account' },
+          { status: 400 }
+        )
+      }
+      if (!isMediaKind(media_kind)) {
+        return NextResponse.json(
+          { error: 'media_kind must be one of image, video, audio, document' },
+          { status: 400 }
+        )
+      }
     }
 
     // Fetch conversation and contact
@@ -256,6 +286,32 @@ export async function POST(request: Request) {
     let finalTemplateRow = templateRow
     let finalText = content_text
 
+    // Media is free-form too: outside the 24-hour window Meta accepts it,
+    // returns a wamid, then fails it asynchronously — the same trap the
+    // text branch exists to avoid. A template is the only way back in,
+    // and a template cannot carry an arbitrary attachment, so a blocked
+    // media send is refused outright rather than swapped for one.
+    if (message_type === 'media') {
+      const { data: lastCustomerMsg } = await supabase
+        .from('messages')
+        .select('created_at')
+        .eq('conversation_id', conversation.id)
+        .eq('sender_type', 'customer')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (
+        !isWithinCustomerWindow(lastCustomerMsg?.created_at ?? null) &&
+        config.integration_type !== 'sandbox'
+      ) {
+        return NextResponse.json(
+          { error: CUSTOMER_WINDOW_EXPIRED_MESSAGE, code: 'CUSTOMER_WINDOW_EXPIRED' },
+          { status: 409 }
+        )
+      }
+    }
+
     if (message_type === 'text') {
       const { data: lastCustomerMsg } = await supabase
         .from('messages')
@@ -330,9 +386,26 @@ export async function POST(request: Request) {
       userId,
       contactId: contact.id,
       conversationId: conversation.id,
-      kind: finalMessageType === 'template' ? 'template' : finalMessageType === 'product' ? 'product' : 'text',
+      kind:
+        finalMessageType === 'template'
+          ? 'template'
+          : finalMessageType === 'product'
+          ? 'product'
+          : finalMessageType === 'media'
+          ? 'media'
+          : 'text',
       senderType: 'agent',
       text: finalText,
+      mediaKind: finalMessageType === 'media' ? (media_kind as MediaKind) : undefined,
+      mediaLink: finalMessageType === 'media' ? media_url : undefined,
+      mediaCaption:
+        finalMessageType === 'media'
+          ? normalizeCaption(media_kind as MediaKind, content_text)
+          : undefined,
+      mediaFilename:
+        finalMessageType === 'media' && media_kind === 'document'
+          ? media_filename || undefined
+          : undefined,
       templateName: finalTemplateName,
       templateLanguage: template_language,
       templateParams: finalMessageType === 'template' ? [finalText || 'there'] : template_params,

@@ -2,10 +2,13 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
+import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
-  buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAME,
-} from '@/lib/whatsapp/property-alert-template';
+  PROPERTY_SHARE_TEMPLATE_NAMES,
+  pickPropertyShareTemplate,
+  shareHeaderImage,
+} from '@/lib/whatsapp/property-share-template';
+import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
 import type { MessageTemplate, Property } from '@/types';
 
 // One property share to one contact through the account's WhatsApp
@@ -153,18 +156,31 @@ export async function sendPropertyToContact(opts: {
     freeformError = res.error;
   }
 
-  // Latest alert template row of ANY status, so "not created yet" is
+  // Every candidate name, not just the current one: a rename ships the
+  // branded template under a name Meta has not ruled on, and the
+  // previously approved row has to keep sending until it clears. The
+  // latest row of ANY status is kept so "not created yet" stays
   // distinguishable from "pending Meta approval" (same lookup as radar).
-  const { data: latestTemplateRow } = await db
+  const { data: templateRows } = await db
     .from('message_templates')
     .select('*')
     .eq('account_id', accountId)
-    .eq('name', PROPERTY_ALERT_TEMPLATE_NAME)
-    .order('last_submitted_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const latestTemplate = latestTemplateRow as MessageTemplate | null;
-  const alertTemplate = latestTemplate?.status === 'APPROVED' ? latestTemplate : null;
+    .in('name', PROPERTY_SHARE_TEMPLATE_NAMES)
+    .order('last_submitted_at', { ascending: false });
+  const candidates = (templateRows || []) as MessageTemplate[];
+  const latestTemplate = candidates[0] ?? null;
+
+  // Lead with the listing's own photo, or the account's brand card when
+  // it has none — a property message that leads with the property is a
+  // different message from one that does not, and the header is a
+  // send-time parameter so it costs nothing at the category level.
+  const headerImage = shareHeaderImage({
+    images: property.images,
+    brandImage: await accountBrandImage(db, accountId),
+  });
+  const alertTemplate = pickPropertyShareTemplate(candidates, {
+    hasImage: Boolean(headerImage),
+  });
 
   if (!alertTemplate) {
     // Ensure a conversation exists so the client's "Open chat" fallback
@@ -207,6 +223,9 @@ export async function sendPropertyToContact(opts: {
     messageParams: {
       body: bodyParams,
       ...(Object.keys(buttonParams).length > 0 ? { buttonParams } : {}),
+      // Only meaningful to a template with a media header; the text one
+      // ignores it, so both branches send the same call.
+      ...(headerImage ? { headerMediaUrl: headerImage } : {}),
     },
     templateRow: alertTemplate,
     text: resolveTemplateBodyText(alertTemplate.body_text, bodyParams),

@@ -2,12 +2,18 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { pushUrl, replaceUrl } from "@/lib/navigation";
+import { pushUrl, replaceUrl } from '@/lib/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import type { Contact, Tag, ContactTag, ShowcaseSettings, Property } from '@/types';
+import type {
+  Contact,
+  Tag,
+  ContactTag,
+  ShowcaseSettings,
+  Property,
+} from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -59,19 +65,23 @@ import {
   ArrowUpDown,
   SlidersHorizontal,
   Eye,
-  Megaphone,
 } from 'lucide-react';
 import { ContactForm } from '@/components/contacts/contact-form';
 import { ContactDetailView } from '@/components/contacts/contact-detail-view';
-import { ImportModal } from '@/components/contacts/import-modal';
 import { ReengageWizard } from '@/components/contacts/reengage-wizard';
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { suggestNameTagSplit } from '@/lib/contacts/name-tag-split';
 import { contactFullName } from '@/lib/contacts/full-name';
-import { BulkImportModal, type BulkImportContact } from '@/components/contacts/bulk-import-modal';
-import { LogCallPrompt, type PendingDial } from '@/components/contacts/log-call-prompt';
+import {
+  BulkImportModal,
+  type BulkImportContact,
+} from '@/components/contacts/bulk-import-modal';
+import {
+  LogCallPrompt,
+  type PendingDial,
+} from '@/components/contacts/log-call-prompt';
 import { ScheduleDialog } from '@/components/calendar/schedule-dialog';
 import { CalendarDays } from 'lucide-react';
 import { DuplicatesPanel } from '@/components/contacts/duplicates-panel';
@@ -147,7 +157,7 @@ export default function ContactsPage() {
 
   const renderClassificationBadge = (classification?: string) => {
     if (!classification) return null;
-    
+
     let styles = '';
     switch (classification) {
       case 'Owner':
@@ -170,9 +180,11 @@ export default function ContactsPage() {
         styles = 'bg-slate-500/10 text-slate-400 border-slate-500/20';
         break;
     }
-    
+
     return (
-      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${styles}`}>
+      <span
+        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${styles}`}
+      >
         {classification}
       </span>
     );
@@ -198,7 +210,9 @@ export default function ContactsPage() {
         return null;
     }
     return (
-      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-medium ${styles}`}>
+      <span
+        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-medium ${styles}`}
+      >
         {leadTemp === 'HOT' && '🔥 '}
         {leadTemp === 'COLD' && '❄️ '}
         {leadTemp === 'Not Responding' && '⏳ '}
@@ -212,20 +226,20 @@ export default function ContactsPage() {
   // values (from the requirements text, not the contact form) render
   // in the primary tint with a ✨ so provenance stays visible.
   const renderPreferenceChips = (
-    effective: { value: string[]; source: 'explicit' | 'ai' } | null,
+    effective: { value: string[]; source: 'explicit' | 'ai' } | null
   ) => {
-    if (!effective) return <span className="text-slate-600 text-xs">-</span>;
+    if (!effective) return <span className="text-xs text-slate-600">-</span>;
     const ai = effective.source === 'ai';
     return (
-      <div className="flex flex-wrap gap-1 max-w-[150px]">
+      <div className="flex max-w-[150px] flex-wrap gap-1">
         {effective.value.slice(0, 3).map((label) => (
           <span
             key={label}
             title={ai ? 'Extracted by AI from requirements text' : undefined}
-            className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium border ${
+            className={`inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[9px] font-medium ${
               ai
                 ? 'border-primary/25 bg-primary/5 text-primary/90'
-                : 'bg-slate-800 text-slate-300 border-slate-700'
+                : 'border-slate-700 bg-slate-800 text-slate-300'
             }`}
           >
             {ai && <Sparkles className="size-2.5" />}
@@ -262,13 +276,12 @@ export default function ContactsPage() {
         {formatBudgetAmount(budget.value)}
         {budget.source === 'ai' && (
           <span title="Extracted by AI from requirements text">
-            <Sparkles className="size-3 text-primary" />
+            <Sparkles className="text-primary size-3" />
           </span>
         )}
       </span>
     );
   };
-
 
   const handleWhatsAppClick = async (e: React.MouseEvent, contact: Contact) => {
     e.stopPropagation();
@@ -276,7 +289,7 @@ export default function ContactsPage() {
       toast.error('Account not loaded');
       return;
     }
-    
+
     const cleanPhone = contact.phone.replace(/\D/g, '');
     if (!cleanPhone) {
       toast.error('Invalid phone number');
@@ -337,7 +350,8 @@ export default function ContactsPage() {
     }, 1500);
   };
 
-  const [showcaseSettings, setShowcaseSettings] = useState<ShowcaseSettings | null>(null);
+  const [showcaseSettings, setShowcaseSettings] =
+    useState<ShowcaseSettings | null>(null);
 
   const fetchShowcaseSettings = useCallback(async () => {
     if (!accountId) return;
@@ -352,13 +366,16 @@ export default function ContactsPage() {
     }
   }, [accountId]);
 
-  const getPrefilledWhatsAppLink = (contact: Contact, propDetails?: Property | null) => {
+  const getPrefilledWhatsAppLink = (
+    contact: Contact,
+    propDetails?: Property | null
+  ) => {
     const cleanPhone = contact.phone.replace(/\D/g, '');
     if (!cleanPhone) return '';
 
     const agentName = profile?.full_name || '';
     const displayName = contact.name || 'there';
-    
+
     // Resolve showcase URL
     let finalShowcaseUrl = '';
     let showcaseUrlObj: URL | null = null;
@@ -366,11 +383,15 @@ export default function ContactsPage() {
       const baseDomain = window.location.host;
       const parts = baseDomain.split('.');
       let hostDomain = baseDomain;
-      if (parts.length > 2 && !baseDomain.includes('localhost') && !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)) {
+      if (
+        parts.length > 2 &&
+        !baseDomain.includes('localhost') &&
+        !/^\d+\.\d+\.\d+\.\d+$/.test(baseDomain)
+      ) {
         hostDomain = parts.slice(1).join('.');
       }
-      const targetDomain = showcaseSettings?.subdomain 
-        ? `${showcaseSettings.subdomain}.${hostDomain}` 
+      const targetDomain = showcaseSettings?.subdomain
+        ? `${showcaseSettings.subdomain}.${hostDomain}`
         : baseDomain;
       showcaseUrlObj = new URL(`${window.location.protocol}//${targetDomain}`);
       if (!showcaseSettings?.subdomain && accountId) {
@@ -383,43 +404,67 @@ export default function ContactsPage() {
     if (showcaseUrlObj) {
       if (propDetails) {
         const singlePropUrl = new URL(showcaseUrlObj.toString());
-        singlePropUrl.searchParams.set('property_id', propDetails.property_code || propDetails.id);
-        
+        singlePropUrl.searchParams.set(
+          'property_id',
+          propDetails.property_code || propDetails.id
+        );
+
         const matchingUrl = new URL(showcaseUrlObj.toString());
         if (propDetails.listing_type) {
-          matchingUrl.searchParams.set('listing_type', propDetails.listing_type);
+          matchingUrl.searchParams.set(
+            'listing_type',
+            propDetails.listing_type
+          );
         }
         if (propDetails.type) {
           matchingUrl.searchParams.set('category', propDetails.type);
         }
-        const searchLocation = propDetails.sublocality || propDetails.city || '';
+        const searchLocation =
+          propDetails.sublocality || propDetails.city || '';
         if (searchLocation) {
           matchingUrl.searchParams.set('search', searchLocation);
         }
-        
+
         linkSection = `Meanwhile, you can view details for the property you enquired about here:
 ${singlePropUrl.toString()}
 
 Or browse other matching verified properties here:
 ${matchingUrl.toString()}`;
       } else {
-        const hasInterestFilters = (contact.areas_of_interest && contact.areas_of_interest.length > 0) || 
-                                   (contact.property_interests && contact.property_interests.length > 0);
-        
+        const hasInterestFilters =
+          (contact.areas_of_interest && contact.areas_of_interest.length > 0) ||
+          (contact.property_interests && contact.property_interests.length > 0);
+
         if (hasInterestFilters) {
           const matchingUrl = new URL(showcaseUrlObj.toString());
-          if (contact.areas_of_interest && contact.areas_of_interest.length > 0) {
-            matchingUrl.searchParams.set('search', contact.areas_of_interest[0]);
+          if (
+            contact.areas_of_interest &&
+            contact.areas_of_interest.length > 0
+          ) {
+            matchingUrl.searchParams.set(
+              'search',
+              contact.areas_of_interest[0]
+            );
           }
-          if (contact.property_interests && contact.property_interests.length > 0) {
-            matchingUrl.searchParams.set('category', contact.property_interests[0]);
+          if (
+            contact.property_interests &&
+            contact.property_interests.length > 0
+          ) {
+            matchingUrl.searchParams.set(
+              'category',
+              contact.property_interests[0]
+            );
           }
-          
+
           const filterDesc = [
             contact.property_interests?.[0],
-            contact.areas_of_interest?.[0] ? `in ${contact.areas_of_interest[0]}` : ''
-          ].filter(Boolean).join(' ');
-          
+            contact.areas_of_interest?.[0]
+              ? `in ${contact.areas_of_interest[0]}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
           linkSection = `Meanwhile, you can browse verified ${filterDesc || 'matching'} properties here:
 ${matchingUrl.toString()}`;
         } else {
@@ -448,9 +493,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  const handlePrefilledWhatsAppClick = async (e: React.MouseEvent, contact: Contact) => {
+  const handlePrefilledWhatsAppClick = async (
+    e: React.MouseEvent,
+    contact: Contact
+  ) => {
     e.stopPropagation();
-    
+
     let propDetails: Property | null = null;
     if (contact.last_inquired_property_id) {
       const toastId = toast.loading('Preparing personalized link...');
@@ -468,7 +516,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         toast.dismiss(toastId);
       }
     }
-    
+
     const link = getPrefilledWhatsAppLink(contact, propDetails);
     if (link) {
       window.open(link, '_blank', 'noopener,noreferrer');
@@ -492,7 +540,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // True when the last contacts load errored or timed out — renders an
   // inline retry card instead of an eternal spinner / empty state.
   const [fetchFailed, setFetchFailed] = useState(false);
-  type QuickFilterTab = 'active' | 'pending_review' | 'favorites' | 'transacted' | 'market_active';
+  type QuickFilterTab =
+    | 'active'
+    | 'pending_review'
+    | 'favorites'
+    | 'transacted'
+    | 'market_active';
   const [activeTab, setActiveTab] = useState<QuickFilterTab>('active');
 
   /** Keeps the quick-filter tab (All/Needs Review/Favourites/Transacted/Active Buyers)
@@ -518,12 +571,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [reviewCount, setReviewCount] = useState<number | null>(null);
   const [favoritesCount, setFavoritesCount] = useState<number | null>(null);
   const [transactedCount, setTransactedCount] = useState<number | null>(null);
-  const [marketActiveCount, setMarketActiveCount] = useState<number | null>(null);
+  const [marketActiveCount, setMarketActiveCount] = useState<number | null>(
+    null
+  );
 
   /** " (42)" once known, "" while loading. */
   const countSuffix = (n: number | null) => (n === null ? '' : ` (${n})`);
 
-  const [filterClassification, setFilterClassification] = useState<string>('All');
+  const [filterClassification, setFilterClassification] =
+    useState<string>('All');
   const [filterTag, setFilterTag] = useState<string>('All');
   const [filterMinBudget, setFilterMinBudget] = useState<string>('All');
   const [filterMaxBudget, setFilterMaxBudget] = useState<string>('All');
@@ -531,7 +587,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // Starred-property interest chips (fed from Inventory stars): the
   // selected chip narrows the list to contacts who showed interest in
   // that property (last_inquired_property_id ∪ contact_property_inquiries).
-  const [starredProps, setStarredProps] = useState<{ id: string; property_code: string | null; title: string }[]>([]);
+  const [starredProps, setStarredProps] = useState<
+    { id: string; property_code: string | null; title: string }[]
+  >([]);
   // Tracks whether the starred-properties fetch has completed at least
   // once — the unstar-guard below must not run against the initial empty
   // array, or it would wipe a filter restored from the URL on refresh.
@@ -540,10 +598,12 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // The value reaches uuid columns (property_id, last_inquired_property_id)
   // before the unstar-guard below can clear it, so anything that is not a
   // property id is dropped at the door rather than sent to Postgres.
-  const [filterInterestProperty, setFilterInterestProperty] = useState<string>(() => {
-    const seed = searchParams?.get('interest');
-    return seed && INTEREST_UUID_RE.test(seed) ? seed : 'All';
-  });
+  const [filterInterestProperty, setFilterInterestProperty] = useState<string>(
+    () => {
+      const seed = searchParams?.get('interest');
+      return seed && INTEREST_UUID_RE.test(seed) ? seed : 'All';
+    }
+  );
 
   // Single entry point for changing the interest chip: updates state and
   // mirrors it into the ?interest= URL param (history.replaceState, like
@@ -565,7 +625,11 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // being unstarred elsewhere.
   const [unstarringId, setUnstarringId] = useState<string | null>(null);
 
-  const handleUnstarProperty = async (property: { id: string; property_code: string | null; title: string }) => {
+  const handleUnstarProperty = async (property: {
+    id: string;
+    property_code: string | null;
+    title: string;
+  }) => {
     const previous = starredProps;
     setUnstarringId(property.id);
     setStarredProps((prev) => prev.filter((p) => p.id !== property.id));
@@ -579,10 +643,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         const errData = await response.json();
         throw new Error(errData.error || 'Failed to remove quick filter');
       }
-      toast.success(`Removed ${property.property_code || property.title} from quick filters`);
+      toast.success(
+        `Removed ${property.property_code || property.title} from quick filters`
+      );
     } catch (err: unknown) {
       setStarredProps(previous);
-      toast.error(err instanceof Error ? err.message : 'Failed to remove quick filter');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to remove quick filter'
+      );
     } finally {
       setUnstarringId(null);
     }
@@ -602,9 +670,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     setContacts((prev) =>
       activeTab === 'favorites' && !next
         ? prev.filter((c) => c.id !== contact.id)
-        : prev.map((c) => (c.id === contact.id ? { ...c, is_favorite: next } : c)),
+        : prev.map((c) =>
+            c.id === contact.id ? { ...c, is_favorite: next } : c
+          )
     );
-    setFavoritesCount((prev) => (prev === null ? prev : Math.max(0, prev + (next ? 1 : -1))));
+    setFavoritesCount((prev) =>
+      prev === null ? prev : Math.max(0, prev + (next ? 1 : -1))
+    );
 
     try {
       const response = await fetch(`/api/contacts/${contact.id}/favorite`, {
@@ -620,12 +692,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       toast.success(
         next
           ? `Added ${contact.name || contact.phone} to Favourites`
-          : `Removed ${contact.name || contact.phone} from Favourites`,
+          : `Removed ${contact.name || contact.phone} from Favourites`
       );
     } catch (err: unknown) {
       setContacts(previousContacts);
       setFavoritesCount(previousCount);
-      toast.error(err instanceof Error ? err.message : 'Failed to update favourite');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to update favourite'
+      );
     } finally {
       setFavoritingId(null);
     }
@@ -635,7 +709,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // reveals the full property title for 3s. A completed long-press
   // must NOT also toggle the filter, so the click that follows it is
   // swallowed via chipPressFired.
-  const [expandedInterestChip, setExpandedInterestChip] = useState<string | null>(null);
+  const [expandedInterestChip, setExpandedInterestChip] = useState<
+    string | null
+  >(null);
   const chipPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipCollapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chipPressFired = useRef(false);
@@ -645,9 +721,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     chipPressTimer.current = setTimeout(() => {
       chipPressFired.current = true;
       setExpandedInterestChip(id);
-      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(10);
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator)
+        navigator.vibrate(10);
       if (chipCollapseTimer.current) clearTimeout(chipCollapseTimer.current);
-      chipCollapseTimer.current = setTimeout(() => setExpandedInterestChip(null), 3000);
+      chipCollapseTimer.current = setTimeout(
+        () => setExpandedInterestChip(null),
+        3000
+      );
     }, 450);
   };
 
@@ -703,24 +783,27 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailContactId, setDetailContactId] = useState<string | null>(null);
   const [hasAutoOpened, setHasAutoOpened] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [reengageOpen, setReengageOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [scheduleContactId, setScheduleContactId] = useState<string | null>(null);
+  const [scheduleContactId, setScheduleContactId] = useState<string | null>(
+    null
+  );
 
   // Bulk Device Import state
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
-  const [bulkImportContacts, setBulkImportContacts] = useState<BulkImportContact[]>([]);
+  const [bulkImportContacts, setBulkImportContacts] = useState<
+    BulkImportContact[]
+  >([]);
 
   // Deep link from onboarding: /contacts?import=1 lands with the CSV
   // import dialog already open.
   const importParam = searchParams?.get('import') === '1';
   useEffect(() => {
-    if (importParam) setImportOpen(true);
+    if (importParam) setReengageOpen(true);
   }, [importParam]);
 
   // All tags for display
@@ -758,7 +841,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     if (data) {
       const unique = Array.from(
         new Set(
-          data.flatMap((c) => (c.areas_of_interest as string[] | null) ?? [])
+          data
+            .flatMap((c) => (c.areas_of_interest as string[] | null) ?? [])
             .filter(Boolean)
             .map((a: string) => a.trim())
         )
@@ -793,10 +877,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   // cleared against the initial empty array.
   useEffect(() => {
     if (!starredLoaded) return;
-    if (filterInterestProperty !== 'All' && !starredProps.some((p) => p.id === filterInterestProperty)) {
+    if (
+      filterInterestProperty !== 'All' &&
+      !starredProps.some((p) => p.id === filterInterestProperty)
+    ) {
       applyInterestFilter('All');
     }
-  }, [starredLoaded, starredProps, filterInterestProperty, applyInterestFilter]);
+  }, [
+    starredLoaded,
+    starredProps,
+    filterInterestProperty,
+    applyInterestFilter,
+  ]);
 
   const fetchContacts = useCallback(async () => {
     if (!accountId) return;
@@ -807,7 +899,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     const to = from + PAGE_SIZE - 1;
 
     const cacheKey = `contacts-${accountId}-${page}-${activeTab}-${sortBy}-${filterClassification}-${filterTag}-${filterMinBudget}-${filterMaxBudget}-${filterArea}-${filterInterestProperty}-${debouncedSearch}`;
-    const cached = localCache.get<{ enriched: ContactWithTags[]; totalCount: number; activeCount: number; reviewCount: number; favoritesCount: number; transactedCount: number; marketActiveCount: number }>(cacheKey);
+    const cached = localCache.get<{
+      enriched: ContactWithTags[];
+      totalCount: number;
+      activeCount: number;
+      reviewCount: number;
+      favoritesCount: number;
+      transactedCount: number;
+      marketActiveCount: number;
+    }>(cacheKey);
 
     if (cached) {
       setContacts(cached.enriched || []);
@@ -829,458 +929,558 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       // retry. A hang now falls into the catch below and renders the
       // retry card instead.
       await Promise.race([
-      (async () => {
-      // Fetch profile phone numbers for this account to exclude them
-      const { data: profilesData } = await supabaseClient
-        .from('profiles')
-        .select('phone')
-        .eq('account_id', accountId);
+        (async () => {
+          // Fetch profile phone numbers for this account to exclude them
+          const { data: profilesData } = await supabaseClient
+            .from('profiles')
+            .select('phone')
+            .eq('account_id', accountId);
 
-      const profilePhones = (profilesData || [])
-        .map((p) => p.phone ? p.phone.replace(/\D/g, '') : '')
-        .filter((p) => p.length >= 8);
+          const profilePhones = (profilesData || [])
+            .map((p) => (p.phone ? p.phone.replace(/\D/g, '') : ''))
+            .filter((p) => p.length >= 8);
 
-      let internalContactIds: string[] = [];
-      if (profilePhones.length > 0) {
-        const orConditions = profilePhones.map(p => `phone.like.%${p.slice(-8)}`).join(',');
-        const { data: matchingContacts } = await supabaseClient
-          .from('contacts')
-          .select('id')
-          .eq('account_id', accountId)
-          .or(orConditions);
+          let internalContactIds: string[] = [];
+          if (profilePhones.length > 0) {
+            const orConditions = profilePhones
+              .map((p) => `phone.like.%${p.slice(-8)}`)
+              .join(',');
+            const { data: matchingContacts } = await supabaseClient
+              .from('contacts')
+              .select('id')
+              .eq('account_id', accountId)
+              .or(orConditions);
 
-        if (matchingContacts) {
-          internalContactIds = matchingContacts.map((c) => c.id);
-        }
-      }
+            if (matchingContacts) {
+              internalContactIds = matchingContacts.map((c) => c.id);
+            }
+          }
 
-      // Scoped to what the table row, edit form, and delete/WhatsApp actions
-      // actually read — dropping `requirements` (free text) and other unused
-      // columns cuts payload size meaningfully at 25 rows/page. `.or()` search
-      // filters below reference DB columns directly, so they still work even
-      // though `requirements` isn't in the returned shape.
-      let query = supabaseClient
-        .from('contacts')
-        .select(
-          'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
-          { count: 'exact' },
-        )
-        .eq('account_id', accountId)
-        // A merged contact has been folded into another and is kept only
-        // so its history resolves. Listing it shows the same person twice
-        // and makes the duplicate check look like it missed a pair it had
-        // in fact already merged.
-        .eq('is_merged', false);
+          // Scoped to what the table row, edit form, and delete/WhatsApp actions
+          // actually read — dropping `requirements` (free text) and other unused
+          // columns cuts payload size meaningfully at 25 rows/page. `.or()` search
+          // filters below reference DB columns directly, so they still work even
+          // though `requirements` isn't in the returned shape.
+          let query = supabaseClient
+            .from('contacts')
+            .select(
+              'id, user_id, name, name_tag, phone, email, company, classification, lead_temp, last_contacted_at, last_inquired_property_id, referrer, referrer_contact_id, min_budget, max_budget, no_budget, areas_of_interest, property_interests, is_favorite, min_roi, source, status, created_at, updated_at, pref_budget_max, pref_areas, pref_property_categories, pref_property_types',
+              { count: 'exact' }
+            )
+            .eq('account_id', accountId)
+            // A merged contact has been folded into another and is kept only
+            // so its history resolves. Listing it shows the same person twice
+            // and makes the duplicate check look like it missed a pair it had
+            // in fact already merged.
+            .eq('is_merged', false)
+            // A chain-only contact is a re-share intermediary's attribution,
+            // not a lead of this account — someone downstream of a co-broker
+            // who registered to forward a link onward. Listing them here is
+            // what turns the consent chain into a poachable contact list.
+            .eq('chain_only', false);
 
-      if (internalContactIds.length > 0) {
-        query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
-      }
+          if (internalContactIds.length > 0) {
+            query = query.not('id', 'in', `(${internalContactIds.join(',')})`);
+          }
 
-      if (activeTab === 'active' || activeTab === 'pending_review') {
-        query = query.eq('status', activeTab);
-      } else if (activeTab === 'favorites') {
-        // Intentionally unscoped by status — a contact parked in
-        // pending_review is exactly the kind an agent stars to return to.
-        query = query.eq('is_favorite', true);
-      } else {
-        // transacted and market_active are active contacts
-        query = query.eq('status', 'active');
+          if (activeTab === 'active' || activeTab === 'pending_review') {
+            query = query.eq('status', activeTab);
+          } else if (activeTab === 'favorites') {
+            // Intentionally unscoped by status — a contact parked in
+            // pending_review is exactly the kind an agent stars to return to.
+            query = query.eq('is_favorite', true);
+          } else {
+            // transacted and market_active are active contacts
+            query = query.eq('status', 'active');
 
-        if (activeTab === 'transacted') {
+            if (activeTab === 'transacted') {
+              const { data: wonDeals } = await supabaseClient
+                .from('deals')
+                .select('contact_id')
+                .eq('status', 'won');
+              const transactedContactIds = Array.from(
+                new Set(
+                  wonDeals?.map((d) => d.contact_id).filter(Boolean) || []
+                )
+              );
+              if (transactedContactIds.length > 0) {
+                query = query.in('id', transactedContactIds);
+              } else {
+                query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+              }
+            } else if (activeTab === 'market_active') {
+              query = query.or(
+                'lead_temp.eq.HOT,last_inquired_property_id.not.is.null'
+              );
+            }
+          }
+
+          // Apply sorting logic
+          if (sortBy === 'name_asc') {
+            query = query.order('name', { ascending: true, nullsFirst: false });
+          } else if (sortBy === 'name_desc') {
+            query = query.order('name', {
+              ascending: false,
+              nullsFirst: false,
+            });
+          } else if (sortBy === 'last_contacted_desc') {
+            query = query.order('last_contacted_at', {
+              ascending: false,
+              nullsFirst: false,
+            });
+          } else if (sortBy === 'last_contacted_asc') {
+            query = query.order('last_contacted_at', {
+              ascending: true,
+              nullsFirst: false,
+            });
+          } else if (sortBy === 'max_budget_desc') {
+            query = query.order('max_budget', {
+              ascending: false,
+              nullsFirst: false,
+            });
+          } else if (sortBy === 'max_budget_asc') {
+            query = query.order('max_budget', {
+              ascending: true,
+              nullsFirst: false,
+            });
+          } else {
+            query = query.order('created_at', { ascending: false });
+          }
+
+          if (filterClassification !== 'All') {
+            query = query.eq('classification', filterClassification);
+          }
+
+          if (filterTag !== 'All') {
+            const { data: matchedTags } = await supabaseClient
+              .from('contact_tags')
+              .select('contact_id')
+              .eq('tag_id', filterTag);
+
+            const tagContactIds = matchedTags
+              ? Array.from(
+                  new Set(matchedTags.map((t) => t.contact_id).filter(Boolean))
+                )
+              : [];
+
+            if (tagContactIds.length > 0) {
+              query = query.in('id', tagContactIds);
+            } else {
+              query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+            }
+          }
+
+          if (filterInterestProperty !== 'All') {
+            // First-choice interest only: the contact's primary inquiry
+            // (last_inquired_property_id — set by the property form's
+            // interested-contacts link and by the portal-email webhook's
+            // top-scored match) OR a manual log from the contact detail view.
+            // Non-Manual junction rows are excluded — the webhook historically
+            // recorded every fuzzy match (score >= 2), so a type-only near-miss
+            // could drag unrelated contacts into the chip.
+            const [inquiryRes, lastInquiredRes] = await Promise.all([
+              supabaseClient
+                .from('contact_property_inquiries')
+                .select('contact_id')
+                .eq('property_id', filterInterestProperty)
+                .eq('inquiry_source', 'Manual'),
+              supabaseClient
+                .from('contacts')
+                .select('id')
+                .eq('account_id', accountId)
+                .eq('last_inquired_property_id', filterInterestProperty),
+            ]);
+            const interestedIds = Array.from(
+              new Set(
+                [
+                  ...(inquiryRes.data?.map((r) => r.contact_id) || []),
+                  ...(lastInquiredRes.data?.map((r) => r.id) || []),
+                ].filter(Boolean)
+              )
+            );
+            if (interestedIds.length > 0) {
+              query = query.in('id', interestedIds);
+            } else {
+              query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+            }
+          }
+
+          if (filterMinBudget !== 'All') {
+            const minVal = Number(filterMinBudget);
+            query = query.or(`max_budget.gte.${minVal},no_budget.eq.true`);
+          }
+
+          if (filterMaxBudget !== 'All') {
+            const maxVal = Number(filterMaxBudget);
+            query = query.lte('max_budget', maxVal);
+          }
+
+          if (filterArea !== 'All') {
+            // areas_of_interest is a text[] column — filter contacts whose array contains the selected area
+            query = query.contains('areas_of_interest', [filterArea]);
+          }
+
+          if (debouncedSearch.trim()) {
+            const parsed = parsePropertyQuery(debouncedSearch.trim());
+            const isNlpQuery =
+              parsed.locations.length > 0 ||
+              parsed.types.length > 0 ||
+              parsed.bedrooms !== null ||
+              parsed.minPrice !== null ||
+              parsed.maxPrice !== null;
+
+            if (isNlpQuery) {
+              // 1. Fetch contact IDs from notes matching locations, types, and bedrooms in parallel
+              const getLocNotes = async (): Promise<
+                { contact_id: string }[]
+              > => {
+                if (parsed.locations.length === 0) return [];
+                const locFilters = parsed.locations
+                  .map((loc) => `note_text.ilike.%${loc}%`)
+                  .join(',');
+                const { data } = await supabaseClient
+                  .from('contact_notes')
+                  .select('contact_id')
+                  .eq('account_id', accountId)
+                  .or(locFilters);
+                return (data as { contact_id: string }[]) || [];
+              };
+
+              const getTypeNotes = async (): Promise<
+                { contact_id: string }[]
+              > => {
+                if (parsed.types.length === 0) return [];
+                const typeFilters = parsed.types
+                  .map((type) => `note_text.ilike.%${type}%`)
+                  .join(',');
+                const { data } = await supabaseClient
+                  .from('contact_notes')
+                  .select('contact_id')
+                  .eq('account_id', accountId)
+                  .or(typeFilters);
+                return (data as { contact_id: string }[]) || [];
+              };
+
+              const getBedNotes = async (): Promise<
+                { contact_id: string }[]
+              > => {
+                if (parsed.bedrooms === null) return [];
+                const b = parsed.bedrooms;
+                const bedFilters = `note_text.ilike.%${b}%bhk%,note_text.ilike.%${b}%bedroom%,note_text.ilike.%${b}%bed%`;
+                const { data } = await supabaseClient
+                  .from('contact_notes')
+                  .select('contact_id')
+                  .eq('account_id', accountId)
+                  .or(bedFilters);
+                return (data as { contact_id: string }[]) || [];
+              };
+
+              // 2. Fetch contact IDs from tags matching types
+              const getTagContactIds = async (): Promise<string[]> => {
+                if (parsed.types.length === 0) return [];
+                const tagFilters = parsed.types
+                  .map((t) => `name.ilike.${t}`)
+                  .join(',');
+                const { data: tags } = await supabaseClient
+                  .from('tags')
+                  .select('id')
+                  .or(tagFilters);
+
+                const tagIds = (tags || []).map((t) => t.id);
+                if (tagIds.length === 0) return [];
+                const { data: ctData } = await supabaseClient
+                  .from('contact_tags')
+                  .select('contact_id')
+                  .in('tag_id', tagIds);
+                return (ctData || [])
+                  .map((ct) => ct.contact_id)
+                  .filter(Boolean);
+              };
+
+              const [locNotes, typeNotes, bedNotes, tagContactIds] =
+                await Promise.all([
+                  getLocNotes(),
+                  getTypeNotes(),
+                  getBedNotes(),
+                  getTagContactIds(),
+                ]);
+
+              const locNoteContactIds = Array.from(
+                new Set(locNotes.map((n) => n.contact_id).filter(Boolean))
+              );
+              const typeNoteContactIds = Array.from(
+                new Set(typeNotes.map((n) => n.contact_id).filter(Boolean))
+              );
+              const bedNoteContactIds = Array.from(
+                new Set(bedNotes.map((n) => n.contact_id).filter(Boolean))
+              );
+
+              // Combine type note and tag IDs
+              const typeContactIds = Array.from(
+                new Set([...typeNoteContactIds, ...tagContactIds])
+              );
+
+              // Limit lists to prevent URL length limits (HTTP 414)
+              const safeLocIds = locNoteContactIds.slice(0, 150);
+              const safeTypeIds = typeContactIds.slice(0, 150);
+              const safeBedIds = bedNoteContactIds.slice(0, 150);
+
+              // 3. Apply location filters
+              if (parsed.locations.length > 0) {
+                let locOrs = parsed.locations
+                  .map(
+                    (loc) =>
+                      `requirements.ilike.%${loc}%,areas_of_interest.cs.{"${loc}"}`
+                  )
+                  .join(',');
+                if (safeLocIds.length > 0) {
+                  locOrs += `,id.in.(${safeLocIds.join(',')})`;
+                }
+                query = query.or(locOrs);
+              }
+
+              // 4. Apply type filters
+              if (parsed.types.length > 0) {
+                let typeOrs = parsed.types
+                  .map(
+                    (t) =>
+                      `requirements.ilike.%${t}%,property_interests.cs.{"${t}"}`
+                  )
+                  .join(',');
+                if (safeTypeIds.length > 0) {
+                  typeOrs += `,id.in.(${safeTypeIds.join(',')})`;
+                }
+                query = query.or(typeOrs);
+              }
+
+              // 5. Apply bedroom filters
+              if (parsed.bedrooms !== null) {
+                const b = parsed.bedrooms;
+                let bedOrs = `requirements.ilike.%${b}%bhk%,requirements.ilike.%${b}%bedroom%,requirements.ilike.%${b}%bed%`;
+                if (safeBedIds.length > 0) {
+                  bedOrs += `,id.in.(${safeBedIds.join(',')})`;
+                }
+                query = query.or(bedOrs);
+              }
+
+              // 6. Apply budget filters (overlap logic)
+              if (parsed.maxPrice !== null) {
+                query = query.or(
+                  `min_budget.lte.${parsed.maxPrice},min_budget.is.null`
+                );
+              }
+              if (parsed.minPrice !== null) {
+                query = query.or(
+                  `max_budget.gte.${parsed.minPrice},max_budget.is.null,no_budget.eq.true`
+                );
+              }
+
+              // 7. Fallback for remaining search text
+              if (parsed.remainingSearch) {
+                const term = `%${parsed.remainingSearch}%`;
+                const cleanSearch = parsed.remainingSearch
+                  .trim()
+                  .replace(/["'{}\\]/g, '');
+                const { data: matchedNotes } = await supabaseClient
+                  .from('contact_notes')
+                  .select('contact_id')
+                  .eq('account_id', accountId)
+                  .ilike('note_text', term);
+
+                const remainingNoteContactIds = matchedNotes
+                  ? Array.from(
+                      new Set(
+                        matchedNotes.map((n) => n.contact_id).filter(Boolean)
+                      )
+                    )
+                  : [];
+                const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
+
+                let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+                if (cleanSearch) {
+                  orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
+                }
+                if (safeRemainingIds.length > 0) {
+                  orFilter += `,id.in.(${safeRemainingIds.join(',')})`;
+                }
+                query = query.or(orFilter);
+              }
+            } else {
+              // Simple text-search query fallback
+              const term = `%${debouncedSearch.trim()}%`;
+              const cleanSearch = debouncedSearch
+                .trim()
+                .replace(/["'{}\\]/g, '');
+              const { data: matchedNotes } = await supabaseClient
+                .from('contact_notes')
+                .select('contact_id')
+                .eq('account_id', accountId)
+                .ilike('note_text', term);
+
+              const noteContactIds = matchedNotes
+                ? Array.from(
+                    new Set(
+                      matchedNotes.map((n) => n.contact_id).filter(Boolean)
+                    )
+                  )
+                : [];
+              const safeNoteIds = noteContactIds.slice(0, 150);
+
+              let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
+              if (cleanSearch) {
+                orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
+              }
+              if (safeNoteIds.length > 0) {
+                orFilter += `,id.in.(${safeNoteIds.join(',')})`;
+              }
+              query = query.or(orFilter);
+            }
+          }
+
+          query = query.range(from, to);
+
+          const { data, count, error } = await query;
+
+          if (error) {
+            toast.error('Failed to load contacts');
+            setLoading(false);
+            return;
+          }
+
+          setTotalCount(count ?? 0);
+
+          // Fetch won deals first
           const { data: wonDeals } = await supabaseClient
             .from('deals')
             .select('contact_id')
             .eq('status', 'won');
-          const transactedContactIds = Array.from(new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || []));
-          if (transactedContactIds.length > 0) {
-            query = query.in('id', transactedContactIds);
-          } else {
-            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-          }
-        } else if (activeTab === 'market_active') {
-          query = query.or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
-        }
-      }
+          const transactedIds = Array.from(
+            new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || [])
+          );
 
-      // Apply sorting logic
-      if (sortBy === 'name_asc') {
-        query = query.order('name', { ascending: true, nullsFirst: false });
-      } else if (sortBy === 'name_desc') {
-        query = query.order('name', { ascending: false, nullsFirst: false });
-      } else if (sortBy === 'last_contacted_desc') {
-        query = query.order('last_contacted_at', { ascending: false, nullsFirst: false });
-      } else if (sortBy === 'last_contacted_asc') {
-        query = query.order('last_contacted_at', { ascending: true, nullsFirst: false });
-      } else if (sortBy === 'max_budget_desc') {
-        query = query.order('max_budget', { ascending: false, nullsFirst: false });
-      } else if (sortBy === 'max_budget_asc') {
-        query = query.order('max_budget', { ascending: true, nullsFirst: false });
-      } else {
-        query = query.order('created_at', { ascending: false });
-      }
-
-      if (filterClassification !== 'All') {
-        query = query.eq('classification', filterClassification);
-      }
-
-      if (filterTag !== 'All') {
-        const { data: matchedTags } = await supabaseClient
-          .from('contact_tags')
-          .select('contact_id')
-          .eq('tag_id', filterTag);
-        
-        const tagContactIds = matchedTags
-          ? Array.from(new Set(matchedTags.map((t) => t.contact_id).filter(Boolean)))
-          : [];
-        
-        if (tagContactIds.length > 0) {
-          query = query.in('id', tagContactIds);
-        } else {
-          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-        }
-      }
-
-      if (filterInterestProperty !== 'All') {
-        // First-choice interest only: the contact's primary inquiry
-        // (last_inquired_property_id — set by the property form's
-        // interested-contacts link and by the portal-email webhook's
-        // top-scored match) OR a manual log from the contact detail view.
-        // Non-Manual junction rows are excluded — the webhook historically
-        // recorded every fuzzy match (score >= 2), so a type-only near-miss
-        // could drag unrelated contacts into the chip.
-        const [inquiryRes, lastInquiredRes] = await Promise.all([
-          supabaseClient
-            .from('contact_property_inquiries')
-            .select('contact_id')
-            .eq('property_id', filterInterestProperty)
-            .eq('inquiry_source', 'Manual'),
-          supabaseClient
+          // Fetch tab totals in the background
+          let actQuery = supabaseClient
             .from('contacts')
-            .select('id')
+            .select('id', { count: 'exact', head: true })
             .eq('account_id', accountId)
-            .eq('last_inquired_property_id', filterInterestProperty),
-        ]);
-        const interestedIds = Array.from(
-          new Set([
-            ...(inquiryRes.data?.map((r) => r.contact_id) || []),
-            ...(lastInquiredRes.data?.map((r) => r.id) || []),
-          ].filter(Boolean))
-        );
-        if (interestedIds.length > 0) {
-          query = query.in('id', interestedIds);
-        } else {
-          query = query.eq('id', '00000000-0000-0000-0000-000000000000');
-        }
-      }
+            .eq('is_merged', false)
+            .eq('chain_only', false)
+            .eq('status', 'active');
 
-      if (filterMinBudget !== 'All') {
-        const minVal = Number(filterMinBudget);
-        query = query.or(`max_budget.gte.${minVal},no_budget.eq.true`);
-      }
+          let revQuery = supabaseClient
+            .from('contacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('account_id', accountId)
+            .eq('is_merged', false)
+            .eq('chain_only', false)
+            .eq('status', 'pending_review');
 
-      if (filterMaxBudget !== 'All') {
-        const maxVal = Number(filterMaxBudget);
-        query = query.lte('max_budget', maxVal);
-      }
+          let favoritesQuery = supabaseClient
+            .from('contacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('account_id', accountId)
+            .eq('is_merged', false)
+            .eq('chain_only', false)
+            .eq('is_favorite', true);
 
-      if (filterArea !== 'All') {
-        // areas_of_interest is a text[] column — filter contacts whose array contains the selected area
-        query = query.contains('areas_of_interest', [filterArea]);
-      }
+          let transactedQuery = supabaseClient
+            .from('contacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('account_id', accountId)
+            .eq('is_merged', false)
+            .eq('chain_only', false)
+            .eq('status', 'active')
+            .in(
+              'id',
+              transactedIds.length > 0
+                ? transactedIds
+                : ['00000000-0000-0000-0000-000000000000']
+            );
 
-      if (debouncedSearch.trim()) {
-        const parsed = parsePropertyQuery(debouncedSearch.trim());
-        const isNlpQuery =
-          parsed.locations.length > 0 ||
-          parsed.types.length > 0 ||
-          parsed.bedrooms !== null ||
-          parsed.minPrice !== null ||
-          parsed.maxPrice !== null;
+          let marketActiveQuery = supabaseClient
+            .from('contacts')
+            .select('id', { count: 'exact', head: true })
+            .eq('account_id', accountId)
+            .eq('is_merged', false)
+            .eq('chain_only', false)
+            .eq('status', 'active')
+            .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
 
-        if (isNlpQuery) {
-          // 1. Fetch contact IDs from notes matching locations, types, and bedrooms in parallel
-          const getLocNotes = async (): Promise<{ contact_id: string }[]> => {
-            if (parsed.locations.length === 0) return [];
-            const locFilters = parsed.locations.map(loc => `note_text.ilike.%${loc}%`).join(',');
-            const { data } = await supabaseClient
-              .from('contact_notes')
-              .select('contact_id')
-              .eq('account_id', accountId)
-              .or(locFilters);
-            return (data as { contact_id: string }[]) || [];
-          };
+          if (internalContactIds.length > 0) {
+            const notInString = `(${internalContactIds.join(',')})`;
+            actQuery = actQuery.not('id', 'in', notInString);
+            revQuery = revQuery.not('id', 'in', notInString);
+            favoritesQuery = favoritesQuery.not('id', 'in', notInString);
+            transactedQuery = transactedQuery.not('id', 'in', notInString);
+            marketActiveQuery = marketActiveQuery.not('id', 'in', notInString);
+          }
 
-          const getTypeNotes = async (): Promise<{ contact_id: string }[]> => {
-            if (parsed.types.length === 0) return [];
-            const typeFilters = parsed.types.map(type => `note_text.ilike.%${type}%`).join(',');
-            const { data } = await supabaseClient
-              .from('contact_notes')
-              .select('contact_id')
-              .eq('account_id', accountId)
-              .or(typeFilters);
-            return (data as { contact_id: string }[]) || [];
-          };
-
-          const getBedNotes = async (): Promise<{ contact_id: string }[]> => {
-            if (parsed.bedrooms === null) return [];
-            const b = parsed.bedrooms;
-            const bedFilters = `note_text.ilike.%${b}%bhk%,note_text.ilike.%${b}%bedroom%,note_text.ilike.%${b}%bed%`;
-            const { data } = await supabaseClient
-              .from('contact_notes')
-              .select('contact_id')
-              .eq('account_id', accountId)
-              .or(bedFilters);
-            return (data as { contact_id: string }[]) || [];
-          };
-
-          // 2. Fetch contact IDs from tags matching types
-          const getTagContactIds = async (): Promise<string[]> => {
-            if (parsed.types.length === 0) return [];
-            const tagFilters = parsed.types.map(t => `name.ilike.${t}`).join(',');
-            const { data: tags } = await supabaseClient
-              .from('tags')
-              .select('id')
-              .or(tagFilters);
-            
-            const tagIds = (tags || []).map(t => t.id);
-            if (tagIds.length === 0) return [];
-            const { data: ctData } = await supabaseClient
-              .from('contact_tags')
-              .select('contact_id')
-              .in('tag_id', tagIds);
-            return (ctData || []).map(ct => ct.contact_id).filter(Boolean);
-          };
-
-          const [locNotes, typeNotes, bedNotes, tagContactIds] = await Promise.all([
-            getLocNotes(),
-            getTypeNotes(),
-            getBedNotes(),
-            getTagContactIds(),
+          const [
+            actCountRes,
+            revCountRes,
+            favoritesCountRes,
+            transactedCountRes,
+            marketActiveCountRes,
+          ] = await Promise.all([
+            actQuery,
+            revQuery,
+            favoritesQuery,
+            transactedQuery,
+            marketActiveQuery,
           ]);
 
-          const locNoteContactIds = Array.from(new Set(locNotes.map(n => n.contact_id).filter(Boolean)));
-          const typeNoteContactIds = Array.from(new Set(typeNotes.map(n => n.contact_id).filter(Boolean)));
-          const bedNoteContactIds = Array.from(new Set(bedNotes.map(n => n.contact_id).filter(Boolean)));
+          setActiveCount(actCountRes.count ?? 0);
+          setReviewCount(revCountRes.count ?? 0);
+          setFavoritesCount(favoritesCountRes.count ?? 0);
+          setTransactedCount(transactedCountRes.count ?? 0);
+          setMarketActiveCount(marketActiveCountRes.count ?? 0);
 
-          // Combine type note and tag IDs
-          const typeContactIds = Array.from(new Set([...typeNoteContactIds, ...tagContactIds]));
-
-          // Limit lists to prevent URL length limits (HTTP 414)
-          const safeLocIds = locNoteContactIds.slice(0, 150);
-          const safeTypeIds = typeContactIds.slice(0, 150);
-          const safeBedIds = bedNoteContactIds.slice(0, 150);
-
-          // 3. Apply location filters
-          if (parsed.locations.length > 0) {
-            let locOrs = parsed.locations.map(loc => `requirements.ilike.%${loc}%,areas_of_interest.cs.{"${loc}"}`).join(',');
-            if (safeLocIds.length > 0) {
-              locOrs += `,id.in.(${safeLocIds.join(',')})`;
-            }
-            query = query.or(locOrs);
+          if (!data || data.length === 0) {
+            setContacts([]);
+            setLoading(false);
+            return;
           }
 
-          // 4. Apply type filters
-          if (parsed.types.length > 0) {
-            let typeOrs = parsed.types.map(t => `requirements.ilike.%${t}%,property_interests.cs.{"${t}"}`).join(',');
-            if (safeTypeIds.length > 0) {
-              typeOrs += `,id.in.(${safeTypeIds.join(',')})`;
-            }
-            query = query.or(typeOrs);
-          }
+          // Fetch tags for these contacts
+          const contactIds = data.map((c) => c.id);
+          const { data: contactTags } = await supabaseClient
+            .from('contact_tags')
+            .select('contact_id, tag_id')
+            .in('contact_id', contactIds);
 
-          // 5. Apply bedroom filters
-          if (parsed.bedrooms !== null) {
-            const b = parsed.bedrooms;
-            let bedOrs = `requirements.ilike.%${b}%bhk%,requirements.ilike.%${b}%bedroom%,requirements.ilike.%${b}%bed%`;
-            if (safeBedIds.length > 0) {
-              bedOrs += `,id.in.(${safeBedIds.join(',')})`;
-            }
-            query = query.or(bedOrs);
-          }
+          const tagsByContact: Record<string, string[]> = {};
+          contactTags?.forEach((ct) => {
+            if (!tagsByContact[ct.contact_id])
+              tagsByContact[ct.contact_id] = [];
+            tagsByContact[ct.contact_id].push(ct.tag_id);
+          });
 
-          // 6. Apply budget filters (overlap logic)
-          if (parsed.maxPrice !== null) {
-            query = query.or(`min_budget.lte.${parsed.maxPrice},min_budget.is.null`);
-          }
-          if (parsed.minPrice !== null) {
-            query = query.or(`max_budget.gte.${parsed.minPrice},max_budget.is.null,no_budget.eq.true`);
-          }
+          const enriched: ContactWithTags[] = data.map((c) => ({
+            ...c,
+            tags: (tagsByContact[c.id] ?? [])
+              .map((tid) => tagsMap[tid])
+              .filter(Boolean),
+          }));
 
-          // 7. Fallback for remaining search text
-          if (parsed.remainingSearch) {
-            const term = `%${parsed.remainingSearch}%`;
-            const cleanSearch = parsed.remainingSearch.trim().replace(/["'{}\\]/g, '');
-            const { data: matchedNotes } = await supabaseClient
-              .from('contact_notes')
-              .select('contact_id')
-              .eq('account_id', accountId)
-              .ilike('note_text', term);
+          localCache.set(cacheKey, {
+            enriched,
+            totalCount: count ?? 0,
+            activeCount: actCountRes.count ?? 0,
+            reviewCount: revCountRes.count ?? 0,
+            favoritesCount: favoritesCountRes.count ?? 0,
+            transactedCount: transactedCountRes.count ?? 0,
+            marketActiveCount: marketActiveCountRes.count ?? 0,
+          });
 
-            const remainingNoteContactIds = matchedNotes
-              ? Array.from(new Set(matchedNotes.map((n) => n.contact_id).filter(Boolean)))
-              : [];
-            const safeRemainingIds = remainingNoteContactIds.slice(0, 150);
-
-            let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
-            if (cleanSearch) {
-              orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
-            }
-            if (safeRemainingIds.length > 0) {
-              orFilter += `,id.in.(${safeRemainingIds.join(',')})`;
-            }
-            query = query.or(orFilter);
-          }
-        } else {
-          // Simple text-search query fallback
-          const term = `%${debouncedSearch.trim()}%`;
-          const cleanSearch = debouncedSearch.trim().replace(/["'{}\\]/g, '');
-          const { data: matchedNotes } = await supabaseClient
-              .from('contact_notes')
-              .select('contact_id')
-              .eq('account_id', accountId)
-              .ilike('note_text', term);
-
-          const noteContactIds = matchedNotes
-            ? Array.from(new Set(matchedNotes.map((n) => n.contact_id).filter(Boolean)))
-            : [];
-          const safeNoteIds = noteContactIds.slice(0, 150);
-
-          let orFilter = `name.ilike.${term},second_name.ilike.${term},name_tag.ilike.${term},phone.ilike.${term},email.ilike.${term},company.ilike.${term},source.ilike.${term},requirements.ilike.${term},classification.ilike.${term}`;
-          if (cleanSearch) {
-            orFilter += `,secondary_phones.cs.{"${cleanSearch}"}`;
-          }
-          if (safeNoteIds.length > 0) {
-            orFilter += `,id.in.(${safeNoteIds.join(',')})`;
-          }
-          query = query.or(orFilter);
-        }
-      }
-
-      query = query.range(from, to);
-
-      const { data, count, error } = await query;
-
-      if (error) {
-        toast.error('Failed to load contacts');
-        setLoading(false);
-        return;
-      }
-
-      setTotalCount(count ?? 0);
-
-      // Fetch won deals first
-      const { data: wonDeals } = await supabaseClient
-        .from('deals')
-        .select('contact_id')
-        .eq('status', 'won');
-      const transactedIds = Array.from(new Set(wonDeals?.map((d) => d.contact_id).filter(Boolean) || []));
-
-      // Fetch tab totals in the background
-      let actQuery = supabaseClient
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('account_id', accountId)
-        .eq('is_merged', false)
-        .eq('status', 'active');
-      
-      let revQuery = supabaseClient
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('account_id', accountId)
-        .eq('is_merged', false)
-        .eq('status', 'pending_review');
-
-      let favoritesQuery = supabaseClient
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('account_id', accountId)
-        .eq('is_merged', false)
-        .eq('is_favorite', true);
-
-      let transactedQuery = supabaseClient
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('account_id', accountId)
-        .eq('is_merged', false)
-        .eq('status', 'active')
-        .in('id', transactedIds.length > 0 ? transactedIds : ['00000000-0000-0000-0000-000000000000']);
-
-      let marketActiveQuery = supabaseClient
-        .from('contacts')
-        .select('id', { count: 'exact', head: true })
-        .eq('account_id', accountId)
-        .eq('is_merged', false)
-        .eq('status', 'active')
-        .or('lead_temp.eq.HOT,last_inquired_property_id.not.is.null');
-
-      if (internalContactIds.length > 0) {
-        const notInString = `(${internalContactIds.join(',')})`;
-        actQuery = actQuery.not('id', 'in', notInString);
-        revQuery = revQuery.not('id', 'in', notInString);
-        favoritesQuery = favoritesQuery.not('id', 'in', notInString);
-        transactedQuery = transactedQuery.not('id', 'in', notInString);
-        marketActiveQuery = marketActiveQuery.not('id', 'in', notInString);
-      }
-
-      const [actCountRes, revCountRes, favoritesCountRes, transactedCountRes, marketActiveCountRes] = await Promise.all([
-        actQuery,
-        revQuery,
-        favoritesQuery,
-        transactedQuery,
-        marketActiveQuery,
-      ]);
-
-      setActiveCount(actCountRes.count ?? 0);
-      setReviewCount(revCountRes.count ?? 0);
-      setFavoritesCount(favoritesCountRes.count ?? 0);
-      setTransactedCount(transactedCountRes.count ?? 0);
-      setMarketActiveCount(marketActiveCountRes.count ?? 0);
-
-      if (!data || data.length === 0) {
-        setContacts([]);
-        setLoading(false);
-        return;
-      }
-
-      // Fetch tags for these contacts
-      const contactIds = data.map((c) => c.id);
-      const { data: contactTags } = await supabaseClient
-        .from('contact_tags')
-        .select('contact_id, tag_id')
-        .in('contact_id', contactIds);
-
-      const tagsByContact: Record<string, string[]> = {};
-      contactTags?.forEach((ct) => {
-        if (!tagsByContact[ct.contact_id]) tagsByContact[ct.contact_id] = [];
-        tagsByContact[ct.contact_id].push(ct.tag_id);
-      });
-
-      const enriched: ContactWithTags[] = data.map((c) => ({
-        ...c,
-        tags: (tagsByContact[c.id] ?? [])
-          .map((tid) => tagsMap[tid])
-          .filter(Boolean),
-      }));
-
-      localCache.set(cacheKey, {
-        enriched,
-        totalCount: count ?? 0,
-        activeCount: actCountRes.count ?? 0,
-        reviewCount: revCountRes.count ?? 0,
-        favoritesCount: favoritesCountRes.count ?? 0,
-        transactedCount: transactedCountRes.count ?? 0,
-        marketActiveCount: marketActiveCountRes.count ?? 0,
-      });
-
-      setContacts(enriched);
-      setLoading(false);
-      })(),
-      new Promise<never>((_, reject) =>
-        setTimeout(
-          () => reject(new Error('contacts fetch timed out after 20s')),
-          20_000,
+          setContacts(enriched);
+          setLoading(false);
+        })(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error('contacts fetch timed out after 20s')),
+            20_000
+          )
         ),
-      ),
       ]);
     } catch (err: unknown) {
       console.error('Error fetching contacts:', err);
@@ -1328,7 +1528,6 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     }
   }, [isFiltersOpen, fetchAreas]);
 
-
   useEffect(() => {
     fetchContacts();
   }, [fetchContacts]);
@@ -1364,24 +1563,31 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
     select(
       properties: string[],
       options?: { multiple?: boolean }
-    ): Promise<Array<{
-      name?: string[];
-      tel?: string[];
-      email?: string[];
-    }>>;
+    ): Promise<
+      Array<{
+        name?: string[];
+        tel?: string[];
+        email?: string[];
+      }>
+    >;
   }
 
   const handleDeviceImport = async () => {
     if (typeof navigator === 'undefined' || !('contacts' in navigator)) {
-      toast.error('Device contacts picker is not supported on this browser/device.');
+      toast.error(
+        'Device contacts picker is not supported on this browser/device.'
+      );
       return;
     }
 
     try {
-      const manager = (navigator as unknown as { contacts: ContactsManager }).contacts;
+      const manager = (navigator as unknown as { contacts: ContactsManager })
+        .contacts;
       const supportedProps = await manager.getProperties();
-      const fields = ['name', 'tel', 'email'].filter((f) => supportedProps.includes(f));
-      
+      const fields = ['name', 'tel', 'email'].filter((f) =>
+        supportedProps.includes(f)
+      );
+
       const picked = await manager.select(fields, { multiple: true });
       if (!picked || picked.length === 0) return;
 
@@ -1416,7 +1622,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             return {
               name: split?.name ?? rawName,
               name_tag: split?.nameTag ?? '',
-              phone: c.tel?.[0] ? (normalizePhoneWithCountryCode(c.tel[0]) || c.tel[0]) : '',
+              phone: c.tel?.[0]
+                ? normalizePhoneWithCountryCode(c.tel[0]) || c.tel[0]
+                : '',
               email: c.email?.[0] || '',
               classification: 'Others' as const,
               selected: true,
@@ -1522,7 +1730,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       localCache.clear();
       fetchContactsWithInvalidate();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete contact');
+      toast.error(
+        err instanceof Error ? err.message : 'Failed to delete contact'
+      );
     }
 
     setDeleting(false);
@@ -1537,14 +1747,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center">
+          <h1 className="flex items-center text-2xl font-bold text-white">
             Contacts
             <InfoHint text="Your address book containing all clients, agents, and other contacts, where you can log budgets, locations of interest, and custom notes." />
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
+          <p className="mt-1 text-sm text-slate-400">
+            Manage your contact list.{' '}
+            {totalCount > 0 && `${totalCount} total contacts.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1560,25 +1771,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               Import from Phone
             </GatedButton>
           )}
+          {/* One door for both jobs — the wizard asks whether to just
+              import or to import and message, so neither is reachable by
+              accident. */}
           <GatedButton
             variant="outline"
             canAct={canEdit}
             gateReason="add or import contacts"
-            onClick={() => setImportOpen(true)}
+            onClick={() => setReengageOpen(true)}
             className="border-slate-700 text-slate-300 hover:bg-slate-800"
           >
             <Upload className="size-4" />
             Import
-          </GatedButton>
-          <GatedButton
-            variant="outline"
-            canAct={canEdit}
-            gateReason="re-engage leads"
-            onClick={() => setReengageOpen(true)}
-            className="border-slate-700 text-slate-300 hover:bg-slate-800"
-          >
-            <Megaphone className="size-4" />
-            Re-engage
           </GatedButton>
           <GatedButton
             canAct={canEdit}
@@ -1601,15 +1805,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
       {/* Search and Filters */}
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-3 w-full">
+        <div className="flex w-full items-center gap-3">
           {/* Search bar */}
-          <div className="relative flex-1 max-w-sm sm:max-w-xs md:max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-slate-500" />
+          <div className="relative max-w-sm flex-1 sm:max-w-xs md:max-w-sm">
+            <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-slate-500" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by name, phone, or email..."
-              className="pl-8.5 pr-10 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500 focus-visible:ring-1 h-9.5 rounded-xl"
+              className="h-9.5 rounded-xl border-slate-700 bg-slate-900 pr-10 pl-8.5 text-white placeholder:text-slate-500 focus-visible:ring-1"
             />
             {search && (
               <button
@@ -1621,7 +1825,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   setDebouncedSearch('');
                   setPage(0);
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white hover:bg-slate-800 p-1 rounded-md transition-all cursor-pointer"
+                className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer rounded-md p-1 text-slate-400 transition-all hover:bg-slate-800 hover:text-white"
                 title="Clear search"
               >
                 <X className="size-3.5" />
@@ -1645,14 +1849,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 size="sm"
                 onClick={() => setIsFiltersOpen(true)}
                 className={cn(
-                  "h-9.5 rounded-xl border-slate-700 bg-slate-900 text-slate-350 hover:text-white hover:bg-slate-800 flex items-center gap-2 px-3.5 font-bold transition-all relative shrink-0",
-                  activeCount > 0 && "border-primary/40 text-white bg-primary/5 hover:bg-primary/10"
+                  'text-slate-350 relative flex h-9.5 shrink-0 items-center gap-2 rounded-xl border-slate-700 bg-slate-900 px-3.5 font-bold transition-all hover:bg-slate-800 hover:text-white',
+                  activeCount > 0 &&
+                    'border-primary/40 bg-primary/5 hover:bg-primary/10 text-white'
                 )}
               >
                 <SlidersHorizontal className="size-4 text-slate-400 group-hover:text-white" />
                 <span>Filters</span>
                 {activeCount > 0 && (
-                  <span className="flex items-center justify-center bg-primary text-primary-foreground font-black text-[9px] size-4.5 rounded-full shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
+                  <span className="bg-primary text-primary-foreground flex size-4.5 items-center justify-center rounded-full text-[9px] font-black shadow-[0_0_8px_hsl(var(--primary)/0.6)]">
                     {activeCount}
                   </span>
                 )}
@@ -1661,7 +1866,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           })()}
 
           {/* Quick Sort Selector (Desktop Only) */}
-          <div className="hidden sm:block shrink-0">
+          <div className="hidden shrink-0 sm:block">
             <Select
               value={sortBy}
               onValueChange={(val) => {
@@ -1669,15 +1874,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 setPage(0);
               }}
             >
-              <SelectTrigger className="h-9.5 w-[160px] bg-slate-900 border-slate-700 text-white rounded-xl text-xs font-bold">
+              <SelectTrigger className="h-9.5 w-[160px] rounded-xl border-slate-700 bg-slate-900 text-xs font-bold text-white">
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
-              <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+              <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                 <SelectItem value="created_desc">Newest Created</SelectItem>
                 <SelectItem value="name_asc">Name (A - Z)</SelectItem>
                 <SelectItem value="name_desc">Name (Z - A)</SelectItem>
-                <SelectItem value="last_contacted_desc">Last Contacted</SelectItem>
-                <SelectItem value="max_budget_desc">Budget (Highest)</SelectItem>
+                <SelectItem value="last_contacted_desc">
+                  Last Contacted
+                </SelectItem>
+                <SelectItem value="max_budget_desc">
+                  Budget (Highest)
+                </SelectItem>
                 <SelectItem value="max_budget_asc">Budget (Lowest)</SelectItem>
               </SelectContent>
             </Select>
@@ -1689,16 +1898,17 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             The label is the property code; hovering (or long-pressing on
             touch devices) expands the full title. */}
         {starredProps.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 -mt-1">
-            <span className="flex items-center text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0">
-              <Star className="size-3 text-amber-400 fill-amber-400 mr-1" />
+          <div className="-mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="flex shrink-0 items-center text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+              <Star className="mr-1 size-3 fill-amber-400 text-amber-400" />
               Interested in:
               <InfoHint text="These quick filters are the properties you starred on the Inventory page (star icon on a listing's photo, up to 6). Tap a chip to see contacts whose first-choice interest is that property — linked as interested on the property form, top match of a portal/email inquiry, or manually logged on the contact. The active chip survives a page refresh. Hover a chip (or long-press on touch) and tap the star-off icon to remove it from here — that unstars the property in Inventory too." />
             </span>
             {starredProps.map((p) => {
               const active = filterInterestProperty === p.id;
               const expanded = expandedInterestChip === p.id;
-              const label = p.property_code || p.title.split(/\s+/).slice(0, 2).join(' ');
+              const label =
+                p.property_code || p.title.split(/\s+/).slice(0, 2).join(' ');
               return (
                 <button
                   key={p.id}
@@ -1724,7 +1934,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   title={`${p.title}\n\nHere because you starred it in Inventory — click to filter contacts whose first-choice interest is this property.${canEdit ? ' Use the star-off icon to remove it from the quick filters.' : ''}`}
                   style={{ WebkitTouchCallout: 'none' }}
                   className={cn(
-                    'group flex items-center overflow-hidden rounded-full border px-2.5 py-1 text-[10px] font-mono font-bold transition-all cursor-pointer select-none',
+                    'group flex cursor-pointer items-center overflow-hidden rounded-full border px-2.5 py-1 font-mono text-[10px] font-bold transition-all select-none',
                     active
                       ? 'border-amber-500/60 bg-amber-500/15 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.25)]'
                       : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/40 hover:text-amber-300'
@@ -1733,7 +1943,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   <span className="whitespace-nowrap">{label}</span>
                   <span
                     className={cn(
-                      'max-w-0 overflow-hidden whitespace-nowrap font-sans font-medium text-slate-400 transition-all duration-300 ease-out group-hover:max-w-[260px] group-hover:pl-1.5',
+                      'max-w-0 overflow-hidden font-sans font-medium whitespace-nowrap text-slate-400 transition-all duration-300 ease-out group-hover:max-w-[260px] group-hover:pl-1.5',
                       expanded && 'max-w-[260px] pl-1.5'
                     )}
                   >
@@ -1760,7 +1970,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         }
                       }}
                       className={cn(
-                        'max-w-0 overflow-hidden opacity-0 transition-all duration-200 hover:text-rose-300 group-hover:ml-1.5 group-hover:max-w-4 group-hover:opacity-100 focus:ml-1.5 focus:max-w-4 focus:opacity-100 focus:outline-none',
+                        'max-w-0 overflow-hidden opacity-0 transition-all duration-200 group-hover:ml-1.5 group-hover:max-w-4 group-hover:opacity-100 hover:text-rose-300 focus:ml-1.5 focus:max-w-4 focus:opacity-100 focus:outline-none',
                         expanded && 'ml-1.5 max-w-4 opacity-100'
                       )}
                     >
@@ -1775,21 +1985,24 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
         {/* Filters Dialog Drawer */}
         <Dialog open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
-          <DialogContent className="bg-slate-950 border-slate-850 text-white max-w-md rounded-2xl p-6">
+          <DialogContent className="border-slate-850 max-w-md rounded-2xl bg-slate-950 p-6 text-white">
             <DialogHeader>
-              <DialogTitle className="text-lg font-bold flex items-center gap-2 text-white">
-                <SlidersHorizontal className="size-5 text-primary" />
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-white">
+                <SlidersHorizontal className="text-primary size-5" />
                 Filter Contacts
               </DialogTitle>
-              <DialogDescription className="text-slate-450 text-xs mt-0.5">
-                Narrow down your contact list by classification, tag, budget, or preferred location.
+              <DialogDescription className="text-slate-450 mt-0.5 text-xs">
+                Narrow down your contact list by classification, tag, budget, or
+                preferred location.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4.5 my-4">
+            <div className="my-4 space-y-4.5">
               {/* Classification */}
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Classification</label>
+                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  Classification
+                </label>
                 <Select
                   value={filterClassification}
                   onValueChange={(val) => {
@@ -1797,10 +2010,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     setPage(0);
                   }}
                 >
-                  <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                  <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
                     <SelectValue placeholder="Classification" />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                  <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                     <SelectItem value="All">All Classifications</SelectItem>
                     <SelectItem value="Owner">Owner</SelectItem>
                     <SelectItem value="Seller">Seller</SelectItem>
@@ -1814,7 +2027,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Tag */}
               <div className="space-y-1.5">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tag</label>
+                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  Tag
+                </label>
                 <Select
                   value={filterTag}
                   onValueChange={(val) => {
@@ -1822,15 +2037,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     setPage(0);
                   }}
                 >
-                  <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                  <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
                     <SelectValue placeholder="Tag" />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                  <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                     <SelectItem value="All">All Tags</SelectItem>
                     {Object.values(tagsMap).map((tag) => (
                       <SelectItem key={tag.id} value={tag.id}>
                         <span className="flex items-center gap-2">
-                          <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: tag.color }} />
+                          <span
+                            className="size-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: tag.color }}
+                          />
                           <span className="truncate">{tag.name}</span>
                         </span>
                       </SelectItem>
@@ -1842,7 +2060,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               {/* Budget Range */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Min Budget</label>
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                    Min Budget
+                  </label>
                   <Select
                     value={filterMinBudget}
                     onValueChange={(val) => {
@@ -1850,10 +2070,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       setPage(0);
                     }}
                   >
-                    <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                    <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
                       <SelectValue placeholder="Min Budget" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                    <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                       <SelectItem value="All">Min Budget: All</SelectItem>
                       {BUDGET_OPTIONS.map((opt) => (
                         <SelectItem key={`min-${opt.value}`} value={opt.value}>
@@ -1865,7 +2085,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Max Budget</label>
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                    Max Budget
+                  </label>
                   <Select
                     value={filterMaxBudget}
                     onValueChange={(val) => {
@@ -1873,10 +2095,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       setPage(0);
                     }}
                   >
-                    <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                    <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
                       <SelectValue placeholder="Max Budget" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                    <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                       <SelectItem value="All">Max Budget: All</SelectItem>
                       {BUDGET_OPTIONS.map((opt) => (
                         <SelectItem key={`max-${opt.value}`} value={opt.value}>
@@ -1891,7 +2113,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               {/* Area Preference */}
               {allAreas.length > 0 && (
                 <div className="space-y-1.5">
-                  <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Area Preference</label>
+                  <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                    Area Preference
+                  </label>
                   <Select
                     value={filterArea}
                     onValueChange={(val) => {
@@ -1899,10 +2123,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       setPage(0);
                     }}
                   >
-                    <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                    <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
                       <SelectValue placeholder="Area" />
                     </SelectTrigger>
-                    <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                    <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                       <SelectItem value="All">All Areas</SelectItem>
                       {allAreas.map((area) => (
                         <SelectItem key={area} value={area}>
@@ -1916,7 +2140,9 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
               {/* Sort By (Mobile Only inside drawer) */}
               <div className="space-y-1.5 sm:hidden">
-                <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sort By</label>
+                <label className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  Sort By
+                </label>
                 <Select
                   value={sortBy}
                   onValueChange={(val) => {
@@ -1924,22 +2150,28 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                     setPage(0);
                   }}
                 >
-                  <SelectTrigger className="w-full bg-slate-900 border-slate-700 text-white rounded-xl h-10">
+                  <SelectTrigger className="h-10 w-full rounded-xl border-slate-700 bg-slate-900 text-white">
                     <SelectValue placeholder="Sort By" />
                   </SelectTrigger>
-                  <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                  <SelectContent className="border-slate-700 bg-slate-900 text-slate-200">
                     <SelectItem value="created_desc">Newest Created</SelectItem>
                     <SelectItem value="name_asc">Name (A - Z)</SelectItem>
                     <SelectItem value="name_desc">Name (Z - A)</SelectItem>
-                    <SelectItem value="last_contacted_desc">Last Contacted</SelectItem>
-                    <SelectItem value="max_budget_desc">Budget (Highest)</SelectItem>
-                    <SelectItem value="max_budget_asc">Budget (Lowest)</SelectItem>
+                    <SelectItem value="last_contacted_desc">
+                      Last Contacted
+                    </SelectItem>
+                    <SelectItem value="max_budget_desc">
+                      Budget (Highest)
+                    </SelectItem>
+                    <SelectItem value="max_budget_asc">
+                      Budget (Lowest)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <DialogFooter className="flex flex-row items-center justify-between gap-4 mt-6">
+            <DialogFooter className="mt-6 flex flex-row items-center justify-between gap-4">
               {(() => {
                 const activeCount = [
                   filterClassification !== 'All',
@@ -1972,7 +2204,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               <Button
                 type="button"
                 onClick={() => setIsFiltersOpen(false)}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-6 rounded-xl"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-6 font-bold"
               >
                 Apply Filters
               </Button>
@@ -1980,14 +2212,13 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           </DialogContent>
         </Dialog>
 
-
         {/* Tab Switcher */}
-        <div className="flex bg-slate-900/60 p-1 border border-slate-800 rounded-lg self-start gap-1 flex-wrap">
+        <div className="flex flex-wrap gap-1 self-start rounded-lg border border-slate-800 bg-slate-900/60 p-1">
           <button
             onClick={() => setActiveTabAndSync('active')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+            className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === 'active'
-                ? 'bg-slate-800 text-primary shadow-sm'
+                ? 'text-primary bg-slate-800 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -1995,7 +2226,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           </button>
           <button
             onClick={() => setActiveTabAndSync('pending_review')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+            className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === 'pending_review'
                 ? 'bg-slate-800 text-amber-400 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -2003,14 +2234,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           >
             Needs Review{countSuffix(reviewCount)}
             {(reviewCount ?? 0) > 0 && (
-              <span className="inline-flex items-center justify-center bg-amber-500 text-slate-950 font-bold px-1.5 py-0.5 rounded-full text-[9px] min-w-[16px] h-4 leading-none animate-pulse">
+              <span className="inline-flex h-4 min-w-[16px] animate-pulse items-center justify-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] leading-none font-bold text-slate-950">
                 {reviewCount}
               </span>
             )}
           </button>
           <button
             onClick={() => setActiveTabAndSync('favorites')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 ${
+            className={`flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === 'favorites'
                 ? 'bg-slate-800 text-amber-400 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -2023,7 +2254,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           </button>
           <button
             onClick={() => setActiveTabAndSync('transacted')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+            className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === 'transacted'
                 ? 'bg-slate-800 text-emerald-400 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -2033,7 +2264,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           </button>
           <button
             onClick={() => setActiveTabAndSync('market_active')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-all ${
+            className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
               activeTab === 'market_active'
                 ? 'bg-slate-800 text-blue-400 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -2045,19 +2276,19 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-slate-800 overflow-hidden">
+      <div className="overflow-hidden rounded-lg border border-slate-800">
         {/* Loading / empty states live OUTSIDE the Table — the ui/table
             wrapper scrolls horizontally, so anything centered inside a
             colSpan cell centers against the full multi-viewport-wide
             table and lands off-screen on mobile. Same pattern as the
             Broadcasts and Ads pages. */}
         {accountMissing ? (
-          <div className="flex flex-col items-center gap-3 py-12 px-6 text-center">
+          <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
             <Users className="size-8 text-slate-600" />
-            <p className="text-sm text-slate-300 font-semibold">
+            <p className="text-sm font-semibold text-slate-300">
               Your account context didn&apos;t load
             </p>
-            <p className="text-xs text-slate-500 max-w-sm">
+            <p className="max-w-sm text-xs text-slate-500">
               {profileError
                 ? 'The profile lookup failed — usually a temporary network or database blip.'
                 : 'Your profile loaded without its workspace link, so contacts can’t be fetched.'}{' '}
@@ -2065,25 +2296,30 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             </p>
             <Button
               onClick={() => window.location.reload()}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold h-8 px-4 cursor-pointer"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground h-8 cursor-pointer px-4 text-xs font-bold"
             >
               Reload page
             </Button>
           </div>
         ) : loading ? (
-          <div className="flex flex-col items-center text-slate-400 py-12">
-            <ContactCardLoader size={104} label="Loading contacts" className="mb-3" />
+          <div className="flex flex-col items-center py-12 text-slate-400">
+            <ContactCardLoader
+              size={104}
+              label="Loading contacts"
+              className="mb-3"
+            />
             <ConvoRealLoader size={20} className="mb-2" />
             <p className="text-sm">Loading contacts...</p>
             {slowLoad && (
               <div className="mt-4 flex flex-col items-center gap-2">
                 <p className="text-xs text-slate-500">
-                  This is taking longer than usual — the connection may have stalled.
+                  This is taking longer than usual — the connection may have
+                  stalled.
                 </p>
                 <Button
                   onClick={fetchContactsWithInvalidate}
                   variant="outline"
-                  className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs h-8 px-4 cursor-pointer"
+                  className="h-8 cursor-pointer border-slate-700 px-4 text-xs text-slate-300 hover:bg-slate-800"
                 >
                   Retry
                 </Button>
@@ -2093,7 +2329,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         ) : fetchFailed ? (
           <div className="flex flex-col items-center gap-3 py-12">
             <WifiOff className="size-8 text-amber-400" />
-            <p className="text-sm text-slate-400 text-center max-w-xs">
+            <p className="max-w-xs text-center text-sm text-slate-400">
               Couldn&apos;t load contacts — your connection looks slow or
               dropped. Your data is safe; try again.
             </p>
@@ -2116,14 +2352,14 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
               {search
                 ? 'No contacts match your search.'
                 : activeTab === 'pending_review'
-                ? 'No contacts pending review.'
-                : activeTab === 'favorites'
-                ? 'No favourites yet — star a contact to keep it here.'
-                : activeTab === 'transacted'
-                ? 'No transacted contacts found.'
-                : activeTab === 'market_active'
-                ? 'No active buyers found.'
-                : 'No contacts yet.'}
+                  ? 'No contacts pending review.'
+                  : activeTab === 'favorites'
+                    ? 'No favourites yet — star a contact to keep it here.'
+                    : activeTab === 'transacted'
+                      ? 'No transacted contacts found.'
+                      : activeTab === 'market_active'
+                        ? 'No active buyers found.'
+                        : 'No contacts yet.'}
             </p>
             {!search && activeTab === 'active' && (
               <Button
@@ -2138,92 +2374,118 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             )}
           </div>
         ) : (
-        <Table>
-          <TableHeader>
-            <TableRow className="border-slate-800 hover:bg-transparent">
-              <TableHead 
-                className="text-slate-400 text-xs font-semibold cursor-pointer hover:text-white select-none transition-colors group"
-                onClick={() => {
-                  setSortBy(sortBy === 'name_asc' ? 'name_desc' : 'name_asc');
-                  setPage(0);
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  Name
-                  {sortBy === 'name_asc' ? (
-                    <ArrowUp className="size-3.5 text-primary shrink-0 animate-in fade-in zoom-in duration-200" />
-                  ) : sortBy === 'name_desc' ? (
-                    <ArrowDown className="size-3.5 text-primary shrink-0 animate-in fade-in zoom-in duration-200" />
-                  ) : (
-                    <ArrowUpDown className="size-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="text-slate-400 text-xs select-none">Classification</TableHead>
-              <TableHead className="text-slate-400 text-xs select-none">Phone</TableHead>
-              <TableHead className="text-slate-400 text-xs select-none">Tags</TableHead>
-              <TableHead 
-                className="text-slate-400 text-xs font-semibold cursor-pointer hover:text-white select-none transition-colors group"
-                onClick={() => {
-                  setSortBy(sortBy === 'last_contacted_desc' ? 'last_contacted_asc' : 'last_contacted_desc');
-                  setPage(0);
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  Last Contacted
-                  {sortBy === 'last_contacted_desc' ? (
-                    <ArrowDown className="size-3.5 text-primary shrink-0 animate-in fade-in zoom-in duration-200" />
-                  ) : sortBy === 'last_contacted_asc' ? (
-                    <ArrowUp className="size-3.5 text-primary shrink-0 animate-in fade-in zoom-in duration-200" />
-                  ) : (
-                    <ArrowUpDown className="size-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="text-slate-400 text-xs select-none">Areas of Interest</TableHead>
-              <TableHead className="text-slate-400 text-xs select-none">Property Category Interests</TableHead>
-              <TableHead 
-                className="text-slate-400 text-xs font-semibold cursor-pointer hover:text-white select-none transition-colors group"
-                onClick={() => {
-                  setSortBy(sortBy === 'max_budget_desc' ? 'max_budget_asc' : 'max_budget_desc');
-                  setPage(0);
-                }}
-              >
-                <div className="flex items-center gap-1">
-                  Max Budget
-                  {sortBy === 'max_budget_desc' ? (
-                    <ArrowDown className="size-3.5 text-primary shrink-0 animate-in fade-in zoom-in duration-200" />
-                  ) : sortBy === 'max_budget_asc' ? (
-                    <ArrowUp className="size-3.5 text-primary shrink-0 animate-in fade-in zoom-in duration-200" />
-                  ) : (
-                    <ArrowUpDown className="size-3.5 text-slate-600 group-hover:text-slate-400 shrink-0 opacity-0 group-hover:opacity-100 transition-all duration-200" />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="text-slate-400 w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {contacts.map((contact) => (
+          <Table>
+            <TableHeader>
+              <TableRow className="border-slate-800 hover:bg-transparent">
+                <TableHead
+                  className="group cursor-pointer text-xs font-semibold text-slate-400 transition-colors select-none hover:text-white"
+                  onClick={() => {
+                    setSortBy(sortBy === 'name_asc' ? 'name_desc' : 'name_asc');
+                    setPage(0);
+                  }}
+                >
+                  <div className="flex items-center gap-1">
+                    Name
+                    {sortBy === 'name_asc' ? (
+                      <ArrowUp className="text-primary animate-in fade-in zoom-in size-3.5 shrink-0 duration-200" />
+                    ) : sortBy === 'name_desc' ? (
+                      <ArrowDown className="text-primary animate-in fade-in zoom-in size-3.5 shrink-0 duration-200" />
+                    ) : (
+                      <ArrowUpDown className="size-3.5 shrink-0 text-slate-600 opacity-0 transition-all duration-200 group-hover:text-slate-400 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead className="text-xs text-slate-400 select-none">
+                  Classification
+                </TableHead>
+                <TableHead className="text-xs text-slate-400 select-none">
+                  Phone
+                </TableHead>
+                <TableHead className="text-xs text-slate-400 select-none">
+                  Tags
+                </TableHead>
+                <TableHead
+                  className="group cursor-pointer text-xs font-semibold text-slate-400 transition-colors select-none hover:text-white"
+                  onClick={() => {
+                    setSortBy(
+                      sortBy === 'last_contacted_desc'
+                        ? 'last_contacted_asc'
+                        : 'last_contacted_desc'
+                    );
+                    setPage(0);
+                  }}
+                >
+                  <div className="flex items-center gap-1">
+                    Last Contacted
+                    {sortBy === 'last_contacted_desc' ? (
+                      <ArrowDown className="text-primary animate-in fade-in zoom-in size-3.5 shrink-0 duration-200" />
+                    ) : sortBy === 'last_contacted_asc' ? (
+                      <ArrowUp className="text-primary animate-in fade-in zoom-in size-3.5 shrink-0 duration-200" />
+                    ) : (
+                      <ArrowUpDown className="size-3.5 shrink-0 text-slate-600 opacity-0 transition-all duration-200 group-hover:text-slate-400 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead className="text-xs text-slate-400 select-none">
+                  Areas of Interest
+                </TableHead>
+                <TableHead className="text-xs text-slate-400 select-none">
+                  Property Category Interests
+                </TableHead>
+                <TableHead
+                  className="group cursor-pointer text-xs font-semibold text-slate-400 transition-colors select-none hover:text-white"
+                  onClick={() => {
+                    setSortBy(
+                      sortBy === 'max_budget_desc'
+                        ? 'max_budget_asc'
+                        : 'max_budget_desc'
+                    );
+                    setPage(0);
+                  }}
+                >
+                  <div className="flex items-center gap-1">
+                    Max Budget
+                    {sortBy === 'max_budget_desc' ? (
+                      <ArrowDown className="text-primary animate-in fade-in zoom-in size-3.5 shrink-0 duration-200" />
+                    ) : sortBy === 'max_budget_asc' ? (
+                      <ArrowUp className="text-primary animate-in fade-in zoom-in size-3.5 shrink-0 duration-200" />
+                    ) : (
+                      <ArrowUpDown className="size-3.5 shrink-0 text-slate-600 opacity-0 transition-all duration-200 group-hover:text-slate-400 group-hover:opacity-100" />
+                    )}
+                  </div>
+                </TableHead>
+                <TableHead className="w-12 text-slate-400" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {contacts.map((contact) => (
                 <TableRow
                   key={contact.id}
-                  className="border-slate-800 hover:bg-slate-900/50 cursor-pointer"
+                  className="cursor-pointer border-slate-800 hover:bg-slate-900/50"
                   onClick={() => openDetail(contact.id)}
                 >
-                  <TableCell className="text-white font-medium py-3">
+                  <TableCell className="py-3 font-medium text-white">
                     <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span>{contactFullName(contact) || <span className="text-slate-500 italic text-xs">Unnamed</span>}</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span>
+                          {contactFullName(contact) || (
+                            <span className="text-xs text-slate-500 italic">
+                              Unnamed
+                            </span>
+                          )}
+                        </span>
                         {contact.name_tag && (
                           <span
-                            className="inline-flex items-center bg-slate-700/40 border border-slate-600/50 text-slate-300 font-medium px-1.5 py-0.5 rounded text-[10px] select-none"
+                            className="inline-flex items-center rounded border border-slate-600/50 bg-slate-700/40 px-1.5 py-0.5 text-[10px] font-medium text-slate-300 select-none"
                             title="Name Tag — internal label, not sent in messages"
                           >
                             {contact.name_tag}
                           </span>
                         )}
-                        {contact.tags?.some((t) => t.name.toUpperCase() === 'VIP') && (
-                          <span className="inline-flex items-center gap-0.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold px-1.5 py-0.5 rounded text-[9px] uppercase tracking-wider select-none">
+                        {contact.tags?.some(
+                          (t) => t.name.toUpperCase() === 'VIP'
+                        ) && (
+                          <span className="inline-flex items-center gap-0.5 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-amber-400 uppercase select-none">
                             ⭐ VIP
                           </span>
                         )}
@@ -2238,7 +2500,10 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                   <TableCell className="py-3">
                     {renderClassificationBadge(contact.classification)}
                   </TableCell>
-                  <TableCell className="text-slate-300 font-mono text-xs py-3" onClick={(e) => e.stopPropagation()}>
+                  <TableCell
+                    className="py-3 font-mono text-xs text-slate-300"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex items-center gap-2">
                       <a
                         href={`tel:${contact.phone}`}
@@ -2257,14 +2522,16 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       </a>
                       <button
                         onClick={(e) => handleWhatsAppClick(e, contact)}
-                        className="inline-flex items-center justify-center rounded-md size-6 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-all cursor-pointer"
+                        className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-emerald-500/20 text-emerald-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400"
                         title="Chat on WhatsApp"
                       >
                         <MessageSquare className="size-3.5 fill-current" />
                       </button>
                       <button
-                        onClick={(e) => handlePrefilledWhatsAppClick(e, contact)}
-                        className="inline-flex items-center justify-center rounded-md size-6 text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/20 transition-all cursor-pointer"
+                        onClick={(e) =>
+                          handlePrefilledWhatsAppClick(e, contact)
+                        }
+                        className="inline-flex size-6 cursor-pointer items-center justify-center rounded-md border border-emerald-500/20 text-emerald-500 transition-all hover:bg-emerald-500/10 hover:text-emerald-400"
                         title="Send pre-filled welcome message on WhatsApp"
                       >
                         <MessageSquarePlus className="size-3.5 fill-current stroke-slate-950" />
@@ -2287,7 +2554,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           </span>
                         ))
                       ) : (
-                        <span className="text-slate-600 text-xs">-</span>
+                        <span className="text-xs text-slate-600">-</span>
                       )}
                       {contact.tags && contact.tags.length > 3 && (
                         <span className="text-[10px] text-slate-500">
@@ -2296,26 +2563,29 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-slate-400 text-xs py-3">
+                  <TableCell className="py-3 text-xs text-slate-400">
                     {contact.last_contacted_at ? (
-                      new Date(contact.last_contacted_at).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true
-                      })
+                      new Date(contact.last_contacted_at).toLocaleString(
+                        'en-US',
+                        {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        }
+                      )
                     ) : (
                       <span className="text-slate-600">Never</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-slate-400 text-xs py-3">
+                  <TableCell className="py-3 text-xs text-slate-400">
                     {renderPreferenceChips(effectiveAreas(contact))}
                   </TableCell>
-                  <TableCell className="text-slate-400 text-xs py-3">
+                  <TableCell className="py-3 text-xs text-slate-400">
                     {renderPreferenceChips(effectiveCategories(contact))}
                   </TableCell>
-                  <TableCell className="text-slate-300 font-medium text-xs py-3">
+                  <TableCell className="py-3 text-xs font-medium text-slate-300">
                     {formatBudget(contact)}
                   </TableCell>
                   <TableCell className="py-3">
@@ -2333,9 +2603,15 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                             ? 'text-amber-400 hover:text-amber-300'
                             : 'text-slate-400 hover:text-amber-400'
                         }
-                        title={contact.is_favorite ? 'Remove from Favourites' : 'Add to Favourites'}
+                        title={
+                          contact.is_favorite
+                            ? 'Remove from Favourites'
+                            : 'Add to Favourites'
+                        }
                       >
-                        <Star className={`size-4 ${contact.is_favorite ? 'fill-amber-400' : ''}`} />
+                        <Star
+                          className={`size-4 ${contact.is_favorite ? 'fill-amber-400' : ''}`}
+                        />
                       </Button>
                       <Button
                         variant="ghost"
@@ -2344,7 +2620,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                           e.stopPropagation();
                           openDetail(contact.id);
                         }}
-                        className="text-slate-400 hover:text-primary"
+                        className="hover:text-primary text-slate-400"
                         title="View Details"
                       >
                         <Eye className="size-4" />
@@ -2362,63 +2638,63 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
                         <Pencil className="size-4" />
                       </Button>
                       <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-slate-400 hover:text-white"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        }
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="bg-slate-900 border-slate-700"
-                      >
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setScheduleContactId(contact.id);
-                            setScheduleOpen(true);
-                          }}
-                          className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-slate-400 hover:text-white"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          }
                         >
-                          <CalendarDays className="size-4" />
-                          Schedule
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-slate-700" />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditForm(contact);
-                          }}
-                          className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                          <MoreHorizontal className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="border-slate-700 bg-slate-900"
                         >
-                          <Pencil className="size-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-slate-700" />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            confirmDelete(contact);
-                          }}
-                        >
-                          <Trash2 className="size-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setScheduleContactId(contact.id);
+                              setScheduleOpen(true);
+                            }}
+                            className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                          >
+                            <CalendarDays className="size-4" />
+                            Schedule
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-slate-700" />
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditForm(contact);
+                            }}
+                            className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                          >
+                            <Pencil className="size-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-slate-700" />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmDelete(contact);
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -2426,8 +2702,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-500">
-            Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} of{' '}
-            {totalCount}
+            Showing {page * PAGE_SIZE + 1}-
+            {Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount}
           </p>
           <div className="flex items-center gap-1">
             <Button
@@ -2439,7 +2715,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <span className="text-xs text-slate-400 px-2">
+            <span className="px-2 text-xs text-slate-400">
               Page {page + 1} of {totalPages}
             </span>
             <Button
@@ -2466,7 +2742,8 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
           setContacts((prev) =>
             prev.map((c) =>
               c.id === contactId &&
-              (!c.last_contacted_at || new Date(calledAt) > new Date(c.last_contacted_at))
+              (!c.last_contacted_at ||
+                new Date(calledAt) > new Date(c.last_contacted_at))
                 ? { ...c, last_contacted_at: calledAt }
                 : c
             )
@@ -2494,14 +2771,7 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
         onUpdated={fetchContactsWithInvalidate}
       />
 
-      {/* Import Modal */}
-      <ImportModal
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onImported={fetchContactsWithInvalidate}
-      />
-
-      {/* Re-engage Wizard */}
+      {/* Import / re-engage wizard */}
       <ReengageWizard
         open={reengageOpen}
         onOpenChange={setReengageOpen}
@@ -2518,18 +2788,18 @@ Once you share your requirements, I'll personally shortlist the best 5–10 prop
 
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-sm">
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">Delete Contact</DialogTitle>
             <DialogDescription className="text-slate-400">
               Are you sure you want to delete{' '}
-              <span className="text-slate-200 font-medium">
+              <span className="font-medium text-slate-200">
                 {deleteTarget?.name || deleteTarget?.phone}
               </span>
               ? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setDeleteConfirmOpen(false)}

@@ -31,7 +31,15 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
-import { recordBotTarget, resolveBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { parseEventOutcome } from '@/lib/calendar/event-outcome';
+import {
+  openOverdueEvents,
+  subjectOf,
+  openEventLabel,
+  type OpenEventSubject,
+} from '@/lib/calendar/open-event-subject';
+import { recordBotTarget, resolveBotTarget, latestBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import { applyRecordUpdate } from '@/lib/ai/record-edit';
 import {
   isOwnerHelpCommand,
@@ -620,9 +628,60 @@ export async function processOwnerChatbotMessage(
   // is gone or no longer editable falls through to the create paths, so
   // the correction still lands — the reply just says "added" not
   // "updated".
-  const editTarget = cleanedText
+  let editTarget = cleanedText
     ? await resolveBotTarget({ accountId, contextId: message.context?.id })
     : null;
+
+  // 1.64. The answer to "how did it go?".
+  //
+  // The nudge asks a direct question, and the answer comes back the way
+  // it would to a person — often with no quote at all, and never with
+  // any obligation to quote the right thing. Both card lookups are
+  // message plumbing: the newest registered card in the thread first,
+  // and then, when there is no card to find, the agent's own open
+  // events. A bot that can only be answered about messages it sent
+  // after a particular deploy is not answerable.
+  //
+  // parseEventOutcome is the gate, and it is deterministic and free:
+  // the text has to already read as "it happened" or "it's off" before
+  // anything is looked up. Anything vaguer falls through to the paths
+  // below untouched.
+  let outcomeSubject: OpenEventSubject | null = null;
+  if (!editTarget && cleanedText && parseEventOutcome(cleanedText)) {
+    editTarget = await latestBotTarget({
+      accountId,
+      conversationId: conversation.id,
+      entityType: 'appointment',
+    });
+
+    if (!editTarget) {
+      outcomeSubject = subjectOf(
+        await openOverdueEvents({ db: supabaseAdmin(), accountId, userId })
+      );
+      // One open overdue event and a sentence reporting an outcome is
+      // not a guess. Several is — closing the wrong meeting is worse
+      // than asking, so 'many' falls through to the reply below.
+      if (outcomeSubject.kind === 'one') {
+        editTarget = { entityType: 'appointment', entityId: outcomeSubject.event.id };
+      }
+    }
+  }
+
+  // Several open events and no card to say which: name them and let
+  // the agent point, rather than answering "I couldn't tell what that
+  // was" to a sentence that was perfectly clear.
+  if (outcomeSubject?.kind === 'many') {
+    const reply = [
+      '🤔 *Which one do you mean?*',
+      ...outcomeSubject.events.map((e) => `• ${openEventLabel(e)}`),
+      '',
+      '_Reply to the reminder for that one, or name it._',
+    ].join('\n');
+    const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+    await saveBotMessage(conversation.id, reply, sendRes.messageId);
+    return true;
+  }
+
   if (editTarget) {
     try {
       if (editTarget.entityType === 'appointment' || editTarget.entityType === 'todo') {
@@ -670,6 +729,70 @@ export async function processOwnerChatbotMessage(
       }
     } catch (err) {
       console.error('[chatbot-engine] quote-reply edit failed:', err);
+    }
+  }
+
+  // 1.66. Quote-reply on the owner's OWN earlier message = run it again.
+  //
+  // A forwarded listing whose draft expired unconfirmed is still sitting
+  // in the thread, so "add this one" pointed at it is the obvious move —
+  // and it did nothing, because the intake read the two words of the
+  // reply instead of the listing they were aimed at.
+  //
+  // Only once no bot target claimed the reply (that is an edit, and it
+  // wins) and only with no draft open, so a correction mid-intake is
+  // never mistaken for a replay. The synthetic message carries no
+  // `context`, which is what stops this re-entering itself.
+  if (!editTarget && !propSession && !contactSession && message.context?.id) {
+    const replaySource = await resolveReplayTarget(
+      supabaseAdmin(),
+      conversation.id,
+      message.context.id
+    );
+    if (replaySource) {
+      // Meta keeps media for around 30 days, and the whole point of this
+      // path is old messages. Check before re-entering: a throw deep in
+      // the intake would surface as silence, where "forward it again" is
+      // something the owner can act on.
+      if (replaySource.mediaId) {
+        try {
+          await getMediaUrl({ mediaId: replaySource.mediaId, accessToken });
+        } catch {
+          const reply =
+            "⌛ *That file has expired on WhatsApp* — Meta only keeps it for about 30 days. Please forward the photo or PDF again and I'll pick it up.";
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          return true;
+        }
+      }
+
+      console.log(`[chatbot-engine] replaying message ${replaySource.id} from quote-reply`);
+      return await processOwnerChatbotMessage(
+        {
+          ...message,
+          type: replaySource.contentType,
+          image:
+            replaySource.contentType === 'image' && replaySource.mediaId
+              ? { id: replaySource.mediaId, mime_type: '' }
+              : undefined,
+          document:
+            replaySource.contentType === 'document' && replaySource.mediaId
+              ? { id: replaySource.mediaId, mime_type: '' }
+              : undefined,
+          video:
+            replaySource.contentType === 'video' && replaySource.mediaId
+              ? { id: replaySource.mediaId, mime_type: '' }
+              : undefined,
+          context: undefined,
+        },
+        replayText(replaySource.contentText, cleanedText),
+        contactRecord,
+        conversation,
+        accountId,
+        userId,
+        accessToken,
+        phoneNumberId
+      );
     }
   }
 

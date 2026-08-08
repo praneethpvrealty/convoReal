@@ -22,6 +22,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils';
 import { formatAgendaMessage, istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler';
 import { createNotification } from '@/lib/notifications/create';
+import { recordBotTarget } from '@/lib/whatsapp/bot-message-target';
 
 const EVENT_TYPE_EMOJI: Record<string, string> = {
   site_visit: '📍',
@@ -157,7 +158,7 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       appt.location ? `📌 ${appt.location}\n🗺 ${mapsLink(appt.location)}` : null,
       appt.agenda ? `📋 *Agenda:* ${appt.agenda}` : null,
       '',
-      '_Reply *today* for your full schedule._',
+      '_Reply to this message once it is done — or *today* for your full schedule._',
     ].filter((l): l is string => l !== null);
 
     const result = await sendWhatsAppMessageAndPersist({
@@ -175,6 +176,18 @@ export async function sendAgentEventReminders(now: Date = new Date()): Promise<v
       // An event booked days ahead reaches its reminder with the window
       // long closed, which is the common case rather than the edge one.
       console.warn(`[Agent Reminder] WhatsApp send failed for appt ${appt.id}:`, result.error);
+    } else {
+      // Makes the card answerable. Without this a quote-reply on it
+      // resolved to no target at all, so "This is already done" fell
+      // through to the intake classifier and came back "I couldn't tell
+      // what that was" — while the event it named stayed scheduled.
+      await recordBotTarget({
+        accountId: appt.account_id,
+        waMessageId: result.whatsappMessageId,
+        entityType: 'appointment',
+        entityId: appt.id,
+        client: admin,
+      });
     }
 
     // In-app and push have no service window, so they are NOT gated on the
@@ -357,7 +370,7 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       `🤔 *How did it go?*`,
       `${emoji} ${appt.title}${appt.contact?.name ? ` with ${appt.contact.name}` : ''} was scheduled for ${istTime(appt.start_time)} and is still open.`,
       '',
-      'Mark it *Completed* on the Calendar page and log the minutes / outcome while it\'s fresh — or reschedule it if it slipped.',
+      '_Reply to this message and tell me how it went — I\'ll close it off. Or say when to move it to._',
     ].join('\n');
 
     const result = await sendWhatsAppMessageAndPersist({
@@ -370,6 +383,20 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
     });
     if (!result.success) {
       console.warn(`[Overdue Nudge] send failed for appt ${appt.id}:`, result.error);
+    } else {
+      // The card that asks "how did it go?" was the one card a reply
+      // could not reach: without a target row a quote-reply on it
+      // resolved to nothing, so "he visited the property yesterday"
+      // fell through to the intake classifier and came back "I
+      // couldn't tell what that was" — while the visit it asked about
+      // stayed open.
+      await recordBotTarget({
+        accountId: appt.account_id,
+        waMessageId: result.whatsappMessageId,
+        entityType: 'appointment',
+        entityId: appt.id,
+        client: admin,
+      });
     }
 
     await createNotification({

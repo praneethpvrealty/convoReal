@@ -27,14 +27,13 @@ import { BRANDING } from '@/config/branding';
 // reused rather than duplicated (it lives under den/ for historical
 // reasons; the Den was the first surface that needed it).
 import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
+import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
-  buildPropertyAlertParams,
-  PROPERTY_ALERT_TEMPLATE_NAME,
-} from '@/lib/whatsapp/property-alert-template';
-import {
-  buildBuyerAlertsConsentParams,
-  BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
-} from '@/lib/whatsapp/buyer-alerts-consent-template';
+  PROPERTY_SHARE_TEMPLATE_NAMES,
+  pickPropertyShareTemplate,
+  shareHeaderImage,
+} from '@/lib/whatsapp/property-share-template';
+import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import {
   buildConsentRequestMessage,
@@ -175,15 +174,21 @@ async function runAccount(
 
       const sessionOpen = await isSessionOpen(db, accountId, buyer.id);
 
-      // Consent-first. A pending buyer is asked exactly once — free
-      // form inside an open window, otherwise through the approved
-      // Utility consent template. Asking outside the window is why the
-      // template exists: buyers who are never mid-chat at digest time
-      // were never asked, so they could never opt in and the digest
-      // starved. The template names no listing and makes no offer.
+      // Consent-first, and free-form only. There is no template path:
+      // soliciting an opt-in is MARKETING by Meta's test however it is
+      // worded (a Utility submission of exactly this question came back
+      // approved as Marketing), and a marketing template asking
+      // permission to send marketing is the thing consent exists to
+      // prevent. A closed window waits — src/lib/buyer/consent-ask.ts
+      // asks the moment the buyer next messages us, which reaches far
+      // more of them than this daily pass ever could.
       if (consent !== 'granted') {
         if (buyer.buyer_alerts_consent_requested_at) {
           summary.skippedAwaitingConsent++;
+          continue;
+        }
+        if (!sessionOpen) {
+          summary.skippedNoChannel++;
           continue;
         }
         const asked = await sendDenNotification(db, {
@@ -194,8 +199,6 @@ async function runAccount(
             matchCount: matches.length,
             agencyName,
           }),
-          templateName: BUYER_ALERTS_CONSENT_TEMPLATE_NAME,
-          templateParams: buildBuyerAlertsConsentParams(buyer.name, agencyName),
         });
         if (!asked) {
           summary.failed++;
@@ -231,6 +234,14 @@ async function runAccount(
       }
 
       const top = matches[0].property;
+      // The digest is headlined by its top match, so that listing's own
+      // photo leads the card — the account's brand image when it has
+      // none. A digest that arrives as a block of text is a worse
+      // digest, and the header costs nothing at the category level.
+      const headerImage = shareHeaderImage({
+        images: top.images,
+        brandImage: await accountBrandImage(db, accountId),
+      });
       const delivered = await sendDenNotification(db, {
         accountId,
         contactId: buyer.id,
@@ -239,8 +250,11 @@ async function runAccount(
           matches,
           portalUrl: url,
         }),
-        templateName: PROPERTY_ALERT_TEMPLATE_NAME,
+        templateName: PROPERTY_SHARE_TEMPLATE_NAMES,
+        pickTemplate: (rows) =>
+          pickPropertyShareTemplate(rows, { hasImage: Boolean(headerImage) }),
         templateParams: buildPropertyAlertParams(buyer.name, top),
+        headerMediaUrl: headerImage,
       });
 
       if (delivered) {

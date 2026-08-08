@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/client";
+import { toAuthPhone } from "@/lib/whatsapp/phone-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,14 +56,7 @@ export default function DenVerifyPhonePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const cleanPhone = (): string | null => {
-    let p = phone.trim().replace(/\s+/g, "");
-    if (!p.startsWith("+")) {
-      if (p.replace(/\D/g, "").length === 10) p = `+91${p.replace(/\D/g, "")}`;
-      else return null;
-    }
-    return p;
-  };
+  const cleanPhone = (): string | null => toAuthPhone(phone);
 
   const handleSendOtp = async (e?: React.FormEvent) => {
     e?.preventDefault();
