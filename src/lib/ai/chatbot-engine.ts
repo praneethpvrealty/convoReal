@@ -31,7 +31,8 @@ import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
-import { recordBotTarget, resolveBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { parseEventOutcome } from '@/lib/calendar/event-outcome';
+import { recordBotTarget, resolveBotTarget, latestBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import { applyRecordUpdate } from '@/lib/ai/record-edit';
 import {
@@ -621,9 +622,30 @@ export async function processOwnerChatbotMessage(
   // is gone or no longer editable falls through to the create paths, so
   // the correction still lands — the reply just says "added" not
   // "updated".
-  const editTarget = cleanedText
+  let editTarget = cleanedText
     ? await resolveBotTarget({ accountId, contextId: message.context?.id })
     : null;
+
+  // 1.64. The answer to "how did it go?", typed straight back.
+  //
+  // The nudge card asks a direct question, and an agent answers it the
+  // way they would answer a person — no quote. That reply named no
+  // card, so it reached the intake classifier and came back "I couldn't
+  // tell what that was" while the visit stayed open.
+  //
+  // parseEventOutcome is the gate, and it is deterministic and free: the
+  // text has to already read as "it happened" or "it's off" before the
+  // thread is searched at all. Anything vaguer keeps falling through to
+  // the paths below, and a card the reply is not about is out of reach
+  // because applySchedulingEdit only closes an event still scheduled.
+  if (!editTarget && cleanedText && parseEventOutcome(cleanedText)) {
+    editTarget = await latestBotTarget({
+      accountId,
+      conversationId: conversation.id,
+      entityType: 'appointment',
+    });
+  }
+
   if (editTarget) {
     try {
       if (editTarget.entityType === 'appointment' || editTarget.entityType === 'todo') {
