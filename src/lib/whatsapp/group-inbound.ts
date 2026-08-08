@@ -96,11 +96,47 @@ export async function resolveGroupThread(
 
   // The lifecycle webhook normally opens this. A message arriving first
   // (webhooks are not ordered) should still land somewhere.
+  const conversationId = await openGroupConversation(accountId, group.id);
+  if (!conversationId) return null;
+  return { groupRowId: group.id, conversationId };
+}
+
+/**
+ * Open the conversation for a group, returning its id.
+ *
+ * `conversations.user_id` is still NOT NULL — a legacy holdover from the
+ * pre-account tenancy model (migration 017). A group has no acting user
+ * at all: it is opened by a webhook, not by someone clicking. So it
+ * falls back to the account owner, exactly as the dispatcher does for
+ * system-initiated sends. Omitting it fails the insert outright, which
+ * is what happened before this existed.
+ *
+ * Shared by the inbound path and the lifecycle webhook so the two
+ * cannot disagree about how a group thread is created.
+ */
+export async function openGroupConversation(
+  accountId: string,
+  groupRowId: string,
+): Promise<string | null> {
+  const db = supabaseAdmin();
+
+  const { data: account } = await db
+    .from('accounts')
+    .select('owner_user_id')
+    .eq('id', accountId)
+    .maybeSingle();
+
+  if (!account?.owner_user_id) {
+    console.error(`[group-inbound] account ${accountId} has no owner_user_id`);
+    return null;
+  }
+
   const { data: created, error } = await db
     .from('conversations')
     .insert({
       account_id: accountId,
-      group_id: group.id,
+      user_id: account.owner_user_id,
+      group_id: groupRowId,
       contact_id: null,
       status: 'open',
     })
@@ -111,7 +147,7 @@ export async function resolveGroupThread(
     console.error('[group-inbound] could not open conversation:', error?.message);
     return null;
   }
-  return { groupRowId: group.id, conversationId: created.id };
+  return created.id as string;
 }
 
 /**

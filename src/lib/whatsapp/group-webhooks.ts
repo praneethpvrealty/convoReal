@@ -16,6 +16,7 @@
  */
 
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { openGroupConversation } from '@/lib/whatsapp/group-inbound';
 
 /** The webhook `field` values a group subscription delivers. */
 export const GROUP_WEBHOOK_FIELDS = [
@@ -126,12 +127,9 @@ async function handleLifecycle(accountId: string, payload: LifecyclePayload) {
       .maybeSingle();
 
     if (!existing) {
-      await db.from('conversations').insert({
-        account_id: accountId,
-        group_id: group.id,
-        contact_id: null,
-        status: 'open',
-      });
+      // Shared with the inbound path, which is what supplies the
+      // NOT NULL user_id a group thread has no acting user for.
+      await openGroupConversation(accountId, group.id);
     }
   }
 }
