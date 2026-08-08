@@ -232,6 +232,9 @@ export interface MatchEventTarget {
   name: string;
   /** Phone for contact targets; property_code for property targets. */
   detail: string | null;
+  /** Price in INR for property targets ('buyer_updated' events); absent
+   *  for contact targets and events snapshotted before the field existed. */
+  price?: number | null;
   score: number;
   /** Honest chips from the matching engine's MatchDetails. */
   chips: string[];

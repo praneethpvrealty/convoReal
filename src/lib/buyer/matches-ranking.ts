@@ -52,7 +52,8 @@ export function matchReasons(details: MatchDetails): string[] {
   else if (details.type === 'partial') reasons.push('Same category');
   if (details.project !== 'match') {
     if (details.location === 'match') reasons.push('In your area');
-    else if (details.location === 'partial') reasons.push('Same city');
+    else if (details.location === 'partial')
+      reasons.push(details.locationKm != null ? `~${details.locationKm} km from your area` : 'Same city');
   }
   if (details.budget === 'match') reasons.push('Within budget');
   else if (details.budget === 'partial') reasons.push('Just off budget');

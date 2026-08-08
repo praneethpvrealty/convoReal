@@ -27,7 +27,9 @@ export function MatchDetailChips({ details }: { details: MatchDetails }) {
         <Badge className={`${base} bg-sky-550/5 text-sky-450 border-sky-500/10`}>Location match</Badge>
       )}
       {details.location === 'partial' && (
-        <Badge className={`${base} bg-sky-550/5 text-sky-450/80 border-sky-500/10`}>Same city</Badge>
+        <Badge className={`${base} bg-sky-550/5 text-sky-450/80 border-sky-500/10`}>
+          {details.locationKm != null ? `~${details.locationKm} km away` : 'Same city'}
+        </Badge>
       )}
       {details.location === 'unknown' && <Badge className={muted}>No location preference</Badge>}
 

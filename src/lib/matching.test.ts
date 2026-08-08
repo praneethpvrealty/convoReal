@@ -550,6 +550,40 @@ describe('getMatchingContacts', () => {
       expect(resultsWhitefield.map(r => r.contact.id)).not.toContain('c-strict');
     });
 
+    it('grades a proximity near-miss as partial with the distance, scoring below a genuine in-area hit', () => {
+      const contact = createTestContact({
+        areas_of_interest: ['Kundalahalli'],
+        pref_property_types: ['Commercial Office Space'],
+        pref_extracted_at: new Date().toISOString(),
+      });
+
+      // Koramangala is ~10 km from Kundalahalli — inside the 20 km radius
+      // but nowhere near "in area".
+      const nearMiss = createTestProperty({
+        id: 'p-near-miss',
+        sublocality: 'Koramangala',
+        location: 'Koramangala, Bangalore',
+        type: 'Commercial Office Space',
+      });
+      // Brookefield is ~1 km from Kundalahalli.
+      const inArea = createTestProperty({
+        id: 'p-in-area',
+        sublocality: 'Brookefield',
+        location: 'Brookefield, Bangalore',
+        type: 'Commercial Office Space',
+      });
+
+      const [nearResult] = getMatchingContacts(nearMiss, [contact]);
+      expect(nearResult.details.location).toBe('partial');
+      expect(nearResult.details.locationKm).toBeGreaterThan(5);
+
+      const [inAreaResult] = getMatchingContacts(inArea, [contact]);
+      expect(inAreaResult.details.location).toBe('match');
+      expect(inAreaResult.details.locationKm).toBeUndefined();
+
+      expect(inAreaResult.score).toBeGreaterThan(nearResult.score);
+    });
+
     it('radius-matches areas outside the static locality table via stored Google coordinates', () => {
       // "Surya City Phase 2" is not in BANGALORE_LOCALITIES_COORDS — without
       // stored coordinates it can only substring-match. With coordinates it

@@ -48,7 +48,8 @@ function chipsFromDetails(d: MatchDetails): string[] {
   if (d.type === "match") chips.push("Type match");
   else if (d.type === "partial") chips.push("Category match");
   if (d.location === "match") chips.push("In area");
-  else if (d.location === "partial") chips.push("Same city");
+  else if (d.location === "partial")
+    chips.push(d.locationKm != null ? `~${d.locationKm} km away` : "Same city");
   if (d.budget === "match") chips.push("Budget fit");
   else if (d.budget === "partial") chips.push("Budget near");
   if (d.bhk === "match") chips.push("BHK fit");

@@ -32,3 +32,34 @@ export async function loadMatchEvents(db: DB): Promise<MatchEvent[]> {
     contact: one(row.contact),
   })) as MatchEvent[];
 }
+
+/** Fills in prices on property targets snapshotted before
+ *  MatchEventTarget.price existed. Bounded lookup — targets are capped
+ *  at 12 per event and events are deduped daily per subject. */
+export async function hydrateTargetPrices(db: DB, events: MatchEvent[]): Promise<MatchEvent[]> {
+  const missing = [
+    ...new Set(
+      events
+        .filter((e) => e.kind === 'buyer_updated')
+        .flatMap((e) => e.matches.filter((m) => m.price === undefined).map((m) => m.id))
+    ),
+  ].slice(0, 200);
+  if (missing.length === 0) return events;
+
+  const { data } = await db.from('properties').select('id, price').in('id', missing);
+  const priceById = new Map(
+    (data ?? []).map((p) => [p.id as string, p.price != null ? Number(p.price) : null])
+  );
+  if (priceById.size === 0) return events;
+
+  return events.map((e) =>
+    e.kind === 'buyer_updated'
+      ? {
+          ...e,
+          matches: e.matches.map((m) =>
+            m.price === undefined && priceById.has(m.id) ? { ...m, price: priceById.get(m.id) } : m
+          ),
+        }
+      : e
+  );
+}

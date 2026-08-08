@@ -10,17 +10,18 @@ import {
   User,
   Building,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { loadMatchEvents } from "@/lib/radar/queries";
+import { loadMatchEvents, hydrateTargetPrices } from "@/lib/radar/queries";
 import {
   buildPropertyAlertTemplatePayload,
   PROPERTY_ALERT_TEMPLATE_NAME,
 } from "@/lib/whatsapp/property-alert-template";
-import type { MatchEvent, Property } from "@/types";
+import type { MatchEvent } from "@/types";
 import { InfoHint } from "@/components/ui/info-hint";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { DirectOwnerCard } from "@/components/radar/direct-owner-card";
@@ -56,7 +57,7 @@ export default function RadarPage() {
     setLoading(true);
     try {
       const db = createClient();
-      const data = await loadMatchEvents(db);
+      const data = await hydrateTargetPrices(db, await loadMatchEvents(db));
       setEvents(data);
 
       // Pre-select all target matches by default
@@ -226,8 +227,8 @@ export default function RadarPage() {
     }
   };
 
-  const formatPrice = (p: Property) => {
-    const val = Number(p.price);
+  const formatPrice = (price: number | null | undefined) => {
+    const val = Number(price);
     if (!val || isNaN(val)) return "Not specified";
     if (val >= 10000000) return `₹${(val / 10000000).toFixed(2).replace(/\.00$/, "")} Cr`;
     if (val >= 100000) return `₹${(val / 100000).toFixed(2).replace(/\.00$/, "")} L`;
@@ -350,7 +351,7 @@ export default function RadarPage() {
                         </div>
                         <div className="bg-slate-950/20 rounded-lg p-2.5 space-y-1 text-xs border border-slate-850">
                           <p className="text-slate-300 font-semibold">
-                            Price: <span className="text-slate-200">{formatPrice(evt.property)}</span>
+                            Price: <span className="text-slate-200">{formatPrice(evt.property.price)}</span>
                           </p>
                           <p className="text-slate-350">
                             Location: {evt.property.sublocality || evt.property.city || evt.property.location}
@@ -382,7 +383,7 @@ export default function RadarPage() {
                               {evt.contact.no_budget
                                 ? "No limit"
                                 : evt.contact.max_budget
-                                  ? formatPrice({ price: evt.contact.max_budget } as Property)
+                                  ? formatPrice(evt.contact.max_budget)
                                   : "Not specified"}
                             </span>
                           </p>
@@ -439,16 +440,37 @@ export default function RadarPage() {
                                   <h5 className="text-xs font-black text-white truncate">
                                     {match.name}
                                   </h5>
-                                  <span className="text-[10px] font-bold text-emerald-400 shrink-0">
-                                    {match.score}%
-                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className="text-[10px] font-bold text-emerald-400">
+                                      {match.score}%
+                                    </span>
+                                    {evt.kind === "buyer_updated" && (
+                                      <a
+                                        href={`/inventory?propertyId=${match.id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="Open property"
+                                        className="text-slate-500 hover:text-primary transition-colors"
+                                      >
+                                        <Eye className="size-3.5" />
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
-                                {match.detail && (
-                                  <p className="text-[9px] text-slate-500 font-semibold">{match.detail}</p>
-                                )}
+                                <div className="flex items-baseline gap-1.5">
+                                  {match.detail && (
+                                    <p className="text-[9px] text-slate-500 font-semibold">{match.detail}</p>
+                                  )}
+                                  {match.price != null && (
+                                    <p className="text-[10px] font-bold text-slate-300">
+                                      {formatPrice(match.price)}
+                                    </p>
+                                  )}
+                                </div>
                                 {match.chips && match.chips.length > 0 && (
                                   <div className="mt-1.5 flex flex-wrap gap-1">
-                                    {match.chips.slice(0, 2).map((chip) => (
+                                    {match.chips.slice(0, 3).map((chip) => (
                                       <span
                                         key={chip}
                                         className="text-[8px] font-bold border border-slate-800 bg-slate-900 px-1 py-0.2 rounded text-slate-400"

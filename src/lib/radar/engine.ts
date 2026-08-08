@@ -52,7 +52,8 @@ function chipsFromDetails(d: MatchDetails): string[] {
   else if (d.type === 'partial') chips.push('Category match');
   if (d.project !== 'match') {
     if (d.location === 'match') chips.push('In area');
-    else if (d.location === 'partial') chips.push('Same city');
+    else if (d.location === 'partial')
+      chips.push(d.locationKm != null ? `~${d.locationKm} km away` : 'Same city');
   }
   if (d.budget === 'match') chips.push('Budget fit');
   else if (d.budget === 'partial') chips.push('Budget near');
@@ -256,6 +257,7 @@ export async function generateMatchEventForContact(
       id: m.property.id,
       name: m.property.title,
       detail: m.property.property_code || null,
+      price: m.property.price != null ? Number(m.property.price) : null,
       score: m.score,
       chips: chipsFromDetails(m.details),
     }));

@@ -94,6 +94,12 @@ const BANGALORE_LOCALITIES_COORDS: Record<string, { lat: number; lng: number }> 
   'orr': { lat: 12.9388, lng: 77.6914 },
 };
 
+/** Within this distance of a stated area a property still counts as in it. */
+const NEAR_AREA_KM = 5;
+/** Beyond NEAR_AREA_KM but inside this radius is a near-miss ('partial'),
+ *  unless the contact set strict_area_match. */
+const MAX_AREA_RADIUS_KM = 20;
+
 function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Earth's radius in km
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -146,8 +152,11 @@ export type MatchVerdict = 'match' | 'partial' | 'unknown' | 'mismatch';
 export interface MatchDetails {
   /** 'match' = exact subtype group; 'partial' = broad-category-level match. */
   type: MatchVerdict;
-  /** 'partial' = city-level only. */
+  /** 'partial' = city-level only, or a proximity near-miss (see locationKm). */
   location: MatchVerdict;
+  /** Distance in km to the nearest stated area when proximity graded
+   *  location 'partial' — the property is near, not in, the area asked for. */
+  locationKm?: number;
   /** 'partial' = near-miss within tolerance, or "no budget constraint" flag. */
   budget: MatchVerdict;
   bhk: MatchVerdict;
@@ -606,43 +615,40 @@ export function getMatchingContacts(
     if (negativeHit && !projectMatch) continue;
 
     let locationVerdict: MatchVerdict = 'unknown';
+    let locationKm: number | null = null;
     if (wantedAreas.length > 0) {
-      // 3.1 Proximity-based matching if coordinates are available
-      const pLat = property.latitude ? Number(property.latitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lat : null);
-      const pLng = property.longitude ? Number(property.longitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lng : null);
-      
-      let checkedProximity = false;
-      let hasProximityMatch = false;
-      let hasProximityMismatch = false;
+      // 3.1 A property literally in a stated area is the definitive hit —
+      // coordinates are only a proxy for it.
+      if (wantedAreas.some(areaHitsProperty)) {
+        locationVerdict = 'match';
+      } else {
+        // 3.2 Proximity-based matching if coordinates are available. Graded:
+        // within NEAR_AREA_KM counts as in-area; farther but inside the
+        // allowed radius is only a near-miss ('partial'), so a listing 15 km
+        // from the stated area no longer scores or labels like one in it.
+        const pLat = property.latitude ? Number(property.latitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lat : null);
+        const pLng = property.longitude ? Number(property.longitude) : (property.sublocality ? BANGALORE_LOCALITIES_COORDS[cleanArea(property.sublocality)]?.lng : null);
 
-      if (pLat !== null && pLng !== null) {
-        const maxAllowedDistance = contact.strict_area_match ? 5 : 20;
-        
-        for (const area of wantedAreas) {
-          const areaCoords = contactAreaCoords[area] ?? BANGALORE_LOCALITIES_COORDS[area];
-          if (areaCoords) {
-            checkedProximity = true;
-            const dist = calculateHaversineDistance(pLat, pLng, areaCoords.lat, areaCoords.lng);
-            if (dist <= maxAllowedDistance) {
-              hasProximityMatch = true;
-              break;
-            } else {
-              hasProximityMismatch = true;
+        let nearestKm: number | null = null;
+        if (pLat !== null && pLng !== null) {
+          for (const area of wantedAreas) {
+            const areaCoords = contactAreaCoords[area] ?? BANGALORE_LOCALITIES_COORDS[area];
+            if (areaCoords) {
+              const dist = calculateHaversineDistance(pLat, pLng, areaCoords.lat, areaCoords.lng);
+              if (nearestKm === null || dist < nearestKm) nearestKm = dist;
             }
           }
         }
-      }
 
-      if (checkedProximity) {
-        if (hasProximityMatch) {
-          locationVerdict = 'match';
-        } else if (hasProximityMismatch) {
-          locationVerdict = 'mismatch';
-        }
-      } else {
-        // 3.2 Fallback to traditional substring matching
-        if (wantedAreas.some(areaHitsProperty)) {
-          locationVerdict = 'match';
+        if (nearestKm !== null) {
+          if (nearestKm <= NEAR_AREA_KM) {
+            locationVerdict = 'match';
+          } else if (!contact.strict_area_match && nearestKm <= MAX_AREA_RADIUS_KM) {
+            locationVerdict = 'partial';
+            locationKm = Math.round(nearestKm);
+          } else {
+            locationVerdict = 'mismatch';
+          }
         } else if (propCity && wantedAreas.some((a) => propCity.includes(a))) {
           locationVerdict = 'partial';
         } else {
@@ -727,12 +733,14 @@ export function getMatchingContacts(
 
     // ── Inclusion rule ────────────────────────────────────────────
     // Budget alone never qualifies: require a type match, or — when the
-    // contact has no type preference at all — a location or explicit-ROI match.
+    // contact has no type preference at all — a location match (a proximity
+    // near-miss counts; city-level does not) or explicit-ROI match.
     const qualifies =
       projectMatch ||
       typeVerdict === 'match' ||
       typeVerdict === 'partial' ||
-      (!hasTypePrefs && (locationVerdict === 'match' || roiVerdict === 'match'));
+      (!hasTypePrefs &&
+        (locationVerdict === 'match' || locationKm !== null || roiVerdict === 'match'));
     if (!qualifies) continue;
 
     // ── Scoring ───────────────────────────────────────────────────
@@ -763,6 +771,7 @@ export function getMatchingContacts(
       details: {
         type: typeVerdict,
         location: locationVerdict,
+        ...(locationVerdict === 'partial' && locationKm !== null ? { locationKm } : {}),
         budget: budgetVerdict,
         bhk: bhkVerdict,
         roi: roiVerdict,
