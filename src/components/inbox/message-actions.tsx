@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { CornerUpLeft, Copy, Forward, RotateCw, SmilePlus } from "lucide-react";
+import {
+  CornerUpLeft,
+  Copy,
+  Forward,
+  Pin,
+  RotateCw,
+  SmilePlus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -11,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { stripDeliveryFailure } from "@/lib/whatsapp/delivery-failure";
 import type { Message } from "@/types";
+import { HIDE_ACTION_LABEL } from "@/lib/whatsapp/message-state";
 
 // WhatsApp's own quick-reaction bar starts with these six. Picking the same
 // set keeps the affordance familiar without pulling in a 300KB emoji library.
@@ -25,6 +34,13 @@ interface MessageActionsProps {
   onResend: () => void;
   /** Send this message's text on to other contacts. */
   onForward: () => void;
+  /** Engine-local pin — nothing changes on the contact's phone, since
+   *  the Cloud API pins group messages only. */
+  onTogglePin: () => void;
+  /** Engine-local hide. NOT a recall: WhatsApp has no way to delete a
+   *  sent message from the customer's phone, so this label must never
+   *  read as "delete for everyone". */
+  onHide: () => void;
   children: ReactNode;
 }
 
@@ -58,6 +74,8 @@ export function MessageActions({
   onReact,
   onResend,
   onForward,
+  onTogglePin,
+  onHide,
   children,
 }: MessageActionsProps) {
   // Touch devices have no hover. Long-press fires `contextmenu`; we capture
@@ -197,6 +215,28 @@ export function MessageActions({
           aria-label="Copy"
         >
           <Copy className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onTogglePin}
+          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-white"
+          aria-label={message.pinned_at ? "Unpin" : "Pin"}
+          title={
+            message.pinned_at
+              ? "Unpin from this conversation"
+              : "Pin for your team — the contact sees no change"
+          }
+        >
+          <Pin className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={onHide}
+          className="flex h-5 w-5 items-center justify-center rounded-full text-slate-300 hover:bg-slate-700 hover:text-rose-300"
+          aria-label={HIDE_ACTION_LABEL}
+          title={`${HIDE_ACTION_LABEL} — removes it from your inbox only`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
       </div>

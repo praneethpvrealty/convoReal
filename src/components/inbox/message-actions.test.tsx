@@ -12,7 +12,7 @@
 // ============================================================
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, cleanup, screen } from '@testing-library/react';
+import { render, cleanup, screen, fireEvent } from '@testing-library/react';
 
 import {
   MessageActions,
@@ -21,6 +21,7 @@ import {
   canResend,
 } from '@/components/inbox/message-actions';
 import type { Message } from '@/types';
+import { HIDE_ACTION_LABEL } from '@/lib/whatsapp/message-state';
 
 function message(over: Partial<Message> = {}): Message {
   return {
@@ -35,7 +36,7 @@ function message(over: Partial<Message> = {}): Message {
   } as Message;
 }
 
-function renderToolbar(msg: Message) {
+function renderToolbar(msg: Message, handlers: { onTogglePin?: () => void; onHide?: () => void } = {}) {
   return render(
     <MessageActions
       message={msg}
@@ -43,6 +44,8 @@ function renderToolbar(msg: Message) {
       onReact={vi.fn()}
       onResend={vi.fn()}
       onForward={vi.fn()}
+      onTogglePin={handlers.onTogglePin ?? vi.fn()}
+      onHide={handlers.onHide ?? vi.fn()}
     >
       <div>bubble</div>
     </MessageActions>
@@ -99,5 +102,38 @@ describe('MessageActions toolbar', () => {
     expect(screen.queryByLabelText('Forward')).toBeNull();
     // Reply still stands: a photo can be quoted even if it cannot be re-sent.
     expect(screen.getByLabelText('Reply')).toBeTruthy();
+  });
+});
+
+describe('pin and hide', () => {
+  it('offers a pin on any message', () => {
+    renderToolbar(message());
+    expect(screen.getByLabelText('Pin')).toBeTruthy();
+  });
+
+  it('flips the label once a message is pinned', () => {
+    renderToolbar(message({ pinned_at: '2026-08-08T10:00:00.000Z' }));
+    expect(screen.getByLabelText('Unpin')).toBeTruthy();
+  });
+
+  it('never calls the hide action "delete for everyone"', () => {
+    // The whole risk of this feature is an agent believing a message was
+    // recalled from the customer's phone. It cannot be.
+    renderToolbar(message());
+    const hide = screen.getByLabelText(HIDE_ACTION_LABEL);
+    expect(hide.getAttribute('title')).toMatch(/your inbox only/i);
+    expect(screen.queryByLabelText(/everyone/i)).toBeNull();
+  });
+
+  it('reports the pin and hide taps to the caller', () => {
+    const onTogglePin = vi.fn();
+    const onHide = vi.fn();
+    renderToolbar(message(), { onTogglePin, onHide });
+
+    fireEvent.click(screen.getByLabelText('Pin'));
+    expect(onTogglePin).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByLabelText(HIDE_ACTION_LABEL));
+    expect(onHide).toHaveBeenCalledOnce();
   });
 });
