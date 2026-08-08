@@ -47,6 +47,81 @@ export async function recordBotTarget(params: {
   }
 }
 
+/**
+ * The newest card of one entity type still standing in a thread.
+ *
+ * A quote-reply names its card exactly; a plain reply names nothing.
+ * But a bot that asks "how did it go?" and then cannot read the answer
+ * typed straight back at it is asking a question it does not want
+ * answered — WhatsApp makes quoting an extra deliberate gesture, and
+ * agents reply the way they would to a person.
+ *
+ * Bounded on both ends: the last few bot messages of one conversation,
+ * none older than `withinHours`. Beyond that the thread has moved on
+ * and a stray "done" belongs to something else.
+ */
+export async function latestBotTarget(params: {
+  accountId: string;
+  conversationId: string;
+  entityType: BotTargetEntity;
+  withinHours?: number;
+  client?: SupabaseClient;
+}): Promise<BotTarget | null> {
+  try {
+    const db = params.client || supabaseAdmin();
+    const since = new Date(
+      Date.now() - (params.withinHours ?? 48) * 60 * 60 * 1000
+    ).toISOString();
+
+    const { data: recent, error: msgErr } = await db
+      .from('messages')
+      .select('message_id, created_at')
+      .eq('conversation_id', params.conversationId)
+      .eq('sender_type', 'bot')
+      .not('message_id', 'is', null)
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (msgErr) {
+      console.error('[bot-target] recent lookup failed:', msgErr);
+      return null;
+    }
+
+    const wamids = (recent || [])
+      .map((m) => m.message_id as string | null)
+      .filter((id): id is string => !!id);
+    if (!wamids.length) return null;
+
+    const { data, error } = await db
+      .from('bot_message_targets')
+      .select('entity_type, entity_id, wa_message_id')
+      .eq('account_id', params.accountId)
+      .eq('entity_type', params.entityType)
+      .in('wa_message_id', wamids);
+    if (error) {
+      console.error('[bot-target] recent target lookup failed:', error);
+      return null;
+    }
+    if (!data?.length) return null;
+
+    // wamids is newest-first, so the earliest index is the newest card.
+    const byWamid = new Map(data.map((t) => [t.wa_message_id as string, t]));
+    for (const id of wamids) {
+      const hit = byWamid.get(id);
+      if (hit) {
+        return {
+          entityType: hit.entity_type as BotTargetEntity,
+          entityId: hit.entity_id as string,
+        };
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error('[bot-target] recent lookup threw:', err);
+    return null;
+  }
+}
+
 /** The row a quote-reply is aimed at, or null when the reply quotes
  *  something that was never a confirmation card. */
 export async function resolveBotTarget(params: {

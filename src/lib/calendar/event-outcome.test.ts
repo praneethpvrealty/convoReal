@@ -94,3 +94,30 @@ describe('parseEventOutcome — a bare "done"', () => {
     expect(parseEventOutcome('Need the paperwork done before we meet')).toBeNull();
   });
 });
+
+describe('parseEventOutcome — replies seen in production', () => {
+  it('reads the reply the nudge actually got', () => {
+    // Verbatim from the thread that came back "I couldn't tell what
+    // that was". The parse was never the problem — the card it
+    // answered had no target row — but pin the sentence so a future
+    // tightening of the patterns cannot quietly drop it again.
+    const parsed = parseEventOutcome(
+      'He visited the property yesterday only and will get back to me.'
+    );
+    expect(parsed?.status).toBe('completed');
+    expect(parsed?.outcome).toBe(
+      'He visited the property yesterday only and will get back to me.'
+    );
+  });
+
+  it('does not read "yesterday" as a reschedule', () => {
+    // Only forward-looking words move an event. A visit that happened
+    // yesterday is a report, not a request to move anything.
+    expect(parseEventOutcome('Met him yesterday, going well')?.status).toBe('completed');
+    expect(parseEventOutcome('Visited the site yesterday')?.status).toBe('completed');
+  });
+
+  it('still yields to a reschedule that names a new time', () => {
+    expect(parseEventOutcome('Visited the site, but push it to tomorrow 4pm')).toBeNull();
+  });
+});

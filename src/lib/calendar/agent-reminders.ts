@@ -370,7 +370,7 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
       `🤔 *How did it go?*`,
       `${emoji} ${appt.title}${appt.contact?.name ? ` with ${appt.contact.name}` : ''} was scheduled for ${istTime(appt.start_time)} and is still open.`,
       '',
-      'Mark it *Completed* on the Calendar page and log the minutes / outcome while it\'s fresh — or reschedule it if it slipped.',
+      '_Reply to this message and tell me how it went — I\'ll close it off. Or say when to move it to._',
     ].join('\n');
 
     const result = await sendWhatsAppMessageAndPersist({
@@ -383,6 +383,20 @@ export async function sendOverdueNudges(now: Date = new Date()): Promise<void> {
     });
     if (!result.success) {
       console.warn(`[Overdue Nudge] send failed for appt ${appt.id}:`, result.error);
+    } else {
+      // The card that asks "how did it go?" was the one card a reply
+      // could not reach: without a target row a quote-reply on it
+      // resolved to nothing, so "he visited the property yesterday"
+      // fell through to the intake classifier and came back "I
+      // couldn't tell what that was" — while the visit it asked about
+      // stayed open.
+      await recordBotTarget({
+        accountId: appt.account_id,
+        waMessageId: result.whatsappMessageId,
+        entityType: 'appointment',
+        entityId: appt.id,
+        client: admin,
+      });
     }
 
     await createNotification({
