@@ -17,13 +17,24 @@ describe('buildEnquiryFollowupTemplatePayload', () => {
     expect(payload.category).toBe('Utility');
   });
 
-  it('uses a single body variable so a send never fails on missing contact data', () => {
+  it('carries only the two variables a send can always resolve', () => {
+    // The greeting name (placeholder-safe) and the brokerage sending
+    // it (falls back to the product name) — both always resolve, so a
+    // send can never fail on a missing per-contact value.
     const payload = buildEnquiryFollowupTemplatePayload();
     const indices = [...payload.body_text.matchAll(/\{\{(\d+)\}\}/g)].map(
       (m) => m[1]
     );
-    expect(indices).toEqual(['1']);
-    expect(payload.sample_values?.body).toHaveLength(1);
+    expect(indices).toEqual(['1', '2']);
+    expect(payload.sample_values?.body).toHaveLength(2);
+  });
+
+  it('names the sender in the opening line, not after the ask', () => {
+    // The lead has never messaged this number. An anonymous message
+    // claiming to know about "your property enquiry" is the shape of a
+    // scam, and trust is decided on the first line.
+    const first = buildEnquiryFollowupTemplatePayload().body_text.split('\n')[0];
+    expect(first).toContain('{{2}}');
   });
 
   it('the update button routes to the preference flow via its text', () => {
@@ -63,13 +74,28 @@ describe('buildEnquiryFollowupTemplatePayload', () => {
 });
 
 describe('buildEnquiryFollowupParams', () => {
-  it('greets by first name', () => {
-    expect(buildEnquiryFollowupParams('Praneeth Kumar')).toEqual(['Praneeth']);
+  it('greets by first name and signs with the brokerage', () => {
+    expect(buildEnquiryFollowupParams('Praneeth Kumar', 'Aryavarta Ventures')).toEqual([
+      'Praneeth',
+      'Aryavarta Ventures',
+    ]);
   });
 
   it('never greets a placeholder or missing name', () => {
-    expect(buildEnquiryFollowupParams('Housing Lead')).toEqual(['there']);
-    expect(buildEnquiryFollowupParams(null)).toEqual(['there']);
-    expect(buildEnquiryFollowupParams('  ')).toEqual(['there']);
+    for (const name of ['Housing Lead', null, '  ']) {
+      expect(buildEnquiryFollowupParams(name, 'Aryavarta Ventures')[0], String(name)).toBe(
+        'there'
+      );
+    }
+  });
+
+  it('signs with the product name rather than sending unsigned', () => {
+    // Meta rejects an empty param, and an unsigned message is the
+    // problem this revision exists to fix — so a blank account name
+    // falls back rather than producing either.
+    for (const brand of [undefined, null, '   ']) {
+      const [, signature] = buildEnquiryFollowupParams('Praneeth', brand);
+      expect(signature.length, String(brand)).toBeGreaterThan(0);
+    }
   });
 });

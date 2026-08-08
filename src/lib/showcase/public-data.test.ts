@@ -114,11 +114,11 @@ describe('cachedFetchShowcaseData', () => {
     const first = await cachedFetchShowcaseData('acc-renamed', false);
     expect(first.accountName).toBe('Aryavarta Ventures');
 
-    state.accountName = 'Aryavarta Realty';
+    state.accountName = 'Aryavarta Ventures';
     state.accountUpdatedAt = '2026-07-31T09:00:00Z';
     const second = await cachedFetchShowcaseData('acc-renamed', false);
 
     expect(state.catalogueFetches).toBe(2);
-    expect(second.accountName).toBe('Aryavarta Realty');
+    expect(second.accountName).toBe('Aryavarta Ventures');
   });
 });

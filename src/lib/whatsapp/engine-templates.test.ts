@@ -7,12 +7,12 @@ describe('missingEngineTemplates', () => {
     const missing = missingEngineTemplates([
       'location_reveal',
       'inventory_update',
-      'property_enquiry_status',
+      'enquiry_status_notice',
     ]);
     expect(missing.map((t) => t.name)).toEqual([
       'property_enquiry_info',
       'property_enquiry_gallery',
-      'property_enquiry_notice',
+      'listing_status_notice',
     ]);
   });
 

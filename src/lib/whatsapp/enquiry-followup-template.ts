@@ -10,6 +10,11 @@
 import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
+import { BRANDING } from '@/config/branding';
+import {
+  pickApprovedTemplate,
+  type ApprovedTemplateCandidate,
+} from '@/lib/whatsapp/pick-approved-template';
 
 /** Bumped once — Meta will not re-review an approved template in
  *  place, so each category fix needs a new name:
@@ -23,7 +28,49 @@ import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
  *  opt-in is asked free-form AFTER the lead replies (the buyer digest
  *  consent flow handles it once a window is open), where template
  *  categories don't apply. */
-export const ENQUIRY_FOLLOWUP_TEMPLATE_NAME = 'property_enquiry_status';
+/**
+ * Bumped again — this time for trust, not for category.
+ *
+ * property_enquiry_status names nobody. It goes to imported portal
+ * leads who have NEVER messaged this number, so it arrives from an
+ * unknown sender claiming to know about "your property enquiry" —
+ * which is exactly the shape of a scam. WhatsApp does show the
+ * business display name in the header, but a lead who enquired on
+ * MagicBricks weeks ago has no reason to connect that name to this
+ * message, and a recipient who does not trust it does not reply: they
+ * report or block, and the WABA quality rating pays for it.
+ *
+ * So the brokerage identifies itself in the opening line, where trust
+ * is decided rather than after the ask. Naming the sender is
+ * administrative, not promotional — it is the opposite of the
+ * anonymity Meta's spam rules exist to catch — but it is still a
+ * content change, and Meta will not re-review in place. Hence a new
+ * name, with the approved one kept as the fallback until this clears.
+ */
+export const ENQUIRY_FOLLOWUP_TEMPLATE_NAME = 'enquiry_status_notice';
+
+/** Earlier names, newest first. Approved and still sending. */
+export const LEGACY_ENQUIRY_FOLLOWUP_TEMPLATE_NAMES = [
+  'property_enquiry_status',
+];
+
+export const ENQUIRY_FOLLOWUP_TEMPLATE_NAMES = [
+  ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+  ...LEGACY_ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
+];
+
+/** How many body params a given name expects — the signed revision
+ *  carries the brokerage name, the legacy one does not, and a send
+ *  with the wrong count is rejected by Meta. */
+export function enquiryFollowupParamCount(templateName: string): 1 | 2 {
+  return templateName === ENQUIRY_FOLLOWUP_TEMPLATE_NAME ? 2 : 1;
+}
+
+export function pickEnquiryFollowupTemplate<T extends ApprovedTemplateCandidate>(
+  rows: T[],
+): T | null {
+  return pickApprovedTemplate(rows, ENQUIRY_FOLLOWUP_TEMPLATE_NAMES);
+}
 
 /** Button texts round-trip through the webhook: a tap arrives as
  *  message.button.text, so each label must satisfy the matcher that
@@ -47,7 +94,7 @@ export function buildEnquiryFollowupTemplatePayload(): TemplatePayload {
     // Single variable so a send can never fail on a missing per-contact
     // value — the greeting name always resolves (placeholder-safe).
     body_text: [
-      'Hi {{1}}, this is a status update on your property enquiry:',
+      'Hi {{1}}, this is a status update on your property enquiry with {{2}}:',
       '',
       'The listing you enquired about is no longer available, so your enquiry cannot be fulfilled as filed.',
       '',
@@ -58,21 +105,27 @@ export function buildEnquiryFollowupTemplatePayload(): TemplatePayload {
       { type: 'QUICK_REPLY', text: ENQUIRY_FOLLOWUP_CLOSE_BUTTON },
     ],
     sample_values: {
-      body: ['Praneeth'],
+      body: ['Praneeth', 'Aryavarta Ventures'],
     },
   };
 }
 
 /**
- * Body param {{1}}: first name, guaranteed non-empty (Meta rejects
- * empty values). A lead filed under "Housing Lead" is greeted "there",
- * never "Housing".
+ * Body params {{1}} first name, {{2}} the brokerage sending it. Both
+ * guaranteed non-empty (Meta rejects empty values). A lead filed under
+ * "Housing Lead" is greeted "there", never "Housing"; an account with
+ * no name set falls back to the product name rather than sending a
+ * message signed by nobody.
  */
 export function buildEnquiryFollowupParams(
-  contactName: string | null | undefined
-): [name: string] {
+  contactName: string | null | undefined,
+  brandName?: string | null
+): [name: string, brand: string] {
   const firstName = isPlaceholderLeadName(contactName)
     ? 'there'
     : contactName!.trim().split(/\s+/)[0];
-  return [sanitizeTemplateParam(firstName)];
+  return [
+    sanitizeTemplateParam(firstName),
+    sanitizeTemplateParam(brandName?.trim() || BRANDING.name),
+  ];
 }

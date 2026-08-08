@@ -37,8 +37,47 @@ import type { TemplatePayload } from '@/lib/whatsapp/template-validators';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Property } from '@/types';
+import { BRANDING } from '@/config/branding';
+import {
+  pickApprovedTemplate,
+  type ApprovedTemplateCandidate,
+} from '@/lib/whatsapp/pick-approved-template';
 
-export const ENQUIRY_NOTICE_TEMPLATE_NAME = 'property_enquiry_notice';
+/**
+ * Bumped once, in step with enquiry_status_notice and for the same
+ * reason: property_enquiry_notice names nobody, and it reaches leads
+ * who have never messaged this number. The brokerage now identifies
+ * itself in the opening line.
+ *
+ * The parity discipline in the header above still holds — this stays
+ * the status notice's copy plus one property line, and the test locks
+ * that. Both templates gained {{2}} together so the delta between them
+ * is still exactly the property.
+ */
+export const ENQUIRY_NOTICE_TEMPLATE_NAME = 'listing_status_notice';
+
+/** Earlier names, newest first. Approved and still sending. */
+export const LEGACY_ENQUIRY_NOTICE_TEMPLATE_NAMES = [
+  'property_enquiry_notice',
+];
+
+export const ENQUIRY_NOTICE_TEMPLATE_NAMES = [
+  ENQUIRY_NOTICE_TEMPLATE_NAME,
+  ...LEGACY_ENQUIRY_NOTICE_TEMPLATE_NAMES,
+];
+
+/** 2 for the legacy name (name + property), 3 for the signed revision
+ *  (name + brokerage + property). A send with the wrong count is
+ *  rejected by Meta. */
+export function enquiryNoticeParamCount(templateName: string): 2 | 3 {
+  return templateName === ENQUIRY_NOTICE_TEMPLATE_NAME ? 3 : 2;
+}
+
+export function pickEnquiryNoticeTemplate<T extends ApprovedTemplateCandidate>(
+  rows: T[],
+): T | null {
+  return pickApprovedTemplate(rows, ENQUIRY_NOTICE_TEMPLATE_NAMES);
+}
 
 /** The two buttons property_enquiry_status was approved with, kept
  *  verbatim. Each still round-trips through its webhook parser, and the
@@ -52,9 +91,9 @@ export function buildEnquiryNoticeTemplatePayload(): TemplatePayload {
     category: 'Utility',
     language: 'en_US',
     body_text: [
-      'Hi {{1}}, this is a status update on your property enquiry:',
+      'Hi {{1}}, this is a status update on your property enquiry with {{2}}:',
       '',
-      'Property: {{2}}',
+      'Property: {{3}}',
       '',
       'The listing you enquired about is no longer available, so your enquiry cannot be fulfilled as filed.',
       '',
@@ -65,7 +104,11 @@ export function buildEnquiryNoticeTemplatePayload(): TemplatePayload {
       { type: 'QUICK_REPLY', text: ENQUIRY_NOTICE_CLOSE_BUTTON },
     ],
     sample_values: {
-      body: ['Praneeth', '3 BHK at Prestige Lakeside Habitat, Whitefield'],
+      body: [
+        'Praneeth',
+        'Aryavarta Ventures',
+        '3 BHK at Prestige Lakeside Habitat, Whitefield',
+      ],
     },
   };
 }
@@ -90,16 +133,20 @@ export function describeEnquiredProperty(property: Property): string {
 }
 
 /**
- * Body params {{1}}..{{2}}: first name and the enquired property. Both
- * are guaranteed non-empty — Meta rejects empty values.
+ * Body params {{1}}..{{3}}: first name, the brokerage sending it, and
+ * the enquired property. All three are guaranteed non-empty — Meta
+ * rejects empty values, and an unsigned message is the problem the
+ * brokerage param exists to fix.
  */
 export function buildEnquiryNoticeParams(
   contactName: string | null | undefined,
-  enquired: Property
-): [name: string, property: string] {
+  enquired: Property,
+  brandName?: string | null
+): [name: string, brand: string, property: string] {
   return buildEnquiryNoticeTextParams(
     contactName,
-    describeEnquiredProperty(enquired)
+    describeEnquiredProperty(enquired),
+    brandName
   );
 }
 
@@ -110,10 +157,15 @@ export function buildEnquiryNoticeParams(
  */
 export function buildEnquiryNoticeTextParams(
   contactName: string | null | undefined,
-  description: string
-): [name: string, property: string] {
+  description: string,
+  brandName?: string | null
+): [name: string, brand: string, property: string] {
   const firstName = isPlaceholderLeadName(contactName)
     ? 'there'
     : contactName!.trim().split(/\s+/)[0];
-  return [sanitizeTemplateParam(firstName), sanitizeTemplateParam(description)];
+  return [
+    sanitizeTemplateParam(firstName),
+    sanitizeTemplateParam(brandName?.trim() || BRANDING.name),
+    sanitizeTemplateParam(description),
+  ];
 }

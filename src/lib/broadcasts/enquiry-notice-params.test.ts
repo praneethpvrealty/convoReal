@@ -5,6 +5,7 @@ import {
   ENQUIRY_NOTICE_FAILURE_REASONS,
   type EnquiryNoticeContext,
 } from './enquiry-notice-params';
+import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
 
 function prop(overrides: Partial<Property>): Property {
   return {
@@ -26,7 +27,13 @@ function prop(overrides: Partial<Property>): Property {
 const contact = { id: 'c1', name: 'Praneeth' } as Pick<Contact, 'id' | 'name'>;
 
 function ctx(over: Partial<EnquiryNoticeContext> = {}): EnquiryNoticeContext {
-  return { enquired: new Map(), enquiryText: new Map(), ...over };
+  return {
+    enquired: new Map(),
+    enquiryText: new Map(),
+    brandName: 'Aryavarta Ventures',
+    templateName: ENQUIRY_NOTICE_TEMPLATE_NAME,
+    ...over,
+  };
 }
 
 describe('resolveEnquiryNoticeParams', () => {
@@ -47,7 +54,11 @@ describe('resolveEnquiryNoticeParams', () => {
       })
     );
     expect(result).toEqual({
-      params: ['Praneeth', '3 BHK at Prestige Lakeside, Whitefield'],
+      params: [
+        'Praneeth',
+        'Aryavarta Ventures',
+        '3 BHK at Prestige Lakeside, Whitefield',
+      ],
     });
   });
 
@@ -65,6 +76,7 @@ describe('resolveEnquiryNoticeParams', () => {
     expect(result).toEqual({
       params: [
         'Praneeth',
+        'Aryavarta Ventures',
         '3 BHK Residential House for Sale in Koramangala, Bangalore',
       ],
     });
@@ -81,14 +93,42 @@ describe('resolveEnquiryNoticeParams', () => {
       })
     );
     if ('failure' in result) throw new Error('expected params');
-    expect(result.params[1]).toContain('Prestige Lakeside');
-    expect(result.params[1]).not.toContain('old requirement');
+    expect(result.params[2]).toContain('Prestige Lakeside');
+    expect(result.params[2]).not.toContain('old requirement');
   });
 
   it('refuses rather than sending "Property:" with nothing after it', () => {
     expect(resolveEnquiryNoticeParams(contact, ctx())).toEqual({
       failure: 'no_enquired_property',
     });
+  });
+
+  it('signs both paths with the brokerage', () => {
+    // The lead has never messaged this number, so an unsigned notice
+    // arrives from a stranger claiming to know about their enquiry.
+    for (const over of [
+      { enquired: new Map([['c1', prop({ title: 'Prestige Lakeside' })]]) },
+      { enquiryText: new Map([['c1', '2 BHK in Whitefield']]) },
+    ]) {
+      const result = resolveEnquiryNoticeParams(contact, ctx(over));
+      if ('failure' in result) throw new Error('expected params');
+      expect(result.params[1]).toBe('Aryavarta Ventures');
+    }
+  });
+
+  it('drops the brokerage param for the legacy name', () => {
+    // The predecessor has no {{2}} for it, and Meta rejects a send
+    // whose param count does not match the template.
+    const result = resolveEnquiryNoticeParams(
+      contact,
+      ctx({
+        enquired: new Map([['c1', prop({ title: 'Prestige Lakeside' })]]),
+        templateName: 'property_enquiry_notice',
+      })
+    );
+    if ('failure' in result) throw new Error('expected params');
+    expect(result.params).toHaveLength(2);
+    expect(result.params[1]).toContain('Prestige Lakeside');
   });
 
   it('the failure names the fix, not just the fault', () => {

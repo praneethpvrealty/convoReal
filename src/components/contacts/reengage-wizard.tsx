@@ -33,8 +33,14 @@ import { createClient } from '@/lib/supabase/client';
 import {
   buildEnquiryFollowupTemplatePayload,
   ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+  ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
+  enquiryFollowupParamCount,
+  pickEnquiryFollowupTemplate,
 } from '@/lib/whatsapp/enquiry-followup-template';
-import { ENQUIRY_NOTICE_TEMPLATE_NAME } from '@/lib/whatsapp/enquiry-notice-template';
+import {
+  ENQUIRY_NOTICE_TEMPLATE_NAME,
+  ENQUIRY_NOTICE_TEMPLATE_NAMES,
+} from '@/lib/whatsapp/enquiry-notice-template';
 import {
   parseContactsCsv,
   extractPreferencesInBatches,
@@ -44,6 +50,7 @@ import {
 import { loadBatchSplit, type BatchSplit } from '@/lib/reengagement/queries';
 import { canSendToEveryLead } from '@/lib/reengagement/template-gate';
 import { useAuth } from '@/hooks/use-auth';
+import { BRANDING } from '@/config/branding';
 
 interface ReengageWizardProps {
   open: boolean;
@@ -87,7 +94,7 @@ export function ReengageWizard({
   onOpenChange,
   onImported,
 }: ReengageWizardProps) {
-  const { accountId } = useAuth();
+  const { accountId, account } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<Step>('mode');
@@ -116,6 +123,8 @@ export function ReengageWizard({
   const [sending, setSending] = useState(false);
   const [split, setSplit] = useState<BatchSplit | null>(null);
   const [updateTemplateApproved, setUpdateTemplateApproved] = useState(false);
+  /** The approved anchored name, which may be the predecessor. */
+  const [anchoredName, setAnchoredName] = useState<string | null>(null);
   const [sentSplit, setSentSplit] = useState<{
     anchored: number;
     generic: number;
@@ -133,6 +142,28 @@ export function ReengageWizard({
     propertiesUnresolved: number;
   } | null>(null);
 
+  /** The name the batch actually goes out under — the signed revision
+   *  once approved, otherwise the predecessor still carrying sends. */
+  const followupName =
+    (template as (TemplateRow & { name?: string }) | null)?.name ??
+    ENQUIRY_FOLLOWUP_TEMPLATE_NAME;
+
+  /** Body variables for that name. The signed revision carries the
+   *  brokerage as {{2}}; the legacy one has no such param, and sending
+   *  a spare is rejected by Meta. */
+  const followupVariables = (): Record<
+    string,
+    { type: 'field' | 'static'; value: string }
+  > => {
+    const vars: Record<string, { type: 'field' | 'static'; value: string }> = {
+      '1': { type: 'field', value: 'name' },
+    };
+    if (enquiryFollowupParamCount(followupName) === 2) {
+      vars['2'] = { type: 'static', value: account?.name?.trim() || BRANDING.name };
+    }
+    return vars;
+  };
+
   const fetchTemplate = useCallback(async () => {
     setTemplateLoading(true);
     try {
@@ -141,26 +172,39 @@ export function ReengageWizard({
         .from('message_templates')
         .select('id, name, status, category, language, rejection_reason')
         .in('name', [
-          ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
-          ENQUIRY_NOTICE_TEMPLATE_NAME,
+          ...ENQUIRY_FOLLOWUP_TEMPLATE_NAMES,
+          ...ENQUIRY_NOTICE_TEMPLATE_NAMES,
         ])
         .order('created_at', { ascending: false });
       if (error) throw error;
       const rows = (data ?? []) as (TemplateRow & { name?: string })[];
+      // Through the chain, not by exact name: the signed revision names
+      // the brokerage in its opening line and is under review, so the
+      // approved predecessor has to keep the wizard working. Picking by
+      // the current name alone would report "template not set up" to an
+      // account that has a perfectly good one.
       setTemplate(
-        rows.find((r) => r.name === ENQUIRY_FOLLOWUP_TEMPLATE_NAME) ?? null
+        pickEnquiryFollowupTemplate(
+          rows.filter((r): r is TemplateRow & { name: string } => Boolean(r.name)),
+        ) ??
+          rows.find((r) =>
+            ENQUIRY_FOLLOWUP_TEMPLATE_NAMES.includes(r.name ?? ''),
+          ) ??
+          null,
       );
       // The property-anchored template is optional: without it the
       // batch still goes out on the generic notice.
       // Utility, not merely APPROVED: Meta re-files a failed Utility
       // submission as Marketing, and those sends are silently dropped
       // at capped recipients. The generic notice is the safe fallback.
-      setUpdateTemplateApproved(
-        rows.some(
-          (r) =>
-            r.name === ENQUIRY_NOTICE_TEMPLATE_NAME && canSendToEveryLead(r)
-        )
+      // Same chain treatment: the signed revision may be under review
+      // while its predecessor is approved and sending.
+      const anchored = rows.filter(
+        (r) => r.name && ENQUIRY_NOTICE_TEMPLATE_NAMES.includes(r.name),
       );
+      const anchoredPick = anchored.find((r) => canSendToEveryLead(r)) ?? null;
+      setAnchoredName(anchoredPick?.name ?? null);
+      setUpdateTemplateApproved(Boolean(anchoredPick));
     } catch {
       toast.error('Failed to check template status');
     } finally {
@@ -378,11 +422,11 @@ export function ReengageWizard({
           body: JSON.stringify({
             name: `Lead re-engagement — ${batchTag}`,
             template: {
-              name: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+              name: followupName,
               language: template?.language ?? 'en_US',
             },
             audience: { type: 'tags', tagIds: [batchTagId] },
-            variables: { '1': { type: 'field', value: 'name' } },
+            variables: followupVariables(),
           }),
         });
         const data = await res.json().catch(() => null);
@@ -400,7 +444,7 @@ export function ReengageWizard({
         split.anchored.length > 0 && updateTemplateApproved
           ? await startBroadcast({
               name: `Lead re-engagement (property-anchored) — ${batchTag}`,
-              templateName: ENQUIRY_NOTICE_TEMPLATE_NAME,
+              templateName: anchoredName ?? ENQUIRY_NOTICE_TEMPLATE_NAME,
               leads: split.anchored,
               // Filled per recipient by the sender from the enquired
               // property and the best match, not from contact columns.
@@ -417,9 +461,9 @@ export function ReengageWizard({
         genericLeads.length > 0
           ? await startBroadcast({
               name: `Lead re-engagement — ${batchTag}`,
-              templateName: ENQUIRY_FOLLOWUP_TEMPLATE_NAME,
+              templateName: followupName,
               leads: genericLeads,
-              variables: { '1': { type: 'field', value: 'name' } },
+              variables: followupVariables(),
             })
           : null;
 

@@ -46,9 +46,12 @@ describe('buildEnquiryNoticeTemplatePayload', () => {
     const approved = buildEnquiryFollowupTemplatePayload();
     const notice = buildEnquiryNoticeTemplatePayload();
 
-    const withoutPropertyLine = notice.body_text
-      .replace('Property: {{2}}\n\n', '')
-      .replace(/\{\{2\}\}/g, '');
+    // Both templates carry {{2}} as the brokerage, so the only delta
+    // left is the property line — which is {{3}} here and absent there.
+    const withoutPropertyLine = notice.body_text.replace(
+      'Property: {{3}}\n\n',
+      ''
+    );
     expect(withoutPropertyLine).toBe(approved.body_text);
 
     expect(notice.category).toBe(approved.category);
@@ -73,13 +76,13 @@ describe('buildEnquiryNoticeTemplatePayload', () => {
     );
   });
 
-  it('has two contiguous body variables with matching samples', () => {
+  it('has three contiguous body variables with matching samples', () => {
     const payload = buildEnquiryNoticeTemplatePayload();
     const indices = [...payload.body_text.matchAll(/\{\{(\d+)\}\}/g)].map(
       (m) => m[1]
     );
-    expect([...new Set(indices)]).toEqual(['1', '2']);
-    expect(payload.sample_values?.body).toHaveLength(2);
+    expect([...new Set(indices)]).toEqual(['1', '2', '3']);
+    expect(payload.sample_values?.body).toHaveLength(3);
   });
 
   it('every button still routes to a webhook action via its text', () => {
@@ -126,7 +129,7 @@ describe('describeEnquiredProperty', () => {
 });
 
 describe('buildEnquiryNoticeParams', () => {
-  it('builds both params, greeting by first name', () => {
+  it('builds all three params, greeting by first name', () => {
     expect(
       buildEnquiryNoticeParams(
         'Praneeth Kumar',
@@ -134,9 +137,14 @@ describe('buildEnquiryNoticeParams', () => {
           title: 'Prestige Lakeside Habitat',
           bedrooms: 3,
           sublocality: 'Whitefield',
-        })
+        }),
+        'Aryavarta Ventures'
       )
-    ).toEqual(['Praneeth', '3 BHK at Prestige Lakeside Habitat, Whitefield']);
+    ).toEqual([
+      'Praneeth',
+      'Aryavarta Ventures',
+      '3 BHK at Prestige Lakeside Habitat, Whitefield',
+    ]);
   });
 
   it('never greets a placeholder lead name', () => {
