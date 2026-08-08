@@ -77,7 +77,11 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
     sendWhatsAppMessageAndPersist(...args),
 }));
 
-import { checkAndSendAppointmentReminders } from './reminder';
+import {
+  checkAndSendAppointmentReminders,
+  reminderLocationText,
+  LOCATION_TO_FOLLOW,
+} from './reminder';
 
 const NOW = new Date('2026-08-01T06:00:00Z');
 const START = new Date('2026-08-01T06:30:00Z').toISOString();
@@ -134,5 +138,67 @@ describe('checkAndSendAppointmentReminders', () => {
       contactId: 'c-visit',
       templateName: 'property_visit_reminder',
     });
+  });
+});
+
+describe('reminderLocationText', () => {
+  const plot = {
+    type: 'Residential Plot',
+    location: 'Oval Reef Layout, Poojanahalli Village, Devanahalli',
+    sublocality: 'Devanahalli',
+    city: 'Bangalore',
+    state: 'Karnataka',
+  };
+
+  it('never sends the old placeholder to a client', () => {
+    // "Location: Scheduled Location" reads like a variable nobody
+    // filled in, because it was one.
+    expect(reminderLocationText(null, null)).not.toMatch(/scheduled location/i);
+    expect(reminderLocationText('', undefined)).toBe(LOCATION_TO_FOLLOW);
+  });
+
+  it("prefers the agent's own meeting point", () => {
+    expect(
+      reminderLocationText('Site office gate, opposite the water tank', plot)
+    ).toBe('Site office gate, opposite the water tank');
+  });
+
+  it('falls back to the locality for a guarded listing', () => {
+    // A plot is guarded by default: the showcase withholds its address,
+    // so a reminder to every contact on the appointment cannot leak it.
+    expect(reminderLocationText(null, plot)).toBe('Devanahalli, Bangalore');
+  });
+
+  it('gives the full address when the listing is not guarded', () => {
+    expect(
+      reminderLocationText(null, {
+        ...plot,
+        type: 'Flat/ Apartment',
+        location: 'Purva Vantage, HSR Layout',
+      })
+    ).toBe('Purva Vantage, HSR Layout');
+  });
+
+  it('honours an explicit privacy override on a guarded type', () => {
+    expect(reminderLocationText(null, { ...plot, location_privacy: 'exact' })).toBe(
+      plot.location
+    );
+  });
+
+  it('promises the address rather than echoing "available on request"', () => {
+    // localityLabel's own fallback is showcase copy; in a reminder it
+    // answers a question the client did not ask.
+    expect(
+      reminderLocationText(null, {
+        type: 'Residential Plot',
+        sublocality: null,
+        city: null,
+        state: null,
+      })
+    ).toBe(LOCATION_TO_FOLLOW);
+  });
+
+  it('trims whitespace-only input rather than sending a blank', () => {
+    expect(reminderLocationText('   ', null)).toBe(LOCATION_TO_FOLLOW);
   });
 });

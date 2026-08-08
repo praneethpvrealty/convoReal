@@ -4,6 +4,7 @@ import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatche
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { istDayWindow, istHourOf } from '@/lib/calendar/whatsapp-scheduler'
+import { isLocationGuarded, localityLabel } from '@/lib/inventory/location-guard'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ============================================================
@@ -28,6 +29,67 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // ============================================================
 
 const HOUR_MS = 60 * 60 * 1000
+
+/**
+ * What the reminder says when nobody typed a meeting point.
+ *
+ * Meta rejects an empty template parameter, so {{4}} always needs
+ * something — but the old filler was the words "Scheduled Location",
+ * which went out to clients as "Location: Scheduled Location". That
+ * reads like a variable nobody filled in, because it is one. This at
+ * least states a fact and sets an expectation.
+ */
+export const LOCATION_TO_FOLLOW = 'to be shared before the visit'
+
+/** Property fields the location text needs. Mirrors the guard's own
+ *  inputs so the reminder can never reveal an address the showcase
+ *  withholds. */
+export interface ReminderProperty {
+  title?: string | null
+  type?: string | null
+  location_privacy?: string | null
+  location?: string | null
+  sublocality?: string | null
+  city?: string | null
+  state?: string | null
+}
+
+/**
+ * Where the client is being told to go.
+ *
+ * The appointment's own `location` wins: an agent who typed a meeting
+ * point meant that exact string, and it is the only field that can say
+ * "site office gate, opposite the water tank".
+ *
+ * Failing that, a linked property can answer — through the SAME guard
+ * every other surface uses. A brokerage that hid a plot's address from
+ * its showcase has not agreed to broadcast it in a reminder, and this
+ * one goes to every contact on the appointment. Guarded listings give
+ * the locality; the agent puts the precise meeting point on the
+ * appointment when the client needs it.
+ */
+export function reminderLocationText(
+  appointmentLocation: string | null | undefined,
+  property: ReminderProperty | null | undefined
+): string {
+  const typed = (appointmentLocation || '').trim()
+  if (typed) return typed
+
+  if (property?.type) {
+    const guarded = isLocationGuarded({
+      type: property.type,
+      location_privacy: property.location_privacy,
+    })
+    const text = guarded
+      ? localityLabel(property)
+      : (property.location || '').trim() || localityLabel(property)
+    // localityLabel falls back to its own "available on request" copy,
+    // which reads worse here than saying when they will get it.
+    if (text && !/available on request/i.test(text)) return text
+  }
+
+  return LOCATION_TO_FOLLOW
+}
 
 // property_visit_reminder wording only fits event_type = 'site_visit'.
 // Everything else (meeting, call, follow_up, document, other) uses the
@@ -65,7 +127,7 @@ interface ReminderAppointment {
   remind_liaison: boolean
   liaison_id: string | null
   liaison: { id: string; name: string | null; phone: string | null } | null
-  property: { id: string; title: string | null } | null
+  property: (ReminderProperty & { id: string }) | null
   account: { name: string } | null
 }
 
@@ -165,7 +227,7 @@ async function sendToAllRecipients(
 
     const clientName = contact.name || 'Client'
     const visitTitle = appt.property?.title || appt.title || (isSiteVisit ? 'Property visit' : 'Appointment')
-    const locationText = appt.location || 'Scheduled Location'
+    const locationText = reminderLocationText(appt.location, appt.property)
     // Must mirror the four approved template bodies word-for-word —
     // Meta renders {{n}} positionally against whatever it approved,
     // so this string is only the local Inbox preview copy, but it
@@ -324,7 +386,7 @@ async function sendLiaisonReminder(
         appt.liaison.name || 'Partner',
         visitTitle,
         formatIstTime(appt.start_time),
-        appt.location || 'Scheduled Location',
+        reminderLocationText(appt.location, appt.property),
         appt.account?.name || 'our team',
       ],
     })
@@ -356,7 +418,7 @@ export async function checkAndSendAppointmentReminders(now: Date = new Date()): 
   const { data: appointments, error } = await admin
     .from('appointments')
     .select(
-      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title), account:accounts(name)'
+      'id, account_id, user_id, title, start_time, location, agenda, event_type, contact_id, contact_ids, reminder_morning_sent, reminder_1h_sent, remind_liaison, liaison_id, liaison:liaisons(id, name, phone), property:properties(id, title, type, location_privacy, location, sublocality, city, state), account:accounts(name)'
     )
     .eq('status', 'scheduled')
     .neq('event_type', 'call')
