@@ -1,9 +1,9 @@
 -- ============================================================
--- 217_share_seller_final_price.sql
+-- 218_share_seller_final_price.sql
 --
 -- May the bot quote the seller's floor to a buyer?
 --
--- Migration 215 gives a listing a seller_final_price, and the WhatsApp
+-- Migration 216 gives a listing a seller_final_price, and the WhatsApp
 -- lead Q&A can answer "is this negotiable?" from it instead of the
 -- handover line. Whether it SHOULD is a brokerage's call, not a
 -- default: for some desks the final rate is exactly what they tell a

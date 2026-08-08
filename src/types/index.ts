@@ -934,7 +934,7 @@ export interface Property {
    *  from it once an area is known; this keeps what the owner quoted. */
   price_per_sqft?: number | null;
   /** What the seller will actually accept, as a total and/or a per-Sq.Ft.
-   *  rate (migration 215). Internal — absent from PUBLIC_PROPERTY_FIELDS
+   *  rate (migration 216). Internal — absent from PUBLIC_PROPERTY_FIELDS
    *  and DEN_PROPERTY_SELECT, and reaches a buyer only through the
    *  WhatsApp lead Q&A when the account has opted in. */
   seller_final_price?: number | null;
@@ -1098,7 +1098,7 @@ export interface Property {
 }
 
 // ============================================================
-// Learned facts (218_learned_facts.sql)
+// Learned facts (219_learned_facts.sql)
 // ============================================================
 
 export interface LearnedFact {

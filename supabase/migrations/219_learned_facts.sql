@@ -1,5 +1,5 @@
 -- ============================================================
--- 218_learned_facts.sql
+-- 219_learned_facts.sql
 --
 -- One ledger for everything the Engine learns from a conversation.
 --
@@ -105,7 +105,7 @@ CREATE POLICY learned_facts_update ON learned_facts FOR UPDATE USING (
 );
 
 -- ── Fold in the property-only predecessor ────────────────────
--- Migration 216 shipped property_fact_suggestions on this branch. Carry
+-- Migration 217 shipped property_fact_suggestions on this branch. Carry
 -- anything it collected across rather than stranding it, then drop it:
 -- two queues asking the same question is exactly what this migration
 -- exists to stop.

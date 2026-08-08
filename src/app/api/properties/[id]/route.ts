@@ -213,7 +213,7 @@ export async function PUT(
       updateData.price = price;
     }
 
-    // What the seller will accept (migration 215) — internal, and never
+    // What the seller will accept (migration 216) — internal, and never
     // in a public payload: PUBLIC_PROPERTY_FIELDS does not list it.
     // Stamped with when and how it was set so an agent can tell a figure
     // they typed from one a bot proposal wrote.

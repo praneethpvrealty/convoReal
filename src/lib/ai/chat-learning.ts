@@ -17,7 +17,7 @@
 //      contact). No listing, nothing to attach a fact to.
 //   3. Gemini, told to return nothing rather than guess.
 //
-// It proposes; it never writes. See 216_property_fact_suggestions.sql
+// It proposes; it never writes. See 217_property_fact_suggestions.sql
 // for why a mis-parse must not be able to reprice live inventory.
 // ============================================================
 
