@@ -13,11 +13,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  LinearTransition,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { TAB_BAR_CLEARANCE } from '@/app/(app)/(tabs)/_layout';
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
@@ -562,7 +558,7 @@ export default function ContactsScreen() {
             />
           }
           renderItem={({ item, index }) => (
-            <EnterRow index={index} animateLayout>
+            <EnterRow index={index}>
               <ContactRow
                 contact={item}
                 dark={dark}
@@ -1049,7 +1045,6 @@ function ContactPeekCard({
     <Animated.View
       entering={FadeIn.duration(150)}
       exiting={FadeOut.duration(120)}
-      layout={LinearTransition.duration(180)}
       style={[
         styles.peekCapsule,
         {
@@ -1400,7 +1395,11 @@ const styles = StyleSheet.create({
     fontSize: 16.5,
     fontFamily: fonts.extrabold,
     letterSpacing: -0.2,
-    flexShrink: 1,
+    // Shrinks, but reluctantly: the name_tag beside it also shrinks, and
+    // an even weight lets a long tag ("Ex Purva vantage …") crush the
+    // name to two letters. Shrink is weighted by basis, so the wider tag
+    // gives up most of the space.
+    flexShrink: 0.3,
   },
   // Wraps like the other chip rows (properties specRow,
   // contact-picker metaRow): a classification plus two tags plus the
