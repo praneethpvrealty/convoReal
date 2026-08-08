@@ -32,6 +32,7 @@ import { AI_FEATURE_COSTS, type AiFeatureKey } from '@/lib/credits/types';
 import { notifyManagerLowBalance } from '@/lib/credits/notify';
 import { tryHandleOwnerScheduling, applySchedulingEdit } from '@/lib/calendar/whatsapp-scheduler';
 import { recordBotTarget, resolveBotTarget } from '@/lib/whatsapp/bot-message-target';
+import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import { applyRecordUpdate } from '@/lib/ai/record-edit';
 import {
   isOwnerHelpCommand,
@@ -670,6 +671,70 @@ export async function processOwnerChatbotMessage(
       }
     } catch (err) {
       console.error('[chatbot-engine] quote-reply edit failed:', err);
+    }
+  }
+
+  // 1.66. Quote-reply on the owner's OWN earlier message = run it again.
+  //
+  // A forwarded listing whose draft expired unconfirmed is still sitting
+  // in the thread, so "add this one" pointed at it is the obvious move —
+  // and it did nothing, because the intake read the two words of the
+  // reply instead of the listing they were aimed at.
+  //
+  // Only once no bot target claimed the reply (that is an edit, and it
+  // wins) and only with no draft open, so a correction mid-intake is
+  // never mistaken for a replay. The synthetic message carries no
+  // `context`, which is what stops this re-entering itself.
+  if (!editTarget && !propSession && !contactSession && message.context?.id) {
+    const replaySource = await resolveReplayTarget(
+      supabaseAdmin(),
+      conversation.id,
+      message.context.id
+    );
+    if (replaySource) {
+      // Meta keeps media for around 30 days, and the whole point of this
+      // path is old messages. Check before re-entering: a throw deep in
+      // the intake would surface as silence, where "forward it again" is
+      // something the owner can act on.
+      if (replaySource.mediaId) {
+        try {
+          await getMediaUrl({ mediaId: replaySource.mediaId, accessToken });
+        } catch {
+          const reply =
+            "⌛ *That file has expired on WhatsApp* — Meta only keeps it for about 30 days. Please forward the photo or PDF again and I'll pick it up.";
+          const sendRes = await sendTextMessage({ phoneNumberId, accessToken, to: contactRecord.phone, text: reply });
+          await saveBotMessage(conversation.id, reply, sendRes.messageId);
+          return true;
+        }
+      }
+
+      console.log(`[chatbot-engine] replaying message ${replaySource.id} from quote-reply`);
+      return await processOwnerChatbotMessage(
+        {
+          ...message,
+          type: replaySource.contentType,
+          image:
+            replaySource.contentType === 'image' && replaySource.mediaId
+              ? { id: replaySource.mediaId, mime_type: '' }
+              : undefined,
+          document:
+            replaySource.contentType === 'document' && replaySource.mediaId
+              ? { id: replaySource.mediaId, mime_type: '' }
+              : undefined,
+          video:
+            replaySource.contentType === 'video' && replaySource.mediaId
+              ? { id: replaySource.mediaId, mime_type: '' }
+              : undefined,
+          context: undefined,
+        },
+        replayText(replaySource.contentText, cleanedText),
+        contactRecord,
+        conversation,
+        accountId,
+        userId,
+        accessToken,
+        phoneNumberId
+      );
     }
   }
 
