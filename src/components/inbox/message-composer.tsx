@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
 import { useCan } from "@/hooks/use-can";
 import { cn } from "@/lib/utils";
+import {
+  pickVoiceNoteMime,
+  voiceNoteFilename,
+} from "@/lib/whatsapp/voice-note-format";
 import { ReplyQuote } from "./reply-quote";
 
 interface ReplyDraft {
@@ -115,10 +119,20 @@ export function MessageComposer({
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Chrome and Firefox produce ogg/opus, Safari mp4 — both are types
-      // WhatsApp accepts, so whatever the browser picks is sent as-is
-      // rather than transcoded in the page.
-      const recorder = new MediaRecorder(stream);
+      // Firefox records ogg/opus and Safari mp4, but Chrome and Edge
+      // default to webm — which WhatsApp refuses. The type is pinned to
+      // one Meta accepts rather than transcoded in the page.
+      const mimeType = pickVoiceNoteMime((type) =>
+        typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(type),
+      );
+      if (!mimeType) {
+        stream.getTracks().forEach((track) => track.stop());
+        toast.error(
+          "This browser can't record a voice note WhatsApp accepts — attach an audio file instead.",
+        );
+        return;
+      }
+      const recorder = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
       keepRecordingRef.current = true;
 
@@ -131,12 +145,12 @@ export function MessageComposer({
         setRecording(false);
         setRecordSeconds(0);
         if (!keepRecordingRef.current) return;
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType });
+        const type = recorder.mimeType || mimeType;
+        const blob = new Blob(chunksRef.current, { type });
         // Under a second is a mis-click, not a message.
         if (blob.size < 1200) return;
-        const ext = recorder.mimeType.includes("mp4") ? "m4a" : "ogg";
         void sendFile(
-          new File([blob], `voice-${Date.now()}.${ext}`, { type: recorder.mimeType }),
+          new File([blob], voiceNoteFilename(type, Date.now()), { type }),
         );
       };
 
