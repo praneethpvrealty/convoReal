@@ -34,6 +34,7 @@ import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template
 import { burnCredits } from '@/lib/credits/burn';
 import { AI_FEATURE_COSTS } from '@/lib/credits/types';
 import { recordLearnedFacts } from '@/lib/learning/record';
+import { visibleTagSuggestions } from '@/lib/contact-preferences';
 import type { Contact } from '@/types';
 
 export type QualifierField = 'type' | 'budget' | 'location';
@@ -330,9 +331,12 @@ export function preferenceSignature(prefs: ExtractedPreferences): string {
  * which of them are writable, and what happens when they change.
  */
 export function preferenceFacts(
-  prefs: ExtractedPreferences
+  prefs: ExtractedPreferences,
+  /** Tag names already on the contact. A suggestion matching one is
+   *  not a proposal, it is already done. */
+  attachedTagNames: (string | null | undefined)[] = []
 ): { field: string; value: unknown }[] {
-  return [
+  const facts: { field: string; value: unknown }[] = [
     { field: 'pref_property_types', value: prefs.property_types },
     { field: 'pref_property_categories', value: prefs.property_categories },
     { field: 'pref_bhk_min', value: prefs.bhk_min },
@@ -343,7 +347,19 @@ export function preferenceFacts(
     { field: 'pref_excluded_areas', value: prefs.excluded_areas },
     { field: 'pref_projects', value: prefs.projects },
     { field: 'pref_listing_types', value: prefs.listing_types },
+    { field: 'pref_min_roi', value: prefs.min_roi },
+    { field: 'pref_suggested_tags', value: prefs.suggested_tags },
   ];
+
+  // Tags the buyer's own words earned but nobody has attached. Only
+  // the unattached ones travel: proposing a tag the contact already
+  // carries is a queue item that resolves to nothing.
+  const unattached = visibleTagSuggestions(prefs.suggested_tags, attachedTagNames);
+  if (unattached.length > 0) {
+    facts.push({ field: 'tags', value: unattached });
+  }
+
+  return facts;
 }
 
 /** Preferences already on the contact row, in extraction shape. */
@@ -477,7 +493,7 @@ export async function processBuyerQualificationMessage(
 
     const { data: contactRow } = await db
       .from('contacts')
-      .select('*, contact_notes(note_text)')
+      .select('*, contact_notes(note_text), contact_tags(tags(name))')
       .eq('id', contactRecord.id)
       .eq('account_id', accountId)
       .maybeSingle();
@@ -542,28 +558,37 @@ export async function processBuyerQualificationMessage(
       // all: one mis-parse of "not more than 2cr" changed who that
       // buyer matched, and there was nothing to look at and nothing to
       // roll back to.
+      // Joined in by the select above; Contact does not model the join
+      // row, and neither does any other reader of it.
+      const attachedTagNames = (
+        (contact as unknown as {
+          contact_tags?: { tags?: { name?: string | null } | null }[];
+        }).contact_tags ?? []
+      ).map((t) => t.tags?.name);
+
       await recordLearnedFacts({
         db,
         accountId,
         entity: 'contact',
         entityId: contact.id,
-        current: contact as unknown as Record<string, unknown>,
-        facts: preferenceFacts(prefs),
+        current: {
+          ...(contact as unknown as Record<string, unknown>),
+          tags: attachedTagNames.filter(Boolean),
+        },
+        facts: preferenceFacts(prefs, attachedTagNames),
         evidence: text,
         source: 'lead_message',
         contactId: contact.id,
         conversationId: conversation.id,
       });
 
-      // Bookkeeping and the fields the registry does not govern. The
-      // hash must be written even when nothing moved, or the same text
-      // is re-extracted — and paid for — on the next message.
+      // Bookkeeping only — every preference field now belongs to the
+      // registry. The hash must be written even when nothing moved, or
+      // the same text is re-extracted, and paid for, on every message.
       const { error: updateErr } = await db
         .from('contacts')
         .update({
           requirements,
-          pref_suggested_tags: prefs.suggested_tags,
-          pref_min_roi: prefs.min_roi,
           pref_source_hash: hash,
           pref_extracted_at: new Date().toISOString(),
         })

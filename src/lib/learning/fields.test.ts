@@ -120,3 +120,23 @@ describe('formatValue', () => {
     expect(formatValue(fieldPolicy('contact', 'pref_budget_max')!, null)).toBe('—');
   });
 });
+
+describe('tags as a learnable field', () => {
+  it('proposes rather than attaches — the taxonomy is shared', () => {
+    // An auto-attached "Investor" that should have been "Investors" is
+    // a duplicate every agent then works around.
+    expect(dispositionFor('contact', 'tags')).toBe('propose');
+    expect(fieldPolicy('contact', 'tags')!.applyAs).toBe('contact_tags');
+  });
+
+  it('keeps the suggestion column itself automatic', () => {
+    // Writing pref_suggested_tags attaches nothing and changes no
+    // matching, so it applies on sight like the rest of the extraction.
+    expect(dispositionFor('contact', 'pref_suggested_tags')).toBe('auto');
+    expect(fieldPolicy('contact', 'pref_suggested_tags')!.applyAs).toBeUndefined();
+  });
+
+  it('renders a yield as a percentage', () => {
+    expect(formatValue(fieldPolicy('contact', 'pref_min_roi')!, 4)).toBe('4%');
+  });
+});

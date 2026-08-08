@@ -86,10 +86,19 @@ export function prepareFacts(
     const policy = fieldPolicy(entity, fact.field);
     if (!policy) continue;
 
+    // A fact whose apply is not a column write can never be 'auto':
+    // the auto path issues one UPDATE, and silently dropping such a
+    // field from it would audit a change that never happened.
+    const applyAs = policy.applyAs ?? 'column';
+    if (applyAs !== 'column' && policy.disposition === 'auto') continue;
+
     const value = normalizeValue(policy, fact.value);
     if (value === null) continue;
 
-    const previous = current[policy.column] ?? null;
+    // Keyed by column for a column write, by field otherwise — `tags`
+    // has no column, and its "current" is the attached tag names.
+    const currentKey = applyAs === 'column' ? policy.column : policy.field;
+    const previous = current[currentKey] ?? null;
     if (!valuesDiffer(previous, value)) continue;
 
     seen.add(fact.field);

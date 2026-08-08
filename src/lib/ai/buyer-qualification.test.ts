@@ -11,6 +11,7 @@ import {
   preferenceSignature,
   shouldSendMatchesNow,
   buildFollowUpQuestion,
+  preferenceFacts,
 } from './buyer-qualification';
 import {
   EMPTY_PREFERENCES,
@@ -478,5 +479,47 @@ describe('buildFollowUpQuestion', () => {
       expect(text).not.toContain('Got it');
       expect(text).not.toContain('Perfect —');
     }
+  });
+});
+
+describe('preferenceFacts', () => {
+  const investor = prefs({
+    budget_max: 50_000_000,
+    areas: ['Devanahalli'],
+    min_roi: 4,
+    suggested_tags: ['Investor', 'NRI'],
+  });
+
+  it('hands every preference to the registry, including yield and tags', () => {
+    const fields = preferenceFacts(investor, []).map((f) => f.field);
+    expect(fields).toContain('pref_budget_max');
+    expect(fields).toContain('pref_min_roi');
+    expect(fields).toContain('pref_suggested_tags');
+    // Nothing is attached yet, so both suggestions are proposable.
+    expect(fields).toContain('tags');
+  });
+
+  it('proposes only the tags the contact does not already carry', () => {
+    const tagFact = preferenceFacts(investor, ['investor']).find(
+      (f) => f.field === 'tags'
+    );
+    expect(tagFact?.value).toEqual(['NRI']);
+  });
+
+  it('proposes no tags once every suggestion is attached', () => {
+    // A queue item that resolves to nothing is worse than no item.
+    const fields = preferenceFacts(investor, ['Investor', 'NRI']).map(
+      (f) => f.field
+    );
+    expect(fields).not.toContain('tags');
+    // The suggestion column still travels — it is what the chips read.
+    expect(fields).toContain('pref_suggested_tags');
+  });
+
+  it('proposes no tags when the buyer earned none', () => {
+    const fields = preferenceFacts(prefs({ budget_max: 1_000_000 }), []).map(
+      (f) => f.field
+    );
+    expect(fields).not.toContain('tags');
   });
 });

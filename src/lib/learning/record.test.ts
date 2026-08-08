@@ -100,3 +100,40 @@ describe('prepareFacts', () => {
     expect(prepared.every((f) => f.disposition === 'auto')).toBe(true);
   });
 });
+
+describe('prepareFacts — non-column applies', () => {
+  it('proposes tags the contact does not already carry', () => {
+    const prepared = prepareFacts('contact', { tags: ['Investor'] }, [
+      { field: 'tags', value: ['Investor', 'NRI'] },
+    ]);
+    expect(prepared).toEqual([
+      {
+        field: 'tags',
+        column: 'tags',
+        value: ['Investor', 'NRI'],
+        previous: ['Investor'],
+        disposition: 'propose',
+      },
+    ]);
+  });
+
+  it('drops a tag proposal that matches what is already attached', () => {
+    expect(
+      prepareFacts('contact', { tags: ['Investor', 'NRI'] }, [
+        { field: 'tags', value: ['nri', 'investor'] },
+      ])
+    ).toEqual([]);
+  });
+
+  it('reads a tag fact from the tag names, never from a column', () => {
+    // `tags` has no column on contacts; keying the novelty check off
+    // policy.column would compare against undefined and re-propose the
+    // same tags on every message.
+    const prepared = prepareFacts(
+      'contact',
+      { tags: ['Investor'], pref_areas: ['HSR'] },
+      [{ field: 'tags', value: ['Investor'] }]
+    );
+    expect(prepared).toEqual([]);
+  });
+});
