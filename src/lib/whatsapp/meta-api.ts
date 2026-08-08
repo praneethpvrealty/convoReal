@@ -534,7 +534,10 @@ export async function sendTextMessage(
   return { messageId: data.messages[0].id }
 }
 
-export type MediaKind = 'image' | 'video' | 'document'
+/** Audio is what a voice note goes out as — Meta renders an
+ *  `audio` message as a playable clip, and as a push-to-talk bubble
+ *  when the file is ogg/opus. It takes no caption. */
+export type MediaKind = 'image' | 'video' | 'document' | 'audio'
 
 export interface SendMediaMessageArgs {
   phoneNumberId: string
@@ -565,7 +568,9 @@ export async function sendMediaMessage(
   const url = `${META_API_BASE}/${phoneNumberId}/messages`
 
   const media: Record<string, unknown> = { link }
-  if (caption) media.caption = caption
+  // Audio rejects a caption outright (Meta returns 100), so it is only
+  // ever attached to the kinds that render one.
+  if (caption && kind !== 'audio') media.caption = caption
   if (kind === 'document' && filename) media.filename = filename
 
   const body: Record<string, unknown> = {

@@ -1,4 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from 'expo-audio';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -18,6 +25,7 @@ import {
 } from 'react-native';
 
 import { AppDialog, useAppDialog } from '@/components/app-dialog';
+import { AttachmentSheet, type AttachmentChoice } from '@/components/attachment-sheet';
 import { ContactPickerSheet } from '@/components/contact-picker-sheet';
 import { ContextMenu } from '@/components/context-menu';
 import { ConversationMenu } from '@/components/conversation-menu';
@@ -30,11 +38,18 @@ import {
   ApiError,
   forwardMessage,
   reactToMessage,
+  sendMediaMessage,
   sendTemplateMessage,
   sendTextMessage,
   suggestReplies,
+  uploadChatMedia,
 } from '@/lib/api';
 import { buildInquiryDraft } from '@/lib/approve-contact';
+import {
+  attachmentFilename,
+  attachmentMimeType,
+  formatDuration,
+} from '@/lib/attachments';
 import { useAuthStore } from '@/lib/auth-store';
 import { isReengagementError } from '@/lib/customer-window';
 import { haptic } from '@/lib/haptics';
@@ -655,6 +670,11 @@ function Composer({
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggesting, setSuggesting] = useState(false);
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attaching, setAttaching] = useState<string | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, 400);
+  const [recording, setRecording] = useState(false);
 
   // Seed the composer once when arriving from an approval that needs a
   // re-engagement send — never clobber text the agent has typed.
@@ -745,6 +765,143 @@ function Composer({
     if (ok) {
       setDraft('');
       onClearReply();
+    }
+  }
+
+  /** Upload then send. The two are separate calls so a send refused by
+   *  the 24-hour window does not cost the agent the upload as well —
+   *  but from here they read as one action, so a failure at either step
+   *  surfaces on the same error bar. */
+  async function sendAttachment(file: { uri: string; name: string; mimeType: string }) {
+    setAttaching('Uploading…');
+    setError(null);
+    setBlockedText(null);
+    try {
+      const media = await uploadChatMedia(file);
+      setAttaching('Sending…');
+      await sendMediaMessage({
+        conversationId,
+        media,
+        caption: draft.trim() || undefined,
+        replyToMessageId: replyTo?.id,
+      });
+      setDraft('');
+      onClearReply();
+      haptic.success();
+      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+    } catch (err) {
+      haptic.warn();
+      const closed = isReengagementError(err instanceof ApiError ? err.message : err);
+      setError(
+        closed
+          ? 'Past the 24-hour window — an attachment needs the contact to write first, or pick a template.'
+          : err instanceof ApiError
+            ? err.message
+            : 'Could not send that attachment — try again.'
+      );
+    } finally {
+      setAttaching(null);
+    }
+  }
+
+  async function pickAttachment(choice: AttachmentChoice) {
+    try {
+      if (choice === 'document') {
+        const DocumentPicker = await import('expo-document-picker');
+        const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+        if (result.canceled || !result.assets?.[0]) return;
+        const asset = result.assets[0];
+        const mimeType = attachmentMimeType(asset.mimeType, asset.name);
+        if (!mimeType) {
+          setError('WhatsApp does not accept that kind of file.');
+          return;
+        }
+        await sendAttachment({
+          uri: asset.uri,
+          name: attachmentFilename(asset.name, asset.uri, mimeType),
+          mimeType,
+        });
+        return;
+      }
+
+      const ImagePicker = await import('expo-image-picker');
+      const permission =
+        choice === 'camera'
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setError(
+          choice === 'camera'
+            ? 'Camera access is needed to take a photo.'
+            : 'Photo access is needed to attach from the gallery.'
+        );
+        return;
+      }
+      const result =
+        choice === 'camera'
+          ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
+          : await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ['images', 'videos'],
+              quality: 0.7,
+            });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const mimeType = attachmentMimeType(asset.mimeType, asset.fileName ?? asset.uri);
+      if (!mimeType) {
+        setError('WhatsApp does not accept that kind of file.');
+        return;
+      }
+      await sendAttachment({
+        uri: asset.uri,
+        name: attachmentFilename(asset.fileName, asset.uri, mimeType),
+        mimeType,
+      });
+    } catch {
+      // A missing native module means this build predates the picker.
+      setError('Attachments need the latest ConvoReal build — update the app and try again.');
+    }
+  }
+
+  async function startRecording() {
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        setError('Microphone access is needed to record a voice note.');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      haptic.tap();
+      setRecording(true);
+    } catch {
+      setError("Couldn't start the microphone — it may be in use by another app.");
+    }
+  }
+
+  /** `send: false` discards — a cancelled recording must never reach the
+   *  contact, so the file is dropped before any upload is attempted. */
+  async function stopRecording(send: boolean) {
+    setRecording(false);
+    try {
+      await recorder.stop();
+      await setAudioModeAsync({ allowsRecording: false });
+      const uri = recorder.uri;
+      if (!send || !uri) return;
+      // Under a second is a mis-tap, not a message.
+      if ((recorderState.durationMillis ?? 0) < 1000) {
+        setError('That was too short to send — hold the mic a moment longer.');
+        return;
+      }
+      haptic.send();
+      await sendAttachment({
+        uri,
+        name: `voice-${Date.now()}.m4a`,
+        mimeType: 'audio/mp4',
+      });
+    } catch {
+      haptic.warn();
+      setError('Could not save that recording — try again.');
     }
   }
 
@@ -872,19 +1029,90 @@ function Composer({
           </Pressable>
         </View>
       ) : null}
+      {attaching ? (
+        <View style={[styles.statusBar, { backgroundColor: colors.primarySoft }]}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={{ flex: 1, fontSize: 12.5, color: colors.primary }}>{attaching}</Text>
+        </View>
+      ) : null}
       {replyTo ? (
         <View style={styles.replyBar}>
           <QuotedMessage message={replyTo} contactName={contactName} onDismiss={onClearReply} />
         </View>
       ) : null}
+      <AttachmentSheet
+        visible={attachOpen}
+        onClose={() => setAttachOpen(false)}
+        onPick={pickAttachment}
+      />
+      {recording ? (
+        // Replaces the composer outright while recording: a text field
+        // the agent cannot use is only there to be mis-tapped, and the
+        // two ways out of a recording should be the only things on screen.
+        <View
+          style={[
+            styles.composer,
+            { backgroundColor: colors.tabBar, borderTopColor: colors.glassBorder },
+          ]}
+        >
+          <Pressable
+            onPress={() => {
+              haptic.tap();
+              void stopRecording(false);
+            }}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Discard voice note"
+            style={[styles.templateButton, { backgroundColor: colors.dangerSoft }]}
+          >
+            <Ionicons name="trash-outline" size={19} color={colors.danger} />
+          </Pressable>
+          <View style={styles.recordingBar}>
+            <View style={[styles.recordDot, { backgroundColor: colors.danger }]} />
+            <Text style={{ fontSize: 14, color: colors.text }}>
+              Recording {formatDuration(recorderState.durationMillis)}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => void stopRecording(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Send voice note"
+            style={[styles.sendButton, { backgroundColor: colors.primary }]}
+          >
+            <Ionicons name="send" size={18} color={colors.onPrimary} />
+          </Pressable>
+        </View>
+      ) : null}
       {/* Floating glass composer — real blur (content scrolls behind). */}
-      <View style={[styles.composer, { backgroundColor: colors.tabBar, borderTopColor: colors.glassBorder }]}>
+      <View
+        style={[
+          styles.composer,
+          { backgroundColor: colors.tabBar, borderTopColor: colors.glassBorder },
+          recording && styles.hidden,
+        ]}
+        pointerEvents={recording ? 'none' : 'auto'}
+      >
         <BlurView
           intensity={16}
           tint={dark ? 'dark' : 'light'}
           blurMethod="none"
           style={StyleSheet.absoluteFill}
         />
+        <Pressable
+          style={[styles.templateButton, { backgroundColor: colors.surface }]}
+          onPress={() => {
+            haptic.tap();
+            setAttachOpen(true);
+          }}
+          disabled={attaching !== null}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Attach a photo, video or document"
+          accessibilityState={{ disabled: attaching !== null }}
+        >
+          <Ionicons name="attach-outline" size={20} color={colors.primary} />
+        </Pressable>
         <Pressable
           style={[styles.templateButton, { backgroundColor: colors.surface }]}
           onPress={() => setTemplatesOpen(true)}
@@ -932,22 +1160,32 @@ function Composer({
           onChangeText={setDraft}
           multiline
         />
+        {/* Mic until there is something to send, as WhatsApp does — the
+            two actions share the spot because they are the same intent:
+            get this to the contact. */}
         <Pressable
           style={[
             styles.sendButton,
-            { backgroundColor: colors.primary, opacity: !draft.trim() || sending ? 0.5 : 1 },
+            {
+              backgroundColor: colors.primary,
+              opacity: sending || attaching !== null ? 0.5 : 1,
+            },
           ]}
-          onPress={send}
-          disabled={!draft.trim() || sending}
+          onPress={draft.trim() ? send : startRecording}
+          disabled={sending || attaching !== null}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Send message"
-          accessibilityState={{ disabled: !draft.trim() || sending }}
+          accessibilityLabel={draft.trim() ? 'Send message' : 'Record a voice note'}
+          accessibilityState={{ disabled: sending || attaching !== null }}
         >
-          {sending ? (
+          {sending || attaching !== null ? (
             <ActivityIndicator size="small" color={colors.onPrimary} />
           ) : (
-            <Ionicons name="send" size={18} color={colors.onPrimary} />
+            <Ionicons
+              name={draft.trim() ? 'send' : 'mic'}
+              size={18}
+              color={colors.onPrimary}
+            />
           )}
         </Pressable>
       </View>
@@ -1013,6 +1251,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },
+  statusBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  recordingBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  recordDot: { width: 10, height: 10, borderRadius: 5 },
+  hidden: { display: 'none' },
   errorAction: {
     flexDirection: 'row',
     alignItems: 'center',

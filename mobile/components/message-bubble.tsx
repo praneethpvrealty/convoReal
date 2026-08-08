@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Linking from 'expo-linking';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   interpolateColor,
@@ -12,8 +13,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { AudioBubble } from '@/components/audio-bubble';
 import { MediaImage } from '@/components/media-image';
+import { authHeaders } from '@/lib/api';
 import { bubbleTime } from '@/lib/format';
+import { mediaSource } from '@/lib/media-source';
 import { haptic } from '@/lib/haptics';
 import { messageAuthorLabel, messagePreview } from '@/lib/message-actions';
 import {
@@ -92,6 +96,78 @@ const MEDIA_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   template: 'albums-outline',
   interactive: 'return-down-back-outline',
 };
+
+/** Content types with no renderer of their own — they still say what
+ *  they are rather than showing an empty bubble. */
+const UNRENDERED_TYPES = ['location', 'template', 'interactive'];
+
+/**
+ * A video or document: an openable row rather than an inline player.
+ * A video decoded in every bubble would cost a scrolling thread far
+ * more than it gives, and a document has nothing to show inline — both
+ * hand off to the OS, which already knows how to display them.
+ */
+function MediaAttachment({ message, outgoing }: { message: Message; outgoing: boolean }) {
+  const { colors, fonts: f } = useTheme();
+  const [opening, setOpening] = useState(false);
+  const isVideo = message.content_type === 'video';
+  const meta = outgoing ? colors.outgoingMeta : colors.textMuted;
+
+  async function open() {
+    if (!message.media_url || opening) return;
+    const source = mediaSource(message.media_url);
+    if (!source) return;
+    setOpening(true);
+    haptic.tap();
+    try {
+      // The proxy is auth-gated, so a browser handoff would 401. Its
+      // one-time Meta URL is fetched here and opened instead.
+      if (source.kind === 'proxy') {
+        const response = await fetch(source.uri, { headers: await authHeaders() });
+        if (!response.ok) throw new Error('unavailable');
+        await Linking.openURL(response.url || source.uri);
+      } else {
+        await Linking.openURL(source.uri);
+      }
+    } catch {
+      haptic.warn();
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  return (
+    <Pressable
+      onPress={open}
+      accessibilityRole="button"
+      accessibilityLabel={isVideo ? 'Open video' : `Open ${message.content_text || 'document'}`}
+      style={styles.attachment}
+    >
+      {opening ? (
+        <ActivityIndicator size="small" color={meta} />
+      ) : (
+        <Ionicons
+          name={isVideo ? 'play-circle-outline' : 'document-text-outline'}
+          size={26}
+          color={outgoing ? colors.outgoingText : colors.primary}
+        />
+      )}
+      <View style={{ flex: 1, gap: 1 }}>
+        <Text
+          style={{
+            fontSize: 13.5,
+            fontFamily: f.semibold,
+            color: outgoing ? colors.outgoingText : colors.incomingText,
+          }}
+          numberOfLines={1}
+        >
+          {isVideo ? 'Video' : 'Document'}
+        </Text>
+        <Text style={{ fontSize: 11, color: meta }}>Tap to open</Text>
+      </View>
+    </Pressable>
+  );
+}
 
 /** The quoted parent, rendered inside a reply's own bubble and above the
  *  composer while a reply is being written. Tapping it in the thread jumps
@@ -286,7 +362,15 @@ export function MessageBubble({
                 <MediaImage relativeUrl={message.media_url} />
               ) : null}
 
-              {message.content_type !== 'text' && message.content_type !== 'image' ? (
+              {message.content_type === 'audio' && message.media_url ? (
+                <AudioBubble mediaUrl={message.media_url} outgoing={outgoing} />
+              ) : null}
+
+              {message.content_type === 'video' || message.content_type === 'document' ? (
+                <MediaAttachment message={message} outgoing={outgoing} />
+              ) : null}
+
+              {UNRENDERED_TYPES.includes(message.content_type) ? (
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Ionicons
                     name={MEDIA_ICONS[message.content_type] ?? 'attach-outline'}
@@ -418,6 +502,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5,
     marginBottom: 2,
+  },
+  attachment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minWidth: 190,
+    paddingVertical: 2,
   },
   reactions: {
     flexDirection: 'row',

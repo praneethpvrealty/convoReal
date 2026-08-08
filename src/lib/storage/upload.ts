@@ -182,3 +182,50 @@ export async function uploadPropertyDocument(
 
   return `property-documents/${path}`;
 }
+
+/**
+ * Uploads an attachment an agent is sending into a WhatsApp thread and
+ * returns the bucket-relative object path.
+ *
+ * Images are compressed on the way through — the same pass inventory
+ * photos get — because the recipient is on a phone and Meta re-encodes
+ * anyway. Everything else is stored byte-for-byte: re-encoding a voice
+ * note or a signed PDF would change what the customer receives.
+ */
+export async function uploadChatMedia(
+  accountId: string,
+  buffer: Buffer,
+  mimeType: string,
+  originalFilename?: string
+): Promise<string> {
+  const supabase = supabaseAdmin();
+
+  if (mimeType.startsWith('image/')) {
+    const compressed = await compressImage(buffer, mimeType);
+    buffer = compressed.buffer;
+    mimeType = compressed.mimeType;
+  }
+
+  const fromMime = mimeType.split('/')[1]?.split('+')[0].split(';')[0];
+  const fromName = originalFilename?.includes('.')
+    ? originalFilename.split('.').pop()
+    : undefined;
+  const ext = (fromName || fromMime || 'bin').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
+
+  const randomStr = Math.random().toString(36).substring(2, 9);
+  const path = `${accountId}/chat-${Date.now()}-${randomStr}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('chat-media')
+    .upload(path, buffer, {
+      cacheControl: '3600',
+      upsert: false,
+      contentType: mimeType,
+    });
+
+  if (uploadError) {
+    throw new Error(`Storage chat media upload failed: ${uploadError.message}`);
+  }
+
+  return `chat-media/${path}`;
+}

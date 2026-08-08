@@ -400,6 +400,9 @@ export async function sendWhatsAppMessageAndPersist(
             link: storagePublicUrl(args.mediaLink),
             caption: args.mediaCaption || undefined,
             filename: args.mediaFilename || undefined,
+            // Every other branch forwards this; media dropped it, so a
+            // photo sent as a reply arrived in WhatsApp unquoted.
+            contextMessageId: args.contextMessageId || undefined,
           })
           return resultMed.messageId
 
