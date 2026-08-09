@@ -53,7 +53,7 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 export function resolveVariables(
   variables: Record<string, VariableMapping>,
   contact: Contact,
-  customValues?: Map<string, string>,
+  customValues?: Map<string, string>
 ): string[] {
   const keys = Object.keys(variables).sort((a, b) => {
     const an = Number(a);
@@ -88,7 +88,7 @@ async function upsertCsvContactsOnServer(
   supabase: SupabaseClient,
   accountId: string,
   userId: string,
-  csvRows: { phone: string; name?: string }[],
+  csvRows: { phone: string; name?: string }[]
 ): Promise<Contact[]> {
   if (csvRows.length === 0) return [];
 
@@ -149,7 +149,7 @@ export async function resolveAudienceOnServer(
   supabase: SupabaseClient,
   accountId: string,
   userId: string,
-  audience: AudienceConfig,
+  audience: AudienceConfig
 ): Promise<Contact[]> {
   let contacts: Contact[] = [];
 
@@ -196,10 +196,12 @@ export async function resolveAudienceOnServer(
 
     if (operator === 'is') query = query.eq('value', value);
     else if (operator === 'is_not') query = query.neq('value', value);
-    else if (operator === 'contains') query = query.ilike('value', `%${value}%`);
+    else if (operator === 'contains')
+      query = query.ilike('value', `%${value}%`);
 
     const { data: matches, error: matchErr } = await query;
-    if (matchErr) throw new Error(`Custom-field filter failed: ${matchErr.message}`);
+    if (matchErr)
+      throw new Error(`Custom-field filter failed: ${matchErr.message}`);
 
     const contactIds = [...new Set((matches ?? []).map((m) => m.contact_id))];
     if (contactIds.length > 0) {
@@ -212,7 +214,12 @@ export async function resolveAudienceOnServer(
       contacts = data ?? [];
     }
   } else if (audience.type === 'csv' && audience.csvContacts) {
-    contacts = await upsertCsvContactsOnServer(supabase, accountId, userId, audience.csvContacts);
+    contacts = await upsertCsvContactsOnServer(
+      supabase,
+      accountId,
+      userId,
+      audience.csvContacts
+    );
   }
 
   // Exclude tags
@@ -241,7 +248,7 @@ export async function sendBroadcastRecipients(
   broadcastId: string,
   accountId: string,
   userId: string,
-  limit: number = 200,
+  limit: number = 200
 ) {
   const supabase = supabaseAdmin(); // Use admin/service role client to bypass user RLS constraints on updates
 
@@ -256,6 +263,69 @@ export async function sendBroadcastRecipients(
     return;
   }
 
+  // Only one dispatcher may send a broadcast at a time. Recipients are
+  // selected as 'pending' and only marked sent afterwards, so nothing
+  // stops two concurrent runners reading the same set and both sending
+  // — and there ARE two: the fire-and-forget promise that starts the
+  // broadcast, and the sweep cron that rescues stalled ones, which
+  // fires every 5 minutes into a dispatch paced at one send per second.
+  // Losing the race means returning empty-handed, never sending.
+  const { data: claimed, error: claimErr } = await supabase.rpc(
+    'claim_broadcast_dispatch',
+    { p_broadcast_id: broadcastId, p_lease_seconds: DISPATCH_LEASE_SECONDS }
+  );
+  if (claimErr) {
+    console.error(
+      `[Broadcast Sender] Could not claim dispatch for ${broadcastId}:`,
+      claimErr.message
+    );
+    return;
+  }
+  if (claimed !== true) {
+    console.log(
+      `[Broadcast Sender] ${broadcastId} already being dispatched elsewhere — standing down.`
+    );
+    return;
+  }
+
+  try {
+    await dispatchClaimedRecipients(
+      broadcast,
+      broadcastId,
+      accountId,
+      userId,
+      limit
+    );
+  } finally {
+    // Freed immediately so a retry sweep can pick up anything left
+    // behind rather than waiting out the lease.
+    await supabase
+      .rpc('release_broadcast_dispatch', { p_broadcast_id: broadcastId })
+      .then(undefined, (err: unknown) => {
+        console.error('[Broadcast Sender] lease release failed:', err);
+      });
+  }
+}
+
+/** How long a dispatcher's claim survives without renewal. Long enough
+ *  to outlast a batch of sends, short enough that a dispatcher killed
+ *  mid-flight is taken over by the next sweep rather than stranding the
+ *  broadcast. */
+const DISPATCH_LEASE_SECONDS = 120;
+
+async function dispatchClaimedRecipients(
+  broadcast: {
+    template_name: string;
+    template_language?: string | null;
+    template_variables?: Record<string, VariableMapping> | null;
+  },
+  broadcastId: string,
+  accountId: string,
+  userId: string,
+  limit: number
+) {
+  const supabase = supabaseAdmin();
+
   // Find recipients with status 'pending' or 'rate_limited' (and retry_after <= now)
   const nowStr = new Date().toISOString();
   const { data: recipients, error: rFetchErr } = await supabase
@@ -268,7 +338,10 @@ export async function sendBroadcastRecipients(
     .limit(limit);
 
   if (rFetchErr) {
-    console.error(`[Broadcast Sender] Error fetching recipients for ${broadcastId}:`, rFetchErr.message);
+    console.error(
+      `[Broadcast Sender] Error fetching recipients for ${broadcastId}:`,
+      rFetchErr.message
+    );
     return;
   }
 
@@ -286,7 +359,10 @@ export async function sendBroadcastRecipients(
         .select('status')
         .eq('broadcast_id', broadcastId);
 
-      const allFailed = summary && summary.length > 0 && summary.every((r) => r.status === 'failed');
+      const allFailed =
+        summary &&
+        summary.length > 0 &&
+        summary.every((r) => r.status === 'failed');
       await supabase
         .from('broadcasts')
         .update({
@@ -324,7 +400,9 @@ export async function sendBroadcastRecipients(
   }
 
   // Pre-load custom contact values for the batch
-  const contactIds = recipients.map((r) => r.contact_id).filter((id): id is string => Boolean(id));
+  const contactIds = recipients
+    .map((r) => r.contact_id)
+    .filter((id): id is string => Boolean(id));
   const customValueIndex = new Map<string, Map<string, string>>();
   if (contactIds.length > 0) {
     const { data: cvRows } = await supabase
@@ -333,7 +411,8 @@ export async function sendBroadcastRecipients(
       .in('contact_id', contactIds);
 
     for (const row of cvRows ?? []) {
-      const bucket = customValueIndex.get(row.contact_id) ?? new Map<string, string>();
+      const bucket =
+        customValueIndex.get(row.contact_id) ?? new Map<string, string>();
       bucket.set(row.custom_field_id, row.value ?? '');
       customValueIndex.set(row.contact_id, bucket);
     }
@@ -342,7 +421,7 @@ export async function sendBroadcastRecipients(
   // Loaded once per sweep for the property-anchored template only —
   // every other template resolves its params from the contact row.
   const enquiryNoticeContext = ENQUIRY_NOTICE_TEMPLATE_NAMES.includes(
-    broadcast.template_name ?? '',
+    broadcast.template_name ?? ''
   )
     ? await loadEnquiryNoticeContext(
         supabase,
@@ -350,7 +429,7 @@ export async function sendBroadcastRecipients(
         recipients
           .map((r) => r.contact)
           .filter((c): c is Contact => Boolean(c?.id)),
-        broadcast.template_name ?? undefined,
+        broadcast.template_name ?? undefined
       )
     : null;
 
@@ -359,6 +438,18 @@ export async function sendBroadcastRecipients(
   const MAX_RETRIES = 5;
 
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    // A long batch outlives the lease at one send per second, so renew
+    // per chunk — otherwise a sweep would rightly conclude this
+    // dispatcher had died and start a second one over the same rows.
+    await supabase
+      .rpc('renew_broadcast_dispatch', {
+        p_broadcast_id: broadcastId,
+        p_lease_seconds: DISPATCH_LEASE_SECONDS,
+      })
+      .then(undefined, (err: unknown) => {
+        console.error('[Broadcast Sender] lease renewal failed:', err);
+      });
+
     const batch = recipients.slice(i, i + BATCH_SIZE);
 
     for (const recipient of batch) {
@@ -392,7 +483,10 @@ export async function sendBroadcastRecipients(
       // hole in it.
       let bodyParams: string[];
       if (enquiryNoticeContext) {
-        const resolved = resolveEnquiryNoticeParams(recipient.contact, enquiryNoticeContext);
+        const resolved = resolveEnquiryNoticeParams(
+          recipient.contact,
+          enquiryNoticeContext
+        );
         if ('failure' in resolved) {
           await supabase
             .from('broadcast_recipients')
@@ -408,13 +502,16 @@ export async function sendBroadcastRecipients(
         bodyParams = resolveVariables(
           broadcast.template_variables || {},
           recipient.contact,
-          customValueIndex.get(recipient.contact.id),
+          customValueIndex.get(recipient.contact.id)
         );
       }
 
       let truncatedParams = bodyParams;
       if (templateRow?.body_text) {
-        truncatedParams = truncateParametersToBudget(templateRow.body_text, bodyParams);
+        truncatedParams = truncateParametersToBudget(
+          templateRow.body_text,
+          bodyParams
+        );
       }
 
       const resolvedText = templateRow?.body_text
@@ -431,7 +528,8 @@ export async function sendBroadcastRecipients(
           kind: 'template',
           senderType: 'agent',
           templateName: broadcast.template_name,
-          templateLanguage: templateRow?.language || broadcast.template_language || 'en_US',
+          templateLanguage:
+            templateRow?.language || broadcast.template_language || 'en_US',
           templateParams: truncatedParams,
           templateRow: templateRow ?? undefined,
           text: resolvedText,
@@ -453,14 +551,18 @@ export async function sendBroadcastRecipients(
           const errMsg = result.error || 'Unknown error';
           const rateLimited = isRateLimitError(errMsg);
           const backoffMs = Math.min(300_000, 1000 * Math.pow(2, newCount)); // cap 5m
-          const retryAfter = rateLimited && newCount < MAX_RETRIES
-            ? new Date(Date.now() + backoffMs).toISOString()
-            : null;
+          const retryAfter =
+            rateLimited && newCount < MAX_RETRIES
+              ? new Date(Date.now() + backoffMs).toISOString()
+              : null;
 
           await supabase
             .from('broadcast_recipients')
             .update({
-              status: rateLimited && newCount < MAX_RETRIES ? 'rate_limited' : 'failed',
+              status:
+                rateLimited && newCount < MAX_RETRIES
+                  ? 'rate_limited'
+                  : 'failed',
               retry_count: newCount,
               retry_after: retryAfter,
               error_message: errMsg,
@@ -468,7 +570,8 @@ export async function sendBroadcastRecipients(
             .eq('id', recipient.id);
         }
       } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : 'Internal Send Error';
+        const errMsg =
+          err instanceof Error ? err.message : 'Internal Send Error';
         await supabase
           .from('broadcast_recipients')
           .update({
