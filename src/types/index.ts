@@ -177,6 +177,18 @@ export interface Contact {
    *  skips the contact entirely, so they reach no match, Radar event,
    *  digest or co-broker share. The text is kept as the record. */
   requirement_active?: boolean;
+  /** The lead ended their enquiry — "Close my enquiry" on the enquiry
+   *  templates, or an agent saying so (migration 230). Blocks every
+   *  automated send at the dispatcher and drops the contact out of
+   *  matching. An agent can still reply by hand from the inbox. */
+  is_dead?: boolean;
+  dead_at?: string | null;
+  /** 'closed_enquiry' | 'stop_alerts' | 'manual' | 'bulk_cleanup' */
+  dead_reason?: string | null;
+  /** Filed away by an agent (migration 230). Same exclusions as
+   *  `is_dead`, and hidden from the contact list. Reversible. */
+  is_archived?: boolean;
+  archived_at?: string | null;
   min_roi?: number | null;
   /** AI-extracted structured preferences (migration 092) — populated by
    *  /api/contacts/extract-preferences from requirements + notes text.

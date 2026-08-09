@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { resolveConversation } from '@/lib/conversations/resolve';
 import { storagePublicUrl } from '@/lib/storage/url';
 import { useAuth } from '@/hooks/use-auth';
 import { useCan } from '@/hooks/use-can';
@@ -746,34 +747,16 @@ export function PropertyForm({
       return;
     }
     try {
-      // Find existing conversation
-      const { data: existing, error } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('account_id', accountId)
-        .eq('contact_id', contactId)
-        .maybeSingle();
+      const { conversation, error } = await resolveConversation<{ id: string }>(supabase, {
+        accountId,
+        contactId,
+        userId: (await supabase.auth.getUser()).data.user?.id ?? null,
+        columns: 'id',
+      });
 
       if (error) throw error;
-
-      if (existing) {
-        window.location.href = `/inbox?c=${existing.id}`;
-      } else {
-        // Create conversation
-        const { data: newConv, error: createError } = await supabase
-          .from('conversations')
-          .insert({
-            account_id: accountId,
-            user_id: (await supabase.auth.getUser()).data.user?.id,
-            contact_id: contactId,
-          })
-          .select('id')
-          .single();
-
-        if (createError) throw createError;
-        if (newConv) {
-          window.location.href = `/inbox?c=${newConv.id}`;
-        }
+      if (conversation) {
+        window.location.href = `/inbox?c=${conversation.id}`;
       }
     } catch (err) {
       console.error('Failed to navigate to chat:', err);

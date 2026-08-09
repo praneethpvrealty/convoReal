@@ -15,6 +15,7 @@ import {
   type FlowActionPayload,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveConversation } from '@/lib/conversations/resolve'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -28,6 +29,7 @@ import {
   isWithinCustomerWindow,
 } from '@/lib/whatsapp/customer-window'
 import { CHAIN_ONLY_BLOCKED_MESSAGE } from '@/lib/contacts/chain-only'
+import { DEAD_CONTACT_BLOCKED_MESSAGE } from '@/lib/contacts/lifecycle'
 
 /** Window within which an identical template to the same conversation is
  *  treated as a duplicate and skipped (double-submit / overlapping-trigger
@@ -100,6 +102,13 @@ export interface SendWhatsAppAndPersistArgs {
    *  a co-broker's downstream party is not reachable by the listing
    *  side just because the chain recorded them. */
   allowChainOnly?: boolean
+  /** Permits a send to a dead or archived contact (migration 230).
+   *  Only the inbox composer sets it: an agent typing a reply to a lead
+   *  who closed their enquiry is a deliberate personal message, which
+   *  the product allows. Every automated sender — broadcasts,
+   *  automations, digests, Radar, shares — leaves it unset and is
+   *  refused. */
+  allowDeadContact?: boolean
   /** Marks a contact this call has to CREATE (toPhone with no existing
    *  match) as chain_only. For sends to someone who is a counterparty
    *  of the chain rather than a lead of this account — a location
@@ -208,44 +217,51 @@ export async function sendWhatsAppMessageAndPersist(
     // that covers broadcasts, automations, digests and inbox sends
     // alike. Checked before the conversation is resolved so a blocked
     // send leaves no empty thread implying one was attempted.
-    if (!args.allowChainOnly && resolvedContactId) {
-      const { data: chainRow } = await db
+    // 1c. A lead who closed their enquiry, and a contact an agent
+    // archived, are both off the automated-sending list. Refused in the
+    // same place and for the same reason as chain-only above: every
+    // sender funnels through here, so this is the only guard that
+    // covers broadcasts, automations, digests, Radar and shares at
+    // once. `allowDeadContact` is the inbox composer's opt-out — an
+    // agent answering a lead who called back is a deliberate personal
+    // reply, not the automation this blocks.
+    if (resolvedContactId && !(args.allowChainOnly && args.allowDeadContact)) {
+      const { data: gateRow } = await db
         .from('contacts')
-        .select('chain_only')
+        .select('chain_only, is_dead, is_archived')
         .eq('id', resolvedContactId)
         .eq('account_id', accountId)
         .maybeSingle()
-      if ((chainRow as { chain_only?: boolean } | null)?.chain_only) {
+      const gate = gateRow as {
+        chain_only?: boolean
+        is_dead?: boolean
+        is_archived?: boolean
+      } | null
+      if (!args.allowChainOnly && gate?.chain_only) {
         throw new Error(CHAIN_ONLY_BLOCKED_MESSAGE)
+      }
+      if (!args.allowDeadContact && (gate?.is_dead || gate?.is_archived)) {
+        throw new Error(DEAD_CONTACT_BLOCKED_MESSAGE)
       }
     }
 
     // 2. Resolve or Create Conversation
     if (!resolvedConversationId) {
-      const { data: existing, error } = await db
-        .from('conversations')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('contact_id', resolvedContactId)
-        .maybeSingle()
-
-      if (!error && existing) {
-        resolvedConversationId = existing.id
-      } else {
-        const { data: newConv, error: createError } = await db
-          .from('conversations')
-          .insert({
-            account_id: accountId,
-            user_id: userId || (await resolveOwnerUserId()),
-            contact_id: resolvedContactId,
-          })
-          .select()
-          .single()
-        if (createError || !newConv) {
-          throw new Error(`Failed to find or create conversation: ${createError?.message || 'Unknown error'}`)
-        }
-        resolvedConversationId = newConv.id
+      if (!resolvedContactId) {
+        throw new Error('Failed to find or create conversation: no contact resolved')
       }
+      const { conversation, error: resolveError } = await resolveConversation<{ id: string }>(db, {
+        accountId,
+        contactId: resolvedContactId,
+        userId: userId || (await resolveOwnerUserId()),
+        columns: 'id',
+      })
+      if (!conversation) {
+        throw new Error(
+          `Failed to find or create conversation: ${resolveError?.message || 'Unknown error'}`,
+        )
+      }
+      resolvedConversationId = conversation.id
     }
 
     // 2b. Idempotency guard for template sends. A rapid double-submit or

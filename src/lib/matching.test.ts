@@ -722,6 +722,65 @@ describe('getMatchingContacts', () => {
     });
   });
 
+  describe('Dead and archived contacts (migration 230)', () => {
+    it('excludes a lead who closed their enquiry from a perfect match', () => {
+      const contact = createTestContact({
+        is_dead: true,
+        property_interests: ['Flat/ Apartment'],
+        areas_of_interest: ['HSR Layout'],
+        max_budget: 20000000,
+      });
+      const prop = createTestProperty({
+        type: 'Flat/ Apartment',
+        location: 'HSR Layout, Bangalore',
+        price: 15000000,
+      });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(0);
+    });
+
+    it('excludes an archived contact', () => {
+      const contact = createTestContact({
+        is_archived: true,
+        property_interests: ['Flat/ Apartment'],
+      });
+      const prop = createTestProperty({ type: 'Flat/ Apartment' });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(0);
+    });
+
+    it('outranks a named-project hit, which nothing else survives', () => {
+      const contact = createTestContact({
+        is_dead: true,
+        projects_of_interest: ['Purva Westend'],
+      });
+      const prop = createTestProperty({
+        project: 'Purva Westend',
+        type: 'Flat/ Apartment',
+      });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(0);
+    });
+
+    it('drops only the dead contact from a mixed list', () => {
+      const dead = createTestContact({
+        id: 'c-dead',
+        is_dead: true,
+        property_interests: ['Flat/ Apartment'],
+      });
+      const live = createTestContact({
+        id: 'c-live',
+        property_interests: ['Flat/ Apartment'],
+      });
+      const prop = createTestProperty({ type: 'Flat/ Apartment' });
+      const results = getMatchingContacts(prop, [dead, live]);
+      expect(results.map((r) => r.contact.id)).toEqual(['c-live']);
+    });
+
+    it('treats absent flags as live, so rows predating the columns still match', () => {
+      const contact = createTestContact({ property_interests: ['Flat/ Apartment'] });
+      const prop = createTestProperty({ type: 'Flat/ Apartment' });
+      expect(getMatchingContacts(prop, [contact]).length).toBe(1);
+    });
+  });
+
   describe('Parked requirements (requirement_active)', () => {
     it('excludes a parked contact from an otherwise perfect match', () => {
       const contact = createTestContact({

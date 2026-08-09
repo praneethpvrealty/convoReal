@@ -272,7 +272,11 @@ describe('share-property — channel selection', () => {
   it('creates the conversation for the "Open chat" fallback when none exists yet', async () => {
     primeLookups({ windowOpen: false, conversation: null });
     adminQueues.message_templates = [{ data: [], error: null }];
+    // Window probe, then the resolver's own read before it inserts —
+    // resolveConversation always re-reads so a lost race returns the
+    // winner's thread rather than a second one.
     adminQueues.conversations = [
+      { data: null, error: null },
       { data: null, error: null },
       { data: { id: 'conv-new' }, error: null },
     ];

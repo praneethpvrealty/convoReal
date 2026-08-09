@@ -14,6 +14,7 @@ import type {
   CreateDealStepConfig,
   AssignConversationStepConfig,
 } from '@/types'
+import { findConversation } from '@/lib/conversations/resolve'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
 
@@ -522,15 +523,13 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
   const fromCtx = args.context.conversation_id
   if (fromCtx) return fromCtx
   if (!args.contactId) throw new Error('cannot resolve conversation: no contact')
-  const { data, error } = await supabaseAdmin()
-    .from('conversations')
-    .select('id')
-    .eq('account_id', args.automation.account_id)
-    .eq('contact_id', args.contactId)
-    .maybeSingle()
-  if (error) throw new Error(`conversation lookup failed: ${error.message}`)
-  if (!data?.id) throw new Error('no conversation for contact')
-  return data.id as string
+  const conversation = await findConversation<{ id: string }>(supabaseAdmin(), {
+    accountId: args.automation.account_id,
+    contactId: args.contactId,
+    columns: 'id',
+  })
+  if (!conversation?.id) throw new Error('no conversation for contact')
+  return conversation.id
 }
 
 function triggerMatches(automation: Automation, ctx: AutomationContext | undefined): boolean {

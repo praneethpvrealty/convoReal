@@ -1,4 +1,6 @@
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveConversation, type ConversationRow } from '@/lib/conversations/resolve'
+import { markContactDead } from '@/lib/contacts/lifecycle'
 import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -35,6 +37,7 @@ import {
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
+import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
 import {
@@ -1272,13 +1275,22 @@ async function processMessage(
     }
   }
 
+  // "Close my enquiry" on the enquiry-status / enquiry-followup
   // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text, or the enquiry-status template's "Close my enquiry"
-  // quick reply (which arrives as message.button.text). Same
+  // free text, or either enquiry template's "Close my enquiry" quick
+  // reply (which arrives as message.button.text). Same
   // chat-as-control-panel pattern as the owner digest commands above,
   // editing contacts.buyer_alerts_consent.
+  //
+  // Both enquiry templates carry their own copy of the label. They read
+  // identically today, so matching only one worked by luck; matching
+  // both means rewording either cannot silently stop closing enquiries.
+  const closeButtons = [
+    ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
+    ENQUIRY_NOTICE_CLOSE_BUTTON,
+  ]
   const alertsCommand =
-    message.button?.text === ENQUIRY_FOLLOWUP_CLOSE_BUTTON
+    message.button?.text && closeButtons.includes(message.button.text)
       ? 'close'
       : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
@@ -1287,6 +1299,20 @@ async function processMessage(
       accountId,
       contactId: contactRecord.id,
     })
+    // 'close' is the lead saying the enquiry is over, not a preference
+    // about alerts: it also marks the contact dead (migration 230),
+    // which parks the requirement, stops every automated send and drops
+    // them out of matching. The goodbye above still goes out — it is
+    // the acknowledgement they asked for, and its one pitch to stay.
+    if (alertsCommand === 'close') {
+      await markContactDead({
+        db: supabaseAdmin(),
+        accountId,
+        contactId: contactRecord.id,
+        reason: 'closed_enquiry',
+        note: 'Lead closed their enquiry from WhatsApp ("Close my enquiry")',
+      })
+    }
     if (confirmation) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1296,6 +1322,10 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: confirmation,
+        // The contact was marked dead a line ago, which the dispatcher
+        // refuses sends to. This one is the goodbye they asked for
+        // rather than outreach, so it is the exception.
+        allowDeadContact: alertsCommand === 'close',
       })
       return
     }
@@ -2361,33 +2391,18 @@ async function findOrCreateConversation(
   configOwnerUserId: string,
   contactId: string,
 ) {
-  const { data: existing, error: findError } = await supabaseAdmin()
-    .from('conversations')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .single()
+  const { conversation, error } = await resolveConversation<ConversationRow>(supabaseAdmin(), {
+    accountId,
+    contactId,
+    userId: configOwnerUserId,
+  })
 
-  if (!findError && existing) {
-    return existing
-  }
-
-  const { data: newConv, error: createError } = await supabaseAdmin()
-    .from('conversations')
-    .insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      contact_id: contactId,
-    })
-    .select()
-    .single()
-
-  if (createError) {
-    console.error('Error creating conversation:', createError)
+  if (error) {
+    console.error('Error creating conversation:', error)
     return null
   }
 
-  return newConv
+  return conversation
 }
 
 export async function handlePropertyShareYesReply(

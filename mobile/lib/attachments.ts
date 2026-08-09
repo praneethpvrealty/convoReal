@@ -60,6 +60,23 @@ export function attachmentMimeType(
   return (ext && EXTENSION_MIME[ext]) || null;
 }
 
+/**
+ * Which kind of bubble a picked file will become.
+ *
+ * The upload response says the same thing, but only once the file is
+ * up — and the pending bubble has to be on screen before that, so it
+ * has to be worked out from the mime type alone. Anything that is not
+ * plainly an image, video or audio is a document, which is also how
+ * Meta treats it.
+ */
+export function attachmentKind(mimeType: string | null | undefined): AttachmentKind {
+  const bare = mimeType?.split(';')[0].trim().toLowerCase() ?? '';
+  if (bare.startsWith('image/')) return 'image';
+  if (bare.startsWith('video/')) return 'video';
+  if (bare.startsWith('audio/')) return 'audio';
+  return 'document';
+}
+
 /** A filename WhatsApp will show, derived from the picker's URI when
  *  the asset has no name of its own (the camera roll rarely does). */
 export function attachmentFilename(
