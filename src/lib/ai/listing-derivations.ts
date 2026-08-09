@@ -125,6 +125,34 @@ export function extractRateQuote(text: string | null | undefined): RateQuote | n
   return { perSqft, amount };
 }
 
+/** Abbreviations, upper-case only so an ordinary word never trips them.
+ *  The negative lookahead keeps a name out of it — "JD Tower" is a
+ *  building, "apartment JD" and "JD basis" are deals. */
+const JOINT_DEVELOPMENT_ABBR_RE = /\b(?:JD|JV)\b(?!\s+[A-Z][a-z])/;
+const JOINT_DEVELOPMENT_PHRASE_RE = /\bjoint\s*(?:development|venture)\b/i;
+
+/** A JD offer reaches us as prose — "12 acres available for an apartment
+ *  JD" — and the model still files it as a sale with a missing price,
+ *  which is the one thing a joint development will never have. */
+export function detectJointDevelopment(text: string | null | undefined): boolean {
+  if (!text) return false;
+  return JOINT_DEVELOPMENT_ABBR_RE.test(text) || JOINT_DEVELOPMENT_PHRASE_RE.test(text);
+}
+
+function normalizeJvStructure(raw: unknown): ParsedPropertyDraft['jv_structure'] {
+  if (typeof raw !== 'string') return null;
+  const lower = raw.toLowerCase();
+  if (lower.includes('revenue')) return 'Revenue Share';
+  if (lower.includes('area')) return 'Area Share';
+  if (lower.includes('hybrid')) return 'Hybrid';
+  return null;
+}
+
+function normalizeSharePercent(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value) || value <= 0 || value > 100) return null;
+  return value;
+}
+
 function isLandOrPlot(type: ParsedPropertyDraft['type']): boolean {
   if (!type) return false;
   const lower = type.toLowerCase();
@@ -180,6 +208,23 @@ export function applyListingDerivations(
       next.price = Math.round(next.price_per_sqft * areaSqft);
       next.price_from_rate = true;
     }
+  }
+
+  // The title is only consulted on the first parse: on a correction the
+  // model's own reading of the new message wins, so a lister who says
+  // "actually it's for sale at 1.2 Cr" can get back out of JV/JD.
+  const jointDevelopment =
+    next.listing_type === 'JV/JD' ||
+    (next.listing_type !== 'Rent' &&
+      (detectJointDevelopment(rawText) || (!previousDraft && detectJointDevelopment(next.title))));
+
+  if (jointDevelopment) {
+    next.listing_type = 'JV/JD';
+    next.jv_structure = normalizeJvStructure(next.jv_structure);
+    const owner = normalizeSharePercent(next.owner_share_percent);
+    const builder = normalizeSharePercent(next.builder_share_percent);
+    next.owner_share_percent = owner ?? (builder !== null ? 100 - builder : null);
+    next.builder_share_percent = builder ?? (owner !== null ? 100 - owner : null);
   }
 
   return next;
