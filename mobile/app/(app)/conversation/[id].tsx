@@ -32,6 +32,7 @@ import { ConversationMenu } from '@/components/conversation-menu';
 import { ConvoRealLoader } from '@/components/loader';
 import { MessageBubble, QuotedMessage } from '@/components/message-bubble';
 import { PropertyPickerSheet } from '@/components/property-picker-sheet';
+import { MoveToEngineSheet } from '@/components/move-to-engine-sheet';
 import { TemplatePicker } from '@/components/template-picker';
 import { Avatar } from '@/components/ui';
 import {
@@ -550,6 +551,7 @@ export default function ConversationScreen() {
         groupId={conversation?.group?.id}
         contactName={contactName}
         contactPhone={conversation?.contact?.phone || undefined}
+        contact={conversation?.contact}
         seedDraft={seedDraft}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
@@ -734,6 +736,7 @@ function Composer({
   groupId,
   contactName,
   contactPhone,
+  contact,
   seedDraft,
   replyTo,
   onClearReply,
@@ -746,6 +749,9 @@ function Composer({
   groupId?: string;
   contactName?: string;
   contactPhone?: string;
+  /** For the invite out of a closed window — the sheet edits and sends
+   *  it, so the whole row is needed, not just the phone. */
+  contact?: Contact | null;
   seedDraft?: string;
   /** Message being quoted, or null. Cleared once the reply is sent. */
   replyTo: Message | null;
@@ -763,6 +769,11 @@ function Composer({
   // work, so the error bar offers the one route that needs no template —
   // and it has to carry the exact message that was blocked.
   const [blockedText, setBlockedText] = useState<string | null>(null);
+  // Whether the window is what refused this send. blockedText is only
+  // set when there is text to hand to the agent's own WhatsApp — an
+  // attachment refusal has none, and still needs the other two routes.
+  const [windowBlocked, setWindowBlocked] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -837,6 +848,7 @@ function Composer({
       // Hold the exact text that was refused: this path also carries the
       // property shortlist sheet's message, which never reaches `draft`.
       setBlockedText(closed && contactPhone ? trimmed : null);
+      setWindowBlocked(closed);
       setError(
         closed
           ? contactPhone
@@ -1070,6 +1082,13 @@ function Composer({
         onSend={sendTemplate}
         sending={sending}
       />
+      {contact ? (
+        <MoveToEngineSheet
+          visible={inviteOpen}
+          onClose={() => setInviteOpen(false)}
+          contact={contact}
+        />
+      ) : null}
       <PropertyPickerSheet
         visible={propertiesOpen}
         onClose={() => setPropertiesOpen(false)}
@@ -1113,34 +1132,79 @@ function Composer({
         </View>
       ) : null}
       {error ? (
-        <View style={[styles.errorBar, { backgroundColor: colors.dangerSoft }]}>
-          <Ionicons name="warning-outline" size={14} color={colors.danger} />
-          <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>{error}</Text>
-          {blockedText ? (
+        <View style={[styles.errorBlock, { backgroundColor: colors.dangerSoft }]}>
+          <View style={styles.errorBar}>
+            <Ionicons name="warning-outline" size={14} color={colors.danger} />
+            <Text style={{ flex: 1, fontSize: 12.5, color: colors.danger }}>{error}</Text>
             <Pressable
-              onPress={sendFromOwnWhatsApp}
-              hitSlop={8}
-              style={[styles.errorAction, { borderColor: colors.success }]}
+              onPress={() => {
+                setError(null);
+                setBlockedText(null);
+              }}
+              hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Send this message from your own WhatsApp"
+              accessibilityLabel="Dismiss error"
             >
-              <Ionicons name="logo-whatsapp" size={13} color={colors.success} />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.success }}>
-                My WhatsApp
-              </Text>
+              <Ionicons name="close" size={14} color={colors.danger} />
             </Pressable>
+          </View>
+          {/* A refused send is a dead end unless the way out is right
+              here. Three of them, in the order that costs least: a
+              template reaches them on this number and keeps the thread
+              in the Engine; the agent's own WhatsApp delivers this
+              message now but off the record; the invite fixes the cause
+              — the window is shut because they have never written, and
+              one reply from them opens it for good. */}
+          {windowBlocked ? (
+            <View style={styles.errorActions}>
+              <Pressable
+                onPress={() => {
+                  haptic.tap();
+                  setTemplatesOpen(true);
+                }}
+                hitSlop={8}
+                style={[styles.errorAction, { borderColor: colors.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel="Send an approved template instead"
+              >
+                <Ionicons name="document-text-outline" size={13} color={colors.primary} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: colors.primary }}>
+                  Template
+                </Text>
+              </Pressable>
+              {blockedText ? (
+                <Pressable
+                  onPress={sendFromOwnWhatsApp}
+                  hitSlop={8}
+                  style={[styles.errorAction, { borderColor: colors.success }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Send this message from your own WhatsApp"
+                >
+                  <Ionicons name="logo-whatsapp" size={13} color={colors.success} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.success }}>
+                    My WhatsApp
+                  </Text>
+                </Pressable>
+              ) : null}
+              {contact ? (
+                <Pressable
+                  onPress={() => {
+                    haptic.tap();
+                    setInviteOpen(true);
+                  }}
+                  hitSlop={8}
+                  style={[styles.errorAction, { borderColor: colors.textMuted }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Invite them to message the Engine number"
+                >
+                  <Ionicons name="arrow-forward-circle-outline" size={13} color={colors.textMuted} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textMuted }}>
+                    Invite to Engine
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
-          <Pressable
-            onPress={() => {
-              setError(null);
-              setBlockedText(null);
-            }}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss error"
-          >
-            <Ionicons name="close" size={14} color={colors.danger} />
-          </Pressable>
         </View>
       ) : null}
       {attaching ? (
@@ -1384,12 +1448,20 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 6,
   },
+  errorBlock: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+  },
   errorBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+  },
+  errorActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   statusBar: {
     flexDirection: 'row',
