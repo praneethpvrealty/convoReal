@@ -1552,7 +1552,8 @@ async function processMessage(
         conversation,
         accountId,
         accessToken,
-        phoneNumberId
+        phoneNumberId,
+        configOwnerUserId
       )
       if (qualified) return
     }
