@@ -97,3 +97,53 @@ export function unitRatePerSqft(
   if (!p || !a || p <= 0 || a <= 0) return null;
   return p / a;
 }
+
+/**
+ * The same figures as the project_unit_stats RPC, computed from rows
+ * already in hand.
+ *
+ * The RPC aggregates in SQL across a whole account and guards on
+ * membership, so it cannot serve an anonymous visitor — and the public
+ * project page has already fetched exactly the rows it needs. This
+ * gives both surfaces one arithmetic rather than two that drift.
+ *
+ * Note what the public page will therefore never show: the showcase
+ * fetches only published, Available listings, so `sold_or_contract`
+ * comes back zero there. That is correct — a catalog of what is for
+ * sale is not the place to advertise what is not.
+ */
+export function unitStatsFromProperties(
+  projectId: string,
+  units: Array<{
+    price?: number | null;
+    area_sqft?: number | null;
+    bedrooms?: number | null;
+    status?: string | null;
+  }>,
+): ProjectUnitStats {
+  const available = units.filter((u) => u.status === 'Available');
+  const priced = available
+    .map((u) => Number(u.price))
+    .filter((n) => n > 0 && isFinite(n));
+  const rates = available
+    .map((u) => unitRatePerSqft(u.price, u.area_sqft))
+    .filter((n): n is number => n !== null);
+  const beds = units
+    .map((u) => Number(u.bedrooms))
+    .filter((n) => n > 0 && isFinite(n));
+
+  return {
+    project_id: projectId,
+    units: units.length,
+    available: available.length,
+    sold_or_contract: units.filter(
+      (u) => u.status === 'Sold' || u.status === 'Under Contract',
+    ).length,
+    min_price: priced.length ? Math.min(...priced) : null,
+    max_price: priced.length ? Math.max(...priced) : null,
+    min_rate_per_sqft: rates.length ? Math.min(...rates) : null,
+    max_rate_per_sqft: rates.length ? Math.max(...rates) : null,
+    min_bedrooms: beds.length ? Math.min(...beds) : null,
+    max_bedrooms: beds.length ? Math.max(...beds) : null,
+  };
+}

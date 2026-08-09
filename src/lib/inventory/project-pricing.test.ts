@@ -8,6 +8,7 @@ import {
   projectRateHeadline,
   unitPremiumPercent,
   unitRatePerSqft,
+  unitStatsFromProperties,
 } from './project-pricing';
 
 function stats(over: Partial<ProjectUnitStats> = {}): ProjectUnitStats {
@@ -154,5 +155,83 @@ describe('unitRatePerSqft', () => {
     expect(unitRatePerSqft(14582000, 0)).toBeNull();
     expect(unitRatePerSqft(14582000, null)).toBeNull();
     expect(unitRatePerSqft(null, 1779)).toBeNull();
+  });
+});
+
+describe('unitStatsFromProperties', () => {
+  const unit = (
+    over: Partial<{
+      price: number | null;
+      area_sqft: number | null;
+      bedrooms: number | null;
+      status: string;
+    }> = {},
+  ) => ({
+    price: 14582000,
+    area_sqft: 1779,
+    bedrooms: 3,
+    status: 'Available',
+    ...over,
+  });
+
+  it('agrees with the RPC on the two real plans from the tower', () => {
+    // 1779 sqft 3BHK+3T and 1461 sqft 3BHK+2T — the floor is the
+    // cheaper RATE, which is the larger flat, not the cheaper price.
+    const stats = unitStatsFromProperties('Sattva Exotic', [
+      unit({ price: 14582000, area_sqft: 1779 }),
+      unit({ price: 16650000, area_sqft: 1461 }),
+    ]);
+    expect(Math.round(stats.min_rate_per_sqft!)).toBe(8197);
+    expect(Math.round(stats.max_rate_per_sqft!)).toBe(11396);
+    expect(stats.min_price).toBe(14582000);
+    expect(stats.units).toBe(2);
+    expect(stats.available).toBe(2);
+  });
+
+  it('keeps a sold unit out of every price it quotes', () => {
+    // The whole reason the floor is derived: it must rise when the
+    // cheapest unit goes.
+    const stats = unitStatsFromProperties('p', [
+      unit({ price: 9000000, area_sqft: 1500, status: 'Sold' }),
+      unit({ price: 14582000, area_sqft: 1779 }),
+    ]);
+    expect(stats.min_price).toBe(14582000);
+    expect(stats.sold_or_contract).toBe(1);
+    expect(stats.available).toBe(1);
+    expect(stats.units).toBe(2);
+  });
+
+  it('counts under contract as gone too', () => {
+    const stats = unitStatsFromProperties('p', [
+      unit({ status: 'Under Contract' }),
+    ]);
+    expect(stats.sold_or_contract).toBe(1);
+    expect(stats.min_price).toBeNull();
+  });
+
+  it('ranges BHK across every unit, sold ones included', () => {
+    // Configuration is a fact about the building, not about what is
+    // still for sale.
+    const stats = unitStatsFromProperties('p', [
+      unit({ bedrooms: 2, status: 'Sold' }),
+      unit({ bedrooms: 4 }),
+    ]);
+    expect(projectBhkRange(stats)).toBe('2–4 BHK');
+  });
+
+  it('skips a unit with no area rather than dividing by zero', () => {
+    const stats = unitStatsFromProperties('p', [
+      unit({ area_sqft: null }),
+      unit({ price: 16650000, area_sqft: 1461 }),
+    ]);
+    expect(Math.round(stats.min_rate_per_sqft!)).toBe(11396);
+  });
+
+  it('is all nulls for an empty project rather than zeros', () => {
+    const stats = unitStatsFromProperties('p', []);
+    expect(stats.units).toBe(0);
+    expect(stats.min_price).toBeNull();
+    expect(stats.min_rate_per_sqft).toBeNull();
+    expect(projectPriceHeadline(stats)).toBe('Price on request');
   });
 });

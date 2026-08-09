@@ -11,6 +11,12 @@ import {
   type ShowcaseData,
 } from '@/lib/showcase/public-data';
 import { findProjectProperties } from '@/lib/inventory/project-slug';
+import {
+  projectBhkRange,
+  projectPriceHeadline,
+  projectRateHeadline,
+  unitStatsFromProperties,
+} from '@/lib/inventory/project-pricing';
 import { propertySlug } from '@/lib/showcase/property-slug';
 import { resolveRequestOrigin } from '@/lib/showcase/site-url';
 import { itemListJsonLd, jsonLdScript } from '@/lib/seo/jsonld';
@@ -69,6 +75,24 @@ async function resolveProject(
   };
 }
 
+/**
+ * What the units add up to, from the rows already fetched.
+ *
+ * The stats RPC guards on account membership, so it cannot serve an
+ * anonymous visitor — but this page has exactly the units it needs in
+ * memory. Same arithmetic as the dashboard, one implementation.
+ *
+ * The showcase fetches only published, Available listings, so nothing
+ * here can quote a sold unit's price or count it: a catalog of what is
+ * for sale should not advertise what is not.
+ */
+function projectStats(resolved: ResolvedProject) {
+  return unitStatsFromProperties(
+    resolved.projectName,
+    resolved.projectProperties
+  );
+}
+
 function describeProject(resolved: ResolvedProject): string {
   const { projectName, projectProperties } = resolved;
   const count = projectProperties.length;
@@ -77,9 +101,19 @@ function describeProject(resolved: ResolvedProject): string {
     0,
     3
   );
-  return `${count} available ${count === 1 ? 'listing' : 'listings'} in ${projectName}${
-    city ? `, ${city}` : ''
-  } — ${types.join(', ')}. Verified prices and photos, inquire directly on WhatsApp.`;
+  const stats = projectStats(resolved);
+  // Leads with what a buyer scanning a tower actually wants: the entry
+  // price and the configurations, not a listing count.
+  const price = projectPriceHeadline(stats);
+  const rate = projectRateHeadline(stats);
+  const bhk = projectBhkRange(stats);
+  const opening = [price, rate, bhk].filter(Boolean).join(' · ');
+
+  return `${opening ? `${opening}. ` : ''}${count} available ${
+    count === 1 ? 'listing' : 'listings'
+  } in ${projectName}${city ? `, ${city}` : ''} — ${types.join(
+    ', '
+  )}. Verified prices and photos, inquire directly on WhatsApp.`;
 }
 
 export async function generateMetadata({
@@ -152,7 +186,16 @@ export default async function ProjectPage({ params, searchParams }: PageProps) {
           title: 'Properties in',
           highlight: projectName,
           subtitle: describeProject(resolved),
-          badges: [...(city ? [city] : []), ...types.slice(0, 3)],
+          badges: [
+            // Rate first: in a tower every unit shares the address, so
+            // "from ₹8,200/sqft" separates it from the one next door in
+            // a way the locality never can.
+            ...(projectRateHeadline(projectStats(resolved))
+              ? [projectRateHeadline(projectStats(resolved))]
+              : []),
+            ...(city ? [city] : []),
+            ...types.slice(0, 3),
+          ],
         }}
         disableSavedState
       />
