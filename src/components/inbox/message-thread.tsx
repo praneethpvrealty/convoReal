@@ -57,6 +57,7 @@ import { MessageBubbleLoader } from "@/components/ui/message-bubble-loader";
 import { ConvoRealLoader } from "@/components/ui/convoreal-loader";
 import { NameTagBadge } from "@/components/contacts/name-tag-badge";
 import { isReengagementError } from "@/lib/whatsapp/customer-window";
+import { MoveToEngineDialog } from "@/components/contacts/move-to-engine-dialog";
 import { toast } from "sonner";
 
 interface ReplyDraft {
@@ -177,6 +178,7 @@ export function MessageThread({
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [reactions, setReactions] = useState<MessageReaction[]>([]);
   // Purely visual spin state for the manual-refresh button. The actual
@@ -1297,12 +1299,21 @@ export function MessageThread({
       <MessageComposer
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired}
+        contactPhone={contact.phone}
+        onInviteToEngine={() => setInviteOpen(true)}
         onSend={handleSend}
         onSendAttachment={handleSendAttachment}
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
         contactDead={Boolean(contact?.is_dead || contact?.is_archived)}
+      />
+
+      <MoveToEngineDialog
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        contactName={contact.name || contact.phone}
+        contactPhone={contact.phone}
       />
 
       <TemplatePicker

@@ -1,9 +1,6 @@
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { resolveConversation, type ConversationRow } from '@/lib/conversations/resolve'
-import {
-  ENQUIRY_CLOSED_CONFIRMATION,
-  markContactDead,
-} from '@/lib/contacts/lifecycle'
+import { markContactDead } from '@/lib/contacts/lifecycle'
 import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -1279,12 +1276,12 @@ async function processMessage(
   }
 
   // "Close my enquiry" on the enquiry-status / enquiry-followup
-  // templates. Deliberately not folded into the STOP ALERTS branch
-  // below: STOP ALERTS is a preference about alerts, this is the lead
-  // saying the enquiry is over. It marks the contact dead (migration
-  // 228), which parks the requirement, stops every automated send and
-  // drops them out of matching — the whole point being that the agent's
-  // list stops carrying leads who are gone.
+  // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
+  // free text, or either enquiry template's "Close my enquiry" quick
+  // reply (which arrives as message.button.text). Same
+  // chat-as-control-panel pattern as the owner digest commands above,
+  // editing contacts.buyer_alerts_consent.
+  //
   // Both enquiry templates carry their own copy of the label. They read
   // identically today, so matching only one worked by luck; matching
   // both means rewording either cannot silently stop closing enquiries.
@@ -1292,41 +1289,30 @@ async function processMessage(
     ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
     ENQUIRY_NOTICE_CLOSE_BUTTON,
   ]
-  if (message.button?.text && closeButtons.includes(message.button.text)) {
-    await markContactDead({
-      db: supabaseAdmin(),
-      accountId,
-      contactId: contactRecord.id,
-      reason: 'closed_enquiry',
-      note: 'Lead closed their enquiry from WhatsApp ("Close my enquiry")',
-    })
-    await sendWhatsAppMessageAndPersist({
-      accountId,
-      userId: configOwnerUserId,
-      contactId: contactRecord.id,
-      conversationId: conversation.id,
-      kind: 'text',
-      senderType: 'bot',
-      text: ENQUIRY_CLOSED_CONFIRMATION,
-      // The contact was dead a line ago; this is the acknowledgement
-      // they asked for, not outreach.
-      allowDeadContact: true,
-    })
-    return
-  }
-
-  // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text. Same chat-as-control-panel pattern as the owner digest
-  // commands above, editing contacts.buyer_alerts_consent.
-  const alertsCommand = parseBuyerAlertsCommand(
-    message.button?.text ?? contentText,
-  )
+  const alertsCommand =
+    message.button?.text && closeButtons.includes(message.button.text)
+      ? 'close'
+      : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
     const confirmation = await applyBuyerAlertsCommand({
       command: alertsCommand,
       accountId,
       contactId: contactRecord.id,
     })
+    // 'close' is the lead saying the enquiry is over, not a preference
+    // about alerts: it also marks the contact dead (migration 228),
+    // which parks the requirement, stops every automated send and drops
+    // them out of matching. The goodbye above still goes out — it is
+    // the acknowledgement they asked for, and its one pitch to stay.
+    if (alertsCommand === 'close') {
+      await markContactDead({
+        db: supabaseAdmin(),
+        accountId,
+        contactId: contactRecord.id,
+        reason: 'closed_enquiry',
+        note: 'Lead closed their enquiry from WhatsApp ("Close my enquiry")',
+      })
+    }
     if (confirmation) {
       await sendWhatsAppMessageAndPersist({
         accountId,
@@ -1336,6 +1322,10 @@ async function processMessage(
         kind: 'text',
         senderType: 'bot',
         text: confirmation,
+        // The contact was marked dead a line ago, which the dispatcher
+        // refuses sends to. This one is the goodbye they asked for
+        // rather than outreach, so it is the exception.
+        allowDeadContact: alertsCommand === 'close',
       })
       return
     }

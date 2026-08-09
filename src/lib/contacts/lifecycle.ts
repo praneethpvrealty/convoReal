@@ -111,10 +111,6 @@ export async function reviveContact(args: {
   return true;
 }
 
-/** What the lead is told when their close lands. */
-export const ENQUIRY_CLOSED_CONFIRMATION =
-  "Done — your enquiry is closed and we won't send you any more property updates. If you're looking again later, just message us here and we'll pick it back up.";
-
 /**
  * Whether a contact is excluded from automated sending, matching and
  * audiences. One predicate so every caller agrees on what "live" means.
