@@ -28,6 +28,12 @@ vi.mock('@/lib/whatsapp/listing-feedback', () => ({
     sendListingFeedbackPrompt(...args),
 }));
 
+const sendRequirementReview = vi.fn();
+
+vi.mock('@/lib/whatsapp/requirement-review', () => ({
+  sendRequirementReview: (...args: unknown[]) => sendRequirementReview(...args),
+}));
+
 const { sendPreferenceMatchFollowUp, buildNoLiveMatchReply } =
   await import('./preference-match-followup');
 
@@ -110,10 +116,26 @@ describe('sendPreferenceMatchFollowUp', () => {
     );
   });
 
-  it('still answers when nothing fits, rather than going quiet', async () => {
+  it('answers a no-match with the requirement playback card', async () => {
+    // "Nothing fits that yet" is a dead end unless the lead can see
+    // what *that* is and correct it.
+    rankPropertiesForContact.mockResolvedValue([]);
+    sendRequirementReview.mockResolvedValue(true);
+
+    const result = await sendPreferenceMatchFollowUp(args());
+
+    expect(result).toEqual({ matchCount: 0, replySent: true });
+    expect(sendRequirementReview).toHaveBeenCalledWith(
+      expect.objectContaining({ contactId: 'contact-1' })
+    );
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
+  });
+
+  it('still answers in plain text when there is nothing on file to review', async () => {
     // The confirmation summary already promised a match; silence would
     // read as the form having gone nowhere.
     rankPropertiesForContact.mockResolvedValue([]);
+    sendRequirementReview.mockResolvedValue(false);
 
     const result = await sendPreferenceMatchFollowUp(args());
 
