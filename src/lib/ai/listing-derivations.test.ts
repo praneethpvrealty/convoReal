@@ -4,6 +4,7 @@ import {
   detectJointDevelopment,
   extractDimensionsFromText,
   extractRateQuote,
+  extractYouTubeVideoId,
   parseDimensionsToSqft,
   toSquareFeet,
 } from '@/lib/ai/listing-derivations';
@@ -190,6 +191,57 @@ describe('applyListingDerivations', () => {
       'Rate is 85 per sqft'
     );
     expect(derived.price).toBeNull();
+  });
+});
+
+describe('extractYouTubeVideoId', () => {
+  it('reads the common YouTube URL shapes', () => {
+    expect(extractYouTubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://youtu.be/dQw4w9WgXcQ?t=10')).toBe('dQw4w9WgXcQ');
+    expect(extractYouTubeVideoId('https://youtube.com/shorts/abc123XYZ_-')).toBe('abc123XYZ_-');
+    expect(extractYouTubeVideoId('https://m.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+  });
+
+  it('finds the link inside a longer listing message', () => {
+    expect(
+      extractYouTubeVideoId(
+        '5BHK CUDA approved home in Chikkaballapur\nhttps://youtu.be/dQw4w9WgXcQ\nPrice 1.8 Cr'
+      )
+    ).toBe('dQw4w9WgXcQ');
+  });
+
+  it('drops trailing sentence punctuation', () => {
+    expect(extractYouTubeVideoId('Video here: https://youtu.be/dQw4w9WgXcQ.')).toBe('dQw4w9WgXcQ');
+  });
+
+  it('ignores non-YouTube links and plain text', () => {
+    expect(extractYouTubeVideoId('https://example.com/watch?v=dQw4w9WgXcQ')).toBeNull();
+    expect(extractYouTubeVideoId('https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ')).toBeNull();
+    expect(extractYouTubeVideoId('30x40 site near Isha, 1.8 Cr')).toBeNull();
+    expect(extractYouTubeVideoId(null)).toBeNull();
+  });
+});
+
+describe('applyListingDerivations — YouTube link', () => {
+  it('attaches a link found in the message', () => {
+    const derived = applyListingDerivations(makeDraft(), 'Walkthrough: https://youtu.be/dQw4w9WgXcQ');
+    expect(derived.youtube_video_id).toBe('dQw4w9WgXcQ');
+  });
+
+  it('keeps the link across later corrections that omit it', () => {
+    const first = applyListingDerivations(makeDraft(), 'https://youtu.be/dQw4w9WgXcQ');
+    const corrected = applyListingDerivations(
+      { ...first, youtube_video_id: undefined },
+      'Price is 1.8 Cr',
+      first
+    );
+    expect(corrected.youtube_video_id).toBe('dQw4w9WgXcQ');
+  });
+
+  it('replaces the link when a new one is shared', () => {
+    const first = applyListingDerivations(makeDraft(), 'https://youtu.be/dQw4w9WgXcQ');
+    const replaced = applyListingDerivations(first, 'Updated video https://youtu.be/abc123XYZ_-', first);
+    expect(replaced.youtube_video_id).toBe('abc123XYZ_-');
   });
 });
 
