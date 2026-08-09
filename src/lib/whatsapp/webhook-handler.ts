@@ -1279,7 +1279,7 @@ async function processMessage(
   // editing contacts.buyer_alerts_consent.
   const alertsCommand =
     message.button?.text === ENQUIRY_FOLLOWUP_CLOSE_BUTTON
-      ? 'stop'
+      ? 'close'
       : parseBuyerAlertsCommand(message.button?.text ?? contentText)
   if (alertsCommand) {
     const confirmation = await applyBuyerAlertsCommand({
