@@ -41,6 +41,7 @@ import {
 import { recordBotTarget, resolveBotTarget, latestBotTarget } from '@/lib/whatsapp/bot-message-target';
 import { resolveReplayTarget, replayText } from '@/lib/whatsapp/message-replay';
 import { applyRecordUpdate } from '@/lib/ai/record-edit';
+import { matchProjectByName } from '@/lib/inventory/projects';
 import {
   isOwnerHelpCommand,
   buildOwnerHelpMessage,
@@ -982,12 +983,26 @@ export async function processOwnerChatbotMessage(
       const parsedRent = parseNumeric(draft.rent_per_month) || 0;
       const parsedPriceVal = parseNumeric(draft.price) || 0;
 
+      // Four floor plans forwarded from one tower used to become four
+      // unrelated listings, each repeating the project name as text and
+      // none of them counted in it. The name is in the message; if the
+      // account already tracks a project by it, this is a unit of that
+      // project. Never creates one — naming a tower in passing is not a
+      // decision to track it.
+      const intakeProjectId = await matchProjectByName(
+        supabaseAdmin(),
+        accountId,
+        draft.project,
+      );
+
       // Create new property in inventory
       const { data: prop, error: propErr } = await supabaseAdmin()
         .from('properties')
         .insert({
           account_id: accountId,
           user_id: userId,
+          project: draft.project?.trim() || null,
+          project_id: intakeProjectId,
           title: draft.title!.trim(),
           description: draft.description || '',
           price: draft.listing_type === 'Rent' ? parsedRent : parsedPriceVal,
@@ -2514,6 +2529,16 @@ export async function processExternalListingMessage(
       return true;
     }
 
+    // Same project rule as the owner path: a submission naming a tower
+    // the account already tracks is a unit of it. This one lands as
+    // Pending Review either way, so a wrong link is caught by the same
+    // human who is already checking the price.
+    const listerProjectId = await matchProjectByName(
+      supabaseAdmin(),
+      accountId,
+      draft.project,
+    );
+
     // Self-listing: the WhatsApp sender IS the owner/agent of this
     // property. Never look up or create another contact for it —
     // that's what the "never invoke contact creation" rule is about.
@@ -2522,6 +2547,8 @@ export async function processExternalListingMessage(
       .insert({
         account_id: accountId,
         user_id: null,
+        project: draft.project?.trim() || null,
+        project_id: listerProjectId,
         title: draft.title!.trim(),
         description: draft.description || `Submitted via WhatsApp by an external lister, pending review.`,
         price: draft.listing_type === 'Rent' ? (draft.rent_per_month || 0) : (draft.price || 0),
