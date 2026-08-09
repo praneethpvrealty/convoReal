@@ -31,7 +31,8 @@ interface EngineNumber {
 async function fetchEngineNumber(): Promise<EngineNumber> {
   const res = await fetch('/api/whatsapp/engine-number');
   const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || 'Could not load the Engine number');
+  if (!res.ok)
+    throw new Error(body.error || 'Could not load the Engine number');
   return body.data as EngineNumber;
 }
 
@@ -42,9 +43,11 @@ function buildInvite(engine: EngineNumber, contactName: string): string {
   const firstName = contactName?.trim().split(/\s+/)[0] || 'there';
   return (
     `Hi ${firstName} 👋\n\n` +
-    `I've saved what you're looking for. You'll hear from me the moment something matching comes up — ` +
-    `those updates come from our listings number so nothing gets lost.\n\n` +
-    `Tap here once to switch them on:\n${link}`
+    `I've saved what you're looking for. From here, our listings engine watches the market for you:\n\n` +
+    `⚡ You hear the *moment* a matching property comes in\n` +
+    `💎 First look at steal deals — sellers needing a quick exit, priced under market\n` +
+    `🎯 Only what fits your requirement — no spam, reply STOP ALERTS anytime\n\n` +
+    `Tap once to switch it on:\n${link}`
   );
 }
 
@@ -109,54 +112,63 @@ export function MoveToEngineDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md bg-slate-900 border border-slate-800 text-white rounded-2xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 text-white shadow-2xl">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <MessageSquare className="size-5 text-emerald-400" />
             Move to Engine WhatsApp
           </DialogTitle>
-          <DialogDescription className="text-slate-400 text-xs mt-1">
-            Send this from wherever you are already talking to {contactName || 'them'}. One tap
-            opens their chat on the Engine number and switches on property alerts.
+          <DialogDescription className="mt-1 text-xs text-slate-400">
+            Send this from wherever you are already talking to{' '}
+            {contactName || 'them'}. One tap opens their chat on the Engine
+            number and switches on property alerts.
           </DialogDescription>
         </DialogHeader>
 
         {engineQuery.isPending ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <div className="flex flex-col items-center justify-center gap-3 py-12">
             <Loader2 className="size-7 animate-spin text-emerald-500" />
-            <p className="text-[11px] text-slate-500">Reading your connected number…</p>
+            <p className="text-[11px] text-slate-500">
+              Reading your connected number…
+            </p>
           </div>
         ) : engineQuery.isError ? (
           <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
-            <AlertTriangle className="size-4 text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-200/90 leading-relaxed">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-400" />
+            <p className="text-xs leading-relaxed text-amber-200/90">
               {(engineQuery.error as Error).message}
             </p>
           </div>
         ) : (
-          <div className="space-y-4 mt-4">
+          <div className="mt-4 space-y-4">
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              <p className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
                 Engine number
               </p>
-              <p className="text-sm font-semibold text-slate-100 mt-1">{engine?.phone}</p>
+              <p className="mt-1 text-sm font-semibold text-slate-100">
+                {engine?.phone}
+              </p>
               {engine?.sandbox && (
-                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
-                  Shared sandbox number — the link carries your {engine.prefix.trim()} code so their
-                  message reaches this account.
+                <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+                  Shared sandbox number — the link carries your{' '}
+                  {engine.prefix.trim()} code so their message reaches this
+                  account.
                 </p>
               )}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-slate-300 text-xs font-semibold">Invite message</Label>
+              <Label className="text-xs font-semibold text-slate-300">
+                Invite message
+              </Label>
               <Textarea
                 value={message}
                 onChange={(e) => setDraft(e.target.value)}
-                className="bg-slate-800 border-slate-700 text-slate-100 text-xs min-h-[150px] leading-relaxed resize-none focus-visible:ring-1 focus-visible:ring-emerald-500 focus-visible:border-emerald-500"
+                className="min-h-[150px] resize-none border-slate-700 bg-slate-800 text-xs leading-relaxed text-slate-100 focus-visible:border-emerald-500 focus-visible:ring-1 focus-visible:ring-emerald-500"
               />
               <p className="text-[10px] text-slate-500">
-                Keep the link intact — the pre-filled text is what turns their alerts on.
+                Keep the link intact — the pre-filled text is what turns their
+                alerts on.
               </p>
             </div>
 
@@ -164,14 +176,14 @@ export function MoveToEngineDialog({
               <Button
                 variant="outline"
                 onClick={handleCopy}
-                className="border-slate-800 hover:bg-slate-800 text-slate-300 font-semibold gap-1.5 h-9 rounded-lg text-xs"
+                className="h-9 gap-1.5 rounded-lg border-slate-800 text-xs font-semibold text-slate-300 hover:bg-slate-800"
               >
                 <Copy className="size-3.5" />
                 Copy invite
               </Button>
               <Button
                 onClick={handleSend}
-                className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold gap-1.5 h-9 rounded-lg text-xs shadow-lg shadow-emerald-500/10"
+                className="h-9 gap-1.5 rounded-lg bg-emerald-500 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-500/10 hover:bg-emerald-600"
               >
                 <MessageSquare className="size-3.5 fill-slate-950" />
                 Send on WhatsApp
