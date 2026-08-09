@@ -206,18 +206,20 @@ export function buildFollowUpQuestion(field: QualifierField): string {
   return "One thing — which area suits you best? I'll narrow these down.";
 }
 
-export function buildMatchesReply(
+/**
+ * The numbered listing blocks alone, capped to the shortlist size.
+ * Shared with the preference-tap reply so a lead who taps the button
+ * and a lead who types their requirement see inventory formatted the
+ * same way.
+ */
+export function buildListingLines(
   contactName: string | null | undefined,
   matches: RankedPropertyMatch[],
   baseUrl: string,
-  contactId: string,
-  /** Appended when listings went out before the ladder was finished. */
-  followUp?: string | null
-): string {
-  const shown = matches.slice(0, MAX_MATCHES_SENT);
+  contactId: string
+): string[] {
   const origin = baseUrl.replace(/\/+$/, '');
-
-  const listings = shown.map((m, i) => {
+  return matches.slice(0, MAX_MATCHES_SENT).map((m, i) => {
     // Skips the greeting AND the brokerage: this is a free-form list
     // inside a message the bot already signed, so repeating the name on
     // every line would read like a form letter.
@@ -232,6 +234,18 @@ export function buildMatchesReply(
       `${origin}/?property_id=${m.property.id}&v=${contactId}`,
     ].join('\n');
   });
+}
+
+export function buildMatchesReply(
+  contactName: string | null | undefined,
+  matches: RankedPropertyMatch[],
+  baseUrl: string,
+  contactId: string,
+  /** Appended when listings went out before the ladder was finished. */
+  followUp?: string | null
+): string {
+  const shown = matches.slice(0, MAX_MATCHES_SENT);
+  const listings = buildListingLines(contactName, matches, baseUrl, contactId);
 
   const lead =
     shown.length === 1
@@ -366,7 +380,7 @@ export function preferenceFacts(
 }
 
 /** Preferences already on the contact row, in extraction shape. */
-function prefsFromContact(contact: Contact): ExtractedPreferences {
+export function prefsFromContact(contact: Contact): ExtractedPreferences {
   return {
     ...EMPTY_PREFERENCES,
     property_types: contact.pref_property_types || [],

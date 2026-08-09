@@ -29,6 +29,7 @@ import {
   getPublishedPreferenceFlow,
 } from '@/lib/whatsapp/meta-flow-service'
 import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup'
+import { sendPreferenceTapReply } from '@/lib/whatsapp/preference-tap-reply'
 import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
@@ -1785,7 +1786,9 @@ async function processMessage(
   ) {
     const handledPreferenceFlow = await handlePreferenceFlowTrigger(
       accountId,
-      contactRecord.id
+      contactRecord.id,
+      configOwnerUserId,
+      conversation.id
     )
     if (handledPreferenceFlow) return
   }
@@ -2699,29 +2702,47 @@ const CONTACT_UPDATABLE_FIELDS: UpdateField[] = [
 
 // Parse update intent from message text
 /**
- * Send the Buyer Preference Intake flow when a buyer asks for it.
- * Returns true when the flow message was sent (message consumed);
- * false when the account has no published flow or the send failed,
- * letting the message fall through to normal handling.
+ * Answer a buyer's preference-update request: the listings-first tap
+ * reply, then the Buyer Preference Intake flow as an optional shortcut.
+ * Returns true when either message was sent (message consumed); false
+ * when the account has no published flow or both sends failed, letting
+ * the message fall through to normal handling.
  */
 async function handlePreferenceFlowTrigger(
   accountId: string,
-  contactId: string
+  contactId: string,
+  configOwnerUserId: string,
+  conversationId: string
 ): Promise<boolean> {
   try {
     const flow = await getPublishedPreferenceFlow(accountId)
     if (!flow) return false
 
+    const tap = await sendPreferenceTapReply({
+      db: supabaseAdmin(),
+      accountId,
+      userId: configOwnerUserId,
+      contactId,
+      conversationId,
+    })
+
     const result = await sendPreferenceFlowToContact({
       accountId,
       contactId,
       senderType: 'bot',
+      // The listings reply already made the ask; the form must not
+      // repeat it as homework.
+      bodyText: tap.replySent
+        ? 'Prefer to update everything at once instead? The full form takes under a minute.'
+        : undefined,
     })
     if (!result.success) {
       console.error(`[webhook] Preference flow send failed: ${result.error}`)
-      return false
+      return tap.replySent
     }
-    console.log(`[webhook] Sent preference flow to contact ${contactId}`)
+    console.log(
+      `[webhook] Sent preference tap reply (${tap.matchCount} matches) + flow to contact ${contactId}`
+    )
     return true
   } catch (err) {
     console.error('[webhook] Preference flow trigger error:', err)
