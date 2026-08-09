@@ -70,6 +70,31 @@ export function matchableSqft(
   return p.area_sqft ?? toSquareFeet(p.land_area, p.land_area_unit);
 }
 
+/**
+ * Coarse buyer-interest label for a property-type phrase — a lead's
+ * requirement text ("4 BHK Villa in HSR"), the parsed listing type, or a
+ * matched property's `type`. Specific structure keywords are checked
+ * BEFORE the generic 'bhk'/'flat' catch-all, for the same reason as
+ * extractPropertyType() in email-parser.ts: "4 BHK Villa" contains "bhk"
+ * too, and with the catch-all first every villa/house lead was also
+ * tagged 'Flat/ Apartment'. Villas and houses map to their own interests
+ * rather than 'Vacant building'. A "site visit" request is not a plot
+ * inquiry, and \b keeps 'landmark'/'website' from reading as land/site.
+ */
+export function interestFromTypeText(text: string): string | null {
+  const lower = text.toLowerCase().replace(/site\s+visits?/g, ' ');
+  if (lower.includes('industrial') || lower.includes('industry') || lower.includes('warehouse') || lower.includes('factory') || lower.includes('shed') || lower.includes('godown')) return 'Industrial';
+  if (lower.includes('commercial') || lower.includes('office') || lower.includes('shop') || lower.includes('showroom')) return 'Commercial';
+  if (lower.includes('villa')) return 'Villa';
+  if (lower.includes('farm house') || lower.includes('farmhouse')) return 'Farm House';
+  if (lower.includes('penthouse')) return 'Penthouse';
+  if (lower.includes('house')) return 'Residential House';
+  if (lower.includes('flat') || lower.includes('apartment') || lower.includes('bhk') || lower.includes('studio')) return 'Flat/ Apartment';
+  if (/\b(?:plots?|land|sites?)\b/.test(lower)) return 'Vacant plot';
+  if (lower.includes('building')) return 'Vacant building';
+  return null;
+}
+
 export function normalizeLocationString(str: string): string {
   if (!str) return '';
   return str
@@ -490,21 +515,30 @@ export async function POST(request: Request) {
     if (parsed.requirementText) {
       maxBudget = parseBudgetToINR(parsed.requirementText);
 
-      // Extract property type keywords
+      // Extract property type keywords: one built-form interest via the
+      // precedence in interestFromTypeText(), then asset classes that can
+      // genuinely co-occur with it in the same requirement.
       const reqLower = parsed.requirementText.toLowerCase();
-      if (reqLower.includes('bhk') || reqLower.includes('apartment') || reqLower.includes('flat')) {
-        propertyInterests.push('Flat/ Apartment');
+      const primaryInterest = interestFromTypeText(reqLower);
+      if (primaryInterest) {
+        propertyInterests.push(primaryInterest);
       }
-      if (reqLower.includes('plot') || reqLower.includes('land') || reqLower.includes('site')) {
+      if (
+        !propertyInterests.includes('Vacant plot') &&
+        /\b(?:plots?|land|sites?)\b/.test(reqLower.replace(/site\s+visits?/g, ' '))
+      ) {
         propertyInterests.push('Vacant plot');
       }
-      if (reqLower.includes('building') || reqLower.includes('house') || reqLower.includes('villa')) {
-        propertyInterests.push('Vacant building');
-      }
-      if (reqLower.includes('commercial') || reqLower.includes('office') || reqLower.includes('shop')) {
+      if (
+        !propertyInterests.includes('Commercial') &&
+        (reqLower.includes('commercial') || reqLower.includes('office') || reqLower.includes('shop'))
+      ) {
         propertyInterests.push('Commercial');
       }
-      if (reqLower.includes('industrial') || reqLower.includes('industry') || reqLower.includes('warehouse') || reqLower.includes('factory')) {
+      if (
+        !propertyInterests.includes('Industrial') &&
+        (reqLower.includes('industrial') || reqLower.includes('industry') || reqLower.includes('warehouse') || reqLower.includes('factory'))
+      ) {
         propertyInterests.push('Industrial');
       }
 
@@ -543,19 +577,7 @@ export async function POST(request: Request) {
     }
 
     if (parsed.propertyType) {
-      const typeLower = parsed.propertyType.toLowerCase();
-      let interest = '';
-      if (typeLower.includes('industrial') || typeLower.includes('industry') || typeLower.includes('warehouse') || typeLower.includes('factory') || typeLower.includes('shed') || typeLower.includes('godown')) {
-        interest = 'Industrial';
-      } else if (typeLower.includes('commercial') || typeLower.includes('office') || typeLower.includes('shop') || typeLower.includes('showroom')) {
-        interest = 'Commercial';
-      } else if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
-        interest = 'Flat/ Apartment';
-      } else if (typeLower.includes('plot') || typeLower.includes('land') || typeLower.includes('site')) {
-        interest = 'Vacant plot';
-      } else if (typeLower.includes('house') || typeLower.includes('villa')) {
-        interest = 'Vacant building';
-      }
+      const interest = interestFromTypeText(parsed.propertyType);
       if (interest && !propertyInterests.includes(interest)) {
         propertyInterests.push(interest);
       }
@@ -722,19 +744,7 @@ export async function POST(request: Request) {
               // Add property interests from best matched property types
               bestMatchedProperties.forEach((p: PropertyForMatching) => {
                 if (p.type) {
-                  const typeLower = p.type.toLowerCase();
-                  let interest = '';
-                  if (typeLower.includes('industrial') || typeLower.includes('industry') || typeLower.includes('warehouse') || typeLower.includes('factory') || typeLower.includes('shed') || typeLower.includes('godown')) {
-                    interest = 'Industrial';
-                  } else if (typeLower.includes('commercial') || typeLower.includes('office') || typeLower.includes('shop') || typeLower.includes('showroom')) {
-                    interest = 'Commercial';
-                  } else if (typeLower.includes('apartment') || typeLower.includes('flat') || typeLower.includes('bhk')) {
-                    interest = 'Flat/ Apartment';
-                  } else if (typeLower.includes('plot') || typeLower.includes('land') || typeLower.includes('site')) {
-                    interest = 'Vacant plot';
-                  } else if (typeLower.includes('house') || typeLower.includes('villa')) {
-                    interest = 'Vacant building';
-                  }
+                  const interest = interestFromTypeText(p.type);
                   if (interest && !propertyInterests.includes(interest)) {
                     propertyInterests.push(interest);
                   }
@@ -843,9 +853,10 @@ export async function POST(request: Request) {
       const tagsToAssign: string[] = [];
       
       // Add property type tags
-      if (propertyInterests.includes('Flat/ Apartment')) tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Flat/ Apartment') || propertyInterests.includes('Penthouse')) tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Villa')) tagsToAssign.push('Residential', 'Villa');
+      if (propertyInterests.includes('Residential House') || propertyInterests.includes('Farm House') || propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential');
       if (propertyInterests.includes('Vacant plot')) tagsToAssign.push('Plots/Land');
-      if (propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential', 'Villa');
       if (propertyInterests.includes('Commercial')) tagsToAssign.push('Commercial');
       
       // Add source tag
@@ -1028,9 +1039,10 @@ export async function POST(request: Request) {
       const tagsToAssign: string[] = [];
       
       // Add property type tags
-      if (propertyInterests.includes('Flat/ Apartment')) tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Flat/ Apartment') || propertyInterests.includes('Penthouse')) tagsToAssign.push('Residential', 'Flat/Apartment');
+      if (propertyInterests.includes('Villa')) tagsToAssign.push('Residential', 'Villa');
+      if (propertyInterests.includes('Residential House') || propertyInterests.includes('Farm House') || propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential');
       if (propertyInterests.includes('Vacant plot')) tagsToAssign.push('Plots/Land');
-      if (propertyInterests.includes('Vacant building')) tagsToAssign.push('Residential', 'Villa');
       if (propertyInterests.includes('Commercial')) tagsToAssign.push('Commercial');
       
       // Add source tag
