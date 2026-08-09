@@ -21,8 +21,7 @@ import {
 import {
   buildListingLines,
   buildFollowUpQuestion,
-  nextQualifier,
-  prefsFromContact,
+  nextQualifierForContact,
 } from '@/lib/ai/buyer-qualification';
 import { extractEnquiredPropertyFromNote } from '@/lib/contacts/enquiry-note';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
@@ -124,7 +123,7 @@ export async function sendPreferenceTapReply(args: {
       .map((n) => extractEnquiredPropertyFromNote(n.note_text))
       .filter(Boolean) as string[];
 
-    const missing = nextQualifier(prefsFromContact(contact as Contact));
+    const missing = nextQualifierForContact(contact as Contact);
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const contactName = (contact as Contact).name ?? null;
 

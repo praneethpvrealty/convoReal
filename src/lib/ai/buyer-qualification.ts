@@ -301,7 +301,10 @@ export function buildQualificationReply(
   const missing = shortCircuit ? null : laddered;
 
   if (missing) {
-    return { missing, reply: buildQualifierQuestion(missing, prefs, areaSuggestions) };
+    return {
+      missing,
+      reply: buildQualifierQuestion(missing, prefs, areaSuggestions),
+    };
   }
   return {
     missing: null,
@@ -371,7 +374,10 @@ export function preferenceFacts(
   // Tags the buyer's own words earned but nobody has attached. Only
   // the unattached ones travel: proposing a tag the contact already
   // carries is a queue item that resolves to nothing.
-  const unattached = visibleTagSuggestions(prefs.suggested_tags, attachedTagNames);
+  const unattached = visibleTagSuggestions(
+    prefs.suggested_tags,
+    attachedTagNames
+  );
   if (unattached.length > 0) {
     facts.push({ field: 'tags', value: unattached });
   }
@@ -380,6 +386,28 @@ export function preferenceFacts(
 }
 
 /** Preferences already on the contact row, in extraction shape. */
+/**
+ * The ladder over a saved contact rather than an extraction. Two
+ * things the raw prefs mapping cannot see: "no fixed budget"
+ * (contacts.no_budget) is an answered budget rung, not a missing one,
+ * and agent-entered areas_of_interest satisfy location just as well
+ * as extracted pref_areas.
+ */
+export function nextQualifierForContact(
+  contact: Contact
+): QualifierField | null {
+  const prefs = prefsFromContact(contact);
+  if (
+    prefs.areas.length === 0 &&
+    (contact.areas_of_interest?.length ?? 0) > 0
+  ) {
+    prefs.areas = contact.areas_of_interest as string[];
+  }
+  const missing = nextQualifier(prefs);
+  if (missing !== 'budget' || !contact.no_budget) return missing;
+  return hasLocation(prefs) ? null : 'location';
+}
+
 export function prefsFromContact(contact: Contact): ExtractedPreferences {
   return {
     ...EMPTY_PREFERENCES,
@@ -578,9 +606,11 @@ export async function processBuyerQualificationMessage(
       // Joined in by the select above; Contact does not model the join
       // row, and neither does any other reader of it.
       const attachedTagNames = (
-        (contact as unknown as {
-          contact_tags?: { tags?: { name?: string | null } | null }[];
-        }).contact_tags ?? []
+        (
+          contact as unknown as {
+            contact_tags?: { tags?: { name?: string | null } | null }[];
+          }
+        ).contact_tags ?? []
       ).map((t) => t.tags?.name);
 
       await recordLearnedFacts({
