@@ -44,6 +44,10 @@ import {
 } from '@/lib/whatsapp/property-type-prompt'
 import { sendAlertsOnboarding } from '@/lib/whatsapp/alerts-onboarding'
 import {
+  handleRequirementTweakReply,
+  REQUIREMENT_TWEAK_ID_PREFIX,
+} from '@/lib/whatsapp/requirement-review'
+import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
   preferenceFormToContactUpdate,
@@ -1821,6 +1825,20 @@ async function processMessage(
       replyId: interactiveReplyId,
     })
     if (handledFeedback) return
+  }
+
+  // A tap on the requirement playback card — confirm the brief, or
+  // re-open the type/budget lists and the typed area question.
+  if (interactiveReplyId?.startsWith(REQUIREMENT_TWEAK_ID_PREFIX)) {
+    const handledTweak = await handleRequirementTweakReply({
+      db: supabaseAdmin(),
+      accountId,
+      configOwnerUserId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      replyId: interactiveReplyId,
+    })
+    if (handledTweak) return
   }
 
   // A tapped property type or budget band. The tap saves the answer;
