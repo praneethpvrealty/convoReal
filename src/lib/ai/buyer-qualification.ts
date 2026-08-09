@@ -324,25 +324,44 @@ export function buildQualificationReply(
 }
 
 /**
+ * A list field as a comparable set of values.
+ *
+ * Gemini returns the same facts tokenised differently between runs. One
+ * lead's stored areas were ["Block 4th Sir M Vishweshwaraiah Layout",
+ * "Bangalore"]; re-extracting the unchanged brief returned the pair
+ * joined into a single comma-separated string. Nothing had changed, but
+ * an element-wise comparison read it as new information, so a lead who
+ * had typed "Call me" was answered with the next qualifier.
+ *
+ * Splitting on the comma is a comparison decision and nothing else —
+ * this value is never stored, and no enum member contains one.
+ */
+function comparableList(vals: string[]): string[] {
+  const parts = (vals || []).flatMap((v) => String(v ?? '').split(','));
+  const cleaned = parts
+    .map((p) => p.trim().toLowerCase().replace(/\s+/g, ' '))
+    .filter(Boolean);
+  return [...new Set(cleaned)].sort();
+}
+
+/**
  * Comparable form of the fields the ladder and the matcher read, so a
  * re-extraction that changed nothing can be told apart from one that
  * learned something new.
  */
 export function preferenceSignature(prefs: ExtractedPreferences): string {
-  const sorted = (vals: string[]) =>
-    [...vals].map((v) => v.toLowerCase()).sort();
   return JSON.stringify([
-    sorted(prefs.property_types),
-    sorted(prefs.property_categories),
+    comparableList(prefs.property_types),
+    comparableList(prefs.property_categories),
     prefs.bhk_min,
     prefs.bhk_max,
     prefs.budget_min,
     prefs.budget_max,
-    sorted(prefs.areas),
-    sorted(prefs.excluded_areas),
-    sorted(prefs.projects),
+    comparableList(prefs.areas),
+    comparableList(prefs.excluded_areas),
+    comparableList(prefs.projects),
     prefs.min_roi,
-    sorted(prefs.listing_types),
+    comparableList(prefs.listing_types),
   ]);
 }
 

@@ -417,6 +417,64 @@ describe('preferenceSignature', () => {
       preferenceSignature(prefs())
     );
   });
+
+  it('reads a re-tokenised locality as unchanged', () => {
+    // The production values, verbatim. The stored areas were the pair;
+    // re-extracting the same brief returned them comma-joined into one
+    // string. Element-wise that is a change, and the ladder answered a
+    // lead who had typed "Call me" with the next qualifier.
+    expect(
+      preferenceSignature(
+        prefs({ areas: ['Block 4th Sir M Vishweshwaraiah Layout, Bangalore'] })
+      )
+    ).toBe(
+      preferenceSignature(
+        prefs({ areas: ['Block 4th Sir M Vishweshwaraiah Layout', 'Bangalore'] })
+      )
+    );
+  });
+
+  it('ignores whitespace and duplicate noise from a re-run', () => {
+    expect(
+      preferenceSignature(prefs({ areas: ['  HSR  Layout ', 'hsr layout', ''] }))
+    ).toBe(preferenceSignature(prefs({ areas: ['HSR Layout'] })));
+  });
+
+  it('normalises every list field, not just areas', () => {
+    for (const field of [
+      'property_types',
+      'property_categories',
+      'excluded_areas',
+      'projects',
+      'listing_types',
+    ] as const) {
+      expect(
+        preferenceSignature(prefs({ [field]: ['Alpha, Beta'] } as never)),
+        field
+      ).toBe(preferenceSignature(prefs({ [field]: ['alpha', 'beta'] } as never)));
+    }
+  });
+
+  it('still hears a genuinely new locality', () => {
+    // The guard must not go deaf: splitting for comparison cannot make
+    // an added area look like the same set.
+    expect(
+      preferenceSignature(prefs({ areas: ['Whitefield'] }))
+    ).not.toBe(preferenceSignature(prefs({ areas: ['Whitefield', 'Hoodi'] })));
+  });
+
+  it('still hears a locality that was dropped', () => {
+    // The other direction, and the one that matters for data loss: a
+    // re-extraction that loses an area is a real difference, and must
+    // stay visible rather than being normalised away.
+    expect(
+      preferenceSignature(
+        prefs({ areas: ['Hrbr Layout', 'Kalyan Nagar', 'Bangalore'] })
+      )
+    ).not.toBe(
+      preferenceSignature(prefs({ areas: ['Hrbr Layout', 'Kalyan Nagar'] }))
+    );
+  });
 });
 
 describe('shouldSendMatchesNow', () => {
