@@ -172,3 +172,47 @@ export async function setUnitsProject(
   }
   return data?.length ?? 0;
 }
+
+/**
+ * The project a freshly-intaken listing belongs to, if the account
+ * already has one by that name.
+ *
+ * WhatsApp intake produced orphans: an agent forwarding four floor
+ * plans from one tower got four unrelated listings, each repeating the
+ * project name as text and none of them counted in it. The name is
+ * already in the message — matching it to a project the agent created
+ * is the difference between "12 units, from ₹8,200/sqft" and twelve
+ * listings that happen to share a string.
+ *
+ * Match is on the slug, so "Sattva Exotic", "sattva exotic" and
+ * "Sattva  Exotic" all find the same row. Never CREATES a project: an
+ * agent naming a tower in passing has not decided to track it as one,
+ * and a project invented from a typo would be worse than no link at
+ * all — the text column still carries the name either way.
+ */
+export async function matchProjectByName(
+  db: SupabaseClient,
+  accountId: string,
+  projectName: string | null | undefined,
+): Promise<string | null> {
+  const slug = slugifyProject(projectName ?? '');
+  if (!slug) return null;
+  try {
+    const { data, error } = await db
+      .from('projects')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('slug', slug)
+      .maybeSingle();
+    if (error) {
+      console.error('[projects] name match failed:', error);
+      return null;
+    }
+    return (data?.id as string) ?? null;
+  } catch (err) {
+    // Never let this cost the listing. An unlinked property is a
+    // working property; a failed insert is not.
+    console.error('[projects] name match threw:', err);
+    return null;
+  }
+}

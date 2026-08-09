@@ -496,6 +496,13 @@ export interface ParsedPropertyDraft {
   sublocality: string | null;
   city: string | null;
   state: string | null;
+  /** The development or society this unit is in ("Sattva Exotic").
+   *  Distinct from sublocality, which is the area around it. Carried to
+   *  properties.project, and matched against the account's projects so
+   *  a forwarded floor plan lands as a unit rather than an orphan.
+   *  Optional like every other field added after the original shape —
+   *  a draft persisted before this existed has no key for it. */
+  project?: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
   area_sqft: number | null;
@@ -611,6 +618,7 @@ function parseGeminiResponse(rawResult: string): Record<string, unknown> {
     fallback.location = extractString("location");
     fallback.type = extractString("type");
     fallback.sublocality = extractString("sublocality");
+    fallback.project = extractString("project");
     fallback.city = extractString("city");
     fallback.state = extractString("state");
     fallback.bedrooms = extractNumber("bedrooms");
@@ -710,6 +718,7 @@ export async function parseListingFromImageOrText(
     "  \"location\": \"Exact location or address or null\",\n" +
     "  \"type\": \"Must be exactly one of: 'Flat/ Apartment', 'Residential House', 'Villa', 'Builder Floor Apartment', 'Residential Land/ Plot', 'Penthouse', 'Studio Apartment', 'Residential PG building', 'PG/ Hostel', 'Commercial Office Space', 'Office in IT Park/ SEZ', 'Commercial Shop', 'Commercial Showroom', 'Commercial Building', 'Commercial Land', 'Warehouse/ Godown', 'Industrial Land', 'Industrial Building', 'Industrial Shed', 'Agricultural Land', 'Farm House', 'Others' or null\",\n" +
     "  \"sublocality\": \"Sublocality or neighborhood name or null\",\n" +
+    "  \"project\": \"Name of the apartment project, development or society this unit is in (e.g. 'Sattva Exotic', 'Prestige Lakeside Habitat') or null. This is the BUILDING's name, not the area — never copy the sublocality here, and leave it null for an independent house or a plot.\",\n" +
     "  \"city\": \"City name (default 'Bangalore')\",\n" +
     "  \"state\": \"State name (default 'Karnataka')\",\n" +
     "  \"bedrooms\": Number of bedrooms (numeric) or null,\n" +
