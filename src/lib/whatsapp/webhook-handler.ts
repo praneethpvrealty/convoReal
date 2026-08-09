@@ -39,6 +39,11 @@ import {
   BUDGET_BAND_ID_PREFIX,
 } from '@/lib/whatsapp/budget-band'
 import {
+  handlePropertyTypeReply,
+  PROPERTY_TYPE_ID_PREFIX,
+} from '@/lib/whatsapp/property-type-prompt'
+import { sendAlertsOnboarding } from '@/lib/whatsapp/alerts-onboarding'
+import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
   preferenceFormToContactUpdate,
@@ -1336,6 +1341,19 @@ async function processMessage(
         // rather than outreach, so it is the exception.
         allowDeadContact: alertsCommand === 'close',
       })
+      // START ALERTS opened a free-form window at the lead's moment of
+      // highest intent. Consent alone would waste it: run the first
+      // missing rung of the tap ladder, or prove the saved profile
+      // with matches when it is already complete.
+      if (alertsCommand === 'start') {
+        await sendAlertsOnboarding({
+          db: supabaseAdmin(),
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contactRecord.id,
+          conversationId: conversation.id,
+        })
+      }
       return
     }
   }
@@ -1797,18 +1815,29 @@ async function processMessage(
     if (handledFeedback) return
   }
 
-  // A tapped budget band. The tap saves the range; the answer that
-  // makes tapping worth it is the re-ranked shortlist, sent right away
-  // through the same path a completed preference form uses.
-  if (interactiveReplyId?.startsWith(BUDGET_BAND_ID_PREFIX)) {
-    const handledBand = await handleBudgetBandReply({
-      db: supabaseAdmin(),
-      accountId,
-      contactId: contactRecord.id,
-      replyId: interactiveReplyId,
-    })
-    if (handledBand) {
-      await sendPreferenceMatchFollowUp({
+  // A tapped property type or budget band. The tap saves the answer;
+  // the onboarding ladder then sends whichever rung is still missing,
+  // or the re-ranked shortlist when the profile is complete — the
+  // answer that makes tapping worth it.
+  if (
+    interactiveReplyId?.startsWith(PROPERTY_TYPE_ID_PREFIX) ||
+    interactiveReplyId?.startsWith(BUDGET_BAND_ID_PREFIX)
+  ) {
+    const handledRung = interactiveReplyId.startsWith(PROPERTY_TYPE_ID_PREFIX)
+      ? await handlePropertyTypeReply({
+          db: supabaseAdmin(),
+          accountId,
+          contactId: contactRecord.id,
+          replyId: interactiveReplyId,
+        })
+      : await handleBudgetBandReply({
+          db: supabaseAdmin(),
+          accountId,
+          contactId: contactRecord.id,
+          replyId: interactiveReplyId,
+        })
+    if (handledRung) {
+      await sendAlertsOnboarding({
         db: supabaseAdmin(),
         accountId,
         userId: configOwnerUserId,
