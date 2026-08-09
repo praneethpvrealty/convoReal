@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   attachmentFilename,
+  attachmentKind,
   attachmentMimeType,
   formatBytes,
   formatDuration,
@@ -89,5 +90,27 @@ describe('formatDuration', () => {
   it('treats missing or negative as zero', () => {
     expect(formatDuration(null)).toBe('0:00');
     expect(formatDuration(-500)).toBe('0:00');
+  });
+});
+
+describe('attachmentKind', () => {
+  // The pending bubble has to know which kind of attachment it is
+  // before the upload answers, so this reads the mime type alone.
+  it('reads the family off the mime type', () => {
+    expect(attachmentKind('image/jpeg')).toBe('image');
+    expect(attachmentKind('video/mp4')).toBe('video');
+    expect(attachmentKind('audio/ogg')).toBe('audio');
+    expect(attachmentKind('application/pdf')).toBe('document');
+  });
+
+  it('ignores parameters the picker appends', () => {
+    expect(attachmentKind('audio/ogg; codecs=opus')).toBe('audio');
+    expect(attachmentKind('  IMAGE/PNG  ')).toBe('image');
+  });
+
+  it('falls back to document, which is how Meta treats the unknown', () => {
+    expect(attachmentKind(null)).toBe('document');
+    expect(attachmentKind(undefined)).toBe('document');
+    expect(attachmentKind('application/octet-stream')).toBe('document');
   });
 });

@@ -65,8 +65,81 @@ describe('settlePending', () => {
   });
 });
 
+describe('settlePending — attachments', () => {
+  it('retires an attachment once the row carrying the same upload lands', () => {
+    const pending = [
+      msg({ id: 'pending-1', content_type: 'image', media_url: '/media/a.jpg' }),
+    ];
+    const real = [msg({ id: 'real-1', content_type: 'image', media_url: '/media/a.jpg' })];
+    expect(settlePending(pending, real)).toEqual([]);
+  });
+
+  it('keeps two captionless photos apart', () => {
+    // Both have an empty caption; only the upload path tells them apart,
+    // so keying on the caption would retire both on the first row.
+    const pending = [
+      msg({ id: 'pending-1', content_type: 'image', content_text: undefined, media_url: '/media/a.jpg' }),
+      msg({ id: 'pending-2', content_type: 'image', content_text: undefined, media_url: '/media/b.jpg' }),
+    ];
+    const real = [
+      msg({ id: 'real-1', content_type: 'image', content_text: undefined, media_url: '/media/a.jpg' }),
+    ];
+    expect(settlePending(pending, real).map((m) => m.id)).toEqual(['pending-2']);
+  });
+
+  it('cannot be retired while the file is still uploading', () => {
+    // No path yet, so nothing real can claim to be this bubble.
+    const pending = [
+      msg({ id: 'pending-1', content_type: 'image', media_url: undefined, status: 'sending' }),
+    ];
+    const real = [msg({ id: 'real-1', content_type: 'image', media_url: '/media/a.jpg' })];
+    expect(settlePending(pending, real)).toHaveLength(1);
+  });
+
+  it('ignores the caption when matching media', () => {
+    // The server may normalise or drop a caption; the file is the truth.
+    const pending = [
+      msg({ id: 'pending-1', content_type: 'image', content_text: 'Look', media_url: '/media/a.jpg' }),
+    ];
+    const real = [
+      msg({ id: 'real-1', content_type: 'image', content_text: undefined, media_url: '/media/a.jpg' }),
+    ];
+    expect(settlePending(pending, real)).toEqual([]);
+  });
+});
+
+describe('settlePending — templates', () => {
+  it('retires a template bubble when the rendered row lands', () => {
+    const pending = [
+      msg({ id: 'pending-1', content_type: 'template', content_text: 'Hi Asha, your viewing is confirmed.' }),
+    ];
+    const real = [
+      msg({ id: 'real-1', content_type: 'template', content_text: 'Hi Asha, your viewing is confirmed.' }),
+    ];
+    expect(settlePending(pending, real)).toEqual([]);
+  });
+
+  it('does not let a plain text message retire a template bubble', () => {
+    const pending = [msg({ id: 'pending-1', content_type: 'template', content_text: 'Same words' })];
+    const real = [msg({ id: 'real-1', content_type: 'text', content_text: 'Same words' })];
+    expect(settlePending(pending, real)).toHaveLength(1);
+  });
+});
+
 describe('outgoingSignature', () => {
+  it('keys text on the body', () => {
+    expect(outgoingSignature({ content_type: 'text', content_text: ' hi ' })).toBe('text:hi');
+  });
+
+  it('keys media on the upload path, not the caption', () => {
+    expect(
+      outgoingSignature({ content_type: 'image', content_text: 'caption', media_url: '/m/a.jpg' })
+    ).toBe('image:/m/a.jpg');
+  });
+
   it('treats a missing body as empty rather than throwing', () => {
-    expect(outgoingSignature({ content_type: 'image', content_text: undefined })).toBe('image:');
+    expect(outgoingSignature({ content_type: 'template', content_text: undefined })).toBe(
+      'template:'
+    );
   });
 });

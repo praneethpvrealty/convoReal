@@ -49,6 +49,7 @@ import {
 import { buildInquiryDraft } from '@/lib/approve-contact';
 import {
   attachmentFilename,
+  attachmentKind,
   attachmentMimeType,
   formatDuration,
 } from '@/lib/attachments';
@@ -84,7 +85,6 @@ import {
   type Conversation,
   type Message,
   type MessageReaction,
-  type MessageStatus,
 } from '@/lib/types';
 import { dayLabel } from '@/lib/format';
 import { settlePending } from '@/lib/pending-messages';
@@ -257,12 +257,6 @@ export default function ConversationScreen() {
     () => settlePending(pending, messages ?? []),
     [pending, messages]
   );
-
-  // Stop holding entries the thread has caught up with, so the list does
-  // not keep re-filtering them for the life of the screen.
-  useEffect(() => {
-    if (settledPending.length !== pending.length) setPending(settledPending);
-  }, [settledPending, pending.length]);
 
   // Interleave day separators (list is inverted: newest first).
   const items = useMemo<ThreadItem[]>(() => {
@@ -581,12 +575,16 @@ export default function ConversationScreen() {
         onClearReply={() => setReplyTo(null)}
         resend={resend}
         onResendHandled={() => setResend(null)}
-        onPending={(m) => setPending((prev) => [m, ...prev])}
-        onPendingSettled={(pendingId, status) =>
+        onPending={(m) =>
+          // Also drops anything the thread has caught up with since the
+          // last send, so the list cannot grow for the life of the screen.
+          setPending((prev) => [m, ...settlePending(prev, messages ?? [])])
+        }
+        onPendingSettled={(pendingId, patch) =>
           setPending((prev) =>
-            status === null
+            patch === null
               ? prev.filter((m) => m.id !== pendingId)
-              : prev.map((m) => (m.id === pendingId ? { ...m, status } : m))
+              : prev.map((m) => (m.id === pendingId ? { ...m, ...patch } : m))
           )
         }
       />
@@ -799,8 +797,9 @@ function Composer({
    *  answered. The thread owns the list, so the composer hands the
    *  bubble up rather than rendering it itself. */
   onPending: (message: Message) => void;
-  /** Advance a pending bubble's ticks, or drop it entirely with null. */
-  onPendingSettled: (pendingId: string, status: MessageStatus | null) => void;
+  /** Merge into a pending bubble — its ticks, or the upload path once
+   *  the file is up — or drop it entirely with null. */
+  onPendingSettled: (pendingId: string, patch: Partial<Message> | null) => void;
 }) {
   const { colors, dark } = useTheme();
   const [draft, setDraft] = useState('');
@@ -893,7 +892,7 @@ function Composer({
       // WhatsApp has it. Hold the bubble at one tick rather than
       // dropping it — the real row lands a beat later over realtime and
       // retires it, and removing it here would blink the message out.
-      onPendingSettled(pendingId, 'sent');
+      onPendingSettled(pendingId, { status: 'sent' });
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
       return true;
     } catch (err) {
@@ -951,6 +950,23 @@ function Composer({
     setAttaching('Uploading…');
     setError(null);
     setBlockedText(null);
+    // The bubble goes up before the upload starts — that is the slowest
+    // part of an attachment send, and it is exactly when an agent needs
+    // to see something happened. It carries no media_url yet, so it
+    // draws as a file row under the hourglass and no real row can be
+    // mistaken for it.
+    const pendingId = `pending-${Date.now()}`;
+    const caption = draft.trim();
+    onPending({
+      id: pendingId,
+      conversation_id: conversationId,
+      sender_type: 'agent',
+      content_type: attachmentKind(file.mimeType),
+      content_text: caption || undefined,
+      status: 'sending',
+      created_at: new Date().toISOString(),
+      reply_to_message_id: replyTo?.id,
+    });
     try {
       const media = await uploadChatMedia(file);
       setAttaching('Sending…');
@@ -969,11 +985,18 @@ function Composer({
           replyToMessageId: replyTo?.id,
         });
       }
+      // Now the bubble can name the file it stands for, which is what
+      // retires it when the real row lands.
+      onPendingSettled(pendingId, {
+        status: 'sent',
+        media_url: media.media_url,
+      });
       setDraft('');
       onClearReply();
       haptic.success();
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
+      onPendingSettled(pendingId, null);
       haptic.warn();
       const closed = isReengagementError(err instanceof ApiError ? err.message : err);
       setError(
@@ -1114,6 +1137,19 @@ function Composer({
     setSending(true);
     setError(null);
     haptic.send();
+    // A template send is the one an agent is least sure landed: it is
+    // reached through a picker that closes on send, so without a bubble
+    // the thread looks unchanged.
+    const pendingId = `pending-${Date.now()}`;
+    onPending({
+      id: pendingId,
+      conversation_id: conversationId,
+      sender_type: 'agent',
+      content_type: 'template',
+      content_text: renderedText,
+      status: 'sending',
+      created_at: new Date().toISOString(),
+    });
     try {
       await sendTemplateMessage({
         conversationId,
@@ -1122,9 +1158,11 @@ function Composer({
         bodyParams,
         renderedText,
       });
+      onPendingSettled(pendingId, { status: 'sent' });
       setTemplatesOpen(false);
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
+      onPendingSettled(pendingId, null);
       setError(err instanceof ApiError ? err.message : 'Failed to send template.');
       setTemplatesOpen(false);
     } finally {

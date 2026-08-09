@@ -16,8 +16,26 @@ import type { Message } from '@/lib/types';
  * on what was sent instead.
  */
 
-/** What makes two outgoing messages "the same send". */
-export function outgoingSignature(m: Pick<Message, 'content_type' | 'content_text'>): string {
+/** Types whose identity is the file, not the words around it. */
+const MEDIA_TYPES = new Set(['image', 'document', 'audio', 'video']);
+
+/**
+ * What makes two outgoing messages "the same send".
+ *
+ * Media keys on the uploaded path rather than the caption: captions are
+ * usually empty, so two photos sent back to back would otherwise share
+ * a signature and the first row to land would retire both bubbles. The
+ * upload path is unique per file, so it cannot collide. It is also why
+ * the caller patches `media_url` onto the pending bubble only once the
+ * upload returns — before that the bubble carries no path and no real
+ * row can match it.
+ */
+export function outgoingSignature(
+  m: Pick<Message, 'content_type' | 'content_text' | 'media_url'>
+): string {
+  if (MEDIA_TYPES.has(m.content_type)) {
+    return `${m.content_type}:${m.media_url ?? ''}`;
+  }
   return `${m.content_type}:${(m.content_text ?? '').trim()}`;
 }
 
