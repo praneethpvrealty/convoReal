@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/automations/admin-client';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { greetingName } from '@/lib/contacts/lead-placeholder';
+import { isContactReachable } from '@/lib/contacts/lifecycle';
 import { ENQUIRY_NOTICE_TEMPLATE_NAMES } from '@/lib/whatsapp/enquiry-notice-template';
 import {
   loadEnquiryNoticeContext,
@@ -246,8 +247,14 @@ export async function resolveAudienceOnServer(
   // carried so the consent walk can reach them and for nothing else.
   // The dispatcher would refuse them anyway; filtering here keeps them
   // out of the recipient rows and the reach count too.
+  // Dead and archived contacts drop out on the same principle
+  // (migration 228): the dispatcher refuses them anyway, and filtering
+  // here keeps them out of the recipient rows and the reach count too.
   return contacts.filter(
-    (c) => c.buyer_alerts_consent !== 'declined' && !c.chain_only
+    (c) =>
+      c.buyer_alerts_consent !== 'declined' &&
+      !c.chain_only &&
+      isContactReachable(c)
   );
 }
 

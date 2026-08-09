@@ -1302,6 +1302,7 @@ export function MessageThread({
         onOpenTemplates={handleOpenTemplates}
         replyTo={replyTo}
         onClearReply={() => setReplyTo(null)}
+        contactDead={Boolean(contact?.is_dead || contact?.is_archived)}
       />
 
       <TemplatePicker

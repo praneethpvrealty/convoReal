@@ -432,6 +432,13 @@ export function getMatchingContacts(
     // predating the column behaves as before.
     if (contact.requirement_active === false) continue;
 
+    // A lead who closed their enquiry, and a contact an agent archived,
+    // are out of the matching feed entirely (migration 228) — no match,
+    // no Radar event, no digest, no co-broker share. Closing an enquiry
+    // also parks the requirement above, so this is belt and braces for
+    // contacts marked dead in bulk without touching their brief.
+    if (contact.is_dead || contact.is_archived) continue;
+
     const notesText = (contact.contact_notes || []).map((n) => n.note_text).join(' ');
     const combinedText = `${contact.requirements || ''} ${notesText}`.toLowerCase();
     const hasExtraction = !!contact.pref_extracted_at;

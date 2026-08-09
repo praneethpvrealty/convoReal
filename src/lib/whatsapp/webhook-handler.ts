@@ -1,5 +1,9 @@
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { resolveConversation, type ConversationRow } from '@/lib/conversations/resolve'
+import {
+  ENQUIRY_CLOSED_CONFIRMATION,
+  markContactDead,
+} from '@/lib/contacts/lifecycle'
 import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -36,6 +40,7 @@ import {
   PREFERENCE_FLOW_BUTTON_ID,
 } from '@/lib/whatsapp/preference-flow'
 import { ENQUIRY_FOLLOWUP_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-followup-template'
+import { ENQUIRY_NOTICE_CLOSE_BUTTON } from '@/lib/whatsapp/enquiry-notice-template'
 import { accountPropertyShowcaseUrl } from '@/lib/showcase/account-showcase-url'
 import type { Contact } from '@/types'
 import {
@@ -1273,15 +1278,49 @@ async function processMessage(
     }
   }
 
+  // "Close my enquiry" on the enquiry-status / enquiry-followup
+  // templates. Deliberately not folded into the STOP ALERTS branch
+  // below: STOP ALERTS is a preference about alerts, this is the lead
+  // saying the enquiry is over. It marks the contact dead (migration
+  // 228), which parks the requirement, stops every automated send and
+  // drops them out of matching — the whole point being that the agent's
+  // list stops carrying leads who are gone.
+  // Both enquiry templates carry their own copy of the label. They read
+  // identically today, so matching only one worked by luck; matching
+  // both means rewording either cannot silently stop closing enquiries.
+  const closeButtons = [
+    ENQUIRY_FOLLOWUP_CLOSE_BUTTON,
+    ENQUIRY_NOTICE_CLOSE_BUTTON,
+  ]
+  if (message.button?.text && closeButtons.includes(message.button.text)) {
+    await markContactDead({
+      db: supabaseAdmin(),
+      accountId,
+      contactId: contactRecord.id,
+      reason: 'closed_enquiry',
+      note: 'Lead closed their enquiry from WhatsApp ("Close my enquiry")',
+    })
+    await sendWhatsAppMessageAndPersist({
+      accountId,
+      userId: configOwnerUserId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      kind: 'text',
+      senderType: 'bot',
+      text: ENQUIRY_CLOSED_CONFIRMATION,
+      // The contact was dead a line ago; this is the acknowledgement
+      // they asked for, not outreach.
+      allowDeadContact: true,
+    })
+    return
+  }
+
   // Buyer alert subscription control — "STOP ALERTS" / "START ALERTS"
-  // free text, or the enquiry-status template's "Close my enquiry"
-  // quick reply (which arrives as message.button.text). Same
-  // chat-as-control-panel pattern as the owner digest commands above,
-  // editing contacts.buyer_alerts_consent.
-  const alertsCommand =
-    message.button?.text === ENQUIRY_FOLLOWUP_CLOSE_BUTTON
-      ? 'stop'
-      : parseBuyerAlertsCommand(message.button?.text ?? contentText)
+  // free text. Same chat-as-control-panel pattern as the owner digest
+  // commands above, editing contacts.buyer_alerts_consent.
+  const alertsCommand = parseBuyerAlertsCommand(
+    message.button?.text ?? contentText,
+  )
   if (alertsCommand) {
     const confirmation = await applyBuyerAlertsCommand({
       command: alertsCommand,
