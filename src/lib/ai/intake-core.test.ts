@@ -240,6 +240,43 @@ describe('validateDraft', () => {
     const draft = makeDraft({ title: '   ', price: 100, location: '  ' });
     expect(validateDraft(draft).missingFields).toEqual(['Title', 'Location']);
   });
+
+  it('never asks a joint development for a price', () => {
+    const draft = makeDraft({
+      title: '12 acres for an apartment JD',
+      location: 'Hoskote Road',
+      listing_type: 'JV/JD',
+      jv_structure: 'Area Share',
+    });
+    expect(validateDraft(draft)).toEqual({ isValid: true, missingFields: [] });
+  });
+
+  it('asks a joint development for its terms instead', () => {
+    const draft = makeDraft({
+      title: '12 acres for an apartment JD',
+      location: 'Hoskote Road',
+      listing_type: 'JV/JD',
+    });
+    expect(validateDraft(draft).missingFields).toEqual(['JD terms (e.g. area share 60:40)']);
+  });
+
+  it('accepts a share split or goodwill as the JD terms', () => {
+    const shared = makeDraft({
+      title: 't',
+      location: 'l',
+      listing_type: 'JV/JD',
+      owner_share_percent: 60,
+      builder_share_percent: 40,
+    });
+    expect(validateDraft(shared).isValid).toBe(true);
+    const goodwill = makeDraft({
+      title: 't',
+      location: 'l',
+      listing_type: 'JV/JD',
+      goodwill_amount: 2000000,
+    });
+    expect(validateDraft(goodwill).isValid).toBe(true);
+  });
 });
 
 describe('validateContactDraftsContainer', () => {
@@ -301,6 +338,39 @@ describe('formatDraftPreviewMessage', () => {
     expect(msg).toContain('*Rent:* ₹35,000/month');
     expect(msg).toContain('*Maintenance:* ₹2,000/month');
     expect(msg).not.toContain('*Price:*');
+  });
+
+  it('shows the JD terms instead of a price for a joint development', () => {
+    const draft = makeDraft({
+      title: '12 acres for an apartment JD',
+      location: 'Hoskote Road',
+      type: 'Residential Land/ Plot',
+      listing_type: 'JV/JD',
+      jv_structure: 'Area Share',
+      owner_share_percent: 60,
+      builder_share_percent: 40,
+      goodwill_amount: 2000000,
+    });
+    const msg = formatDraftPreviewMessage('📝 Draft', draft, 'awaiting_confirmation', []);
+    expect(msg).toContain('*Deal:* JV / Joint Development');
+    expect(msg).toContain('*Structure:* Area Share');
+    expect(msg).toContain('*Owner : Builder Share:* 60 : 40');
+    expect(msg).toContain('*Goodwill:* ₹20,00,000');
+    expect(msg).not.toContain('*Price:*');
+    expect(msg).not.toContain('*Rent:*');
+  });
+
+  it('shows an expected project value only when a JD deal has one', () => {
+    const base = {
+      title: 't',
+      location: 'l',
+      listing_type: 'JV/JD' as const,
+      jv_structure: 'Revenue Share' as const,
+    };
+    const without = formatDraftPreviewMessage('h', makeDraft(base), 'awaiting_confirmation', []);
+    expect(without).not.toContain('Expected Project Value');
+    const withValue = formatDraftPreviewMessage('h', makeDraft({ ...base, price: 500000000 }), 'awaiting_confirmation', []);
+    expect(withValue).toContain('*Expected Project Value:* ₹50,00,00,000');
   });
 
   it('renders GST ≤ 100 as a percentage and > 100 as rupees', () => {
