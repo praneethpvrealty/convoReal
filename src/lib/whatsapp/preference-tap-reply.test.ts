@@ -23,6 +23,12 @@ vi.mock('@/lib/whatsapp/listing-feedback', () => ({
     sendListingFeedbackPrompt(...args),
 }));
 
+const sendBudgetBandPrompt = vi.fn();
+
+vi.mock('@/lib/whatsapp/budget-band', () => ({
+  sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
+}));
+
 const { sendPreferenceTapReply, buildPreferenceTapReply } =
   await import('./preference-tap-reply');
 
@@ -145,6 +151,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   generateMatchEventForContact.mockResolvedValue(undefined);
   sendWhatsAppMessageAndPersist.mockResolvedValue({ success: true });
+  sendListingFeedbackPrompt.mockResolvedValue(true);
 });
 
 describe('sendPreferenceTapReply', () => {
@@ -169,7 +176,11 @@ describe('sendPreferenceTapReply', () => {
 
     const result = await sendPreferenceTapReply(args());
 
-    expect(result).toEqual({ matchCount: 1, replySent: true });
+    expect(result).toEqual({
+      matchCount: 1,
+      replySent: true,
+      formOffered: true,
+    });
     const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
       text: string;
     };
@@ -219,7 +230,41 @@ describe('sendPreferenceTapReply', () => {
     await expect(sendPreferenceTapReply(args())).resolves.toEqual({
       matchCount: 0,
       replySent: false,
+      formOffered: false,
     });
+  });
+
+  it('turns a no-match budget question into the tappable band list', async () => {
+    // Budget is the missing rung for this fixture; with no listings to
+    // judge, the band list takes the interactive slot and carries the
+    // form row, so the closing line points down instead of asking for
+    // a typed answer.
+    rankPropertiesForContact.mockResolvedValue([]);
+    sendBudgetBandPrompt.mockResolvedValue(true);
+
+    const result = await sendPreferenceTapReply(args());
+
+    expect(result.formOffered).toBe(true);
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain('pick your budget range below');
+    expect(text).not.toContain('what budget are you working with?');
+    expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ contactId: 'c1', includeFormRow: true })
+    );
+  });
+
+  it('keeps the typed budget question when listings occupy the interactive slot', async () => {
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+
+    await sendPreferenceTapReply(args());
+
+    const { text } = sendWhatsAppMessageAndPersist.mock.calls[0][0] as {
+      text: string;
+    };
+    expect(text).toContain('what budget are you working with?');
+    expect(sendBudgetBandPrompt).not.toHaveBeenCalled();
   });
 
   it('stands down without a contact row rather than sending a hole', async () => {

@@ -35,6 +35,10 @@ import {
   LISTING_FEEDBACK_ID_PREFIX,
 } from '@/lib/whatsapp/listing-feedback'
 import {
+  handleBudgetBandReply,
+  BUDGET_BAND_ID_PREFIX,
+} from '@/lib/whatsapp/budget-band'
+import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
   preferenceFormToContactUpdate,
@@ -1793,6 +1797,28 @@ async function processMessage(
     if (handledFeedback) return
   }
 
+  // A tapped budget band. The tap saves the range; the answer that
+  // makes tapping worth it is the re-ranked shortlist, sent right away
+  // through the same path a completed preference form uses.
+  if (interactiveReplyId?.startsWith(BUDGET_BAND_ID_PREFIX)) {
+    const handledBand = await handleBudgetBandReply({
+      db: supabaseAdmin(),
+      accountId,
+      contactId: contactRecord.id,
+      replyId: interactiveReplyId,
+    })
+    if (handledBand) {
+      await sendPreferenceMatchFollowUp({
+        db: supabaseAdmin(),
+        accountId,
+        userId: configOwnerUserId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+      })
+      return
+    }
+  }
+
   // Buyer asked to update their preferences (free text like "update my
   // preferences", the update_preferences button, or the enquiry-followup
   // template's "Update my preferences" quick reply, which arrives as
@@ -2746,12 +2772,12 @@ async function handlePreferenceFlowTrigger(
       conversationId,
     })
 
-    // With matches, the feedback list already went out carrying an
-    // "Update preferences" row — a third bubble repeating the form
-    // would bury it. Without matches the form is the main action.
-    if (tap.replySent && tap.matchCount > 0) {
+    // When a follow-on list (feedback or budget bands) already carries
+    // an "Update preferences" row, a third bubble repeating the form
+    // would bury it. Otherwise the form is the main action.
+    if (tap.replySent && tap.formOffered) {
       console.log(
-        `[webhook] Sent preference tap reply (${tap.matchCount} matches) + feedback list to contact ${contactId}`
+        `[webhook] Sent preference tap reply (${tap.matchCount} matches) + tap list to contact ${contactId}`
       )
       return true
     }

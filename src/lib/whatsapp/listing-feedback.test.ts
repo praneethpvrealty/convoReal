@@ -18,6 +18,12 @@ vi.mock('@/lib/notifications/create', () => ({
   createNotification: (...args: unknown[]) => createNotification(...args),
 }));
 
+const sendBudgetBandPrompt = vi.fn();
+
+vi.mock('@/lib/whatsapp/budget-band', () => ({
+  sendBudgetBandPrompt: (...args: unknown[]) => sendBudgetBandPrompt(...args),
+}));
+
 const {
   buildListingFeedbackSections,
   sendListingFeedbackPrompt,
@@ -211,7 +217,28 @@ describe('handleListingFeedbackReply', () => {
     const { db, calls } = stubDb({});
 
     const handled = await handleListingFeedbackReply(
-      baseArgs(db, `lfbr_budget_${P1}.${P2}`)
+      baseArgs(db, `lfbr_location_${P1}.${P2}`)
+    );
+
+    expect(handled).toBe(true);
+    const update = calls.find(
+      (c) => c.table === 'listing_feedback' && c.method === 'update'
+    );
+    expect(update?.args[0]).toEqual({ reason: 'location' });
+    // The question must be answerable by replying — the qualification
+    // ladder files a bare answer after a bot question as the answer.
+    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: expect.stringContaining('which areas'),
+      })
+    );
+  });
+
+  it('answers a budget rejection with the tappable band list, not a typed question', async () => {
+    const { db, calls } = stubDb({});
+
+    const handled = await handleListingFeedbackReply(
+      baseArgs(db, `lfbr_budget_${P1}`)
     );
 
     expect(handled).toBe(true);
@@ -219,13 +246,10 @@ describe('handleListingFeedbackReply', () => {
       (c) => c.table === 'listing_feedback' && c.method === 'update'
     );
     expect(update?.args[0]).toEqual({ reason: 'budget' });
-    // The question must be answerable by replying — the qualification
-    // ladder files a bare answer after a bot question as the answer.
-    expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: expect.stringContaining('most you'),
-      })
+    expect(sendBudgetBandPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ contactId: 'c1', conversationId: 'conv-1' })
     );
+    expect(sendWhatsAppMessageAndPersist).not.toHaveBeenCalled();
   });
 
   it('sends the full form when the form row is tapped', async () => {

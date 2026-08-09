@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import type { InteractiveListSection } from '@/lib/whatsapp/meta-api';
 import { sendPreferenceFlowToContact } from '@/lib/whatsapp/meta-flow-service';
+import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { createNotification } from '@/lib/notifications/create';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { RankedPropertyMatch } from '@/lib/radar/engine';
@@ -301,7 +302,21 @@ export async function handleListingFeedbackReply(args: {
           .in('property_id', ids);
       }
 
-      await send(REASON_QUESTION[reason]);
+      if (reason === 'budget') {
+        // A band is a tap; the free-text question was homework. The
+        // tap's handler re-ranks and answers with a fresh shortlist.
+        await sendBudgetBandPrompt({
+          db,
+          accountId,
+          userId: configOwnerUserId,
+          contactId: contact.id,
+          conversationId,
+          bodyText:
+            "Got it — I'll stay inside your budget. Pick your range and I'll re-match right away.",
+        });
+      } else {
+        await send(REASON_QUESTION[reason]);
+      }
       return true;
     }
 
