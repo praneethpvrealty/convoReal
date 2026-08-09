@@ -27,8 +27,11 @@
 -- 1. Fold every duplicate 1:1 thread into the oldest row of its
 --    (account_id, contact_id) group.
 -- ------------------------------------------------------------
-DROP TABLE IF EXISTS conversation_merge_map;
-CREATE TEMP TABLE conversation_merge_map AS
+-- A real table, not a TEMP one: migration runners do not all keep a
+-- single session across statements, and a temp table that vanishes
+-- mid-migration would silently merge nothing. Dropped at the end.
+DROP TABLE IF EXISTS conversation_merge_map_227;
+CREATE TABLE conversation_merge_map_227 AS
 SELECT
   c.id AS duplicate_id,
   first_value(c.id) OVER grp AS survivor_id
@@ -45,7 +48,7 @@ WINDOW grp AS (
   ORDER BY c.created_at, c.id
 );
 
-DELETE FROM conversation_merge_map WHERE duplicate_id = survivor_id;
+DELETE FROM conversation_merge_map_227 WHERE duplicate_id = survivor_id;
 
 -- Children that must follow the surviving thread. `messages` and
 -- `message_reactions` cascade on delete, so they have to move before
@@ -53,37 +56,37 @@ DELETE FROM conversation_merge_map WHERE duplicate_id = survivor_id;
 -- would point at nothing.
 UPDATE messages m
 SET conversation_id = mm.survivor_id
-FROM conversation_merge_map mm
+FROM conversation_merge_map_227 mm
 WHERE m.conversation_id = mm.duplicate_id;
 
 UPDATE message_reactions r
 SET conversation_id = mm.survivor_id
-FROM conversation_merge_map mm
+FROM conversation_merge_map_227 mm
 WHERE r.conversation_id = mm.duplicate_id;
 
 UPDATE deals d
 SET conversation_id = mm.survivor_id
-FROM conversation_merge_map mm
+FROM conversation_merge_map_227 mm
 WHERE d.conversation_id = mm.duplicate_id;
 
 UPDATE flow_runs f
 SET conversation_id = mm.survivor_id
-FROM conversation_merge_map mm
+FROM conversation_merge_map_227 mm
 WHERE f.conversation_id = mm.duplicate_id;
 
 UPDATE ctwa_referrals t
 SET conversation_id = mm.survivor_id
-FROM conversation_merge_map mm
+FROM conversation_merge_map_227 mm
 WHERE t.conversation_id = mm.duplicate_id;
 
 UPDATE learned_facts l
 SET conversation_id = mm.survivor_id
-FROM conversation_merge_map mm
+FROM conversation_merge_map_227 mm
 WHERE l.conversation_id = mm.duplicate_id;
 
 UPDATE whatsapp_reply_bridges b
 SET target_conversation_id = mm.survivor_id
-FROM conversation_merge_map mm
+FROM conversation_merge_map_227 mm
 WHERE b.target_conversation_id = mm.duplicate_id;
 
 -- ------------------------------------------------------------
@@ -109,9 +112,9 @@ WITH groups AS (
       AS assigned_agent_id
   FROM conversations c
   JOIN (
-    SELECT survivor_id, duplicate_id FROM conversation_merge_map
+    SELECT survivor_id, duplicate_id FROM conversation_merge_map_227
     UNION ALL
-    SELECT DISTINCT survivor_id, survivor_id FROM conversation_merge_map
+    SELECT DISTINCT survivor_id, survivor_id FROM conversation_merge_map_227
   ) mm ON c.id = mm.duplicate_id
   GROUP BY mm.survivor_id
 ),
@@ -160,10 +163,10 @@ WHERE c.id = g.survivor_id;
 -- 3. Drop the emptied duplicates.
 -- ------------------------------------------------------------
 DELETE FROM conversations c
-USING conversation_merge_map mm
+USING conversation_merge_map_227 mm
 WHERE c.id = mm.duplicate_id;
 
-DROP TABLE conversation_merge_map;
+DROP TABLE conversation_merge_map_227;
 
 -- ------------------------------------------------------------
 -- 4. Make it impossible to reintroduce.
