@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, toErrorResponse } from '@/lib/auth/account';
-import { CLAIM_LEASE_MS, IN_FLIGHT_STATUSES } from '@/lib/broadcasts/sender';
 
 // POST /api/broadcasts/[id]/retry-failed
 // Re-sends all recipients in the broadcast whose status is 'failed' or
@@ -82,19 +81,11 @@ export async function POST(
        already records a per-recipient outcome in error_message, so a
        row-count check on each write would add noise without telling the
        caller anything it does not already report. */
-    // Claim them before starting so they don't get double-queued. Marking
-    // them 'pending' is what the sweep in src/lib/broadcasts/sender.ts
-    // looks for, so this route used to hand its own retries to a
-    // concurrent sweep and both would send. 'sending' plus a lease is
-    // the same claim the sweep takes; if this request dies the lease
-    // expires and the sweep finishes the job.
+    // Mark all as pending before starting so they don't get double-queued
     const retryableIds = retryable.map((r) => r.id);
     await ctx.supabase
       .from('broadcast_recipients')
-      .update({
-        status: 'sending',
-        retry_after: new Date(Date.now() + CLAIM_LEASE_MS).toISOString(),
-      })
+      .update({ status: 'pending' })
       .in('id', retryableIds);
 
     let succeeded = 0;
@@ -237,7 +228,7 @@ export async function POST(
       .eq('broadcast_id', broadcastId);
 
     const allFailed = summary?.every((r) => r.status === 'failed');
-    const anyPending = summary?.some((r) => IN_FLIGHT_STATUSES.includes(r.status));
+    const anyPending = summary?.some((r) => ['pending', 'rate_limited'].includes(r.status));
 
     // This one the campaign screen reads, so a status that never landed
     // would leave a finished send showing as still sending.

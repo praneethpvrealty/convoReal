@@ -12,7 +12,7 @@ import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
  * `conversations_account_contact_unique`; this resolves against it.
  *
  * Ordering by `created_at` rather than recency is deliberate — the
- * oldest row is the one migration 227 kept and the one existing deals,
+ * oldest row is the one migration 229 kept and the one existing deals,
  * flow runs and reply bridges point at.
  */
 

@@ -4,19 +4,23 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { pushUrl } from "@/lib/navigation";
 import { useMemo } from "react";
 import InventoryContent from "./inventory-content";
+import ProjectsContent from "./projects-content";
 import AdsPage from "../ads/ads-content";
 import { FavoriteButton } from "@/components/layout/favorite-button";
 
 const META_ADS_ENABLED = !!process.env.NEXT_PUBLIC_META_ADS_APP_ID;
 
-type TabId = "list" | "ads";
+type TabId = "list" | "projects" | "ads";
 
 export default function InventoryPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   const tabs = useMemo(() => {
-    const list = [{ id: "list" as TabId, label: "Inventory List" }];
+    const list = [
+      { id: "list" as TabId, label: "Inventory List" },
+      { id: "projects" as TabId, label: "Projects" },
+    ];
     if (META_ADS_ENABLED) {
       list.push({ id: "ads" as TabId, label: "Ads Campaigns" });
     }
@@ -32,6 +36,8 @@ export default function InventoryPage() {
     switch (activeTab) {
       case "ads":
         return { label: "Ads", href: "/inventory?tab=ads", icon: "Megaphone" };
+      case "projects":
+        return { label: "Projects", href: "/inventory?tab=projects", icon: "Building2" };
       case "list":
       default:
         return { label: "Inventory", href: "/inventory", icon: "Home" };
@@ -79,6 +85,7 @@ export default function InventoryPage() {
       {/* Render Active View */}
       <div className="relative z-10">
         {activeTab === "list" && <InventoryContent />}
+        {activeTab === "projects" && <ProjectsContent />}
         {activeTab === "ads" && <AdsPage />}
       </div>
     </div>

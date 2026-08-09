@@ -45,7 +45,7 @@ export async function openContactChat(
     .select('id')
     .single();
   if (error) {
-    // Lost the race against another creator — migration 227's
+    // Lost the race against another creator — migration 229's
     // conversations_account_contact_unique means the winner's thread
     // is the answer, not a failure to report.
     const raced = error.code === '23505' ? await findThread(contact.id) : null;

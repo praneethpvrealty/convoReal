@@ -722,7 +722,7 @@ describe('getMatchingContacts', () => {
     });
   });
 
-  describe('Dead and archived contacts (migration 228)', () => {
+  describe('Dead and archived contacts (migration 230)', () => {
     it('excludes a lead who closed their enquiry from a perfect match', () => {
       const contact = createTestContact({
         is_dead: true,

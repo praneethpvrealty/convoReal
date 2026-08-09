@@ -218,7 +218,10 @@ export function buildMatchesReply(
   const origin = baseUrl.replace(/\/+$/, '');
 
   const listings = shown.map((m, i) => {
-    const [, title, specs, location] = buildPropertyAlertParams(
+    // Skips the greeting AND the brokerage: this is a free-form list
+    // inside a message the bot already signed, so repeating the name on
+    // every line would read like a form letter.
+    const [, , title, specs, location] = buildPropertyAlertParams(
       contactName,
       m.property
     );

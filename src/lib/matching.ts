@@ -433,7 +433,7 @@ export function getMatchingContacts(
     if (contact.requirement_active === false) continue;
 
     // A lead who closed their enquiry, and a contact an agent archived,
-    // are out of the matching feed entirely (migration 228) — no match,
+    // are out of the matching feed entirely (migration 230) — no match,
     // no Radar event, no digest, no co-broker share. Closing an enquiry
     // also parks the requirement above, so this is belt and braces for
     // contacts marked dead in bulk without touching their brief.

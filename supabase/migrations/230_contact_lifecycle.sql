@@ -1,5 +1,5 @@
 -- ============================================================
--- 228_contact_lifecycle.sql
+-- 230_contact_lifecycle.sql
 -- Two states a contact list needs to stay useful: dead and archived.
 --
 -- "Close my enquiry" (the quick reply on the enquiry-status and

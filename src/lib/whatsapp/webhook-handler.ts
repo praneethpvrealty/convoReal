@@ -1300,7 +1300,7 @@ async function processMessage(
       contactId: contactRecord.id,
     })
     // 'close' is the lead saying the enquiry is over, not a preference
-    // about alerts: it also marks the contact dead (migration 228),
+    // about alerts: it also marks the contact dead (migration 230),
     // which parks the requirement, stops every automated send and drops
     // them out of matching. The goodbye above still goes out — it is
     // the acknowledgement they asked for, and its one pitch to stay.

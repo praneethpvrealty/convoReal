@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * broadcast audiences and nothing else: automations, digests, Match
  * Radar, property shares and the matching engine all carried on. A lead
  * who has said they are done is not an alerts preference, so closing an
- * enquiry now marks the contact dead (migration 228) and that state is
+ * enquiry now marks the contact dead (migration 230) and that state is
  * enforced where sends and matches actually happen.
  *
  * Dead is not a silent delete. Agents still see the contact and can

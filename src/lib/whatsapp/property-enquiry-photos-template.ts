@@ -31,10 +31,11 @@ import {
  * pickPropertyPhotosTemplate. property_enquiry_info took exactly this
  * route and came back Utility with the subdomain intact.
  */
-export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'property_enquiry_gallery';
+export const PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAME = 'listing_photos_notice';
 
 /** Earlier names, newest first. */
 export const LEGACY_PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES = [
+  'property_enquiry_gallery',
   'property_enquiry_photos',
 ];
 
@@ -69,11 +70,11 @@ export function buildPropertyEnquiryPhotosTemplatePayload(
     // Real sends override it with the property photo (headerMediaUrl).
     header_media_url: `${base}/brand/app-icon-1024.png`,
     body_text: [
-      'Hi {{1}}, sharing the photos you requested for your property enquiry:',
+      'Hi {{1}}, sharing the photos you requested for your property enquiry with {{2}}:',
       '',
-      'Property: {{2}}',
-      'Details: {{3}}',
-      'Location: {{4}}',
+      'Property: {{3}}',
+      'Details: {{4}}',
+      'Location: {{5}}',
       '',
       'Reply to this message if you need any further information about this enquiry.',
     ].join('\n'),
@@ -88,12 +89,14 @@ export function buildPropertyEnquiryPhotosTemplatePayload(
         example: '?property_id=abc&v=contact-id',
       },
     ],
-    // Body params {{1}}..{{4}} match buildPropertyAlertParams exactly
-    // (first name, title, specs, locality), so both enquiry templates
-    // share one params builder.
+    // Body params {{1}}..{{5}} match buildPropertyAlertParams exactly
+    // (first name, brokerage, title, specs, locality), so both enquiry
+    // templates share one params builder — and propertyShareParams
+    // trims it for whichever predecessor is still sending.
     sample_values: {
       body: [
         'Gopi',
+        'Aryavarta Ventures',
         'Commercial Property for Sale in Hoodi, Bangalore',
         '₹32 Cr · 23,500 Sq.Ft.',
         'Hoodi, Bangalore',

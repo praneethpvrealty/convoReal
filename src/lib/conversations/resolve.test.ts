@@ -153,7 +153,7 @@ describe('resolveConversation', () => {
   });
 
   it('picks the oldest of pre-existing duplicates instead of adding another', async () => {
-    // The runaway: before migration 227 this read errored with PGRST116
+    // The runaway: before migration 229 this read errored with PGRST116
     // and the caller inserted a fresh thread for every message.
     const { db, inserts } = fakeDb({
       rows: [

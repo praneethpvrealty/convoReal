@@ -102,7 +102,7 @@ export interface SendWhatsAppAndPersistArgs {
    *  a co-broker's downstream party is not reachable by the listing
    *  side just because the chain recorded them. */
   allowChainOnly?: boolean
-  /** Permits a send to a dead or archived contact (migration 228).
+  /** Permits a send to a dead or archived contact (migration 230).
    *  Only the inbox composer sets it: an agent typing a reply to a lead
    *  who closed their enquiry is a deliberate personal message, which
    *  the product allows. Every automated sender — broadcasts,

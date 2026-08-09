@@ -10,21 +10,7 @@ import {
   ENQUIRY_NOTICE_FAILURE_REASONS,
 } from './enquiry-notice-params';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { BroadcastRecipient, Contact, RecipientStatus } from '@/types';
-
-/** Statuses a sweep may take ownership of. */
-const CLAIMABLE_STATUSES: RecipientStatus[] = ['pending', 'rate_limited'];
-
-/** Claimable, plus rows another sweep currently holds. */
-export const IN_FLIGHT_STATUSES: RecipientStatus[] = [...CLAIMABLE_STATUSES, 'sending'];
-
-/**
- * How long a claim is honoured before another sweep may take the row.
- * Comfortably longer than one send (a Meta round-trip plus the batch
- * pacing below) and shorter than the 5-minute cron interval, so a
- * crashed sweep's recipients are picked up on the next tick.
- */
-export const CLAIM_LEASE_MS = 120_000;
+import type { Contact } from '@/types';
 
 export interface CustomFieldFilter {
   fieldId: string;
@@ -68,7 +54,7 @@ function resolveTemplateBodyText(bodyTemplateText: string, params: string[]) {
 export function resolveVariables(
   variables: Record<string, VariableMapping>,
   contact: Contact,
-  customValues?: Map<string, string>,
+  customValues?: Map<string, string>
 ): string[] {
   const keys = Object.keys(variables).sort((a, b) => {
     const an = Number(a);
@@ -103,7 +89,7 @@ async function upsertCsvContactsOnServer(
   supabase: SupabaseClient,
   accountId: string,
   userId: string,
-  csvRows: { phone: string; name?: string }[],
+  csvRows: { phone: string; name?: string }[]
 ): Promise<Contact[]> {
   if (csvRows.length === 0) return [];
 
@@ -164,7 +150,7 @@ export async function resolveAudienceOnServer(
   supabase: SupabaseClient,
   accountId: string,
   userId: string,
-  audience: AudienceConfig,
+  audience: AudienceConfig
 ): Promise<Contact[]> {
   let contacts: Contact[] = [];
 
@@ -211,10 +197,12 @@ export async function resolveAudienceOnServer(
 
     if (operator === 'is') query = query.eq('value', value);
     else if (operator === 'is_not') query = query.neq('value', value);
-    else if (operator === 'contains') query = query.ilike('value', `%${value}%`);
+    else if (operator === 'contains')
+      query = query.ilike('value', `%${value}%`);
 
     const { data: matches, error: matchErr } = await query;
-    if (matchErr) throw new Error(`Custom-field filter failed: ${matchErr.message}`);
+    if (matchErr)
+      throw new Error(`Custom-field filter failed: ${matchErr.message}`);
 
     const contactIds = [...new Set((matches ?? []).map((m) => m.contact_id))];
     if (contactIds.length > 0) {
@@ -227,7 +215,12 @@ export async function resolveAudienceOnServer(
       contacts = data ?? [];
     }
   } else if (audience.type === 'csv' && audience.csvContacts) {
-    contacts = await upsertCsvContactsOnServer(supabase, accountId, userId, audience.csvContacts);
+    contacts = await upsertCsvContactsOnServer(
+      supabase,
+      accountId,
+      userId,
+      audience.csvContacts
+    );
   }
 
   // Exclude tags
@@ -248,7 +241,7 @@ export async function resolveAudienceOnServer(
   // The dispatcher would refuse them anyway; filtering here keeps them
   // out of the recipient rows and the reach count too.
   // Dead and archived contacts drop out on the same principle
-  // (migration 228): the dispatcher refuses them anyway, and filtering
+  // (migration 229): the dispatcher refuses them anyway, and filtering
   // here keeps them out of the recipient rows and the reach count too.
   return contacts.filter(
     (c) =>
@@ -262,7 +255,7 @@ export async function sendBroadcastRecipients(
   broadcastId: string,
   accountId: string,
   userId: string,
-  limit: number = 200,
+  limit: number = 200
 ) {
   const supabase = supabaseAdmin(); // Use admin/service role client to bypass user RLS constraints on updates
 
@@ -277,74 +270,95 @@ export async function sendBroadcastRecipients(
     return;
   }
 
-  const nowStr = new Date().toISOString();
+  // Only one dispatcher may send a broadcast at a time. Recipients are
+  // selected as 'pending' and only marked sent afterwards, so nothing
+  // stops two concurrent runners reading the same set and both sending
+  // — and there ARE two: the fire-and-forget promise that starts the
+  // broadcast, and the sweep cron that rescues stalled ones, which
+  // fires every 5 minutes into a dispatch paced at one send per second.
+  // Losing the race means returning empty-handed, never sending.
+  const { data: claimed, error: claimErr } = await supabase.rpc(
+    'claim_broadcast_dispatch',
+    { p_broadcast_id: broadcastId, p_lease_seconds: DISPATCH_LEASE_SECONDS }
+  );
+  if (claimErr) {
+    console.error(
+      `[Broadcast Sender] Could not claim dispatch for ${broadcastId}:`,
+      claimErr.message
+    );
+    return;
+  }
+  if (claimed !== true) {
+    console.log(
+      `[Broadcast Sender] ${broadcastId} already being dispatched elsewhere — standing down.`
+    );
+    return;
+  }
 
-  // Release claims a dead sweep abandoned. `retry_after` is the claim's
-  // lease, so an expired one means the process that held it is gone and
-  // the recipient is owed its send.
-  await supabase
-    .from('broadcast_recipients')
-    .update({ status: 'pending', retry_after: null })
-    .eq('broadcast_id', broadcastId)
-    .eq('status', 'sending')
-    .lt('retry_after', nowStr);
+  try {
+    await dispatchClaimedRecipients(
+      broadcast,
+      broadcastId,
+      accountId,
+      userId,
+      limit
+    );
+  } finally {
+    // Freed immediately so a retry sweep can pick up anything left
+    // behind rather than waiting out the lease.
+    await supabase
+      .rpc('release_broadcast_dispatch', { p_broadcast_id: broadcastId })
+      .then(undefined, (err: unknown) => {
+        console.error('[Broadcast Sender] lease release failed:', err);
+      });
+  }
+}
+
+/** How long a dispatcher's claim survives without renewal. Long enough
+ *  to outlast a batch of sends, short enough that a dispatcher killed
+ *  mid-flight is taken over by the next sweep rather than stranding the
+ *  broadcast. */
+const DISPATCH_LEASE_SECONDS = 120;
+
+async function dispatchClaimedRecipients(
+  broadcast: {
+    template_name: string;
+    template_language?: string | null;
+    template_variables?: Record<string, VariableMapping> | null;
+  },
+  broadcastId: string,
+  accountId: string,
+  userId: string,
+  limit: number
+) {
+  const supabase = supabaseAdmin();
 
   // Find recipients with status 'pending' or 'rate_limited' (and retry_after <= now)
-  const { data: candidates, error: rFetchErr } = await supabase
+  const nowStr = new Date().toISOString();
+  const { data: recipients, error: rFetchErr } = await supabase
     .from('broadcast_recipients')
-    .select('id')
+    .select('*, contact:contacts(*)')
     .eq('broadcast_id', broadcastId)
-    .in('status', CLAIMABLE_STATUSES)
+    .in('status', ['pending', 'rate_limited'])
     .or(`retry_after.is.null,retry_after.lte.${nowStr}`)
     .order('created_at', { ascending: true })
     .limit(limit);
 
   if (rFetchErr) {
-    console.error(`[Broadcast Sender] Error fetching recipients for ${broadcastId}:`, rFetchErr.message);
+    console.error(
+      `[Broadcast Sender] Error fetching recipients for ${broadcastId}:`,
+      rFetchErr.message
+    );
     return;
   }
 
-  // Claim before sending. Three producers race for these rows — the
-  // fire-and-forget send in POST /api/broadcasts and the two cron
-  // routes that both call sweepAndSendBroadcasts — and the old code
-  // only marked a recipient 'sent' after the ~1s Meta round-trip, so an
-  // overlapping sweep re-read it as still pending and sent the template
-  // a second time. That is what put two `listing_status_notice`
-  // messages, and two conversations, on the same contact.
-  //
-  // The claim is one UPDATE predicated on the row still being
-  // claimable. Under READ COMMITTED the loser blocks on the row lock,
-  // re-checks the predicate against the committed row, sees 'sending'
-  // and matches nothing — so only the winner gets the row back.
-  let recipients: BroadcastRecipient[] = [];
-  if (candidates && candidates.length > 0) {
-    const { data: claimed, error: claimErr } = await supabase
-      .from('broadcast_recipients')
-      .update({
-        status: 'sending',
-        retry_after: new Date(Date.now() + CLAIM_LEASE_MS).toISOString(),
-      })
-      .in('id', candidates.map((c) => c.id))
-      .in('status', CLAIMABLE_STATUSES)
-      .select('*, contact:contacts(*)');
-
-    if (claimErr) {
-      console.error(`[Broadcast Sender] Error claiming recipients for ${broadcastId}:`, claimErr.message);
-      return;
-    }
-    recipients = (claimed ?? []) as unknown as BroadcastRecipient[];
-  }
-
-  if (recipients.length === 0) {
-    // Check if there are any remaining non-terminal recipients left for
-    // this broadcast. Claimed rows count: another sweep is mid-send on
-    // them, and marking the broadcast 'sent' underneath it would report
-    // a finished campaign while messages are still going out.
+  if (!recipients || recipients.length === 0) {
+    // Check if there are any remaining non-terminal recipients left for this broadcast
     const { count, error: countErr } = await supabase
       .from('broadcast_recipients')
       .select('id', { count: 'exact', head: true })
       .eq('broadcast_id', broadcastId)
-      .in('status', IN_FLIGHT_STATUSES);
+      .in('status', ['pending', 'rate_limited']);
 
     if (!countErr && (count ?? 0) === 0) {
       const { data: summary } = await supabase
@@ -352,7 +366,10 @@ export async function sendBroadcastRecipients(
         .select('status')
         .eq('broadcast_id', broadcastId);
 
-      const allFailed = summary && summary.length > 0 && summary.every((r) => r.status === 'failed');
+      const allFailed =
+        summary &&
+        summary.length > 0 &&
+        summary.every((r) => r.status === 'failed');
       await supabase
         .from('broadcasts')
         .update({
@@ -390,7 +407,9 @@ export async function sendBroadcastRecipients(
   }
 
   // Pre-load custom contact values for the batch
-  const contactIds = recipients.map((r) => r.contact_id).filter((id): id is string => Boolean(id));
+  const contactIds = recipients
+    .map((r) => r.contact_id)
+    .filter((id): id is string => Boolean(id));
   const customValueIndex = new Map<string, Map<string, string>>();
   if (contactIds.length > 0) {
     const { data: cvRows } = await supabase
@@ -399,7 +418,8 @@ export async function sendBroadcastRecipients(
       .in('contact_id', contactIds);
 
     for (const row of cvRows ?? []) {
-      const bucket = customValueIndex.get(row.contact_id) ?? new Map<string, string>();
+      const bucket =
+        customValueIndex.get(row.contact_id) ?? new Map<string, string>();
       bucket.set(row.custom_field_id, row.value ?? '');
       customValueIndex.set(row.contact_id, bucket);
     }
@@ -408,7 +428,7 @@ export async function sendBroadcastRecipients(
   // Loaded once per sweep for the property-anchored template only —
   // every other template resolves its params from the contact row.
   const enquiryNoticeContext = ENQUIRY_NOTICE_TEMPLATE_NAMES.includes(
-    broadcast.template_name ?? '',
+    broadcast.template_name ?? ''
   )
     ? await loadEnquiryNoticeContext(
         supabase,
@@ -416,7 +436,7 @@ export async function sendBroadcastRecipients(
         recipients
           .map((r) => r.contact)
           .filter((c): c is Contact => Boolean(c?.id)),
-        broadcast.template_name ?? undefined,
+        broadcast.template_name ?? undefined
       )
     : null;
 
@@ -425,6 +445,18 @@ export async function sendBroadcastRecipients(
   const MAX_RETRIES = 5;
 
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
+    // A long batch outlives the lease at one send per second, so renew
+    // per chunk — otherwise a sweep would rightly conclude this
+    // dispatcher had died and start a second one over the same rows.
+    await supabase
+      .rpc('renew_broadcast_dispatch', {
+        p_broadcast_id: broadcastId,
+        p_lease_seconds: DISPATCH_LEASE_SECONDS,
+      })
+      .then(undefined, (err: unknown) => {
+        console.error('[Broadcast Sender] lease renewal failed:', err);
+      });
+
     const batch = recipients.slice(i, i + BATCH_SIZE);
 
     for (const recipient of batch) {
@@ -433,7 +465,6 @@ export async function sendBroadcastRecipients(
           .from('broadcast_recipients')
           .update({
             status: 'failed',
-            retry_after: null,
             error_message: 'No phone number on contact',
           })
           .eq('id', recipient.id);
@@ -447,7 +478,6 @@ export async function sendBroadcastRecipients(
           .from('broadcast_recipients')
           .update({
             status: 'failed',
-            retry_after: null,
             error_message: 'Contact opted out of WhatsApp alerts (STOP ALERTS)',
           })
           .eq('id', recipient.id);
@@ -460,13 +490,15 @@ export async function sendBroadcastRecipients(
       // hole in it.
       let bodyParams: string[];
       if (enquiryNoticeContext) {
-        const resolved = resolveEnquiryNoticeParams(recipient.contact, enquiryNoticeContext);
+        const resolved = resolveEnquiryNoticeParams(
+          recipient.contact,
+          enquiryNoticeContext
+        );
         if ('failure' in resolved) {
           await supabase
             .from('broadcast_recipients')
             .update({
               status: 'failed',
-              retry_after: null,
               error_message: ENQUIRY_NOTICE_FAILURE_REASONS[resolved.failure],
             })
             .eq('id', recipient.id);
@@ -477,13 +509,16 @@ export async function sendBroadcastRecipients(
         bodyParams = resolveVariables(
           broadcast.template_variables || {},
           recipient.contact,
-          customValueIndex.get(recipient.contact.id),
+          customValueIndex.get(recipient.contact.id)
         );
       }
 
       let truncatedParams = bodyParams;
       if (templateRow?.body_text) {
-        truncatedParams = truncateParametersToBudget(templateRow.body_text, bodyParams);
+        truncatedParams = truncateParametersToBudget(
+          templateRow.body_text,
+          bodyParams
+        );
       }
 
       const resolvedText = templateRow?.body_text
@@ -500,7 +535,8 @@ export async function sendBroadcastRecipients(
           kind: 'template',
           senderType: 'agent',
           templateName: broadcast.template_name,
-          templateLanguage: templateRow?.language || broadcast.template_language || 'en_US',
+          templateLanguage:
+            templateRow?.language || broadcast.template_language || 'en_US',
           templateParams: truncatedParams,
           templateRow: templateRow ?? undefined,
           text: resolvedText,
@@ -515,7 +551,6 @@ export async function sendBroadcastRecipients(
               sent_at: new Date().toISOString(),
               whatsapp_message_id: result.whatsappMessageId,
               error_message: null,
-              retry_after: null,
               retry_count: newCount,
             })
             .eq('id', recipient.id);
@@ -523,14 +558,18 @@ export async function sendBroadcastRecipients(
           const errMsg = result.error || 'Unknown error';
           const rateLimited = isRateLimitError(errMsg);
           const backoffMs = Math.min(300_000, 1000 * Math.pow(2, newCount)); // cap 5m
-          const retryAfter = rateLimited && newCount < MAX_RETRIES
-            ? new Date(Date.now() + backoffMs).toISOString()
-            : null;
+          const retryAfter =
+            rateLimited && newCount < MAX_RETRIES
+              ? new Date(Date.now() + backoffMs).toISOString()
+              : null;
 
           await supabase
             .from('broadcast_recipients')
             .update({
-              status: rateLimited && newCount < MAX_RETRIES ? 'rate_limited' : 'failed',
+              status:
+                rateLimited && newCount < MAX_RETRIES
+                  ? 'rate_limited'
+                  : 'failed',
               retry_count: newCount,
               retry_after: retryAfter,
               error_message: errMsg,
@@ -538,7 +577,8 @@ export async function sendBroadcastRecipients(
             .eq('id', recipient.id);
         }
       } catch (err: unknown) {
-        const errMsg = err instanceof Error ? err.message : 'Internal Send Error';
+        const errMsg =
+          err instanceof Error ? err.message : 'Internal Send Error';
         await supabase
           .from('broadcast_recipients')
           .update({

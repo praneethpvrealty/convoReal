@@ -27,13 +27,16 @@ import { BRANDING } from '@/config/branding';
 // reused rather than duplicated (it lives under den/ for historical
 // reasons; the Den was the first surface that needed it).
 import { isSessionOpen, sendDenNotification } from '@/lib/den/notify';
-import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   pickPropertyShareTemplate,
+  propertyShareParams,
   shareHeaderImage,
 } from '@/lib/whatsapp/property-share-template';
-import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
+import {
+  accountBrandImage,
+  accountBrandName,
+} from '@/lib/showcase/account-showcase-url';
 import { curateForBuyer, hasBuyerBrief } from './matches-ranking';
 import {
   buildConsentRequestMessage,
@@ -238,10 +241,11 @@ async function runAccount(
       // photo leads the card — the account's brand image when it has
       // none. A digest that arrives as a block of text is a worse
       // digest, and the header costs nothing at the category level.
-      const headerImage = shareHeaderImage({
-        images: top.images,
-        brandImage: await accountBrandImage(db, accountId),
-      });
+      const [brandImage, brandName] = await Promise.all([
+        accountBrandImage(db, accountId),
+        accountBrandName(db, accountId),
+      ]);
+      const headerImage = shareHeaderImage({ images: top.images, brandImage });
       const delivered = await sendDenNotification(db, {
         accountId,
         contactId: buyer.id,
@@ -253,7 +257,10 @@ async function runAccount(
         templateName: PROPERTY_SHARE_TEMPLATE_NAMES,
         pickTemplate: (rows) =>
           pickPropertyShareTemplate(rows, { hasImage: Boolean(headerImage) }),
-        templateParams: buildPropertyAlertParams(buyer.name, top),
+        // The params must match whichever name pickTemplate lands on,
+        // so they are built from it rather than assumed.
+        buildParams: (template) =>
+          propertyShareParams(template.name, buyer.name, top, brandName),
         headerMediaUrl: headerImage,
       });
 

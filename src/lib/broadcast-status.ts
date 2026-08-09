@@ -53,10 +53,6 @@ export const recipientStatusConfig: Record<RecipientStatus, StatusDisplay> = {
     label: "Pending",
     classes: "bg-slate-500/10 text-slate-400 border-slate-500/20",
   },
-  sending: {
-    label: "Sending",
-    classes: "bg-slate-500/10 text-slate-400 border-slate-500/20",
-  },
   sent: {
     label: "Sent",
     classes: "bg-blue-500/10 text-blue-400 border-blue-500/20",

@@ -7,6 +7,7 @@ import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   firstPropertyImage,
   pickPropertyShareTemplate,
+  propertyShareParams,
   shareHeaderImage,
 } from './property-share-template';
 import { PROPERTY_ALERT_TEMPLATE_NAME } from './property-alert-template';
@@ -141,5 +142,63 @@ describe('shareHeaderImage', () => {
     expect(shareHeaderImage({ images: ['property-images/a/img-1.jpg'] })).toBe(
       'https://test.supabase.co/storage/v1/object/public/property-images/a/img-1.jpg',
     );
+  });
+});
+
+describe('propertyShareParams', () => {
+  const property = {
+    id: 'p1',
+    title: '3 BHK at Sattva Exotic',
+    price: 14582000,
+    area_sqft: 1779,
+    sublocality: 'Hoodi',
+    city: 'Bangalore',
+  } as never;
+
+  it('signs the current names with the brokerage as {{2}}', () => {
+    for (const name of [PHOTOS, TEXT]) {
+      const params = propertyShareParams(name, 'Gopi Krishnan', property, 'Aryavarta Ventures');
+      expect(params, name).toHaveLength(5);
+      expect(params[1], name).toBe('Aryavarta Ventures');
+    }
+  });
+
+  it('drops the brokerage for every predecessor', () => {
+    // Meta rejects a send whose param count does not match the
+    // template, so a spare is not harmless — it fails the send.
+    for (const name of [
+      'property_enquiry_info',
+      'property_enquiry_response',
+      'property_enquiry_gallery',
+      'property_enquiry_photos',
+      'new_property_alert',
+    ]) {
+      const params = propertyShareParams(name, 'Gopi', property, 'Aryavarta Ventures');
+      expect(params, name).toHaveLength(4);
+      expect(params[1], name).toBe('3 BHK at Sattva Exotic');
+    }
+  });
+
+  it('keeps the greeting first on both shapes', () => {
+    expect(propertyShareParams(TEXT, 'Gopi Krishnan', property, 'X')[0]).toBe('Gopi');
+    expect(
+      propertyShareParams('property_enquiry_info', 'Gopi Krishnan', property, 'X')[0],
+    ).toBe('Gopi');
+  });
+
+  it('signs with the product name rather than sending unsigned', () => {
+    // An empty param is rejected by Meta, and an unsigned message is
+    // the problem the brokerage param exists to fix.
+    const params = propertyShareParams(TEXT, 'Gopi', property, '   ');
+    expect(params[1].length).toBeGreaterThan(0);
+  });
+
+  it('never returns an empty param on either shape', () => {
+    const bare = { id: 'p', title: ' ', price: 0 } as never;
+    for (const name of [TEXT, 'property_enquiry_response']) {
+      for (const p of propertyShareParams(name, undefined, bare, null)) {
+        expect(p.length, name).toBeGreaterThan(0);
+      }
+    }
   });
 });

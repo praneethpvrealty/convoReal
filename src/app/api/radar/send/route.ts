@@ -4,13 +4,16 @@ import { requireRole, toErrorResponse } from '@/lib/auth/account';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
-import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   pickPropertyShareTemplate,
+  propertyShareParams,
   shareHeaderImage,
 } from '@/lib/whatsapp/property-share-template';
-import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
+import {
+  accountBrandImage,
+  accountBrandName,
+} from '@/lib/showcase/account-showcase-url';
 import type { MatchEvent, MessageTemplate, Property } from '@/types';
 
 // POST /api/radar/send
@@ -156,7 +159,10 @@ export async function POST(request: NextRequest) {
     const latestTemplate = candidates[0] ?? null;
     // One lookup for the whole batch — the brand card is per account,
     // and only the property photo varies from alert to alert.
-    const brandImage = await accountBrandImage(db, ctx.accountId);
+    const [brandImage, brandName] = await Promise.all([
+      accountBrandImage(db, ctx.accountId),
+      accountBrandName(db, ctx.accountId),
+    ]);
     /** Whether ANY of these alerts can go out at all, for the
      *  "templateMissing" report — the per-property choice happens at
      *  send time, once the header image is known. */
@@ -211,7 +217,14 @@ export async function POST(request: NextRequest) {
       });
       if (!alertTemplate) return { status: 'templateMissing' };
 
-      const params = buildPropertyAlertParams(contactName, property);
+      // Param count follows the template's name — the signed revisions
+      // carry the brokerage as {{2}}, their predecessors do not.
+      const params = propertyShareParams(
+        alertTemplate.name,
+        contactName,
+        property,
+        brandName,
+      );
       const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [...params]);
       const buttonParams: Record<number, string> = {};
       (alertTemplate.buttons ?? []).forEach((btn, idx) => {

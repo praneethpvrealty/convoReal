@@ -117,6 +117,7 @@ import {
   extractLeadPhone,
   checkLocationMatch,
   matchableSqft,
+  interestFromTypeText,
   POST
 } from './route';
 
@@ -779,6 +780,38 @@ Content-Transfer-Encoding: quoted-printable
     });
   });
 
+  describe('interestFromTypeText', () => {
+    it('does not read a BHK count on a villa or house as a flat inquiry', () => {
+      expect(interestFromTypeText('4 BHK Villa in HSR')).toBe('Villa');
+      expect(interestFromTypeText('3 BHK Independent House in Koramangala')).toBe('Residential House');
+    });
+
+    it('maps villas and houses to their own interests, not Vacant building', () => {
+      expect(interestFromTypeText('Villa')).toBe('Villa');
+      expect(interestFromTypeText('Residential House')).toBe('Residential House');
+      expect(interestFromTypeText('Farm House')).toBe('Farm House');
+      expect(interestFromTypeText('Rental building with some ROI')).toBe('Vacant building');
+    });
+
+    it('keeps the generic catch-all for plain flat inquiries', () => {
+      expect(interestFromTypeText('2 BHK flat')).toBe('Flat/ Apartment');
+      expect(interestFromTypeText('Builder Floor Apartment')).toBe('Flat/ Apartment');
+      expect(interestFromTypeText('Penthouse')).toBe('Penthouse');
+    });
+
+    it('recognises plots without tripping on site visits, websites or landmarks', () => {
+      expect(interestFromTypeText('30x40 site in Sarjapur')).toBe('Vacant plot');
+      expect(interestFromTypeText('Residential Land/ Plot')).toBe('Vacant plot');
+      expect(interestFromTypeText('Please arrange a site visit')).toBeNull();
+      expect(interestFromTypeText('saw it on your website near the landmark')).toBeNull();
+    });
+
+    it('keeps commercial and industrial precedence', () => {
+      expect(interestFromTypeText('Warehouse/ Godown')).toBe('Industrial');
+      expect(interestFromTypeText('Commercial Office Space')).toBe('Commercial');
+    });
+  });
+
   describe('POST Webhook Endpoint', () => {
     beforeEach(() => {
       process.env.LEADS_WEBHOOK_TOKEN = 'test-token';
@@ -833,9 +866,11 @@ Content-Transfer-Encoding: quoted-printable
       expect(contact.phone).toBe('+919740750397');
       expect(contact.email).toBe('pushpa9876@gmail.com');
       
-      // Verify preferences were populated via matched property
-      expect(contact.max_budget).toBe(25000000); // 2.5 Cr from property
-      expect(contact.areas_of_interest).toContain('Bommasandra');
+      // Preferences read off the listing are inferred, not stated: they
+      // land in the pref_* columns so the UI shows them as AI-derived.
+      expect(contact.max_budget).toBeNull();
+      expect(contact.pref_budget_max).toBe(25000000); // 2.5 Cr from property
+      expect(contact.pref_areas).toContain('Bommasandra');
       expect(contact.property_interests).toContain('Industrial');
 
       // Verify contact was associated with the property
@@ -895,9 +930,15 @@ Content-Transfer-Encoding: quoted-printable
       const contact = mockDb.contacts[0];
       expect(contact.name).toBe('Syed Thanveer');
       expect(contact.phone).toBe('+916381139611');
-      expect(contact.max_budget).toBe(45000000); // 4.5 Cr from property
+      // The listing's price is an inquired-at price point, not a stated
+      // budget; "HSR" was stated in the requirement text itself.
+      expect(contact.max_budget).toBeNull();
+      expect(contact.pref_budget_max).toBe(45000000); // 4.5 Cr from property
       expect(contact.areas_of_interest).toContain('HSR');
-      expect(contact.property_interests).toContain('Vacant building'); // mapped from Villa
+      expect(contact.property_interests).toContain('Villa');
+      // "4 BHK Villa" is not a flat inquiry, and a villa is not a vacant building
+      expect(contact.property_interests).not.toContain('Flat/ Apartment');
+      expect(contact.property_interests).not.toContain('Vacant building');
 
       // Verify contact was associated with the property
       expect(mockDb.contact_property_inquiries.length).toBe(1);
@@ -905,6 +946,45 @@ Content-Transfer-Encoding: quoted-printable
 
       // Verify tags were assigned correctly
       expect(mockDb.contact_tags.length).toBeGreaterThan(0);
+    });
+
+    it('keeps a budget the buyer stated themselves in the explicit field', async () => {
+      mockDb.properties.push({
+        id: 'prop-456',
+        title: '4 BHK Villa in HSR Layout',
+        type: 'Villa',
+        location: 'HSR Layout, Bangalore',
+        bedrooms: 4,
+        area_sqft: 3500,
+        price: 45000000,
+        property_code: 'VIL456'
+      });
+
+      const payload = {
+        subject: 'Property Advertisement Response',
+        from: '99acres <noreply@99acres.com>',
+        text: `
+          Dear PRANEETH KUMAR,
+          You have received a response on 99acres.
+          Details of the response:
+          Name: Syed Thanveer
+          Mobile: +91-6381139611
+          Email: thanveer@gmail.com
+          Requirements: 4 BHK Villa in HSR, budget 5 Cr
+        `
+      };
+
+      const req = new Request('http://localhost/api/leads/email-webhook?account_id=acc-789&token=test-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const response = await POST(req);
+      expect(response.status).toBe(200);
+
+      const contact = mockDb.contacts[0];
+      expect(contact.max_budget).toBe(50000000); // buyer wrote "budget 5 Cr"
     });
 
     it('captures a Housing lead whose name the portal masked, instead of dropping it', async () => {
@@ -950,6 +1030,7 @@ Content-Transfer-Encoding: quoted-printable
 
       // Subject boilerplate must not become an area of interest.
       expect((contact.areas_of_interest as string[]) ?? []).not.toContain('Your property');
+      expect((contact.pref_areas as string[]) ?? []).not.toContain('Your property');
     });
   });
 });

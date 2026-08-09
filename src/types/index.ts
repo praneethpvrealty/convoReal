@@ -178,14 +178,14 @@ export interface Contact {
    *  digest or co-broker share. The text is kept as the record. */
   requirement_active?: boolean;
   /** The lead ended their enquiry — "Close my enquiry" on the enquiry
-   *  templates, or an agent saying so (migration 228). Blocks every
+   *  templates, or an agent saying so (migration 230). Blocks every
    *  automated send at the dispatcher and drops the contact out of
    *  matching. An agent can still reply by hand from the inbox. */
   is_dead?: boolean;
   dead_at?: string | null;
   /** 'closed_enquiry' | 'stop_alerts' | 'manual' | 'bulk_cleanup' */
   dead_reason?: string | null;
-  /** Filed away by an agent (migration 228). Same exclusions as
+  /** Filed away by an agent (migration 230). Same exclusions as
    *  `is_dead`, and hidden from the contact list. Reversible. */
   is_archived?: boolean;
   archived_at?: string | null;
@@ -719,12 +719,6 @@ export type BroadcastStatus =
   | 'failed';
 export type RecipientStatus =
   | 'pending'
-  /**
-   * Claimed by a sweep and handed to Meta. Transient: `retry_after`
-   * carries the claim's lease so a sweep that dies mid-send releases
-   * the row instead of stranding it. See `src/lib/broadcasts/sender.ts`.
-   */
-  | 'sending'
   | 'sent'
   | 'delivered'
   | 'read'
@@ -1022,6 +1016,14 @@ export interface Property {
   city?: string;
   state?: string;
   project?: string;
+  /** The project this unit belongs to (migration 227). `project` above
+   *  holds the same name as text and is kept in sync by a trigger, so
+   *  every reader that predates this column keeps working. */
+  project_id?: string | null;
+  /** "G03", "1402", "Villa 7" — free text; numbering conventions are
+   *  the builder's, not ours. */
+  unit_no?: string | null;
+  tower?: string | null;
   /** Locality coordinates (migration 093) — from the form's Places
    *  autocomplete pick or the server-side geocode fallback. */
   latitude?: number | null;
@@ -1295,4 +1297,64 @@ export interface LiaisonWorkflow {
   stages: LiaisonWorkflowStage[];
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * A multi-unit development: one row for the facts every unit shares.
+ *
+ * The units themselves stay `Property` rows pointing back through
+ * `project_id` — they are what gets sold, shared, matched and digested
+ * to owners, and all of that is built on properties.
+ *
+ * Ownership is per unit, on `Property.owner_contact_id`, so a tower
+ * held by one seller and a landowner share split across eight need no
+ * different shape.
+ */
+export interface Project {
+  id: string;
+  account_id: string;
+  name: string;
+  /** Stable even after a rename, so a shared link keeps resolving. */
+  slug: string;
+  /** The global RERA registry row, when this project is registered. */
+  rera_project_id?: string | null;
+  builder?: string | null;
+  location?: string | null;
+  sublocality?: string | null;
+  city?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  amenities?: string[];
+  images?: string[];
+  brochure_url?: string | null;
+  description?: string | null;
+  possession_date?: string | null;
+  /** As declared by the builder — not the count of units this
+   *  brokerage holds, which is derived. */
+  total_units?: number | null;
+  total_floors?: number | null;
+  is_published: boolean;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * What a project's units add up to right now. Computed by the
+ * project_unit_stats RPC, never stored — a saved floor price goes
+ * stale the day the cheapest unit sells.
+ */
+export interface ProjectUnitStats {
+  project_id: string;
+  units: number;
+  available: number;
+  sold_or_contract: number;
+  /** Over AVAILABLE units only: quoting a price nobody can buy is the
+   *  fault this avoids. Null when no available unit is priced. */
+  min_price: number | null;
+  max_price: number | null;
+  min_rate_per_sqft: number | null;
+  max_rate_per_sqft: number | null;
+  min_bedrooms: number | null;
+  max_bedrooms: number | null;
 }
