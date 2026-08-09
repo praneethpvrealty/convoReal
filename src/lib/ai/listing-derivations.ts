@@ -202,14 +202,6 @@ export function applyListingDerivations(
     next.price_from_rate = false;
   }
 
-  if (next.price_per_sqft && next.listing_type !== 'Rent') {
-    const areaSqft = priceableAreaSqft(next);
-    if (areaSqft && (!next.price || next.price_from_rate)) {
-      next.price = Math.round(next.price_per_sqft * areaSqft);
-      next.price_from_rate = true;
-    }
-  }
-
   // The title is only consulted on the first parse: on a correction the
   // model's own reading of the new message wins, so a lister who says
   // "actually it's for sale at 1.2 Cr" can get back out of JV/JD.
@@ -218,6 +210,14 @@ export function applyListingDerivations(
     (next.listing_type !== 'Rent' &&
       (detectJointDevelopment(rawText) || (!previousDraft && detectJointDevelopment(next.title))));
 
+  if (next.price_per_sqft && next.listing_type !== 'Rent' && !jointDevelopment) {
+    const areaSqft = priceableAreaSqft(next);
+    if (areaSqft && (!next.price || next.price_from_rate)) {
+      next.price = Math.round(next.price_per_sqft * areaSqft);
+      next.price_from_rate = true;
+    }
+  }
+
   if (jointDevelopment) {
     next.listing_type = 'JV/JD';
     next.jv_structure = normalizeJvStructure(next.jv_structure);
@@ -225,6 +225,17 @@ export function applyListingDerivations(
     const builder = normalizeSharePercent(next.builder_share_percent);
     next.owner_share_percent = owner ?? (builder !== null ? 100 - builder : null);
     next.builder_share_percent = builder ?? (owner !== null ? 100 - owner : null);
+    // "Goodwill and advance 2.5 Cr per acre" is a rate on the deal, not
+    // on the land. Multiplying it by the site gives the goodwill total
+    // over again, not a project value — that is FAR × the selling price
+    // of what gets built, which no intake message carries. So a price
+    // this function derived is withdrawn, and only a figure the lister
+    // stated outright survives as the expected project value.
+    next.price_per_sqft = null;
+    if (next.price_from_rate) {
+      next.price = null;
+      next.price_from_rate = false;
+    }
   }
 
   return next;
