@@ -33,7 +33,8 @@ export type NotificationType =
   | 'appointment_overdue'
   | 'daily_digest'
   | 'location_request'
-  | 'subscription_extended';
+  | 'subscription_extended'
+  | 'listing_interest';
 
 export interface NotificationChannels {
   inApp?: boolean;

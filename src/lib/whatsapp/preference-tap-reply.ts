@@ -26,12 +26,17 @@ import {
 } from '@/lib/ai/buyer-qualification';
 import { extractEnquiredPropertyFromNote } from '@/lib/contacts/enquiry-note';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
+import { sendBudgetBandPrompt } from '@/lib/whatsapp/budget-band';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Contact } from '@/types';
 
 export interface PreferenceTapReplyResult {
   matchCount: number;
   replySent: boolean;
+  /** True when a follow-on list already offers the full form as a row,
+   *  so the caller must not send the form as its own message. */
+  formOffered: boolean;
 }
 
 function firstName(name: string | null | undefined): string {
@@ -112,7 +117,8 @@ export async function sendPreferenceTapReply(args: {
       // radius would surface listings they did not ask about.
       rankPropertiesForContact(db, accountId, contactId, { strictArea: true }),
     ]);
-    if (!contact) return { matchCount: 0, replySent: false };
+    if (!contact)
+      return { matchCount: 0, replySent: false, formOffered: false };
 
     const notes = ((contact as Contact).contact_notes ?? [])
       .map((n) => extractEnquiredPropertyFromNote(n.note_text))
@@ -122,11 +128,20 @@ export async function sendPreferenceTapReply(args: {
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     const contactName = (contact as Contact).name ?? null;
 
+    // With no matches and budget missing, the question becomes a tap:
+    // the band list follows instead of a typed answer, and it carries
+    // the form row, so the closing line points down rather than asking.
+    const askBudgetByTap = matches.length === 0 && missing === 'budget';
+
     const text = buildPreferenceTapReply({
       contactName,
       enquiry: notes[0] ?? null,
       listings: buildListingLines(contactName, matches, baseUrl, contactId),
-      question: missing ? buildFollowUpQuestion(missing) : null,
+      question: askBudgetByTap
+        ? "Let's fine-tune it — pick your budget range below 👇"
+        : missing
+          ? buildFollowUpQuestion(missing)
+          : null,
     });
 
     const result = await sendWhatsAppMessageAndPersist({
@@ -140,7 +155,22 @@ export async function sendPreferenceTapReply(args: {
       customDbClient: db,
     });
 
+    let formOffered = false;
+
     if (matches.length > 0 && result.success) {
+      // One tap per listing beats "reply with the number": the form row
+      // inside the list also replaces the separate form message, so the
+      // whole turn stays at two bubbles.
+      formOffered = await sendListingFeedbackPrompt({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        matches,
+        includeFormRow: true,
+      });
+
       // Surface the same listings on Match Radar so the agent picks the
       // thread up already knowing what the lead was shown.
       void generateMatchEventForContact(db, accountId, contactId).catch(
@@ -148,11 +178,24 @@ export async function sendPreferenceTapReply(args: {
           console.error('[preference-tap] radar event failed:', err);
         }
       );
+    } else if (askBudgetByTap && result.success) {
+      formOffered = await sendBudgetBandPrompt({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        includeFormRow: true,
+      });
     }
 
-    return { matchCount: matches.length, replySent: result.success };
+    return {
+      matchCount: matches.length,
+      replySent: result.success,
+      formOffered,
+    };
   } catch (err) {
     console.error('[preference-tap] failed:', err);
-    return { matchCount: 0, replySent: false };
+    return { matchCount: 0, replySent: false, formOffered: false };
   }
 }

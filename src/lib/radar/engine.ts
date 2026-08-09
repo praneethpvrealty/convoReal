@@ -78,8 +78,10 @@ async function upsertEvent(
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(1);
-  if (subject.property_id) dupQuery = dupQuery.eq('property_id', subject.property_id);
-  if (subject.contact_id) dupQuery = dupQuery.eq('contact_id', subject.contact_id);
+  if (subject.property_id)
+    dupQuery = dupQuery.eq('property_id', subject.property_id);
+  if (subject.contact_id)
+    dupQuery = dupQuery.eq('contact_id', subject.contact_id);
 
   const { data: existing } = await dupQuery;
   const dup = existing?.[0];
@@ -131,7 +133,10 @@ export async function generateMatchEventForProperty(
 
     if (!property || !contacts || contacts.length === 0) return;
 
-    const results = getMatchingContacts(property as Property, contacts as Contact[])
+    const results = getMatchingContacts(
+      property as Property,
+      contacts as Contact[]
+    )
       .filter((r) => r.score >= MIN_SCORE)
       .slice(0, MAX_TARGETS);
 
@@ -145,7 +150,13 @@ export async function generateMatchEventForProperty(
       chips: chipsFromDetails(r.details),
     }));
 
-    await upsertEvent(db, accountId, 'new_property', { property_id: propertyId }, targets);
+    await upsertEvent(
+      db,
+      accountId,
+      'new_property',
+      { property_id: propertyId },
+      targets
+    );
   } catch (err) {
     console.error('[radar] generateMatchEventForProperty failed:', err);
   }
@@ -165,7 +176,10 @@ export function rankProperties(
   contact: Contact,
   properties: Property[]
 ): RankedPropertyMatch[] {
-  const wanted = [...(contact.areas_of_interest || []), ...(contact.pref_areas || [])]
+  const wanted = [
+    ...(contact.areas_of_interest || []),
+    ...(contact.pref_areas || []),
+  ]
     .map((a) => a.trim().toLowerCase())
     .filter(Boolean);
 
@@ -214,29 +228,44 @@ export async function rankPropertiesForContact(
    *  cannot afford the loose radius. */
   opts: { strictArea?: boolean } = {}
 ): Promise<RankedPropertyMatch[]> {
-  const [{ data: contact }, { data: properties }] = await Promise.all([
-    db
-      .from('contacts')
-      .select('*, contact_notes(note_text)')
-      .eq('id', contactId)
-      .eq('account_id', accountId)
-      .maybeSingle(),
-    db
-      .from('properties')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('is_published', true)
-      .eq('status', 'Available'),
-  ]);
+  const [{ data: contact }, { data: properties }, { data: rejected }] =
+    await Promise.all([
+      db
+        .from('contacts')
+        .select('*, contact_notes(note_text)')
+        .eq('id', contactId)
+        .eq('account_id', accountId)
+        .maybeSingle(),
+      db
+        .from('properties')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('is_published', true)
+        .eq('status', 'Available'),
+      // The contact said no to these (listing_feedback) — offering them
+      // again would spend the trust the feedback prompt just earned.
+      db
+        .from('listing_feedback')
+        .select('property_id')
+        .eq('account_id', accountId)
+        .eq('contact_id', contactId)
+        .eq('verdict', 'rejected'),
+    ]);
 
   if (!contact || !properties || properties.length === 0) return [];
-  if (!['Buyer', 'Agent'].includes((contact as Contact).classification || '')) return [];
+  if (!['Buyer', 'Agent'].includes((contact as Contact).classification || ''))
+    return [];
+
+  const rejectedIds = new Set(
+    ((rejected ?? []) as { property_id: string }[]).map((r) => r.property_id)
+  );
+  const pool = (properties as Property[]).filter((p) => !rejectedIds.has(p.id));
 
   const subject = opts.strictArea
     ? ({ ...(contact as Contact), strict_area_match: true } as Contact)
     : (contact as Contact);
 
-  return rankProperties(subject, properties as Property[]);
+  return rankProperties(subject, pool);
 }
 
 /**
@@ -252,15 +281,23 @@ export async function generateMatchEventForContact(
     const matched = await rankPropertiesForContact(db, accountId, contactId);
     if (matched.length === 0) return;
 
-    const targets: MatchEventTarget[] = matched.slice(0, MAX_TARGETS).map((m) => ({
-      id: m.property.id,
-      name: m.property.title,
-      detail: m.property.property_code || null,
-      score: m.score,
-      chips: chipsFromDetails(m.details),
-    }));
+    const targets: MatchEventTarget[] = matched
+      .slice(0, MAX_TARGETS)
+      .map((m) => ({
+        id: m.property.id,
+        name: m.property.title,
+        detail: m.property.property_code || null,
+        score: m.score,
+        chips: chipsFromDetails(m.details),
+      }));
 
-    await upsertEvent(db, accountId, 'buyer_updated', { contact_id: contactId }, targets);
+    await upsertEvent(
+      db,
+      accountId,
+      'buyer_updated',
+      { contact_id: contactId },
+      targets
+    );
   } catch (err) {
     console.error('[radar] generateMatchEventForContact failed:', err);
   }

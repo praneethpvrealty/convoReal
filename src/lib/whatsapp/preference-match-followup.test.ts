@@ -21,6 +21,13 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
     sendWhatsAppMessageAndPersist(...args),
 }));
 
+const sendListingFeedbackPrompt = vi.fn();
+
+vi.mock('@/lib/whatsapp/listing-feedback', () => ({
+  sendListingFeedbackPrompt: (...args: unknown[]) =>
+    sendListingFeedbackPrompt(...args),
+}));
+
 const { sendPreferenceMatchFollowUp, buildNoLiveMatchReply } =
   await import('./preference-match-followup');
 
@@ -148,6 +155,27 @@ describe('sendPreferenceMatchFollowUp', () => {
     rankPropertiesForContact.mockResolvedValue([aMatch]);
     await sendPreferenceMatchFollowUp(args());
     expect(sendWhatsAppMessageAndPersist).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows the listings with the one-tap feedback list, minus the form row', async () => {
+    // This lead just completed the form; re-offering it would be noise.
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+
+    await sendPreferenceMatchFollowUp(args());
+
+    expect(sendListingFeedbackPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ matches: [aMatch] })
+    );
+    const call = sendListingFeedbackPrompt.mock.calls[0][0] as {
+      includeFormRow?: boolean;
+    };
+    expect(call.includeFormRow).toBeUndefined();
+  });
+
+  it('skips the feedback list when nothing was shown', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    await sendPreferenceMatchFollowUp(args());
+    expect(sendListingFeedbackPrompt).not.toHaveBeenCalled();
   });
 });
 
