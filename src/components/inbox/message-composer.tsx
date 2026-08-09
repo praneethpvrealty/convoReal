@@ -1,7 +1,15 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect, KeyboardEvent } from "react";
-import { Send, LayoutTemplate, Paperclip, Mic, Loader2 } from "lucide-react";
+import {
+  Send,
+  LayoutTemplate,
+  Paperclip,
+  Mic,
+  Loader2,
+  MessageCircle,
+  ArrowRightCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { GatedButton } from "@/components/ui/gated-button";
@@ -23,6 +31,11 @@ interface ReplyDraft {
 interface MessageComposerProps {
   conversationId: string;
   sessionExpired: boolean;
+  /** For the two routes out of a closed window that do not need a
+   *  template: the agent's own WhatsApp, and the invite that gets the
+   *  contact to open the window themselves. */
+  contactPhone?: string | null;
+  onInviteToEngine?: () => void;
   onSend: (text: string, replyToId?: string) => void;
   /** Upload the file and send it. Caption comes from whatever is typed. */
   onSendAttachment: (
@@ -37,6 +50,8 @@ interface MessageComposerProps {
 
 export function MessageComposer({
   sessionExpired,
+  contactPhone,
+  onInviteToEngine,
   onSend,
   onSendAttachment,
   onOpenTemplates,
@@ -200,19 +215,59 @@ export function MessageComposer({
         </div>
       )}
       {sessionExpired && (
-        <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
-            24-hour session expired. Use a template to re-engage.
+            24-hour session expired. Reach them another way:
           </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-amber-400 hover:text-amber-300"
-            onClick={onOpenTemplates}
-          >
-            <LayoutTemplate className="mr-1 h-3 w-3" />
-            Templates
-          </Button>
+          {/* Three routes, cheapest first. A template keeps the thread
+              on the business number; the agent's own WhatsApp delivers
+              whatever is in the box now but off the record; the invite
+              fixes the cause, since the window is shut only because
+              this contact has never written. */}
+          <div className="flex flex-wrap items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-amber-400 hover:text-amber-300"
+              onClick={onOpenTemplates}
+            >
+              <LayoutTemplate className="mr-1 h-3 w-3" />
+              Templates
+            </Button>
+            {contactPhone && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-emerald-400 hover:text-emerald-300"
+                onClick={() => {
+                  // Whatever is in the box goes with them; an empty box
+                  // just opens the chat. The draft stays put either way,
+                  // because this leaves from a personal number and the
+                  // Engine never records it.
+                  const digits = contactPhone.replace(/\D/g, '');
+                  if (!digits) return;
+                  const query = text.trim()
+                    ? `?text=${encodeURIComponent(text.trim())}`
+                    : '';
+                  window.open(`https://wa.me/${digits}${query}`, '_blank', 'noopener');
+                }}
+              >
+                <MessageCircle className="mr-1 h-3 w-3" />
+                My WhatsApp
+              </Button>
+            )}
+            {onInviteToEngine && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-slate-400 hover:text-slate-300"
+                onClick={onInviteToEngine}
+              >
+                <ArrowRightCircle className="mr-1 h-3 w-3" />
+                Invite to Engine
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
