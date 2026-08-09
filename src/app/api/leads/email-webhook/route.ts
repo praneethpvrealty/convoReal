@@ -507,9 +507,17 @@ export async function POST(request: Request) {
       console.log(`[lead-webhook] Unusable lead name "${unusableName}" — captured as "${parsed.name}"`);
     }
 
-    // 3. Parse property preferences from requirement text
+    // 3. Parse property preferences from requirement text.
+    // Stated vs inferred: maxBudget/areasOfInterest hold what the buyer
+    // wrote in their message and land in the explicit contact fields.
+    // The listing's own price/locality (parsed from the ad, or from the
+    // matched property) is an "inquired at this price" signal, not a
+    // stated preference — it goes to pref_budget_max/pref_areas so the
+    // UI shows it with AI provenance and a stated value always wins.
     let maxBudget: number | null = null;
+    let inferredBudget: number | null = null;
     const areasOfInterest: string[] = [];
+    const inferredAreas: string[] = [];
     const propertyInterests: string[] = [];
 
     if (parsed.requirementText) {
@@ -556,8 +564,8 @@ export async function POST(request: Request) {
     }
 
     // Enhance from parsed property details directly
-    if (parsed.propertyPrice && !maxBudget) {
-      maxBudget = parsed.propertyPrice;
+    if (parsed.propertyPrice) {
+      inferredBudget = parsed.propertyPrice;
     }
 
     if (parsed.propertyLocation) {
@@ -570,8 +578,8 @@ export async function POST(request: Request) {
         } else {
           formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
         }
-        if (!areasOfInterest.includes(formattedArea)) {
-          areasOfInterest.push(formattedArea);
+        if (!areasOfInterest.includes(formattedArea) && !inferredAreas.includes(formattedArea)) {
+          inferredAreas.push(formattedArea);
         }
       }
     }
@@ -716,11 +724,11 @@ export async function POST(request: Request) {
               .map((sp) => sp.property);
 
             if (bestMatchedProperties.length > 0) {
-              // Use the highest price from best matched properties as budget if not already set
-              if (!maxBudget) {
+              // Use the highest price from best matched properties as the inferred budget if the ad quoted none
+              if (!inferredBudget) {
                 const maxPrice = Math.max(...bestMatchedProperties.map(p => p.price || 0));
                 if (maxPrice > 0) {
-                  maxBudget = maxPrice;
+                  inferredBudget = maxPrice;
                 }
               }
 
@@ -735,8 +743,8 @@ export async function POST(request: Request) {
                   } else {
                     formattedArea = mainArea.charAt(0).toUpperCase() + mainArea.slice(1);
                   }
-                  if (!areasOfInterest.includes(formattedArea)) {
-                    areasOfInterest.push(formattedArea);
+                  if (!areasOfInterest.includes(formattedArea) && !inferredAreas.includes(formattedArea)) {
+                    inferredAreas.push(formattedArea);
                   }
                 }
               });
@@ -773,7 +781,7 @@ export async function POST(request: Request) {
     const cleanPhone = normalizedPhoneNum.replace(/\D/g, '');
     const { data: existingContact } = await supabase
       .from('contacts')
-      .select('id, name')
+      .select('id, name, pref_areas')
       .eq('account_id', accountId)
       .or(`phone.eq.${normalizedPhoneNum},phone.eq.${cleanPhone}`)
       .maybeSingle();
@@ -808,14 +816,24 @@ export async function POST(request: Request) {
       // Update existing contact preferences
       const updatePayload: {
         max_budget?: number | null;
+        pref_budget_max?: number | null;
         areas_of_interest?: string[];
+        pref_areas?: string[];
         property_interests?: string[];
         company?: string;
         source?: string;
         last_inquired_property_id?: string | null;
       } = {};
       if (maxBudget) updatePayload.max_budget = maxBudget;
+      else if (inferredBudget) updatePayload.pref_budget_max = inferredBudget;
       if (areasOfInterest.length > 0) updatePayload.areas_of_interest = areasOfInterest;
+      if (inferredAreas.length > 0) {
+        const existingPrefAreas = (existingContact.pref_areas as string[] | null) ?? [];
+        updatePayload.pref_areas = [
+          ...existingPrefAreas,
+          ...inferredAreas.filter((a) => !existingPrefAreas.includes(a)),
+        ];
+      }
       if (propertyInterests.length > 0) updatePayload.property_interests = propertyInterests;
       if (matchedPropertyIds.length > 0) updatePayload.last_inquired_property_id = matchedPropertyIds[0];
       
@@ -862,18 +880,20 @@ export async function POST(request: Request) {
       // Add source tag
       if (parsed.source) tagsToAssign.push(`${parsed.source} Lead`);
       
-      // Add budget-based tags (ranges up to 150Cr+)
-      if (maxBudget) {
-        if (maxBudget >= 1500000000) tagsToAssign.push('Budget 150Cr+');
-        else if (maxBudget >= 1000000000) tagsToAssign.push('Budget 100-150Cr');
-        else if (maxBudget >= 500000000) tagsToAssign.push('Budget 50-100Cr');
-        else if (maxBudget >= 250000000) tagsToAssign.push('Budget 25-50Cr');
-        else if (maxBudget >= 100000000) tagsToAssign.push('Budget 10-25Cr');
-        else if (maxBudget >= 50000000) tagsToAssign.push('Budget 5-10Cr');
-        else if (maxBudget >= 20000000) tagsToAssign.push('Budget 2-5Cr');
-        else if (maxBudget >= 10000000) tagsToAssign.push('Budget 1-2Cr');
-        else if (maxBudget >= 5000000) tagsToAssign.push('Budget 50L-1Cr');
-        else if (maxBudget >= 2000000) tagsToAssign.push('Budget 20L-50L');
+      // Add budget-based tags (ranges up to 150Cr+); stated budget first,
+      // else the price point they inquired at
+      const budgetForTags = maxBudget ?? inferredBudget;
+      if (budgetForTags) {
+        if (budgetForTags >= 1500000000) tagsToAssign.push('Budget 150Cr+');
+        else if (budgetForTags >= 1000000000) tagsToAssign.push('Budget 100-150Cr');
+        else if (budgetForTags >= 500000000) tagsToAssign.push('Budget 50-100Cr');
+        else if (budgetForTags >= 250000000) tagsToAssign.push('Budget 25-50Cr');
+        else if (budgetForTags >= 100000000) tagsToAssign.push('Budget 10-25Cr');
+        else if (budgetForTags >= 50000000) tagsToAssign.push('Budget 5-10Cr');
+        else if (budgetForTags >= 20000000) tagsToAssign.push('Budget 2-5Cr');
+        else if (budgetForTags >= 10000000) tagsToAssign.push('Budget 1-2Cr');
+        else if (budgetForTags >= 5000000) tagsToAssign.push('Budget 50L-1Cr');
+        else if (budgetForTags >= 2000000) tagsToAssign.push('Budget 20L-50L');
         else tagsToAssign.push('Budget <20L');
       }
 
@@ -993,7 +1013,9 @@ export async function POST(request: Request) {
         company: parsed.source, // Stashing the lead portal name in company field
         source: parsed.source, // Storing lead portal name in dedicated source field
         max_budget: maxBudget,
+        pref_budget_max: inferredBudget,
         areas_of_interest: areasOfInterest.length > 0 ? areasOfInterest : null,
+        pref_areas: inferredAreas.length > 0 ? inferredAreas : null,
         property_interests: propertyInterests.length > 0 ? propertyInterests : null,
         last_inquired_property_id: matchedPropertyIds.length > 0 ? matchedPropertyIds[0] : null,
         status: 'pending_review',
@@ -1048,18 +1070,20 @@ export async function POST(request: Request) {
       // Add source tag
       if (parsed.source) tagsToAssign.push(`${parsed.source} Lead`);
       
-      // Add budget-based tags (ranges up to 150Cr+)
-      if (maxBudget) {
-        if (maxBudget >= 1500000000) tagsToAssign.push('Budget 150Cr+');
-        else if (maxBudget >= 1000000000) tagsToAssign.push('Budget 100-150Cr');
-        else if (maxBudget >= 500000000) tagsToAssign.push('Budget 50-100Cr');
-        else if (maxBudget >= 250000000) tagsToAssign.push('Budget 25-50Cr');
-        else if (maxBudget >= 100000000) tagsToAssign.push('Budget 10-25Cr');
-        else if (maxBudget >= 50000000) tagsToAssign.push('Budget 5-10Cr');
-        else if (maxBudget >= 20000000) tagsToAssign.push('Budget 2-5Cr');
-        else if (maxBudget >= 10000000) tagsToAssign.push('Budget 1-2Cr');
-        else if (maxBudget >= 5000000) tagsToAssign.push('Budget 50L-1Cr');
-        else if (maxBudget >= 2000000) tagsToAssign.push('Budget 20L-50L');
+      // Add budget-based tags (ranges up to 150Cr+); stated budget first,
+      // else the price point they inquired at
+      const budgetForTags = maxBudget ?? inferredBudget;
+      if (budgetForTags) {
+        if (budgetForTags >= 1500000000) tagsToAssign.push('Budget 150Cr+');
+        else if (budgetForTags >= 1000000000) tagsToAssign.push('Budget 100-150Cr');
+        else if (budgetForTags >= 500000000) tagsToAssign.push('Budget 50-100Cr');
+        else if (budgetForTags >= 250000000) tagsToAssign.push('Budget 25-50Cr');
+        else if (budgetForTags >= 100000000) tagsToAssign.push('Budget 10-25Cr');
+        else if (budgetForTags >= 50000000) tagsToAssign.push('Budget 5-10Cr');
+        else if (budgetForTags >= 20000000) tagsToAssign.push('Budget 2-5Cr');
+        else if (budgetForTags >= 10000000) tagsToAssign.push('Budget 1-2Cr');
+        else if (budgetForTags >= 5000000) tagsToAssign.push('Budget 50L-1Cr');
+        else if (budgetForTags >= 2000000) tagsToAssign.push('Budget 20L-50L');
         else tagsToAssign.push('Budget <20L');
       }
 
