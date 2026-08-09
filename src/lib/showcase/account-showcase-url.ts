@@ -49,6 +49,35 @@ async function accountSubdomain(
 }
 
 /**
+ * The account's own name, for signing a message it sends.
+ *
+ * A template that names nobody reaches a buyer who enquired weeks ago
+ * as property details from an unrecognised number. Null falls back to
+ * the product name at the param builder rather than sending unsigned.
+ */
+export async function accountBrandName(
+  db: SupabaseClient,
+  accountId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await db
+      .from('accounts')
+      .select('name')
+      .eq('id', accountId)
+      .maybeSingle();
+    if (error) {
+      console.error('[showcase-url] brand name lookup failed:', error);
+      return null;
+    }
+    const name = (data?.name as string | null) ?? null;
+    return name?.trim() ? name.trim() : null;
+  } catch (err) {
+    console.error('[showcase-url] brand name lookup threw:', err);
+    return null;
+  }
+}
+
+/**
  * The account's brand card, as a bucket-relative path, or null.
  *
  * A WhatsApp template's media header is filled at send time, so this

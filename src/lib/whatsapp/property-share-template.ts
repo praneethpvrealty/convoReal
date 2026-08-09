@@ -28,6 +28,36 @@ import {
   pickPropertyPhotosTemplate,
 } from '@/lib/whatsapp/property-enquiry-photos-template';
 import type { ApprovedTemplateCandidate } from '@/lib/whatsapp/pick-approved-template';
+import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
+import type { Property } from '@/types';
+
+/** Names whose body carries the brokerage as {{2}}. Everything older
+ *  has four params and Meta rejects a send that hands it five. */
+const SIGNED_TEMPLATE_NAMES = new Set([
+  PROPERTY_ALERT_TEMPLATE_NAMES[0],
+  PROPERTY_ENQUIRY_PHOTOS_TEMPLATE_NAMES[0],
+]);
+
+/**
+ * The body params for whichever template was picked.
+ *
+ * The signed revisions name the brokerage in their opening line; their
+ * predecessors, all still approved and still sending, do not. Meta
+ * rejects a send whose param count does not match the template, so the
+ * count follows the NAME rather than what the caller would prefer to
+ * send.
+ */
+export function propertyShareParams(
+  templateName: string,
+  contactName: string | null | undefined,
+  property: Property,
+  brandName?: string | null,
+): string[] {
+  const full = buildPropertyAlertParams(contactName, property, brandName);
+  return SIGNED_TEMPLATE_NAMES.has(templateName)
+    ? [...full]
+    : [full[0], full[2], full[3], full[4]];
+}
 
 /** Every name a property share might send under — the `.in()` list for
  *  the one query each send path makes. */

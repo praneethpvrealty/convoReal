@@ -74,7 +74,7 @@ describe('buildPropertyAlertTemplatePayload', () => {
 });
 
 describe('buildPropertyAlertParams', () => {
-  it('builds first name, title, specs and locality', () => {
+  it('builds first name, brokerage, title, specs and locality', () => {
     const params = buildPropertyAlertParams(
       'Gopi Krishnan',
       prop({
@@ -85,9 +85,11 @@ describe('buildPropertyAlertParams', () => {
         sublocality: 'Hoodi',
         city: 'Bangalore',
       }),
+      'Aryavarta Ventures',
     );
     expect(params).toEqual([
       'Gopi',
+      'Aryavarta Ventures',
       'Premium Commercial Property for Sale in Hoodi, Bangalore',
       '₹32 Cr · 23,500 Sq.Ft.',
       'Hoodi, Bangalore',
@@ -95,7 +97,7 @@ describe('buildPropertyAlertParams', () => {
   });
 
   it('shows rent for rental listings and BHK when present', () => {
-    const [, , specs] = buildPropertyAlertParams(
+    const [, , , specs] = buildPropertyAlertParams(
       null,
       prop({ listing_type: 'Rent', rent_per_month: 85000, bedrooms: 3, area_sqft: 1650 }),
     );
@@ -111,7 +113,13 @@ describe('buildPropertyAlertParams', () => {
 
   it('never returns empty params', () => {
     const params = buildPropertyAlertParams(undefined, prop({ title: ' ', price: 0, location: '' }));
-    expect(params).toEqual(['there', 'New listing', 'Details on request', 'Location shared on request']);
+    expect(params).toEqual([
+      'there',
+      'ConvoReal',
+      'New listing',
+      'Details on request',
+      'Location shared on request',
+    ]);
     for (const p of params) expect(p.length).toBeGreaterThan(0);
   });
 });
