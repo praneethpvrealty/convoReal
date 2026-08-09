@@ -2,13 +2,16 @@ import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
-import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
 import {
   PROPERTY_SHARE_TEMPLATE_NAMES,
   pickPropertyShareTemplate,
+  propertyShareParams,
   shareHeaderImage,
 } from '@/lib/whatsapp/property-share-template';
-import { accountBrandImage } from '@/lib/showcase/account-showcase-url';
+import {
+  accountBrandImage,
+  accountBrandName,
+} from '@/lib/showcase/account-showcase-url';
 import type { MessageTemplate, Property } from '@/types';
 
 // One property share to one contact through the account's WhatsApp
@@ -174,10 +177,11 @@ export async function sendPropertyToContact(opts: {
   // it has none — a property message that leads with the property is a
   // different message from one that does not, and the header is a
   // send-time parameter so it costs nothing at the category level.
-  const headerImage = shareHeaderImage({
-    images: property.images,
-    brandImage: await accountBrandImage(db, accountId),
-  });
+  const [brandImage, brandName] = await Promise.all([
+    accountBrandImage(db, accountId),
+    accountBrandName(db, accountId),
+  ]);
+  const headerImage = shareHeaderImage({ images: property.images, brandImage });
   const alertTemplate = pickPropertyShareTemplate(candidates, {
     hasImage: Boolean(headerImage),
   });
@@ -202,7 +206,15 @@ export async function sendPropertyToContact(opts: {
     };
   }
 
-  const params = buildPropertyAlertParams(contactName, property);
+  // Param count follows the template's NAME: the signed revisions
+  // carry the brokerage as {{2}}, their approved predecessors do not,
+  // and Meta rejects a send that hands either the wrong number.
+  const params = propertyShareParams(
+    alertTemplate.name,
+    contactName,
+    property,
+    brandName,
+  );
   const bodyParams = truncateParametersToBudget(alertTemplate.body_text, [...params]);
   const buttonParams: Record<number, string> = {};
   (alertTemplate.buttons ?? []).forEach((btn, idx) => {

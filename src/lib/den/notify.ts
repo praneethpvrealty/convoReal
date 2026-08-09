@@ -80,6 +80,12 @@ export async function sendDenNotification(
     /** Chooses among several approved candidates — see approvedTemplate. */
     pickTemplate?: (rows: MessageTemplate[]) => MessageTemplate | null;
     templateParams?: string[];
+    /** Params derived from whichever template `pickTemplate` lands on.
+     *  A renamed template can carry a different param count from the
+     *  predecessor it falls back to, and Meta rejects a mismatch — so
+     *  the caller that knows both builds them after the choice, not
+     *  before. Wins over templateParams when both are given. */
+    buildParams?: (template: MessageTemplate) => string[];
     /** Media-header image, resolved to a URL Meta can fetch. Ignored by
      *  a template with a text header, so callers can pass it blind. */
     headerMediaUrl?: string | null;
@@ -98,7 +104,9 @@ export async function sendDenNotification(
       return res.success;
     }
 
-    if (!args.templateName || !args.templateParams) return false;
+    if (!args.templateName || !(args.templateParams || args.buildParams)) {
+      return false;
+    }
     const template = await approvedTemplate(
       db,
       args.accountId,
@@ -106,6 +114,9 @@ export async function sendDenNotification(
       args.pickTemplate,
     );
     if (!template) return false;
+    const params = args.buildParams
+      ? args.buildParams(template)
+      : args.templateParams!;
 
     const res = await sendWhatsAppMessageAndPersist({
       accountId: args.accountId,
@@ -114,9 +125,9 @@ export async function sendDenNotification(
       senderType: "bot",
       templateName: template.name,
       templateLanguage: template.language || "en_US",
-      templateParams: args.templateParams,
+      templateParams: params,
       messageParams: {
-        body: args.templateParams,
+        body: params,
         ...(args.headerMediaUrl ? { headerMediaUrl: args.headerMediaUrl } : {}),
       },
       templateRow: template,

@@ -10,8 +10,8 @@ describe('missingEngineTemplates', () => {
       'enquiry_status_notice',
     ]);
     expect(missing.map((t) => t.name)).toEqual([
-      'property_enquiry_info',
-      'property_enquiry_gallery',
+      'listing_details_notice',
+      'listing_photos_notice',
       'listing_status_notice',
     ]);
   });
@@ -20,8 +20,8 @@ describe('missingEngineTemplates', () => {
     // Same rename, same reason: property_enquiry_photos is approved and
     // sending, its URL button just carries the dashboard host.
     expect(
-      missingEngineTemplates(['property_enquiry_photos']).map((t) => t.name),
-    ).toContain('property_enquiry_gallery');
+      missingEngineTemplates(['property_enquiry_gallery']).map((t) => t.name),
+    ).toContain('listing_photos_notice');
   });
 
   it('offers the branded property-details template to an account still on the old one', () => {
@@ -31,8 +31,8 @@ describe('missingEngineTemplates', () => {
     // a new name — which means this list has to keep offering it even
     // though the account already has a working predecessor.
     expect(
-      missingEngineTemplates(['property_enquiry_response']).map((t) => t.name),
-    ).toContain('property_enquiry_info');
+      missingEngineTemplates(['property_enquiry_info']).map((t) => t.name),
+    ).toContain('listing_details_notice');
   });
 
   it('ignores case and stray whitespace on existing names', () => {

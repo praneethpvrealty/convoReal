@@ -12,13 +12,14 @@ import { formatShareAmount } from '@/lib/share-message-builder';
 import { sanitizeTemplateParam } from '@/lib/whatsapp/inventory-update-template';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import { SEND_MORE_DETAILS_BUTTON } from '@/lib/whatsapp/template-quick-replies';
+import { BRANDING } from '@/config/branding';
 import {
   pickApprovedTemplate,
   type ApprovedTemplateCandidate,
 } from '@/lib/whatsapp/pick-approved-template';
 
 /**
- * Bumped three times. Meta will not re-review an approved template in
+ * Bumped four times. Meta will not re-review an approved template in
  * place, so every fix needs a name it has not ruled on:
  *
  *   new_property_alert        → approved as Marketing (submitted as such)
@@ -34,17 +35,24 @@ import {
  *     THIS row means an edit, and an edit is a fresh review that could
  *     land it in Marketing permanently.
  *
- * So the branded version ships under a new name instead. The old one
- * keeps sending untouched while this is under review, and if Meta
- * classifies it Marketing it is simply never selected — see
- * pickPropertyAlertTemplate. Nothing is risked to gain a hostname.
+ *   property_enquiry_info    → approved as Utility WITH the brokerage's
+ *     own subdomain on its button. Working, and still unsigned: the
+ *     body names nobody, so a buyer who enquired weeks ago gets
+ *     property details from a number they do not recognise.
+ *
+ * So each fix ships under a name Meta has not ruled on, and the
+ * previous one keeps sending untouched meanwhile. If Meta classifies
+ * the new one Marketing it is simply never selected — see
+ * pickApprovedTemplate, where category outranks name. Nothing is
+ * risked to gain a signature.
  */
-export const PROPERTY_ALERT_TEMPLATE_NAME = 'property_enquiry_info';
+export const PROPERTY_ALERT_TEMPLATE_NAME = 'listing_details_notice';
 
 /** Earlier names, newest first. An account holding an approved row
  *  under any of these keeps sending from it until the current name
  *  clears review. */
 export const LEGACY_PROPERTY_ALERT_TEMPLATE_NAMES = [
+  'property_enquiry_info',
   'property_enquiry_response',
   'property_enquiry_details',
   'new_property_alert',
@@ -80,11 +88,11 @@ export function buildPropertyAlertTemplatePayload(origin: string): TemplatePaylo
     // utility+marketing content classifies the whole template as
     // Marketing regardless of the submitted category.
     body_text: [
-      'Hi {{1}}, here are the details for your property enquiry:',
+      'Hi {{1}}, here are the details for your property enquiry with {{2}}:',
       '',
-      'Property: {{2}}',
-      'Details: {{3}}',
-      'Location: {{4}}',
+      'Property: {{3}}',
+      'Details: {{4}}',
+      'Location: {{5}}',
       '',
       'Reply to this message if you need any further information about this enquiry.',
     ].join('\n'),
@@ -103,6 +111,7 @@ export function buildPropertyAlertTemplatePayload(origin: string): TemplatePaylo
     sample_values: {
       body: [
         'Gopi',
+        'Aryavarta Ventures',
         'Commercial Property for Sale in Hoodi, Bangalore',
         '₹32 Cr · 23,500 Sq.Ft.',
         'Hoodi, Bangalore',
@@ -130,13 +139,20 @@ function specsSegment(p: Property): string {
 }
 
 /**
- * Body params {{1}}..{{4}}: first name, title, specs line, locality.
- * Every param is guaranteed non-empty (Meta rejects empty values).
+ * Body params {{1}}..{{5}}: first name, the brokerage sending it,
+ * title, specs line, locality. Every param is guaranteed non-empty
+ * (Meta rejects empty values), and an account with no name set falls
+ * back to the product name rather than sending unsigned.
+ *
+ * The legacy names carry four of these — see propertyShareParams,
+ * which drops the brokerage for them rather than sending a spare Meta
+ * would reject.
  */
 export function buildPropertyAlertParams(
   contactName: string | null | undefined,
   property: Property,
-): [name: string, title: string, specs: string, location: string] {
+  brandName?: string | null,
+): [name: string, brand: string, title: string, specs: string, location: string] {
   // A lead filed under "Housing Lead" would be greeted "Hi Housing," —
   // the placeholder is a filing name, never a form of address.
   const firstName = isPlaceholderLeadName(contactName)
@@ -148,6 +164,7 @@ export function buildPropertyAlertParams(
     'Location shared on request';
   return [
     sanitizeTemplateParam(firstName),
+    sanitizeTemplateParam(brandName?.trim() || BRANDING.name),
     sanitizeTemplateParam(property.title.trim() || 'New listing'),
     sanitizeTemplateParam(specsSegment(property) || 'Details on request'),
     sanitizeTemplateParam(location),
