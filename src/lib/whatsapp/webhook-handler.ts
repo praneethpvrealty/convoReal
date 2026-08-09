@@ -31,6 +31,10 @@ import {
 import { sendPreferenceMatchFollowUp } from '@/lib/whatsapp/preference-match-followup'
 import { sendPreferenceTapReply } from '@/lib/whatsapp/preference-tap-reply'
 import {
+  handleListingFeedbackReply,
+  LISTING_FEEDBACK_ID_PREFIX,
+} from '@/lib/whatsapp/listing-feedback'
+import {
   isPreferenceFlowRequestText,
   parsePreferenceFormValues,
   preferenceFormToContactUpdate,
@@ -1773,6 +1777,22 @@ async function processMessage(
     if (handled) return
   }
 
+  // A tap on the listing-feedback list. Handled before the preference
+  // trigger below: the list's "Update preferences" row title would
+  // otherwise match the free-text preference regex and re-run the
+  // listings reply instead of sending the form the row promises.
+  if (interactiveReplyId?.startsWith(LISTING_FEEDBACK_ID_PREFIX)) {
+    const handledFeedback = await handleListingFeedbackReply({
+      db: supabaseAdmin(),
+      accountId,
+      configOwnerUserId,
+      contact: contactRecord,
+      conversationId: conversation.id,
+      replyId: interactiveReplyId,
+    })
+    if (handledFeedback) return
+  }
+
   // Buyer asked to update their preferences (free text like "update my
   // preferences", the update_preferences button, or the enquiry-followup
   // template's "Update my preferences" quick reply, which arrives as
@@ -2725,6 +2745,16 @@ async function handlePreferenceFlowTrigger(
       contactId,
       conversationId,
     })
+
+    // With matches, the feedback list already went out carrying an
+    // "Update preferences" row — a third bubble repeating the form
+    // would bury it. Without matches the form is the main action.
+    if (tap.replySent && tap.matchCount > 0) {
+      console.log(
+        `[webhook] Sent preference tap reply (${tap.matchCount} matches) + feedback list to contact ${contactId}`
+      )
+      return true
+    }
 
     const result = await sendPreferenceFlowToContact({
       accountId,

@@ -26,6 +26,7 @@ import {
 } from '@/lib/ai/buyer-qualification';
 import { extractEnquiredPropertyFromNote } from '@/lib/contacts/enquiry-note';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { sendListingFeedbackPrompt } from '@/lib/whatsapp/listing-feedback';
 import { isPlaceholderLeadName } from '@/lib/contacts/lead-placeholder';
 import type { Contact } from '@/types';
 
@@ -141,6 +142,19 @@ export async function sendPreferenceTapReply(args: {
     });
 
     if (matches.length > 0 && result.success) {
+      // One tap per listing beats "reply with the number": the form row
+      // inside the list also replaces the separate form message, so the
+      // whole turn stays at two bubbles.
+      await sendListingFeedbackPrompt({
+        db,
+        accountId,
+        userId,
+        contactId,
+        conversationId,
+        matches,
+        includeFormRow: true,
+      });
+
       // Surface the same listings on Match Radar so the agent picks the
       // thread up already knowing what the lead was shown.
       void generateMatchEventForContact(db, accountId, contactId).catch(

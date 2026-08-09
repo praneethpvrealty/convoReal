@@ -16,6 +16,13 @@ vi.mock('@/lib/whatsapp/meta-api-dispatcher', () => ({
     sendWhatsAppMessageAndPersist(...args),
 }));
 
+const sendListingFeedbackPrompt = vi.fn();
+
+vi.mock('@/lib/whatsapp/listing-feedback', () => ({
+  sendListingFeedbackPrompt: (...args: unknown[]) =>
+    sendListingFeedbackPrompt(...args),
+}));
+
 const { sendPreferenceTapReply, buildPreferenceTapReply } =
   await import('./preference-tap-reply');
 
@@ -180,6 +187,24 @@ describe('sendPreferenceTapReply', () => {
       'acct-1',
       'c1'
     );
+  });
+
+  it('follows the listings with the one-tap feedback list, form row included', async () => {
+    // The list's "Update preferences" row replaces the separate form
+    // message, keeping the turn at two bubbles.
+    rankPropertiesForContact.mockResolvedValue([aMatch]);
+
+    await sendPreferenceTapReply(args());
+
+    expect(sendListingFeedbackPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ matches: [aMatch], includeFormRow: true })
+    );
+  });
+
+  it('skips the feedback list when nothing was shown', async () => {
+    rankPropertiesForContact.mockResolvedValue([]);
+    await sendPreferenceTapReply(args());
+    expect(sendListingFeedbackPrompt).not.toHaveBeenCalled();
   });
 
   it('raises no Radar event when there was nothing to show', async () => {
