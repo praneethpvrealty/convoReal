@@ -9,7 +9,21 @@ import {
   ENQUIRY_NOTICE_FAILURE_REASONS,
 } from './enquiry-notice-params';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Contact } from '@/types';
+import type { BroadcastRecipient, Contact, RecipientStatus } from '@/types';
+
+/** Statuses a sweep may take ownership of. */
+const CLAIMABLE_STATUSES: RecipientStatus[] = ['pending', 'rate_limited'];
+
+/** Claimable, plus rows another sweep currently holds. */
+export const IN_FLIGHT_STATUSES: RecipientStatus[] = [...CLAIMABLE_STATUSES, 'sending'];
+
+/**
+ * How long a claim is honoured before another sweep may take the row.
+ * Comfortably longer than one send (a Meta round-trip plus the batch
+ * pacing below) and shorter than the 5-minute cron interval, so a
+ * crashed sweep's recipients are picked up on the next tick.
+ */
+export const CLAIM_LEASE_MS = 120_000;
 
 export interface CustomFieldFilter {
   fieldId: string;
@@ -256,13 +270,24 @@ export async function sendBroadcastRecipients(
     return;
   }
 
-  // Find recipients with status 'pending' or 'rate_limited' (and retry_after <= now)
   const nowStr = new Date().toISOString();
-  const { data: recipients, error: rFetchErr } = await supabase
+
+  // Release claims a dead sweep abandoned. `retry_after` is the claim's
+  // lease, so an expired one means the process that held it is gone and
+  // the recipient is owed its send.
+  await supabase
     .from('broadcast_recipients')
-    .select('*, contact:contacts(*)')
+    .update({ status: 'pending', retry_after: null })
     .eq('broadcast_id', broadcastId)
-    .in('status', ['pending', 'rate_limited'])
+    .eq('status', 'sending')
+    .lt('retry_after', nowStr);
+
+  // Find recipients with status 'pending' or 'rate_limited' (and retry_after <= now)
+  const { data: candidates, error: rFetchErr } = await supabase
+    .from('broadcast_recipients')
+    .select('id')
+    .eq('broadcast_id', broadcastId)
+    .in('status', CLAIMABLE_STATUSES)
     .or(`retry_after.is.null,retry_after.lte.${nowStr}`)
     .order('created_at', { ascending: true })
     .limit(limit);
@@ -272,13 +297,47 @@ export async function sendBroadcastRecipients(
     return;
   }
 
-  if (!recipients || recipients.length === 0) {
-    // Check if there are any remaining non-terminal recipients left for this broadcast
+  // Claim before sending. Three producers race for these rows — the
+  // fire-and-forget send in POST /api/broadcasts and the two cron
+  // routes that both call sweepAndSendBroadcasts — and the old code
+  // only marked a recipient 'sent' after the ~1s Meta round-trip, so an
+  // overlapping sweep re-read it as still pending and sent the template
+  // a second time. That is what put two `listing_status_notice`
+  // messages, and two conversations, on the same contact.
+  //
+  // The claim is one UPDATE predicated on the row still being
+  // claimable. Under READ COMMITTED the loser blocks on the row lock,
+  // re-checks the predicate against the committed row, sees 'sending'
+  // and matches nothing — so only the winner gets the row back.
+  let recipients: BroadcastRecipient[] = [];
+  if (candidates && candidates.length > 0) {
+    const { data: claimed, error: claimErr } = await supabase
+      .from('broadcast_recipients')
+      .update({
+        status: 'sending',
+        retry_after: new Date(Date.now() + CLAIM_LEASE_MS).toISOString(),
+      })
+      .in('id', candidates.map((c) => c.id))
+      .in('status', CLAIMABLE_STATUSES)
+      .select('*, contact:contacts(*)');
+
+    if (claimErr) {
+      console.error(`[Broadcast Sender] Error claiming recipients for ${broadcastId}:`, claimErr.message);
+      return;
+    }
+    recipients = (claimed ?? []) as unknown as BroadcastRecipient[];
+  }
+
+  if (recipients.length === 0) {
+    // Check if there are any remaining non-terminal recipients left for
+    // this broadcast. Claimed rows count: another sweep is mid-send on
+    // them, and marking the broadcast 'sent' underneath it would report
+    // a finished campaign while messages are still going out.
     const { count, error: countErr } = await supabase
       .from('broadcast_recipients')
       .select('id', { count: 'exact', head: true })
       .eq('broadcast_id', broadcastId)
-      .in('status', ['pending', 'rate_limited']);
+      .in('status', IN_FLIGHT_STATUSES);
 
     if (!countErr && (count ?? 0) === 0) {
       const { data: summary } = await supabase
@@ -367,6 +426,7 @@ export async function sendBroadcastRecipients(
           .from('broadcast_recipients')
           .update({
             status: 'failed',
+            retry_after: null,
             error_message: 'No phone number on contact',
           })
           .eq('id', recipient.id);
@@ -380,6 +440,7 @@ export async function sendBroadcastRecipients(
           .from('broadcast_recipients')
           .update({
             status: 'failed',
+            retry_after: null,
             error_message: 'Contact opted out of WhatsApp alerts (STOP ALERTS)',
           })
           .eq('id', recipient.id);
@@ -398,6 +459,7 @@ export async function sendBroadcastRecipients(
             .from('broadcast_recipients')
             .update({
               status: 'failed',
+              retry_after: null,
               error_message: ENQUIRY_NOTICE_FAILURE_REASONS[resolved.failure],
             })
             .eq('id', recipient.id);
@@ -446,6 +508,7 @@ export async function sendBroadcastRecipients(
               sent_at: new Date().toISOString(),
               whatsapp_message_id: result.whatsappMessageId,
               error_message: null,
+              retry_after: null,
               retry_count: newCount,
             })
             .eq('id', recipient.id);

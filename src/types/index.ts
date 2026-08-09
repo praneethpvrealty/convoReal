@@ -707,6 +707,12 @@ export type BroadcastStatus =
   | 'failed';
 export type RecipientStatus =
   | 'pending'
+  /**
+   * Claimed by a sweep and handed to Meta. Transient: `retry_after`
+   * carries the claim's lease so a sweep that dies mid-send releases
+   * the row instead of stranding it. See `src/lib/broadcasts/sender.ts`.
+   */
+  | 'sending'
   | 'sent'
   | 'delivered'
   | 'read'

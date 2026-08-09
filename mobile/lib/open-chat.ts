@@ -28,15 +28,9 @@ export async function openContactChat(
   const draftParam = opts?.draftText
     ? `?draftText=${encodeURIComponent(opts.draftText)}`
     : '';
-  const { data } = await supabase
-    .from('conversations')
-    .select('id')
-    .eq('contact_id', contact.id)
-    .order('last_message_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (data?.id) {
-    router.push(`/(app)/conversation/${data.id}${draftParam}`);
+  const existing = await findThread(contact.id);
+  if (existing) {
+    router.push(`/(app)/conversation/${existing}${draftParam}`);
     return { ok: true };
   }
   const { profile, session } = useAuthStore.getState();
@@ -51,10 +45,29 @@ export async function openContactChat(
     .select('id')
     .single();
   if (error) {
-    haptic.warn();
-    return { ok: false, error: friendlyError(error.message) };
+    // Lost the race against another creator — migration 227's
+    // conversations_account_contact_unique means the winner's thread
+    // is the answer, not a failure to report.
+    const raced = error.code === '23505' ? await findThread(contact.id) : null;
+    if (!raced) {
+      haptic.warn();
+      return { ok: false, error: friendlyError(error.message) };
+    }
+    router.push(`/(app)/conversation/${raced}${draftParam}`);
+    return { ok: true };
   }
   queryClient.invalidateQueries({ queryKey: ['conversations'] });
   router.push(`/(app)/conversation/${conv.id}${draftParam}`);
   return { ok: true };
+}
+
+async function findThread(contactId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('conversations')
+    .select('id')
+    .eq('contact_id', contactId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
 }

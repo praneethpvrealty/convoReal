@@ -485,7 +485,7 @@ export async function processOwnerChatbotMessage(
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
-  conversation: { id: string; unread_count: number },
+  conversation: { id: string },
   accountId: string,
   userId: string,
   accessToken: string,
@@ -2432,7 +2432,7 @@ export async function processExternalListingMessage(
   },
   contentText: string | null,
   contactRecord: { id: string; phone: string; name?: string },
-  conversation: { id: string; unread_count: number },
+  conversation: { id: string },
   accountId: string,
   accessToken: string,
   phoneNumberId: string

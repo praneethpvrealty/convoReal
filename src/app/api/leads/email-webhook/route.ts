@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { normalizePhoneWithCountryCode } from '@/lib/whatsapp/phone-utils';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
+import { resolveConversation } from '@/lib/conversations/resolve';
 import { getAdminClient } from './admin-client';
 import {
   parseMimeEmail,
@@ -872,53 +873,40 @@ export async function POST(request: Request) {
 
       // Find or create conversation for existing contact
       let conversationId = '';
-      const { data: existingConv } = await supabase
-        .from('conversations')
-        .select('id')
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('user_id')
         .eq('account_id', accountId)
-        .eq('contact_id', existingContact.id)
+        .limit(1)
         .maybeSingle();
 
-      if (existingConv) {
-        conversationId = existingConv.id;
-        // Update conversation last message
-        await supabase
-          .from('conversations')
-          // Preview refresh on a conversation just resolved above; the
-          // message insert below is what this webhook is for.
-          // eslint-disable-next-line convoreal/supabase-write-guard
-          .update({
-            last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
-            last_message_at: new Date().toISOString(),
-            awaiting_reply: true,
-            last_customer_message_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', conversationId);
-      } else {
-        // Resolve user_id for existing contact path
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .eq('account_id', accountId)
-          .limit(1)
-          .maybeSingle();
-        
-        if (profile) {
-          const { data: newConv } = await supabase
-            .from('conversations')
-            .insert({
-              account_id: accountId,
-              user_id: profile.user_id,
-              contact_id: existingContact.id,
-              last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
-              last_message_at: new Date().toISOString(),
-              awaiting_reply: true,
-              last_customer_message_at: new Date().toISOString(),
-            })
-            .select('id')
-            .single();
-          if (newConv) conversationId = newConv.id;
+      const leadPreview = `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`;
+      const leadState = {
+        last_message_text: leadPreview,
+        last_message_at: new Date().toISOString(),
+        awaiting_reply: true,
+        last_customer_message_at: new Date().toISOString(),
+      };
+
+      if (profile) {
+        const { conversation, created } = await resolveConversation<{ id: string }>(supabase, {
+          accountId,
+          contactId: existingContact.id,
+          userId: profile.user_id,
+          onCreate: leadState,
+          columns: 'id',
+        });
+        if (conversation) {
+          conversationId = conversation.id;
+          if (!created) {
+            await supabase
+              .from('conversations')
+              // Preview refresh on a conversation just resolved above; the
+              // message insert below is what this webhook is for.
+              // eslint-disable-next-line convoreal/supabase-write-guard
+              .update({ ...leadState, updated_at: new Date().toISOString() })
+              .eq('id', conversationId);
+          }
         }
       }
 
@@ -1057,19 +1045,18 @@ export async function POST(request: Request) {
     }
 
     // 5. Create active conversation thread
-    const { data: conversation, error: convErr } = await supabase
-      .from('conversations')
-      .insert({
-        account_id: accountId,
-        user_id: userId,
-        contact_id: newContact.id,
+    const { conversation, error: convErr } = await resolveConversation<{ id: string }>(supabase, {
+      accountId,
+      contactId: newContact.id,
+      userId,
+      onCreate: {
         last_message_text: `📥 New Lead from ${parsed.source}: ${parsed.requirementText || 'No comments'}`,
         last_message_at: new Date().toISOString(),
         awaiting_reply: true,
         last_customer_message_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+      },
+      columns: 'id',
+    });
 
     if (convErr) {
       console.error('[lead-webhook] Error creating conversation:', convErr);

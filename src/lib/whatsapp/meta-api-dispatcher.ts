@@ -15,6 +15,7 @@ import {
   type FlowActionPayload,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveConversation } from '@/lib/conversations/resolve'
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -222,30 +223,21 @@ export async function sendWhatsAppMessageAndPersist(
 
     // 2. Resolve or Create Conversation
     if (!resolvedConversationId) {
-      const { data: existing, error } = await db
-        .from('conversations')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('contact_id', resolvedContactId)
-        .maybeSingle()
-
-      if (!error && existing) {
-        resolvedConversationId = existing.id
-      } else {
-        const { data: newConv, error: createError } = await db
-          .from('conversations')
-          .insert({
-            account_id: accountId,
-            user_id: userId || (await resolveOwnerUserId()),
-            contact_id: resolvedContactId,
-          })
-          .select()
-          .single()
-        if (createError || !newConv) {
-          throw new Error(`Failed to find or create conversation: ${createError?.message || 'Unknown error'}`)
-        }
-        resolvedConversationId = newConv.id
+      if (!resolvedContactId) {
+        throw new Error('Failed to find or create conversation: no contact resolved')
       }
+      const { conversation, error: resolveError } = await resolveConversation<{ id: string }>(db, {
+        accountId,
+        contactId: resolvedContactId,
+        userId: userId || (await resolveOwnerUserId()),
+        columns: 'id',
+      })
+      if (!conversation) {
+        throw new Error(
+          `Failed to find or create conversation: ${resolveError?.message || 'Unknown error'}`,
+        )
+      }
+      resolvedConversationId = conversation.id
     }
 
     // 2b. Idempotency guard for template sends. A rapid double-submit or

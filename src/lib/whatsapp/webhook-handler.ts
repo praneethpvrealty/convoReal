@@ -1,4 +1,5 @@
 import { decrypt } from '@/lib/whatsapp/encryption'
+import { resolveConversation, type ConversationRow } from '@/lib/conversations/resolve'
 import { DELIVERY_FAILURE_MARKER } from '@/lib/whatsapp/delivery-failure'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { normalizePhone, phonesMatch, normalizePhoneWithCountryCode, sanitizePhoneForMeta, isValidE164 } from '@/lib/whatsapp/phone-utils'
@@ -2361,33 +2362,18 @@ async function findOrCreateConversation(
   configOwnerUserId: string,
   contactId: string,
 ) {
-  const { data: existing, error: findError } = await supabaseAdmin()
-    .from('conversations')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .single()
+  const { conversation, error } = await resolveConversation<ConversationRow>(supabaseAdmin(), {
+    accountId,
+    contactId,
+    userId: configOwnerUserId,
+  })
 
-  if (!findError && existing) {
-    return existing
-  }
-
-  const { data: newConv, error: createError } = await supabaseAdmin()
-    .from('conversations')
-    .insert({
-      account_id: accountId,
-      user_id: configOwnerUserId,
-      contact_id: contactId,
-    })
-    .select()
-    .single()
-
-  if (createError) {
-    console.error('Error creating conversation:', createError)
+  if (error) {
+    console.error('Error creating conversation:', error)
     return null
   }
 
-  return newConv
+  return conversation
 }
 
 export async function handlePropertyShareYesReply(

@@ -1,5 +1,6 @@
 import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { sendWhatsAppMessageAndPersist } from '@/lib/whatsapp/meta-api-dispatcher';
+import { findConversation, resolveConversationId } from '@/lib/conversations/resolve';
 import { truncateParametersToBudget } from '@/lib/whatsapp/template-send-builder';
 import { isReengagementError } from '@/lib/whatsapp/customer-window';
 import { buildPropertyAlertParams } from '@/lib/whatsapp/property-alert-template';
@@ -79,14 +80,11 @@ async function sessionState(
   accountId: string,
   contactId: string,
 ): Promise<{ conversationId: string | null; open: boolean }> {
-  const { data: conv } = await db
-    .from('conversations')
-    .select('id')
-    .eq('account_id', accountId)
-    .eq('contact_id', contactId)
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle();
+  const conv = await findConversation<{ id: string }>(db, {
+    accountId,
+    contactId,
+    columns: 'id',
+  });
   if (!conv) return { conversationId: null, open: false };
 
   const since = new Date(Date.now() - SESSION_WINDOW_MS).toISOString();
@@ -187,12 +185,11 @@ export async function sendPropertyToContact(opts: {
     // has a thread to land in (the inbox hides message-less rows).
     let conversationId = existingConvId;
     if (!conversationId) {
-      const { data: newConv } = await db
-        .from('conversations')
-        .insert({ account_id: accountId, user_id: userId, contact_id: contactId })
-        .select('id')
-        .single();
-      conversationId = newConv?.id ?? null;
+      conversationId = await resolveConversationId(db, {
+        accountId,
+        contactId,
+        userId,
+      });
     }
     return {
       sent: false,

@@ -72,6 +72,7 @@ vi.mock('./admin-client', () => {
         eq: vi.fn().mockImplementation(() => builder),
         or: vi.fn().mockImplementation(() => builder),
         in: vi.fn().mockImplementation(() => builder),
+        order: vi.fn().mockImplementation(() => builder),
         limit: vi.fn().mockImplementation(() => builder),
         maybeSingle: vi.fn().mockImplementation(() => {
           if (table === 'contacts') return Promise.resolve({ data: null, error: null });
